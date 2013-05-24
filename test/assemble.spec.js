@@ -1,8 +1,17 @@
 var path = require('path'),
     fs   = require('fs');
-    mux     = require('../../mux');
+    mux  = require('../../mux');
 
 describe('assemble test suite',function(){
+    var files = [];
+    afterEach(function(){
+        files.forEach(function(file){
+            if(fs.existsSync(file)){
+                fs.unlinkSync(file);
+            }
+        });
+    });
+
     it('should have an assembler object defined',function(){
         expect(mux.assemble).toBeDefined();
     });
@@ -22,14 +31,13 @@ describe('assemble test suite',function(){
             ]
         };
 
+        files.push(template.output);
         mux.assemble(template,function(err,tmpl){
             expect(err).toBeNull();
             expect(tmpl).toBe(template);
             expect(fs.existsSync(tmpl.output)).toEqual(true);
             done();
         });
-
-
     });
 });
 
