@@ -62,6 +62,11 @@ describe('vocalware authToken',function(){
 });
 
 describe('vocalware request',function(){
+    var authToken = vocalWare.createAuthToken({
+                        apiId       : '2312497',
+                        accountId   : '3692723',
+                        secret      : 'a5fee309e61db9ff9a5d75dd04c0b759'
+                    });
 
     it('should create request without requiring params',function(){
         var req = vocalWare.createRequest();
@@ -96,10 +101,83 @@ describe('vocalware request',function(){
         expect(req.authToken).toBeNull();
     });
 
+    it('should have a say method',function(){
+        var init = {
+                engineId    : vocalWare.voices.Dave.EngineId(),
+                langId      : vocalWare.voices.Dave.LangId(),
+                voiceId     : vocalWare.voices.Dave.VoiceId(),
+            },
+            req = vocalWare.createRequest(init);
+
+        expect(req).toBeDefined();
+        expect(req.engineId).toEqual(init.engineId);
+        expect(req.langId).toEqual(init.langId);
+        expect(req.voiceId).toEqual(init.voiceId);
+        expect(req.text).toBeNull();
+        expect(req.ext).toEqual('mp3');
+        expect(req.fxType).toBeNull();
+        expect(req.fxLevel).toBeNull();
+        expect(req.authToken).toBeNull();
+
+        req.say('hello');
+
+        expect(req.engineId).toEqual(init.engineId);
+        expect(req.langId).toEqual(init.langId);
+        expect(req.voiceId).toEqual(init.voiceId);
+        expect(req.text).toEqual('hello');
+        expect(req.ext).toEqual('mp3');
+        expect(req.fxType).toBeNull();
+        expect(req.fxLevel).toBeNull();
+        expect(req.authToken).toBeNull();
+        
+        req.say('goodby', vocalWare.voices.Susan);
+        
+        expect(req.engineId).toEqual(vocalWare.voices.Susan.EngineId());
+        expect(req.langId).toEqual(vocalWare.voices.Susan.LangId());
+        expect(req.voiceId).toEqual(vocalWare.voices.Susan.VoiceId());
+        expect(req.text).toEqual('goodby');
+        expect(req.ext).toEqual('mp3');
+        expect(req.fxType).toBeNull();
+        expect(req.fxLevel).toBeNull();
+        expect(req.authToken).toBeNull();
+
+        expect(function(){
+            req.say();
+        }).toThrow('text parameter required');
+        
+        expect(function(){
+            req.say('blah',{});
+        }).toThrow('voice is not valid');
+    });
+
+    it('should generate a checksum when valid',function(){
+        var req = vocalWare.createRequest({ 'authToken' : authToken, 
+                                            'text' : 'This is a test'}),
+            cksum = req.checksum();
+
+        expect(cksum).toEqual('2c0ef3a9575c00635d3e00ed88a53b16');
+    });
+
+    it('should not generate a checksum when not valid',function(){
+        var req = vocalWare.createRequest();
+
+        expect(function(){
+            req.checksum();
+        }).toThrow('authToken is required');
+
+    });
+
+    it('should generate http opts when valid',function(){
+        var req = vocalWare.createRequest({ 'authToken' : authToken, 
+                                            'text' : 'This is a test'}),
+            opts = req.toHttpOpts();
+        console.log(opts,null,3);
+        expect(opts).not.toBeNull();
+    });
 });
 
 /*
-describe('vocalware test suite',function(){
+describe('vocalware textToSpeech',function(){
     var files = [],
         token = vocalWare.createAuthToken({
                         apiId       : '2312497',
@@ -113,10 +191,6 @@ describe('vocalware test suite',function(){
                 fs.unlinkSync(file);
             }
         });
-    });
-
-    it('should have a vocalware object defined',function(){
-        expect(vocalWare).toBeDefined();
     });
 
     it('should convert text to speech with say',function(done){
@@ -135,39 +209,5 @@ describe('vocalware test suite',function(){
         files.push(outputFile);
     });
 
-    it('should convert text to speech say with voice',function(done){
-        expect(token).toBeDefined();
-        var rqs = vocalWare.createRequest({ authToken   : token }),
-            outputFile = path.join(__dirname,'speech.mp3');
-        rqs.say('This is a test.',vocalWare.voices.Susan);
-        
-        vocalWare.textToSpeech(rqs,outputFile,function(err,r,o){
-            expect(err).toBeNull();
-            expect(r).toBe(rqs);
-            expect(o).toEqual(outputFile);
-            expect(fs.existsSync(o)).toEqual(true);
-            done();
-        });
-        files.push(outputFile);
-    });
-
-    it('should convert text to speech using attributes',function(done){
-        expect(token).toBeDefined();
-        var rqs = vocalWare.createRequest({ authToken   : token }),
-            outputFile = path.join(__dirname,'speech.mp3');
-        rqs.txt('This is a test.');
-        rqs.engineId(2);
-        rqs.voiceId(1);
-        rqs.langId(1);
-        
-        vocalWare.textToSpeech(rqs,outputFile,function(err,r,o){
-            expect(err).toBeNull();
-            expect(r).toBe(rqs);
-            expect(o).toEqual(outputFile);
-            expect(fs.existsSync(o)).toEqual(true);
-            done();
-        });
-        files.push(outputFile);
-    });
 });
 */
