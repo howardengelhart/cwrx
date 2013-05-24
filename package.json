@@ -1,0 +1,12 @@
+{
+  "name": "dubber",
+  "version": "0.0.0",
+  "description": "Dubbing utilities",
+  "main": "lib/index.js",
+  "scripts": {
+    "test": "jasmine-node test"
+  },
+  "repository": "",
+  "author": "Howard Engelhart",
+  "license": "BSD"
+}
