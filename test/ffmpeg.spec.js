@@ -1,6 +1,6 @@
 var path = require('path'),
     fs   = require('fs');
-    dubber     = require('../../dubber'),
+    mux     = require('../../mux'),
     testFile0  = path.join(__dirname,'b0.mp3'),
     testFile1  = path.join(__dirname,'b1.mp3'),
     testFile2  = path.join(__dirname,'b2.mp3'),
@@ -10,7 +10,7 @@ var path = require('path'),
 
 describe('ffmpeg init',function(){
     it('should have an ffmpeg object defined',function(){
-        expect(dubber.ffmpeg).toBeDefined();
+        expect(mux.ffmpeg).toBeDefined();
     });
 });
 
@@ -24,7 +24,7 @@ describe('ffmpeg concat test suite',function(){
 
     it('should concatenate mp3 files',function(done){
 
-        dubber.ffmpeg.concat([testFile0,testFile1,testFile2],concatMp3File,function(err,fpath){
+        mux.ffmpeg.concat([testFile0,testFile1,testFile2],concatMp3File,function(err,fpath){
             expect(err).toBeNull();
             expect(fpath).toEqual(concatMp3File);
             done();
@@ -33,7 +33,7 @@ describe('ffmpeg concat test suite',function(){
     });
 
     it('should not concatenate non mp3 files',function(done){
-        dubber.ffmpeg.concat([__filename,testFile0],concatMp3File,function(err,fpath,cmdline){
+        mux.ffmpeg.concat([__filename,testFile0],concatMp3File,function(err,fpath,cmdline){
             //console.log(cmdline);
             expect(fpath).toBeNull();
             expect(err).not.toBeNull();
@@ -47,7 +47,7 @@ describe('ffmpeg concat test suite',function(){
 describe('ffmpeg probe test suite',function(){
     
     it('should get info on a single mp3 file',function(done){
-        dubber.ffmpeg.probe(testFile0,function(err,info,cmdline){
+        mux.ffmpeg.probe(testFile0,function(err,info,cmdline){
             expect(err).toBeNull();
             expect(info).not.toBeNull();
             expect(info.filename).toEqual(testFile0);
@@ -63,7 +63,7 @@ describe('ffmpeg probe test suite',function(){
     });
 
     it('should return an error when probing a non media file',function(done){
-        dubber.ffmpeg.probe(__filename,function(err,info,cmdline){
+        mux.ffmpeg.probe(__filename,function(err,info,cmdline){
             expect(info).toBeNull();
             expect(err).not.toBeNull();
             expect(err.message).toEqual( __filename + 
@@ -87,11 +87,11 @@ describe('ffmpeg merge test suite', function(){
 
     it('should merge a video with mp3 file',function(done){
 
-        dubber.ffmpeg.concat([testFile0,testFile1,testFile2],concatMp3File,function(err,fpath){
+        mux.ffmpeg.concat([testFile0,testFile1,testFile2],concatMp3File,function(err,fpath){
             expect(err).toBeNull();
             expect(fpath).toEqual(concatMp3File);
 
-            dubber.ffmpeg.mergeAudioToVideo(videoFile,concatMp3File,mergedVideoFile,
+            mux.ffmpeg.mergeAudioToVideo(videoFile,concatMp3File,mergedVideoFile,
                 function(err,fpath,cmdline){
                     expect(err).toBeNull();
                     expect(fpath).toEqual(mergedVideoFile);
@@ -113,7 +113,7 @@ describe('ffmpeg blank audio generator tests', function(){
     });
 
     it('should create a blank',function(done){
-        dubber.ffmpeg.makeBlankMP3(blankFile,1.5,function(err,fpath,cmdline){
+        mux.ffmpeg.makeBlankMP3(blankFile,1.5,function(err,fpath,cmdline){
             expect(err).toBeNull();
             expect(fpath).toEqual(blankFile);
             expect(fs.existsSync(blankFile)).toEqual(true);
@@ -123,7 +123,7 @@ describe('ffmpeg blank audio generator tests', function(){
     
     it('should create a blank at a different bit rate',function(done){
         var opts = { bitrate : '48k' };
-        dubber.ffmpeg.makeBlankMP3(blankFile,1.5,opts,function(err,fpath,cmdline){
+        mux.ffmpeg.makeBlankMP3(blankFile,1.5,opts,function(err,fpath,cmdline){
             expect(err).toBeNull();
             expect(fpath).toEqual(blankFile);
             expect(fs.existsSync(blankFile)).toEqual(true);
@@ -133,7 +133,7 @@ describe('ffmpeg blank audio generator tests', function(){
 
     it('should create a blank at a different frequency',function(done){
         var opts = { bitrate : '48k' , frequency : 22050 };
-        dubber.ffmpeg.makeBlankMP3(blankFile,1.5,opts,function(err,fpath,cmdline){
+        mux.ffmpeg.makeBlankMP3(blankFile,1.5,opts,function(err,fpath,cmdline){
             expect(err).toBeNull();
             expect(fpath).toEqual(blankFile);
             expect(fs.existsSync(blankFile)).toEqual(true);
@@ -156,7 +156,7 @@ describe('ffmpeg combination tests', function(){
 
     it('should combine creating blanks, concatenation, and merging',function(done){
         var makeBlanks = function(){
-            dubber.ffmpeg.makeBlankMP3(path.join(__dirname,'blank' + (++i) + '.mp3'), i ,
+            mux.ffmpeg.makeBlankMP3(path.join(__dirname,'blank' + (++i) + '.mp3'), i ,
                 function(err,fname){
                     expect(err).toBeNull();
                     fileCleanup.push(fname);
@@ -176,7 +176,7 @@ describe('ffmpeg combination tests', function(){
             fileList.push(fileCleanup[2]);
             fileList.push(testFile2);
             
-            dubber.ffmpeg.concat(fileList,concatMp3File,function(err,fpath){
+            mux.ffmpeg.concat(fileList,concatMp3File,function(err,fpath){
                 expect(err).toBeNull();
                 expect(fpath).toEqual(concatMp3File);
                 fileCleanup.push(concatMp3File);
@@ -184,7 +184,7 @@ describe('ffmpeg combination tests', function(){
             });
         },
         mergeAudioToVideo = function(){
-            dubber.ffmpeg.mergeAudioToVideo(videoFile,concatMp3File,mergedVideoFile,
+            mux.ffmpeg.mergeAudioToVideo(videoFile,concatMp3File,mergedVideoFile,
                 function(err,fpath,cmdline){
                     expect(err).toBeNull();
                     expect(fpath).toEqual(mergedVideoFile);

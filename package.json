@@ -1,12 +1,12 @@
 {
-  "name": "dubber",
+  "name": "mux",
   "version": "0.0.0",
-  "description": "Dubbing utilities",
+  "description": "Muxing utilities",
   "main": "lib/index.js",
   "scripts": {
     "test": "jasmine-node test"
   },
-  "repository": "",
+  "repository": "git@github.com:cinema6/mux.git",
   "author": "Howard Engelhart",
   "license": "BSD"
 }

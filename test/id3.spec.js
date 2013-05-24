@@ -2,19 +2,19 @@ var path = require('path');
 
 describe('id3 test suite',function(){
 
-    var dubber,
+    var mux,
         testFile = path.join(__dirname,'b0.mp3');
 
     beforeEach(function(){
-        dubber = require('../../dubber');
+        mux = require('../../mux');
     });
 
     it('should have an id3Info function defined',function(){
-        expect(dubber.id3Info).toBeDefined();
+        expect(mux.id3Info).toBeDefined();
     });
 
     it('should be able to get id3info on real mp3',function(done){
-        dubber.id3Info(testFile,function(err,data){
+        mux.id3Info(testFile,function(err,data){
             expect(err).toBeNull();
             expect(data).toBeDefined();
             expect(data).not.toBeNull();
@@ -28,7 +28,7 @@ describe('id3 test suite',function(){
     });
 
     it('should throw an error if attempt id3info on a bad file',function(done){
-        dubber.id3Info(__filename,function(err,data){
+        mux.id3Info(__filename,function(err,data){
             expect(data).not.toBeDefined();
             expect(err).toBeDefined();
             expect(err).not.toBeNull();
@@ -39,7 +39,7 @@ describe('id3 test suite',function(){
     });
 
     it('should throw an error if a bad id3Info cmd is set',function(done){
-        dubber.id3Info(testFile,'dfdf',function(err,data){
+        mux.id3Info(testFile,'dfdf',function(err,data){
             expect(err).toBeDefined();
             expect(err).not.toBeNull();
             expect(err.message).toEqual('Command failed: /bin/sh: dfdf: command not found\n');
