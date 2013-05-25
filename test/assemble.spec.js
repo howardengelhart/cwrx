@@ -34,7 +34,10 @@ describe('assemble test suite',function(){
         files.push(template.output);
         mux.assemble(template,function(err,tmpl){
             expect(err).toBeNull();
-            expect(tmpl).toBe(template);
+            expect(tmpl).not.toBeNull();
+            if (tmpl){
+                expect(tmpl).toBe(template);
+            }
             expect(fs.existsSync(tmpl.output)).toEqual(true);
             done();
         });

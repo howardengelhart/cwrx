@@ -155,7 +155,7 @@ describe('vocalware request',function(){
                                             'text' : 'This is a test'}),
             cksum = req.checksum();
 
-        expect(cksum).toEqual('2c0ef3a9575c00635d3e00ed88a53b16');
+        expect(cksum).toEqual('beb5d3a6be5c592dcc2ced20cc2360ee');
     });
 
     it('should not generate a checksum when not valid',function(){
@@ -170,20 +170,26 @@ describe('vocalware request',function(){
     it('should generate http opts when valid',function(){
         var req = vocalWare.createRequest({ 'authToken' : authToken, 
                                             'text' : 'This is a test'}),
-            opts = req.toHttpOpts();
-        console.log(opts,null,3);
-        expect(opts).not.toBeNull();
+        opts = req.toHttpOpts();
+        expect(opts).toEqual(
+            { 
+              hostname: 'www.vocalware.com',
+              port: 80,
+              path: '/tts/gen.php?EID=2&LID=1&VID=1&TXT=This%20is%20a%20test&EXT=mp3&FX_TYPE=&FX_LEVEL=&ACC=3692723&API=2312497&SESSION=&CS=beb5d3a6be5c592dcc2ced20cc2360ee',
+              method: 'GET' 
+            }
+        );
     });
 });
 
-/*
+
 describe('vocalware textToSpeech',function(){
-    var files = [],
-        token = vocalWare.createAuthToken({
+    var token = vocalWare.createAuthToken({
                         apiId       : '2312497',
                         accountId   : '3692723',
                         secret      : 'a5fee309e61db9ff9a5d75dd04c0b759'
-                    });
+                    }),
+        files = [];
 
     afterEach(function(){
         files.forEach(function(file){
@@ -194,9 +200,9 @@ describe('vocalware textToSpeech',function(){
     });
 
     it('should convert text to speech with say',function(done){
-        expect(token).toBeDefined();
         var rqs = vocalWare.createRequest({ authToken   : token }),
             outputFile = path.join(__dirname,'speech.mp3');
+        
         rqs.say('This is a test.');
        
         vocalWare.textToSpeech(rqs,outputFile,function(err,r,o){
@@ -208,6 +214,25 @@ describe('vocalware textToSpeech',function(){
         });
         files.push(outputFile);
     });
-
+    
+    it('should not convert with a bad apiId',function(done){
+        var token = vocalWare.createAuthToken({
+                            apiId       : '9999999',
+                            accountId   : '3692723',
+                            secret      : 'a5fee309e61db9ff9a5d75dd04c0b759'
+                        }),
+            rqs = vocalWare.createRequest({ authToken   : token }),
+            outputFile = path.join(__dirname,'speech.mp3');
+        
+        rqs.say('This is a test.');
+       
+        vocalWare.textToSpeech(rqs,outputFile,function(err,r,o){
+            expect(err).not.toBeNull();
+            expect(err.message).toEqual('request error: Error: [206] In-valid scene: Invalid API.');
+            expect(r).toBe(rqs);
+            expect(o).toBeNull();
+            done();
+        });
+        files.push(outputFile);
+    });
 });
-*/
