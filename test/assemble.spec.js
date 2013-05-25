@@ -1,6 +1,7 @@
-var path = require('path'),
-    fs   = require('fs');
-    mux  = require('../../mux');
+var path    = require('path'),
+    fs      = require('fs'),
+    crypto  = require('crypto'),
+    mux     = require('../../mux');
 
 describe('assemble test suite',function(){
     var files = [];
@@ -39,6 +40,12 @@ describe('assemble test suite',function(){
                 expect(tmpl).toBe(template);
             }
             expect(fs.existsSync(tmpl.output)).toEqual(true);
+            var cksum = crypto.createHash('sha1'),
+                buff = fs.readFileSync(tmpl.output);
+            
+            cksum.update(buff);
+            expect(buff.length).toEqual(96110);
+            expect(cksum.digest('hex')).toEqual('e3bfd03fb7aa21745478b8b98a505fe3713e8e20');
             done();
         });
     });

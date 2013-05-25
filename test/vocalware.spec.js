@@ -1,5 +1,6 @@
 var path      = require('path'),
-    fs        = require('fs');
+    fs        = require('fs'),
+    crypto    = require('crypto'),
     mux       = require('../../mux'),
     vocalWare = mux.vocalWare;
 
@@ -206,11 +207,20 @@ describe('vocalware textToSpeech',function(){
         rqs.say('This is a test.');
        
         vocalWare.textToSpeech(rqs,outputFile,function(err,r,o){
-            expect(err).toBeNull();
-            expect(r).toBe(rqs);
-            expect(o).toEqual(outputFile);
-            expect(fs.existsSync(o)).toEqual(true);
-            done();
+            setTimeout(function(){
+                expect(err).toBeNull();
+                expect(r).toBe(rqs);
+                expect(o).toEqual(outputFile);
+                expect(fs.existsSync(o)).toEqual(true);
+
+                var cksum = crypto.createHash('sha1'),
+                    buff = fs.readFileSync(o);
+                
+                cksum.update(buff);
+                expect(buff.length).toEqual(9754);
+                expect(cksum.digest('hex')).toEqual('80b3418b0b9cbfcec52327d5637c000cab044800');
+                done();
+            },500);
         });
         files.push(outputFile);
     });
