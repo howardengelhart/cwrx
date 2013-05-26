@@ -113,7 +113,7 @@ describe('ffmpeg blank audio generator tests', function(){
     });
 
     it('should create a blank',function(done){
-        mux.ffmpeg.makeBlankMP3(blankFile,1.5,function(err,fpath,cmdline){
+        mux.ffmpeg.makeSilentMP3(blankFile,1.5,function(err,fpath,cmdline){
             expect(err).toBeNull();
             expect(fpath).toEqual(blankFile);
             expect(fs.existsSync(blankFile)).toEqual(true);
@@ -123,7 +123,7 @@ describe('ffmpeg blank audio generator tests', function(){
     
     it('should create a blank at a different bit rate',function(done){
         var opts = { bitrate : '48k' };
-        mux.ffmpeg.makeBlankMP3(blankFile,1.5,opts,function(err,fpath,cmdline){
+        mux.ffmpeg.makeSilentMP3(blankFile,1.5,opts,function(err,fpath,cmdline){
             expect(err).toBeNull();
             expect(fpath).toEqual(blankFile);
             expect(fs.existsSync(blankFile)).toEqual(true);
@@ -133,7 +133,7 @@ describe('ffmpeg blank audio generator tests', function(){
 
     it('should create a blank at a different frequency',function(done){
         var opts = { bitrate : '48k' , frequency : 22050 };
-        mux.ffmpeg.makeBlankMP3(blankFile,1.5,opts,function(err,fpath,cmdline){
+        mux.ffmpeg.makeSilentMP3(blankFile,1.5,opts,function(err,fpath,cmdline){
             expect(err).toBeNull();
             expect(fpath).toEqual(blankFile);
             expect(fs.existsSync(blankFile)).toEqual(true);
@@ -156,7 +156,7 @@ describe('ffmpeg combination tests', function(){
 
     it('should combine creating blanks, concatenation, and merging',function(done){
         var makeBlanks = function(){
-            mux.ffmpeg.makeBlankMP3(path.join(__dirname,'blank' + (++i) + '.mp3'), i ,
+            mux.ffmpeg.makeSilentMP3(path.join(__dirname,'blank' + (++i) + '.mp3'), i ,
                 function(err,fname){
                     expect(err).toBeNull();
                     fileCleanup.push(fname);

@@ -30,7 +30,7 @@ __ffmpeg.mergeAudioToVideo__
 
 Merges an audio file (mp3) into a video file.
 
-__ffmpeg.makeBlankMP3__
+__ffmpeg.makeSilentMP3__
 
 Generates blank (silent) mp3 files up to 5 minutes in length.
 
@@ -46,3 +46,16 @@ The mux.assemble library is a single function used to assemble a composite mp3.
 
 The mux.vocalWare library provides convenient wrappers around the VocalWare RESTful API.
 
+####Testing
+
+By default, 'npm test' will exclude the VocalWare test specs.  In order to run the VocalWare unit tests the following command line must be given:
+
+%> jasmine-node --config with-vocalware 1 --config vwauth vwauth.json test/vocalware.spec.js 
+
+The vwauth.json file (name is optional) should contain the following, (replace 9's with your own ids):
+
+{
+    "apiId"       : "9999999",
+    "accountId"   : "9999999",
+    "secret"      : "99999999999999999999999999999999"
+}

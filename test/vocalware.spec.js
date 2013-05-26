@@ -4,7 +4,12 @@ var path      = require('path'),
     fs        = require('fs'),
     crypto    = require('crypto'),
     mux       = require('../../mux'),
-    vocalWare = mux.vocalWare;
+    vocalWare = mux.vocalWare,
+    tokenData = {
+                    apiId       : '9999999',
+                    accountId   : '9999999',
+                    secret      : '99999999999999999999999999999999'
+    };
 
 describe('vocalware authToken',function(){
     var files = [];
@@ -16,19 +21,14 @@ describe('vocalware authToken',function(){
         });
     });
     it('should create authToken from init object',function(){
-        var init = {
-                        apiId       : '2312497',
-                        accountId   : '3692723',
-                        secret      : 'a5fee309e61db9ff9a5d75dd04c0b759'
-                    },
-            token = vocalWare.createAuthToken(init);
+        var token = vocalWare.createAuthToken(tokenData);
 
-        expect(token.getApiId()).toEqual(init.apiId);
-        expect(token.getAccountId()).toEqual(init.accountId);
-        expect(token.getSecret()).toEqual(init.secret);
+        expect(token.getApiId()).toEqual(tokenData.apiId);
+        expect(token.getAccountId()).toEqual(tokenData.accountId);
+        expect(token.getSecret()).toEqual(tokenData.secret);
     });
 
-    it('should except if missing data from the init object',function(){
+    it('should except if missing data from the tokenData object',function(){
         expect(function(){
             vocalWare.createAuthToken({ apiId : 'xxx', accountId : 'yyyy'});
         }).toThrow('token is missing secret');
@@ -42,19 +42,14 @@ describe('vocalware authToken',function(){
 
     it('should create authToken from file',function(){
         var dummy = path.join(__dirname,'dummy'), 
-            init = {
-                        apiId       : '2312497',
-                        accountId   : '3692723',
-                        secret      : 'a5fee309e61db9ff9a5d75dd04c0b759'
-                    },
             token;
         files.push(dummy);
-        fs.writeFileSync(dummy,JSON.stringify(init));
+        fs.writeFileSync(dummy,JSON.stringify(tokenData));
         token = vocalWare.createAuthToken(dummy);
 
-        expect(token.getApiId()).toEqual(init.apiId);
-        expect(token.getAccountId()).toEqual(init.accountId);
-        expect(token.getSecret()).toEqual(init.secret);
+        expect(token.getApiId()).toEqual(tokenData.apiId);
+        expect(token.getAccountId()).toEqual(tokenData.accountId);
+        expect(token.getSecret()).toEqual(tokenData.secret);
     });
     
     it('should except if the token file is bad',function(){
@@ -65,11 +60,7 @@ describe('vocalware authToken',function(){
 });
 
 describe('vocalware request',function(){
-    var authToken = vocalWare.createAuthToken({
-                        apiId       : '2312497',
-                        accountId   : '3692723',
-                        secret      : 'a5fee309e61db9ff9a5d75dd04c0b759'
-                    });
+    var authToken = vocalWare.createAuthToken(tokenData);
 
     it('should create request without requiring params',function(){
         var req = vocalWare.createRequest();
@@ -158,7 +149,7 @@ describe('vocalware request',function(){
                                             'text' : 'This is a test'}),
             cksum = req.checksum();
 
-        expect(cksum).toEqual('beb5d3a6be5c592dcc2ced20cc2360ee');
+        expect(cksum).toEqual('acd0d374188e4ff0f1dbfcf403ca465e');
     });
 
     it('should not generate a checksum when not valid',function(){
@@ -178,7 +169,7 @@ describe('vocalware request',function(){
             { 
               hostname: 'www.vocalware.com',
               port: 80,
-              path: '/tts/gen.php?EID=2&LID=1&VID=1&TXT=This%20is%20a%20test&EXT=mp3&FX_TYPE=&FX_LEVEL=&ACC=3692723&API=2312497&SESSION=&CS=beb5d3a6be5c592dcc2ced20cc2360ee',
+              path: '/tts/gen.php?EID=2&LID=1&VID=1&TXT=This%20is%20a%20test&EXT=mp3&FX_TYPE=&FX_LEVEL=&ACC=9999999&API=9999999&SESSION=&CS=acd0d374188e4ff0f1dbfcf403ca465e',
               method: 'GET' 
             }
         );
@@ -203,7 +194,8 @@ describe('vocalware textToSpeech',function(){
     });
 
     it('should convert text to speech with say',function(done){
-        var rqs = vocalWare.createRequest({ authToken   : token }),
+        var token = vocalWare.createAuthToken(process.env['vwauth']),
+            rqs = vocalWare.createRequest({ authToken   : token }),
             outputFile = path.join(__dirname,'speech.mp3');
         
         rqs.say('This is a test.');
@@ -213,25 +205,27 @@ describe('vocalware textToSpeech',function(){
                 expect(err).toBeNull();
                 expect(r).toBe(rqs);
                 expect(o).toEqual(outputFile);
-                expect(fs.existsSync(o)).toEqual(true);
+                if (err === null && o !== null) {
+                    expect(fs.existsSync(o)).toEqual(true);
 
-                var cksum = crypto.createHash('sha1'),
-                    buff = fs.readFileSync(o);
-                
-                cksum.update(buff);
-                expect(buff.length).toEqual(9754);
-                expect(cksum.digest('hex')).toEqual('80b3418b0b9cbfcec52327d5637c000cab044800');
+                    var cksum = crypto.createHash('sha1'),
+                        buff = fs.readFileSync(o);
+                    
+                    cksum.update(buff);
+                    expect(buff.length).toEqual(9754);
+                    expect(cksum.digest('hex')).toEqual('80b3418b0b9cbfcec52327d5637c000cab044800');
+                }
                 done();
             },500);
         });
         files.push(outputFile);
     });
     
-    it('should not convert with a bad apiId',function(done){
+    it('should not convert with a bad account info',function(done){
         var token = vocalWare.createAuthToken({
                             apiId       : '9999999',
-                            accountId   : '3692723',
-                            secret      : 'a5fee309e61db9ff9a5d75dd04c0b759'
+                            accountId   : '9999999',
+                            secret      : '99999999999999999999999999999999'
                         }),
             rqs = vocalWare.createRequest({ authToken   : token }),
             outputFile = path.join(__dirname,'speech.mp3');
@@ -240,7 +234,7 @@ describe('vocalware textToSpeech',function(){
        
         vocalWare.textToSpeech(rqs,outputFile,function(err,r,o){
             expect(err).not.toBeNull();
-            expect(err.message).toEqual('request error: Error: [206] In-valid scene: Invalid API.');
+            expect(err.message).toEqual('request error: Error: [205] In-active account: In-active account.');
             expect(r).toBe(rqs);
             expect(o).toBeNull();
             done();
@@ -248,4 +242,5 @@ describe('vocalware textToSpeech',function(){
         files.push(outputFile);
     });
 });
+
 }//process.env check
