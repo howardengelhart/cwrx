@@ -1,0 +1,48 @@
+{
+        "id"         : "2",
+        "title"      : "Scary Movie",
+        "duration"   : "138",
+        "views"      : "1000",
+        "src"         : [
+                           {
+                            "type": "video/webm",
+                            "src" : "scream.webm"
+                           },
+                           {
+                            "type": "video/mp4",
+                            "src" : "scream.mp4"
+                           }
+                         ],
+        "defSizeLimit": "32",
+        "prompts"     : [
+                "animal",
+                "color",
+                "type of drug",
+                "profession",
+                "school supply",
+                "verb",
+                "synonym for feces",
+                "mode of transportation",
+                "type of sports equipment",
+                "body part"
+                ],
+        "annotations" : {
+            "options" : {
+                "type"      : "talkie",
+                "duration"  : 4,
+                "cls"     : ["scary-${index}"]
+                },
+             "notes"  : [
+                { "ts" : "8", "template" : "Hi, is my ${1} OK?" },
+                { "ts" : "12", "template" : "Its Mrs. Von ${2} Burger, are you alright?"  },
+                { "ts" : "16", "template" : "Are you on ${3}?" },
+                { "ts" : "19", "template" : "Popcorn ${3}?" },
+                { "ts" : "22", "template" : "My ${1} better be OK!" },
+                { "ts" : "25", "template" : "What?" },
+                { "ts" : "29", "template" : "About ${3}?" },
+                { "ts" : "31", "template" : "Did your ${4} give you the ${3}?"  },
+                { "ts" : "35", "template" : "Well does this ${3} movie have a name?" },
+                { "ts" : "46", "template" : "listen to me you little ${5}  ${3} head. You need to hang up now and start to ${6} your ${7} together. I\"m getting in my ${8} and coming home and I am going to get my ${9} and put it through your ${3} filled ${10}. You better not touch my ${1} or give it any of your damn ${3}. This is Mrs. Von ${2} Burger. Goodbye." }
+            ]
+        }
+}
