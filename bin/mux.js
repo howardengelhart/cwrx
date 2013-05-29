@@ -189,7 +189,7 @@ function createMuxJob(template,config){
         track.fname   = (track.hash + '.mp3'),
         track.fpath   = config.cacheAddress(track.fname,'line')
         obj.tracks.push(track);
-        buff = (soh + track.ts + ':' + track.hash);
+        buff += (soh + track.ts.toString() + ':' + track.hash);
     });
 
     obj.scriptHash = hashText(buff);
