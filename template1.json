@@ -1,0 +1,15 @@
+{
+    "video"   : "scream.mp4",
+    "script"  : [
+        { "ts" : "8", "line" : "Hi, is my dog OK?" },
+        { "ts" : "12", "line" : "Its Mrs. Von blue Burger, are you alright?"  },
+        { "ts" : "16", "line" : "Are you on rufy?" },
+        { "ts" : "19", "line" : "Popcorn rufy?" },
+        { "ts" : "22", "line" : "My dog better be OK!" },
+        { "ts" : "25", "line" : "What?" },
+        { "ts" : "29", "line" : "About rufy?" },
+        { "ts" : "31", "line" : "Did your stamp collector give you the rufy?"  },
+        { "ts" : "35", "line" : "Well does this rufy movie have a name?" },
+        { "ts" : "46", "line" : "listen to me you little chalk rufy head. You need to hang up now and start to ruminate your scat together. I\"m getting in my swim and coming home and I am going to get my helmet and put it through your rufy filled balls. You better not touch my dog or give it any of your damn rufy. This is Mrs. Von blue Burger. Goodbye." }
+    ]
+}
