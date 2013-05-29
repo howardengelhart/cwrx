@@ -20,7 +20,8 @@
 var fs       = require('fs-extra'),
     path     = require('path'),
     crypto   = require('crypto'),
-    mux      = require(path.join(__dirname,'../../mux'));
+    mux      = require(path.join(__dirname,'../../mux')),
+    dtStart  = new Date();;
 
 if (!process.env['ut-mux-bin']){
     try {
@@ -51,8 +52,6 @@ function main(done){
     config.ensurePaths();
 
     job = createMuxJob(loadTemplateFromFile(program.args[0]),config);
-
-    //console.log('JOB: ' + JSON.stringify(job,null,3));
 
     var pipeline = [];
     if (!job.hasOutput()){
@@ -99,6 +98,8 @@ function exitApp (resultCode,msg){
             console.log(msg);
         }
     }
+    
+    console.log('Total time: ' + (((new Date()).valueOf() - dtStart.valueOf())  / 1000) + ' sec');
     process.exit(resultCode);
 };
 
@@ -128,7 +129,8 @@ function createConfiguration(cfgFile){
                     video   : path.normalize('/usr/local/share/mux/caches/video/'),
                     output  : path.normalize('/usr/local/share/mux/caches/output/')
                  },
-        ttsAuth : path.join(process.env['HOME'],'.tts.json'),
+        ttsAuth     : path.join(process.env['HOME'],'.tts.json'),
+        tts         : {},
         bitrate     : '48k',
         frequency   : 22050,
         workspace   : __dirname
@@ -166,13 +168,23 @@ function createMuxJob(template,config){
         soh       = String.fromCharCode(1),
         videoExt  = path.extname(template.video),
         videoBase = path.basename(template.video,videoExt);
+    
+    obj.ttsAuth = mux.vocalWare.createAuthToken(config.ttsAuth);
+
+    obj.tts = config.tts;
+
+    if (template.tts) {
+        Object.keys(template.tts).forEach(function(key){
+            obj.tts[key] = template.tts[key];
+        });
+    }
 
     obj.tracks = [];
     template.script.forEach(function(item){
         var track = {
             ts      : Number(item.ts),
             line    : item.line,
-            hash    : hashText(item.line.toLowerCase())
+            hash    : hashText(item.line.toLowerCase() + JSON.stringify(obj.tts))
         };
         track.fname   = (track.hash + '.mp3'),
         track.fpath   = config.cacheAddress(track.fname,'line')
@@ -212,8 +224,6 @@ function createMuxJob(template,config){
         return true;
     }
 
-    obj.ttsAuth = mux.vocalWare.createAuthToken(config.ttsAuth);
-
     obj.assembleTemplate = function(){
         var self = this;
         result = {
@@ -221,7 +231,8 @@ function createMuxJob(template,config){
             bitrate   : config.bitrate,
             frequency : config.frequency,
             workspace : config.workspace,
-            output    : self.scriptPath
+            output    : self.scriptPath,
+            useID3    : true
         };
         result.playList = [];
         self.tracks.forEach(function(track){
@@ -232,7 +243,13 @@ function createMuxJob(template,config){
         });
 
         return result;
-    }
+    };
+
+    obj.mergeTemplate = function(){
+        return  {
+            frequency : config.frequency
+        };
+    };
 
     return obj;
 }
@@ -244,10 +261,12 @@ function hashText(txt){
 }
 
 function pipelineJob(job,pipeline,handler){
-    var fn = pipeline.shift();
+    var fn = pipeline.shift(),
+        jobStart = new Date();
     if (fn) {
-        console.log('Run: ' + fn.name);
+//        console.log('Run: ' + fn.name);
         fn(job,function(err){
+            console.log( fn.name + ': ' + (((new Date()).valueOf() - jobStart.valueOf())  / 1000) + ' sec');
             if (err) {
                 handler(err,job,fn);
             } else {
@@ -263,7 +282,15 @@ function pipelineJob(job,pipeline,handler){
 
         
 function applyScriptToVideo(job,done){
-    done();
+    mux.ffmpeg.mergeAudioToVideo(job.videoPath,job.scriptPath,
+            job.outputPath,job.mergeTemplate(), function(err,fpath,cmdline){
+                if (err) {
+                    done(err);
+                    return;
+                }
+//                console.log('Merged: ' + fpath);
+                done();
+            });
 }
 
 function convertScriptToMP3(job,done){
@@ -272,7 +299,7 @@ function convertScriptToMP3(job,done){
             done(err);
             return;
         }
-        console.log('Assembled: ' + tmpl.output);
+//        console.log('Assembled: ' + tmpl.output);
         done();
     });
 }
@@ -290,7 +317,7 @@ function getVideoLength(job,done){
         }
 
         job.videoLength = info.duration;
-        console.log('Video length: ' + job.videoLength);
+//        console.log('Video length: ' + job.videoLength);
         done();
     });
 }
@@ -305,8 +332,19 @@ function convertLinesToMP3(job,done){
     job.tracks.forEach(function(track){
         if (!fs.existsSync(track.fpath)){
             rqsCount++;
-            var rqs = mux.vocalWare.createRequest({authToken : job.ttsAuth});
-            rqs.say(track.line);
+            var rqs = mux.vocalWare.createRequest({authToken : job.ttsAuth}), voice;
+            if (job.tts.voice){
+                voice = mux.vocalWare.voices[job.tts.voice];
+            }
+            rqs.say(track.line, voice);
+
+            if (job.tts.effect) {
+                rqs.fxType = job.tts.effect;
+            }
+            
+            if (job.tts.level) {
+                rqs.fxLevel = job.tts.level;
+            }
             console.log('Create track: ' + track.fpath);
             mux.vocalWare.textToSpeech(rqs,track.fpath,function(e,rqs,o){
                 if (e) {

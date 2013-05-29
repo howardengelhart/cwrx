@@ -1,4 +1,4 @@
-if (process.env['with-id3'])
+if (process.env['ut-id3'])
 {
     var path = require('path');
 

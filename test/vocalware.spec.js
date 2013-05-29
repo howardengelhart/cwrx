@@ -1,4 +1,4 @@
-if (process.env['with-vocalware']) 
+if (process.env['ut-vocalware']) 
 {
 var path      = require('path'),
     fs        = require('fs'),
