@@ -1,27 +1,19 @@
 #!/usr/bin/env node
-/*
- * What it should do....
- * 1. load a template file containing strings + timestamps + video?
- * 2. load configuration specifying tts service, working directory? caching?
- * 3. create job object from template
- * 4. iterate through each script item
- *  a. create sha1 based on (lc) text.
- *  b. assign sha1 to item in job object
- *  c. search cache for sound file
- *  d. if not found, create mp3 and cache, name using sha1
- * 5. If found all items in cache, check cache for composite sha1 (sha1 of all sha1's)
- *   a. if found use that mp3
- *   b. if not found create that mp3
- * 6. Create video name sha1 (concat mp3 sha1 + video src type sha1 + video name sha1)
- * 7. If found in cache, return that video, else
- * 8. Generate amerge of video, cache using video sha1
- * 9. Return link to merged video
- */
+
 var fs       = require('fs-extra'),
     path     = require('path'),
     crypto   = require('crypto'),
+    log      = require('../lib/logger'),
     mux      = require(path.join(__dirname,'../../mux')),
-    dtStart  = new Date();;
+    dtStart  = new Date(),
+    _theLog;
+
+function getLogger() {
+    if (!_theLog) {
+        _theLog = new log.Logger();
+    }
+    return _theLog;
+}
 
 if (!process.env['ut-mux-bin']){
     try {
@@ -35,14 +27,24 @@ if (!process.env['ut-mux-bin']){
 
 function main(done){
     var program  = require('commander'),
+        logger   = getLogger('cheese'),
         config, job;
+   
+//    logger.setLevel('ERROR');
     
     program
         .version('0.0.1')
-        .option('-c, --config [cfgfile]','Specify config file [undefined]',undefined)
-        .option('-v, --video-type [type]', 'Specify video mime type [video/mp4]','video/mp4')
+        .option('-c, --config CFGFILE','Specify config file')
+        .option('-l, --loglevel [ERROR]',
+                'Specify log level (TRACE|DEBUG|INFO|WARN|ERROR|FATAL)', 'ERROR')
+        .option('-s, --server','Run in server mode.')
         .parse(process.argv);
 
+ //   logger.setLevel(program.loglevel);
+
+    for (var i = 0; i < 10000; i++){
+        logger.error('abcdefghijklmnopqrstuvwxyz123456789',i);
+    }
 
     if (!program.args[0]){
         throw new SyntaxError('Expected a template file.');
@@ -91,16 +93,19 @@ function main(done){
  */
 
 function exitApp (resultCode,msg){
+    var logger = getLogger('app');
     if (msg){
         if (resultCode){
-            console.error(msg);
+            logger.error(msg);
         } else {
-            console.log(msg);
+            logger.info(msg);
         }
     }
     
-    console.log('Total time: ' + (((new Date()).valueOf() - dtStart.valueOf())  / 1000) + ' sec');
-    process.exit(resultCode);
+    logger.info('Total time: ' + (((new Date()).valueOf() - dtStart.valueOf())  / 1000) + ' sec');
+    setTimeout(function(){
+        process.exit(resultCode);
+    },100);
 };
 
 
@@ -262,11 +267,12 @@ function hashText(txt){
 
 function pipelineJob(job,pipeline,handler){
     var fn = pipeline.shift(),
+        logger = getLogger('app'),
         jobStart = new Date();
     if (fn) {
-//        console.log('Run: ' + fn.name);
+        logger.debug('Run: ' + fn.name);
         fn(job,function(err){
-            console.log( fn.name + ': ' + (((new Date()).valueOf() - jobStart.valueOf())  / 1000) + ' sec');
+            logger.info( fn.name + ': ' + (((new Date()).valueOf() - jobStart.valueOf())  / 1000) + ' sec');
             if (err) {
                 handler(err,job,fn);
             } else {
@@ -282,29 +288,32 @@ function pipelineJob(job,pipeline,handler){
 
         
 function applyScriptToVideo(job,done){
+    var logger = getLogger('app');
     mux.ffmpeg.mergeAudioToVideo(job.videoPath,job.scriptPath,
             job.outputPath,job.mergeTemplate(), function(err,fpath,cmdline){
                 if (err) {
                     done(err);
                     return;
                 }
-//                console.log('Merged: ' + fpath);
+                logger.debug('Merged: ' + fpath);
                 done();
             });
 }
 
 function convertScriptToMP3(job,done){
+    var logger = getLogger('app');
     mux.assemble(job.assembleTemplate(),function(err,tmpl){
         if (err) {
             done(err);
             return;
         }
-//        console.log('Assembled: ' + tmpl.output);
+        logger.debug('Assembled: ' + tmpl.output);
         done();
     });
 }
 
 function getVideoLength(job,done){
+    var logger = getLogger('app');
     mux.ffmpeg.probe(job.videoPath,function(err,info){
         if (err){
             done(err);
@@ -317,7 +326,7 @@ function getVideoLength(job,done){
         }
 
         job.videoLength = info.duration;
-//        console.log('Video length: ' + job.videoLength);
+        logger.debug('Video length: ' + job.videoLength);
         done();
     });
 }
@@ -327,7 +336,8 @@ function getSourceVideo(job,done){
 }
 
 function convertLinesToMP3(job,done){
-    var rqsCount = 0, errs;
+    var logger = getLogger('app'),
+        rqsCount = 0, errs;
 
     job.tracks.forEach(function(track){
         if (!fs.existsSync(track.fpath)){
@@ -345,7 +355,7 @@ function convertLinesToMP3(job,done){
             if (job.tts.level) {
                 rqs.fxLevel = job.tts.level;
             }
-            console.log('Create track: ' + track.fpath);
+            logger.debug('Create track: ' + track.fpath);
             mux.vocalWare.textToSpeech(rqs,track.fpath,function(e,rqs,o){
                 if (e) {
                     console.error(e.message);
