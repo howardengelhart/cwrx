@@ -1,4 +1,6 @@
-var logger = require('../lib/logger');
+var     fs   = require('fs-extra'),
+        path = require('path'),
+        logger = require('../lib/logger');
 
 describe("basic logger creation and initialization",function(){
 
@@ -200,5 +202,286 @@ describe("log masking",function(){
 
         expect(testMedia.lines.length).toEqual(1);
         expect(testMedia.lines[0].match(/\[trace\] test/)).not.toBeNull();
+    });
+});
+
+describe("log stack",function(){
+
+    var log, testMedia;
+
+    beforeEach(function(){
+        testMedia = {
+            lines     : [],
+            writeLine : function(line) { this.lines.push(line); }
+        };
+        log = logger.createLogger({ logLevel : 'INFO', media : [] });
+        log.addMedia(testMedia);
+    });
+
+    it('should default to not use a log stack',function(){
+        log.info('test'); 
+        expect(testMedia.lines.length).toEqual(1);
+        expect(testMedia.lines[0].match(/\[info\] test/)).not.toBeNull();
+    });
+
+    it('should work with part stack',function(){
+        log.setLogStack('PARTIAL');
+        function someFunc(){
+            log.info('test2');
+        };
+        log.info('test1');
+        someFunc();
+        
+        expect(testMedia.lines.length).toEqual(2);
+        expect(testMedia.lines[0].match(/\[info\] {<anonymous>} test1/)).not.toBeNull();
+        expect(testMedia.lines[1].match(/\[info\] {someFunc} test2/)).not.toBeNull();
+    });
+    
+    it('should work with full stack',function(){
+        log.setLogStack('FULL');
+        function someFunc(){
+            log.info('test2');
+        };
+        log.info('test1');
+        someFunc();
+        expect(testMedia.lines.length).toEqual(2);
+        expect(testMedia.lines[0].match(
+                /\[info\] {null.<anonymous>:logger.spec.js:245} test1/)).not.toBeNull();
+        expect(testMedia.lines[1].match(
+                /\[info\] {someFunc:logger.spec.js:243} test2/)).not.toBeNull();
+    });
+});
+
+describe("file logger initialization",function(){
+    var logDir = path.join(__dirname,'logs');
+
+    it('should initialize properly with defaults',function(){
+        var fm = new logger.FileLogMedia();
+        expect(fm).toBeDefined();
+	    expect(fm.logDir).toEqual('./');
+	    expect(fm.logName).toEqual('log');
+	    expect(fm.backupLogs).toEqual(10);
+	    expect(fm.maxBytes).toEqual(5000000);
+	    expect(fm.maxLineSize).toEqual(1024);
+	    expect(fm.logBasePath).toEqual(path.join('./', 'log'));
+        expect(fm.buff).toBeDefined();
+        expect(fm.bytes).toEqual(-1);
+        expect(fm.fd).toBeNull();
+    });
+
+
+    it('should initialize properly when given a gloabl configuration',function(){
+        var fm = new logger.FileLogMedia({
+            logDir      : logDir,
+            logName     : 'ut.log',
+            backupLogs  : 1,
+            maxBytes    : 100,
+            maxLineSize : 12
+        });
+
+	    expect(fm.logDir).toEqual(logDir);
+	    expect(fm.logName).toEqual('ut.log');
+	    expect(fm.backupLogs).toEqual(1);
+	    expect(fm.maxBytes).toEqual(100);
+	    expect(fm.maxLineSize).toEqual(12);
+    });
+
+    it('should initialize properly when given gloabl and local configuration',function(){
+        var fm = new logger.FileLogMedia({
+            logDir      : logDir,
+            logName     : 'ut.log',
+            backupLogs  : 1,
+            maxBytes    : 100,
+            maxLineSize : 12
+        },{
+            logName : 'ut2.log',
+            backupLogs : 2,
+            maxBytes : 200
+        });
+
+	    expect(fm.logDir).toEqual(logDir);
+	    expect(fm.logName).toEqual('ut2.log');
+	    expect(fm.backupLogs).toEqual(2);
+	    expect(fm.maxBytes).toEqual(200);
+	    expect(fm.maxLineSize).toEqual(12);
+    });
+});
+
+describe('file logger log rotation',function(){
+    var gc = [],
+        logDir = path.join(__dirname,'logs'),
+        makeJunkFiles;
+
+    beforeEach(function(){
+        gc.push(logDir);
+    });
+
+    afterEach(function(){
+        gc.forEach(function(item){
+            if(fs.existsSync(item)){
+                fs.removeSync(item);
+            }
+        });
+        gc = [];
+    });
+
+
+    it('should rotate logs properly in empty dir when backupLogs == 0',function(){
+        var fm = new logger.FileLogMedia({
+            logDir      : logDir,
+            logName     : 'ut.log',
+            backupLogs  : 0,
+            maxBytes    : 100,
+            maxLineSize : 12
+        });
+        fs.mkdirsSync(logDir);
+        expect(fs.readdirSync(logDir).length).toEqual(0);
+        fs.writeFileSync(fm.logBasePath,'test data');
+        expect(fs.readdirSync(logDir).length).toEqual(1);
+        fm.rotateLogs();
+        expect(fs.readdirSync(logDir).length).toEqual(0);
+    });
+
+    it('should rotate logs properly in non empty dir when backupLogs == 0',function(){
+        var fm = new logger.FileLogMedia({
+            logDir      : logDir,
+            logName     : 'ut.log',
+            backupLogs  : 0,
+            maxBytes    : 100,
+            maxLineSize : 12
+        });
+        fs.mkdirsSync(logDir);
+        expect(fs.readdirSync(logDir).length).toEqual(0);
+        fs.writeFileSync(fm.logBasePath,'test data');
+        fs.writeFileSync(path.join(logDir,'junk1'),'test data');
+        fs.writeFileSync(path.join(logDir,'junk2'),'test data');
+        fs.writeFileSync(path.join(logDir,'junk3'),'test data');
+        expect(fs.readdirSync(logDir).length).toEqual(4);
+        fm.rotateLogs();
+        var logFiles = fs.readdirSync(logDir);
+        expect(logFiles.length).toEqual(3);
+        logFiles.forEach(function(elt){
+            expect(elt.match(/junk[1-3]/)).toBeTruthy();
+        });
+    });
+
+    it('should rotate logs properly in empty dir when backupLogs === 1',function(){
+        var fm = new logger.FileLogMedia({
+            logDir      : logDir,
+            logName     : 'ut.log',
+            backupLogs  : 1,
+            maxBytes    : 100,
+            maxLineSize : 12
+        });
+        expect(fm.backupLogs).toEqual(1);
+        fs.mkdirsSync(logDir);
+        expect(fs.readdirSync(logDir).length).toEqual(0);
+        fs.writeFileSync(fm.logBasePath,'test data');
+        expect(fs.readdirSync(logDir).length).toEqual(1);
+        fm.rotateLogs();
+        var logFiles = fs.readdirSync(logDir);
+        expect(logFiles.length).toEqual(1);
+        expect(logFiles[0]).toEqual('ut.log.0');
+    });
+
+    it('should rotate logs properly in shared dir when backupLogs === 1',function(){
+        var fm = new logger.FileLogMedia({
+            logDir      : logDir,
+            logName     : 'ut.log',
+            backupLogs  : 1,
+            maxBytes    : 100,
+            maxLineSize : 12
+        });
+        expect(fm.backupLogs).toEqual(1);
+        fs.mkdirsSync(logDir);
+        expect(fs.readdirSync(logDir).length).toEqual(0);
+        fs.writeFileSync(fm.logBasePath,'test data');
+        fs.writeFileSync(path.join(logDir,'junk1'),'test data');
+        fs.writeFileSync(path.join(logDir,'junk2'),'test data');
+        fs.writeFileSync(path.join(logDir,'junk3'),'test data');
+        expect(fs.readdirSync(logDir).length).toEqual(4);
+        fm.rotateLogs();
+        var logFiles = fs.readdirSync(logDir);
+        expect(logFiles.length).toEqual(4);
+
+        logFiles.forEach(function(elt){
+            expect((elt.match(/junk[1-3]/)) || (elt === 'ut.log.0')).toBeTruthy();
+        });
+    });
+    
+    it('should not rotate log if precedes an empty slot',function(){
+        var fm = new logger.FileLogMedia({
+            logDir      : logDir,
+            logName     : 'ut.log',
+            backupLogs  : 3,
+            maxBytes    : 100,
+            maxLineSize : 12
+        }), logFiles;
+        expect(fm.backupLogs).toEqual(3);
+        fs.mkdirsSync(logDir);
+        expect(fs.readdirSync(logDir).length).toEqual(0);
+        fs.writeFileSync(fm.logBasePath,'test log one');
+        expect(fs.readdirSync(logDir).length).toEqual(1);
+        
+        fm.rotateLogs();
+        
+        logFiles = fs.readdirSync(logDir);
+        expect(logFiles.length).toEqual(1);
+        expect(logFiles[0]).toEqual('ut.log.0');
+        fm.rotateLogs();
+        
+        logFiles = fs.readdirSync(logDir);
+        expect(logFiles.length).toEqual(1);
+        expect(logFiles[0]).toEqual('ut.log.0');
+        
+        fm.rotateLogs();
+        
+        logFiles = fs.readdirSync(logDir);
+        expect(logFiles.length).toEqual(1);
+        expect(logFiles[0]).toEqual('ut.log.0');
+        
+        fs.writeFileSync(fm.logBasePath + '.2','test log two');
+        expect(fs.readdirSync(logDir).length).toEqual(2);
+        fm.rotateLogs();
+        
+        logFiles = fs.readdirSync(logDir);
+        expect(logFiles.length).toEqual(2);
+
+        logFiles.forEach(function(elt){
+            expect((elt.match(/ut.log.[02]/))).toBeTruthy();
+        });
+        
+        fs.writeFileSync(fm.logBasePath + '.3','test log two');
+        expect(fs.readdirSync(logDir).length).toEqual(3);
+        fm.rotateLogs();
+        
+        logFiles = fs.readdirSync(logDir);
+        expect(logFiles.length).toEqual(2);
+        logFiles.forEach(function(elt){
+            expect((elt.match(/ut.log.[02]/))).toBeTruthy();
+        });
+    });
+
+    it('should rotate logs',function(){
+        var fm = new logger.FileLogMedia({
+            logDir      : logDir,
+            logName     : 'ut.log',
+            backupLogs  : 3,
+            maxBytes    : 100,
+            maxLineSize : 12
+        }), logFiles;
+        expect(fm.backupLogs).toEqual(3);
+        fs.mkdirsSync(logDir);
+        expect(fs.readdirSync(logDir).length).toEqual(0);
+        fs.writeFileSync(fm.logBasePath,'test log 3');
+        fs.writeFileSync(fm.logBasePath + '.0','test log 2');
+        fs.writeFileSync(fm.logBasePath + '.1','test log 1');
+        fs.writeFileSync(fm.logBasePath + '.2','test log 0');
+        expect(fs.readdirSync(logDir).length).toEqual(4);
+        fm.rotateLogs();
+        expect(fs.readdirSync(logDir).length).toEqual(3);
+        expect(fs.readFileSync(fm.logBasePath + '.0').toString()).toEqual('test log 3');
+        expect(fs.readFileSync(fm.logBasePath + '.1').toString()).toEqual('test log 2');
+        expect(fs.readFileSync(fm.logBasePath + '.2').toString()).toEqual('test log 1');
     });
 });
