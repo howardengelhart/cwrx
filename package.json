@@ -1,15 +1,15 @@
 {
-  "name": "mux",
+  "name": "cwrx",
   "version": "0.0.0",
-  "description": "Muxing utilities",
+  "description": "Cinema6 node framework",
   "main": "lib/index.js",
   "scripts": {
     "test": "jasmine-node test",
     "test-id3": "jasmine-node --config ut-id3 1 test/id3.spec.js",
     "test-vw": "jasmine-node --config ut-vocalware 1 test/vocalware.spec.js",
-    "test-all": "jasmine-node --config ut-vocalware 1 --config ut-id3 test"
+    "test-all": "jasmine-node --config ut-all 1 test"
   },
-  "repository": "git@github.com:cinema6/mux.git",
+  "repository": "git@github.com:cinema6/cwrx.git",
   "author": "Howard Engelhart",
   "license": "BSD",
   "dependencies": {

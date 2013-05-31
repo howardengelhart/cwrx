@@ -1,10 +1,10 @@
-if (process.env['ut-mux-bin']) {
+if (process.env['ut-dub-bin']) {
 
 var path      = require('path'),
     fs        = require('fs-extra'),
-    mux       = require('../bin/mux');
+    dub       = require('../bin/dub');
 
-describe('mux helpers',function(){
+describe('dub helpers',function(){
     var rmList = [];
     afterEach(function(){
         rmList.forEach(function(removable){
@@ -15,20 +15,20 @@ describe('mux helpers',function(){
     });
 
     it('should create a configuration object without a config file',function(){
-        var cfg = mux.createConfiguration();
+        var cfg = dub.createConfiguration();
         
         expect(cfg.caches).toBeDefined();
         
-        expect(cfg.caches.line).toEqual(path.normalize('/usr/local/share/mux/caches/line/'));
-        expect(cfg.caches.script).toEqual(path.normalize('/usr/local/share/mux/caches/script/'));
-        expect(cfg.caches.video).toEqual(path.normalize('/usr/local/share/mux/caches/video/'));
-        expect(cfg.caches.output).toEqual(path.normalize('/usr/local/share/mux/caches/output/'));
+        expect(cfg.caches.line).toEqual(path.normalize('/usr/local/share/cwrx/dub/caches/line/'));
+        expect(cfg.caches.script).toEqual(path.normalize('/usr/local/share/cwrx/dub/caches/script/'));
+        expect(cfg.caches.video).toEqual(path.normalize('/usr/local/share/cwrx/dub/caches/video/'));
+        expect(cfg.caches.output).toEqual(path.normalize('/usr/local/share/cwrx/dub/caches/output/'));
         
     });
 
     it('should throw an error if given a non existant configuration file', function(){
         expect(function(){
-            mux.createConfiguration('abc.cfg');
+            dub.createConfiguration('abc.cfg');
         }).toThrow('ENOENT, no such file or directory \'abc.cfg\'');
     });
 
@@ -36,7 +36,7 @@ describe('mux helpers',function(){
         rmList.push(path.join(__dirname,'tmpcfg.json'));
         fs.writeFileSync(path.join(__dirname,'tmpcfg.json'),'abc');
         expect(function(){
-            mux.createConfiguration(path.join(__dirname,'tmpcfg.json'));
+            dub.createConfiguration(path.join(__dirname,'tmpcfg.json'));
         }).toThrow('Unexpected token a');
     });
 
@@ -52,7 +52,7 @@ describe('mux helpers',function(){
                         output  : path.join(__dirname,'caches/output/')
                      }
         }));
-        var cfg = mux.createConfiguration(path.join(__dirname,'tmpcfg.json'));
+        var cfg = dub.createConfiguration(path.join(__dirname,'tmpcfg.json'));
        
         cfg.ensurePaths();
         expect(cfg.caches).toBeDefined();
@@ -70,5 +70,5 @@ describe('mux helpers',function(){
 
 });
 
-} // -- END if (process.env['ut-mux-bin']) {
+} // -- END if (process.env['ut-dub-bin']) {
 

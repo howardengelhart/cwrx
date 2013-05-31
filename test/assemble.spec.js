@@ -1,7 +1,10 @@
+if (process.env['ut-all'] || process.env['ut-ffmpeg']) 
+{
+
 var path    = require('path'),
     fs      = require('fs'),
     crypto  = require('crypto'),
-    mux     = require('../../mux');
+    cwrx     = require('../../cwrx');
 
 describe('assemble test suite',function(){
     var files = [];
@@ -14,7 +17,7 @@ describe('assemble test suite',function(){
     });
 
     it('should have an assembler object defined',function(){
-        expect(mux.assemble).toBeDefined();
+        expect(cwrx.assemble).toBeDefined();
     });
 
 
@@ -33,7 +36,7 @@ describe('assemble test suite',function(){
         };
 
         files.push(template.output);
-        mux.assemble(template,function(err,tmpl){
+        cwrx.assemble(template,function(err,tmpl){
             expect(err).toBeNull();
             expect(tmpl).not.toBeNull();
             if (tmpl){
@@ -51,4 +54,4 @@ describe('assemble test suite',function(){
     });
 });
 
-
+}//process.env check

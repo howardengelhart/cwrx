@@ -1,26 +1,28 @@
-mux
+cwrx
 ===
 
-Library and utilities for muxing with ffmpeg
+Cinema6 node utility framework
 
-The mux api provides the following sub-modules:
-* __mux.ffmpeg__ - Wrappers for various ffmpeg utilities
-* __mux.assemble__ - Helper for concatenating a list of mp3s into a single mp3, including blank spaces between tracks
-* __mux.vocalWare__ - Wrapper for the vocalware REST api
+The cwrx (pronounced see-works) library is the node platform library used primarily by Cinema6 back-end applications, aka "the works".
+
+The cwrx api provides the following sub-modules:
+* __cwrx.assemble__ - Helper for concatenating a list of mp3s into a single mp3, including blank spaces between tracks
+* __cwrx.ffmpeg__ - Wrappers for various ffmpeg utilities
+* __cwrx.id3__ - Wrappers for id3v2 tools.
+* __cwrx.logger__ - Handy console or file logging api, supports log rotation.
+* __cwrx.vocalWare__ - Wrapper for the vocalware REST api
 
 ##Prerequisites
 
-mux requires the ffmpeg command line application to have been previously installed on the target host.  The library makes use of ffmpeg and ffprobe.   Version 1.2 or above required.
-
-Use of the optional vocalware module requires a valid vocalware account.
+cwrx.ffmpeg and cwrx.assemble requires the ffmpeg command line application to have been previously installed on the target host.  The library makes use of ffmpeg and ffprobe.   Version 1.2 or above required.  While not required, the installation of the id3v2 tools is recommended to improve accuracy of the assemble module. Use of the optional vocalware module requires a valid vocalware account.
 
 ##Modules
 
-mux provides several useful modules for working with audio and visual files and text to speech.
+cwrx provides several useful modules for working with audio and visual files and text to speech.
 
-###mux.ffmpeg
+###cwrx.ffmpeg
 
-The mux.ffmpeg library provides convenient wrappers and result checking for several ffmpeg functions.
+The cwrx.ffmpeg library provides convenient wrappers and result checking for several ffmpeg functions.
 
 __ffmpeg.concat__
 
@@ -38,13 +40,13 @@ __ffmpeg.probe__
 
 Returns some basic information about a media file.
 
-###mux.assemble
+###cwrx.assemble
 
-The mux.assemble library is a single function used to assemble a composite mp3.
+The cwrx.assemble library is a single function used to assemble a composite mp3.
 
-###mux.vocalWare
+###cwrx.vocalWare
 
-The mux.vocalWare library provides convenient wrappers around the VocalWare RESTful API.
+The cwrx.vocalWare library provides convenient wrappers around the VocalWare RESTful API.
 
 ####Testing
 

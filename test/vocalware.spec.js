@@ -1,10 +1,10 @@
-if (process.env['ut-vocalware']) 
+if (process.env['ut-all'] || process.env['ut-vocalware']) 
 {
 var path      = require('path'),
     fs        = require('fs'),
     crypto    = require('crypto'),
-    mux       = require('../../mux'),
-    vocalWare = mux.vocalWare,
+    cwrx      = require('../../cwrx'),
+    vocalWare = cwrx.vocalWare,
     tokenData = {
                     apiId       : '9999999',
                     accountId   : '9999999',

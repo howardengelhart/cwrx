@@ -4,7 +4,7 @@ var fs       = require('fs-extra'),
     path     = require('path'),
     crypto   = require('crypto'),
     log      = require('../lib/logger'),
-    mux      = require(path.join(__dirname,'../../mux')),
+    cwrx      = require(path.join(__dirname,'../../cwrx')),
     dtStart  = new Date(),
     _theLog;
 
@@ -15,7 +15,7 @@ function getLogger() {
     return _theLog;
 }
 
-if (!process.env['ut-mux-bin']){
+if (!process.env['ut-cwrx-bin']){
     try {
         main(function(rc,msg){
             exitApp(rc,msg);
@@ -53,7 +53,7 @@ function main(done){
     config = createConfiguration(program.config);
     config.ensurePaths();
 
-    job = createMuxJob(loadTemplateFromFile(program.args[0]),config);
+    job = createDubJob(loadTemplateFromFile(program.args[0]),config);
 
     var pipeline = [];
     if (!job.hasOutput()){
@@ -129,10 +129,10 @@ function loadTemplateFromFile(tmplFile){
 function createConfiguration(cfgFile){
     var userCfg,cfgObject = {
         caches : {
-                    line    : path.normalize('/usr/local/share/mux/caches/line/'),
-                    script  : path.normalize('/usr/local/share/mux/caches/script/'),
-                    video   : path.normalize('/usr/local/share/mux/caches/video/'),
-                    output  : path.normalize('/usr/local/share/mux/caches/output/')
+                    line    : path.normalize('/usr/local/share/cwrx/dub/caches/line/'),
+                    script  : path.normalize('/usr/local/share/cwrx/dub/caches/script/'),
+                    video   : path.normalize('/usr/local/share/cwrx/dub/caches/video/'),
+                    output  : path.normalize('/usr/local/share/cwrx/dub/caches/output/')
                  },
         ttsAuth     : path.join(process.env['HOME'],'.tts.json'),
         tts         : {},
@@ -167,14 +167,14 @@ function createConfiguration(cfgFile){
     return cfgObject;
 }
 
-function createMuxJob(template,config){
+function createDubJob(template,config){
     var buff,
         obj       = {},
         soh       = String.fromCharCode(1),
         videoExt  = path.extname(template.video),
         videoBase = path.basename(template.video,videoExt);
     
-    obj.ttsAuth = mux.vocalWare.createAuthToken(config.ttsAuth);
+    obj.ttsAuth = cwrx.vocalWare.createAuthToken(config.ttsAuth);
 
     obj.tts = config.tts;
 
@@ -289,7 +289,7 @@ function pipelineJob(job,pipeline,handler){
         
 function applyScriptToVideo(job,done){
     var logger = getLogger('app');
-    mux.ffmpeg.mergeAudioToVideo(job.videoPath,job.scriptPath,
+    cwrx.ffmpeg.mergeAudioToVideo(job.videoPath,job.scriptPath,
             job.outputPath,job.mergeTemplate(), function(err,fpath,cmdline){
                 if (err) {
                     done(err);
@@ -302,7 +302,7 @@ function applyScriptToVideo(job,done){
 
 function convertScriptToMP3(job,done){
     var logger = getLogger('app');
-    mux.assemble(job.assembleTemplate(),function(err,tmpl){
+    cwrx.assemble(job.assembleTemplate(),function(err,tmpl){
         if (err) {
             done(err);
             return;
@@ -314,7 +314,7 @@ function convertScriptToMP3(job,done){
 
 function getVideoLength(job,done){
     var logger = getLogger('app');
-    mux.ffmpeg.probe(job.videoPath,function(err,info){
+    cwrx.ffmpeg.probe(job.videoPath,function(err,info){
         if (err){
             done(err);
             return;
@@ -342,9 +342,9 @@ function convertLinesToMP3(job,done){
     job.tracks.forEach(function(track){
         if (!fs.existsSync(track.fpath)){
             rqsCount++;
-            var rqs = mux.vocalWare.createRequest({authToken : job.ttsAuth}), voice;
+            var rqs = cwrx.vocalWare.createRequest({authToken : job.ttsAuth}), voice;
             if (job.tts.voice){
-                voice = mux.vocalWare.voices[job.tts.voice];
+                voice = cwrx.vocalWare.voices[job.tts.voice];
             }
             rqs.say(track.line, voice);
 
@@ -356,7 +356,7 @@ function convertLinesToMP3(job,done){
                 rqs.fxLevel = job.tts.level;
             }
             logger.debug('Create track: ' + track.fpath);
-            mux.vocalWare.textToSpeech(rqs,track.fpath,function(e,rqs,o){
+            cwrx.vocalWare.textToSpeech(rqs,track.fpath,function(e,rqs,o){
                 if (e) {
                     console.error(e.message);
                     if (!errs) {
@@ -380,6 +380,6 @@ function convertLinesToMP3(job,done){
 
 module.exports = {
     'createConfiguration' : createConfiguration,
-    'createMuxJob'        : createMuxJob
+    'createDubJob'        : createDubJob
 };
 
