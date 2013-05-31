@@ -1,5 +1,3 @@
-if (process.env['ut-all'] || process.env['ut-vocalware']) 
-{
 var path      = require('path'),
     fs        = require('fs'),
     crypto    = require('crypto'),
@@ -55,7 +53,7 @@ describe('vocalware authToken',function(){
     it('should except if the token file is bad',function(){
         expect(function(){
             vocalWare.createAuthToken(__filename);
-        }).toThrow('unable to parse json from token file: Unexpected token i');
+        }).toThrow('unable to parse json from token file: Unexpected token v');
     });
 });
 
@@ -242,5 +240,3 @@ describe('vocalware textToSpeech',function(){
         files.push(outputFile);
     });
 });
-
-}//process.env check

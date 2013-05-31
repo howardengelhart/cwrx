@@ -4,16 +4,21 @@
   "description": "Cinema6 node framework",
   "main": "lib/index.js",
   "scripts": {
-    "test": "jasmine-node test",
-    "test-id3": "jasmine-node --config ut-id3 1 test/id3.spec.js",
-    "test-vw": "jasmine-node --config ut-vocalware 1 test/vocalware.spec.js",
-    "test-all": "jasmine-node --config ut-all 1 test"
+    "test": "jasmine-node --junitreport -m 'core.*' test",
+    "test-av": "jasmine-node --junitreport -m 'av.*' test",
+    "test-vw": "jasmine-node --junitreport -m 'vocalware.*' test",
+    "test-all": "jasmine-node --junitreport test",
+    "lint": "node_modules/jshint/bin/jshint --config jshint.json lib/*.js"
   },
   "repository": "git@github.com:cinema6/cwrx.git",
   "author": "Howard Engelhart",
   "license": "BSD",
+  "private": true,
   "dependencies": {
     "commander": "~1.1.1",
     "fs-extra": "~0.6.1"
+  },
+  "devDependencies": {
+    "jshint": "~2.1.2"
   }
 }

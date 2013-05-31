@@ -250,9 +250,9 @@ describe("log stack",function(){
         someFunc();
         expect(testMedia.lines.length).toEqual(2);
         expect(testMedia.lines[0].match(
-                /\[info\] {null.<anonymous>:logger.spec.js:249} test1/)).not.toBeNull();
+                /\[info\] {null.<anonymous>:core.logger.spec.js:249} test1/)).not.toBeNull();
         expect(testMedia.lines[1].match(
-                /\[info\] {someFunc:logger.spec.js:247} test2/)).not.toBeNull();
+                /\[info\] {someFunc:core.logger.spec.js:247} test2/)).not.toBeNull();
     });
 });
 

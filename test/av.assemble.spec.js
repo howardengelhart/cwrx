@@ -1,6 +1,3 @@
-if (process.env['ut-all'] || process.env['ut-ffmpeg']) 
-{
-
 var path    = require('path'),
     fs      = require('fs'),
     crypto  = require('crypto'),
@@ -53,5 +50,3 @@ describe('assemble test suite',function(){
         });
     });
 });
-
-}//process.env check

@@ -1,5 +1,3 @@
-if (process.env['ut-all'] || process.env['ut-ffmpeg']) 
-{
 var path = require('path'),
     fs   = require('fs');
     cwrx     = require('../../cwrx'),
@@ -200,5 +198,3 @@ describe('ffmpeg combination tests', function(){
     });
 
 });
-
-}//process.env check

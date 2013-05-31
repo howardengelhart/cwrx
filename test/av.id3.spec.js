@@ -1,5 +1,3 @@
-if (process.env['ut-all'] || process.env['ut-id3']) 
-{
 var path = require('path'),
     cwrx = require('../../cwrx');
 
@@ -39,15 +37,4 @@ describe('id3 test suite',function(){
         });
 
     });
-
-    it('should throw an error if a bad id3Info cmd is set',function(done){
-        cwrx.id3Info(testFile,'dfdf',function(err,data){
-            expect(err).toBeDefined();
-            expect(err).not.toBeNull();
-            expect(err.message).toEqual('Command failed: /bin/sh: dfdf: command not found\n');
-            done();
-        });
-    });
-
 });
-}//process.env check
