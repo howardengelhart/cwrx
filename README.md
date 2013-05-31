@@ -16,7 +16,66 @@ The cwrx api provides the following sub-modules:
 
 cwrx.ffmpeg and cwrx.assemble requires the ffmpeg command line application to have been previously installed on the target host.  The library makes use of ffmpeg and ffprobe.   Version 1.2 or above required.  While not required, the installation of the id3v2 tools is recommended to improve accuracy of the assemble module. Use of the optional vocalware module requires a valid vocalware account.
 
-##Modules
+##Core
+
+The core libraries provide general purpose functionality useful to other scripts and libs.  For the most part these should be cross-platform.
+
+###cwrx.logger
+
+The logger library provides a snappy console/file logger with log rotation.  
+
+__Example : Basic console logging__
+
+This demonstrates the basic setup of a console log.
+
+```javascript
+// Create a console logger
+var cwrx = require('cwrx'),
+    log  = cwrx.logger.createLog();
+    
+// The default logLevel is ERROR, os only log.error and log.fatal will be logged
+log.trace('This is a trace log.');
+log.info('This is an info log.');
+log.warn('This is a warn log.');
+log.error('This is an error log.');
+log.fatal('This is a fata log.');
+
+// The library will cache created logs, you can grab them with getLogger
+function someFunction(){
+    var myLog = cwrx.logger.getLog();
+    myLog.error('warning, danger danger');
+}
+
+// Logs can also have names
+var anotherLog = cwrx.logger.createLog({ logLevel : 'TRACE' }, 'log2');
+
+// so you can get them by name
+function anotherFunc(){
+    var log2 = cwrx.logger.getLog('log2');
+}
+
+// If you do not provide a name, the library auto-assigns 'default'
+```
+
+__Example : Basic file logging__
+
+This demonstrates the basic setup of a file log.
+```javascript
+// Create a file logger with minimum configuration
+// This will create a log in the current directory with
+// the name "log".  It will have a max size of 50MB and
+// will rotate up to 3 backups (log --> log.0 --> log.1 --> log.2)
+// As with our earlier example, only log.fatal and log.error will
+// be logged.
+var cwrx = require('cwrx'),
+    log  = cwrx.logger.createLog({ type : "file" });
+
+log.error('this will be written to my logfile.');
+log.info('this will NOT be written to my logfile.');
+```
+
+
+##Audio/Visual
 
 cwrx provides several useful modules for working with audio and visual files and text to speech.
 
