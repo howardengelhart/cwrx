@@ -74,7 +74,34 @@ log.error('this will be written to my logfile.');
 log.info('this will NOT be written to my logfile.');
 ```
 
+__Example : Configuration__
 
+Lets make this interesting by showing off some configuration.
+```javascript
+// This will create a multi-media log.  Logs will appear in console and be
+// written to a file.  A few things to note:
+// *) All of the options under the file media (other than type) can be
+//    located as options under the main config object (allows for sharing)
+// *) Custom log media can be added to the log object after creation (see addLogMedia).
+// *) logLevel and stackType can be changed subsequently via log object methods.
+//
+var cwrx = require('cwrx'),
+    log  = cwrx.logger.createLog({
+        logLevel  : 'TRACE',// Log everything
+        stackType : 'FULL', // Add stack info to logs (see notes on stack and performance)
+        media     : [
+                        {   type : "console" },
+                        {
+                            type        : "file",
+                            logName     : "app.log",
+                            logDir      : "/var/log/",
+                            backupLogs  : 0,
+                            maxBytes    : 3000000,
+                            maxLineSize : 512
+                        }
+                    ]
+    });
+```
 ##Audio/Visual
 
 cwrx provides several useful modules for working with audio and visual files and text to speech.

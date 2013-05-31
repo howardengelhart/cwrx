@@ -4,24 +4,24 @@ var     fs   = require('fs-extra'),
 
 describe("basic logger creation and initialization",function(){
 
-    it('initializes correctly using createLogger without any configuration',function(){
-        var log = logger.createLogger();
+    it('initializes correctly using createLog without any configuration',function(){
+        var log = logger.createLog();
         expect(log.name).toEqual('default');
         expect(log.mask).toEqual(0x1);
         expect(log.media.length).toEqual(1);
-        expect(logger.getLogger()).toBe(log);
-        expect(logger.getLogger('default')).toBe(log);
+        expect(logger.getLog()).toBe(log);
+        expect(logger.getLog('default')).toBe(log);
     });
 
-    it('initializes correctly using getLogger without any configuration',function(){
-        var log = logger.getLogger();
+    it('initializes correctly using getLog without any configuration',function(){
+        var log = logger.getLog();
         expect(log.name).toEqual('default');
         expect(log.mask).toEqual(0x1);
-        expect(logger.getLogger('someName')).not.toBeDefined();
+        expect(logger.getLog('someName')).not.toBeDefined();
     });
 
-    it('initializes correctly using createLogger with a configuration',function(){
-        var log = logger.createLogger({
+    it('initializes correctly using createLog with a configuration',function(){
+        var log = logger.createLog({
             logLevel : 'INFO',
             media    : []
         });
@@ -29,35 +29,35 @@ describe("basic logger creation and initialization",function(){
         expect(log.name).toEqual('default');
         expect(log.mask).toEqual(0xF);
         expect(log.media.length).toEqual(0);
-        expect(logger.getLogger()).toBe(log);
+        expect(logger.getLog()).toBe(log);
     });
 
     it('checks values passed for logLevel and stackType',function(){
         ['faTal','error ',' Warn',' info ','TRACE'].forEach(function(level){
             expect(function(){
-                logger.createLogger( { logLevel : level } )
+                logger.createLog( { logLevel : level } )
             }).not.toThrow();
         });
 
         expect(function(){
-            logger.createLogger( { logLevel : 'FUDGE' } )
+            logger.createLog( { logLevel : 'FUDGE' } )
         }).toThrow('Unrecognized logLevel: FUDGE');
 
         ['none ',' Partial', ' full '].forEach(function(sttype){
             expect(function(){
-                logger.createLogger( { stackType : sttype })
+                logger.createLog( { stackType : sttype })
             }).not.toThrow();
         });
         
         expect(function(){
-            logger.createLogger( { stackType : 'sttype' })
+            logger.createLog( { stackType : 'sttype' })
         }).toThrow('Unrecognized stackType: sttype');
     });
 });
 
 describe("adding media to logger",function(){
     it('logs requires added media to have a writeLine method',function(){
-        var log = logger.createLogger({ media : [] });
+        var log = logger.createLog({ media : [] });
         expect(function(){
             log.addMedia( (function(){
                 return { };
@@ -66,7 +66,7 @@ describe("adding media to logger",function(){
     });
 
     it('uses added media',function(){
-        var log = logger.createLogger({ media : [] }),
+        var log = logger.createLog({ media : [] }),
             lines = [];
         log.addMedia( (function(){
             var media = {};
@@ -93,7 +93,7 @@ describe("log masking",function(){
             writeLine : function(line) { this.lines.push(line); },
             id        : function() { return 'testMedia'; }
         };
-        log = logger.createLogger({ logMask : 0, media : [] });
+        log = logger.createLog({ logMask : 0, media : [] });
         log.addMedia(testMedia);
     });
 
@@ -218,7 +218,7 @@ describe("log stack",function(){
             writeLine : function(line) { this.lines.push(line); },
             id        : function() { return 'testMedia'; }
         };
-        log = logger.createLogger({ logLevel : 'INFO', media : [] });
+        log = logger.createLog({ logLevel : 'INFO', media : [] });
         log.addMedia(testMedia);
     });
 
@@ -264,7 +264,7 @@ describe("file logger initialization",function(){
         expect(fm).toBeDefined();
 	    expect(fm.logDir).toEqual('./');
 	    expect(fm.logName).toEqual('log');
-	    expect(fm.backupLogs).toEqual(10);
+	    expect(fm.backupLogs).toEqual(3);
 	    expect(fm.maxBytes).toEqual(5000000);
 	    expect(fm.maxLineSize).toEqual(1024);
 	    expect(fm.logBasePath).toEqual(path.join('./', 'log'));
@@ -508,7 +508,7 @@ describe('file logger logging',function(){
     });
     
     it('it should write logs from clean start',function(){
-        var logFiles, log = logger.createLogger({
+        var logFiles, log = logger.createLog({
                 logLevel : 'TRACE',
                 media    : [
                     {
@@ -533,7 +533,7 @@ describe('file logger logging',function(){
     });
     
     it('it should append to logs when it can',function(){
-        var logFiles, log = logger.createLogger({
+        var logFiles, log = logger.createLog({
                 logLevel : 'TRACE',
                 media    : [
                     {
@@ -566,7 +566,7 @@ describe('file logger logging',function(){
     });
 
     it('should enforce line size limits',function(){
-        var logFiles, log = logger.createLogger({
+        var logFiles, log = logger.createLog({
                 logLevel : 'TRACE',
                 media    : [
                     {
@@ -592,7 +592,7 @@ describe('file logger logging',function(){
     
     it('should not allow multiple media with same logname',function(){
         expect(function(){
-            logger.createLogger({
+            logger.createLog({
                 logLevel : 'TRACE',
                 logDir   : logDir,
                 logName  : 'ut.log',
@@ -605,7 +605,7 @@ describe('file logger logging',function(){
     });
 
     it('should write to multiple media',function(){
-        var logFiles, log = logger.createLogger({
+        var logFiles, log = logger.createLog({
                 logLevel : 'TRACE',
                 logDir   : logDir,
                 media    : [

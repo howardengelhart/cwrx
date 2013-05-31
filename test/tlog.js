@@ -21,7 +21,7 @@ if (test === 'exit3'){
 }
 
 function testExit1(){
-    var log = logger.createLogger({
+    var log = logger.createLog({
                 logLevel : 'TRACE',
                 logDir   : logDir,
                 logName  : 'exit1.log',
@@ -33,7 +33,7 @@ function testExit1(){
 }
 
 function testExit2(){
-    var log = logger.createLogger({
+    var log = logger.createLog({
                 logLevel : 'TRACE',
                 logDir   : logDir,
                 logName  : 'exit2.log',
@@ -46,7 +46,7 @@ function testExit2(){
 }
 
 function testExit3(){
-    var log = logger.createLogger({
+    var log = logger.createLog({
                 logLevel : 'TRACE',
                 logDir   : logDir,
                 logName  : 'exit3.log',
