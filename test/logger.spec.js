@@ -73,6 +73,8 @@ describe("adding media to logger",function(){
             media.writeLine = function(line){
                 lines.push(line); 
             }
+
+            media.id = function() { return 'testMedia'; }
             return media;
         }() ) );
         log.fatal('test');
@@ -88,7 +90,8 @@ describe("log masking",function(){
     beforeEach(function(){
         testMedia = {
             lines     : [],
-            writeLine : function(line) { this.lines.push(line); }
+            writeLine : function(line) { this.lines.push(line); },
+            id        : function() { return 'testMedia'; }
         };
         log = logger.createLogger({ logMask : 0, media : [] });
         log.addMedia(testMedia);
@@ -212,7 +215,8 @@ describe("log stack",function(){
     beforeEach(function(){
         testMedia = {
             lines     : [],
-            writeLine : function(line) { this.lines.push(line); }
+            writeLine : function(line) { this.lines.push(line); },
+            id        : function() { return 'testMedia'; }
         };
         log = logger.createLogger({ logLevel : 'INFO', media : [] });
         log.addMedia(testMedia);
@@ -246,9 +250,9 @@ describe("log stack",function(){
         someFunc();
         expect(testMedia.lines.length).toEqual(2);
         expect(testMedia.lines[0].match(
-                /\[info\] {null.<anonymous>:logger.spec.js:245} test1/)).not.toBeNull();
+                /\[info\] {null.<anonymous>:logger.spec.js:249} test1/)).not.toBeNull();
         expect(testMedia.lines[1].match(
-                /\[info\] {someFunc:logger.spec.js:243} test2/)).not.toBeNull();
+                /\[info\] {someFunc:logger.spec.js:247} test2/)).not.toBeNull();
     });
 });
 
@@ -309,8 +313,7 @@ describe("file logger initialization",function(){
 
 describe('file logger log rotation',function(){
     var gc = [],
-        logDir = path.join(__dirname,'logs'),
-        makeJunkFiles;
+        logDir = path.join(__dirname,'logs');
 
     beforeEach(function(){
         gc.push(logDir);
@@ -483,5 +486,152 @@ describe('file logger log rotation',function(){
         expect(fs.readFileSync(fm.logBasePath + '.0').toString()).toEqual('test log 3');
         expect(fs.readFileSync(fm.logBasePath + '.1').toString()).toEqual('test log 2');
         expect(fs.readFileSync(fm.logBasePath + '.2').toString()).toEqual('test log 1');
+    });
+});
+
+describe('file logger logging',function(){
+
+    var gc = [],
+        logDir = path.join(__dirname,'logs');
+
+    beforeEach(function(){
+        gc.push(logDir);
+    });
+
+    afterEach(function(){
+        gc.forEach(function(item){
+            if(fs.existsSync(item)){
+                fs.removeSync(item);
+            }
+        });
+        gc = [];
+    });
+    
+    it('it should write logs from clean start',function(){
+        var logFiles, log = logger.createLogger({
+                logLevel : 'TRACE',
+                media    : [
+                    {
+                        type        : 'file',
+                        logDir      : logDir,
+                        logName     : 'ut.log',
+                        backupLogs  : 3,
+                        maxBytes    : 100
+                    }
+                ]
+             });
+
+        expect(fs.existsSync(path.join(logDir,'ut.log'))).toEqual(false);
+        for (var i = 0; i < 30; i++){
+            var istr = (i < 10) ? '0' + i.toString() : i.toString();
+            log.info('abcdef ' + istr);
+        }
+       
+        logFiles = fs.readdirSync(logDir);
+        expect(logFiles.length).toEqual(4);
+
+    });
+    
+    it('it should append to logs when it can',function(){
+        var logFiles, log = logger.createLogger({
+                logLevel : 'TRACE',
+                media    : [
+                    {
+                        type        : 'file',
+                        logDir      : logDir,
+                        logName     : 'ut.log',
+                        backupLogs  : 3
+                    }
+                ]
+             });
+        
+        fs.mkdirsSync(logDir);
+        expect(fs.readdirSync(logDir).length).toEqual(0);
+        fs.writeFileSync(path.join(logDir,'ut.log'),"test log\n");
+        expect(fs.existsSync(path.join(logDir,'ut.log'))).toBeTruthy();
+
+        for (var i = 0; i < 30; i++){
+            var istr = (i < 10) ? '0' + i.toString() : i.toString();
+            log.info('abcdef ' + istr);
+        }
+       
+        logFiles = fs.readdirSync(logDir);
+        expect(logFiles.length).toEqual(1);
+
+        var s = fs.readFileSync(path.join(logDir,'ut.log')).toString(),
+            lines = s.split('\n');
+
+        expect(lines[0].match(/test log$/)).toBeTruthy();
+        expect(lines[1].match(/abcdef 00$/)).toBeTruthy();
+    });
+
+    it('should enforce line size limits',function(){
+        var logFiles, log = logger.createLogger({
+                logLevel : 'TRACE',
+                media    : [
+                    {
+                        type        : 'file',
+                        logDir      : logDir,
+                        logName     : 'ut.log',
+                        maxLineSize : 40
+                    }
+                ]
+             });
+        for (var i = 0; i < 30; i++) {
+            log.info('abcdefghijklmnopqrstuvwxyz');
+        }
+        logFiles = fs.readdirSync(logDir);
+        expect(logFiles.length).toEqual(1);
+        
+        var s = fs.readFileSync(path.join(logDir,'ut.log')).toString(),
+            lines = s.split('\n');
+
+        expect(lines[0].match(/abc/)).toBeTruthy();
+        expect(lines[0].match(/xyz/)).not.toBeTruthy();
+    });
+    
+    it('should not allow multiple media with same logname',function(){
+        expect(function(){
+            logger.createLogger({
+                logLevel : 'TRACE',
+                logDir   : logDir,
+                logName  : 'ut.log',
+                media    : [
+                    { type        : 'file' },
+                    { type        : 'file' }
+                ]
+             });
+        }).toThrow('Can only have one log media with id: ' + path.join(logDir,'ut.log'));
+    });
+
+    it('should write to multiple media',function(){
+        var logFiles, log = logger.createLogger({
+                logLevel : 'TRACE',
+                logDir   : logDir,
+                media    : [
+                    {
+                        type        : 'file',
+                        logName     : 'ut_big.log'
+                    },
+                    {
+                        type        : 'file',
+                        logName     : 'ut_small.log',
+                        backupLogs  : 1,
+                        maxBytes    : 100
+                    }
+                ]
+             });
+
+        for (var i = 0; i < 50; i++) {
+            log.info('abcdefghijklmnopqrstuvwxyz');
+        }
+        
+        logFiles = fs.readdirSync(logDir);
+        expect(logFiles.length).toEqual(3);
+        logFiles.forEach(function(elt){
+            expect((elt === 'ut_big.log') ||
+                    (elt === 'ut_small.log') || 
+                    (elt === 'ut_small.log.0')).toBeTruthy();
+        });
     });
 });
