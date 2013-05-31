@@ -635,3 +635,54 @@ describe('file logger logging',function(){
         });
     });
 });
+
+describe('file logger logging and exits',function(){
+
+    var exec   = require('child_process').exec,
+        gc     = [],
+        logDir = path.join(__dirname,'logs');
+        exec_ext_test = function(args,cb){
+                var cmd = 'node ' + path.join(__dirname,'tlog.js') + ' ' + args;
+                exec(cmd,cb);
+            };
+
+    beforeEach(function(){
+        gc.push(logDir);
+    });
+
+    afterEach(function(){
+        gc.forEach(function(item){
+            if(fs.existsSync(item)){
+                fs.removeSync(item);
+            }
+        });
+        gc = [];
+    });
+
+    it('should write last log line when process exits naturally',function(done){
+        exec_ext_test('exit1',function(){
+            var s = fs.readFileSync(path.join(logDir,'exit1.log')).toString(),
+                lines = s.split('\n');
+            expect(lines[0].match(/abcdefghijklmnopqrstuvwxyz/)).toBeTruthy();
+            done();
+        });
+    });
+
+    it('should write last log line when process exits manually',function(done){
+        exec_ext_test('exit2',function(){
+            var s = fs.readFileSync(path.join(logDir,'exit2.log')).toString(),
+                lines = s.split('\n');
+            expect(lines[0].match(/abcdefghijklmnopqrstuvwxyz/)).toBeTruthy();
+            done();
+        });
+    });
+
+    it('should write last log line when process exits unexpectedly',function(done){
+        exec_ext_test('exit3',function(){
+            var s = fs.readFileSync(path.join(logDir,'exit3.log')).toString(),
+                lines = s.split('\n');
+            expect(lines[0].match(/abcdefghijklmnopqrstuvwxyz/)).toBeTruthy();
+            done();
+        });
+    });
+}); 
