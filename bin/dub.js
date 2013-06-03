@@ -19,23 +19,25 @@ if (!process.env['ut-cwrx-bin']){
 
 function main(done){
     var program  = require('commander'),
-        log      = cwrx.logger.createLog(),
-        config, job;
-   
-    log.setLevel('INFO');
+        config, job, log;
     
     program
         .version('0.0.1')
         .option('-c, --config [CFGFILE]','Specify config file', undefined)
-        .option('-l, --loglevel [INFO]',
-                'Specify log level (TRACE|INFO|WARN|ERROR|FATAL)', 'INFO')
+        .option('-l, --loglevel [LEVEL]',
+                'Specify log level (TRACE|INFO|WARN|ERROR|FATAL)' )
         .option('-s, --server','Run in server mode.')
         .parse(process.argv);
 
-    log.setLevel(program.loglevel);
-
     config = createConfiguration(program.config);
+
     config.ensurePaths();
+
+    log = cwrx.logger.getLog();
+
+    if (program.loglevel){
+        log.setLevel(program.loglevel);
+    }
 
     if (!program.server){
         // This is a command line one-off
@@ -212,11 +214,16 @@ function createConfiguration(cfgFile){
     if (cfgFile) { 
         userCfg = JSON.parse(fs.readFileSync(cfgFile, { encoding : 'utf8' }));
     }
+
  
     if (userCfg) {
         Object.keys(userCfg).forEach(function(key){
             cfgObject[key] = userCfg[key];
         });
+    }
+    
+    if (cfgObject.log) {
+        log = cwrx.logger.createLog(cfgObject.log);
     }
 
     cfgObject.ensurePaths = function(){
