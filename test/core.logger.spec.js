@@ -97,24 +97,24 @@ describe("log masking",function(){
         log.addMedia(testMedia);
     });
 
-    it('should set the logMask correctly with setLogLevel',function(){
+    it('should set the logMask correctly with setLevel',function(){
         expect(log.mask).toEqual(0x0); 
-        log.setLogLevel('TRACE');
+        log.setLevel('TRACE');
         expect(log.mask).toEqual(0x1F);
-        log.setLogLevel('INFO');
+        log.setLevel('INFO');
         expect(log.mask).toEqual(0xF);
-        log.setLogLevel('WARN');
+        log.setLevel('WARN');
         expect(log.mask).toEqual(0x7);
-        log.setLogLevel('ERROR');
+        log.setLevel('ERROR');
         expect(log.mask).toEqual(0x3);
-        log.setLogLevel('FATAL');
+        log.setLevel('FATAL');
         expect(log.mask).toEqual(0x1);
     });
 
     it('should only log what the logLevel allows',function(){
         expect(log.mask).toEqual(0x0); 
         testMedia.lines = [];
-        log.setLogLevel('FATAL');
+        log.setLevel('FATAL');
         log.fatal('test');
         log.error('test');
         log.warn('test');
@@ -125,7 +125,7 @@ describe("log masking",function(){
         expect(testMedia.lines[0].match(/\[fatal\] test/)).not.toBeNull();
         
         testMedia.lines = [];
-        log.setLogLevel('ERROR');
+        log.setLevel('ERROR');
         log.fatal('test');
         log.error('test');
         log.warn('test');
@@ -137,7 +137,7 @@ describe("log masking",function(){
         expect(testMedia.lines[1].match(/\[error\] test/)).not.toBeNull();
 
         testMedia.lines = [];
-        log.setLogLevel('WARN');
+        log.setLevel('WARN');
         log.fatal('test');
         log.error('test');
         log.warn('test');
@@ -150,7 +150,7 @@ describe("log masking",function(){
         expect(testMedia.lines[2].match(/\[warn\] test/)).not.toBeNull();
 
         testMedia.lines = [];
-        log.setLogLevel('INFO');
+        log.setLevel('INFO');
         log.fatal('test');
         log.error('test');
         log.warn('test');
@@ -164,7 +164,7 @@ describe("log masking",function(){
         expect(testMedia.lines[3].match(/\[info\] test/)).not.toBeNull();
 
         testMedia.lines = [];
-        log.setLogLevel('TRACE');
+        log.setLevel('TRACE');
         log.fatal('test');
         log.error('test');
         log.warn('test');

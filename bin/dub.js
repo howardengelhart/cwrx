@@ -3,17 +3,9 @@
 var fs       = require('fs-extra'),
     path     = require('path'),
     crypto   = require('crypto'),
-    log      = require('../lib/logger'),
-    cwrx      = require(path.join(__dirname,'../../cwrx')),
-    dtStart  = new Date(),
-    _theLog;
-
-function getLogger() {
-    if (!_theLog) {
-        _theLog = new log.Logger();
-    }
-    return _theLog;
-}
+    express  = require('express'),
+    cwrx     = require(path.join(__dirname,'../../cwrx')),
+    dtStart  = new Date();
 
 if (!process.env['ut-cwrx-bin']){
     try {
@@ -27,82 +19,151 @@ if (!process.env['ut-cwrx-bin']){
 
 function main(done){
     var program  = require('commander'),
-        logger   = getLogger('cheese'),
+        log      = cwrx.logger.createLog(),
         config, job;
    
-//    logger.setLevel('ERROR');
+    log.setLevel('INFO');
     
     program
         .version('0.0.1')
         .option('-c, --config CFGFILE','Specify config file')
-        .option('-l, --loglevel [ERROR]',
-                'Specify log level (TRACE|DEBUG|INFO|WARN|ERROR|FATAL)', 'ERROR')
+        .option('-l, --loglevel [INFO]',
+                'Specify log level (TRACE|INFO|WARN|ERROR|FATAL)', 'INFO')
         .option('-s, --server','Run in server mode.')
         .parse(process.argv);
 
- //   logger.setLevel(program.loglevel);
-
-    for (var i = 0; i < 10000; i++){
-        logger.error('abcdefghijklmnopqrstuvwxyz123456789',i);
-    }
-
-    if (!program.args[0]){
-        throw new SyntaxError('Expected a template file.');
-    }
+    log.setLevel(program.loglevel);
 
     config = createConfiguration(program.config);
     config.ensurePaths();
 
-    job = createDubJob(loadTemplateFromFile(program.args[0]),config);
-
-    var pipeline = [];
-    if (!job.hasOutput()){
-        pipeline.unshift(applyScriptToVideo);
-        if (!job.hasScript()){
-            pipeline.unshift(convertScriptToMP3);
-            if (!job.hasVideoLength()){
-                pipeline.unshift(getVideoLength);
-            }
-
-            if (!job.hasLines()){
-                pipeline.unshift(convertLinesToMP3);
-            }
+    if (!program.server){
+        // This is a command line one-off
+        if (!program.args[0]){
+            throw new SyntaxError('Expected a template file.');
         }
-        
-        if (!job.hasVideo()){
-            pipeline.unshift(getSourceVideo);
+
+        job = createDubJob(loadTemplateFromFile(program.args[0]),config);
+        handleRequest(job,function(err, finishedJob){
+            if (err) {
+                done(1,err.message);
+            } else {
+                done(0,'Done');
+            }
+        });
+
+        return;
+    }
+
+    return serverMain(config,done);
+}
+
+function serverMain(config,done){
+    var app = express(),
+        log = cwrx.logger.getLog();
+
+    process.on('SIGINT',function(){
+        log.info('Received SIGINT, exitting app.');
+        done(0,'Exit');
+    });
+
+    process.on('SIGTERM',function(){
+        log.info('Received TERM, exitting app.');
+        done(0,'Exit');
+    });
+
+    app.use(express.bodyParser());
+
+    app.use('/',function(req, res, next){
+        log.info('REQ: ' + '['  + 
+                    req.connection.remoteAddress + ' ' + 
+                    req.connection.remotePort + '] ' +
+                    JSON.stringify(req.headers) + ' ' +
+                    req.method + ' ' + 
+                    req.url + ' ' +
+                    req.httpVersion);
+        next();
+    });
+
+    app.post('/dub/create', function(req, res, next){
+        var job;
+        try {
+            job = createDubJob(req.body,config);
+        }catch (e){
+            log.error('Create Job Error: ' + e.message);
+            res.send(400,{
+                error  : 'Unable to process request.',
+                detail : e.message
+            });
+            return;
         }
+        handleRequest(job,function(err){
+            if (err){
+                log.error('Handle Request Error: ' + err.message);
+                res.send(400,{
+                    error  : 'Unable to complete request.',
+                    detail : err.message
+                });
+                return;
+            }
+            res.send(200);
+        });
+    });
+
+    app.listen(3000);
+    log.info('Dub server is listening on port 3000');
+}
+
+function handleRequest(job, done){
+    var log = cwrx.logger.getLog(),
+        pipeline = [];
+    
+    if (job.hasOutput()){
+        log.info('video already exists.');
+        done();
+        return;
     } 
+    
+    pipeline.unshift(applyScriptToVideo);
+    if (!job.hasScript()){
+        pipeline.unshift(convertScriptToMP3);
+        if (!job.hasVideoLength()){
+            pipeline.unshift(getVideoLength);
+        }
+
+        if (!job.hasLines()){
+            pipeline.unshift(convertLinesToMP3);
+        }
+    }
+    
+    if (!job.hasVideo()){
+        pipeline.unshift(getSourceVideo);
+    }
 
     if (pipeline.length !== 0){
         pipelineJob(job,pipeline,function(err,job,lastFn){
             if (err) {
-                done(1,'Died on [' + lastFn.name + ']:' + err.message);
+                done( { message : 'Died on [' + lastFn.name + ']:' + err.message }, job);
             } else {
-                done(0,'Done with work');
+                done(null,job);
             }
         });
     }  else {
-        done(0,'Done from cache');
+        done(null,job);
     }
 }
 
-/*
- * The Help
- *
- */
-
 function exitApp (resultCode,msg){
-    var logger = getLogger('app');
+    var log = cwrx.logger.getLog();
     if (msg){
         if (resultCode){
-            logger.error(msg);
+            log.error(msg);
         } else {
-            logger.info(msg);
+            log.info(msg);
         }
     }
     
-    logger.info('Total time: ' + (((new Date()).valueOf() - dtStart.valueOf())  / 1000) + ' sec');
+    log.info('Total time: ' + (((new Date()).valueOf() - dtStart.valueOf())  / 1000) + ' sec');
     setTimeout(function(){
         process.exit(resultCode);
     },100);
@@ -267,12 +328,12 @@ function hashText(txt){
 
 function pipelineJob(job,pipeline,handler){
     var fn = pipeline.shift(),
-        logger = getLogger('app'),
+        log= cwrx.logger.getLog(),
         jobStart = new Date();
     if (fn) {
-        logger.debug('Run: ' + fn.name);
+        log.trace('Run: ' + fn.name);
         fn(job,function(err){
-            logger.info( fn.name + ': ' + (((new Date()).valueOf() - jobStart.valueOf())  / 1000) + ' sec');
+            log.info( fn.name + ': ' + (((new Date()).valueOf() - jobStart.valueOf())  / 1000) + ' sec');
             if (err) {
                 handler(err,job,fn);
             } else {
@@ -288,32 +349,32 @@ function pipelineJob(job,pipeline,handler){
 
         
 function applyScriptToVideo(job,done){
-    var logger = getLogger('app');
+    var log = cwrx.logger.getLog();
     cwrx.ffmpeg.mergeAudioToVideo(job.videoPath,job.scriptPath,
             job.outputPath,job.mergeTemplate(), function(err,fpath,cmdline){
                 if (err) {
                     done(err);
                     return;
                 }
-                logger.debug('Merged: ' + fpath);
+                log.trace('Merged: ' + fpath);
                 done();
             });
 }
 
 function convertScriptToMP3(job,done){
-    var logger = getLogger('app');
+    var log = cwrx.logger.getLog();
     cwrx.assemble(job.assembleTemplate(),function(err,tmpl){
         if (err) {
             done(err);
             return;
         }
-        logger.debug('Assembled: ' + tmpl.output);
+        log.trace('Assembled: ' + tmpl.output);
         done();
     });
 }
 
 function getVideoLength(job,done){
-    var logger = getLogger('app');
+    var log = cwrx.logger.getLog();
     cwrx.ffmpeg.probe(job.videoPath,function(err,info){
         if (err){
             done(err);
@@ -326,7 +387,7 @@ function getVideoLength(job,done){
         }
 
         job.videoLength = info.duration;
-        logger.debug('Video length: ' + job.videoLength);
+        log.trace('Video length: ' + job.videoLength);
         done();
     });
 }
@@ -336,7 +397,7 @@ function getSourceVideo(job,done){
 }
 
 function convertLinesToMP3(job,done){
-    var logger = getLogger('app'),
+    var log= cwrx.logger.getLog(),
         rqsCount = 0, errs;
 
     job.tracks.forEach(function(track){
@@ -355,7 +416,7 @@ function convertLinesToMP3(job,done){
             if (job.tts.level) {
                 rqs.fxLevel = job.tts.level;
             }
-            logger.debug('Create track: ' + track.fpath);
+            log.trace('Create track: ' + track.fpath);
             cwrx.vocalWare.textToSpeech(rqs,track.fpath,function(e,rqs,o){
                 if (e) {
                     console.error(e.message);
