@@ -13,7 +13,7 @@ if (!process.env['ut-cwrx-bin']){
             exitApp(rc,msg);
         });
     } catch(e) {
-        exitApp(1,e.message);
+        exitApp(1,e.stack);
     }
 }
 
@@ -26,7 +26,7 @@ function main(done){
     
     program
         .version('0.0.1')
-        .option('-c, --config CFGFILE','Specify config file')
+        .option('-c, --config [CFGFILE]','Specify config file', undefined)
         .option('-l, --loglevel [INFO]',
                 'Specify log level (TRACE|INFO|WARN|ERROR|FATAL)', 'INFO')
         .option('-s, --server','Run in server mode.')
@@ -90,7 +90,7 @@ function serverMain(config,done){
         try {
             job = createDubJob(req.body,config);
         }catch (e){
-            log.error('Create Job Error: ' + e.message);
+            log.error('Create Job Error: ' + e.stack);
             res.send(400,{
                 error  : 'Unable to process request.',
                 detail : e.message
@@ -106,7 +106,9 @@ function serverMain(config,done){
                 });
                 return;
             }
-            res.send(200);
+            res.send(200, {
+                output : job.outputUri    
+            });
         });
     });
 
@@ -188,13 +190,18 @@ function loadTemplateFromFile(tmplFile){
 }
 
 function createConfiguration(cfgFile){
-    var userCfg,cfgObject = {
+    var log = cwrx.logger.getLog(),
+        userCfg,cfgObject = {
         caches : {
                     line    : path.normalize('/usr/local/share/cwrx/dub/caches/line/'),
                     script  : path.normalize('/usr/local/share/cwrx/dub/caches/script/'),
                     video   : path.normalize('/usr/local/share/cwrx/dub/caches/video/'),
                     output  : path.normalize('/usr/local/share/cwrx/dub/caches/output/')
                  },
+        output      : {
+                        "type" : "local",
+                        "uri"  : "/media"
+                      },
         ttsAuth     : path.join(process.env['HOME'],'.tts.json'),
         tts         : {},
         bitrate     : '48k',
@@ -203,7 +210,7 @@ function createConfiguration(cfgFile){
     };
 
     if (cfgFile) { 
-        userCfg = JSON.parse(fs.readFileSync(cfgFile));
+        userCfg = JSON.parse(fs.readFileSync(cfgFile, { encoding : 'utf8' }));
     }
  
     if (userCfg) {
@@ -215,11 +222,20 @@ function createConfiguration(cfgFile){
     cfgObject.ensurePaths = function(){
         var self = this;
         Object.keys(self.caches).forEach(function(key){
+            log.trace('Ensure cache[' + key + ']: ' + self.caches[key]);
             if (!fs.existsSync(self.caches[key])){
+                log.info('Create cache[' + key + ']: ' + self.caches[key]);
                 fs.mkdirsSync(self.caches[key]);
             }
         });
     };
+
+    cfgObject.uriAddress = function(fname){
+        if ((cfgObject.output) && (cfgObject.output.uri)){
+            return path.join (cfgObject.output.uri , fname);
+        }
+        return fname;
+    }
 
     cfgObject.cacheAddress = function(fname,cache){
         return path.join(this.caches[cache],fname); 
@@ -229,7 +245,8 @@ function createConfiguration(cfgFile){
 }
 
 function createDubJob(template,config){
-    var buff,
+    var log = cwrx.logger.getLog(),
+        buff,
         obj       = {},
         soh       = String.fromCharCode(1),
         videoExt  = path.extname(template.video),
@@ -252,6 +269,7 @@ function createDubJob(template,config){
             line    : item.line,
             hash    : hashText(item.line.toLowerCase() + JSON.stringify(obj.tts))
         };
+        log.trace('track : ' + JSON.stringify(track));
         track.fname   = (track.hash + '.mp3'),
         track.fpath   = config.cacheAddress(track.fname,'line')
         obj.tracks.push(track);
@@ -265,6 +283,7 @@ function createDubJob(template,config){
     obj.outputHash = hashText(template.video + ':' + obj.scriptHash);
     obj.outputPath = config.cacheAddress((videoBase + '_' + obj.outputHash + videoExt),'output');
    
+    obj.outputUri  = config.uriAddress((videoBase + '_' + obj.outputHash + videoExt));
     obj.hasVideoLength = function(){
         return (this.videoLength && (this.videoLength > 0));
     };
@@ -419,7 +438,7 @@ function convertLinesToMP3(job,done){
             log.trace('Create track: ' + track.fpath);
             cwrx.vocalWare.textToSpeech(rqs,track.fpath,function(e,rqs,o){
                 if (e) {
-                    console.error(e.message);
+                    log.error(e.message);
                     if (!errs) {
                         errs = [ e ];
                     } else {
