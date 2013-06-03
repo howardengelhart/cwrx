@@ -1,0 +1,17 @@
+{
+    "log"    : {
+        "logLevel" : "trace",
+        "logDir"   : "logs",
+        "logName"  : "dub.log",
+        "media"    : [ { "type" : "file" } ]
+    },
+    "caches" : {
+        "line"      : "/usr/local/share/cwrx/dub/caches/line/",
+        "script"    : "/usr/local/share/cwrx/dub/caches/script/",
+        "video"     : "/usr/local/share/cwrx/dub/caches/video/",
+        "output"    : "/usr/local/share/nginx/demos/buckets/tts/"
+    },
+    "output" : {
+        "uri" : "http://localhost:8080/buckets/tts/"
+    }
+}
