@@ -62,8 +62,8 @@ function main(done){
         path     : '/dub/create',
         method   : 'POST',
         headers  : {
-                    'content-type'   : 'application/json',
-                    'content-length' : data.length
+            'content-type'   : 'application/json',
+            'content-length' : data.length
         }
     };
 

@@ -4,8 +4,33 @@ var fs       = require('fs-extra'),
     path     = require('path'),
     crypto   = require('crypto'),
     express  = require('express'),
+    aws      = require('aws-sdk'),
     cwrx     = require(path.join(__dirname,'../../cwrx')),
-    dtStart  = new Date();
+    dtStart  = new Date(),
+    defaultConfiguration = {
+        caches : {
+            line    : path.normalize('/usr/local/share/cwrx/dub/caches/line/'),
+            script  : path.normalize('/usr/local/share/cwrx/dub/caches/script/'),
+            video   : path.normalize('/usr/local/share/cwrx/dub/caches/video/'),
+            output  : path.normalize('/usr/local/share/cwrx/dub/caches/output/')
+        },
+        output : {
+            "type" : "local",
+            "uri"  : "/media"
+        },
+        s3 : {
+            bucket  : 'c6Video',
+            srcPath : 'src',
+            outPath : 'res',
+            auth    : path.join(process.env.HOME,'.aws.json')
+        },
+        tts : {
+            auth        : path.join(process.env.HOME,'.tts.json'),
+            bitrate     : '48k',
+            frequency   : 22050,
+            workspace   : __dirname
+        }
+    };
 
 if (!process.env['ut-cwrx-bin']){
     try {
@@ -27,9 +52,16 @@ function main(done){
         .option('-l, --loglevel [LEVEL]',
                 'Specify log level (TRACE|INFO|WARN|ERROR|FATAL)' )
         .option('-s, --server','Run in server mode.')
+        .option('--enable-aws','Enable aws access.')
+        .option('--show-config','Display configuration and exit.')
         .parse(process.argv);
 
-    config = createConfiguration(program.config);
+    config = createConfiguration(program);
+
+    if (program.showConfig){
+        console.log(JSON.stringify(config,null,3));
+        process.exit(0);
+    }
 
     config.ensurePaths();
 
@@ -171,7 +203,7 @@ function exitApp (resultCode,msg){
     setTimeout(function(){
         process.exit(resultCode);
     },100);
-};
+}
 
 
 function loadTemplateFromFile(tmplFile){
@@ -191,37 +223,43 @@ function loadTemplateFromFile(tmplFile){
     return tmplObj;
 }
 
-function createConfiguration(cfgFile){
+function createConfiguration(cmdLine){
     var log = cwrx.logger.getLog(),
-        userCfg,cfgObject = {
-        caches : {
-                    line    : path.normalize('/usr/local/share/cwrx/dub/caches/line/'),
-                    script  : path.normalize('/usr/local/share/cwrx/dub/caches/script/'),
-                    video   : path.normalize('/usr/local/share/cwrx/dub/caches/video/'),
-                    output  : path.normalize('/usr/local/share/cwrx/dub/caches/output/')
-                 },
-        output      : {
-                        "type" : "local",
-                        "uri"  : "/media"
-                      },
-        ttsAuth     : path.join(process.env['HOME'],'.tts.json'),
-        tts         : {},
-        bitrate     : '48k',
-        frequency   : 22050,
-        workspace   : __dirname
-    };
+        cfgObject = {},
+        userCfg;
 
-    if (cfgFile) { 
-        userCfg = JSON.parse(fs.readFileSync(cfgFile, { encoding : 'utf8' }));
+    if (cmdLine.config) { 
+        userCfg = JSON.parse(fs.readFileSync(cmdLine.config, { encoding : 'utf8' }));
+    } else {
+        userCfg = {};
     }
 
- 
-    if (userCfg) {
-        Object.keys(userCfg).forEach(function(key){
-            cfgObject[key] = userCfg[key];
+    Object.keys(defaultConfiguration).forEach(function(section){
+        cfgObject[section] = {};
+        Object.keys(defaultConfiguration[section]).forEach(function(key){
+            if ((userCfg[section] !== undefined) && (userCfg[section][key] !== undefined)){
+                cfgObject[section][key] = userCfg[section][key];
+            } else {
+                cfgObject[section][key] = defaultConfiguration[section][key];
+            }
         });
+    });
+
+    if (cmdLine.enableAws && cfgObject.s3){
+        if ((!cfgObject.s3.bucket) || (!cfgObject.s3.srcPath) || (!cfgObject.s3.outPath)) {
+            throw new SyntaxError('s3 configuration is incomplete.');
+        }
+
+        try {
+            aws.config.loadFromPath(cfgObject.s3.auth);
+        }  catch (e) {
+            throw new SyntaxError('Failed to load s3 config: ' + e.message);
+        }
+        if (cmdLine.enableAws){
+            cfgObject.enableAws = true;
+        }
     }
-    
+
     if (cfgObject.log) {
         log = cwrx.logger.createLog(cfgObject.log);
     }
@@ -242,11 +280,12 @@ function createConfiguration(cfgFile){
             return path.join (cfgObject.output.uri , fname);
         }
         return fname;
-    }
+    };
 
     cfgObject.cacheAddress = function(fname,cache){
         return path.join(this.caches[cache],fname); 
-    }
+    };
+    
 
     return cfgObject;
 }
@@ -259,7 +298,7 @@ function createDubJob(template,config){
         videoExt  = path.extname(template.video),
         videoBase = path.basename(template.video,videoExt);
     
-    obj.ttsAuth = cwrx.vocalWare.createAuthToken(config.ttsAuth);
+    obj.ttsAuth = cwrx.vocalWare.createAuthToken(config.tts.auth);
 
     obj.tts = config.tts;
 
@@ -277,11 +316,19 @@ function createDubJob(template,config){
             hash    : hashText(item.line.toLowerCase() + JSON.stringify(obj.tts))
         };
         log.trace('track : ' + JSON.stringify(track));
-        track.fname   = (track.hash + '.mp3'),
-        track.fpath   = config.cacheAddress(track.fname,'line')
+        track.fname   = (track.hash + '.mp3');
+        track.fpath   = config.cacheAddress(track.fname,'line');
         obj.tracks.push(track);
         buff += (soh + track.ts.toString() + ':' + track.hash);
     });
+
+    obj.enableAws  = function() { return config.enableAws; };
+    obj.s3GetSrcVideoParams = function(){
+        return {
+            Bucket : config.s3.bucket,
+            Key    : path.join(config.s3.srcPath,template.video)
+        };
+    };
 
     obj.scriptHash = hashText(buff);
     obj.scriptPath = config.cacheAddress(videoBase + '_' + obj.scriptHash + '.mp3','script');
@@ -305,7 +352,7 @@ function createDubJob(template,config){
 
     obj.hasScript = function(){
         return fs.existsSync(this.scriptPath);
-    }
+    };
 
     obj.hasLines = function(){
         for (var i =0; i < this.tracks.length; i++){
@@ -314,15 +361,15 @@ function createDubJob(template,config){
             }
         }
         return true;
-    }
+    };
 
     obj.assembleTemplate = function(){
         var self = this;
         result = {
             duration  : self.videoLength,
-            bitrate   : config.bitrate,
-            frequency : config.frequency,
-            workspace : config.workspace,
+            bitrate   : config.tts.bitrate,
+            frequency : config.tts.frequency,
+            workspace : config.tts.workspace,
             output    : self.scriptPath,
             useID3    : true
         };
@@ -419,7 +466,28 @@ function getVideoLength(job,done){
 }
 
 function getSourceVideo(job,done){
-    done({message : 'Need to get the video: ' + job.videoPath});
+    var log= cwrx.logger.getLog();
+    if (job.enableAws()){
+        var s3 = new aws.S3(),
+            params = job.s3GetSrcVideoParams();
+        log.trace('S3 Request: ' + params);
+        s3.getObject(params,function(err,data){
+            if (err){
+                done({ message : 'S3 Get failed.' + err.message});
+                return;
+            }
+
+            fs.writeFile(job.videoPath,data.Body,function(err){
+                if (err){
+                    done({message : 'Write video failed: ' + err.message});
+                    return;
+                }
+                done();
+            });
+        });
+    } else {
+        done({message : 'Need to get the video: ' + job.videoPath});
+    }
 }
 
 function convertLinesToMP3(job,done){
@@ -454,9 +522,9 @@ function convertLinesToMP3(job,done){
                 }
                 if (--rqsCount < 1){
                     if (errs){
-                       done(errs[0]); 
+                        done(errs[0]); 
                     } else {
-                       done();
+                        done();
                     }
                 }
             });

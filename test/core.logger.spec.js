@@ -7,7 +7,7 @@ describe("basic logger creation and initialization",function(){
     it('initializes correctly using createLog without any configuration',function(){
         var log = logger.createLog();
         expect(log.name).toEqual('default');
-        expect(log.mask).toEqual(0x1);
+        expect(log.mask).toEqual(0x3);
         expect(log.media.length).toEqual(1);
         expect(logger.getLog()).toBe(log);
         expect(logger.getLog('default')).toBe(log);
@@ -16,7 +16,7 @@ describe("basic logger creation and initialization",function(){
     it('initializes correctly using getLog without any configuration',function(){
         var log = logger.getLog();
         expect(log.name).toEqual('default');
-        expect(log.mask).toEqual(0x1);
+        expect(log.mask).toEqual(0x3);
         expect(logger.getLog('someName')).not.toBeDefined();
     });
 
@@ -79,7 +79,7 @@ describe("adding media to logger",function(){
         }() ) );
         log.fatal('test');
         expect(lines.length).toEqual(1);
-        expect(lines[0].match(/\d\d:\d\d:\d\d\.\d\d\d \d+ \[fatal\] test/)).not.toBeNull();
+        expect(lines[0].match(/\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d\.\d\d\dZ \d+ \[fatal\] test/)).not.toBeNull();
     });
 });
 
@@ -573,7 +573,7 @@ describe('file logger logging',function(){
                         type        : 'file',
                         logDir      : logDir,
                         logName     : 'ut.log',
-                        maxLineSize : 40
+                        maxLineSize : 50
                     }
                 ]
              });
