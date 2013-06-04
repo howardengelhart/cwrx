@@ -245,6 +245,15 @@ function createConfiguration(cmdLine){
         });
     });
 
+    if (userCfg.log){
+        if (!cfgObject.log){
+            cfgObject.log = {};
+        }
+        Object.keys(userCfg.log).forEach(function(key){
+            cfgObject.log[key] = userCfg.log[key];
+        });
+    }
+
     if (cmdLine.enableAws && cfgObject.s3){
         if ((!cfgObject.s3.bucket) || (!cfgObject.s3.srcPath) || (!cfgObject.s3.outPath)) {
             throw new SyntaxError('s3 configuration is incomplete.');
