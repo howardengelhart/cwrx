@@ -1,5 +1,5 @@
 {
-    "video"   : "screenjack_scream.mp4",
+    "video"   : "scream.mp4",
     "tts"     : {
           "voice"  : "Allison",
           "effect" : "R",

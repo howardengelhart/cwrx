@@ -5,10 +5,17 @@
         "logName"  : "dub.log",
         "media"    : [ { "type" : "file" } ]
     },
-    "caches" : {
-        "output"    : "/usr/local/share/nginx/demos/buckets/tts/"
-    },
     "output" : {
-        "uri" : "http://localhost:8080/buckets/tts/"
+        "uri" : "https://s3.amazonaws.com/c6media/usr/screenjack/video/"
+    },
+    "s3" : {
+        "src" : {
+            "bucket" : "c6media",
+            "path"   : "src/screenjack/video"
+            },
+        "out" : {
+            "bucket" : "c6media",
+            "path"   : "usr/screenjack/video"
+            }
     }
 }

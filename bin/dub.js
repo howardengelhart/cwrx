@@ -8,7 +8,8 @@ var fs       = require('fs-extra'),
     express  = require('express'),
     aws      = require('aws-sdk'),
     cwrx     = require(path.join(__dirname,'../../cwrx')),
-    dtStart  = new Date(),
+
+    // This is the template for our configuration
     defaultConfiguration = {
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/dub/caches/run/'),
@@ -22,9 +23,14 @@ var fs       = require('fs-extra'),
             "uri"  : "/media"
         },
         s3 : {
-            bucket  : 'c6Video',
-            srcPath : 'src',
-            outPath : 'res',
+            src : {
+                bucket  : 'c6media',
+                path    : 'src'
+            },
+            out : {
+                bucket  : 'c6media',
+                path    : 'usr'
+            },
             auth    : path.join(process.env.HOME,'.aws.json')
         },
         tts : {
@@ -33,9 +39,23 @@ var fs       = require('fs-extra'),
             frequency   : 22050,
             workspace   : __dirname
         }
+    },
+
+    // Attempt a graceful exit
+    exitApp  = function(resultCode,msg){
+        var log = cwrx.logger.getLog();
+        if (msg){
+            if (resultCode){
+                log.error(msg);
+            } else {
+                log.info(msg);
+            }
+        }
+        process.exit(resultCode);
     };
 
 if (!process.env['ut-cwrx-bin']){
+
     try {
         main(function(rc,msg){
             exitApp(rc,msg);
@@ -51,11 +71,11 @@ function main(done){
     
     program
         .version('0.0.1')
-        .option('-c, --config [CFGFILE]','Specify config file', undefined)
+        .option('-c, --config [CFGFILE]','Specify config file')
         .option('-d, --daemon','Run as a daemon (requires -s).')
-        .option('-l, --loglevel [LEVEL]',
-                'Specify log level (TRACE|INFO|WARN|ERROR|FATAL)' )
-        .option('-k, --kids [KIDS]','Number of kids to spawn. [0]', 0)
+        .option('-l, --loglevel [LEVEL]', 'Specify log level (TRACE|INFO|WARN|ERROR|FATAL)' )
+        .option('-k, --kids [KIDS]','Number of kids to spawn.', 0)
+        .option('-p, --port [PORT]','Listent on port (requires -s) [3000].', 3000)
         .option('-s, --server','Run as a server.')
         .option('--enable-aws','Enable aws access.')
         .option('--show-config','Display configuration and exit.')
@@ -77,17 +97,18 @@ function main(done){
     }
 
     if (!program.server){
-        // This is a command line one-off
+        // Running as a simple command line task, do the work and exit
         if (!program.args[0]){
             throw new SyntaxError('Expected a template file.');
         }
 
         job = createDubJob(loadTemplateFromFile(program.args[0]),config);
+        
         handleRequest(job,function(err, finishedJob){
             if (err) {
-                done(1,err.message);
+                return done(1,err.message);
             } else {
-                done(0,'Done');
+                return done(0,'Done');
             }
         });
 
@@ -99,13 +120,14 @@ function main(done){
         try{
             log.error('uncaught: ' + err.message + "\n" + err.stack);
         }catch(e){
+            console.error(e);
         }
-        done(2);
+        return done(2);
     });
 
     process.on('SIGINT',function(){
         log.info('Received SIGINT, exitting app.');
-        done(0,'Exit');
+        return done(1,'Exit');
     });
 
     process.on('SIGTERM',function(){
@@ -119,15 +141,17 @@ function main(done){
 //                cluster.workers[id].kill('SIGTERM');
 //            });
             cluster.disconnect(function(){
-                done(0,'Exit');
+                return done(0,'Exit');
             });
             return;
         }
-        done(0,'Exit');
+        return done(0,'Exit');
     });
 
     // Daemonize if so desired
     if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)){
+
+        // First check to see if we're already running as a daemon
         var pdata = config.readPidFile();
         if ((pdata) && (pdata.pid)){
             var exists = false;
@@ -138,8 +162,7 @@ function main(done){
 
             if (exists) {
                 console.error('It appears daemon is already running (' + pdata.pid + '), please sig term the old process if you wish to run a new one.');
-                done(1,'need to term ' + pdata.pid);
-                return;
+                return done(1,'need to term ' + pdata.pid);
             } else {
                 log.error('Process [' + pdata.pid + '] appears to be gone, will restart.');
                 config.removePidFile();
@@ -148,10 +171,10 @@ function main(done){
         } else 
         if (pdata){
             console.error('Detected pid file ' + config.getPidFile() + ', ensure previous process is no longer running and remove file before attempting to run again as a daemon.');
-            done(1,'cannot run multiple daemon instances.');
-            return;
+            return done(1,'cannot run multiple daemon instances.');
         }
 
+        // Proceed with daemonization
         console.log('Daemonizing.');
         log.info('Daemonizing and forking child..');
         var child_args = [];
@@ -160,7 +183,9 @@ function main(done){
                 child_args.push(val);            
             }
         });
-   
+  
+        // Add the RUNNING_AS_DAEMON var to the environment
+        // we are forwarding along to the child process
         process.env.RUNNING_AS_DAEMON = true;
         var child = cp.spawn('/usr/local/bin/node',child_args, { 
             stdio   : 'ignore',
@@ -244,7 +269,7 @@ function workerMain(config,program,done){
             job = createDubJob(req.body,config);
         }catch (e){
             log.error('Create Job Error: ' + e.stack);
-            res.send(400,{
+            res.send(500,{
                 error  : 'Unable to process request.',
                 detail : e.message
             });
@@ -265,34 +290,34 @@ function workerMain(config,program,done){
         });
     });
 
-    app.listen(3000);
-    log.info('Dub server is listening on port 3000');
+    app.listen(program.port);
+    log.info('Dub server is listening on port: ' + program.port);
 }
 
 function handleRequest(job, done){
     var log = cwrx.logger.getLog(),
         pipeline = [];
-    
+   
+    pipeline.unshift(uploadToStorage);
+
     if (job.hasOutput()){
         log.info('video already exists.');
-        done();
-        return;
-    } 
-    
-    pipeline.unshift(applyScriptToVideo);
-    if (!job.hasScript()){
-        pipeline.unshift(convertScriptToMP3);
-        if (!job.hasVideoLength()){
-            pipeline.unshift(getVideoLength);
-        }
+    }  else {
+        pipeline.unshift(applyScriptToVideo);
+        if (!job.hasScript()){
+            pipeline.unshift(convertScriptToMP3);
+            if (!job.hasVideoLength()){
+                pipeline.unshift(getVideoLength);
+            }
 
-        if (!job.hasLines()){
-            pipeline.unshift(convertLinesToMP3);
+            if (!job.hasLines()){
+                pipeline.unshift(convertLinesToMP3);
+            }
         }
-    }
-    
-    if (!job.hasVideo()){
-        pipeline.unshift(getSourceVideo);
+        
+        if (!job.hasVideo()){
+            pipeline.unshift(getSourceVideo);
+        }
     }
 
     if (pipeline.length !== 0){
@@ -307,23 +332,6 @@ function handleRequest(job, done){
         done(null,job);
     }
 }
-
-function exitApp (resultCode,msg){
-    var log = cwrx.logger.getLog();
-    if (msg){
-        if (resultCode){
-            log.error(msg);
-        } else {
-            log.info(msg);
-        }
-    }
-    
-    log.info('Total time: ' + (((new Date()).valueOf() - dtStart.valueOf())  / 1000) + ' sec');
-    setTimeout(function(){
-        process.exit(resultCode);
-    },100);
-}
-
 
 function loadTemplateFromFile(tmplFile){
     var buff,tmplobj;
@@ -373,11 +381,7 @@ function createConfiguration(cmdLine){
         });
     }
 
-    if (cmdLine.enableAws && cfgObject.s3){
-        if ((!cfgObject.s3.bucket) || (!cfgObject.s3.srcPath) || (!cfgObject.s3.outPath)) {
-            throw new SyntaxError('s3 configuration is incomplete.');
-        }
-
+    if (cmdLine.enableAws){
         try {
             aws.config.loadFromPath(cfgObject.s3.auth);
         }  catch (e) {
@@ -385,6 +389,12 @@ function createConfiguration(cmdLine){
         }
         if (cmdLine.enableAws){
             cfgObject.enableAws = true;
+        }
+    }
+
+    if (cfgObject.output.uri){
+        if (cfgObject.output.uri.charAt(cfgObject.output.uri.length - 1) !== '/'){
+            cfgObject.output.uri += '/';
         }
     }
 
@@ -405,7 +415,7 @@ function createConfiguration(cmdLine){
 
     cfgObject.uriAddress = function(fname){
         if ((cfgObject.output) && (cfgObject.output.uri)){
-            return path.join (cfgObject.output.uri , fname);
+            return (cfgObject.output.uri + fname);
         }
         return fname;
     };
@@ -432,7 +442,7 @@ function createConfiguration(cmdLine){
                 result = JSON.parse(fs.readFileSync(pidPath));
             }
         } catch(e){
-           log.error('Error reading [' + pidPath + ']: ' + e.message); 
+            log.error('Error reading [' + pidPath + ']: ' + e.message); 
         }
         return result;
     };
@@ -481,21 +491,33 @@ function createDubJob(template,config){
     });
 
     obj.enableAws  = function() { return config.enableAws; };
-    obj.s3GetSrcVideoParams = function(){
+    obj.getS3SrcVideoParams = function(){
         return {
-            Bucket : config.s3.bucket,
-            Key    : path.join(config.s3.srcPath,template.video)
+            Bucket : config.s3.src.bucket,
+            Key    : path.join(config.s3.src.path,template.video)
+        };
+    };
+
+    obj.getS3OutVideoParams = function(){
+        return {
+            Bucket : config.s3.out.bucket,
+            Key    : path.join(config.s3.out.path,this.outputFname),
+            ACL    : 'public-read'
         };
     };
 
     obj.scriptHash = hashText(buff);
-    obj.scriptPath = config.cacheAddress(videoBase + '_' + obj.scriptHash + '.mp3','script');
-    obj.videoPath  = config.cacheAddress(template.video,'video');
+    obj.outputHash  = hashText(template.video + ':' + obj.scriptHash);
+    
+    obj.scriptFname = videoBase + '_' + obj.scriptHash + '.mp3';
+    obj.scriptPath  = config.cacheAddress(obj.scriptFname,'script');
+    
+    obj.videoPath   = config.cacheAddress(template.video,'video');
   
-    obj.outputHash = hashText(template.video + ':' + obj.scriptHash);
-    obj.outputPath = config.cacheAddress((videoBase + '_' + obj.outputHash + videoExt),'output');
-   
-    obj.outputUri  = config.uriAddress((videoBase + '_' + obj.outputHash + videoExt));
+    obj.outputFname = videoBase + '_' + obj.outputHash + videoExt;
+    obj.outputPath = config.cacheAddress(obj.outputFname,'output');
+    obj.outputUri  = config.uriAddress(obj.outputFname);
+    
     obj.hasVideoLength = function(){
         return (this.videoLength && (this.videoLength > 0));
     };
@@ -544,7 +566,7 @@ function createDubJob(template,config){
 
     obj.mergeTemplate = function(){
         return  {
-            frequency : config.frequency
+            frequency : config.tts.frequency
         };
     };
 
@@ -578,77 +600,116 @@ function pipelineJob(job,pipeline,handler){
     }
 }
 
+function uploadToStorage(job,next){
+    var log = cwrx.logger.getLog();
+
+    if (!job.enableAws()){
+        log.trace('Cannot upload, aws is not enabled.');
+        return next();
+    }
+    
+    var rs = fs.createReadStream(job.outputPath),
+        once = false;
+
+    rs.on('readable',function(){
+        var s3      = new aws.S3(),
+            params  = job.getS3OutVideoParams(),
+            req;
+            
+        if (once){
+            return;
+        }
+        once = true;
         
-function applyScriptToVideo(job,done){
+        log.trace('Starting S3 upload request with params: ' + JSON.stringify(params));
+        params.Body = rs;
+        
+        req = s3.client.putObject(params);
+
+        req.on('success',function(res){
+            log.trace('SUCCESS: ' + JSON.stringify(res.data));
+            next();
+        });
+
+        req.on('error',function(err,res){
+            log.error('ERROR: ' + JSON.stringify(err));
+            next({ message : 'S3 upload error' });
+        });
+
+        req.send();
+    });
+}
+        
+function applyScriptToVideo(job,next){
     var log = cwrx.logger.getLog();
     cwrx.ffmpeg.mergeAudioToVideo(job.videoPath,job.scriptPath,
             job.outputPath,job.mergeTemplate(), function(err,fpath,cmdline){
                 if (err) {
-                    done(err);
+                    next(err);
                     return;
                 }
                 log.trace('Merged: ' + fpath);
-                done();
+                next();
             });
 }
 
-function convertScriptToMP3(job,done){
+function convertScriptToMP3(job,next){
     var log = cwrx.logger.getLog();
     cwrx.assemble(job.assembleTemplate(),function(err,tmpl){
         if (err) {
-            done(err);
+            next(err);
             return;
         }
         log.trace('Assembled: ' + tmpl.output);
-        done();
+        next();
     });
 }
 
-function getVideoLength(job,done){
+function getVideoLength(job,next){
     var log = cwrx.logger.getLog();
     cwrx.ffmpeg.probe(job.videoPath,function(err,info){
         if (err){
-            done(err);
+            next(err);
             return;
         }
 
         if (!info.duration){
-            done({message : 'Unable to determine video length.'});
+            next({message : 'Unable to determine video length.'});
             return;
         }
 
         job.videoLength = info.duration;
         log.trace('Video length: ' + job.videoLength);
-        done();
+        next();
     });
 }
 
-function getSourceVideo(job,done){
+function getSourceVideo(job,next){
     var log= cwrx.logger.getLog();
     if (job.enableAws()){
         var s3 = new aws.S3(),
-            params = job.s3GetSrcVideoParams();
+            params = job.getS3SrcVideoParams();
         log.trace('S3 Request: ' + params);
         s3.getObject(params,function(err,data){
             if (err){
-                done({ message : 'S3 Get failed.' + err.message});
+                next({ message : 'S3 Get failed.' + err.message});
                 return;
             }
 
             fs.writeFile(job.videoPath,data.Body,function(err){
                 if (err){
-                    done({message : 'Write video failed: ' + err.message});
+                    next({message : 'Write video failed: ' + err.message});
                     return;
                 }
-                done();
+                next();
             });
         });
     } else {
-        done({message : 'Need to get the video: ' + job.videoPath});
+        next({message : 'Need to get the video: ' + job.videoPath});
     }
 }
 
-function convertLinesToMP3(job,done){
+function convertLinesToMP3(job,next){
     var log= cwrx.logger.getLog(),
         rqsCount = 0, errs;
 
@@ -680,9 +741,9 @@ function convertLinesToMP3(job,done){
                 }
                 if (--rqsCount < 1){
                     if (errs){
-                        done(errs[0]); 
+                        next(errs[0]); 
                     } else {
-                        done();
+                        next();
                     }
                 }
             });
