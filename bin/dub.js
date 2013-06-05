@@ -3,12 +3,15 @@
 var fs       = require('fs-extra'),
     path     = require('path'),
     crypto   = require('crypto'),
+    cluster  = require('cluster'),
+    cp       = require('child_process'),
     express  = require('express'),
     aws      = require('aws-sdk'),
     cwrx     = require(path.join(__dirname,'../../cwrx')),
     dtStart  = new Date(),
     defaultConfiguration = {
         caches : {
+            run     : path.normalize('/usr/local/share/cwrx/dub/caches/run/'),
             line    : path.normalize('/usr/local/share/cwrx/dub/caches/line/'),
             script  : path.normalize('/usr/local/share/cwrx/dub/caches/script/'),
             video   : path.normalize('/usr/local/share/cwrx/dub/caches/video/'),
@@ -49,9 +52,11 @@ function main(done){
     program
         .version('0.0.1')
         .option('-c, --config [CFGFILE]','Specify config file', undefined)
+        .option('-d, --daemon','Run as a daemon (requires -s).')
         .option('-l, --loglevel [LEVEL]',
                 'Specify log level (TRACE|INFO|WARN|ERROR|FATAL)' )
-        .option('-s, --server','Run in server mode.')
+        .option('-k, --kids [KIDS]','Number of kids to spawn. [0]', 0)
+        .option('-s, --server','Run as a server.')
         .option('--enable-aws','Enable aws access.')
         .option('--show-config','Display configuration and exit.')
         .parse(process.argv);
@@ -88,13 +93,15 @@ function main(done){
 
         return;
     }
-
-    return serverMain(config,done);
-}
-
-function serverMain(config,done){
-    var app = express(),
-        log = cwrx.logger.getLog();
+   
+    // Ok, so we're a server, lets do some servery things..
+    process.on('uncaughtException', function(err) {
+        try{
+            log.error('uncaught: ' + err.message + "\n" + err.stack);
+        }catch(e){
+        }
+        done(2);
+    });
 
     process.on('SIGINT',function(){
         log.info('Received SIGINT, exitting app.');
@@ -103,9 +110,121 @@ function serverMain(config,done){
 
     process.on('SIGTERM',function(){
         log.info('Received TERM, exitting app.');
+        if (program.daemon){
+            config.removePidFile();
+        }
+
+        if (cluster.isMaster){
+//            Object.keys(cluster.workers).forEach(function(id){
+//                cluster.workers[id].kill('SIGTERM');
+//            });
+            cluster.disconnect(function(){
+                done(0,'Exit');
+            });
+            return;
+        }
         done(0,'Exit');
     });
 
+    // Daemonize if so desired
+    if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)){
+        var pdata = config.readPidFile();
+        if ((pdata) && (pdata.pid)){
+            var exists = false;
+            try {
+                exists = process.kill(pdata.pid,0);
+            }catch(e){
+            }
+
+            if (exists) {
+                console.error('It appears daemon is already running (' + pdata.pid + '), please sig term the old process if you wish to run a new one.');
+                done(1,'need to term ' + pdata.pid);
+                return;
+            } else {
+                log.error('Process [' + pdata.pid + '] appears to be gone, will restart.');
+                config.removePidFile();
+            }
+
+        } else 
+        if (pdata){
+            console.error('Detected pid file ' + config.getPidFile() + ', ensure previous process is no longer running and remove file before attempting to run again as a daemon.');
+            done(1,'cannot run multiple daemon instances.');
+            return;
+        }
+
+        console.log('Daemonizing.');
+        log.info('Daemonizing and forking child..');
+        var child_args = [];
+        process.argv.forEach(function(val, index) {
+            if (index > 0) {
+                child_args.push(val);            
+            }
+        });
+   
+        process.env.RUNNING_AS_DAEMON = true;
+        var child = cp.spawn('/usr/local/bin/node',child_args, { 
+            stdio   : 'ignore',
+            detached: true,
+            env     : process.env
+        });
+  
+        child.unref();
+        log.info('child spawned, pid is ' + child.pid + ', exiting parent process..');
+        config.writePidFile({ 'pid' : child.pid });
+        console.log("child has been forked, exit.");
+        process.exit(0);
+    }
+
+    // Now that we either are or are not a daemon, its time to 
+    // setup clustering if running as a cluster.
+    if ((cluster.isMaster) && (program.kids > 0)) {
+        clusterMain(config,program,done);
+    } else {
+        workerMain(config,program,done);
+    }
+}
+
+function clusterMain(config,program,done) {
+    var log = cwrx.logger.getLog();
+    log.info('Running as cluster master');
+
+    cluster.on('exit', function(worker, code, signal) {
+        if (worker.suicide === true){
+            log.error('Worker ' + worker.process.pid + ' died peacefully');
+        } else {
+            log.error('Worker ' + worker.process.pid + ' died, restarting...');
+            cluster.fork();
+        }
+    });
+
+    cluster.on('fork', function(worker){
+        log.info('Worker [' + worker.process.pid + '] has forked.');
+    });
+    
+    cluster.on('online', function(worker){
+        log.info('Worker [' + worker.process.pid + '] is now online.');
+    });
+    
+    cluster.on('listening', function(worker,address){
+        log.info('Worker [' + worker.process.pid + '] is now listening on ' + 
+            address.address + ':' + address.port);
+    });
+    
+    cluster.setupMaster( { silent : true });
+    
+    log.info("Will spawn " + program.kids + " kids.");
+    for (var i = 0; i < program.kids; i++) {
+        cluster.fork();
+    }
+
+    log.info("Spawning done, hanging around my empty nest.");
+}
+
+function workerMain(config,program,done){
+    var app = express(),
+        log = cwrx.logger.getLog();
+
+    log.info('Running as cluster worker, proceed with setting up web server.');
     app.use(express.bodyParser());
 
     app.use('/',function(req, res, next){
@@ -294,7 +413,37 @@ function createConfiguration(cmdLine){
     cfgObject.cacheAddress = function(fname,cache){
         return path.join(this.caches[cache],fname); 
     };
-    
+
+    cfgObject.getPidFile  = function(){
+        return this.cacheAddress('dub.pid','run');
+    };
+
+    cfgObject.writePidFile = function(data){
+        var pidPath = this.cacheAddress('dub.pid','run');
+        log.info('Write pid file: ' + pidPath);
+        fs.writeFileSync(pidPath,JSON.stringify(data,null,3));
+    };
+
+    cfgObject.readPidFile = function(){
+        var pidPath = this.cacheAddress('dub.pid','run'),
+            result;
+        try {
+            if (fs.existsSync(pidPath)){
+                result = JSON.parse(fs.readFileSync(pidPath));
+            }
+        } catch(e){
+           log.error('Error reading [' + pidPath + ']: ' + e.message); 
+        }
+        return result;
+    };
+
+    cfgObject.removePidFile = function(){
+        var pidPath = this.cacheAddress('dub.pid','run');
+        if (fs.existsSync(pidPath)){
+            log.info('Remove pid file: ' + pidPath);
+            fs.unlinkSync(pidPath);
+        }
+    };
 
     return cfgObject;
 }

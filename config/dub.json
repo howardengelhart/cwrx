@@ -3,7 +3,7 @@
         "logLevel" : "trace",
         "logDir"   : "logs",
         "logName"  : "dub.log",
-        "media"    : [ { "type" : "file" }, { "type" : "console"} ]
+        "media"    : [ { "type" : "file" } ]
     },
     "caches" : {
         "output"    : "/usr/local/share/nginx/demos/buckets/tts/"
