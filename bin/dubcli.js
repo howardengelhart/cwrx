@@ -2,7 +2,7 @@ var program = require('commander'),
     path    = require('path'),
     fs      = require('fs'),
     http    = require('http'),
-    cwrx    = require(path.join(__dirname,'../../cwrx')),
+    cwrx    = require(path.join(__dirname,'../lib/index')),
     log     = cwrx.logger.createLog();
 
 

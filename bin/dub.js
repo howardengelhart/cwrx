@@ -7,7 +7,7 @@ var fs       = require('fs-extra'),
     cp       = require('child_process'),
     express  = require('express'),
     aws      = require('aws-sdk'),
-    cwrx     = require(path.join(__dirname,'../../cwrx')),
+    cwrx     = require(path.join(__dirname,'../lib/index')),
 
     // This is the template for our configuration
     defaultConfiguration = {

@@ -1,7 +1,7 @@
 var path    = require('path'),
     fs      = require('fs'),
     crypto  = require('crypto'),
-    cwrx     = require('../../cwrx');
+    cwrx     = require('../lib/index');
 
 describe('assemble test suite',function(){
     var files = [];

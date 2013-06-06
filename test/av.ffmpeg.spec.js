@@ -1,6 +1,6 @@
 var path = require('path'),
     fs   = require('fs');
-    cwrx     = require('../../cwrx'),
+    cwrx     = require('../lib/index'),
     testFile0  = path.join(__dirname,'b0.mp3'),
     testFile1  = path.join(__dirname,'b1.mp3'),
     testFile2  = path.join(__dirname,'b2.mp3'),

@@ -1,13 +1,9 @@
 var path = require('path'),
-    cwrx = require('../../cwrx');
+    cwrx = require('../lib/index');
 
 describe('id3 test suite',function(){
 
     var testFile = path.join(__dirname,'b0.mp3');
-
-    beforeEach(function(){
-        cwrx = require('../../cwrx');
-    });
 
     it('should have an id3Info function defined',function(){
         expect(cwrx.id3Info).toBeDefined();
