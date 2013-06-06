@@ -21,6 +21,7 @@
     "aws-sdk": "~1.2.0"
   },
   "devDependencies": {
+    "grunt": "~0.4.1",
     "jshint": "~2.1.2"
   }
 }
