@@ -189,8 +189,12 @@ module.exports = function (grunt) {
             data.options = {};
         }
 
-        if (!data.options.command){
-            data.options.command = 'restart';
+        if (!opts.command){
+            opts.command = 'restart';
+        }
+
+        if (!opts.servicePath){
+            opts.servicePath = '/usr/sbin/service';
         }
     
         if (opts){
@@ -204,7 +208,7 @@ module.exports = function (grunt) {
         data.services.forEach(function(service){
             grunt.log.writelns('will: service ' + service + ' ' + data.options.command);
             grunt.util.spawn({
-                cmd : 'service',
+                cmd : data.options.servicePath,
                 args: [service,data.options.command]
             },function(err,result,code){
                 if ((err) || (code !== 0)){
