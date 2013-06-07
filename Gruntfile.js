@@ -49,6 +49,15 @@ module.exports = function (grunt) {
 
         rmbuild : {
             history : 2 
+        },
+
+        service : {
+            options : {
+                command : 'restart'
+                },
+            main : {
+                    services :     [ 'dub' ]
+                }
         }
     });
     
@@ -169,9 +178,53 @@ module.exports = function (grunt) {
         grunt.log.writelns(data.link + ' is ready.');
     });
 
+    grunt.registerMultiTask('service','Send service restart', function(){
+        var opts = grunt.config.get('service.options'),
+            data = this.data,
+            done = this.async,
+            retval = true,
+            results = 0;
+
+        if (!data.options){
+            data.options = {};
+        }
+
+        if (!data.options.command){
+            data.options.command = 'restart';
+        }
+    
+        if (opts){
+           Object.keys(opts).forEach(function(opt){
+                if (data.options[opt] === undefined){
+                    data.options[opt] = opts[opt];
+                }
+           });
+        }
+
+        data.services.forEach(function(service){
+            grunt.log.writelns('will: service ' + service + ' ' + data.options.command);
+            grunt.util.spawn({
+                cmd : 'service',
+                args: [service,data.options.command]
+            },function(err,result,code){
+                if ((err) || (code !== 0)){
+                    grunt.log.errorlns('service error on ' + service + ': ' + err);
+                    retval = false;
+                }
+
+                if (++results === data.services.length){
+                    done(retval);
+                }
+            });
+        });
+    });
+    
     grunt.registerTask('install', 'Install', function(){
         grunt.task.run('mvbuild');
         grunt.task.run('link');
+        grunt.task.run('service');
     });
+
+
 };
 
