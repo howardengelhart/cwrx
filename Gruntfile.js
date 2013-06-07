@@ -194,7 +194,7 @@ module.exports = function (grunt) {
         }
 
         if (!opts.servicePath){
-            opts.servicePath = '/usr/sbin/service';
+            opts.servicePath = '/sbin/service';
         }
     
         if (opts){
@@ -214,6 +214,10 @@ module.exports = function (grunt) {
                 if ((err) || (code !== 0)){
                     grunt.log.errorlns('service error on ' + service + ': ' + err);
                     retval = false;
+                }
+
+                if (result){
+                    grunt.log.writelns('RESULT: ' + result);
                 }
 
                 if (++results === data.services.length){
