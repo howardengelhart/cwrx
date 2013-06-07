@@ -21,7 +21,7 @@ module.exports = function (grunt) {
                             { 
                                 expand: true, 
                                 dest: '<%= props.installPath %>', 
-                                src: [ 'bin/*', 'lib/*', 'node_modules/**', 'package.json' ] 
+                                src: [ 'bin/*', 'lib/*', 'config/*', 'node_modules/**', 'package.json' ] 
                             }
                         ]
                }

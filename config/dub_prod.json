@@ -1,0 +1,28 @@
+{
+    "log"    : {
+        "logLevel" : "info",
+        "logDir"   : "/opt/sixxy/logs",
+        "logName"  : "dub.log",
+        "media"    : [ { "type" : "file" } ]
+    },
+    "caches" : {
+        "run"     : "/opt/sixxy/run/",
+        "line"    : "/opt/sixxy/share/dub/caches/line/",
+        "script"  : "/opt/sixxy/share/dub/caches/script/",
+        "video"   : "/opt/sixxy/share/dub/caches/video/",
+        "output"  : "/opt/sixxy/share/dub/caches/output/"
+    },
+    "output" : {
+        "uri" : "https://s3.amazonaws.com/c6media/usr/screenjack/video/"
+    },
+    "s3" : {
+        "src" : {
+            "bucket" : "c6media",
+            "path"   : "src/screenjack/video"
+            },
+        "out" : {
+            "bucket" : "c6media",
+            "path"   : "usr/screenjack/video"
+            }
+    }
+}
