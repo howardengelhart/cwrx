@@ -73,10 +73,12 @@ function main(done){
         .version('0.0.1')
         .option('-c, --config [CFGFILE]','Specify config file')
         .option('-d, --daemon','Run as a daemon (requires -s).')
+        .option('-g, --gid','Run as group (id or name).')
         .option('-l, --loglevel [LEVEL]', 'Specify log level (TRACE|INFO|WARN|ERROR|FATAL)' )
         .option('-k, --kids [KIDS]','Number of kids to spawn.', 0)
         .option('-p, --port [PORT]','Listent on port (requires -s) [3000].', 3000)
         .option('-s, --server','Run as a server.')
+        .option('-u, --uid','Run as user (id or name).')
         .option('--enable-aws','Enable aws access.')
         .option('--show-config','Display configuration and exit.')
         .parse(process.argv);
@@ -113,6 +115,16 @@ function main(done){
         });
 
         return;
+    }
+
+    if (program.uid){
+        log.info('Change process to user: ' + program.uid);
+        process.setuid(program.uid);
+    }
+   
+    if (program.gid){
+        log.info('Change process to group: ' + program.gid);
+        process.setgid(program.gid);
     }
    
     // Ok, so we're a server, lets do some servery things..
