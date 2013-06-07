@@ -31,21 +31,20 @@ module.exports = function (grunt) {
                 options : {
                     overwrite: true,
                     force    : true,
-                    mode     : '555'
+                    mode     : '755'
+                },
+                service : {
+                    target : '<%= props.installPath %>',
+                    link   : path.join('<%= props.servicePath %>','<%= props.packageInfo.name %>')
                 },
                 dub : {
                     target : path.join('<%= props.installPath %>','bin','dub.js'),
-                    link   : path.join('<%= props.servicePath %>','dub')
+                    link   : path.join('<%= props.installPath %>','bin','dub')
                 },
                 dubcli : {
                     target : path.join('<%= props.installPath %>','bin','dubcli.js'),
-                    link   : path.join('<%= props.servicePath %>','dubcli')
+                    link   : path.join('<%= props.installPath %>','bin','dubcli')
                 }
-        },
-
-        install : {
-            dub : true,
-            dubcli : true   
         },
 
         rmbuild : {
@@ -170,9 +169,9 @@ module.exports = function (grunt) {
         grunt.log.writelns(data.link + ' is ready.');
     });
 
-    grunt.registerMultiTask('install', 'Install', function(){
+    grunt.registerTask('install', 'Install', function(){
         grunt.task.run('mvbuild');
-        grunt.task.run('link:' + this.target);
+        grunt.task.run('link');
     });
 };
 
