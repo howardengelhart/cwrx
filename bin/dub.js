@@ -84,12 +84,12 @@ function main(done){
         .parse(process.argv);
 
     if (program.uid){
-        log.trace('Change process to user: ' + program.uid);
+        console.log('Change process to user: ' + program.uid);
         process.setuid(program.uid);
     }
    
     if (program.trace){
-        log.info('Change process to group: ' + program.gid);
+        console.log('Change process to group: ' + program.gid);
         process.setgid(program.gid);
     }
    
