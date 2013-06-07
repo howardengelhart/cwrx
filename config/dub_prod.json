@@ -26,6 +26,6 @@
             }
     },
     "tts" : {
-        "workspace" : '/tmp/'
+        "workspace" : "/tmp/"
     }
 }
