@@ -148,7 +148,7 @@ module.exports = function (grunt) {
         if (data.options.overwrite === true){
             if (fs.existsSync(data.link)){
                 grunt.log.writelns('Removing old link: ' + data.link);
-                fs.unlink(data.link);
+                fs.unlinkSync(data.link);
             }
         }
 
