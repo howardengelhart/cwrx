@@ -152,27 +152,23 @@ function main(done){
     if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)){
 
         // First check to see if we're already running as a daemon
-        var pdata = config.readPidFile();
-        if ((pdata) && (pdata.pid)){
+        var pid = config.readPidFile();
+        if (pid){
             var exists = false;
             try {
-                exists = process.kill(pdata.pid,0);
+                exists = process.kill(pid,0);
             }catch(e){
             }
 
             if (exists) {
-                console.error('It appears daemon is already running (' + pdata.pid + '), please sig term the old process if you wish to run a new one.');
-                return done(1,'need to term ' + pdata.pid);
+                console.error('It appears daemon is already running (' + pid + '), please sig term the old process if you wish to run a new one.');
+                return done(1,'need to term ' + pid);
             } else {
-                log.error('Process [' + pdata.pid + '] appears to be gone, will restart.');
+                log.error('Process [' + pid + '] appears to be gone, will restart.');
                 config.removePidFile();
             }
 
-        } else 
-        if (pdata){
-            console.error('Detected pid file ' + config.getPidFile() + ', ensure previous process is no longer running and remove file before attempting to run again as a daemon.');
-            return done(1,'cannot run multiple daemon instances.');
-        }
+        } 
 
         // Proceed with daemonization
         console.log('Daemonizing.');
@@ -195,7 +191,7 @@ function main(done){
   
         child.unref();
         log.info('child spawned, pid is ' + child.pid + ', exiting parent process..');
-        config.writePidFile({ 'pid' : child.pid });
+        config.writePidFile(child.pid);
         console.log("child has been forked, exit.");
         process.exit(0);
     }
@@ -431,7 +427,7 @@ function createConfiguration(cmdLine){
     cfgObject.writePidFile = function(data){
         var pidPath = this.cacheAddress('dub.pid','run');
         log.info('Write pid file: ' + pidPath);
-        fs.writeFileSync(pidPath,JSON.stringify(data,null,3));
+        fs.writeFileSync(pidPath,data);
     };
 
     cfgObject.readPidFile = function(){
@@ -439,7 +435,7 @@ function createConfiguration(cmdLine){
             result;
         try {
             if (fs.existsSync(pidPath)){
-                result = JSON.parse(fs.readFileSync(pidPath));
+                result = fs.readFileSync(pidPath);
             }
         } catch(e){
             log.error('Error reading [' + pidPath + ']: ' + e.message); 
