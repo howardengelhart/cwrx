@@ -83,6 +83,16 @@ function main(done){
         .option('--show-config','Display configuration and exit.')
         .parse(process.argv);
 
+    if (program.uid){
+        log.trace('Change process to user: ' + program.uid);
+        process.setuid(program.uid);
+    }
+   
+    if (program.trace){
+        log.info('Change process to group: ' + program.gid);
+        process.setgid(program.gid);
+    }
+   
     config = createConfiguration(program);
 
     if (program.showConfig){
@@ -117,16 +127,6 @@ function main(done){
         return;
     }
 
-    if (program.uid){
-        log.info('Change process to user: ' + program.uid);
-        process.setuid(program.uid);
-    }
-   
-    if (program.gid){
-        log.info('Change process to group: ' + program.gid);
-        process.setgid(program.gid);
-    }
-   
     // Ok, so we're a server, lets do some servery things..
     process.on('uncaughtException', function(err) {
         try{
