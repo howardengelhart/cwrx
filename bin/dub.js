@@ -154,7 +154,7 @@ function main(done){
         return done(0,'Exit');
     });
 
-    log.info('Running version ' + program.version);
+    log.info('Running version ' + program.version());
     // Daemonize if so desired
     if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)){
 
