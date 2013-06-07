@@ -70,7 +70,7 @@ function main(done){
         config, job, log;
     
     program
-        .version('0.0.2')
+        .version('0.0.3')
         .option('-c, --config [CFGFILE]','Specify config file')
         .option('-d, --daemon','Run as a daemon (requires -s).')
         .option('-l, --loglevel [LEVEL]', 'Specify log level (TRACE|INFO|WARN|ERROR|FATAL)' )
