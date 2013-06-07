@@ -24,5 +24,8 @@
             "bucket" : "c6media",
             "path"   : "usr/screenjack/video"
             }
+    },
+    "tts" : {
+        "workspace" : '/tmp/'
     }
 }
