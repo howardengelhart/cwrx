@@ -52,12 +52,7 @@ module.exports = function (grunt) {
         },
 
         service : {
-            options : {
-                command : 'restart'
-                },
-            main : {
-                    services :     [ 'dub' ]
-                }
+            main : { services :     [ 'dub' ] }
         }
     });
     
@@ -121,7 +116,7 @@ module.exports = function (grunt) {
         grunt.log.writeln('Moving the module to ' + installPath);
         
         if (fs.existsSync(installPath)){
-            grunt.log.errorlns('Install dir (' + installPath + 
+            grunt.log.writelns('Install dir (' + installPath + 
                                 ') already exists, rotate.');
            
             var stat = fs.statSync(installPath),
@@ -138,12 +133,16 @@ module.exports = function (grunt) {
         var opts = grunt.config.get('link.options'),
             data = this.data;
 
+        if (!opts) {
+            opts = {};
+        }
+
         if (!data.options){
             data.options = {};
         }
 
-        if (!data.options.mode){
-            data.options.mode = '0755';
+        if (!opts.mode){
+            opts.mode = '0755';
         }
     
         if (opts){
@@ -184,6 +183,10 @@ module.exports = function (grunt) {
             done = this.async,
             retval = true,
             results = 0;
+
+        if (!opts) {
+            opts = {};
+        }
 
         if (!data.options){
             data.options = {};
@@ -230,7 +233,9 @@ module.exports = function (grunt) {
     grunt.registerTask('install', 'Install', function(){
         grunt.task.run('mvbuild');
         grunt.task.run('link');
-        grunt.task.run('service');
+        if (require('os').platform() === 'linux'){
+            grunt.task.run('service');
+        }
     });
 
 
