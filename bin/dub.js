@@ -70,9 +70,10 @@ function main(done){
         config, job, log;
     
     program
-        .version('0.0.3')
+        .version('0.0.4')
         .option('-c, --config [CFGFILE]','Specify config file')
         .option('-d, --daemon','Run as a daemon (requires -s).')
+        .option('-g, --gid [GID]','Run as group (id or name).')
         .option('-l, --loglevel [LEVEL]', 'Specify log level (TRACE|INFO|WARN|ERROR|FATAL)' )
         .option('-k, --kids [KIDS]','Number of kids to spawn.', 0)
         .option('-p, --port [PORT]','Listent on port (requires -s) [3000].', 3000)
@@ -85,6 +86,11 @@ function main(done){
     if (program.uid){
         console.log('\nChange process to user: ' + program.uid);
         process.setuid(program.uid);
+    }
+   
+    if (program.gid){
+        console.log('\nChange process to group: ' + program.gid);
+        process.setgid(program.gid);
     }
    
     config = createConfiguration(program);
