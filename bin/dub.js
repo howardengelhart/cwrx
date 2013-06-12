@@ -70,7 +70,7 @@ function main(done){
         config, job, log;
     
     program
-        .version('0.0.4')
+        .version('0.1.0')
         .option('-c, --config [CFGFILE]','Specify config file')
         .option('-d, --daemon','Run as a daemon (requires -s).')
         .option('-g, --gid [GID]','Run as group (id or name).')
@@ -83,14 +83,14 @@ function main(done){
         .option('--show-config','Display configuration and exit.')
         .parse(process.argv);
 
-    if (program.uid){
-        console.log('\nChange process to user: ' + program.uid);
-        process.setuid(program.uid);
-    }
-   
     if (program.gid){
         console.log('\nChange process to group: ' + program.gid);
         process.setgid(program.gid);
+    }
+   
+    if (program.uid){
+        console.log('\nChange process to user: ' + program.uid);
+        process.setuid(program.uid);
     }
    
     config = createConfiguration(program);
