@@ -526,6 +526,7 @@ function createDubJob(template,config){
     obj.outputFname = videoBase + '_' + obj.outputHash + videoExt;
     obj.outputPath = config.cacheAddress(obj.outputFname,'output');
     obj.outputUri  = config.uriAddress(obj.outputFname);
+    obj.outputType = config.output.type;
     
     obj.hasVideoLength = function(){
         return (this.videoLength && (this.videoLength > 0));
@@ -611,7 +612,12 @@ function pipelineJob(job,pipeline,handler){
 
 function uploadToStorage(job,next){
     var log = cwrx.logger.getLog();
-
+    
+    if (job.outputType === 'local') {
+        log.trace('Output type is set to "local", skipping S3 upload.');
+        return next();
+    }
+    
     if (!job.enableAws()){
         log.trace('Cannot upload, aws is not enabled.');
         return next();
