@@ -612,15 +612,15 @@ function pipelineJob(job,pipeline,handler){
 
 function uploadToStorage(job,next){
     var log = cwrx.logger.getLog();
-
-    if (!job.enableAws()){
-        log.trace('Cannot upload, aws is not enabled.');
+    
+    if (job.outputType === 'local') {
+        log.trace('Output type is set to "local", skipping S3 upload.');
         return next();
     }
     
-    if (job.outputType === 'local') {
-    	log.trace('Output type is set to "local", skipping S3 upload.');
-	    return next();
+    if (!job.enableAws()){
+        log.trace('Cannot upload, aws is not enabled.');
+        return next();
     }
     
     var rs = fs.createReadStream(job.outputPath),
