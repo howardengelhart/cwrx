@@ -1,0 +1,143 @@
+#!/usr/bin/env node
+
+var fs   = require('fs'),
+    path = require('path'),
+    cp   = require('child_process'),
+    exec = cp.exec,
+    spawn = cp.spawn,
+    tempDirName = path.join('/tmp/', process.cwd().split('/').pop() + 
+                                        '-' + (new Date()).getTime()),
+    gitOutput   = '',
+    branch      = 'release',
+
+ makeTempDir = function (callback) {
+    console.log("|---- Making temporary directory " + tempDirName);
+    fs.mkdir(tempDirName,function(err){
+        if (err !== null) {
+            console.log("\n|---- Post receive failed, error to follow:");
+            console.log(err.message);
+        } else {
+            callback();
+        }
+    });
+  },
+
+  removeTempDir = function (callback){
+    console.log("|---- Removing temporary directory " + tempDirName);
+
+    exec("rm -rf " + tempDirName, function (err, stdout, stderr) {
+        if (err !== null) {
+            console.log("Post receive succeeded but cleanup failed, error to follow:");
+            console.log(err.message);
+        } else {
+            callback();
+        }
+    });
+  },
+  
+  checkoutWorkTree = function(callback){
+    console.log('\n|---- Checking out working tree...');
+    exec('git --work-tree="' + tempDirName + '" checkout -f ' + branch,
+        function(err,stdout,stderr){
+            if (err !== null){
+                console.log("\n|---- Post receive failed at checkout, error to follow:");
+                console.log(err.message);
+                removeTempDir(function(){
+                    process.exit(0);
+                });
+            } else {
+                callback();
+            }
+        });
+  },
+
+  writeVersionFile = function(callback){
+    console.log('\n|---- Writing version file...');
+    exec('git log -n1 --format=\'{ "commit" : "%h", "date" : "%ct", "subject" : "%s" }\' > ' + 
+        path.join(tempDirName,'version.json'),
+        function(err,stdout,stderr){
+            if (err !== null){
+                console.log("\n|---- Post receive failed at checkout, error to follow:");
+                console.log(err.message);
+                removeTempDir(function(){
+                    process.exit(0);
+                });
+            } else {
+                callback();
+            }
+        });
+  },
+
+  npmInstall = function(callback) {
+    console.log('\n|---- Install npm dependencies...');
+    
+    var npm = spawn('npm',['install'], { cwd : tempDirName });
+    
+    npm.on('exit', function(code){
+        if (code !== 0){
+            console.log("\n|---- Post receive failed at npm install");
+        } else {
+            callback(); 
+        }
+    });
+  },
+  
+  gruntInstall = function(callback){
+      
+    var grunt = spawn('grunt',['install'], { cwd : tempDirName });
+
+    grunt.stdout.on('data', function (data) {
+        if (data.length){
+          console.log('' + data);
+        }
+    });
+
+    grunt.stderr.on('data', function (data) {
+        if (data.length){
+          console.log('err: ' + data);
+        }
+    });
+
+    grunt.on('exit', function(code){
+        if (code !== 0){
+            console.log("\n|---- Post receive failed at grunt install");
+        } else {
+            callback(); 
+        }
+    });
+      
+  };
+
+
+// Start reading stdin
+process.stdin.resume();
+
+process.stdin.on('data', function(chunk) {
+    gitOutput += chunk;
+});
+
+process.stdin.on('end', function(){
+    main();
+});
+
+function main(){
+
+    //branch = gitOutput.split(' ').pop().split('/').pop();
+    //console.log('\n|---- Git Output: ' + gitOutput);
+    //console.log('\n|---- Branch received: ' + branch);
+
+    makeTempDir(function(){
+        checkoutWorkTree(function(){
+            writeVersionFile(function(){
+                npmInstall(function(){
+                    gruntInstall(function(){
+                        removeTempDir(function(){
+                            console.log('\n|---- Done.');
+                        });
+                    });
+                });
+            });
+        });
+    });
+}
+
