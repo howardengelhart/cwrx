@@ -1,0 +1,32 @@
+{
+    "log"    : {
+        "logLevel" : "info",
+        "logDir"   : "/Users/joshminzner/Documents/Cinema6/cwrx_working/logs",
+        "logName"  : "dub.log",
+        "media"    : [ { "type" : "file" } ]
+    },
+    "caches" : {
+        "run"     : "/Users/joshminzner/Documents/Cinema6/cwrx_working/run/",
+        "line"    : "/Users/joshminzner/Documents/Cinema6/cwrx_working/share/line/",
+        "script"  : "/Users/joshminzner/Documents/Cinema6/cwrx_working/script/",
+        "video"   : "/Users/joshminzner/Documents/Cinema6/cwrx_working/video/",
+        "output"  : "/Users/joshminzner/Documents/Cinema6/cwrx_working/output/"
+    },
+    "output" : {
+        "uri" : "http://localhost/screenjack/video/",
+        "type" : "local"
+    },
+    "s3" : {
+        "src" : {
+            "bucket" : "c6media",
+            "path"   : "src/screenjack/video"
+            },
+        "out" : {
+            "bucket" : "c6media",
+            "path"   : "usr/screenjack/video"
+            }
+    },
+    "tts" : {
+        "workspace" : "/tmp/"
+    }
+}
