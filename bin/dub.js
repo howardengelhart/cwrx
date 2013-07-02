@@ -261,9 +261,16 @@ function workerMain(config,program,done){
     log.info('Running as cluster worker, proceed with setting up web server.');
     app.use(express.bodyParser());
 
-    /*app.all('*', function(req, res, next) {
-	    next();
-    });*/
+    app.all('*', function(req, res, next) {
+	    res.header("Access-Control-Allow-Origin", "*");
+	    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+	    
+	    if (req.method.toLowerCase() === "options") {
+		    res.send(200);
+	    } else {
+		    next();
+	    }
+    });
 
     app.use('/',function(req, res, next){
         log.info('REQ: ' + '['  + 
@@ -277,9 +284,6 @@ function workerMain(config,program,done){
     });
 
     app.post('/dub/create', function(req, res, next){
-	    res.header("Access-Control-Allow-Origin", "*");
-	    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
-
         var job;
         try {
             job = createDubJob(req.body,config);
