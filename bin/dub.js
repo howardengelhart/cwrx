@@ -261,6 +261,12 @@ function workerMain(config,program,done){
     log.info('Running as cluster worker, proceed with setting up web server.');
     app.use(express.bodyParser());
 
+    app.all('*', function(req, res, next) {
+	    res.header("Access-Control-Allow-Origin", "*");
+	    res.header("Access-Control-Allow-Headers", "X-Requested-With");
+	    next();
+    });
+
     app.use('/',function(req, res, next){
         log.info('REQ: ' + '['  + 
                     req.connection.remoteAddress + ' ' + 
