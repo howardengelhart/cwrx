@@ -262,14 +262,14 @@ function workerMain(config,program,done){
     app.use(express.bodyParser());
 
     app.all('*', function(req, res, next) {
-	    res.header("Access-Control-Allow-Origin", "*");
-	    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
-	    
-	    if (req.method.toLowerCase() === "options") {
-		    res.send(200);
-	    } else {
-		    next();
-	    }
+        res.header("Access-Control-Allow-Origin", "*");
+        res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+
+        if (req.method.toLowerCase() === "options") {
+            res.send(200);
+        } else {
+            next();
+        }
     });
 
     app.use('/',function(req, res, next){
