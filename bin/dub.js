@@ -519,10 +519,13 @@ function createDubJob(template,config){
     };
 
     obj.getS3OutVideoParams = function(){
+        var contentType = (this.outputFname.substr(-4) === 'webm') ? 
+            'video/webm' : 'video/mp4';
         return {
             Bucket : config.s3.out.bucket,
             Key    : path.join(config.s3.out.path,this.outputFname),
-            ACL    : 'public-read'
+            ACL    : 'public-read',
+            ContentType : contentType
         };
     };
 
