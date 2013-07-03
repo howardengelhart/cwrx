@@ -13,7 +13,8 @@
         "output"  : "/opt/sixxy/share/dub/caches/output/"
     },
     "output" : {
-        "uri" : "https://s3.amazonaws.com/c6media/usr/screenjack/video/"
+        "uri" : "https://s3.amazonaws.com/c6media/usr/screenjack/video/",
+        "type" : "s3"
     },
     "s3" : {
         "src" : {
