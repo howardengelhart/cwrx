@@ -1,5 +1,21 @@
 #!/usr/bin/env node
 
+////////////////////////////////////////////
+// NodeFly
+(function(){
+    var hostname      = require('os').hostname(),
+        processNumber = process.env.INDEX_OF_PROCESS || 0;
+
+    require('nodefly').profile(
+        '2f5d8cc85e0038541f430ee81a88a44e',
+        ['dub', hostname, processNumber],
+        {
+            blockThreshold : 100
+        }
+    );
+}());
+////////////////////////////////////////////
+
 var fs       = require('fs-extra'),
     path     = require('path'),
     crypto   = require('crypto'),
