@@ -70,16 +70,28 @@ var fs   = require('fs'),
 
   npmInstall = function(callback) {
     console.log('\n|---- Install npm dependencies...');
-    
-    var npm = spawn('npm',['install'], { cwd : tempDirName });
+   
+	var tmpLogName = path.join(tempDirName,'npm.log'),
+        tmpLog = fs.createWriteStream(tmpLogName),
+        npm = spawn('npm',['install','-dd'], { cwd : tempDirName });
     
     npm.on('exit', function(code){
+        tmpLog.end();
         if (code !== 0){
             console.log("\n|---- Post receive failed at npm install");
         } else {
             callback(); 
         }
     });
+
+    npm.stdout.on('data', function(data){
+        tmpLog.write(data);
+    });
+
+    npm.stderr.on('data', function(data){
+        tmpLog.write(data);
+    });
+
   },
   
   gruntInstall = function(callback){
