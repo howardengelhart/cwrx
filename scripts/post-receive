@@ -71,7 +71,7 @@ var fs   = require('fs'),
   npmInstall = function(callback) {
     console.log('\n|---- Install npm dependencies...');
    
-	var tmpLogName = path.join(tempDirName,'npm.log'),
+    var tmpLogName = path.join(tempDirName,'npm.log'),
         tmpLog = fs.createWriteStream(tmpLogName),
         npm = spawn('npm',['install','-dd'], { cwd : tempDirName });
     
