@@ -19,7 +19,7 @@ prog=$(basename $dub)
 
 pidfile="/opt/sixxy/run/dub.pid"
 
-CONF_FILE="/opt/sixxy/services/cwrx/config/dub_dev.json"
+CONF_FILE="/opt/sixxy/conf/dub.json"
 PATH=$PATH:/usr/local/bin
 export HOME=/opt/sixxy
 start() {
