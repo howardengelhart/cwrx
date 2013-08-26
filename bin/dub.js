@@ -504,6 +504,8 @@ function createDubJob(template,config){
     
     obj.ttsAuth = cwrx.vocalWare.createAuthToken(config.tts.auth);
 
+    obj.tts = {};
+
     if (config.tts) {
         Object.keys(config.tts).forEach(function(key){
             obj.tts[key] = config.tts[key];
