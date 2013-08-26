@@ -504,7 +504,11 @@ function createDubJob(template,config){
     
     obj.ttsAuth = cwrx.vocalWare.createAuthToken(config.tts.auth);
 
-    obj.tts = config.tts;
+    if (config.tts) {
+        Object.keys(config.tts).forEach(function(key){
+            obj.tts[key] = config.tts[key];
+        });
+    }
 
     if (template.tts) {
         Object.keys(template.tts).forEach(function(key){
@@ -512,8 +516,11 @@ function createDubJob(template,config){
         });
     }
 
+    log.trace('job tts : ' + JSON.stringify(obj.tts));
     obj.tracks = [];
     template.script.forEach(function(item){
+        // remove leading and trailing spaces
+        item.line = item.line.replace(/^\s*(.*?)\s*$/,"$1");
         var track = {
             ts      : Number(item.ts),
             line    : item.line,
@@ -587,9 +594,9 @@ function createDubJob(template,config){
         var self = this;
         result = {
             duration  : self.videoLength,
-            bitrate   : config.tts.bitrate,
-            frequency : config.tts.frequency,
-            workspace : config.tts.workspace,
+            bitrate   : obj.tts.bitrate,
+            frequency : obj.tts.frequency,
+            workspace : obj.tts.workspace,
             output    : self.scriptPath,
             useID3    : true
         };
@@ -606,7 +613,7 @@ function createDubJob(template,config){
 
     obj.mergeTemplate = function(){
         return  {
-            frequency : config.tts.frequency
+            frequency : obj.tts.frequency
         };
     };
 
