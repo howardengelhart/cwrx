@@ -15,7 +15,7 @@ describe('dub helpers',function(){
     });
 
     it('should create a configuration object without a config file',function(){
-        var cfg = dub.createConfiguration();
+        var cfg = dub.createConfiguration({});
         
         expect(cfg.caches).toBeDefined();
         
@@ -28,7 +28,7 @@ describe('dub helpers',function(){
 
     it('should throw an error if given a non existant configuration file', function(){
         expect(function(){
-            dub.createConfiguration('abc.cfg');
+            dub.createConfiguration({"config": "abc.cfg"});
         }).toThrow('ENOENT, no such file or directory \'abc.cfg\'');
     });
 
@@ -36,7 +36,7 @@ describe('dub helpers',function(){
         rmList.push(path.join(__dirname,'tmpcfg.json'));
         fs.writeFileSync(path.join(__dirname,'tmpcfg.json'),'abc');
         expect(function(){
-            dub.createConfiguration(path.join(__dirname,'tmpcfg.json'));
+            dub.createConfiguration({"config": path.join(__dirname,'tmpcfg.json')});
         }).toThrow('Unexpected token a');
     });
 
@@ -52,7 +52,7 @@ describe('dub helpers',function(){
                         output  : path.join(__dirname,'caches/output/')
                      }
         }));
-        var cfg = dub.createConfiguration(path.join(__dirname,'tmpcfg.json'));
+        var cfg = dub.createConfiguration({"config": path.join(__dirname,'tmpcfg.json')});
        
         cfg.ensurePaths();
         expect(cfg.caches).toBeDefined();
@@ -71,4 +71,5 @@ describe('dub helpers',function(){
 });
 
 } // -- END if (process.env['ut-dub-bin']) {
+
 

@@ -1,19 +1,24 @@
 #!/usr/bin/env node
 
+var __ut__   = ((module.parent) && (module.parent.filename) &&
+               (module.parent.filename.match(/\.spec.js$/))) ? true : false;
+
 ////////////////////////////////////////////
 // NodeFly
-(function(){
-    var hostname      = require('os').hostname(),
-        processNumber = process.env.INDEX_OF_PROCESS || 0;
+if (!__ut__) {
+    (function(){
+        var hostname      = require('os').hostname(),
+            processNumber = process.env.INDEX_OF_PROCESS || 0;
 
-    require('nodefly').profile(
-        '2f5d8cc85e0038541f430ee81a88a44e',
-        ['dub', hostname, processNumber],
-        {
-            blockThreshold : 100
-        }
-    );
-}());
+        require('nodefly').profile(
+            '2f5d8cc85e0038541f430ee81a88a44e',
+            ['dub', hostname, processNumber],
+            {
+                blockThreshold : 100
+            }
+        );
+    }());
+}
 ////////////////////////////////////////////
 
 var fs       = require('fs-extra'),
@@ -70,7 +75,7 @@ var fs       = require('fs-extra'),
         process.exit(resultCode);
     };
 
-if (!process.env['ut-cwrx-bin']){
+if (!__ut__){
 
     try {
         main(function(rc,msg){
