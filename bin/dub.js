@@ -28,6 +28,7 @@ var fs       = require('fs-extra'),
     cp       = require('child_process'),
     express  = require('express'),
     aws      = require('aws-sdk'),
+    q        = require('q'),
     cwrx     = require(path.join(__dirname,'../lib/index')),
 
     // This is the template for our configuration
@@ -360,8 +361,16 @@ function handleRequest(job, done){
             pipeline.unshift(getSourceVideo);
         }
     }
+    
+    // Chains functions together using when function, passing a promise for job to first function
+    // TODO: allow us to retry functions from the pipeline if one fails
+    pipeline.reduce(q.when, q(job)).then(
+        function() {},  // success!
+        function(error) { 
+            done( { message : 'Died on [' + error['lastFn'].name + ']:' + error['msg'] }, job); 
+        });
 
-    if (pipeline.length !== 0){
+    /*if (pipeline.length !== 0){
         pipelineJob(job,pipeline,function(err,job,lastFn){
             if (err) {
                 done( { message : 'Died on [' + lastFn.name + ']:' + err.message }, job);
@@ -371,7 +380,7 @@ function handleRequest(job, done){
         });
     }  else {
         done(null,job);
-    }
+    }*/
 }
 
 function loadTemplateFromFile(tmplFile){
@@ -655,7 +664,8 @@ function pipelineJob(job,pipeline,handler){
 }
 
 function uploadToStorage(job,next){
-    var log = cwrx.logger.getLog();
+    var deferred = q.defer(), 
+        log = cwrx.logger.getLog();
     
     if (job.outputType === 'local') {
         log.trace('Output type is set to "local", skipping S3 upload.');
@@ -743,13 +753,26 @@ function getVideoLength(job,next){
     });
 }
 
-function getSourceVideo(job,next){
-    var log= cwrx.logger.getLog();
-    if (job.enableAws()){
+function getSourceVideo(job,next) {
+    var deferred = q.defer(), 
+        log = cwrx.logger.getLog(),
+        fnName = arguments.callee.name;
+
+    if (job.enableAws()) {
         var s3 = new aws.S3(),
             params = job.getS3SrcVideoParams();
         log.trace('S3 Request: ' + params);
-        s3.getObject(params,function(err,data){
+        
+        cwrx.s3util.getObject(aws, params, job.videoPath).then( 
+            function (data) { deferred.resolve(job); },
+            function (error) { deferred.reject({"fnName": fnName, "msg": error}); }
+        );
+    } else deferred.reject({"fnName": fnName, "msg": "You must enable aws to retrieve video."});
+    
+    return deferred.promise;
+}
+
+s3.getObject(params,function(err,data){
             if (err){
                 next({ message : 'S3 Get failed.' + err.message});
                 return;
