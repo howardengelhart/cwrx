@@ -362,12 +362,25 @@ function handleRequest(job, done){
         }
     }
     
+    // Allows us to wrap promise-returning functions with logging and timing code
+    var wrapFunction = function(prev, fn) {
+        return prev.then(function(val) {
+            var jobStart = new Date();
+            log.trace('Run: ' + fn.name);
+            return fn(val).finally(function() {
+                log.info( fn.name + ': ' + (((new Date()).valueOf() - jobStart.valueOf())  / 1000) + ' sec');
+            });
+        });
+    };
+
     // Chains functions together using when function, passing a promise for job to first function
     // TODO: allow us to retry functions from the pipeline if one fails
-    pipeline.reduce(q.when, q(job)).then(
-        function() {},  // success!
-        function(error) { 
-            done( { message : 'Died on [' + error['lastFn'].name + ']:' + error['msg'] }, job); 
+    pipeline.reduce(wrapFunction, q(job)).then(
+        function() {
+            log.trace("All tasks succeeded!");
+            done(null, job);
+        }, function(error) { 
+            done({message : 'Died on [' + error['fnName'] + ']: ' + error['msg']}, job); 
         });
 
     /*if (pipeline.length !== 0){
@@ -642,6 +655,7 @@ function hashText(txt){
     return hash.digest('hex');
 }
 
+/*
 function pipelineJob(job,pipeline,handler){
     var fn = pipeline.shift(),
         log= cwrx.logger.getLog(),
@@ -661,97 +675,7 @@ function pipelineJob(job,pipeline,handler){
     } else {
         handler(null,job,null);
     }
-}
-
-function uploadToStorage(job,next){
-    var deferred = q.defer(), 
-        log = cwrx.logger.getLog();
-    
-    if (job.outputType === 'local') {
-        log.trace('Output type is set to "local", skipping S3 upload.');
-        return next();
-    }
-    
-    if (!job.enableAws()){
-        log.trace('Cannot upload, aws is not enabled.');
-        return next();
-    }
-    
-    var rs = fs.createReadStream(job.outputPath),
-        once = false;
-
-    rs.on('readable',function(){
-        var s3      = new aws.S3(),
-            params  = job.getS3OutVideoParams(),
-            req;
-            
-        if (once){
-            return;
-        }
-        once = true;
-        
-        log.trace('Starting S3 upload request with params: ' + JSON.stringify(params));
-        params.Body = rs;
-        
-        req = s3.client.putObject(params);
-
-        req.on('success',function(res){
-            log.trace('SUCCESS: ' + JSON.stringify(res.data));
-            next();
-        });
-
-        req.on('error',function(err,res){
-            log.error('ERROR: ' + JSON.stringify(err));
-            next({ message : 'S3 upload error' });
-        });
-
-        req.send();
-    });
-}
-        
-function applyScriptToVideo(job,next){
-    var log = cwrx.logger.getLog();
-    cwrx.ffmpeg.mergeAudioToVideo(job.videoPath,job.scriptPath,
-            job.outputPath,job.mergeTemplate(), function(err,fpath,cmdline){
-                if (err) {
-                    next(err);
-                    return;
-                }
-                log.trace('Merged: ' + fpath);
-                next();
-            });
-}
-
-function convertScriptToMP3(job,next){
-    var log = cwrx.logger.getLog();
-    cwrx.assemble(job.assembleTemplate(),function(err,tmpl){
-        if (err) {
-            next(err);
-            return;
-        }
-        log.trace('Assembled: ' + tmpl.output);
-        next();
-    });
-}
-
-function getVideoLength(job,next){
-    var log = cwrx.logger.getLog();
-    cwrx.ffmpeg.probe(job.videoPath,function(err,info){
-        if (err){
-            next(err);
-            return;
-        }
-
-        if (!info.duration){
-            next({message : 'Unable to determine video length.'});
-            return;
-        }
-
-        job.videoLength = info.duration;
-        log.trace('Video length: ' + job.videoLength);
-        next();
-    });
-}
+}*/
 
 function getSourceVideo(job,next) {
     var deferred = q.defer(), 
@@ -761,9 +685,8 @@ function getSourceVideo(job,next) {
     if (job.enableAws()) {
         var s3 = new aws.S3(),
             params = job.getS3SrcVideoParams();
-        log.trace('S3 Request: ' + params);
-        
-        cwrx.s3util.getObject(aws, params, job.videoPath).then( 
+        log.trace('S3 Request: ' + JSON.stringify(params));
+        cwrx.s3util.getObject(s3, params, job.videoPath).then( 
             function (data) { deferred.resolve(job); },
             function (error) { deferred.reject({"fnName": fnName, "msg": error}); }
         );
@@ -772,33 +695,16 @@ function getSourceVideo(job,next) {
     return deferred.promise;
 }
 
-s3.getObject(params,function(err,data){
-            if (err){
-                next({ message : 'S3 Get failed.' + err.message});
-                return;
-            }
-
-            fs.writeFile(job.videoPath,data.Body,function(err){
-                if (err){
-                    next({message : 'Write video failed: ' + err.message});
-                    return;
-                }
-                next();
-            });
-        });
-    } else {
-        next({message : 'Need to get the video: ' + job.videoPath});
-    }
-}
-
 function convertLinesToMP3(job,next){
-    var log= cwrx.logger.getLog(),
-        rqsCount = 0, errs;
+    var log = cwrx.logger.getLog(),
+        deferred = q.defer(),
+        fnName = arguments.callee.name;
 
-    job.tracks.forEach(function(track){
+    var processTrack = q.fbind(function(track){
         if (!fs.existsSync(track.fpath)){
-            rqsCount++;
-            var rqs = cwrx.vocalWare.createRequest({authToken : job.ttsAuth}), voice;
+            var rqs = cwrx.vocalWare.createRequest({authToken : job.ttsAuth}), 
+                voice, 
+                deferred = q.defer();
             if (job.tts.voice){
                 voice = cwrx.vocalWare.voices[job.tts.voice];
             }
@@ -812,26 +718,114 @@ function convertLinesToMP3(job,next){
                 rqs.fxLevel = job.tts.level;
             }
             log.trace('Create track: ' + track.fpath);
-            cwrx.vocalWare.textToSpeech(rqs,track.fpath,function(e,rqs,o){
-                if (e) {
+            cwrx.vocalWare.textToSpeech(rqs,track.fpath,function(err,rqs,o){
+                if (err) {
                     log.error(e.message);
-                    if (!errs) {
-                        errs = [ e ];
-                    } else {
-                        errs.push(e);
-                    }
-                }
-                if (--rqsCount < 1){
-                    if (errs){
-                        next(errs[0]); 
-                    } else {
-                        next();
-                    }
+                    deferred.reject("Failed: path = " + track.fpath + " ts = " + track.ts);
+                } else {
+                    log.trace("Succeeded: path = " + track.fpath + " ts = " + track.ts);
+                    deferred.resolve();
                 }
             });
+        } else {
+            log.trace('Track already exists at ' + track.fpath);
+            deferred.resolve();
         }
+        return deferred.promise;
     });
+    
+    q.all(job.tracks.map(processTrack)).then(
+        function(results) { 
+            log.trace('All tracks succeeded'); 
+            deferred.resolve(job);
+        }, function(error) { 
+        deferred.reject({"fnName": fnName, "msg": error});
+    });
+        
+    return deferred.promise;
+}
 
+function getVideoLength(job,next){
+    var log = cwrx.logger.getLog(),
+        deferred = q.defer(),
+        fnName = arguments.callee.name;
+    cwrx.ffmpeg.probe(job.videoPath,function(err,info){
+        if (err) {
+            deferred.reject({"fnName": fnName, "msg": error});
+            return deferred.promise;
+        }
+
+        if (!info.duration){
+            deferred.reject({"fnName": fnName, "msg": 'Unable to determine video length.'});
+            return deferred.promise;
+        }
+
+        job.videoLength = info.duration;
+        log.trace('Video length: ' + job.videoLength);
+        deferred.resolve(job);
+    });
+    return deferred.promise;
+}
+
+function convertScriptToMP3(job,next){
+    var log = cwrx.logger.getLog(),
+        deferred = q.defer(),
+        fnName = arguments.callee.name;
+    cwrx.assemble(job.assembleTemplate(),function(err,tmpl){
+        if (err) {
+            deferred.reject({"fnName": fnName, "msg": error});
+            return deferred.promise;
+        }
+        log.trace('Assembled: ' + tmpl.output);
+        deferred.resolve(job);
+    });
+    return deferred.promise;
+}
+
+function applyScriptToVideo(job,next){
+    var log = cwrx.logger.getLog(),
+        deferred = q.defer();
+    cwrx.ffmpeg.mergeAudioToVideo(job.videoPath,job.scriptPath,
+            job.outputPath,job.mergeTemplate(), function(err,fpath,cmdline){
+                if (err) {
+                    deferred.reject({"fnName": fnName, "msg": error});
+                    return deferred.promise;
+                }
+                log.trace('Merged: ' + fpath);
+                deferred.resolve(job);
+            });
+    return deferred.promise;
+}
+
+function uploadToStorage(job,next){
+    var deferred = q.defer(), 
+        log = cwrx.logger.getLog(),
+        fnName = arguments.callee.name;
+    
+    if (job.outputType === 'local') {
+        log.trace('Output type is set to "local", skipping S3 upload.');
+        deferred.resolve(job);
+        return deferred.promise;
+    }
+    
+    if (!job.enableAws()){
+        log.trace('Cannot upload, aws is not enabled.');
+        deferred.resolve(job);
+        return deferred.promise;
+    }
+
+    var s3 = new aws.S3(),
+        params = job.getS3SrcVideoParams();
+    
+    cwrx.s3util.putObject(s3, job.outputPath, params).then(
+        function (res) {
+            log.trace('SUCCESS: ' + JSON.stringify(res));
+            deferred.resolve(job);
+        }, function (error) {
+            log.error('ERROR: ' + JSON.stringify(err));
+            deferred.reject({"fnName": fnName, "msg": 'S3 upload error'});
+        });
+    return deferred.promise;
 }
 
 module.exports = {

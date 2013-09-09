@@ -34,7 +34,8 @@ describe('s3util',function(){
         s3util      = cwrx.s3util;
         bucket      = 'c6.dev';
         if (!s3){
-            aws.config.loadFromPath(path.join(process.env.HOME,'.aws.ut.json'));
+            // aws.config.loadFromPath(path.join(process.env.HOME,'.aws.ut.json'));
+            aws.config.loadFromPath(path.join(process.env.HOME,'.aws.json'));
             s3 = new aws.S3();
         }
     });
