@@ -382,18 +382,6 @@ function handleRequest(job, done){
         }, function(error) { 
             done({message : 'Died on [' + error['fnName'] + ']: ' + error['msg']}, job); 
         });
-
-    /*if (pipeline.length !== 0){
-        pipelineJob(job,pipeline,function(err,job,lastFn){
-            if (err) {
-                done( { message : 'Died on [' + lastFn.name + ']:' + err.message }, job);
-            } else {
-                done(null,job);
-            }
-        });
-    }  else {
-        done(null,job);
-    }*/
 }
 
 function loadTemplateFromFile(tmplFile){
@@ -655,28 +643,6 @@ function hashText(txt){
     return hash.digest('hex');
 }
 
-/*
-function pipelineJob(job,pipeline,handler){
-    var fn = pipeline.shift(),
-        log= cwrx.logger.getLog(),
-        jobStart = new Date();
-    if (fn) {
-        log.trace('Run: ' + fn.name);
-        fn(job,function(err){
-            log.info( fn.name + ': ' + (((new Date()).valueOf() - jobStart.valueOf())  / 1000) + ' sec');
-            if (err) {
-                handler(err,job,fn);
-            } else {
-                process.nextTick(function(){
-                    pipelineJob(job,pipeline,handler);
-                });
-            }
-        });
-    } else {
-        handler(null,job,null);
-    }
-}*/
-
 function getSourceVideo(job,next) {
     var deferred = q.defer(), 
         log = cwrx.logger.getLog(),
@@ -784,11 +750,12 @@ function convertScriptToMP3(job,next){
 
 function applyScriptToVideo(job,next){
     var log = cwrx.logger.getLog(),
-        deferred = q.defer();
+        deferred = q.defer(),
+        fnName = arguments.callee.name;
     cwrx.ffmpeg.mergeAudioToVideo(job.videoPath,job.scriptPath,
             job.outputPath,job.mergeTemplate(), function(err,fpath,cmdline){
                 if (err) {
-                    deferred.reject({"fnName": fnName, "msg": error});
+                    deferred.reject({"fnName": fnName, "msg": err});
                     return deferred.promise;
                 }
                 log.trace('Merged: ' + fpath);
