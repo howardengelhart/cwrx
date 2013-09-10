@@ -667,10 +667,9 @@ function convertLinesToMP3(job,next){
         fnName = arguments.callee.name;
 
     var processTrack = q.fbind(function(track){
+        var deferred = q.defer();
         if (!fs.existsSync(track.fpath)){
-            var rqs = cwrx.vocalWare.createRequest({authToken : job.ttsAuth}), 
-                voice, 
-                deferred = q.defer();
+            var rqs = cwrx.vocalWare.createRequest({authToken : job.ttsAuth}), voice;
             if (job.tts.voice){
                 voice = cwrx.vocalWare.voices[job.tts.voice];
             }
@@ -707,7 +706,7 @@ function convertLinesToMP3(job,next){
         }, function(error) { 
         deferred.reject({"fnName": fnName, "msg": error});
     });
-        
+
     return deferred.promise;
 }
 
