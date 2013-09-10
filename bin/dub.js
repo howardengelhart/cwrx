@@ -339,28 +339,6 @@ function workerMain(config,program,done){
 function handleRequest(job, done){
     var log = cwrx.logger.getLog(),
         pipeline = [];
-    /*
-    pipeline.unshift(uploadToStorage);
-
-    if (job.hasOutput()){
-        log.info('video already exists.');
-    }  else {
-        pipeline.unshift(applyScriptToVideo);
-        if (!job.hasScript()){
-            pipeline.unshift(convertScriptToMP3);
-            if (!job.hasVideoLength()){
-                pipeline.unshift(getVideoLength);
-            }
-
-            if (!job.hasLines()){
-                pipeline.unshift(convertLinesToMP3);
-            }
-        }
-        
-        if (!job.hasVideo()){
-            pipeline.unshift(getSourceVideo);
-        }
-    }*/
     
     // Each function returns a promise for job and checks job to see if it needs to be run.
     getSourceVideo(job)
@@ -368,36 +346,18 @@ function handleRequest(job, done){
     .then(getVideoLength)
     .then(convertScriptToMP3)
     .then(applyScriptToVideo)
-    .then(uploadToStorage)
+    .then(uploadToStorage)            
     .then(
         function() {
             log.trace("All tasks succeeded!");
             done(null, job);
-        }, function(error) { 
-            done({message : 'Died on [' + error['fnName'] + ']: ' + error['msg']}, job); 
+        }, function(error) {
+            if (error['fnName'] && error['msg']) 
+                done({message : 'Died on [' + error['fnName'] + ']: ' + error['msg']}, job);
+            else
+                done({message : 'Died: ' + error}, job);
         }
-    );      
-    
-    // Allows us to wrap promise-returning functions with logging and timing code
-    /*var wrapFunction = function(prev, fn) {
-        return prev.then(function(val) {
-            var jobStart = new Date();
-            log.trace('Run: ' + fn.name);
-            return fn(val).finally(function() {
-                log.info( fn.name + ': ' + (((new Date()).valueOf() - jobStart.valueOf())  / 1000) + ' sec');
-            });
-        });
-    };*/
-
-    // Chains functions together using when function, passing a promise for job to first function
-    // TODO: allow us to retry functions from the pipeline if one fails
-    /*pipeline.reduce(wrapFunction, q(job)).then(
-        function() {
-            log.trace("All tasks succeeded!");
-            done(null, job);
-        }, function(error) { 
-            done({message : 'Died on [' + error['fnName'] + ']: ' + error['msg']}, job); 
-        });*/
+    );
 }
 
 function loadTemplateFromFile(tmplFile){
@@ -650,6 +610,27 @@ function createDubJob(template,config){
         };
     };
 
+    obj.elapsedTimes = {}
+    obj.setStartTime = function(fnName) {
+        obj.elapsedTimes[fnName] = {};
+        obj.elapsedTimes[fnName]['start'] = new Date();
+    }
+    obj.setEndTime = function(fnName) {
+        if (!obj.elapsedTimes[fnName] || !obj.elapsedTimes[fnName]['start']) {
+            log.info("Error: never set start time for [" + fnName + "]");
+            return;
+        }
+        obj.elapsedTimes[fnName]['end'] = new Date();
+        var elapsed = obj.getElapsedTime(fnName);
+        log.info("Finished [" + fnName + "] in " + elapsed);
+            
+    }
+    obj.getElapsedTime = function(fnName) {
+        if (obj.elapsedTimes[fnName] && obj.elapsedTimes[fnName]['start'] && obj.elapsedTimes[fnName]['end'])
+            return (obj.elapsedTimes[fnName]['end'].valueOf() - obj.elapsedTimes[fnName]['start'].valueOf()) / 1000;
+        else return -1;
+    }
+
     return obj;
 }
 
@@ -668,15 +649,27 @@ function getSourceVideo(job) {
         log.info("Skipping getSourceVideo");
         return q(job);
     }
+
+    log.info("Starting " + fnName);
+    job.setStartTime(fnName);
+
     if (job.enableAws()) {
         var s3 = new aws.S3(),
             params = job.getS3SrcVideoParams();
         log.trace('S3 Request: ' + JSON.stringify(params));
         cwrx.s3util.getObject(s3, params, job.videoPath).then( 
-            function (data) { deferred.resolve(job); },
-            function (error) { deferred.reject({"fnName": fnName, "msg": error}); }
+            function (data) { 
+                deferred.resolve(job); 
+                job.setEndTime(fnName);
+            }, function (error) { 
+                deferred.reject({"fnName": fnName, "msg": error});
+                job.setEndTime(fnName); 
+            }
         );
-    } else deferred.reject({"fnName": fnName, "msg": "You must enable aws to retrieve video."});
+    } else {
+        deferred.reject({"fnName": fnName, "msg": "You must enable aws to retrieve video."});
+        job.setEndTime(fnName);
+    }
     
     return deferred.promise;
 }
@@ -690,6 +683,10 @@ function convertLinesToMP3(job){
         log.info("Skipping convertLinesToMP3");
         return q(job);
     }
+
+    log.info("Starting " + fnName);
+    job.setStartTime(fnName);        
+
     var processTrack = q.fbind(function(track){
         var deferred = q.defer();
         if (!fs.existsSync(track.fpath)){
@@ -726,9 +723,12 @@ function convertLinesToMP3(job){
         function(results) { 
             log.trace('All tracks succeeded'); 
             deferred.resolve(job);
+            job.setEndTime(fnName);
         }, function(error) { 
-        deferred.reject({"fnName": fnName, "msg": error});
-    });
+            deferred.reject({"fnName": fnName, "msg": error});
+            job.setEndTime(fnName);
+        }
+    );
 
     return deferred.promise;
 }
@@ -742,19 +742,26 @@ function getVideoLength(job){
         log.info("Skipping getVideoLength");
         return q(job);
     }
+
+    log.info("Starting " + fnName);
+    job.setStartTime(fnName);        
+
     cwrx.ffmpeg.probe(job.videoPath,function(err,info){
         if (err) {
             deferred.reject({"fnName": fnName, "msg": error});
+            job.setEndTime(fnName);
             return deferred.promise;
         }
 
         if (!info.duration){
             deferred.reject({"fnName": fnName, "msg": 'Unable to determine video length.'});
+            job.setEndTime(fnName);
             return deferred.promise;
         }
 
         job.videoLength = info.duration;
         log.trace('Video length: ' + job.videoLength);
+        job.setEndTime(fnName);
         deferred.resolve(job);
     });
     return deferred.promise;
@@ -769,12 +776,18 @@ function convertScriptToMP3(job){
         log.info("Skipping convertScriptToMP3");
         return q(job);
     }
+
+    log.info("Starting " + fnName);
+    job.setStartTime(fnName);        
+
     cwrx.assemble(job.assembleTemplate(),function(err,tmpl){
         if (err) {
             deferred.reject({"fnName": fnName, "msg": error});
+            job.setEndTime(fnName);
             return deferred.promise;
         }
         log.trace('Assembled: ' + tmpl.output);
+        job.setEndTime(fnName);
         deferred.resolve(job);
     });
     return deferred.promise;
@@ -789,13 +802,19 @@ function applyScriptToVideo(job){
         log.info("Skipping applyScriptToVideo");
         return q(job);
     }
+
+    log.info("Starting " + fnName);
+    job.setStartTime(fnName);        
+
     cwrx.ffmpeg.mergeAudioToVideo(job.videoPath,job.scriptPath,
             job.outputPath,job.mergeTemplate(), function(err,fpath,cmdline){
                 if (err) {
                     deferred.reject({"fnName": fnName, "msg": err});
+                    job.setEndTime(fnName);
                     return deferred.promise;
                 }
                 log.trace('Merged: ' + fpath);
+                job.setEndTime(fnName);
                 deferred.resolve(job);
             });
     return deferred.promise;
@@ -818,15 +837,20 @@ function uploadToStorage(job){
         return deferred.promise;
     }
 
+    log.info("Starting " + fnName);
+    job.setStartTime(fnName);        
+
     var s3 = new aws.S3(),
         params = job.getS3OutVideoParams();
     log.trace('Uploading to Bucket: ' + params.Bucket + ', Key : ' + params.Key);
     cwrx.s3util.putObject(s3, job.outputPath, params).then(
         function (res) {
             log.trace('SUCCESS: ' + JSON.stringify(res));
+            job.setEndTime(fnName);
             deferred.resolve(job);
         }, function (error) {
             log.error('ERROR: ' + JSON.stringify(err));
+            job.setEndTime(fnName);
             deferred.reject({"fnName": fnName, "msg": 'S3 upload error'});
         });
     return deferred.promise;
