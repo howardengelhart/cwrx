@@ -60,6 +60,9 @@ var fs       = require('fs-extra'),
             bitrate     : '48k',
             frequency   : 22050,
             workspace   : __dirname
+        },
+        e2eTest : { 
+            active: true
         }
     },
 
@@ -434,7 +437,7 @@ function createConfiguration(cmdLine){
         Object.keys(self.caches).forEach(function(key){
             log.trace('Ensure cache[' + key + ']: ' + self.caches[key]);
             if (!fs.existsSync(self.caches[key])){
-                log.info('Create cache[' + key + ']: ' + self.caches[key]);
+                log.trace('Create cache[' + key + ']: ' + self.caches[key]);
                 fs.mkdirsSync(self.caches[key]);
             }
         });
@@ -545,6 +548,16 @@ function createDubJob(template,config){
         };
     };
 
+    if (config.e2eTest.active) {
+        obj.e2eTest = true;
+        obj.getS3RefParams = function() {
+            return {
+                Bucket : config.s3.out.bucket,
+                Key    : path.join(config.s3.out.path,template.refVideo)
+            };
+        };
+    }
+
     obj.scriptHash = hashText(buff);
     obj.outputHash  = hashText(template.video + ':' + obj.scriptHash);
     
@@ -553,7 +566,8 @@ function createDubJob(template,config){
     
     obj.videoPath   = config.cacheAddress(template.video,'video');
   
-    obj.outputFname = videoBase + '_' + obj.outputHash + videoExt;
+    if (obj.e2eTest) obj.outputFname = videoBase + "_e2e_output" + videoExt;
+    else obj.outputFname = videoBase + '_' + obj.outputHash + videoExt;
     obj.outputPath = config.cacheAddress(obj.outputFname,'output');
     obj.outputUri  = config.uriAddress(obj.outputFname);
     obj.outputType = config.output.type;
@@ -846,6 +860,10 @@ function uploadToStorage(job){
     cwrx.s3util.putObject(s3, job.outputPath, params).then(
         function (res) {
             log.trace('SUCCESS: ' + JSON.stringify(res));
+            if (job.e2eTest && res["ETag"]) {
+                job.outputETag = res["ETag"];
+                job.s3 = s3;
+            }
             job.setEndTime(fnName);
             deferred.resolve(job);
         }, function (error) {
@@ -857,7 +875,9 @@ function uploadToStorage(job){
 }
 
 module.exports = {
-    'createConfiguration' : createConfiguration,
-    'createDubJob'        : createDubJob
+    'createConfiguration'   : createConfiguration,
+    'createDubJob'          : createDubJob,
+    'loadTemplateFromFile'  : loadTemplateFromFile,
+    'handleRequest'         : handleRequest
 };
 

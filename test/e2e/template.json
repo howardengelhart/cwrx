@@ -1,0 +1,21 @@
+{
+    "video"   : "scream.mp4",
+    "refVideo" : "scream_e2e_ref.mp4",
+    "tts"     : {
+          "voice"  : "Allison",
+          "effect" : "R",
+          "level"  : "3"
+        },
+    "script"  : [
+        { "ts" : "7.70", "line" : "Hi, is my dog OK?" },
+        { "ts" : "11.83", "line" : "Its Mrs. Von blue Burger, are you alright?"  },
+        { "ts" : "17.67", "line" : "Are you on rufies?" },
+        { "ts" : "20.00", "line" : "Popcorn rufies?" },
+        { "ts" : "21.92", "line" : "My dog better be OK!" },
+        { "ts" : "25.92", "line" : "What?" },
+        { "ts" : "28.75", "line" : "About rufies?" },
+        { "ts" : "30.75", "line" : "Did your stamp collector give you the rufies?"  },
+        { "ts" : "35.08", "line" : "Well does this rufies movie have a name?" },
+        { "ts" : "46.38", "line" : "listen to me you little chalk rufies head. You need to hang up now and start to ruminate your scat together. I\"m getting in my yacht and coming home and I am going to get my helmet and put it through your rufies filled balls. You better not touch my dog or give it any of your damn rufies. This is Mrs. Von blue Burger. Goodbye." }
+    ]
+}
