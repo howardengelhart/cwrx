@@ -339,7 +339,7 @@ function workerMain(config,program,done){
 function handleRequest(job, done){
     var log = cwrx.logger.getLog(),
         pipeline = [];
-   
+    /*
     pipeline.unshift(uploadToStorage);
 
     if (job.hasOutput()){
@@ -360,10 +360,26 @@ function handleRequest(job, done){
         if (!job.hasVideo()){
             pipeline.unshift(getSourceVideo);
         }
-    }
+    }*/
+    
+    // Each function returns a promise for job and checks job to see if it needs to be run.
+    getSourceVideo(job)
+    .then(convertLinesToMP3)
+    .then(getVideoLength)
+    .then(convertScriptToMP3)
+    .then(applyScriptToVideo)
+    .then(uploadToStorage)
+    .then(
+        function() {
+            log.trace("All tasks succeeded!");
+            done(null, job);
+        }, function(error) { 
+            done({message : 'Died on [' + error['fnName'] + ']: ' + error['msg']}, job); 
+        }
+    );      
     
     // Allows us to wrap promise-returning functions with logging and timing code
-    var wrapFunction = function(prev, fn) {
+    /*var wrapFunction = function(prev, fn) {
         return prev.then(function(val) {
             var jobStart = new Date();
             log.trace('Run: ' + fn.name);
@@ -371,17 +387,17 @@ function handleRequest(job, done){
                 log.info( fn.name + ': ' + (((new Date()).valueOf() - jobStart.valueOf())  / 1000) + ' sec');
             });
         });
-    };
+    };*/
 
     // Chains functions together using when function, passing a promise for job to first function
     // TODO: allow us to retry functions from the pipeline if one fails
-    pipeline.reduce(wrapFunction, q(job)).then(
+    /*pipeline.reduce(wrapFunction, q(job)).then(
         function() {
             log.trace("All tasks succeeded!");
             done(null, job);
         }, function(error) { 
             done({message : 'Died on [' + error['fnName'] + ']: ' + error['msg']}, job); 
-        });
+        });*/
 }
 
 function loadTemplateFromFile(tmplFile){
@@ -643,11 +659,15 @@ function hashText(txt){
     return hash.digest('hex');
 }
 
-function getSourceVideo(job,next) {
+function getSourceVideo(job) {
     var deferred = q.defer(), 
         log = cwrx.logger.getLog(),
         fnName = arguments.callee.name;
-
+    
+    if (job.hasOutput() || job.hasVideo()) {
+        log.info("Skipping getSourceVideo");
+        return q(job);
+    }
     if (job.enableAws()) {
         var s3 = new aws.S3(),
             params = job.getS3SrcVideoParams();
@@ -661,11 +681,15 @@ function getSourceVideo(job,next) {
     return deferred.promise;
 }
 
-function convertLinesToMP3(job,next){
+function convertLinesToMP3(job){
     var log = cwrx.logger.getLog(),
         deferred = q.defer(),
         fnName = arguments.callee.name;
 
+    if (job.hasOutput() || job.hasScript() || job.hasLines()) {
+        log.info("Skipping convertLinesToMP3");
+        return q(job);
+    }
     var processTrack = q.fbind(function(track){
         var deferred = q.defer();
         if (!fs.existsSync(track.fpath)){
@@ -682,7 +706,6 @@ function convertLinesToMP3(job,next){
             if (job.tts.level) {
                 rqs.fxLevel = job.tts.level;
             }
-            log.trace('Create track: ' + track.fpath);
             cwrx.vocalWare.textToSpeech(rqs,track.fpath,function(err,rqs,o){
                 if (err) {
                     log.error(err.message);
@@ -710,10 +733,15 @@ function convertLinesToMP3(job,next){
     return deferred.promise;
 }
 
-function getVideoLength(job,next){
+function getVideoLength(job){
     var log = cwrx.logger.getLog(),
         deferred = q.defer(),
         fnName = arguments.callee.name;
+
+    if (job.hasOutput() || job.hasScript() || job.hasVideoLength()) {
+        log.info("Skipping getVideoLength");
+        return q(job);
+    }
     cwrx.ffmpeg.probe(job.videoPath,function(err,info){
         if (err) {
             deferred.reject({"fnName": fnName, "msg": error});
@@ -732,10 +760,15 @@ function getVideoLength(job,next){
     return deferred.promise;
 }
 
-function convertScriptToMP3(job,next){
+function convertScriptToMP3(job){
     var log = cwrx.logger.getLog(),
         deferred = q.defer(),
         fnName = arguments.callee.name;
+
+    if (job.hasOutput() || job.hasScript()) {
+        log.info("Skipping convertScriptToMP3");
+        return q(job);
+    }
     cwrx.assemble(job.assembleTemplate(),function(err,tmpl){
         if (err) {
             deferred.reject({"fnName": fnName, "msg": error});
@@ -747,10 +780,15 @@ function convertScriptToMP3(job,next){
     return deferred.promise;
 }
 
-function applyScriptToVideo(job,next){
+function applyScriptToVideo(job){
     var log = cwrx.logger.getLog(),
         deferred = q.defer(),
         fnName = arguments.callee.name;
+ 
+    if (job.hasOutput()) {
+        log.info("Skipping applyScriptToVideo");
+        return q(job);
+    }
     cwrx.ffmpeg.mergeAudioToVideo(job.videoPath,job.scriptPath,
             job.outputPath,job.mergeTemplate(), function(err,fpath,cmdline){
                 if (err) {
@@ -763,11 +801,11 @@ function applyScriptToVideo(job,next){
     return deferred.promise;
 }
 
-function uploadToStorage(job,next){
+function uploadToStorage(job){
     var deferred = q.defer(), 
         log = cwrx.logger.getLog(),
         fnName = arguments.callee.name;
-    
+
     if (job.outputType === 'local') {
         log.trace('Output type is set to "local", skipping S3 upload.');
         deferred.resolve(job);
