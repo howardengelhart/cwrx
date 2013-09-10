@@ -686,7 +686,7 @@ function convertLinesToMP3(job,next){
             log.trace('Create track: ' + track.fpath);
             cwrx.vocalWare.textToSpeech(rqs,track.fpath,function(err,rqs,o){
                 if (err) {
-                    log.error(e.message);
+                    log.error(err.message);
                     deferred.reject("Failed: path = " + track.fpath + " ts = " + track.ts);
                 } else {
                     log.trace("Succeeded: path = " + track.fpath + " ts = " + track.ts);
@@ -782,8 +782,8 @@ function uploadToStorage(job,next){
     }
 
     var s3 = new aws.S3(),
-        params = job.getS3SrcVideoParams();
-    
+        params = job.getS3OutVideoParams();
+    log.trace('Uploading to Bucket: ' + params.Bucket + ', Key : ' + params.Key);
     cwrx.s3util.putObject(s3, job.outputPath, params).then(
         function (res) {
             log.trace('SUCCESS: ' + JSON.stringify(res));
