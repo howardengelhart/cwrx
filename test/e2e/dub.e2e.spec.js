@@ -1,82 +1,72 @@
-var path    = require('path'),
-    fs      = require('fs-extra'),
-    dub     = require('../../bin/dub'),
-    crypto  = require('crypto');
+var request = require("request"),
+    fs      = require("fs"),
+    path    = require("path"),
 
-describe("dub", function() {
-    var program = {config: "dub_e2e_test.json", "enableAws": true},
-        config = dub.createConfiguration(program),
-        job = dub.createDubJob(dub.loadTemplateFromFile("template.json"),config);
+    configFile = fs.readFileSync(path.join(__dirname, "dub_e2e_config.json")),
+    config = JSON.parse(configFile);
+if (!config.url) throw new Error("Expected a url field in config file.");
 
-    it('should successfully create and upload a test video', function() {
-        
-        config.ensurePaths();        
-        
-        expect(config).toBeDefined();
-        expect(job).toBeDefined();
-        expect(job.outputType).toBe("s3");
+describe("dub server:", function() {
+    describe("valid template test - scream", function() {
+        var templateFile, templateJSON;
 
-        var handleReqFlag = false;
-
-        runs(function() {
-            dub.handleRequest(job, function(err, finishedJob) {
-                expect(err).toBeNull();
-                handleReqFlag = true;
-            });
+        it("should load the template successfully", function() {
+            templateFile = fs.readFileSync(path.join(__dirname, "valid_template.json"));
+            expect(templateFile).toBeDefined();
+            templateJSON = JSON.parse(templateFile);
+            expect(templateJSON).toBeDefined();
         });
-        waitsFor(function() { return handleReqFlag; }, "handleRequest took too long", 30000);
+
+        it("should successfully send a request to the dub server", function() {
+            var reqFlag = false, 
+                options = {
+                url: config.url,
+                json: templateJSON
+            }; 
+            
+            runs(function() {
+                request.post(options, function(error, response, body) {
+                    expect(error).toBeNull();
+                    expect(body).toBeDefined();
+                    expect(body["output"]).toBeDefined();
+                    expect(typeof(body["output"])).toEqual("string");
+                    // console.log(JSON.stringify(body));
+                    reqFlag = true;
+                });            
+            });
+            waitsFor(function() { return reqFlag; }, "Request took too long", 40000);
+        });
+    });
+    describe("missing script - test", function() {
+        var templateFile, templateJSON;
+
+        it("should load the template successfully", function() {
+            templateFile = fs.readFileSync(path.join(__dirname, "missing_script.json"));
+            expect(templateFile).toBeDefined();
+            templateJSON = JSON.parse(templateFile);
+            expect(templateJSON).toBeDefined();
+        });
+
+        it("should unsuccessfully send a request to the dub server", function() {
+            var reqFlag = false, 
+                options = {
+                url: config.url,
+                json: templateJSON
+            };
+            
+            runs(function() {
+                request.post(options, function(error, response, body) {
+                    expect(body).toBeDefined();
+                    expect(body['error']).toBeDefined();
+                    expect(body['detail']).toBeDefined();
+                    expect(body['detail']).toEqual("Expected script section in template");
+                    reqFlag = true;
+                });            
+            });
+            waitsFor(function() { return reqFlag; }, "Request took too long", 40000);
+        });
     });
 
-    it('should have created a video that exactly matches the reference video', function() {
-        
-        var s3HeadFlag = false;
 
-        runs(function() {
-            expect(job.outputETag).toBeDefined();
-            expect(job.s3).toBeDefined();
-            if (job.s3 && job.outputETag) {
-                var params = job.getS3RefParams();
-                job.s3.headObject(params, function(err, data) {
-                    expect(err).toBeNull();
-                    expect(data).toBeDefined();
-                    expect(job.outputETag).toEqual(data['ETag']);
-                    
-                    var localVid = fs.readFileSync(job.outputPath);
-                    var hash = crypto.createHash('md5');
-                    hash.update(localVid);
-                    expect(hash.digest('hex')).toEqual(data['ETag'].replace(/"/g, ''));
-
-                    s3HeadFlag = true;
-                });
-            }
-        });
-        waitsFor(function() {return s3HeadFlag; }, "S3 getHead of reference video took too long", 15000);
-    });
-
-    it('test should clean up after itself', function() {
-
-        var s3DeleteFlag = false;
-
-        runs(function() {
-            Object.keys(config.caches).forEach(function(removable){
-                if (fs.existsSync(config.caches[removable])){
-                    fs.removeSync(config.caches[removable]);
-                }
-            });
-            var outParams = job.getS3OutVideoParams();
-            var delParams = {Key: outParams.Key, Bucket: outParams.Bucket};
-            if (!job.s3) {
-                s3DeleteFlag = true;
-                return;
-            }
-            job.s3.deleteObject(delParams, function(err, data) {
-                expect(err).toBeNull();
-                expect(data).toBeDefined();
-                s3DeleteFlag = true;
-            });
-        });
-        waitsFor(function() {return s3DeleteFlag;}, "S3 Delete took too long", 15000);
-    });
 });
-
 

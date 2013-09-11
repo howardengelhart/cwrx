@@ -25,6 +25,7 @@
   "devDependencies": {
     "jshint": "~2.1.2",
     "grunt": "~0.4.1",
-    "grunt-contrib-copy": "~0.4.0"
+    "grunt-contrib-copy": "~0.4.0",
+    "request": "~2.27.0"
   }
 }

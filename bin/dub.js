@@ -514,6 +514,7 @@ function createDubJob(template,config){
 
     log.trace('job tts : ' + JSON.stringify(obj.tts));
     obj.tracks = [];
+    if (!template.script) throw new Error("Expected script section in template");
     template.script.forEach(function(item){
         // remove leading and trailing spaces
         item.line = item.line.replace(/^\s*(.*?)\s*$/,"$1");
@@ -717,6 +718,7 @@ function convertLinesToMP3(job){
             if (job.tts.level) {
                 rqs.fxLevel = job.tts.level;
             }
+            // throw new Error("blah blah blah");
             cwrx.vocalWare.textToSpeech(rqs,track.fpath,function(err,rqs,o){
                 if (err) {
                     log.error(err.message);
