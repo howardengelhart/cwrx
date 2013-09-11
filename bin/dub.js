@@ -62,7 +62,7 @@ var fs       = require('fs-extra'),
             workspace   : __dirname
         },
         e2eTest : { 
-            active: true
+            active: false
         }
     },
 
@@ -349,7 +349,7 @@ function handleRequest(job, done){
     .then(getVideoLength)
     .then(convertScriptToMP3)
     .then(applyScriptToVideo)
-    .then(uploadToStorage)            
+    .then(uploadToStorage)
     .then(
         function() {
             log.trace("All tasks succeeded!");
@@ -852,25 +852,42 @@ function uploadToStorage(job){
     }
 
     log.info("Starting " + fnName);
-    job.setStartTime(fnName);        
+    job.setStartTime(fnName);
 
     var s3 = new aws.S3(),
-        params = job.getS3OutVideoParams();
-    log.trace('Uploading to Bucket: ' + params.Bucket + ', Key : ' + params.Key);
-    cwrx.s3util.putObject(s3, job.outputPath, params).then(
-        function (res) {
-            log.trace('SUCCESS: ' + JSON.stringify(res));
-            if (job.e2eTest && res["ETag"]) {
-                job.outputETag = res["ETag"];
-                job.s3 = s3;
-            }
+        outParams = job.getS3OutVideoParams(),
+        headParams = {Key: outParams.Key, Bucket: outParams.Bucket},
+        localVid = fs.readFileSync(job.outputPath),
+        hash = crypto.createHash('md5');
+
+    hash.update(localVid);
+    var md5 = hash.digest('hex');
+    log.trace("Local File MD5: " + md5);
+
+    s3.headObject(headParams, function(err, data) {
+        if (data && data['ETag'] && data['ETag'].replace(/"/g, '') == md5) {
+            log.info("Local video already exists on S3, skipping upload");
             job.setEndTime(fnName);
             deferred.resolve(job);
-        }, function (error) {
-            log.error('ERROR: ' + JSON.stringify(err));
-            job.setEndTime(fnName);
-            deferred.reject({"fnName": fnName, "msg": 'S3 upload error'});
-        });
+        } else {
+            log.trace('Uploading to Bucket: ' + outParams.Bucket + ', Key : ' + outParams.Key);
+            cwrx.s3util.putObject(s3, job.outputPath, outParams).then(
+                function (res) {
+                    log.trace('SUCCESS: ' + JSON.stringify(res));
+                    if (job.e2eTest && res["ETag"]) {
+                        job.outputETag = res["ETag"];
+                        job.s3 = s3;
+                    }
+                    job.setEndTime(fnName);
+                    deferred.resolve(job);
+                }, function (error) {
+                    log.error('ERROR: ' + JSON.stringify(err));
+                    job.setEndTime(fnName);
+                    deferred.reject({"fnName": fnName, "msg": 'S3 upload error'});
+                });
+        }
+    });
+    
     return deferred.promise;
 }
 
