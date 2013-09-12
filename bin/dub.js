@@ -329,9 +329,15 @@ function workerMain(config,program,done){
                 });
                 return;
             }
-            res.send(200, {
-                output : job.outputUri    
-            });
+            if (job.md5)
+                res.send(200, {
+                    output : job.outputUri,
+                    md5    : job.md5
+                });
+            else
+                res.send(200, {
+                    output : job.outputUri    
+                });
         });
     });
 
@@ -340,8 +346,7 @@ function workerMain(config,program,done){
 }
 
 function handleRequest(job, done){
-    var log = cwrx.logger.getLog(),
-        pipeline = [];
+    var log = cwrx.logger.getLog();
     
     // Each function returns a promise for job and checks job to see if it needs to be run.
     getSourceVideo(job)
@@ -549,16 +554,6 @@ function createDubJob(template,config){
         };
     };
 
-    if (config.e2eTest.active) {
-        obj.e2eTest = true;
-        obj.getS3RefParams = function() {
-            return {
-                Bucket : config.s3.out.bucket,
-                Key    : path.join(config.s3.out.path,template.refVideo)
-            };
-        };
-    }
-
     obj.scriptHash = hashText(buff);
     obj.outputHash  = hashText(template.video + ':' + obj.scriptHash);
     
@@ -644,6 +639,29 @@ function createDubJob(template,config){
         if (obj.elapsedTimes[fnName] && obj.elapsedTimes[fnName]['start'] && obj.elapsedTimes[fnName]['end'])
             return (obj.elapsedTimes[fnName]['end'].valueOf() - obj.elapsedTimes[fnName]['start'].valueOf()) / 1000;
         else return -1;
+    }
+
+    //TODO: Change this to blackbox or unit test or something!
+    if (config.e2eTest.active) {
+        obj.e2eTest = true;
+        obj.getS3RefParams = function() {
+            return {
+                Bucket : config.s3.out.bucket,
+                Key    : path.join(config.s3.out.path,template.refVideo)
+            };
+        };
+    }
+
+    if (template.e2e) {
+        obj.e2e = true;
+        if (template.e2e.clean_cache) {
+            var remList = [obj.scriptPath, obj.outputPath];
+            obj.tracks.forEach(function(track) { remList.push(track.fpath) });
+
+            remList.forEach(function(fpath) {
+                if (fs.existsSync(fpath)) fs.removeSync(fpath);
+            });
+        }
     }
 
     return obj;
@@ -837,9 +855,25 @@ function applyScriptToVideo(job){
 }
 
 function uploadToStorage(job){
-    var deferred = q.defer(), 
+    var deferred = q.defer(),
         log = cwrx.logger.getLog(),
-        fnName = arguments.callee.name;
+        fnName = arguments.callee.name,
+        md5;
+    
+    var getMD5 = function() {
+        var localVid = fs.readFileSync(job.outputPath),
+            hash = crypto.createHash('md5');
+
+        hash.update(localVid);
+        var md5sum = hash.digest('hex');
+        log.trace("Local File MD5: " + md5sum);
+        return md5sum;
+    }
+        
+    if (job.e2e) {
+        md5 = getMD5();
+        job.md5 = md5;
+    }
 
     if (job.outputType === 'local') {
         log.trace('Output type is set to "local", skipping S3 upload.');
@@ -856,15 +890,11 @@ function uploadToStorage(job){
     log.info("Starting " + fnName);
     job.setStartTime(fnName);
 
+    if (!md5) md5 = getMD5();
+
     var s3 = new aws.S3(),
         outParams = job.getS3OutVideoParams(),
-        headParams = {Key: outParams.Key, Bucket: outParams.Bucket},
-        localVid = fs.readFileSync(job.outputPath),
-        hash = crypto.createHash('md5');
-
-    hash.update(localVid);
-    var md5 = hash.digest('hex');
-    log.trace("Local File MD5: " + md5);
+        headParams = {Key: outParams.Key, Bucket: outParams.Bucket};
 
     s3.headObject(headParams, function(err, data) {
         if (data && data['ETag'] && data['ETag'].replace(/"/g, '') == md5) {

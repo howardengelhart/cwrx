@@ -1,0 +1,18 @@
+{
+    "video"     : "siri.mp4",
+    "tts"       : {
+        "voice": "Susan"
+        },
+    "script"    : [
+        { "ts": "6", "line": "new message from Clarence. My head is stuck in the blender.  Pick me up at the hospital after work." },
+        { "ts": "20", "line": "Clear. You can stop at the Taco Bell bathroom, to take a nasty poop." },
+        { "ts": "33", "line": "No, but Fox News reports: <prosody pitch=\"high\"> hoe lee shit </prosody> a shark naydough." },
+        { "ts": "39.5", "line": "Better idea, sharks don't like wine." },
+        { "ts": "45", "line": "Hey jerk, stop bothering mee with dumb questions." },
+        { "ts": "51", "line": "Ok, I'll pretend like I'm doing that <Break time=\"750ms\"/> <prosody rate=\"slow\"> I hate you. </prosody>" }
+    ],
+    "e2e"     : {
+        "clean_cache": true,
+        "md5": "b01af6334428ed96be6862a413aed7ba"
+    }
+}
