@@ -90,7 +90,7 @@ if (!__ut__){
 function main(done){
     var program  = require('commander'),
         config, job, log;
-    
+
     program
         .version('0.1.0')
         .option('-c, --config [CFGFILE]','Specify config file')
@@ -218,7 +218,7 @@ function main(done){
         // Add the RUNNING_AS_DAEMON var to the environment
         // we are forwarding along to the child process
         process.env.RUNNING_AS_DAEMON = true;
-        var child = cp.spawn('/usr/local/bin/node',child_args, { 
+        var child = cp.spawn('node',child_args, { 
             stdio   : 'ignore',
             detached: true,
             env     : process.env
