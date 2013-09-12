@@ -18,25 +18,25 @@ describe("dub server:", function() {
         });
 
         it("should successfully send a request to the dub server", function() {
-            var reqFlag = false, 
-                options = {
+            var options = {
                 url: config.url,
                 json: templateJSON
-            }; 
+            }, reqFlag = false;
             
             runs(function() {
                 request.post(options, function(error, response, body) {
                     expect(error).toBeNull();
                     expect(body).toBeDefined();
-                    expect(body["output"]).toBeDefined();
-                    expect(typeof(body["output"])).toEqual("string");
-                    expect(body["md5"]).toBeDefined();
-                    expect(body["md5"]).toEqual(templateJSON["e2e"]["md5"]);
-                    // console.log(JSON.stringify(body));
+                    if (body) {
+                        expect(body["output"]).toBeDefined();
+                        expect(typeof(body["output"])).toEqual("string");
+                        expect(body["md5"]).toBeDefined();
+                        expect(body["md5"]).toEqual(templateJSON["e2e"]["md5"]);
+                    }
                     reqFlag = true;
                 });            
             });
-            waitsFor(function() { return reqFlag; }, "Request took too long", 40000);
+            waitsFor(function() { return reqFlag }, 30000);
         });
     });
     describe("valid template test - siri", function() {
@@ -48,25 +48,25 @@ describe("dub server:", function() {
         });
 
         it("should successfully send a request to the dub server", function() {
-            var reqFlag = false, 
-                options = {
+            var options = {
                 url: config.url,
                 json: templateJSON
-            }; 
+            }, reqFlag = false;
             
             runs(function() {
                 request.post(options, function(error, response, body) {
                     expect(error).toBeNull();
                     expect(body).toBeDefined();
-                    expect(body["output"]).toBeDefined();
-                    expect(typeof(body["output"])).toEqual("string");
-                    expect(body["md5"]).toBeDefined();
-                    expect(body["md5"]).toEqual(templateJSON["e2e"]["md5"]);
-                    // console.log(JSON.stringify(body));
+                    if (body) {
+                        expect(body["output"]).toBeDefined();
+                        expect(typeof(body["output"])).toEqual("string");
+                        expect(body["md5"]).toBeDefined();
+                        expect(body["md5"]).toEqual(templateJSON["e2e"]["md5"]);
+                    }
                     reqFlag = true;
                 });            
             });
-            waitsFor(function() { return reqFlag; }, "Request took too long", 40000);
+            waitsFor(function() { return reqFlag }, 30000);
         });
     });
     describe("missing script test", function() {
@@ -78,22 +78,23 @@ describe("dub server:", function() {
         });
 
         it("should unsuccessfully send a request to the dub server", function() {
-            var reqFlag = false, 
-                options = {
+            var options = {
                 url: config.url,
                 json: templateJSON
-            };
+            }, reqFlag = false;
             
             runs(function() {
                 request.post(options, function(error, response, body) {
                     expect(body).toBeDefined();
-                    expect(body['error']).toBeDefined();
-                    expect(body['detail']).toBeDefined();
-                    expect(body['detail']).toEqual("Expected script section in template");
+                    if (body) {
+                        expect(body['error']).toBeDefined();
+                        expect(body['detail']).toBeDefined();
+                        expect(body['detail']).toEqual("Expected script section in template");
+                    }
                     reqFlag = true;
                 });            
             });
-            waitsFor(function() { return reqFlag; }, "Request took too long", 40000);
+            waitsFor(function() { return reqFlag }, 30000);
         });
     });
 

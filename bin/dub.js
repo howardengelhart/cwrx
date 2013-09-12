@@ -61,9 +61,6 @@ var fs       = require('fs-extra'),
             frequency   : 22050,
             workspace   : __dirname
         },
-        e2eTest : { 
-            active: false
-        }
     },
 
     // Attempt a graceful exit
@@ -562,8 +559,7 @@ function createDubJob(template,config){
     
     obj.videoPath   = config.cacheAddress(template.video,'video');
   
-    if (obj.e2eTest) obj.outputFname = videoBase + "_e2e_output" + videoExt;
-    else obj.outputFname = videoBase + '_' + obj.outputHash + videoExt;
+    obj.outputFname = videoBase + '_' + obj.outputHash + videoExt;
     obj.outputPath = config.cacheAddress(obj.outputFname,'output');
     obj.outputUri  = config.uriAddress(obj.outputFname);
     obj.outputType = config.output.type;
@@ -639,17 +635,6 @@ function createDubJob(template,config){
         if (obj.elapsedTimes[fnName] && obj.elapsedTimes[fnName]['start'] && obj.elapsedTimes[fnName]['end'])
             return (obj.elapsedTimes[fnName]['end'].valueOf() - obj.elapsedTimes[fnName]['start'].valueOf()) / 1000;
         else return -1;
-    }
-
-    //TODO: Change this to blackbox or unit test or something!
-    if (config.e2eTest.active) {
-        obj.e2eTest = true;
-        obj.getS3RefParams = function() {
-            return {
-                Bucket : config.s3.out.bucket,
-                Key    : path.join(config.s3.out.path,template.refVideo)
-            };
-        };
     }
 
     if (template.e2e) {
@@ -906,10 +891,6 @@ function uploadToStorage(job){
             cwrx.s3util.putObject(s3, job.outputPath, outParams).then(
                 function (res) {
                     log.trace('SUCCESS: ' + JSON.stringify(res));
-                    if (job.e2eTest && res["ETag"]) {
-                        job.outputETag = res["ETag"];
-                        job.s3 = s3;
-                    }
                     job.setEndTime(fnName);
                     deferred.resolve(job);
                 }, function (error) {

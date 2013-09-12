@@ -1,11 +1,6 @@
 {
     "video"   : "scream.mp4",
     "refVideo" : "scream_e2e_ref.mp4",
-    "tts"     : {
-          "voice"  : "Allison",
-          "effect" : "R",
-          "level"  : "3"
-        },
     "script"  : [
         { "ts" : "7.70", "line" : "Hi, is my dog OK?" },
         { "ts" : "11.83", "line" : "Its Mrs. Von blue Burger, are you alright?"  },
