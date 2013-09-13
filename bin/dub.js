@@ -326,15 +326,10 @@ function workerMain(config,program,done){
                 });
                 return;
             }
-            if (job.md5)
-                res.send(200, {
-                    output : job.outputUri,
-                    md5    : job.md5
-                });
-            else
-                res.send(200, {
-                    output : job.outputUri    
-                });
+            res.send(200, {
+                output : job.outputUri,
+                md5    : job.md5
+            });
         });
     });
 
@@ -637,18 +632,6 @@ function createDubJob(template,config){
         else return -1;
     }
 
-    if (template.e2e) {
-        obj.e2e = true;
-        if (template.e2e.clean_cache) {
-            var remList = [obj.scriptPath, obj.outputPath];
-            obj.tracks.forEach(function(track) { remList.push(track.fpath) });
-
-            remList.forEach(function(fpath) {
-                if (fs.existsSync(fpath)) fs.removeSync(fpath);
-            });
-        }
-    }
-
     return obj;
 }
 
@@ -703,7 +686,7 @@ function convertLinesToMP3(job){
     }
 
     log.info("Starting " + fnName);
-    job.setStartTime(fnName);        
+    job.setStartTime(fnName);
 
     var processTrack = q.fbind(function(track){
         var deferred = q.defer();
@@ -721,13 +704,11 @@ function convertLinesToMP3(job){
             if (job.tts.level) {
                 rqs.fxLevel = job.tts.level;
             }
-            // throw new Error("blah blah blah");
             cwrx.vocalWare.textToSpeech(rqs,track.fpath,function(err,rqs,o){
                 if (err) {
-                    log.error(err.message);
-                    deferred.reject("Failed: path = " + track.fpath + " ts = " + track.ts);
+                    deferred.reject(error);
                 } else {
-                    log.trace("Succeeded: path = " + track.fpath + " ts = " + track.ts);
+                    log.trace("Succeeded: name = " + track.fname + " ts = " + track.ts);
                     deferred.resolve();
                 }
             });
@@ -737,17 +718,35 @@ function convertLinesToMP3(job){
         }
         return deferred.promise;
     });
-    
-    q.all(job.tracks.map(processTrack)).then(
-        function(results) { 
+
+    q.allSettled(job.tracks.map(function(track) {
+        var deferred2 = q.defer();
+        processTrack(track).then(
+            function() { deferred2.resolve() },
+            function(error) {
+                log.error("Failed once for " + track.fname + " with error = " + error);
+                log.trace("Retrying...");
+                processTrack(track).then(
+                    function() { deferred2.resolve(); },
+                    function(error) { 
+                        log.error("Failed again for " + track.fname); 
+                        deferred2.reject(error); 
+                });
+            }
+        );
+        return deferred2.promise;
+    })).then(function(results) { 
+            for (var i in results) {
+                if (results[i]['state'] == "rejected") {
+                    deferred.reject({"fnName": fnName, "msg": results[i]['reason']});
+                    job.setEndTime(fnName);
+                    return;
+                }
+            }
             log.trace('All tracks succeeded'); 
             deferred.resolve(job);
             job.setEndTime(fnName);
-        }, function(error) { 
-            deferred.reject({"fnName": fnName, "msg": error});
-            job.setEndTime(fnName);
-        }
-    );
+    });
 
     return deferred.promise;
 }
@@ -801,7 +800,7 @@ function convertScriptToMP3(job){
 
     cwrx.assemble(job.assembleTemplate(),function(err,tmpl){
         if (err) {
-            deferred.reject({"fnName": fnName, "msg": error});
+            deferred.reject({"fnName": fnName, "msg": err});
             job.setEndTime(fnName);
             return deferred.promise;
         }
@@ -843,22 +842,13 @@ function uploadToStorage(job){
     var deferred = q.defer(),
         log = cwrx.logger.getLog(),
         fnName = arguments.callee.name,
-        md5;
     
-    var getMD5 = function() {
-        var localVid = fs.readFileSync(job.outputPath),
-            hash = crypto.createHash('md5');
+        localVid = fs.readFileSync(job.outputPath),
+        hash = crypto.createHash('md5');
 
-        hash.update(localVid);
-        var md5sum = hash.digest('hex');
-        log.trace("Local File MD5: " + md5sum);
-        return md5sum;
-    }
-        
-    if (job.e2e) {
-        md5 = getMD5();
-        job.md5 = md5;
-    }
+    hash.update(localVid);
+    job.md5 = hash.digest('hex');
+    log.trace("Local File MD5: " + job.md5);
 
     if (job.outputType === 'local') {
         log.trace('Output type is set to "local", skipping S3 upload.');
@@ -875,14 +865,12 @@ function uploadToStorage(job){
     log.info("Starting " + fnName);
     job.setStartTime(fnName);
 
-    if (!md5) md5 = getMD5();
-
     var s3 = new aws.S3(),
         outParams = job.getS3OutVideoParams(),
         headParams = {Key: outParams.Key, Bucket: outParams.Bucket};
 
     s3.headObject(headParams, function(err, data) {
-        if (data && data['ETag'] && data['ETag'].replace(/"/g, '') == md5) {
+        if (data && data['ETag'] && data['ETag'].replace(/"/g, '') == job.md5) {
             log.info("Local video already exists on S3, skipping upload");
             job.setEndTime(fnName);
             deferred.resolve(job);
