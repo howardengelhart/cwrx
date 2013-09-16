@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 
 var __ut__   = ((module.parent) && (module.parent.filename) &&
-               (module.parent.filename.match(/\.spec.js$/))) ? true : false;
+               (module.parent.filename.match(/\.spec.js$/))) ? true : false,
+
+    __maint__    = ((module.parent) && (module.parent.filename) &&
+                  (module.parent.filename.match(/maint.js$/))) ? true : false;
 
 ////////////////////////////////////////////
 // NodeFly
-if (!__ut__) {
+if (!__ut__ && !__maint__) {
     (function(){
         var hostname      = require('os').hostname(),
             processNumber = process.env.INDEX_OF_PROCESS || 0;
@@ -65,7 +68,7 @@ var fs       = require('fs-extra'),
 
     // Attempt a graceful exit
     exitApp  = function(resultCode,msg){
-        var log = cwrx.logger.getLog();
+        var log = cwrx.logger.getLog("dub");
         if (msg){
             if (resultCode){
                 log.error(msg);
@@ -76,7 +79,7 @@ var fs       = require('fs-extra'),
         process.exit(resultCode);
     };
 
-if (!__ut__){
+if (!__ut__ && !__maint__){
 
     try {
         main(function(rc,msg){
@@ -115,7 +118,7 @@ function main(done){
         process.setuid(program.uid);
     }
    
-    config = createConfiguration(program);
+    config = createConfiguration(program, "dub");
 
     if (program.showConfig){
         console.log(JSON.stringify(config,null,3));
@@ -124,7 +127,7 @@ function main(done){
 
     config.ensurePaths();
 
-    log = cwrx.logger.getLog();
+    log = cwrx.logger.getLog("dub");
 
     if (program.loglevel){
         log.setLevel(program.loglevel);
@@ -136,7 +139,7 @@ function main(done){
             throw new SyntaxError('Expected a template file.');
         }
 
-        job = createDubJob(loadTemplateFromFile(program.args[0]),config);
+        job = createDubJob(loadTemplateFromFile(program.args[0]), config, "dub");
         
         handleRequest(job,function(err, finishedJob){
             if (err) {
@@ -167,7 +170,7 @@ function main(done){
     process.on('SIGTERM',function(){
         log.info('Received TERM, exitting app.');
         if (program.daemon){
-            config.removePidFile();
+            config.removePidFile("dub.pid");
         }
 
         if (cluster.isMaster){
@@ -187,7 +190,7 @@ function main(done){
     if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)){
 
         // First check to see if we're already running as a daemon
-        var pid = config.readPidFile();
+        var pid = config.readPidFile("dub.pid");
         if (pid){
             var exists = false;
             try {
@@ -200,7 +203,7 @@ function main(done){
                 return done(1,'need to term ' + pid);
             } else {
                 log.error('Process [' + pid + '] appears to be gone, will restart.');
-                config.removePidFile();
+                config.removePidFile("dub.pid");
             }
 
         } 
@@ -226,7 +229,7 @@ function main(done){
   
         child.unref();
         log.info('child spawned, pid is ' + child.pid + ', exiting parent process..');
-        config.writePidFile(child.pid);
+        config.writePidFile(child.pid, "dub.pid");
         console.log("child has been forked, exit.");
         process.exit(0);
     }
@@ -241,7 +244,7 @@ function main(done){
 }
 
 function clusterMain(config,program,done) {
-    var log = cwrx.logger.getLog();
+    var log = cwrx.logger.getLog("dub");
     log.info('Running as cluster master');
 
     cluster.on('exit', function(worker, code, signal) {
@@ -278,7 +281,7 @@ function clusterMain(config,program,done) {
 
 function workerMain(config,program,done){
     var app = express(),
-        log = cwrx.logger.getLog();
+        log = cwrx.logger.getLog("dub");
 
     log.info('Running as cluster worker, proceed with setting up web server.');
     app.use(express.bodyParser());
@@ -308,7 +311,7 @@ function workerMain(config,program,done){
     app.post('/dub/create', function(req, res, next){
         var job;
         try {
-            job = createDubJob(req.body,config);
+            job = createDubJob(req.body, config, "dub");
         }catch (e){
             log.error('Create Job Error: ' + e.stack);
             res.send(500,{
@@ -338,7 +341,7 @@ function workerMain(config,program,done){
 }
 
 function handleRequest(job, done){
-    var log = cwrx.logger.getLog();
+    var log = cwrx.logger.getLog("dub");
     
     // Each function returns a promise for job and checks job to see if it needs to be run.
     getSourceVideo(job)
@@ -377,8 +380,8 @@ function loadTemplateFromFile(tmplFile){
     return tmplObj;
 }
 
-function createConfiguration(cmdLine){
-    var log = cwrx.logger.getLog(),
+function createConfiguration(cmdLine, logName){
+    var log = cwrx.logger.getLog(logName),
         cfgObject = {},
         userCfg;
 
@@ -426,7 +429,7 @@ function createConfiguration(cmdLine){
     }
 
     if (cfgObject.log) {
-        log = cwrx.logger.createLog(cfgObject.log);
+        log = cwrx.logger.createLog(cfgObject.log, logName);
     }
 
     cfgObject.ensurePaths = function(){
@@ -451,18 +454,14 @@ function createConfiguration(cmdLine){
         return path.join(this.caches[cache],fname); 
     };
 
-    cfgObject.getPidFile  = function(){
-        return this.cacheAddress('dub.pid','run');
-    };
-
-    cfgObject.writePidFile = function(data){
-        var pidPath = this.cacheAddress('dub.pid','run');
+    cfgObject.writePidFile = function(data, fname){
+        var pidPath = this.cacheAddress(fname,'run');
         log.info('Write pid file: ' + pidPath);
         fs.writeFileSync(pidPath,data);
     };
 
-    cfgObject.readPidFile = function(){
-        var pidPath = this.cacheAddress('dub.pid','run'),
+    cfgObject.readPidFile = function(fname){
+        var pidPath = this.cacheAddress(fname,'run'),
             result;
         try {
             if (fs.existsSync(pidPath)){
@@ -474,8 +473,8 @@ function createConfiguration(cmdLine){
         return result;
     };
 
-    cfgObject.removePidFile = function(){
-        var pidPath = this.cacheAddress('dub.pid','run');
+    cfgObject.removePidFile = function(fname){
+        var pidPath = this.cacheAddress(fname,'run');
         if (fs.existsSync(pidPath)){
             log.info('Remove pid file: ' + pidPath);
             fs.unlinkSync(pidPath);
@@ -485,8 +484,8 @@ function createConfiguration(cmdLine){
     return cfgObject;
 }
 
-function createDubJob(template,config){
-    var log = cwrx.logger.getLog(),
+function createDubJob(template,config,logName){
+    var log = cwrx.logger.getLog(logName),
         buff,
         obj       = {},
         soh       = String.fromCharCode(1),
@@ -643,7 +642,7 @@ function hashText(txt){
 
 function getSourceVideo(job) {
     var deferred = q.defer(), 
-        log = cwrx.logger.getLog(),
+        log = cwrx.logger.getLog("dub"),
         fnName = arguments.callee.name;
     
     if (job.hasOutput() || job.hasVideo()) {
@@ -676,7 +675,7 @@ function getSourceVideo(job) {
 }
 
 function convertLinesToMP3(job){
-    var log = cwrx.logger.getLog(),
+    var log = cwrx.logger.getLog("dub"),
         deferred = q.defer(),
         fnName = arguments.callee.name;
 
@@ -752,7 +751,7 @@ function convertLinesToMP3(job){
 }
 
 function getVideoLength(job){
-    var log = cwrx.logger.getLog(),
+    var log = cwrx.logger.getLog("dub"),
         deferred = q.defer(),
         fnName = arguments.callee.name;
 
@@ -786,7 +785,7 @@ function getVideoLength(job){
 }
 
 function convertScriptToMP3(job){
-    var log = cwrx.logger.getLog(),
+    var log = cwrx.logger.getLog("dub"),
         deferred = q.defer(),
         fnName = arguments.callee.name;
 
@@ -812,7 +811,7 @@ function convertScriptToMP3(job){
 }
 
 function applyScriptToVideo(job){
-    var log = cwrx.logger.getLog(),
+    var log = cwrx.logger.getLog("dub"),
         deferred = q.defer(),
         fnName = arguments.callee.name;
  
@@ -840,7 +839,7 @@ function applyScriptToVideo(job){
 
 function uploadToStorage(job){
     var deferred = q.defer(),
-        log = cwrx.logger.getLog(),
+        log = cwrx.logger.getLog("dub"),
         fnName = arguments.callee.name,
     
         localVid = fs.readFileSync(job.outputPath),
@@ -895,7 +894,6 @@ function uploadToStorage(job){
 module.exports = {
     'createConfiguration'   : createConfiguration,
     'createDubJob'          : createDubJob,
-    'loadTemplateFromFile'  : loadTemplateFromFile,
-    'handleRequest'         : handleRequest
+    'loadTemplateFromFile'  : loadTemplateFromFile
 };
 

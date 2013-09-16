@@ -1,0 +1,32 @@
+{
+    "log"    : {
+        "logLevel" : "trace",
+        "logDir"   : "/home/evan/Documents/Cinema6/cwrx_tests/logs",
+        "logName"  : "dub.log",
+        "media"    : [ { "type" : "console" } ]
+    },
+    "caches" : {
+        "run"     : "/home/evan/Documents/Cinema6/cwrx_tests/run/",
+        "line"    : "/home/evan/Documents/Cinema6/cwrx_tests/line/",
+        "script"  : "/home/evan/Documents/Cinema6/cwrx_tests/script/",
+        "video"   : "/home/evan/Documents/Cinema6/cwrx_tests/video/",
+        "output"  : "/home/evan/Documents/Cinema6/cwrx_tests/output/"
+    },
+    "output" : {
+        "uri" : "http://localhost/screenjack/video/",
+        "type" : "local"
+    },
+    "s3" : {
+        "src" : {
+            "bucket" : "c6.dev",
+            "path"   : "media/src/screenjack/video"
+            },
+        "out" : {
+            "bucket" : "c6.dev",
+            "path"   : "media/usr/screenjack/video"
+            }
+    },
+    "tts" : {
+        "workspace" : "/tmp/"
+    }
+}

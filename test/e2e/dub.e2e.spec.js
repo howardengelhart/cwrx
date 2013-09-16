@@ -8,16 +8,26 @@ if (!config.url) throw new Error("expected a url field in config file.");
 
 describe("dub server:", function() {
     var templateFile, templateJSON;
+    
+    afterEach(function() { 
+        if (templateJSON.e2e && templateJSON.e2e.clean_caches) {
+            var options = {
+                url : config.clean_cache_url,
+                json: templateJSON
+            }
+            request.post(options, function(error, response, body) {
+                if (error) console.log("Error cleaning caches: " + error);
+            });
+        }
+    });
 
     describe("valid template test - scream", function() {
-        it("should load the template successfully", function() {
-            templateFile = fs.readFileSync(path.join(__dirname, "scream_template.json"));
+        it("should successfully send a request to the dub server", function() {
+            templateFile = fs.readFileSync(path.join(__dirname, "Templates/scream_template.json"));
             expect(templateFile).toBeDefined();
             templateJSON = JSON.parse(templateFile);
             expect(templateJSON).toBeDefined();
-        });
 
-        it("should successfully send a request to the dub server", function() {
             var options = {
                 url: config.url,
                 json: templateJSON
@@ -40,14 +50,12 @@ describe("dub server:", function() {
         });
     });
     describe("valid template test - siri", function() {
-        it("should load the template successfully", function() {
-            templateFile = fs.readFileSync(path.join(__dirname, "siri_template.json"));
+        it("should successfully send a request to the dub server", function() {
+            templateFile = fs.readFileSync(path.join(__dirname, "Templates/siri_template.json"));
             expect(templateFile).toBeDefined();
             templateJSON = JSON.parse(templateFile);
             expect(templateJSON).toBeDefined();
-        });
 
-        it("should successfully send a request to the dub server", function() {
             var options = {
                 url: config.url,
                 json: templateJSON
@@ -70,14 +78,12 @@ describe("dub server:", function() {
         });
     });
     describe("missing script test", function() {
-        it("should load the template successfully", function() {
-            templateFile = fs.readFileSync(path.join(__dirname, "missing_script.json"));
+        it("should unsuccessfully send a request to the dub server", function() {
+            templateFile = fs.readFileSync(path.join(__dirname, "Templates/missing_script.json"));
             expect(templateFile).toBeDefined();
             templateJSON = JSON.parse(templateFile);
             expect(templateJSON).toBeDefined();
-        });
 
-        it("should unsuccessfully send a request to the dub server", function() {
             var options = {
                 url: config.url,
                 json: templateJSON
