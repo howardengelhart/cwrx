@@ -48,11 +48,15 @@ var fs       = require('fs-extra'),
             "uri"  : "/media"
         },
         s3 : {
-            src : {
+            src     : {
                 bucket  : 'c6media',
                 path    : 'src'
             },
-            out : {
+            out     : {
+                bucket  : 'c6media',
+                path    : 'usr'
+            },
+            scripts : {
                 bucket  : 'c6media',
                 path    : 'usr'
             },
@@ -199,7 +203,8 @@ function main(done){
             }
 
             if (exists) {
-                console.error('It appears daemon is already running (' + pid + '), please sig term the old process if you wish to run a new one.');
+                console.error('It appears daemon is already running (' + pid + '), please sig term\
+                               the old process if you wish to run a new one.');
                 return done(1,'need to term ' + pid);
             } else {
                 log.error('Process [' + pid + '] appears to be gone, will restart.');
@@ -288,7 +293,8 @@ function workerMain(config,program,done){
 
     app.all('*', function(req, res, next) {
         res.header("Access-Control-Allow-Origin", "*");
-        res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+        res.header("Access-Control-Allow-Headers", 
+                   "Origin, X-Requested-With, Content-Type, Accept");
 
         if (req.method.toLowerCase() === "options") {
             res.send(200);
@@ -306,6 +312,21 @@ function workerMain(config,program,done){
                     req.url + ' ' +
                     req.httpVersion);
         next();
+    });
+
+    app.post('/dub/share', function(req, res, next) {
+        shareScript(req.body, config, function(err, output) {
+            if (err) {
+                res.send(400,{
+                    error  : 'Unable to complete request.',
+                    detail : err
+                });
+                return;
+            }
+            res.send(200, {
+                url : output
+            });
+        });
     });
 
     app.post('/dub/create', function(req, res, next){
@@ -338,6 +359,57 @@ function workerMain(config,program,done){
 
     app.listen(program.port);
     log.info('Dub server is listening on port: ' + program.port);
+}
+
+//TODO: should this verify the script?
+function shareScript(script, config, done) {
+    var log = cwrx.logger.getLog("dub");
+    if (!config.enableAws) done("You must enable AWS to share scripts");
+    log.info("Starting shareScript");
+
+    var s3 = new aws.S3(),
+        headParams,
+        deferred = q.defer(),
+        params = { Bucket       : config.s3.scripts.bucket,
+                   ACL          : 'authenticated-read', //TODO: is this right?
+                   ContentType  : 'application/JSON',
+                   Body         : new Buffer(JSON.stringify(script))
+                 },
+        fname = script['id'] + '_' + hashText(JSON.stringify(script)) + '.json',
+        hash = crypto.createHash('md5');
+    
+    hash.update(JSON.stringify(script));
+    
+    params.Key = path.join(config.s3.scripts.path, fname);
+    headParams = { Bucket: params.Bucket, Key: params.Key};
+
+    s3.headObject(headParams, function(err, data) {
+        if (data && data['ETag'] && data['ETag'].replace(/"/g, '') == hash.digest('hex')) {
+            log.info("Script already exists on S3, skipping upload");
+            deferred.resolve();
+        } else {
+            log.trace("Uploading script: Bucket - " + params.Bucket + ", Key - " + params.Key);
+            s3.putObject(params, function(err, data) {
+                if (err) {
+                    deferred.reject(err);
+                } else {
+                    log.trace('SUCCESS: ' + JSON.stringify(data));
+                    deferred.resolve();
+                }
+            });
+        }
+    });
+
+    deferred.promise.then(function() {
+       // TODO: generate a URL
+        var url = "http://cinema6.com/experiences/screenjack/" + fname;
+        log.info("Finished shareScript - URL = " + url);
+        done(null, url);
+    }).catch(function (error) {
+        log.error('ERROR: ' + JSON.stringify(error));
+        done(error);
+    });
+
 }
 
 function handleRequest(job, done){
@@ -626,8 +698,10 @@ function createDubJob(template,config,logName){
             
     }
     obj.getElapsedTime = function(fnName) {
-        if (obj.elapsedTimes[fnName] && obj.elapsedTimes[fnName]['start'] && obj.elapsedTimes[fnName]['end'])
-            return (obj.elapsedTimes[fnName]['end'].valueOf() - obj.elapsedTimes[fnName]['start'].valueOf()) / 1000;
+        if (obj.elapsedTimes[fnName] && obj.elapsedTimes[fnName]['start']
+               && obj.elapsedTimes[fnName]['end'])
+            return (obj.elapsedTimes[fnName]['end'].valueOf()
+                     - obj.elapsedTimes[fnName]['start'].valueOf()) / 1000;
         else return -1;
     }
 
@@ -887,7 +961,7 @@ function uploadToStorage(job){
                 });
         }
     });
-    
+
     return deferred.promise;
 }
 

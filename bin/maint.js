@@ -13,7 +13,8 @@ program
 .option('-d, --daemon','Run as a daemon.')
 .parse(process.argv);
 
-if (!program.config) throw new Error("Please use the -c option to provide a config file with paths to cache dirs");
+if (!program.config) throw new Error("Please use the -c option to provide a config file with paths\
+                                      to cache dirs");
 config = dub.createConfiguration(program, "maint");
 
 var log = cwrx.logger.getLog("maint");
@@ -53,7 +54,8 @@ if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)) {
         }
 
         if (exists) {
-            console.error('It appears daemon is already running (' + pid + '), please sig term the old process if you wish to run a new one.');
+            console.error('It appears daemon is already running (' + pid + '), please sig term the\
+                           old process if you wish to run a new one.');
             return done(1,'need to term ' + pid);
         } else {
             log.error('Process [' + pid + '] appears to be gone, will restart.');

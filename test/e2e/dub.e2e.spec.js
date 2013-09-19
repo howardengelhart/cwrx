@@ -6,7 +6,7 @@ var request = require("request"),
     config = JSON.parse(configFile);
 if (!config.url) throw new Error("expected a url field in config file.");
 
-describe("dub server:", function() {
+describe("dub video server:", function() {
     var templateFile, templateJSON;
     
     afterEach(function() { 
@@ -21,7 +21,7 @@ describe("dub server:", function() {
         }
     });
 
-    describe("valid template test - scream", function() {
+    describe("uncached valid template test - scream", function() {
         it("should successfully send a request to the dub server", function() {
             templateFile = fs.readFileSync(path.join(__dirname, "Templates/scream_template.json"));
             expect(templateFile).toBeDefined();
@@ -49,7 +49,7 @@ describe("dub server:", function() {
             waitsFor(function() { return reqFlag }, 30000);
         });
     });
-    describe("valid template test - siri", function() {
+    describe("cached valid template test - siri", function() {
         it("should successfully send a request to the dub server", function() {
             templateFile = fs.readFileSync(path.join(__dirname, "Templates/siri_template.json"));
             expect(templateFile).toBeDefined();
@@ -103,6 +103,9 @@ describe("dub server:", function() {
             waitsFor(function() { return reqFlag }, 30000);
         });
     });
-
 });
+
+
+
+
 
