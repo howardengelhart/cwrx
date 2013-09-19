@@ -370,18 +370,19 @@ function shareScript(script, config, done) {
     var s3 = new aws.S3(),
         headParams,
         deferred = q.defer(),
+        id = getScriptId(script),
+        fname = id + '.json'
         params = { Bucket       : config.s3.scripts.bucket,
                    ACL          : 'authenticated-read', //TODO: is this right?
                    ContentType  : 'application/JSON',
-                   Body         : new Buffer(JSON.stringify(script))
+                   Body         : new Buffer(JSON.stringify(script)),
+                   Key          : path.join(config.s3.scripts.path, fname)
                  },
-        fname = script['id'] + '_' + hashText(JSON.stringify(script)) + '.json',
-        hash = crypto.createHash('md5');
+        
+        hash = crypto.createHash('md5'),
+        headParams = { Bucket: params.Bucket, Key: params.Key};
     
     hash.update(JSON.stringify(script));
-    
-    params.Key = path.join(config.s3.scripts.path, fname);
-    headParams = { Bucket: params.Bucket, Key: params.Key};
 
     s3.headObject(headParams, function(err, data) {
         if (data && data['ETag'] && data['ETag'].replace(/"/g, '') == hash.digest('hex')) {
@@ -402,14 +403,19 @@ function shareScript(script, config, done) {
 
     deferred.promise.then(function() {
        // TODO: generate a URL
-        var url = "http://cinema6.com/experiences/screenjack/" + fname;
-        log.info("Finished shareScript - URL = " + url);
+        var url = "http://cinema6.com/experiences/screenjack/" + id;
+        log.info("Finished shareScript: URL = " + url);
         done(null, url);
     }).catch(function (error) {
         log.error('ERROR: ' + JSON.stringify(error));
         done(error);
     });
 
+}
+
+//TODO: change this later
+function getScriptId(script) {
+    return hashText(JSON.stringify(script));
 }
 
 function handleRequest(job, done){
@@ -968,6 +974,7 @@ function uploadToStorage(job){
 module.exports = {
     'createConfiguration'   : createConfiguration,
     'createDubJob'          : createDubJob,
-    'loadTemplateFromFile'  : loadTemplateFromFile
+    'loadTemplateFromFile'  : loadTemplateFromFile,
+    'getScriptId'           : getScriptId
 };
 

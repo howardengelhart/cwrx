@@ -4,6 +4,7 @@ var fs      = require('fs-extra'),
     q       = require('q'),
     program = require('commander'),
     cp      = require('child_process'),
+    aws     = require('aws-sdk'),
     cwrx    = require(path.join(__dirname,'../lib/index')),
     dub     = require(path.join(__dirname,'dub')),
     app     = express();
@@ -92,6 +93,33 @@ if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)) {
 
 
 app.use(express.bodyParser());
+/*
+app.post("/remove_S3_script", function(req, res, next) {
+    log.info("Starting remove S3 script");
+    var fname = req.body;
+    if (!fname) {
+        log.error("Incomplete params in request");
+        res.send(400, {
+            error   : "Bad request",
+            detail  : "Incomplete params in request"
+        });
+        return;
+    }
+    log.info("Removing script: Bucket = " + params.Bucket + ", Key = " + params.Key);
+    var s3 = new aws.S3();
+    s3.deleteObject(params, function(err, data) {
+        if (err) {
+            log.error("Delete object error: " + err);
+            res.send(500, {
+                error   : "Unable to process request",
+                detail  : err
+            });
+        } else {
+            log.info("Successfully removed script");
+            res.send(200, { msg: "Successfully removed script" });
+        }
+    });
+});*/
 
 app.post("/clean_cache", function(req, res, next) {
     var job;
