@@ -413,9 +413,15 @@ function shareScript(script, config, done) {
 
 }
 
-//TODO: change this later
 function getScriptId(script) {
-    return hashText(JSON.stringify(script));
+    return hashText(
+        process.env.host                    +
+        process.pid.toString()              +
+        process.uptime().toString()         + 
+        (new Date()).valueOf().toString()   +
+        (JSON.stringify(script))            +
+        (Math.random() * 999999999).toString()
+    ).substr(0,12);
 }
 
 function handleRequest(job, done){
@@ -974,7 +980,6 @@ function uploadToStorage(job){
 module.exports = {
     'createConfiguration'   : createConfiguration,
     'createDubJob'          : createDubJob,
-    'loadTemplateFromFile'  : loadTemplateFromFile,
-    'getScriptId'           : getScriptId
+    'loadTemplateFromFile'  : loadTemplateFromFile
 };
 

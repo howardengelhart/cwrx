@@ -1,6 +1,7 @@
 var request = require("request"),
     fs      = require("fs"),
     path    = require("path"),
+    url     = require("url"),
     configFile = fs.readFileSync(path.join(__dirname, "dub_e2e_config.json")),
     config = JSON.parse(configFile);
 
@@ -106,7 +107,8 @@ describe("dub video server:", function() {
 });
 
 describe("dub share server:", function() {
-    /*describe("uncached script test - scream", function() {
+    describe("valid script test - scream", function() {
+        var scriptId;
         it("should successfully send a request to the dub server", function() {
             var scriptFile = fs.readFileSync(path.join(__dirname, "Templates/scream_template.json"));
             expect(scriptFile).toBeDefined();
@@ -125,7 +127,8 @@ describe("dub share server:", function() {
                     if(body) {
                         expect(body['error']).not.toBeDefined();
                         expect(body["url"]).toBeDefined();
-                        //TODO: check if url is correct?
+                        var split_url_path = url.parse(body['url'], true)['pathname'].split('/');
+                        scriptId = split_url_path[split_url_path.length - 1];
                     }
                     reqFlag = true;
                 });
@@ -133,41 +136,19 @@ describe("dub share server:", function() {
             waitsFor(function() { return reqFlag }, 30000);
         });
         it("should successfully clean up after itself", function() {
+            expect(scriptId).toBeDefined();
+            if (!scriptId) return;
             var options = {
                 url : config.remove_script_url,
-                fname: dub.
+                json: {
+                    fname: scriptId + '.json'
+                }
             }
             request.post(options, function(error, response, body) {
-                if (error) console.log("Error cleaning caches: " + error);
+                expect(error).toBeNull();
+                expect(body['error']).not.toBeDefined();
+                
             });
-        });
-    });*/
-
-    describe("cached script test - siri", function() {
-        it("should successfully send a request to the dub server", function() {
-            var scriptFile = fs.readFileSync(path.join(__dirname, "Templates/siri_template.json"));
-            expect(scriptFile).toBeDefined();
-            var scriptJSON = JSON.parse(scriptFile);
-            expect(scriptJSON).toBeDefined();
-
-            var options = {
-                url: config.share_url,
-                json: scriptJSON
-            }, reqFlag = false;
-
-            runs(function() {
-                request.post(options, function(error, response, body) {
-                    expect(body).toBeDefined();
-                    expect(error).toBeNull();
-                    if(body) {
-                        expect(body['error']).not.toBeDefined();
-                        expect(body["url"]).toBeDefined();
-                        //TODO: check if url is correct?
-                    }
-                    reqFlag = true;
-                });
-            });
-            waitsFor(function() { return reqFlag }, 30000);
         });
     });
 });

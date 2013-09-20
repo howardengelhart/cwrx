@@ -12,6 +12,20 @@
         "video"   : "/home/evan/Documents/Cinema6/cwrx_tests/video/",
         "output"  : "/home/evan/Documents/Cinema6/cwrx_tests/output/"
     },
+    "s3" : {
+        "src" : {
+            "bucket" : "c6.dev",
+            "path"   : "media/src/screenjack/video"
+            },
+        "out" : {
+            "bucket" : "c6.dev",
+            "path"   : "media/usr/screenjack/video"
+            },
+        "scripts": {
+            "bucket" : "c6.dev",
+            "path"   : "media/usr/screenjack/scripts"
+            }
+    },
     "tts" : {
         "workspace" : "/tmp/"
     }
