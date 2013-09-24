@@ -367,13 +367,14 @@ function shareScript(req, config, done) {
     if (!config.enableAws) done("You must enable AWS to share scripts");
     log.info("Starting shareScript");
 
-    if (!body || !body.groupName) done("You must include a groupname to generate a shareable url");
-    var groupName = body.groupName,
-        script = body.experience;
+    if (!body || !body.origin) done("You must include the origin url to generate a shareable url");
+    var origin = body.origin,
+        script = body.experience,
+        prefix = body.origin.split('/#/')[0];
 
     var generateUrl = function(id) {
-        var url = "http://" + req.get('host') + '/#/' + groupName; 
-        if (id) url += '?id=' + id;
+        var url = prefix + '/#/';
+        if (id) url += '/shared/?id=' + id;
         //TODO: shorten URL
         log.info("Finished shareScript: URL = " + url);
         done(null, url);

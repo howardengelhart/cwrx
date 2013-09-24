@@ -118,7 +118,7 @@ describe("dub share server:", function() {
             var options = {
                 url: config.share_url,
                 json: {
-                    groupName: "screenjack",
+                    origin: "http://cinema6.com/screenjack/#/action/brucelee/end",
                     script: scriptJSON
                 }
             }, reqFlag = false;
