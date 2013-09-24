@@ -117,7 +117,10 @@ describe("dub share server:", function() {
 
             var options = {
                 url: config.share_url,
-                json: scriptJSON
+                json: {
+                    groupName: "screenjack",
+                    script: scriptJSON
+                }
             }, reqFlag = false;
 
             runs(function() {

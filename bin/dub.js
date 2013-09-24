@@ -315,7 +315,7 @@ function workerMain(config,program,done){
     });
 
     app.post('/dub/share', function(req, res, next) {
-        shareScript(req.body, config, function(err, output) {
+        shareScript(req, config, function(err, output) {
             if (err) {
                 res.send(400,{
                     error  : 'Unable to complete request.',
@@ -361,11 +361,25 @@ function workerMain(config,program,done){
     log.info('Dub server is listening on port: ' + program.port);
 }
 
-//TODO: should this verify the script?
-function shareScript(script, config, done) {
-    var log = cwrx.logger.getLog("dub");
+function shareScript(req, config, done) {
+    var log = cwrx.logger.getLog("dub"),
+        body = req.body;
     if (!config.enableAws) done("You must enable AWS to share scripts");
     log.info("Starting shareScript");
+
+    if (!body || !body.groupName) done("You must include a groupname to generate a shareable url");
+    var groupName = body.groupName,
+        script = body.experience;
+
+    var generateUrl = function(id) {
+        var url = "http://" + req.get('host') + '/#/' + groupName; 
+        if (id) url += '?id=' + id;
+        //TODO: shorten URL
+        log.info("Finished shareScript: URL = " + url);
+        done(null, url);
+    }
+
+    if (!script) generateUrl();
 
     var s3 = new aws.S3(),
         headParams,
@@ -373,7 +387,7 @@ function shareScript(script, config, done) {
         id = getScriptId(script),
         fname = id + '.json'
         params = { Bucket       : config.s3.scripts.bucket,
-                   ACL          : 'authenticated-read', //TODO: is this right?
+                   ACL          : 'public-read',
                    ContentType  : 'application/JSON',
                    Body         : new Buffer(JSON.stringify(script)),
                    Key          : path.join(config.s3.scripts.path, fname)
@@ -387,30 +401,19 @@ function shareScript(script, config, done) {
     s3.headObject(headParams, function(err, data) {
         if (data && data['ETag'] && data['ETag'].replace(/"/g, '') == hash.digest('hex')) {
             log.info("Script already exists on S3, skipping upload");
-            deferred.resolve();
+            generateUrl(id);
         } else {
             log.trace("Uploading script: Bucket - " + params.Bucket + ", Key - " + params.Key);
             s3.putObject(params, function(err, data) {
                 if (err) {
-                    deferred.reject(err);
+                    done(err);
                 } else {
                     log.trace('SUCCESS: ' + JSON.stringify(data));
-                    deferred.resolve();
+                    generateUrl(id);
                 }
             });
         }
     });
-
-    deferred.promise.then(function() {
-       // TODO: generate a URL
-        var url = "http://cinema6.com/experiences/screenjack/" + id;
-        log.info("Finished shareScript: URL = " + url);
-        done(null, url);
-    }).catch(function (error) {
-        log.error('ERROR: ' + JSON.stringify(error));
-        done(error);
-    });
-
 }
 
 function getScriptId(script) {

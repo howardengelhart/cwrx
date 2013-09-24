@@ -13,8 +13,8 @@
         "output"  : "/home/evan/Documents/Cinema6/cwrx_tests/output/"
     },
     "output" : {
-        "uri" : "http://localhost/screenjack/video/",
-        "type" : "local"
+        "uri" : "https://s3.amazonaws.com/c6.dev/media/usr/screenjack/video/",
+        "type" : "s3"
     },
     "s3" : {
         "src" : {
