@@ -360,7 +360,22 @@ function workerMain(config,program,done){
     app.listen(program.port);
     log.info('Dub server is listening on port: ' + program.port);
 }
+/*
+function authApi(req, res) {
+    var origin = (req.get('origin') ? req.get('origin') : '' ).replace('http://', '').replace(/:\d*$/, ''),
+        host = req.get('host'),
+        hostSplit = host.split('.'),
+        hostName = (hostSplit[hostSplit.length - 2] ? hostSplit[hostSplit.length - 2] : null);
+    console.log(host);    
+    console.log(hostName);
+    console.log(req.host);
+    console.log(origin);
+    console.log(req.get('referer'));
 
+    if (origin == hostName) return true;
+    else return false;
+}
+*/
 function shareScript(req, config, done) {
     var log = cwrx.logger.getLog("dub"),
         body = req.body;
@@ -374,7 +389,7 @@ function shareScript(req, config, done) {
 
     var generateUrl = function(id) {
         var url = prefix + '/#/';
-        if (id) url += '/shared/?id=' + id;
+        if (id) url += 'shared?id=' + id;
         //TODO: shorten URL
         log.info("Finished shareScript: URL = " + url);
         done(null, url);

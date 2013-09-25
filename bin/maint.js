@@ -95,7 +95,7 @@ if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)) {
 
 app.use(express.bodyParser());
 
-app.post("/remove_S3_script", function(req, res, next) {
+app.post("/maint/remove_S3_script", function(req, res, next) {
     log.info("Starting remove S3 script");
     log.info(JSON.stringify(req.body));
     var fname = req.body['fname'];
@@ -127,7 +127,7 @@ app.post("/remove_S3_script", function(req, res, next) {
     });
 });
 
-app.post("/clean_cache", function(req, res, next) {
+app.post("/maint/clean_cache", function(req, res, next) {
     var job;
     log.info("Starting clean cache");
     try {
@@ -158,7 +158,7 @@ app.post("/clean_cache", function(req, res, next) {
     );
 });
 
-app.post("/clean_all_caches", function(req, res, next) {
+app.post("/maint/clean_all_caches", function(req, res, next) {
     var remList = [];
     log.info("Starting clean all caches");
     for (key in config.caches) {
