@@ -1,0 +1,8 @@
+{
+    "video"   : "scream.mp4",
+    "tts"     : {
+          "voice"  : "Allison",
+          "effect" : "R",
+          "level"  : "3"
+        }
+}

@@ -315,6 +315,7 @@ describe('file logger log rotation',function(){
     var gc = [],
         logDir = path.join(__dirname,'logs');
 
+    if (fs.existsSync(logDir)) fs.removeSync(logDir);
     beforeEach(function(){
         gc.push(logDir);
     });

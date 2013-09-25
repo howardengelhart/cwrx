@@ -1,19 +1,27 @@
 #!/usr/bin/env node
 
+var __ut__   = ((module.parent) && (module.parent.filename) &&
+               (module.parent.filename.match(/\.spec.js$/))) ? true : false,
+
+    __maint__    = ((module.parent) && (module.parent.filename) &&
+                  (module.parent.filename.match(/maint.js$/))) ? true : false;
+
 ////////////////////////////////////////////
 // NodeFly
-(function(){
-    var hostname      = require('os').hostname(),
-        processNumber = process.env.INDEX_OF_PROCESS || 0;
+if (!__ut__ && !__maint__) {
+    (function(){
+        var hostname      = require('os').hostname(),
+            processNumber = process.env.INDEX_OF_PROCESS || 0;
 
-    require('nodefly').profile(
-        '2f5d8cc85e0038541f430ee81a88a44e',
-        ['dub', hostname, processNumber],
-        {
-            blockThreshold : 100
-        }
-    );
-}());
+        require('nodefly').profile(
+            '2f5d8cc85e0038541f430ee81a88a44e',
+            ['dub', hostname, processNumber],
+            {
+                blockThreshold : 100
+            }
+        );
+    }());
+}
 ////////////////////////////////////////////
 
 var fs       = require('fs-extra'),
@@ -23,6 +31,7 @@ var fs       = require('fs-extra'),
     cp       = require('child_process'),
     express  = require('express'),
     aws      = require('aws-sdk'),
+    q        = require('q'),
     cwrx     = require(path.join(__dirname,'../lib/index')),
 
     // This is the template for our configuration
@@ -39,11 +48,15 @@ var fs       = require('fs-extra'),
             "uri"  : "/media"
         },
         s3 : {
-            src : {
+            src     : {
                 bucket  : 'c6media',
                 path    : 'src'
             },
-            out : {
+            out     : {
+                bucket  : 'c6media',
+                path    : 'usr'
+            },
+            scripts : {
                 bucket  : 'c6media',
                 path    : 'usr'
             },
@@ -54,12 +67,12 @@ var fs       = require('fs-extra'),
             bitrate     : '48k',
             frequency   : 22050,
             workspace   : __dirname
-        }
+        },
     },
 
     // Attempt a graceful exit
     exitApp  = function(resultCode,msg){
-        var log = cwrx.logger.getLog();
+        var log = cwrx.logger.getLog("dub");
         if (msg){
             if (resultCode){
                 log.error(msg);
@@ -70,7 +83,7 @@ var fs       = require('fs-extra'),
         process.exit(resultCode);
     };
 
-if (!process.env['ut-cwrx-bin']){
+if (!__ut__ && !__maint__){
 
     try {
         main(function(rc,msg){
@@ -84,7 +97,7 @@ if (!process.env['ut-cwrx-bin']){
 function main(done){
     var program  = require('commander'),
         config, job, log;
-    
+
     program
         .version('0.1.0')
         .option('-c, --config [CFGFILE]','Specify config file')
@@ -109,7 +122,7 @@ function main(done){
         process.setuid(program.uid);
     }
    
-    config = createConfiguration(program);
+    config = createConfiguration(program, "dub");
 
     if (program.showConfig){
         console.log(JSON.stringify(config,null,3));
@@ -118,7 +131,7 @@ function main(done){
 
     config.ensurePaths();
 
-    log = cwrx.logger.getLog();
+    log = cwrx.logger.getLog("dub");
 
     if (program.loglevel){
         log.setLevel(program.loglevel);
@@ -130,7 +143,7 @@ function main(done){
             throw new SyntaxError('Expected a template file.');
         }
 
-        job = createDubJob(loadTemplateFromFile(program.args[0]),config);
+        job = createDubJob(loadTemplateFromFile(program.args[0]), config, "dub");
         
         handleRequest(job,function(err, finishedJob){
             if (err) {
@@ -161,7 +174,7 @@ function main(done){
     process.on('SIGTERM',function(){
         log.info('Received TERM, exitting app.');
         if (program.daemon){
-            config.removePidFile();
+            config.removePidFile("dub.pid");
         }
 
         if (cluster.isMaster){
@@ -181,7 +194,7 @@ function main(done){
     if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)){
 
         // First check to see if we're already running as a daemon
-        var pid = config.readPidFile();
+        var pid = config.readPidFile("dub.pid");
         if (pid){
             var exists = false;
             try {
@@ -190,11 +203,12 @@ function main(done){
             }
 
             if (exists) {
-                console.error('It appears daemon is already running (' + pid + '), please sig term the old process if you wish to run a new one.');
+                console.error('It appears daemon is already running (' + pid + '), please sig term\
+                               the old process if you wish to run a new one.');
                 return done(1,'need to term ' + pid);
             } else {
                 log.error('Process [' + pid + '] appears to be gone, will restart.');
-                config.removePidFile();
+                config.removePidFile("dub.pid");
             }
 
         } 
@@ -212,7 +226,7 @@ function main(done){
         // Add the RUNNING_AS_DAEMON var to the environment
         // we are forwarding along to the child process
         process.env.RUNNING_AS_DAEMON = true;
-        var child = cp.spawn('/usr/local/bin/node',child_args, { 
+        var child = cp.spawn('node',child_args, { 
             stdio   : 'ignore',
             detached: true,
             env     : process.env
@@ -220,7 +234,7 @@ function main(done){
   
         child.unref();
         log.info('child spawned, pid is ' + child.pid + ', exiting parent process..');
-        config.writePidFile(child.pid);
+        config.writePidFile(child.pid, "dub.pid");
         console.log("child has been forked, exit.");
         process.exit(0);
     }
@@ -235,7 +249,7 @@ function main(done){
 }
 
 function clusterMain(config,program,done) {
-    var log = cwrx.logger.getLog();
+    var log = cwrx.logger.getLog("dub");
     log.info('Running as cluster master');
 
     cluster.on('exit', function(worker, code, signal) {
@@ -272,14 +286,15 @@ function clusterMain(config,program,done) {
 
 function workerMain(config,program,done){
     var app = express(),
-        log = cwrx.logger.getLog();
+        log = cwrx.logger.getLog("dub");
 
     log.info('Running as cluster worker, proceed with setting up web server.');
     app.use(express.bodyParser());
 
     app.all('*', function(req, res, next) {
         res.header("Access-Control-Allow-Origin", "*");
-        res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+        res.header("Access-Control-Allow-Headers", 
+                   "Origin, X-Requested-With, Content-Type, Accept");
 
         if (req.method.toLowerCase() === "options") {
             res.send(200);
@@ -299,12 +314,27 @@ function workerMain(config,program,done){
         next();
     });
 
+    app.post('/dub/share', function(req, res, next) {
+        shareScript(req, config, function(err, output) {
+            if (err) {
+                res.send(400,{
+                    error  : 'Unable to complete request.',
+                    detail : err
+                });
+                return;
+            }
+            res.send(200, {
+                url : output
+            });
+        });
+    });
+
     app.post('/dub/create', function(req, res, next){
         var job;
         try {
-            job = createDubJob(req.body,config);
+            job = createDubJob(req.body, config, "dub");
         }catch (e){
-            log.error('Create Job Error: ' + e.stack);
+            log.error('Create Job Error: ' + e.message);
             res.send(500,{
                 error  : 'Unable to process request.',
                 detail : e.message
@@ -321,7 +351,8 @@ function workerMain(config,program,done){
                 return;
             }
             res.send(200, {
-                output : job.outputUri    
+                output : job.outputUri,
+                md5    : job.md5
             });
         });
     });
@@ -329,44 +360,120 @@ function workerMain(config,program,done){
     app.listen(program.port);
     log.info('Dub server is listening on port: ' + program.port);
 }
+/*
+function authApi(req, res) {
+    var origin = (req.get('origin') ? req.get('origin') : '' ).replace('http://', '').replace(/:\d*$/, ''),
+        host = req.get('host'),
+        hostSplit = host.split('.'),
+        hostName = (hostSplit[hostSplit.length - 2] ? hostSplit[hostSplit.length - 2] : null);
+    console.log(host);    
+    console.log(hostName);
+    console.log(req.host);
+    console.log(origin);
+    console.log(req.get('referer'));
+
+    if (origin == hostName) return true;
+    else return false;
+}
+*/
+function shareScript(req, config, done) {
+    var log = cwrx.logger.getLog("dub"),
+        body = req.body;
+    if (!config.enableAws) {
+        log.error("Must enable AWS to share scripts");
+        done("You must enable AWS to share scripts");
+        return;
+    }
+    log.info("Starting shareScript");
+
+    if (!body || !body.origin) {
+        log.error("No origin url in request");
+        done("You must include the origin url to generate a shareable url");
+        return;
+    }
+    var origin = body.origin,
+        script = body.experience,
+        prefix = body.origin.split('/#/')[0];
+
+    var generateUrl = function(id) {
+        var url = prefix + '/#/';
+        if (id) url += 'shared?id=' + id;
+        //TODO: shorten URL
+        log.info("Finished shareScript: URL = " + url);
+        done(null, url);
+    };
+
+    if (!script) {
+        generateUrl();
+        return;
+    }
+
+    var s3 = new aws.S3(),
+        deferred = q.defer(),
+        id = getScriptId(script),
+        fname = id + '.json',
+        params = { Bucket       : config.s3.scripts.bucket,
+                   ACL          : 'public-read',
+                   ContentType  : 'application/JSON',
+                   Body         : (script ? new Buffer(JSON.stringify(script)) : null),
+                   Key          : path.join(config.s3.scripts.path, fname)
+                 },
+        
+        hash = crypto.createHash('md5'),
+        headParams = { Bucket: params.Bucket, Key: params.Key};
+    
+    hash.update(JSON.stringify(script));
+
+    s3.headObject(headParams, function(err, data) {
+        if (data && data.ETag && data.ETag.replace(/"/g, '') == hash.digest('hex')) {
+            log.info("Script already exists on S3, skipping upload");
+            generateUrl(id);
+        } else {
+            log.trace("Uploading script: Bucket - " + params.Bucket + ", Key - " + params.Key);
+            s3.putObject(params, function(err, data) {
+                if (err) {
+                    done(err);
+                } else {
+                    log.trace('SUCCESS: ' + JSON.stringify(data));
+                    generateUrl(id);
+                }
+            });
+        }
+    });
+}
+
+function getScriptId(script) {
+    return hashText(
+        process.env.host                    +
+        process.pid.toString()              +
+        process.uptime().toString()         + 
+        (new Date()).valueOf().toString()   +
+        (JSON.stringify(script))            +
+        (Math.random() * 999999999).toString()
+    ).substr(0,12);
+}
 
 function handleRequest(job, done){
-    var log = cwrx.logger.getLog(),
-        pipeline = [];
-   
-    pipeline.unshift(uploadToStorage);
-
-    if (job.hasOutput()){
-        log.info('video already exists.');
-    }  else {
-        pipeline.unshift(applyScriptToVideo);
-        if (!job.hasScript()){
-            pipeline.unshift(convertScriptToMP3);
-            if (!job.hasVideoLength()){
-                pipeline.unshift(getVideoLength);
-            }
-
-            if (!job.hasLines()){
-                pipeline.unshift(convertLinesToMP3);
-            }
+    var log = cwrx.logger.getLog("dub");
+    
+    // Each function returns a promise for job and checks job to see if it needs to be run.
+    getSourceVideo(job)
+    .then(convertLinesToMP3)
+    .then(getVideoLength)
+    .then(convertScriptToMP3)
+    .then(applyScriptToVideo)
+    .then(uploadToStorage)
+    .then(
+        function() {
+            log.trace("All tasks succeeded!");
+            done(null, job);
+        }, function(error) {
+            if (error.fnName && error.msg) 
+                done({message : 'Died on [' + error.fnName + ']: ' + error.msg}, job);
+            else
+                done({message : 'Died: ' + error}, job);
         }
-        
-        if (!job.hasVideo()){
-            pipeline.unshift(getSourceVideo);
-        }
-    }
-
-    if (pipeline.length !== 0){
-        pipelineJob(job,pipeline,function(err,job,lastFn){
-            if (err) {
-                done( { message : 'Died on [' + lastFn.name + ']:' + err.message }, job);
-            } else {
-                done(null,job);
-            }
-        });
-    }  else {
-        done(null,job);
-    }
+    );
 }
 
 function loadTemplateFromFile(tmplFile){
@@ -386,8 +493,8 @@ function loadTemplateFromFile(tmplFile){
     return tmplObj;
 }
 
-function createConfiguration(cmdLine){
-    var log = cwrx.logger.getLog(),
+function createConfiguration(cmdLine, logName){
+    var log = cwrx.logger.getLog(logName),
         cfgObject = {},
         userCfg;
 
@@ -435,7 +542,7 @@ function createConfiguration(cmdLine){
     }
 
     if (cfgObject.log) {
-        log = cwrx.logger.createLog(cfgObject.log);
+        log = cwrx.logger.createLog(cfgObject.log, logName);
     }
 
     cfgObject.ensurePaths = function(){
@@ -443,7 +550,7 @@ function createConfiguration(cmdLine){
         Object.keys(self.caches).forEach(function(key){
             log.trace('Ensure cache[' + key + ']: ' + self.caches[key]);
             if (!fs.existsSync(self.caches[key])){
-                log.info('Create cache[' + key + ']: ' + self.caches[key]);
+                log.trace('Create cache[' + key + ']: ' + self.caches[key]);
                 fs.mkdirsSync(self.caches[key]);
             }
         });
@@ -460,18 +567,14 @@ function createConfiguration(cmdLine){
         return path.join(this.caches[cache],fname); 
     };
 
-    cfgObject.getPidFile  = function(){
-        return this.cacheAddress('dub.pid','run');
-    };
-
-    cfgObject.writePidFile = function(data){
-        var pidPath = this.cacheAddress('dub.pid','run');
+    cfgObject.writePidFile = function(data, fname){
+        var pidPath = this.cacheAddress(fname,'run');
         log.info('Write pid file: ' + pidPath);
         fs.writeFileSync(pidPath,data);
     };
 
-    cfgObject.readPidFile = function(){
-        var pidPath = this.cacheAddress('dub.pid','run'),
+    cfgObject.readPidFile = function(fname){
+        var pidPath = this.cacheAddress(fname,'run'),
             result;
         try {
             if (fs.existsSync(pidPath)){
@@ -483,8 +586,8 @@ function createConfiguration(cmdLine){
         return result;
     };
 
-    cfgObject.removePidFile = function(){
-        var pidPath = this.cacheAddress('dub.pid','run');
+    cfgObject.removePidFile = function(fname){
+        var pidPath = this.cacheAddress(fname,'run');
         if (fs.existsSync(pidPath)){
             log.info('Remove pid file: ' + pidPath);
             fs.unlinkSync(pidPath);
@@ -494,8 +597,8 @@ function createConfiguration(cmdLine){
     return cfgObject;
 }
 
-function createDubJob(template,config){
-    var log = cwrx.logger.getLog(),
+function createDubJob(template,config,logName){
+    var log = cwrx.logger.getLog(logName),
         buff,
         obj       = {},
         soh       = String.fromCharCode(1),
@@ -520,6 +623,7 @@ function createDubJob(template,config){
 
     log.trace('job tts : ' + JSON.stringify(obj.tts));
     obj.tracks = [];
+    if (!template.script) throw new Error("Expected script section in template");
     template.script.forEach(function(item){
         // remove leading and trailing spaces
         item.line = item.line.replace(/^\s*(.*?)\s*$/,"$1");
@@ -619,6 +723,31 @@ function createDubJob(template,config){
         };
     };
 
+    obj.elapsedTimes = {};
+    obj.setStartTime = function(fnName) {
+        obj.elapsedTimes[fnName] = {};
+        obj.elapsedTimes[fnName].start = new Date();
+    };
+    obj.setEndTime = function(fnName) {
+        if (!obj.elapsedTimes[fnName] || !obj.elapsedTimes[fnName].start) {
+            log.info("Error: never set start time for [" + fnName + "]");
+            return;
+        }
+        obj.elapsedTimes[fnName].end = new Date();
+        var elapsed = obj.getElapsedTime(fnName);
+        log.info("Finished [" + fnName + "] in " + elapsed);
+            
+    };
+    obj.getElapsedTime = function(fnName) {
+        if (obj.elapsedTimes[fnName] && obj.elapsedTimes[fnName].start && 
+            obj.elapsedTimes[fnName].end) {
+            return (obj.elapsedTimes[fnName].end.valueOf() - 
+                    obj.elapsedTimes[fnName].start.valueOf()) / 1000;
+        } else{
+            return -1;
+        }
+    };
+
     return obj;
 }
 
@@ -628,148 +757,56 @@ function hashText(txt){
     return hash.digest('hex');
 }
 
-function pipelineJob(job,pipeline,handler){
-    var fn = pipeline.shift(),
-        log= cwrx.logger.getLog(),
-        jobStart = new Date();
-    if (fn) {
-        log.trace('Run: ' + fn.name);
-        fn(job,function(err){
-            log.info( fn.name + ': ' + (((new Date()).valueOf() - jobStart.valueOf())  / 1000) + ' sec');
-            if (err) {
-                handler(err,job,fn);
-            } else {
-                process.nextTick(function(){
-                    pipelineJob(job,pipeline,handler);
-                });
-            }
-        });
-    } else {
-        handler(null,job,null);
-    }
-}
-
-function uploadToStorage(job,next){
-    var log = cwrx.logger.getLog();
+function getSourceVideo(job) {
+    var deferred = q.defer(), 
+        log = cwrx.logger.getLog("dub"),
+        fnName = arguments.callee.name;
     
-    if (job.outputType === 'local') {
-        log.trace('Output type is set to "local", skipping S3 upload.');
-        return next();
+    if (job.hasOutput() || job.hasVideo()) {
+        log.info("Skipping getSourceVideo");
+        return q(job);
     }
-    
-    if (!job.enableAws()){
-        log.trace('Cannot upload, aws is not enabled.');
-        return next();
-    }
-    
-    var rs = fs.createReadStream(job.outputPath),
-        once = false;
 
-    rs.on('readable',function(){
-        var s3      = new aws.S3(),
-            params  = job.getS3OutVideoParams(),
-            req;
-            
-        if (once){
-            return;
-        }
-        once = true;
-        
-        log.trace('Starting S3 upload request with params: ' + JSON.stringify(params));
-        params.Body = rs;
-        
-        req = s3.client.putObject(params);
+    log.info("Starting " + fnName);
+    job.setStartTime(fnName);
 
-        req.on('success',function(res){
-            log.trace('SUCCESS: ' + JSON.stringify(res.data));
-            next();
-        });
-
-        req.on('error',function(err,res){
-            log.error('ERROR: ' + JSON.stringify(err));
-            next({ message : 'S3 upload error' });
-        });
-
-        req.send();
-    });
-}
-        
-function applyScriptToVideo(job,next){
-    var log = cwrx.logger.getLog();
-    cwrx.ffmpeg.mergeAudioToVideo(job.videoPath,job.scriptPath,
-            job.outputPath,job.mergeTemplate(), function(err,fpath,cmdline){
-                if (err) {
-                    next(err);
-                    return;
-                }
-                log.trace('Merged: ' + fpath);
-                next();
-            });
-}
-
-function convertScriptToMP3(job,next){
-    var log = cwrx.logger.getLog();
-    cwrx.assemble(job.assembleTemplate(),function(err,tmpl){
-        if (err) {
-            next(err);
-            return;
-        }
-        log.trace('Assembled: ' + tmpl.output);
-        next();
-    });
-}
-
-function getVideoLength(job,next){
-    var log = cwrx.logger.getLog();
-    cwrx.ffmpeg.probe(job.videoPath,function(err,info){
-        if (err){
-            next(err);
-            return;
-        }
-
-        if (!info.duration){
-            next({message : 'Unable to determine video length.'});
-            return;
-        }
-
-        job.videoLength = info.duration;
-        log.trace('Video length: ' + job.videoLength);
-        next();
-    });
-}
-
-function getSourceVideo(job,next){
-    var log= cwrx.logger.getLog();
-    if (job.enableAws()){
+    if (job.enableAws()) {
         var s3 = new aws.S3(),
             params = job.getS3SrcVideoParams();
-        log.trace('S3 Request: ' + params);
-        s3.getObject(params,function(err,data){
-            if (err){
-                next({ message : 'S3 Get failed.' + err.message});
-                return;
+        log.trace('S3 Request: ' + JSON.stringify(params));
+        cwrx.s3util.getObject(s3, params, job.videoPath).then( 
+            function (data) { 
+                deferred.resolve(job); 
+                job.setEndTime(fnName);
+            }, function (error) { 
+                deferred.reject({"fnName": fnName, "msg": error});
+                job.setEndTime(fnName); 
             }
-
-            fs.writeFile(job.videoPath,data.Body,function(err){
-                if (err){
-                    next({message : 'Write video failed: ' + err.message});
-                    return;
-                }
-                next();
-            });
-        });
+        );
     } else {
-        next({message : 'Need to get the video: ' + job.videoPath});
+        deferred.reject({"fnName": fnName, "msg": "You must enable aws to retrieve video."});
+        job.setEndTime(fnName);
     }
+    
+    return deferred.promise;
 }
 
-function convertLinesToMP3(job,next){
-    var log= cwrx.logger.getLog(),
-        rqsCount = 0, errs;
+function convertLinesToMP3(job){
+    var log = cwrx.logger.getLog("dub"),
+        deferred = q.defer(),
+        fnName = arguments.callee.name;
 
-    job.tracks.forEach(function(track){
+    if (job.hasOutput() || job.hasScript() || job.hasLines()) {
+        log.info("Skipping convertLinesToMP3");
+        return q(job);
+    }
+
+    log.info("Starting " + fnName);
+    job.setStartTime(fnName);
+
+    var processTrack = q.fbind(function(track){
+        var deferred = q.defer();
         if (!fs.existsSync(track.fpath)){
-            rqsCount++;
             var rqs = cwrx.vocalWare.createRequest({authToken : job.ttsAuth}), voice;
             if (job.tts.voice){
                 voice = cwrx.vocalWare.voices[job.tts.voice];
@@ -783,31 +820,198 @@ function convertLinesToMP3(job,next){
             if (job.tts.level) {
                 rqs.fxLevel = job.tts.level;
             }
-            log.trace('Create track: ' + track.fpath);
-            cwrx.vocalWare.textToSpeech(rqs,track.fpath,function(e,rqs,o){
-                if (e) {
-                    log.error(e.message);
-                    if (!errs) {
-                        errs = [ e ];
-                    } else {
-                        errs.push(e);
-                    }
-                }
-                if (--rqsCount < 1){
-                    if (errs){
-                        next(errs[0]); 
-                    } else {
-                        next();
-                    }
+            cwrx.vocalWare.textToSpeech(rqs,track.fpath,function(err,rqs,o){
+                if (err) {
+                    deferred.reject(error);
+                } else {
+                    log.trace("Succeeded: name = " + track.fname + " ts = " + track.ts);
+                    deferred.resolve();
                 }
             });
+        } else {
+            log.trace('Track already exists at ' + track.fpath);
+            deferred.resolve();
+        }
+        return deferred.promise;
+    });
+
+    q.allSettled(job.tracks.map(function(track) {
+        var deferred2 = q.defer();
+        processTrack(track).then(
+            function() { deferred2.resolve(); },
+            function(error) {
+                log.error("Failed once for " + track.fname + " with error = " + error);
+                log.trace("Retrying...");
+                processTrack(track).then(
+                    function() { deferred2.resolve(); },
+                    function(error) { 
+                        log.error("Failed again for " + track.fname); 
+                        deferred2.reject(error); 
+                    }
+                );
+            }
+        );
+        return deferred2.promise;
+    })).then(function(results) { 
+        for (var i in results) {
+            if (results[i].state == "rejected") {
+                deferred.reject({"fnName": fnName, "msg": results[i].reason});
+                job.setEndTime(fnName);
+                return;
+            }
+        }
+        log.trace('All tracks succeeded'); 
+        deferred.resolve(job);
+        job.setEndTime(fnName);
+    });
+
+    return deferred.promise;
+}
+
+function getVideoLength(job){
+    var log = cwrx.logger.getLog("dub"),
+        deferred = q.defer(),
+        fnName = arguments.callee.name;
+
+    if (job.hasOutput() || job.hasScript() || job.hasVideoLength()) {
+        log.info("Skipping getVideoLength");
+        return q(job);
+    }
+
+    log.info("Starting " + fnName);
+    job.setStartTime(fnName);        
+
+    cwrx.ffmpeg.probe(job.videoPath,function(err,info){
+        if (err) {
+            deferred.reject({"fnName": fnName, "msg": error});
+            job.setEndTime(fnName);
+            return deferred.promise;
+        }
+
+        if (!info.duration){
+            deferred.reject({"fnName": fnName, "msg": 'Unable to determine video length.'});
+            job.setEndTime(fnName);
+            return deferred.promise;
+        }
+
+        job.videoLength = info.duration;
+        log.trace('Video length: ' + job.videoLength);
+        job.setEndTime(fnName);
+        deferred.resolve(job);
+    });
+    return deferred.promise;
+}
+
+function convertScriptToMP3(job){
+    var log = cwrx.logger.getLog("dub"),
+        deferred = q.defer(),
+        fnName = arguments.callee.name;
+
+    if (job.hasOutput() || job.hasScript()) {
+        log.info("Skipping convertScriptToMP3");
+        return q(job);
+    }
+
+    log.info("Starting " + fnName);
+    job.setStartTime(fnName);        
+
+    cwrx.assemble(job.assembleTemplate(),function(err,tmpl){
+        if (err) {
+            deferred.reject({"fnName": fnName, "msg": err});
+            job.setEndTime(fnName);
+            return deferred.promise;
+        }
+        log.trace('Assembled: ' + tmpl.output);
+        job.setEndTime(fnName);
+        deferred.resolve(job);
+    });
+    return deferred.promise;
+}
+
+function applyScriptToVideo(job){
+    var log = cwrx.logger.getLog("dub"),
+        deferred = q.defer(),
+        fnName = arguments.callee.name;
+ 
+    if (job.hasOutput()) {
+        log.info("Skipping applyScriptToVideo");
+        return q(job);
+    }
+
+    log.info("Starting " + fnName);
+    job.setStartTime(fnName);        
+
+    cwrx.ffmpeg.mergeAudioToVideo(job.videoPath,job.scriptPath,
+            job.outputPath,job.mergeTemplate(), function(err,fpath,cmdline){
+                if (err) {
+                    deferred.reject({"fnName": fnName, "msg": err});
+                    job.setEndTime(fnName);
+                    return deferred.promise;
+                }
+                log.trace('Merged: ' + fpath);
+                job.setEndTime(fnName);
+                deferred.resolve(job);
+            });
+    return deferred.promise;
+}
+
+function uploadToStorage(job){
+    var deferred = q.defer(),
+        log = cwrx.logger.getLog("dub"),
+        fnName = arguments.callee.name,
+    
+        localVid = fs.readFileSync(job.outputPath),
+        hash = crypto.createHash('md5');
+
+    hash.update(localVid);
+    job.md5 = hash.digest('hex');
+    log.trace("Local File MD5: " + job.md5);
+
+    if (job.outputType === 'local') {
+        log.trace('Output type is set to "local", skipping S3 upload.');
+        deferred.resolve(job);
+        return deferred.promise;
+    }
+    
+    if (!job.enableAws()){
+        log.trace('Cannot upload, aws is not enabled.');
+        deferred.resolve(job);
+        return deferred.promise;
+    }
+
+    log.info("Starting " + fnName);
+    job.setStartTime(fnName);
+
+    var s3 = new aws.S3(),
+        outParams = job.getS3OutVideoParams(),
+        headParams = {Key: outParams.Key, Bucket: outParams.Bucket};
+
+    s3.headObject(headParams, function(err, data) {
+        if (data && data.ETag && data.ETag.replace(/"/g, '') == job.md5) {
+            log.info("Local video already exists on S3, skipping upload");
+            job.setEndTime(fnName);
+            deferred.resolve(job);
+        } else {
+            log.trace('Uploading to Bucket: ' + outParams.Bucket + ', Key : ' + outParams.Key);
+            cwrx.s3util.putObject(s3, job.outputPath, outParams).then(
+                function (res) {
+                    log.trace('SUCCESS: ' + JSON.stringify(res));
+                    job.setEndTime(fnName);
+                    deferred.resolve(job);
+                }, function (error) {
+                    log.error('ERROR: ' + JSON.stringify(err));
+                    job.setEndTime(fnName);
+                    deferred.reject({"fnName": fnName, "msg": 'S3 upload error'});
+                });
         }
     });
 
+    return deferred.promise;
 }
 
 module.exports = {
-    'createConfiguration' : createConfiguration,
-    'createDubJob'        : createDubJob
+    'createConfiguration'   : createConfiguration,
+    'createDubJob'          : createDubJob,
+    'loadTemplateFromFile'  : loadTemplateFromFile
 };
 

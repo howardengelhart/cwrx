@@ -9,6 +9,8 @@ var path      = require('path'),
                     secret      : '99999999999999999999999999999999'
     };
 
+if (!process.env['vwauth']) throw new Error("Need to provide path to vw auth info with '--config vwauth /path/to/.tts.json'");
+
 describe('vocalware authToken',function(){
     var files = [];
     afterEach(function(){
