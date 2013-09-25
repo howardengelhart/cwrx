@@ -98,7 +98,7 @@ app.use(express.bodyParser());
 app.post("/maint/remove_S3_script", function(req, res, next) {
     log.info("Starting remove S3 script");
     log.info(JSON.stringify(req.body));
-    var fname = req.body['fname'];
+    var fname = req.body.fname;
     if (!fname) {
         log.error("Incomplete params in request");
         res.send(400, {
@@ -142,12 +142,12 @@ app.post("/maint/clean_cache", function(req, res, next) {
     }
     log.info("Removing cached files for " + job.videoPath.match(/[^\/]*\..*$/)[0]);
     var remList = [job.videoPath, job.scriptPath, job.outputPath];
-    job.tracks.forEach(function(track) { remList.push(track.fpath) });
+    job.tracks.forEach(function(track) { remList.push(track.fpath); });
     
     removeFiles(remList).then(
         function(val) { 
             log.info("Successfully removed " + val + " objects");
-            res.send(200, {msg: "Successfully removed " + val + " objects"}) 
+            res.send(200, {msg: "Successfully removed " + val + " objects"}) ;
         }, function(error) {
             log.error("Remove files error: " + e);
             res.send(500,{
@@ -161,13 +161,13 @@ app.post("/maint/clean_cache", function(req, res, next) {
 app.post("/maint/clean_all_caches", function(req, res, next) {
     var remList = [];
     log.info("Starting clean all caches");
-    for (key in config.caches) {
+    for (var key in config.caches) {
         remList.push(config.caches[key]);
     }
     removeFiles(remList).finally(function() { config.ensurePaths(); }).then(
         function(val) { 
             log.info("Successfully removed " + val + " objects");
-            res.send(200, {msg: "Successfully removed " + val + " objects"}) 
+            res.send(200, {msg: "Successfully removed " + val + " objects"});
         }, function(error) {
             log.error("Remove files error: " + e);
             res.send(500,{

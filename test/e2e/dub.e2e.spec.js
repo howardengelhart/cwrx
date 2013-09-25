@@ -75,7 +75,7 @@ describe("dub video server:", function() {
                     reqFlag = true;
                 });            
             });
-            waitsFor(function() { return reqFlag }, 30000);
+            waitsFor(function() { return reqFlag }, 40000);
         });
     });
     describe("missing script test", function() {
@@ -101,7 +101,7 @@ describe("dub video server:", function() {
                     reqFlag = true;
                 });            
             });
-            waitsFor(function() { return reqFlag }, 30000);
+            waitsFor(function() { return reqFlag }, 40000);
         });
     });
 });
@@ -119,7 +119,7 @@ describe("dub share server:", function() {
                 url: config.share_url,
                 json: {
                     origin: "http://cinema6.com/screenjack/#/action/brucelee/end",
-                    script: scriptJSON
+                    experience: scriptJSON
                 }
             }, reqFlag = false;
 
@@ -136,7 +136,7 @@ describe("dub share server:", function() {
                     reqFlag = true;
                 });
             });
-            waitsFor(function() { return reqFlag }, 30000);
+            waitsFor(function() { return reqFlag }, 40000);
         });
         it("should successfully clean up after itself", function() {
             expect(scriptId).toBeDefined();

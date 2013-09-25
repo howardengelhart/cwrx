@@ -334,7 +334,7 @@ function workerMain(config,program,done){
         try {
             job = createDubJob(req.body, config, "dub");
         }catch (e){
-            log.error('Create Job Error: ' + e.stack);
+            log.error('Create Job Error: ' + e.message);
             res.send(500,{
                 error  : 'Unable to process request.',
                 detail : e.message
@@ -379,10 +379,18 @@ function authApi(req, res) {
 function shareScript(req, config, done) {
     var log = cwrx.logger.getLog("dub"),
         body = req.body;
-    if (!config.enableAws) done("You must enable AWS to share scripts");
+    if (!config.enableAws) {
+        log.error("Must enable AWS to share scripts");
+        done("You must enable AWS to share scripts");
+        return;
+    }
     log.info("Starting shareScript");
 
-    if (!body || !body.origin) done("You must include the origin url to generate a shareable url");
+    if (!body || !body.origin) {
+        log.error("No origin url in request");
+        done("You must include the origin url to generate a shareable url");
+        return;
+    }
     var origin = body.origin,
         script = body.experience,
         prefix = body.origin.split('/#/')[0];
@@ -393,19 +401,21 @@ function shareScript(req, config, done) {
         //TODO: shorten URL
         log.info("Finished shareScript: URL = " + url);
         done(null, url);
+    };
+
+    if (!script) {
+        generateUrl();
+        return;
     }
 
-    if (!script) generateUrl();
-
     var s3 = new aws.S3(),
-        headParams,
         deferred = q.defer(),
         id = getScriptId(script),
-        fname = id + '.json'
+        fname = id + '.json',
         params = { Bucket       : config.s3.scripts.bucket,
                    ACL          : 'public-read',
                    ContentType  : 'application/JSON',
-                   Body         : new Buffer(JSON.stringify(script)),
+                   Body         : (script ? new Buffer(JSON.stringify(script)) : null),
                    Key          : path.join(config.s3.scripts.path, fname)
                  },
         
@@ -415,7 +425,7 @@ function shareScript(req, config, done) {
     hash.update(JSON.stringify(script));
 
     s3.headObject(headParams, function(err, data) {
-        if (data && data['ETag'] && data['ETag'].replace(/"/g, '') == hash.digest('hex')) {
+        if (data && data.ETag && data.ETag.replace(/"/g, '') == hash.digest('hex')) {
             log.info("Script already exists on S3, skipping upload");
             generateUrl(id);
         } else {
@@ -458,8 +468,8 @@ function handleRequest(job, done){
             log.trace("All tasks succeeded!");
             done(null, job);
         }, function(error) {
-            if (error['fnName'] && error['msg']) 
-                done({message : 'Died on [' + error['fnName'] + ']: ' + error['msg']}, job);
+            if (error.fnName && error.msg) 
+                done({message : 'Died on [' + error.fnName + ']: ' + error.msg}, job);
             else
                 done({message : 'Died: ' + error}, job);
         }
@@ -713,28 +723,30 @@ function createDubJob(template,config,logName){
         };
     };
 
-    obj.elapsedTimes = {}
+    obj.elapsedTimes = {};
     obj.setStartTime = function(fnName) {
         obj.elapsedTimes[fnName] = {};
-        obj.elapsedTimes[fnName]['start'] = new Date();
-    }
+        obj.elapsedTimes[fnName].start = new Date();
+    };
     obj.setEndTime = function(fnName) {
-        if (!obj.elapsedTimes[fnName] || !obj.elapsedTimes[fnName]['start']) {
+        if (!obj.elapsedTimes[fnName] || !obj.elapsedTimes[fnName].start) {
             log.info("Error: never set start time for [" + fnName + "]");
             return;
         }
-        obj.elapsedTimes[fnName]['end'] = new Date();
+        obj.elapsedTimes[fnName].end = new Date();
         var elapsed = obj.getElapsedTime(fnName);
         log.info("Finished [" + fnName + "] in " + elapsed);
             
-    }
+    };
     obj.getElapsedTime = function(fnName) {
-        if (obj.elapsedTimes[fnName] && obj.elapsedTimes[fnName]['start']
-               && obj.elapsedTimes[fnName]['end'])
-            return (obj.elapsedTimes[fnName]['end'].valueOf()
-                     - obj.elapsedTimes[fnName]['start'].valueOf()) / 1000;
-        else return -1;
-    }
+        if (obj.elapsedTimes[fnName] && obj.elapsedTimes[fnName].start && 
+            obj.elapsedTimes[fnName].end) {
+            return (obj.elapsedTimes[fnName].end.valueOf() - 
+                    obj.elapsedTimes[fnName].start.valueOf()) / 1000;
+        } else{
+            return -1;
+        }
+    };
 
     return obj;
 }
@@ -826,7 +838,7 @@ function convertLinesToMP3(job){
     q.allSettled(job.tracks.map(function(track) {
         var deferred2 = q.defer();
         processTrack(track).then(
-            function() { deferred2.resolve() },
+            function() { deferred2.resolve(); },
             function(error) {
                 log.error("Failed once for " + track.fname + " with error = " + error);
                 log.trace("Retrying...");
@@ -835,21 +847,22 @@ function convertLinesToMP3(job){
                     function(error) { 
                         log.error("Failed again for " + track.fname); 
                         deferred2.reject(error); 
-                });
+                    }
+                );
             }
         );
         return deferred2.promise;
     })).then(function(results) { 
-            for (var i in results) {
-                if (results[i]['state'] == "rejected") {
-                    deferred.reject({"fnName": fnName, "msg": results[i]['reason']});
-                    job.setEndTime(fnName);
-                    return;
-                }
+        for (var i in results) {
+            if (results[i].state == "rejected") {
+                deferred.reject({"fnName": fnName, "msg": results[i].reason});
+                job.setEndTime(fnName);
+                return;
             }
-            log.trace('All tracks succeeded'); 
-            deferred.resolve(job);
-            job.setEndTime(fnName);
+        }
+        log.trace('All tracks succeeded'); 
+        deferred.resolve(job);
+        job.setEndTime(fnName);
     });
 
     return deferred.promise;
@@ -974,7 +987,7 @@ function uploadToStorage(job){
         headParams = {Key: outParams.Key, Bucket: outParams.Bucket};
 
     s3.headObject(headParams, function(err, data) {
-        if (data && data['ETag'] && data['ETag'].replace(/"/g, '') == job.md5) {
+        if (data && data.ETag && data.ETag.replace(/"/g, '') == job.md5) {
             log.info("Local video already exists on S3, skipping upload");
             job.setEndTime(fnName);
             deferred.resolve(job);
