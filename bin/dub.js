@@ -395,9 +395,9 @@ function shareScript(req, config, done) {
         script = body.experience,
         prefix = body.origin.split('/#/')[0];
 
-    var generateUrl = function(id) {
-        var url = prefix + '/#/';
-        if (id) url += 'shared?id=' + id;
+    var generateUrl = function(uri) {
+        var url = prefix + '/#/experiences/';
+        if (uri) url += uri;
         //TODO: shorten URL
         log.info("Finished shareScript: URL = " + url);
         done(null, url);
@@ -415,7 +415,6 @@ function shareScript(req, config, done) {
         params = { Bucket       : config.s3.scripts.bucket,
                    ACL          : 'public-read',
                    ContentType  : 'application/JSON',
-                   Body         : (script ? new Buffer(JSON.stringify(script)) : null),
                    Key          : path.join(config.s3.scripts.path, fname)
                  },
         
@@ -423,11 +422,15 @@ function shareScript(req, config, done) {
         headParams = { Bucket: params.Bucket, Key: params.Key};
     
     hash.update(JSON.stringify(script));
+    script.id = id;
+    script.uri = script.uri.replace('shared:', '');
+    script.uri = 'shared:' + script.uri.split(':')[0] + ':' + id;
+    params.Body = (script ? new Buffer(JSON.stringify(script)) : null);
 
     s3.headObject(headParams, function(err, data) {
         if (data && data.ETag && data.ETag.replace(/"/g, '') == hash.digest('hex')) {
             log.info("Script already exists on S3, skipping upload");
-            generateUrl(id);
+            generateUrl(script.uri);
         } else {
             log.trace("Uploading script: Bucket - " + params.Bucket + ", Key - " + params.Key);
             s3.putObject(params, function(err, data) {
@@ -435,7 +438,7 @@ function shareScript(req, config, done) {
                     done(err);
                 } else {
                     log.trace('SUCCESS: ' + JSON.stringify(data));
-                    generateUrl(id);
+                    generateUrl(script.uri);
                 }
             });
         }
@@ -443,18 +446,20 @@ function shareScript(req, config, done) {
 }
 
 function getScriptId(script) {
-    return hashText(
+    return 'e-' + hashText(
         process.env.host                    +
         process.pid.toString()              +
         process.uptime().toString()         + 
         (new Date()).valueOf().toString()   +
         (JSON.stringify(script))            +
         (Math.random() * 999999999).toString()
-    ).substr(0,12);
+    ).substr(0,14);
 }
 
 function handleRequest(job, done){
-    var log = cwrx.logger.getLog("dub");
+    var log = cwrx.logger.getLog("dub"),
+        fnName = arguments.callee.name;
+    job.setStartTime(fnName);
     
     // Each function returns a promise for job and checks job to see if it needs to be run.
     getSourceVideo(job)
@@ -466,8 +471,10 @@ function handleRequest(job, done){
     .then(
         function() {
             log.trace("All tasks succeeded!");
+            job.setEndTime(fnName);
             done(null, job);
         }, function(error) {
+            job.setEndTime(fnName);
             if (error.fnName && error.msg) 
                 done({message : 'Died on [' + error.fnName + ']: ' + error.msg}, job);
             else

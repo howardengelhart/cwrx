@@ -2,7 +2,7 @@ var request = require("request"),
     fs      = require("fs"),
     path    = require("path"),
     url     = require("url"),
-    configFile = fs.readFileSync(path.join(__dirname, "dub_e2e_config.json")),
+    configFile = fs.readFileSync(path.join(__dirname, "dub_e2e_config_local.json")),
     config = JSON.parse(configFile);
 
 describe("dub video server:", function() {
