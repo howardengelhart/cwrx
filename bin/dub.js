@@ -394,7 +394,6 @@ function shareLink(req, config, done) {
     var origin = body.origin,
         item = body.data,
         prefix = body.origin.split('/#/')[0];
-    console.log(origin);
     var generateUrl = function(uri) {
         if (!uri) {
             var url = body.origin;
