@@ -1,0 +1,6 @@
+{
+    "video_url": "http://33.33.33.10/dub/create",
+    "share_url": "http://33.33.33.10/dub/share",
+    "clean_cache_url": "http://33.33.33.10/maint/clean_cache",
+    "remove_script_url": "http://33.33.33.10/maint/remove_S3_script"
+}

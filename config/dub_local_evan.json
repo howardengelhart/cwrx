@@ -20,15 +20,15 @@
         "src" : {
             "bucket" : "c6.dev",
             "path"   : "media/src/screenjack/video"
-            },
+        },
         "out" : {
             "bucket" : "c6.dev",
             "path"   : "media/usr/screenjack/video"
-            },
-        "scripts": {
+        },
+        "share": {
             "bucket" : "c6.dev",
-            "path"   : "media/usr/screenjack/scripts"
-            }
+            "path"   : "media/usr/screenjack/data"
+        }
     },
     "tts" : {
         "workspace" : "/tmp/"

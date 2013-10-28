@@ -2,29 +2,25 @@
     "log"    : {
         "logLevel" : "info",
         "logDir"   : "/opt/sixxy/logs",
-        "logName"  : "dub.log",
-        "media"    : [ { "type" : "file" } ]
+        "logName"  : "maint.log",
+        "media"    : [ { "type" : "console" } ]
     },
     "caches" : {
         "run"     : "/opt/sixxy/run/",
-        "line"    : "/opt/sixxy/share/dub/caches/line/",
-        "script"  : "/opt/sixxy/share/dub/caches/script/",
-        "video"   : "/opt/sixxy/share/dub/caches/video/",
-        "output"  : "/opt/sixxy/share/dub/caches/output/"
-    },
-    "output" : {
-        "uri" : "https://s3.amazonaws.com/c6.dev/media/usr/screenjack/video/",
-        "type" : "s3"
+        "line"    : "/opt/sixxy/share/line/",
+        "script"  : "/opt/sixxy/share/script/",
+        "video"   : "/opt/sixxy/share/video/",
+        "output"  : "/opt/sixxy/share/output/"
     },
     "s3" : {
         "src" : {
             "bucket" : "c6.dev",
             "path"   : "media/src/screenjack/video"
-        },
+            },
         "out" : {
             "bucket" : "c6.dev",
             "path"   : "media/usr/screenjack/video"
-        },
+            },
         "share": {
             "bucket" : "c6.dev",
             "path"   : "media/usr/screenjack/data"

@@ -1,0 +1,6 @@
+{
+    "video_url": "http://alpha.cinema6.net/dub/create",
+    "share_url": "http://alpha.cinema6.net/dub/share",
+    "clean_cache_url": "http://alpha.cinema6.net/maint/clean_cache",
+    "remove_script_url": "http://alpha.cinema6.net/maint/remove_S3_script"
+}

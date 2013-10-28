@@ -6,24 +6,6 @@ var __ut__   = ((module.parent) && (module.parent.filename) &&
     __maint__    = ((module.parent) && (module.parent.filename) &&
                   (module.parent.filename.match(/maint.js$/))) ? true : false;
 
-////////////////////////////////////////////
-// NodeFly
-if (!__ut__ && !__maint__) {
-    (function(){
-        var hostname      = require('os').hostname(),
-            processNumber = process.env.INDEX_OF_PROCESS || 0;
-
-        require('nodefly').profile(
-            '2f5d8cc85e0038541f430ee81a88a44e',
-            ['dub', hostname, processNumber],
-            {
-                blockThreshold : 100
-            }
-        );
-    }());
-}
-////////////////////////////////////////////
-
 var fs       = require('fs-extra'),
     path     = require('path'),
     crypto   = require('crypto'),
@@ -50,15 +32,15 @@ var fs       = require('fs-extra'),
         s3 : {
             src     : {
                 bucket  : 'c6media',
-                path    : 'src'
+                path    : 'src/screenjack/video/'
             },
             out     : {
                 bucket  : 'c6media',
-                path    : 'usr'
+                path    : 'usr/screenjack/video/'
             },
-            scripts : {
+            share : {
                 bucket  : 'c6media',
-                path    : 'usr'
+                path    : 'usr/screenjack/data/'
             },
             auth    : path.join(process.env.HOME,'.aws.json')
         },
@@ -315,7 +297,7 @@ function workerMain(config,program,done){
     });
 
     app.post('/dub/share', function(req, res, next) {
-        shareScript(req, config, function(err, output) {
+        shareLink(req, config, function(err, output) {
             if (err) {
                 res.send(400,{
                     error  : 'Unable to complete request.',
@@ -376,15 +358,15 @@ function authApi(req, res) {
     else return false;
 }
 */
-function shareScript(req, config, done) {
+function shareLink(req, config, done) {
     var log = cwrx.logger.getLog("dub"),
         body = req.body;
     if (!config.enableAws) {
-        log.error("Must enable AWS to share scripts");
-        done("You must enable AWS to share scripts");
+        log.error("Must enable AWS to share data");
+        done("You must enable AWS to share data");
         return;
     }
-    log.info("Starting shareScript");
+    log.info("Starting shareLink");
 
     if (!body || !body.origin) {
         log.error("No origin url in request");
@@ -392,69 +374,77 @@ function shareScript(req, config, done) {
         return;
     }
     var origin = body.origin,
-        script = body.experience,
+        item = body.data,
         prefix = body.origin.split('/#/')[0];
-
-    var generateUrl = function(id) {
-        var url = prefix + '/#/';
-        if (id) url += 'shared?id=' + id;
+    var generateUrl = function(uri) {
+        if (!uri) {
+            var url = body.origin;
+        } else {
+            var url = prefix + '/#/experiences/';
+            url += uri;
+        }
         //TODO: shorten URL
-        log.info("Finished shareScript: URL = " + url);
+        log.info("Finished shareLink: URL = " + url);
         done(null, url);
     };
 
-    if (!script) {
+    if (!item) {
         generateUrl();
         return;
     }
 
     var s3 = new aws.S3(),
         deferred = q.defer(),
-        id = getScriptId(script),
+        id = getObjId('e', item),
         fname = id + '.json',
-        params = { Bucket       : config.s3.scripts.bucket,
+        params = { Bucket       : config.s3.share.bucket,
                    ACL          : 'public-read',
                    ContentType  : 'application/JSON',
-                   Body         : (script ? new Buffer(JSON.stringify(script)) : null),
-                   Key          : path.join(config.s3.scripts.path, fname)
+                   Key          : path.join(config.s3.share.path, fname)
                  },
         
         hash = crypto.createHash('md5'),
         headParams = { Bucket: params.Bucket, Key: params.Key};
     
-    hash.update(JSON.stringify(script));
+    hash.update(JSON.stringify(item));
+    item.id = id;
+    item.uri = item.uri.replace('shared~', '');
+    item.uri = 'shared~' + item.uri.split('~')[0] + '~' + id;
+    params.Body = (item ? new Buffer(JSON.stringify(item)) : null);
 
     s3.headObject(headParams, function(err, data) {
         if (data && data.ETag && data.ETag.replace(/"/g, '') == hash.digest('hex')) {
-            log.info("Script already exists on S3, skipping upload");
-            generateUrl(id);
+            log.info("Item already exists on S3, skipping upload");
+            generateUrl(item.uri);
         } else {
-            log.trace("Uploading script: Bucket - " + params.Bucket + ", Key - " + params.Key);
+            log.trace("Uploading data: Bucket - " + params.Bucket + ", Key - " + params.Key);
             s3.putObject(params, function(err, data) {
                 if (err) {
                     done(err);
                 } else {
                     log.trace('SUCCESS: ' + JSON.stringify(data));
-                    generateUrl(id);
+                    generateUrl(item.uri);
                 }
             });
         }
     });
 }
 
-function getScriptId(script) {
-    return hashText(
+function getObjId(prefix, item) {
+    return prefix + '-' + hashText(
         process.env.host                    +
         process.pid.toString()              +
         process.uptime().toString()         + 
         (new Date()).valueOf().toString()   +
-        (JSON.stringify(script))            +
+        (JSON.stringify(item))            +
         (Math.random() * 999999999).toString()
-    ).substr(0,12);
+    ).substr(0,14);
 }
 
 function handleRequest(job, done){
-    var log = cwrx.logger.getLog("dub");
+    var log = cwrx.logger.getLog("dub"),
+        fnName = arguments.callee.name;
+    job.setStartTime(fnName);
     
     // Each function returns a promise for job and checks job to see if it needs to be run.
     getSourceVideo(job)
@@ -466,8 +456,10 @@ function handleRequest(job, done){
     .then(
         function() {
             log.trace("All tasks succeeded!");
+            job.setEndTime(fnName);
             done(null, job);
         }, function(error) {
+            job.setEndTime(fnName);
             if (error.fnName && error.msg) 
                 done({message : 'Died on [' + error.fnName + ']: ' + error.msg}, job);
             else

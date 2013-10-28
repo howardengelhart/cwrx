@@ -1,0 +1,6 @@
+{
+    "video_url": "http://localhost:3000/dub/create",
+    "share_url": "http://localhost:3000/dub/share",
+    "clean_cache_url": "http://localhost:4000/maint/clean_cache",
+    "remove_script_url": "http://localhost:4000/maint/remove_S3_script"
+}
