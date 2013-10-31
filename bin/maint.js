@@ -86,8 +86,8 @@ function main() {
             }
 
             if (exists) {
-                console.error('It appears daemon is already running (' + pid + '), please sig term the\
-                               old process if you wish to run a new one.');
+                console.error('It appears daemon is already running (' + pid +
+                    '), please sig term the old process if you wish to run a new one.');
                 return done(1,'need to term ' + pid);
             } else {
                 log.error('Process [' + pid + '] appears to be gone, will restart.');
@@ -139,9 +139,9 @@ function main() {
         }
         var s3 = new aws.S3(),
             params = {
-                         Bucket: config.s3.share.bucket,
-                         Key: path.join(config.s3.share.path, fname)
-                     };
+            Bucket: config.s3.share.bucket,
+            Key: path.join(config.s3.share.path, fname)
+        };
         log.info("Removing script: Bucket = " + params.Bucket + ", Key = " + params.Key);
         s3.deleteObject(params, function(err, data) {
             if (err) {

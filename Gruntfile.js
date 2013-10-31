@@ -35,6 +35,40 @@ module.exports = function (grunt) {
     grunt.initConfig({
         settings   : initProps,
 
+        jasmine_node: {
+            match   : '(core|av).*',
+            matchAll : true,
+            projectRoot   : './test',
+            jUnit: {
+                report: true,
+                savePath : __dirname + '/reports/',
+                useDotNotation : true,
+                consolidate : true
+            }
+        },
+
+        jshint: {
+            options: {
+                jshintrc: 'jshint.json'
+            },
+            all: [
+                __dirname + '/bin/{,*/}*.js',
+                __dirname + '/lib/{,*/}*.js'
+            ]
+        },
+        
+        watch: {
+            scripts: {
+                files: [
+                    __filename,
+                    __dirname + '/bin/**/*.js',
+                    __dirname + '/lib/**/*.js',
+                    __dirname + '/test/**/*.js' 
+                ],
+                tasks: ['jshint', 'jasmine_node']
+            }
+        },
+        
         copy    : {
             release : { 
                 files:  [
@@ -77,7 +111,15 @@ module.exports = function (grunt) {
     });
     
     grunt.loadNpmTasks('grunt-contrib-copy');
-    
+    grunt.loadNpmTasks('grunt-contrib-jshint');
+    grunt.loadNpmTasks('grunt-contrib-watch');
+    grunt.loadNpmTasks('grunt-jasmine-node');
+
+    grunt.registerTask('default', function(){
+        grunt.task.run('jshint');
+        grunt.task.run('jasmine_node');
+    });
+
     grunt.registerTask('install', 'Install', function(){
         grunt.task.run('gitLastCommit');
         grunt.task.run('installCheck');

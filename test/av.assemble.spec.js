@@ -1,7 +1,7 @@
-var path    = require('path'),
-    fs      = require('fs'),
-    crypto  = require('crypto'),
-    cwrx     = require('../lib/index');
+var path        = require('path'),
+    fs          = require('fs'),
+    crypto      = require('crypto'),
+    assemble    = require('../lib/assemble');
 
 describe('assemble test suite',function(){
     var files = [];
@@ -14,7 +14,7 @@ describe('assemble test suite',function(){
     });
 
     it('should have an assembler object defined',function(){
-        expect(cwrx.assemble).toBeDefined();
+        expect(assemble).toBeDefined();
     });
 
 
@@ -33,7 +33,7 @@ describe('assemble test suite',function(){
         };
 
         files.push(template.output);
-        cwrx.assemble(template,function(err,tmpl){
+        assemble(template,function(err,tmpl){
             expect(err).toBeNull();
             expect(tmpl).not.toBeNull();
             if (tmpl){

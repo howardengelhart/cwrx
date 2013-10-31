@@ -185,8 +185,8 @@ function main(done){
             }
 
             if (exists) {
-                console.error('It appears daemon is already running (' + pid + '), please sig term\
-                               the old process if you wish to run a new one.');
+                console.error('It appears daemon is already running (' + pid +
+                    '), please sig term the old process if you wish to run a new one.');
                 return done(1,'need to term ' + pid);
             } else {
                 log.error('Process [' + pid + '] appears to be gone, will restart.');
@@ -377,10 +377,11 @@ function shareLink(req, config, done) {
         item = body.data,
         prefix = body.origin.split('/#/')[0];
     var generateUrl = function(uri) {
+        var url;
         if (!uri) {
-            var url = body.origin;
+            url = body.origin;
         } else {
-            var url = prefix + '/#/experiences/';
+            url = prefix + '/#/experiences/';
             url += uri;
         }
         //TODO: shorten URL

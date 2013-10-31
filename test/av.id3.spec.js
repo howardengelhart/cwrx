@@ -1,16 +1,16 @@
 var path = require('path'),
-    cwrx = require('../lib/index');
+    id3Info = require('../lib/id3');
 
 describe('id3 test suite',function(){
 
     var testFile = path.join(__dirname,'b0.mp3');
 
     it('should have an id3Info function defined',function(){
-        expect(cwrx.id3Info).toBeDefined();
+        expect(id3Info).toBeDefined();
     });
 
     it('should be able to get id3info on real mp3',function(done){
-        cwrx.id3Info(testFile,function(err,data){
+        id3Info(testFile,function(err,data){
             expect(err).toBeNull();
             expect(data).toBeDefined();
             expect(data).not.toBeNull();
@@ -24,7 +24,7 @@ describe('id3 test suite',function(){
     });
 
     it('should throw an error if attempt id3info on a bad file',function(done){
-        cwrx.id3Info(__filename,function(err,data){
+        id3Info(__filename,function(err,data){
             expect(data).not.toBeDefined();
             expect(err).toBeDefined();
             expect(err).not.toBeNull();

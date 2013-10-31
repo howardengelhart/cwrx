@@ -3,7 +3,7 @@ var program = require('commander'),
     fs      = require('fs-extra'),
     http    = require('http'),
     crypto  = require('crypto'),
-    cwrx    = require(path.join(__dirname,'lib/index')),
+    cwrx    = require(path.join(__dirname,'../lib/index')),
     log     = cwrx.logger.createLog();
 
 try {
