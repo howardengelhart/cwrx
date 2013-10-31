@@ -82,6 +82,11 @@ Vagrant.configure("2") do |config|
     chef.data_bags_path = "#{ENV['HOME']}/.c6dev/data_bags"
     chef.encrypted_data_bag_secret_key_path = "#{ENV['HOME']}/.ssh/c6data"
     chef.json = {
+      :dub => {
+       :source => {
+           :branch => "#{ENV['DUB_DEV_BRANCH']}",
+       }
+     }
     }
 
     chef.run_list = [

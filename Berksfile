@@ -4,4 +4,4 @@ site :opscode
 cookbook 'c6env'
 cookbook 'ffmpeg'
 cookbook 'id3lib'
-cookbook 'dub'
+cookbook 'dub', '~> 1.1'
