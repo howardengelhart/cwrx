@@ -4,7 +4,15 @@ var path        = require('path'),
     assemble    = require('../lib/assemble');
 
 describe('assemble test suite',function(){
-    var files = [];
+    var files = [ path.join(__dirname,'result.mp3') ];
+    beforeEach(function(){
+        files.forEach(function(file){
+            if(fs.existsSync(file)){
+                fs.unlinkSync(file);
+            }
+        });
+    });
+
     afterEach(function(){
         files.forEach(function(file){
             if(fs.existsSync(file)){
@@ -20,6 +28,7 @@ describe('assemble test suite',function(){
 
     it('should assemble',function(done){
         var template = {
+            id          : 'test',
             duration    : 16.5,
             bitrate     : '48k',
             frequency   : 22050,
@@ -32,7 +41,6 @@ describe('assemble test suite',function(){
             ]
         };
 
-        files.push(template.output);
         assemble(template,function(err,tmpl){
             expect(err).toBeNull();
             expect(tmpl).not.toBeNull();

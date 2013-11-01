@@ -53,7 +53,7 @@ var fs       = require('fs-extra'),
 
     // Attempt a graceful exit
     exitApp  = function(resultCode,msg){
-        var log = cwrx.logger.getLog("dub");
+        var log = cwrx.logger.getLog();
         if (msg){
             if (resultCode){
                 log.error(msg);
@@ -103,7 +103,7 @@ function main(done){
         process.setuid(program.uid);
     }
    
-    config = createConfiguration(program, "dub");
+    config = createConfiguration(program);
 
     if (program.showConfig){
         console.log(JSON.stringify(config,null,3));
@@ -112,7 +112,7 @@ function main(done){
 
     config.ensurePaths();
 
-    log = cwrx.logger.getLog("dub");
+    log = cwrx.logger.getLog();
 
     if (program.loglevel){
         log.setLevel(program.loglevel);
@@ -230,7 +230,7 @@ function main(done){
 }
 
 function clusterMain(config,program,done) {
-    var log = cwrx.logger.getLog("dub");
+    var log = cwrx.logger.getLog();
     log.info('Running as cluster master');
 
     cluster.on('exit', function(worker, code, signal) {
@@ -267,7 +267,7 @@ function clusterMain(config,program,done) {
 
 function workerMain(config,program,done){
     var app = express(),
-        log = cwrx.logger.getLog("dub");
+        log = cwrx.logger.getLog();
 
     log.info('Running as cluster worker, proceed with setting up web server.');
     app.use(express.bodyParser());
@@ -354,7 +354,7 @@ function authApi(req, res) {
 }
 */
 function shareLink(req, config, done) {
-    var log = cwrx.logger.getLog("dub"),
+    var log = cwrx.logger.getLog(),
         body = req.body;
     if (!config.enableAws) {
         log.error("Must enable AWS to share data");
@@ -438,7 +438,7 @@ function getObjId(prefix, item) {
 }
 
 function handleRequest(job, done){
-    var log = cwrx.logger.getLog("dub"),
+    var log = cwrx.logger.getLog(),
         fnName = arguments.callee.name;
     job.setStartTime(fnName);
     
@@ -481,8 +481,8 @@ function loadTemplateFromFile(tmplFile){
     return tmplObj;
 }
 
-function createConfiguration(cmdLine, logName){
-    var log = cwrx.logger.getLog(logName),
+function createConfiguration(cmdLine){
+    var log = cwrx.logger.getLog(),
         cfgObject = {},
         userCfg;
 
@@ -530,7 +530,7 @@ function createConfiguration(cmdLine, logName){
     }
 
     if (cfgObject.log) {
-        log = cwrx.logger.createLog(cfgObject.log, logName);
+        log = cwrx.logger.createLog(cfgObject.log );
     }
 
     cfgObject.ensurePaths = function(){
@@ -585,8 +585,8 @@ function createConfiguration(cmdLine, logName){
     return cfgObject;
 }
 
-function createDubJob(id, template,config,logName){
-    var log = cwrx.logger.getLog(logName),
+function createDubJob(id, template,config){
+    var log = cwrx.logger.getLog(),
         buff,
         obj       = {},
         soh       = String.fromCharCode(1),
@@ -750,7 +750,7 @@ function hashText(txt){
 
 function getSourceVideo(job) {
     var deferred = q.defer(), 
-        log = cwrx.logger.getLog("dub"),
+        log = cwrx.logger.getLog(),
         fnName = arguments.callee.name;
     
     if (job.hasOutput() || job.hasVideo()) {
@@ -783,7 +783,7 @@ function getSourceVideo(job) {
 }
 
 function convertLinesToMP3(job){
-    var log = cwrx.logger.getLog("dub"),
+    var log = cwrx.logger.getLog(),
         deferred = q.defer(),
         fnName = arguments.callee.name;
 
@@ -860,7 +860,7 @@ function convertLinesToMP3(job){
 }
 
 function getVideoLength(job){
-    var log = cwrx.logger.getLog("dub"),
+    var log = cwrx.logger.getLog(),
         deferred = q.defer(),
         fnName = arguments.callee.name;
 
@@ -894,7 +894,7 @@ function getVideoLength(job){
 }
 
 function convertScriptToMP3(job){
-    var log = cwrx.logger.getLog("dub"),
+    var log = cwrx.logger.getLog(),
         deferred = q.defer(),
         fnName = arguments.callee.name;
 
@@ -920,7 +920,7 @@ function convertScriptToMP3(job){
 }
 
 function applyScriptToVideo(job){
-    var log = cwrx.logger.getLog("dub"),
+    var log = cwrx.logger.getLog(),
         deferred = q.defer(),
         fnName = arguments.callee.name;
  
@@ -948,7 +948,7 @@ function applyScriptToVideo(job){
 
 function uploadToStorage(job){
     var deferred = q.defer(),
-        log = cwrx.logger.getLog("dub"),
+        log = cwrx.logger.getLog(),
         fnName = arguments.callee.name,
     
         localVid = fs.readFileSync(job.outputPath),
