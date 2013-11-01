@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 
-var __ut__   = ((module.parent) && (module.parent.filename) &&
-               (module.parent.filename.match(/\.spec.js$/))) ? true : false,
+var __ut__      = (global.jasmine !== undefined) ? true : false,
 
-    __maint__    = ((module.parent) && (module.parent.filename) &&
+    __maint__   = ((module.parent) && (module.parent.filename) &&
                   (module.parent.filename.match(/maint.js$/))) ? true : false;
 
 var fs       = require('fs-extra'),
@@ -690,6 +689,7 @@ function createDubJob(id, template,config,logName){
     obj.assembleTemplate = function(){
         var self = this;
         result = {
+            id        : self.id,
             duration  : self.videoLength,
             bitrate   : obj.tts.bitrate,
             frequency : obj.tts.frequency,
