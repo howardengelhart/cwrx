@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 var fs      = require('fs-extra'),
     express = require('express'),
     path    = require('path'),

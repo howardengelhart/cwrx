@@ -3,14 +3,14 @@
         "logLevel" : "info",
         "logDir"   : "/opt/sixxy/logs",
         "logName"  : "maint.log",
-        "media"    : [ { "type" : "console" } ]
+        "media"    : [ { "type" : "file" } ]
     },
     "caches" : {
         "run"     : "/opt/sixxy/run/",
-        "line"    : "/opt/sixxy/share/line/",
-        "script"  : "/opt/sixxy/share/script/",
-        "video"   : "/opt/sixxy/share/video/",
-        "output"  : "/opt/sixxy/share/output/"
+        "line"    : "/opt/sixxy/share/dub/caches/line/",
+        "script"  : "/opt/sixxy/share/dub/caches/script/",
+        "video"   : "/opt/sixxy/share/dub/caches/video/",
+        "output"  : "/opt/sixxy/share/dub/caches/output/"
     },
     "s3" : {
         "src" : {

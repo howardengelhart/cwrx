@@ -2,6 +2,7 @@
 #
 # maint - this script manages the caches for dub
 #
+# chkconfig:   345 20 80
 # description:  maint is a Cinema6 web service
 
 # Source function library.
