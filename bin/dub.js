@@ -906,16 +906,17 @@ function convertScriptToMP3(job){
     log.info("[%1] Starting %2",job.id, fnName);
     job.setStartTime(fnName);        
 
-    cwrx.assemble(job.assembleTemplate(),function(err,tmpl){
-        if (err) {
-            deferred.reject({"fnName": fnName, "msg": err});
-            job.setEndTime(fnName);
-            return deferred.promise;
-        }
-        log.trace('[%1] Assembled: %2',job.id , tmpl.output);
+    cwrx.assemble(job.assembleTemplate())
+    .then(function(tmpl){
         job.setEndTime(fnName);
+        log.trace('[%1] Assembled: %2',job.id , tmpl.output);
         deferred.resolve(job);
+    })
+    .fail(function(err){
+        job.setEndTime(fnName);
+        deferred.reject({"fnName": fnName, "msg": err});
     });
+        
     return deferred.promise;
 }
 

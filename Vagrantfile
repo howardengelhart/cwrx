@@ -85,11 +85,15 @@ Vagrant.configure("2") do |config|
       :dub => {
        :source => {
            :branch => "#{ENV['DUB_DEV_BRANCH']}",
+       },
+       :cfg => {
+           :loglevel => "trace",
        }
      }
     }
 
     chef.run_list = [
+        "recipe[c6users::default]",
         "recipe[dub::default]"
     ]
   end

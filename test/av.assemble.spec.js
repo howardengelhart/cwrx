@@ -41,8 +41,11 @@ describe('assemble test suite',function(){
             ]
         };
 
-        assemble(template,function(err,tmpl){
+        assemble(template)
+        .then(function(tmpl){
+                /*
             expect(err).toBeNull();
+                */
             expect(tmpl).not.toBeNull();
             if (tmpl){
                 expect(tmpl).toBe(template);
@@ -54,6 +57,10 @@ describe('assemble test suite',function(){
             cksum.update(buff);
             expect(buff.length).toEqual(96110);
             expect(cksum.digest('hex')).toEqual('e3bfd03fb7aa21745478b8b98a505fe3713e8e20');
+            done();
+        })
+        .fail(function(error){
+            expect(error).not.toBeDefined();
             done();
         });
     });
