@@ -687,9 +687,10 @@ function createDubJob(id, template, config){
         for (var i =0; i < this.tracks.length; i++){
             if (this.tracks[i].fpathExists === false){
                 result = false; 
+                break;
             }
         }
-        return true;
+        return result;
     };
 
     obj.assembleTemplate = function(){
