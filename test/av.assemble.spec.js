@@ -1,10 +1,18 @@
-var path    = require('path'),
-    fs      = require('fs'),
-    crypto  = require('crypto'),
-    cwrx     = require('../lib/index');
+var path        = require('path'),
+    fs          = require('fs'),
+    crypto      = require('crypto'),
+    assemble    = require('../lib/assemble');
 
 describe('assemble test suite',function(){
-    var files = [];
+    var files = [ path.join(__dirname,'result.mp3') ];
+    beforeEach(function(){
+        files.forEach(function(file){
+            if(fs.existsSync(file)){
+                fs.unlinkSync(file);
+            }
+        });
+    });
+
     afterEach(function(){
         files.forEach(function(file){
             if(fs.existsSync(file)){
@@ -14,12 +22,13 @@ describe('assemble test suite',function(){
     });
 
     it('should have an assembler object defined',function(){
-        expect(cwrx.assemble).toBeDefined();
+        expect(assemble).toBeDefined();
     });
 
 
     it('should assemble',function(done){
         var template = {
+            id          : 'test',
             duration    : 16.5,
             bitrate     : '48k',
             frequency   : 22050,
@@ -32,9 +41,11 @@ describe('assemble test suite',function(){
             ]
         };
 
-        files.push(template.output);
-        cwrx.assemble(template,function(err,tmpl){
+        assemble(template)
+        .then(function(tmpl){
+                /*
             expect(err).toBeNull();
+                */
             expect(tmpl).not.toBeNull();
             if (tmpl){
                 expect(tmpl).toBe(template);
@@ -46,6 +57,10 @@ describe('assemble test suite',function(){
             cksum.update(buff);
             expect(buff.length).toEqual(96110);
             expect(cksum.digest('hex')).toEqual('e3bfd03fb7aa21745478b8b98a505fe3713e8e20');
+            done();
+        })
+        .fail(function(error){
+            expect(error).not.toBeDefined();
             done();
         });
     });
