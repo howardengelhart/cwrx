@@ -623,13 +623,13 @@ function createDubJob(id, template, config){
             line    : item.line,
             hash    : hashText(item.line.toLowerCase() + JSON.stringify(obj.tts))
         };
-        log.trace('[%1] track : %2',obj.id, JSON.stringify(track));
         track.jobId          = obj.id;
         track.fname          = (track.hash + '.mp3');
         track.fpath          = config.cacheAddress(track.fname,'line');
         track.fpathExists    = (fs.existsSync(track.fpath)) ? true : false;
         track.metaname       = (track.hash + '.json');
         track.metapath       = config.cacheAddress(track.metaname,'line');
+        log.trace('[%1] track : %2',obj.id, JSON.stringify(track));
         obj.tracks.push(track);
         buff += (soh + track.ts.toString() + ':' + track.hash);
     });
@@ -875,7 +875,7 @@ function getLineMetadata(track){
             JSON.parse(fs.readFileSync(track.metapath, { encoding : 'utf8' }));
     }
     catch(e){
-        log.trace('[%1] Error reading metapath file: %2',track.jobId,e.message);
+        log.trace('[%1] Unable to read metapath file: %2',track.jobId,e.message);
     }
 
     if ((track.metaData) && (track.metaData.duration)) {
@@ -883,7 +883,7 @@ function getLineMetadata(track){
     }
 
     deferred = q.defer();
-    log.trace('[%1] - getLineMetadata %2',track.jobId,track.fpath);
+    log.trace('[%1] getLineMetadata %2',track.jobId,track.fpath);
     cwrx.id3Info(track.fpath,function(err,data){
         if (err) {
             log.error('[%1] Error reading track %2 id3info: %3',
