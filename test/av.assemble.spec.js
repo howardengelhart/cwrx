@@ -70,6 +70,20 @@ describe('assemble (UT)',function(){
                 done();
             });
         });
+
+        it('should use the existing duration, if it exists.',function(done){
+            template.playList[0].metaData = { duration : 69 };
+            spyOn(template.ffmpeg,'probe');
+            assemble.getSrcInfo(log,template,template.playList[0],0)
+            .done(function(result){
+                expect(result.item.metaData.duration).toEqual(69);
+                expect(template.ffmpeg.probe).not.toHaveBeenCalled();
+                done();
+            },function(err){
+                expect(err).not.toBeDefined();
+                done();
+            });
+        });
     });
         
     describe('getSrcInfoID3',function(){
@@ -109,6 +123,20 @@ describe('assemble (UT)',function(){
                 done();
             },function(err){
                 expect(err.message).toEqual('No id3 data for xxxx');
+                done();
+            });
+        });
+        
+        it('should use the existing duration, if it exists.',function(done){
+            template.playList[0].metaData = { duration : 69 };
+            spyOn(template,'id3Info');
+            assemble.getSrcInfoID3(log,template,template.playList[0],0)
+            .done(function(result){
+                expect(result.item.metaData.duration).toEqual(69);
+                expect(template.id3Info).not.toHaveBeenCalled();
+                done();
+            },function(err){
+                expect(err).not.toBeDefined();
                 done();
             });
         });

@@ -445,6 +445,7 @@ function handleRequest(job, done){
     // Each function returns a promise for job and checks job to see if it needs to be run.
     getSourceVideo(job)
     .then(convertLinesToMP3)
+    .then(collectLinesMetadata)
     .then(getVideoLength)
     .then(convertScriptToMP3)
     .then(applyScriptToVideo)
@@ -623,8 +624,12 @@ function createDubJob(id, template,config){
             hash    : hashText(item.line.toLowerCase() + JSON.stringify(obj.tts))
         };
         log.trace('[%1] track : %2',obj.id, JSON.stringify(track));
-        track.fname   = (track.hash + '.mp3');
-        track.fpath   = config.cacheAddress(track.fname,'line');
+        track.jobId          = obj.id;
+        track.fname          = (track.hash + '.mp3');
+        track.fpath          = config.cacheAddress(track.fname,'line');
+        track.fpathExists    = (fs.existsSync(track.fpath)) ? true : false;
+        track.metaname       = (track.hash + '.json');
+        track.metapath       = config.cacheAddress(track.metaname,'line');
         obj.tracks.push(track);
         buff += (soh + track.ts.toString() + ':' + track.hash);
     });
@@ -678,9 +683,10 @@ function createDubJob(id, template,config){
     };
 
     obj.hasLines = function(){
+        var result = true;
         for (var i =0; i < this.tracks.length; i++){
-            if (!fs.existsSync(this.tracks[i].fpath)){
-                return false;
+            if (this.tracks[i].fpathExists === false){
+                result = false; 
             }
         }
         return true;
@@ -702,7 +708,8 @@ function createDubJob(id, template,config){
         self.tracks.forEach(function(track){
             result.playList.push({
                 ts  : track.ts,
-                src : track.fpath
+                src : track.fpath,
+                metaData : track.metaData
             });
         });
 
@@ -857,6 +864,80 @@ function convertLinesToMP3(job){
         job.setEndTime(fnName);
     });
 
+    return deferred.promise;
+}
+
+function getLineMetadata(track){
+    var log = cwrx.logger.getLog(), deferred;
+
+    try {
+        track.metaData = 
+            JSON.parse(fs.readFileSync(track.metapath, { encoding : 'utf8' }));
+    }
+    catch(e){
+        log.trace('[%1] Error reading metapath file: %2',track.jobId,e.message);
+    }
+
+    if ((track.metaData) && (track.metaData.duration)) {
+        return q(track);
+    }
+
+    deferred = q.defer();
+    log.trace('[%1] - getLineMetadata %2',track.jobId,track.fpath);
+    cwrx.id3Info(track.fpath,function(err,data){
+        if (err) {
+            log.error('[%1] Error reading track %2 id3info: %3',
+                track.jobId, track.fpath, err.message);
+            deferred.reject(err);
+            return;
+        }
+
+        if (!data.audio_duration) {
+            log.error('[%1] Reading track %2 id3info returned no duration',
+                track.jobId, track.fpath);
+            deferred.reject(new Error('No valid duration found.'));
+            return;
+        }
+
+        data.duration = data.audio_duration;
+        delete data.audio_duration;
+        track.metaData = data;
+
+        try {
+            fs.writeFileSync(track.metapath, JSON.stringify(track.metaData));
+        } catch(e){
+            log.warn('[%1] Error writing to %2: %3', track.jobId,track.metapath,e.message);
+        }
+
+        deferred.resolve(track);
+    });
+
+    return deferred.promise;
+}
+
+function collectLinesMetadata(job){
+    var log     = cwrx.logger.getLog(),
+        fnName  = arguments.callee.name,
+        deferred;
+
+    if (job.hasOutput() || job.hasScript() ) {
+        log.info("[%1] Skipping collectLinesMetadata",job.id);
+        return q(job);
+    }
+
+    log.info("[%1] Starting %2",job.id,fnName);
+    job.setStartTime(fnName);
+    deferred = q.defer();
+    
+    q.all(job.tracks.map(getLineMetadata))
+    .then(function(results){
+        job.setEndTime(fnName);
+        deferred.resolve(job);
+    })
+    .fail(function(err){
+        job.setEndTime(fnName);
+        deferred.reject({"fnName": fnName, "msg": error});
+    });
     return deferred.promise;
 }
 
