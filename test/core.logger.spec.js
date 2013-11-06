@@ -83,6 +83,39 @@ describe("adding media to logger",function(){
     });
 });
 
+describe("log formatting", function(){
+    var log, testMedia;
+    
+    beforeEach(function(){
+        testMedia = {
+            lines     : [],
+            writeLine : function(line) { this.lines.push(line); },
+            id        : function() { return 'testMedia'; }
+        };
+        log = logger.createLog({ logMask : 0xf, media : [] });
+        log.addMedia(testMedia);
+    });
+
+    it('should print with no formats',function(){
+        log.info('test abc');
+        expect(
+            testMedia.lines[0]
+                .match(/\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d\.\d\d\dZ \d+ \[info\] test abc/)
+        )
+            .not.toBeNull();
+    });
+
+    it('should print with formats',function(){
+        log.info('test abc %1 %2 %3',1,2,3);
+        expect(
+            testMedia.lines[0]
+                .match(/\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d\.\d\d\dZ \d+ \[info\] test abc 1 2 3/)
+        )
+            .not.toBeNull();
+    });
+
+});
+
 describe("log masking",function(){
 
     var log, testMedia;
@@ -250,9 +283,9 @@ describe("log stack",function(){
         someFunc();
         expect(testMedia.lines.length).toEqual(2);
         expect(testMedia.lines[0].match(
-                /\[info\] {null.<anonymous>:core.logger.spec.js:249} test1/)).not.toBeNull();
+                /\[info\] {null.<anonymous>:core.logger.spec.js:282} test1/)).not.toBeNull();
         expect(testMedia.lines[1].match(
-                /\[info\] {someFunc:core.logger.spec.js:247} test2/)).not.toBeNull();
+                /\[info\] {someFunc:core.logger.spec.js:280} test2/)).not.toBeNull();
     });
 });
 
@@ -660,30 +693,39 @@ describe('file logger logging and exits',function(){
         gc = [];
     });
 
-    it('should write last log line when process exits naturally',function(done){
+    it('should write last log line when process exits naturally',function(){
         exec_ext_test('exit1',function(){
-            var s = fs.readFileSync(path.join(logDir,'exit1.log')).toString(),
+            var s, lines;
+            expect( function(){
+                s = fs.readFileSync(path.join(logDir,'exit1.log')).toString();
                 lines = s.split('\n');
+            }).not.toThrow();
+            expect(lines).toBeDefined(); 
             expect(lines[0].match(/abcdefghijklmnopqrstuvwxyz/)).toBeTruthy();
-            done();
         });
     });
 
-    it('should write last log line when process exits manually',function(done){
+    it('should write last log line when process exits manually',function(){
         exec_ext_test('exit2',function(){
-            var s = fs.readFileSync(path.join(logDir,'exit2.log')).toString(),
+            var s, lines;
+            expect(function(){
+                s = fs.readFileSync(path.join(logDir,'exit2.log')).toString();
                 lines = s.split('\n');
+            }).not.toThrow();
+            expect(lines).toBeDefined(); 
             expect(lines[0].match(/abcdefghijklmnopqrstuvwxyz/)).toBeTruthy();
-            done();
         });
     });
 
-    it('should write last log line when process exits unexpectedly',function(done){
+    it('should write last log line when process exits unexpectedly',function(){
         exec_ext_test('exit3',function(){
-            var s = fs.readFileSync(path.join(logDir,'exit3.log')).toString(),
+            var s, lines;
+            expect(function(){
+                s = fs.readFileSync(path.join(logDir,'exit3.log')).toString();
                 lines = s.split('\n');
+            }).not.toThrow();
+            expect(lines).toBeDefined(); 
             expect(lines[0].match(/abcdefghijklmnopqrstuvwxyz/)).toBeTruthy();
-            done();
         });
     });
 }); 

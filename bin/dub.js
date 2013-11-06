@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 
-var __ut__   = ((module.parent) && (module.parent.filename) &&
-               (module.parent.filename.match(/\.spec.js$/))) ? true : false,
+var __ut__      = (global.jasmine !== undefined) ? true : false,
 
-    __maint__    = ((module.parent) && (module.parent.filename) &&
+    __maint__   = ((module.parent) && (module.parent.filename) &&
                   (module.parent.filename.match(/maint.js$/))) ? true : false;
 
 var fs       = require('fs-extra'),
@@ -54,7 +53,7 @@ var fs       = require('fs-extra'),
 
     // Attempt a graceful exit
     exitApp  = function(resultCode,msg){
-        var log = cwrx.logger.getLog("dub");
+        var log = cwrx.logger.getLog();
         if (msg){
             if (resultCode){
                 log.error(msg);
@@ -104,7 +103,7 @@ function main(done){
         process.setuid(program.uid);
     }
    
-    config = createConfiguration(program, "dub");
+    config = createConfiguration(program);
 
     if (program.showConfig){
         console.log(JSON.stringify(config,null,3));
@@ -113,7 +112,7 @@ function main(done){
 
     config.ensurePaths();
 
-    log = cwrx.logger.getLog("dub");
+    log = cwrx.logger.getLog();
 
     if (program.loglevel){
         log.setLevel(program.loglevel);
@@ -125,7 +124,7 @@ function main(done){
             throw new SyntaxError('Expected a template file.');
         }
 
-        job = createDubJob(loadTemplateFromFile(program.args[0]), config, "dub");
+        job = createDubJob(cwrx.uuid().substr(0,10),loadTemplateFromFile(program.args[0]), config);
         
         handleRequest(job,function(err, finishedJob){
             if (err) {
@@ -185,8 +184,8 @@ function main(done){
             }
 
             if (exists) {
-                console.error('It appears daemon is already running (' + pid + '), please sig term\
-                               the old process if you wish to run a new one.');
+                console.error('It appears daemon is already running (' + pid +
+                    '), please sig term the old process if you wish to run a new one.');
                 return done(1,'need to term ' + pid);
             } else {
                 log.error('Process [' + pid + '] appears to be gone, will restart.');
@@ -231,7 +230,7 @@ function main(done){
 }
 
 function clusterMain(config,program,done) {
-    var log = cwrx.logger.getLog("dub");
+    var log = cwrx.logger.getLog();
     log.info('Running as cluster master');
 
     cluster.on('exit', function(worker, code, signal) {
@@ -268,7 +267,7 @@ function clusterMain(config,program,done) {
 
 function workerMain(config,program,done){
     var app = express(),
-        log = cwrx.logger.getLog("dub");
+        log = cwrx.logger.getLog();
 
     log.info('Running as cluster worker, proceed with setting up web server.');
     app.use(express.bodyParser());
@@ -285,14 +284,10 @@ function workerMain(config,program,done){
         }
     });
 
-    app.use('/',function(req, res, next){
-        log.info('REQ: ' + '['  + 
-                    req.connection.remoteAddress + ' ' + 
-                    req.connection.remotePort + '] ' +
-                    JSON.stringify(req.headers) + ' ' +
-                    req.method + ' ' + 
-                    req.url + ' ' +
-                    req.httpVersion);
+    app.all('*',function(req, res, next){
+        req.uuid = cwrx.uuid().substr(0,10);
+        log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
+            req.method,req.url,req.httpVersion);
         next();
     });
 
@@ -314,9 +309,9 @@ function workerMain(config,program,done){
     app.post('/dub/create', function(req, res, next){
         var job;
         try {
-            job = createDubJob(req.body, config, "dub");
+            job = createDubJob(req.uuid, req.body, config);
         }catch (e){
-            log.error('Create Job Error: ' + e.message);
+            log.error('[%1] Create Job Error: %2', req.uuid, e.message);
             res.send(500,{
                 error  : 'Unable to process request.',
                 detail : e.message
@@ -325,7 +320,7 @@ function workerMain(config,program,done){
         }
         handleRequest(job,function(err){
             if (err){
-                log.error('Handle Request Error: ' + err.message);
+                log.error('[%1] Handle Request Error: %2',req.uuid,err.message);
                 res.send(400,{
                     error  : 'Unable to complete request.',
                     detail : err.message
@@ -359,7 +354,7 @@ function authApi(req, res) {
 }
 */
 function shareLink(req, config, done) {
-    var log = cwrx.logger.getLog("dub"),
+    var log = cwrx.logger.getLog(),
         body = req.body;
     if (!config.enableAws) {
         log.error("Must enable AWS to share data");
@@ -377,10 +372,11 @@ function shareLink(req, config, done) {
         item = body.data,
         prefix = body.origin.split('/#/')[0];
     var generateUrl = function(uri) {
+        var url;
         if (!uri) {
-            var url = body.origin;
+            url = body.origin;
         } else {
-            var url = prefix + '/#/experiences/';
+            url = prefix + '/#/experiences/';
             url += uri;
         }
         //TODO: shorten URL
@@ -442,7 +438,7 @@ function getObjId(prefix, item) {
 }
 
 function handleRequest(job, done){
-    var log = cwrx.logger.getLog("dub"),
+    var log = cwrx.logger.getLog(),
         fnName = arguments.callee.name;
     job.setStartTime(fnName);
     
@@ -485,8 +481,8 @@ function loadTemplateFromFile(tmplFile){
     return tmplObj;
 }
 
-function createConfiguration(cmdLine, logName){
-    var log = cwrx.logger.getLog(logName),
+function createConfiguration(cmdLine){
+    var log = cwrx.logger.getLog(),
         cfgObject = {},
         userCfg;
 
@@ -534,7 +530,7 @@ function createConfiguration(cmdLine, logName){
     }
 
     if (cfgObject.log) {
-        log = cwrx.logger.createLog(cfgObject.log, logName);
+        log = cwrx.logger.createLog(cfgObject.log );
     }
 
     cfgObject.ensurePaths = function(){
@@ -589,14 +585,16 @@ function createConfiguration(cmdLine, logName){
     return cfgObject;
 }
 
-function createDubJob(template,config,logName){
-    var log = cwrx.logger.getLog(logName),
+function createDubJob(id, template, config){
+    var log = cwrx.logger.getLog(),
         buff,
         obj       = {},
         soh       = String.fromCharCode(1),
         videoExt  = path.extname(template.video),
         videoBase = path.basename(template.video,videoExt);
-    
+   
+    obj.id = id;
+
     obj.ttsAuth = cwrx.vocalWare.createAuthToken(config.tts.auth);
 
     obj.tts = {};
@@ -613,7 +611,7 @@ function createDubJob(template,config,logName){
         });
     }
 
-    log.trace('job tts : ' + JSON.stringify(obj.tts));
+    log.trace('[%1] job tts : %2',obj.id ,JSON.stringify(obj.tts));
     obj.tracks = [];
     if (!template.script) throw new Error("Expected script section in template");
     template.script.forEach(function(item){
@@ -624,7 +622,7 @@ function createDubJob(template,config,logName){
             line    : item.line,
             hash    : hashText(item.line.toLowerCase() + JSON.stringify(obj.tts))
         };
-        log.trace('track : ' + JSON.stringify(track));
+        log.trace('[%1] track : %2',obj.id, JSON.stringify(track));
         track.fname   = (track.hash + '.mp3');
         track.fpath   = config.cacheAddress(track.fname,'line');
         obj.tracks.push(track);
@@ -691,6 +689,7 @@ function createDubJob(template,config,logName){
     obj.assembleTemplate = function(){
         var self = this;
         result = {
+            id        : self.id,
             duration  : self.videoLength,
             bitrate   : obj.tts.bitrate,
             frequency : obj.tts.frequency,
@@ -727,7 +726,7 @@ function createDubJob(template,config,logName){
         }
         obj.elapsedTimes[fnName].end = new Date();
         var elapsed = obj.getElapsedTime(fnName);
-        log.info("Finished [" + fnName + "] in " + elapsed);
+        log.info("[%1] Finished {%2} in %3",obj.id, fnName , elapsed);
             
     };
     obj.getElapsedTime = function(fnName) {
@@ -751,21 +750,21 @@ function hashText(txt){
 
 function getSourceVideo(job) {
     var deferred = q.defer(), 
-        log = cwrx.logger.getLog("dub"),
+        log = cwrx.logger.getLog(),
         fnName = arguments.callee.name;
     
     if (job.hasOutput() || job.hasVideo()) {
-        log.info("Skipping getSourceVideo");
+        log.info("[%1] Skipping getSourceVideo",job.id);
         return q(job);
     }
 
-    log.info("Starting " + fnName);
+    log.info("[%1] Starting %2",job.id, fnName);
     job.setStartTime(fnName);
 
     if (job.enableAws()) {
         var s3 = new aws.S3(),
             params = job.getS3SrcVideoParams();
-        log.trace('S3 Request: ' + JSON.stringify(params));
+        log.trace('[%1] S3 Request: %2',job.id, JSON.stringify(params));
         cwrx.s3util.getObject(s3, params, job.videoPath).then( 
             function (data) { 
                 deferred.resolve(job); 
@@ -784,16 +783,16 @@ function getSourceVideo(job) {
 }
 
 function convertLinesToMP3(job){
-    var log = cwrx.logger.getLog("dub"),
+    var log = cwrx.logger.getLog(),
         deferred = q.defer(),
         fnName = arguments.callee.name;
 
     if (job.hasOutput() || job.hasScript() || job.hasLines()) {
-        log.info("Skipping convertLinesToMP3");
+        log.info("[%1] Skipping convertLinesToMP3",job.id);
         return q(job);
     }
 
-    log.info("Starting " + fnName);
+    log.info("[%1] Starting %2",job.id,fnName);
     job.setStartTime(fnName);
 
     var processTrack = q.fbind(function(track){
@@ -816,12 +815,12 @@ function convertLinesToMP3(job){
                 if (err) {
                     deferred.reject(error);
                 } else {
-                    log.trace("Succeeded: name = " + track.fname + " ts = " + track.ts);
+                    log.trace("[%1] Succeeded: name = %2, ts = %3",job.id , track.fname ,track.ts);
                     deferred.resolve();
                 }
             });
         } else {
-            log.trace('Track already exists at ' + track.fpath);
+            log.trace('[%1] Track already exists at %2',job.id, track.fpath);
             deferred.resolve();
         }
         return deferred.promise;
@@ -832,12 +831,12 @@ function convertLinesToMP3(job){
         processTrack(track).then(
             function() { deferred2.resolve(); },
             function(error) {
-                log.error("Failed once for " + track.fname + " with error = " + error);
-                log.trace("Retrying...");
+                log.error("[%1] Failed once for %2 with error = %3",job.id,track.fname,error);
+                log.trace("[%1] Retrying...", job.id);
                 processTrack(track).then(
                     function() { deferred2.resolve(); },
                     function(error) { 
-                        log.error("Failed again for " + track.fname); 
+                        log.error("[%1] Failed again for %2",job.id, track.fname); 
                         deferred2.reject(error); 
                     }
                 );
@@ -852,7 +851,7 @@ function convertLinesToMP3(job){
                 return;
             }
         }
-        log.trace('All tracks succeeded'); 
+        log.trace('[%1] All tracks succeeded', job.id); 
         deferred.resolve(job);
         job.setEndTime(fnName);
     });
@@ -861,16 +860,16 @@ function convertLinesToMP3(job){
 }
 
 function getVideoLength(job){
-    var log = cwrx.logger.getLog("dub"),
+    var log = cwrx.logger.getLog(),
         deferred = q.defer(),
         fnName = arguments.callee.name;
 
     if (job.hasOutput() || job.hasScript() || job.hasVideoLength()) {
-        log.info("Skipping getVideoLength");
+        log.info("[%1] Skipping getVideoLength",job.id);
         return q(job);
     }
 
-    log.info("Starting " + fnName);
+    log.info("[%1] Starting %2",job.id,fnName);
     job.setStartTime(fnName);        
 
     cwrx.ffmpeg.probe(job.videoPath,function(err,info){
@@ -887,7 +886,7 @@ function getVideoLength(job){
         }
 
         job.videoLength = info.duration;
-        log.trace('Video length: ' + job.videoLength);
+        log.trace('[%1] Video length: %2', job.id, job.videoLength);
         job.setEndTime(fnName);
         deferred.resolve(job);
     });
@@ -895,42 +894,43 @@ function getVideoLength(job){
 }
 
 function convertScriptToMP3(job){
-    var log = cwrx.logger.getLog("dub"),
+    var log = cwrx.logger.getLog(),
         deferred = q.defer(),
         fnName = arguments.callee.name;
 
     if (job.hasOutput() || job.hasScript()) {
-        log.info("Skipping convertScriptToMP3");
+        log.info("[%1] Skipping convertScriptToMP3", job.id);
         return q(job);
     }
 
-    log.info("Starting " + fnName);
+    log.info("[%1] Starting %2",job.id, fnName);
     job.setStartTime(fnName);        
 
-    cwrx.assemble(job.assembleTemplate(),function(err,tmpl){
-        if (err) {
-            deferred.reject({"fnName": fnName, "msg": err});
-            job.setEndTime(fnName);
-            return deferred.promise;
-        }
-        log.trace('Assembled: ' + tmpl.output);
+    cwrx.assemble(job.assembleTemplate())
+    .then(function(tmpl){
         job.setEndTime(fnName);
+        log.trace('[%1] Assembled: %2',job.id , tmpl.output);
         deferred.resolve(job);
+    })
+    .fail(function(err){
+        job.setEndTime(fnName);
+        deferred.reject({"fnName": fnName, "msg": err});
     });
+        
     return deferred.promise;
 }
 
 function applyScriptToVideo(job){
-    var log = cwrx.logger.getLog("dub"),
+    var log = cwrx.logger.getLog(),
         deferred = q.defer(),
         fnName = arguments.callee.name;
  
     if (job.hasOutput()) {
-        log.info("Skipping applyScriptToVideo");
+        log.info("[%1] Skipping applyScriptToVideo", job.id);
         return q(job);
     }
 
-    log.info("Starting " + fnName);
+    log.info("[%1] Starting %2",job.id,fnName);
     job.setStartTime(fnName);        
 
     cwrx.ffmpeg.mergeAudioToVideo(job.videoPath,job.scriptPath,
@@ -940,7 +940,7 @@ function applyScriptToVideo(job){
                     job.setEndTime(fnName);
                     return deferred.promise;
                 }
-                log.trace('Merged: ' + fpath);
+                log.trace('[%1] Merged: %2',job.id , fpath);
                 job.setEndTime(fnName);
                 deferred.resolve(job);
             });
@@ -949,7 +949,7 @@ function applyScriptToVideo(job){
 
 function uploadToStorage(job){
     var deferred = q.defer(),
-        log = cwrx.logger.getLog("dub"),
+        log = cwrx.logger.getLog(),
         fnName = arguments.callee.name,
     
         localVid = fs.readFileSync(job.outputPath),
@@ -957,21 +957,21 @@ function uploadToStorage(job){
 
     hash.update(localVid);
     job.md5 = hash.digest('hex');
-    log.trace("Local File MD5: " + job.md5);
+    log.trace("[%1] Local File MD5: %2",job.id, job.md5);
 
     if (job.outputType === 'local') {
-        log.trace('Output type is set to "local", skipping S3 upload.');
+        log.trace('[%1] Output type is set to "local", skipping S3 upload.',job.id);
         deferred.resolve(job);
         return deferred.promise;
     }
     
     if (!job.enableAws()){
-        log.trace('Cannot upload, aws is not enabled.');
+        log.trace('[%1] Cannot upload, aws is not enabled.',job.id);
         deferred.resolve(job);
         return deferred.promise;
     }
 
-    log.info("Starting " + fnName);
+    log.info("[%1] Starting %2",job.id,fnName);
     job.setStartTime(fnName);
 
     var s3 = new aws.S3(),
@@ -980,18 +980,19 @@ function uploadToStorage(job){
 
     s3.headObject(headParams, function(err, data) {
         if (data && data.ETag && data.ETag.replace(/"/g, '') == job.md5) {
-            log.info("Local video already exists on S3, skipping upload");
+            log.info("[%1] Local video already exists on S3, skipping upload",job.id);
             job.setEndTime(fnName);
             deferred.resolve(job);
         } else {
-            log.trace('Uploading to Bucket: ' + outParams.Bucket + ', Key : ' + outParams.Key);
+            log.trace('[%1] Uploading to Bucket: %2, Key: %3',job.id,outParams.Bucket,
+                outParams.Key);
             cwrx.s3util.putObject(s3, job.outputPath, outParams).then(
                 function (res) {
-                    log.trace('SUCCESS: ' + JSON.stringify(res));
+                    log.trace('[%1] SUCCESS: %2',job.id,JSON.stringify(res));
                     job.setEndTime(fnName);
                     deferred.resolve(job);
                 }, function (error) {
-                    log.error('ERROR: ' + JSON.stringify(err));
+                    log.error('[%1] ERROR: %2',job.id, JSON.stringify(err));
                     job.setEndTime(fnName);
                     deferred.reject({"fnName": fnName, "msg": 'S3 upload error'});
                 });

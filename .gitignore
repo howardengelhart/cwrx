@@ -15,3 +15,6 @@ reports
 npm-debug.log
 node_modules
 vwauth.json
+
+Berksfile.lock
+.vagrant
