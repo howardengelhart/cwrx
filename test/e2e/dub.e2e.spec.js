@@ -1,17 +1,11 @@
 var request = require('request'),
-    fs      = require('fs'),
-    path    = require('path'),
-    url     = require('url'),
     host = process.env['host'] ? process.env['host'] : 'localhost',
     config = {
         'video_url': 'http://' + (host === 'localhost' ? host + ':3000' : host) + '/dub/create',
-        'share_url': 'http://' + (host === 'localhost' ? host + ':3100' : host) + '/share',
         'clean_cache_url': 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint/clean_cache',
-        'remove_script_url': 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint/remove_S3_script'
     },
     
     screamTemplate = {
-        'uri'     : 'screenjack~scream',
         'video'   : 'scream.mp4',
         'tts'     : {
               'voice'  : 'Paul',
@@ -42,18 +36,6 @@ var request = require('request'),
               'effect' : 'R',
               'level'  : '3'
             }
-    },
-    shareItem = {
-        'id': 'e-123',
-        'uri': 'screenjack~scream',
-        'content_type': 'usergen',
-        'appUrl': 'assets/experiences/screenjack/app/#/usergen',
-        'data': {
-            'video': 'scream',
-            'category': 'action',
-            'views': 1000,
-            'src': 'scream',
-        }
     };
 
 describe('dub video server:', function() {
@@ -117,61 +99,4 @@ describe('dub video server:', function() {
         });
     });
 });
-
-describe('dub share server:', function() {
-    describe('valid script test - scream', function() {
-        it('should successfully send a request to the dub server', function() {
-            var fakeOrigin = 'http://cinema6.com/#/experiences/screenjack~brucelee';
-
-            var options = {
-                url: config.share_url,
-                json: {
-                    data: shareItem,
-                    origin: fakeOrigin
-                }
-            }, reqFlag = false;
-
-            runs(function() {
-                request.post(options, function(error, response, body) {
-                    expect(body).toBeDefined();
-                    expect(error).toBeNull('error');
-                    if (body) {
-                        expect(body['error']).not.toBeDefined('body[\'error\']');
-                        expect(body['url']).toBeDefined('url');
-                        expect(body['url']).not.toBe(fakeOrigin);
-                        
-                        var scriptId;
-                        if (body['url']) {
-                            var urlParts = body['url'].split('~');
-                            var scriptId = urlParts[urlParts.length - 1];
-                        }
-                    }
-
-                    // cleanup
-                    if (!scriptId) {
-                        reqFlag = true;
-                        return;
-                    }
-                    var options = {
-                        url : config.remove_script_url,
-                        json: {
-                            fname: scriptId + '.json'
-                        }
-                    }
-                    request.post(options, function(error, response, body) {
-                        expect(error).toBeNull();
-                        if (body) {
-                            expect(body['error']).not.toBeDefined();
-                        }
-                    });
-                    
-                    reqFlag = true;
-                });
-            });
-            waitsFor(function() { return reqFlag }, 40000);
-        });
-    });
-});
-
-
 

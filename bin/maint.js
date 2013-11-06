@@ -43,7 +43,7 @@ function main() {
         throw new Error("Please use the -c option to provide a config file");
     }
 
-    var config = createConfiguration(program);
+    var config = dub.createConfiguration(program);
     aws.config.loadFromPath(config.s3.auth);
 
     if (program.showConfig){
