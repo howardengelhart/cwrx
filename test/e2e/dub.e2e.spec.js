@@ -121,7 +121,7 @@ describe('dub video server:', function() {
 describe('dub share server:', function() {
     describe('valid script test - scream', function() {
         it('should successfully send a request to the dub server', function() {
-            var fakeOrigin = 'http://cinema6.com/#/experiences/shared~screenjack~brucelee';
+            var fakeOrigin = 'http://cinema6.com/#/experiences/screenjack~brucelee';
 
             var options = {
                 url: config.share_url,
@@ -134,10 +134,10 @@ describe('dub share server:', function() {
             runs(function() {
                 request.post(options, function(error, response, body) {
                     expect(body).toBeDefined();
-                    expect(error).toBeNull();
+                    expect(error).toBeNull('error');
                     if (body) {
-                        expect(body['error']).not.toBeDefined();
-                        expect(body['url']).toBeDefined();
+                        expect(body['error']).not.toBeDefined('body[\'error\']');
+                        expect(body['url']).toBeDefined('url');
                         expect(body['url']).not.toBe(fakeOrigin);
                         
                         var scriptId;
@@ -148,7 +148,10 @@ describe('dub share server:', function() {
                     }
 
                     // cleanup
-                    if (!scriptId) return;
+                    if (!scriptId) {
+                        reqFlag = true;
+                        return;
+                    }
                     var options = {
                         url : config.remove_script_url,
                         json: {
@@ -157,7 +160,9 @@ describe('dub share server:', function() {
                     }
                     request.post(options, function(error, response, body) {
                         expect(error).toBeNull();
-                        expect(body['error']).not.toBeDefined();
+                        if (body) {
+                            expect(body['error']).not.toBeDefined();
+                        }
                     });
                     
                     reqFlag = true;
