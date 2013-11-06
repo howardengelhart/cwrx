@@ -695,7 +695,8 @@ function createDubJob(id, template,config){
             frequency : obj.tts.frequency,
             workspace : obj.tts.workspace,
             output    : self.scriptPath,
-            useID3    : true
+            ffmpeg    : cwrx.ffmpeg,
+            id3Info   : cwrx.id3Info
         };
         result.playList = [];
         self.tracks.forEach(function(track){
