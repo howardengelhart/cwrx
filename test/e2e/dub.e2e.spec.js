@@ -5,7 +5,7 @@ var request = require('request'),
     host = process.env['host'] ? process.env['host'] : 'localhost',
     config = {
         'video_url': 'http://' + (host === 'localhost' ? host + ':3000' : host) + '/dub/create',
-        'share_url': 'http://' + (host === 'localhost' ? host + ':3000' : host) + '/dub/share',
+        'share_url': 'http://' + (host === 'localhost' ? host + ':3100' : host) + '/share',
         'clean_cache_url': 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint/clean_cache',
         'remove_script_url': 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint/remove_S3_script'
     },

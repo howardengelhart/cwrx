@@ -37,10 +37,6 @@ var fs       = require('fs-extra'),
                 bucket  : 'c6media',
                 path    : 'usr/screenjack/video/'
             },
-            share : {
-                bucket  : 'c6media',
-                path    : 'usr/screenjack/data/'
-            },
             auth    : path.join(process.env.HOME,'.aws.json')
         },
         tts : {
@@ -291,21 +287,6 @@ function workerMain(config,program,done){
         next();
     });
 
-    app.post('/dub/share', function(req, res, next) {
-        shareLink(req, config, function(err, output) {
-            if (err) {
-                res.send(400,{
-                    error  : 'Unable to complete request.',
-                    detail : err
-                });
-                return;
-            }
-            res.send(200, {
-                url : output
-            });
-        });
-    });
-
     app.post('/dub/create', function(req, res, next){
         var job;
         try {
@@ -353,89 +334,6 @@ function authApi(req, res) {
     else return false;
 }
 */
-function shareLink(req, config, done) {
-    var log = cwrx.logger.getLog(),
-        body = req.body;
-    if (!config.enableAws) {
-        log.error("Must enable AWS to share data");
-        done("You must enable AWS to share data");
-        return;
-    }
-    log.info("Starting shareLink");
-
-    if (!body || !body.origin) {
-        log.error("No origin url in request");
-        done("You must include the origin url to generate a shareable url");
-        return;
-    }
-    var origin = body.origin,
-        item = body.data,
-        prefix = body.origin.split('/#/')[0];
-    var generateUrl = function(uri) {
-        var url;
-        if (!uri) {
-            url = body.origin;
-        } else {
-            url = prefix + '/#/experiences/';
-            url += uri;
-        }
-        //TODO: shorten URL
-        log.info("Finished shareLink: URL = " + url);
-        done(null, url);
-    };
-
-    if (!item) {
-        generateUrl();
-        return;
-    }
-
-    var s3 = new aws.S3(),
-        deferred = q.defer(),
-        id = getObjId('e', item),
-        fname = id + '.json',
-        params = { Bucket       : config.s3.share.bucket,
-                   ACL          : 'public-read',
-                   ContentType  : 'application/JSON',
-                   Key          : path.join(config.s3.share.path, fname)
-                 },
-        
-        hash = crypto.createHash('md5'),
-        headParams = { Bucket: params.Bucket, Key: params.Key};
-    
-    hash.update(JSON.stringify(item));
-    item.id = id;
-    item.uri = item.uri.replace('shared~', '');
-    item.uri = 'shared~' + item.uri.split('~')[0] + '~' + id;
-    params.Body = (item ? new Buffer(JSON.stringify(item)) : null);
-
-    s3.headObject(headParams, function(err, data) {
-        if (data && data.ETag && data.ETag.replace(/"/g, '') == hash.digest('hex')) {
-            log.info("Item already exists on S3, skipping upload");
-            generateUrl(item.uri);
-        } else {
-            log.trace("Uploading data: Bucket - " + params.Bucket + ", Key - " + params.Key);
-            s3.putObject(params, function(err, data) {
-                if (err) {
-                    done(err);
-                } else {
-                    log.trace('SUCCESS: ' + JSON.stringify(data));
-                    generateUrl(item.uri);
-                }
-            });
-        }
-    });
-}
-
-function getObjId(prefix, item) {
-    return prefix + '-' + hashText(
-        process.env.host                    +
-        process.pid.toString()              +
-        process.uptime().toString()         + 
-        (new Date()).valueOf().toString()   +
-        (JSON.stringify(item))            +
-        (Math.random() * 999999999).toString()
-    ).substr(0,14);
-}
 
 function handleRequest(job, done){
     var log = cwrx.logger.getLog(),
@@ -721,7 +619,7 @@ function createDubJob(id, template, config){
     };
     obj.setEndTime = function(fnName) {
         if (!obj.elapsedTimes[fnName] || !obj.elapsedTimes[fnName].start) {
-            log.info("Error: never set start time for [" + fnName + "]");
+            log.error("[%1] Error: never set start time for [" + fnName + "]");
             return;
         }
         obj.elapsedTimes[fnName].end = new Date();

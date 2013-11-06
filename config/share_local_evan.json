@@ -1,0 +1,14 @@
+{
+    "log"    : {
+        "logLevel" : "trace",
+        "logDir"   : "/home/evan/Documents/Cinema6/cwrx_tests/logs",
+        "logName"  : "share.log",
+        "media"    : [ { "type" : "console" } ]
+    },
+    "s3" : {
+        "share": {
+            "bucket" : "c6.dev",
+            "path"   : "media/usr/screenjack/data"
+        }
+    }
+}

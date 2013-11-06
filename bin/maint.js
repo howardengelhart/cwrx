@@ -10,25 +10,24 @@ var fs      = require('fs-extra'),
     dub     = require(path.join(__dirname,'dub')),
     app     = express();
     
-var __ut__   = ((module.parent) && (module.parent.filename) &&
-               (module.parent.filename.match(/\.spec.js$/))) ? true : false;
+var __ut__      = (global.jasmine !== undefined) ? true : false;
 
 if (!__ut__) {
     main();
 }
 
 function main() {
-
     var program = require('commander');
     
     program
-    .option("-c, --config [CFGFILE]','Specify a config file")
-    .option('-g, --gid [GID]','Run as group (id or name).')
-    .option('-u, --uid [UID]','Run as user (id or name).')
-    .option('-l, --loglevel [LEVEL]', 'Specify log level (TRACE|INFO|WARN|ERROR|FATAL)' )
-    .option('-p, --port [PORT]','Listent on port [4000].',4000)
-    .option('-d, --daemon','Run as a daemon.')
-    .parse(process.argv);
+        .option('-c, --config [CFGFILE]','Specify a config file')
+        .option('-g, --gid [GID]','Run as group (id or name).')
+        .option('-u, --uid [UID]','Run as user (id or name).')
+        .option('-l, --loglevel [LEVEL]', 'Specify log level (TRACE|INFO|WARN|ERROR|FATAL)' )
+        .option('-p, --port [PORT]','Listent on port [4000].',4000)
+        .option('-d, --daemon','Run as a daemon.')
+        .option('--show-config','Display configuration and exit.')
+        .parse(process.argv);
 
     if (program.gid){
         console.log('\nChange process to group: ' + program.gid);
@@ -44,8 +43,13 @@ function main() {
         throw new Error("Please use the -c option to provide a config file");
     }
 
-    var config = dub.createConfiguration(program);
+    var config = createConfiguration(program);
     aws.config.loadFromPath(config.s3.auth);
+
+    if (program.showConfig){
+        console.log(JSON.stringify(config,null,3));
+        process.exit(0);
+    }
 
     var log = cwrx.logger.getLog();
 
@@ -130,6 +134,7 @@ function main() {
     app.post("/maint/remove_S3_script", function(req, res, next) {
         log.info("Starting remove S3 script");
         log.info(JSON.stringify(req.body));
+        console.log(config);
         var fname = req.body.fname;
         if (!fname) {
             log.error("Incomplete params in request");

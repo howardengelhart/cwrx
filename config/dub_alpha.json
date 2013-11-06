@@ -24,10 +24,6 @@
         "out" : {
             "bucket" : "c6.dev",
             "path"   : "media/usr/screenjack/video"
-        },
-        "share": {
-            "bucket" : "c6.dev",
-            "path"   : "media/usr/screenjack/data"
         }
     },
     "tts" : {
