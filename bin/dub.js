@@ -124,7 +124,7 @@ function main(done){
             throw new SyntaxError('Expected a template file.');
         }
 
-        job = createDubJob(cwrx.uuid().substr(0,10),loadTemplateFromFile(program.args[0]), config, "dub");
+        job = createDubJob(cwrx.uuid().substr(0,10),loadTemplateFromFile(program.args[0]), config);
         
         handleRequest(job,function(err, finishedJob){
             if (err) {
@@ -309,7 +309,7 @@ function workerMain(config,program,done){
     app.post('/dub/create', function(req, res, next){
         var job;
         try {
-            job = createDubJob(req.uuid, req.body, config, "dub");
+            job = createDubJob(req.uuid, req.body, config);
         }catch (e){
             log.error('[%1] Create Job Error: %2', req.uuid, e.message);
             res.send(500,{
@@ -586,7 +586,7 @@ function createConfiguration(cmdLine){
     return cfgObject;
 }
 
-function createDubJob(id, template,config){
+function createDubJob(id, template, config){
     var log = cwrx.logger.getLog(),
         buff,
         obj       = {},

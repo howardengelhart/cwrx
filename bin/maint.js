@@ -42,10 +42,10 @@ function main() {
         throw new Error("Please use the -c option to provide a config file");
     }
 
-    var config = dub.createConfiguration(program, "maint");
+    var config = dub.createConfiguration(program);
     aws.config.loadFromPath(config.s3.auth);
 
-    var log = cwrx.logger.getLog("maint");
+    var log = cwrx.logger.getLog();
 
     if (program.loglevel){
         log.setLevel(program.loglevel);
@@ -161,7 +161,7 @@ function main() {
         var job;
         log.info("Starting clean cache");
         try {
-            job = dub.createDubJob(req.body, config, "maint");
+            job = dub.createDubJob(cwrx.uuid().substr(0,10), req.body, config);
         } catch (e){
             log.error("Create job error: " + e.message);
             res.send(500,{
@@ -215,7 +215,7 @@ function main() {
 function removeFiles(remList) {
     var delCount = 0, 
         deferred = q.defer(),
-        log = cwrx.logger.getLog("maint");
+        log = cwrx.logger.getLog();
         
     q.all(remList.map(function(fpath) {
         if (fs.existsSync(fpath)) {
