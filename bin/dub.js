@@ -929,14 +929,16 @@ function collectLinesMetadata(job){
     job.setStartTime(fnName);
     deferred = q.defer();
     
-    q.all(job.tracks.map(getLineMetadata))
+    q.all(job.tracks.map(function(track){
+        return getLineMetadata(track);
+    }))
     .then(function(results){
         job.setEndTime(fnName);
         deferred.resolve(job);
     })
     .fail(function(err){
         job.setEndTime(fnName);
-        deferred.reject({"fnName": fnName, "msg": error});
+        deferred.reject({"fnName": fnName, "msg": err});
     });
     return deferred.promise;
 }
