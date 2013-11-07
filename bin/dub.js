@@ -37,6 +37,10 @@ var fs       = require('fs-extra'),
                 bucket  : 'c6media',
                 path    : 'usr/screenjack/video/'
             },
+            share   : {
+                bucket  : 'c6media',
+                path    : 'usr/screenjack/data'
+            },
             auth    : path.join(process.env.HOME,'.aws.json')
         },
         tts : {

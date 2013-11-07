@@ -134,7 +134,6 @@ function main() {
     app.post("/maint/remove_S3_script", function(req, res, next) {
         log.info("Starting remove S3 script");
         log.info(JSON.stringify(req.body));
-        console.log(config);
         var fname = req.body.fname;
         if (!fname) {
             log.error("Incomplete params in request");
@@ -179,7 +178,10 @@ function main() {
         }
         log.info("Removing cached files for " + job.videoPath.match(/[^\/]*\..*$/)[0]);
         var remList = [job.videoPath, job.scriptPath, job.outputPath];
-        job.tracks.forEach(function(track) { remList.push(track.fpath); });
+        job.tracks.forEach(function(track) { 
+            remList.push(track.fpath);
+            remList.push(track.metapath);
+        });
         
         removeFiles(remList).then(
             function(val) { 
