@@ -12,11 +12,18 @@ var fs      = require('fs-extra'),
     
 var __ut__      = (global.jasmine !== undefined) ? true : false;
 
-if (!__ut__) {
-    main();
+if (!__ut__){
+    try {
+        main(function(rc,msg){
+            exitApp(rc,msg);
+        });
+    } catch(e) {
+        exitApp(1,e.stack);
+    }
 }
 
-function main() {
+
+function main(done) {
     var program = require('commander');
     
     program
@@ -43,8 +50,9 @@ function main() {
         throw new Error("Please use the -c option to provide a config file");
     }
 
-    var config = dub.createConfiguration(program);
-    aws.config.loadFromPath(config.s3.auth);
+    program.enableAws = true;
+
+    var config = cwrx.util.createConfiguration(program);
 
     if (program.showConfig){
         console.log(JSON.stringify(config,null,3));
@@ -63,12 +71,12 @@ function main() {
         }catch(e){
             console.error('uncaught: ' + err.message + "\n" + err.stack);
         }
-        process.exit(1);
+        return done(2);
     });
 
     process.on('SIGINT',function(){
         log.info('Received SIGINT, exitting app.');
-        process.exit(1);
+        return done(1,'Exit');
     });
 
     process.on('SIGTERM',function(){
@@ -76,58 +84,13 @@ function main() {
         if (program.daemon){
             config.removePidFile("maint.pid");
         }
-        process.exit(0);
+        return done(0,'Exit');
     });
 
     // Daemonize if so desired
     if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)) {
-
-        // First check to see if we're already running as a daemon
-        var pid = config.readPidFile("maint.pid");
-        if (pid){
-            var exists = false;
-            try {
-                exists = process.kill(pid,0);
-            }catch(e){
-            }
-
-            if (exists) {
-                console.error('It appears daemon is already running (' + pid +
-                    '), please sig term the old process if you wish to run a new one.');
-                return done(1,'need to term ' + pid);
-            } else {
-                log.error('Process [' + pid + '] appears to be gone, will restart.');
-                config.removePidFile("maint.pid");
-            }
-
-        }
-
-        // Proceed with daemonization
-        console.log('Daemonizing.');
-        log.info('Daemonizing and forking child..');
-        var child_args = [];
-        process.argv.forEach(function(val, index) {
-            if (index > 0) {
-                child_args.push(val);            
-            }
-        });
-      
-        // Add the RUNNING_AS_DAEMON var to the environment
-        // we are forwarding along to the child process
-        process.env.RUNNING_AS_DAEMON = true;
-        var child = cp.spawn('node',child_args, { 
-            stdio   : 'ignore',
-            detached: true,
-            env     : process.env
-        });
-      
-        child.unref();
-        log.info('child spawned, pid is ' + child.pid + ', exiting parent process..');
-        config.writePidFile(child.pid, "maint.pid");
-        console.log("child has been forked, exit.");
-        process.exit(0);
+        cwrx.util.daemonize(config, "maint", done);
     }
-
 
     app.use(express.bodyParser());
 
@@ -177,7 +140,7 @@ function main() {
             return;
         }
         log.info("Removing cached files for " + job.videoPath.match(/[^\/]*\..*$/)[0]);
-        var remList = [job.videoPath, job.scriptPath, job.outputPath];
+        var remList = [job.videoPath, job.scriptPath, job.outputPath, job.videoMetadataPath];
         job.tracks.forEach(function(track) { 
             remList.push(track.fpath);
             remList.push(track.metapath);

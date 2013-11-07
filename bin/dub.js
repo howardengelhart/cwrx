@@ -15,43 +15,6 @@ var fs       = require('fs-extra'),
     q        = require('q'),
     cwrx     = require(path.join(__dirname,'../lib/index')),
 
-    // This is the template for our configuration
-    defaultConfiguration = {
-        caches : {
-            run     : path.normalize('/usr/local/share/cwrx/dub/caches/run/'),
-            line    : path.normalize('/usr/local/share/cwrx/dub/caches/line/'),
-            blanks  : path.normalize('/usr/local/share/cwrx/dub/caches/blanks/'),
-            script  : path.normalize('/usr/local/share/cwrx/dub/caches/script/'),
-            video   : path.normalize('/usr/local/share/cwrx/dub/caches/video/'),
-            output  : path.normalize('/usr/local/share/cwrx/dub/caches/output/')
-        },
-        output : {
-            "type" : "local",
-            "uri"  : "/media"
-        },
-        s3 : {
-            src     : {
-                bucket  : 'c6media',
-                path    : 'src/screenjack/video/'
-            },
-            out     : {
-                bucket  : 'c6media',
-                path    : 'usr/screenjack/video/'
-            },
-            share   : {
-                bucket  : 'c6media',
-                path    : 'usr/screenjack/data'
-            },
-            auth    : path.join(process.env.HOME,'.aws.json')
-        },
-        tts : {
-            auth        : path.join(process.env.HOME,'.tts.json'),
-            bitrate     : '48k',
-            frequency   : 22050,
-            workspace   : __dirname
-        },
-    },
-
     // Attempt a graceful exit
     exitApp  = function(resultCode,msg){
         var log = cwrx.logger.getLog();
@@ -104,7 +67,7 @@ function main(done){
         process.setuid(program.uid);
     }
    
-    config = createConfiguration(program);
+    config = cwrx.util.createConfiguration(program);
 
     if (program.showConfig){
         console.log(JSON.stringify(config,null,3));
@@ -160,9 +123,6 @@ function main(done){
         }
 
         if (cluster.isMaster){
-//            Object.keys(cluster.workers).forEach(function(id){
-//                cluster.workers[id].kill('SIGTERM');
-//            });
             cluster.disconnect(function(){
                 return done(0,'Exit');
             });
@@ -173,52 +133,8 @@ function main(done){
 
     log.info('Running version ' + program.version());
     // Daemonize if so desired
-    if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)){
-
-        // First check to see if we're already running as a daemon
-        var pid = config.readPidFile("dub.pid");
-        if (pid){
-            var exists = false;
-            try {
-                exists = process.kill(pid,0);
-            }catch(e){
-            }
-
-            if (exists) {
-                console.error('It appears daemon is already running (' + pid +
-                    '), please sig term the old process if you wish to run a new one.');
-                return done(1,'need to term ' + pid);
-            } else {
-                log.error('Process [' + pid + '] appears to be gone, will restart.');
-                config.removePidFile("dub.pid");
-            }
-
-        } 
-
-        // Proceed with daemonization
-        console.log('Daemonizing.');
-        log.info('Daemonizing and forking child..');
-        var child_args = [];
-        process.argv.forEach(function(val, index) {
-            if (index > 0) {
-                child_args.push(val);            
-            }
-        });
-  
-        // Add the RUNNING_AS_DAEMON var to the environment
-        // we are forwarding along to the child process
-        process.env.RUNNING_AS_DAEMON = true;
-        var child = cp.spawn('node',child_args, { 
-            stdio   : 'ignore',
-            detached: true,
-            env     : process.env
-        });
-  
-        child.unref();
-        log.info('child spawned, pid is ' + child.pid + ', exiting parent process..');
-        config.writePidFile(child.pid, "dub.pid");
-        console.log("child has been forked, exit.");
-        process.exit(0);
+    if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)) {
+        cwrx.util.daemonize(config, "dub", done);
     }
 
     // Now that we either are or are not a daemon, its time to 
@@ -323,22 +239,6 @@ function workerMain(config,program,done){
     app.listen(program.port);
     log.info('Dub server is listening on port: ' + program.port);
 }
-/*
-function authApi(req, res) {
-    var origin = (req.get('origin') ? req.get('origin') : '' ).replace('http://', '').replace(/:\d*$/, ''),
-        host = req.get('host'),
-        hostSplit = host.split('.'),
-        hostName = (hostSplit[hostSplit.length - 2] ? hostSplit[hostSplit.length - 2] : null);
-    console.log(host);    
-    console.log(hostName);
-    console.log(req.host);
-    console.log(origin);
-    console.log(req.get('referer'));
-
-    if (origin == hostName) return true;
-    else return false;
-}
-*/
 
 function handleRequest(job, done){
     var log = cwrx.logger.getLog(),
@@ -385,110 +285,6 @@ function loadTemplateFromFile(tmplFile){
     return tmplObj;
 }
 
-function createConfiguration(cmdLine){
-    var log = cwrx.logger.getLog(),
-        cfgObject = {},
-        userCfg;
-
-    if (cmdLine.config) { 
-        userCfg = JSON.parse(fs.readFileSync(cmdLine.config, { encoding : 'utf8' }));
-    } else {
-        userCfg = {};
-    }
-
-    Object.keys(defaultConfiguration).forEach(function(section){
-        cfgObject[section] = {};
-        Object.keys(defaultConfiguration[section]).forEach(function(key){
-            if ((userCfg[section] !== undefined) && (userCfg[section][key] !== undefined)){
-                cfgObject[section][key] = userCfg[section][key];
-            } else {
-                cfgObject[section][key] = defaultConfiguration[section][key];
-            }
-        });
-    });
-
-    if (userCfg.log){
-        if (!cfgObject.log){
-            cfgObject.log = {};
-        }
-        Object.keys(userCfg.log).forEach(function(key){
-            cfgObject.log[key] = userCfg.log[key];
-        });
-    }
-
-    if (cmdLine.enableAws){
-        try {
-            aws.config.loadFromPath(cfgObject.s3.auth);
-        }  catch (e) {
-            throw new SyntaxError('Failed to load s3 config: ' + e.message);
-        }
-        if (cmdLine.enableAws){
-            cfgObject.enableAws = true;
-        }
-    }
-
-    if (cfgObject.output.uri){
-        if (cfgObject.output.uri.charAt(cfgObject.output.uri.length - 1) !== '/'){
-            cfgObject.output.uri += '/';
-        }
-    }
-
-    if (cfgObject.log) {
-        log = cwrx.logger.createLog(cfgObject.log );
-    }
-
-    cfgObject.ensurePaths = function(){
-        var self = this;
-        Object.keys(self.caches).forEach(function(key){
-            log.trace('Ensure cache[' + key + ']: ' + self.caches[key]);
-            if (!fs.existsSync(self.caches[key])){
-                log.trace('Create cache[' + key + ']: ' + self.caches[key]);
-                fs.mkdirsSync(self.caches[key]);
-            }
-        });
-    };
-
-    cfgObject.uriAddress = function(fname){
-        if ((cfgObject.output) && (cfgObject.output.uri)){
-            return (cfgObject.output.uri + fname);
-        }
-        return fname;
-    };
-
-    cfgObject.cacheAddress = function(fname,cache){
-        return path.join(this.caches[cache],fname); 
-    };
-
-    cfgObject.writePidFile = function(data, fname){
-        var pidPath = this.cacheAddress(fname,'run');
-        log.info('Write pid file: ' + pidPath);
-        fs.writeFileSync(pidPath,data);
-    };
-
-    cfgObject.readPidFile = function(fname){
-        var pidPath = this.cacheAddress(fname,'run'),
-            result;
-        try {
-            if (fs.existsSync(pidPath)){
-                result = fs.readFileSync(pidPath);
-            }
-        } catch(e){
-            log.error('Error reading [' + pidPath + ']: ' + e.message); 
-        }
-        return result;
-    };
-
-    cfgObject.removePidFile = function(fname){
-        var pidPath = this.cacheAddress(fname,'run');
-        if (fs.existsSync(pidPath)){
-            log.info('Remove pid file: ' + pidPath);
-            fs.unlinkSync(pidPath);
-        }
-    };
-
-    return cfgObject;
-}
-
 function createDubJob(id, template, config){
     var log = cwrx.logger.getLog(),
         buff,
@@ -524,7 +320,7 @@ function createDubJob(id, template, config){
         var track = {
             ts      : Number(item.ts),
             line    : item.line,
-            hash    : hashText(item.line.toLowerCase() + JSON.stringify(obj.tts))
+            hash    : cwrx.util.hashText(item.line.toLowerCase() + JSON.stringify(obj.tts))
         };
         log.trace('[%1] track : %2',obj.id, JSON.stringify(track));
         track.jobId          = obj.id;
@@ -556,8 +352,8 @@ function createDubJob(id, template, config){
         };
     };
 
-    obj.scriptHash = hashText(buff);
-    obj.outputHash  = hashText(template.video + ':' + obj.scriptHash);
+    obj.scriptHash = cwrx.util.hashText(buff);
+    obj.outputHash  = cwrx.util.hashText(template.video + ':' + obj.scriptHash);
     
     obj.scriptFname = videoBase + '_' + obj.scriptHash + '.mp3';
     obj.scriptPath  = config.cacheAddress(obj.scriptFname,'script');
@@ -667,12 +463,6 @@ function createDubJob(id, template, config){
     };
 
     return obj;
-}
-
-function hashText(txt){
-    var hash = crypto.createHash('sha1');
-    hash.update(txt);
-    return hash.digest('hex');
 }
 
 function getSourceVideo(job) {
@@ -1013,7 +803,6 @@ function uploadToStorage(job){
 }
 
 module.exports = {
-    'createConfiguration'   : createConfiguration,
     'createDubJob'          : createDubJob,
     'loadTemplateFromFile'  : loadTemplateFromFile
 };

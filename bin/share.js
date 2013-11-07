@@ -13,19 +13,6 @@ var fs       = require('fs-extra'),
     cwrx     = require(path.join(__dirname,'../lib/index')),
     app      = express(),
 
-    defaultConfiguration = {
-        caches : {
-            run     : path.normalize('/usr/local/share/cwrx/share/caches/run/')
-        },
-        s3 : {
-            share : {
-                bucket  : 'c6.dev',
-                path    : 'media/usr/screenjack/data/'
-            },
-            auth    : path.join(process.env.HOME,'.aws.json')
-        }
-    },
-
     // Attempt a graceful exit
     exitApp  = function(resultCode,msg){
         var log = cwrx.logger.getLog();
@@ -40,7 +27,6 @@ var fs       = require('fs-extra'),
     };
 
 if (!__ut__){
-
     try {
         main(function(rc,msg){
             exitApp(rc,msg);
@@ -75,7 +61,9 @@ function main(done) {
         process.setuid(program.uid);
     }
 
-    config = createConfiguration(program);
+    program.enableAws = true;
+
+    config = cwrx.util.createConfiguration(program);
 
     if (program.showConfig){
         console.log(JSON.stringify(config,null,3));
@@ -109,64 +97,13 @@ function main(done) {
         if (program.daemon){
             config.removePidFile("share.pid");
         }
-
-        if (cluster.isMaster){
-            cluster.disconnect(function(){
-                return done(0,'Exit');
-            });
-            return;
-        }
         return done(0,'Exit');
     });
 
     log.info('Running version ' + program.version());
     // Daemonize if so desired
     if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)) {
-
-        // First check to see if we're already running as a daemon
-        var pid = config.readPidFile("share.pid");
-        if (pid){
-            var exists = false;
-            try {
-                exists = process.kill(pid,0);
-            }catch(e){
-            }
-
-            if (exists) {
-                console.error('It appears daemon is already running (' + pid +
-                    '), please sig term the old process if you wish to run a new one.');
-                return done(1,'need to term ' + pid);
-            } else {
-                log.error('Process [' + pid + '] appears to be gone, will restart.');
-                config.removePidFile("share.pid");
-            }
-
-        } 
-
-        // Proceed with daemonization
-        console.log('Daemonizing.');
-        log.info('Daemonizing and forking child..');
-        var child_args = [];
-        process.argv.forEach(function(val, index) {
-            if (index > 0) {
-                child_args.push(val);            
-            }
-        });
-  
-        // Add the RUNNING_AS_DAEMON var to the environment
-        // we are forwarding along to the child process
-        process.env.RUNNING_AS_DAEMON = true;
-        var child = cp.spawn('node',child_args, { 
-            stdio   : 'ignore',
-            detached: true,
-            env     : process.env
-        });
-  
-        child.unref();
-        log.info('child spawned, pid is ' + child.pid + ', exiting parent process..');
-        config.writePidFile(child.pid, "share.pid");
-        console.log("child has been forked, exit.");
-        process.exit(0);
+        cwrx.util.daemonize(config, "share", done);
     }
 
     app.use(express.bodyParser());
@@ -195,109 +132,6 @@ function main(done) {
 
     app.listen(program.port);
     log.info('Share server is listening on port: ' + program.port);
-}
-
-function createConfiguration(cmdLine) {
-    var log = cwrx.logger.getLog(),
-        cfgObject = {},
-        userCfg;
-
-    if (cmdLine.config) { 
-        userCfg = JSON.parse(fs.readFileSync(cmdLine.config, { encoding : 'utf8' }));
-    } else {
-        userCfg = {};
-    }
-
-    Object.keys(defaultConfiguration).forEach(function(section){
-        cfgObject[section] = {};
-        Object.keys(defaultConfiguration[section]).forEach(function(key){
-            if ((userCfg[section] !== undefined) && (userCfg[section][key] !== undefined)){
-                cfgObject[section][key] = userCfg[section][key];
-            } else {
-                cfgObject[section][key] = defaultConfiguration[section][key];
-            }
-        });
-    });
-
-    if (userCfg.log){
-        if (!cfgObject.log){
-            cfgObject.log = {};
-        }
-        Object.keys(userCfg.log).forEach(function(key){
-            cfgObject.log[key] = userCfg.log[key];
-        });
-    }
-
-    if (cfgObject.log) {
-        log = cwrx.logger.createLog(cfgObject.log);
-    }
-
-    cfgObject.ensurePaths = function(){
-        var self = this;
-        Object.keys(self.caches).forEach(function(key){
-            log.trace('Ensure cache[' + key + ']: ' + self.caches[key]);
-            if (!fs.existsSync(self.caches[key])){
-                log.trace('Create cache[' + key + ']: ' + self.caches[key]);
-                fs.mkdirsSync(self.caches[key]);
-            }
-        });
-    };
-
-    try {
-        aws.config.loadFromPath(cfgObject.s3.auth);
-    }  catch (e) {
-        throw new SyntaxError('Failed to load s3 config: ' + e.message);
-    }
-
-    cfgObject.cacheAddress = function(fname,cache){
-        return path.join(this.caches[cache],fname); 
-    };
-
-    cfgObject.writePidFile = function(data, fname){
-        var pidPath = this.cacheAddress(fname,'run');
-        log.info('Write pid file: ' + pidPath);
-        fs.writeFileSync(pidPath,data);
-    };
-
-    cfgObject.readPidFile = function(fname){
-        var pidPath = this.cacheAddress(fname,'run'),
-            result;
-        try {
-            if (fs.existsSync(pidPath)){
-                result = fs.readFileSync(pidPath);
-            }
-        } catch(e){
-            log.error('Error reading [' + pidPath + ']: ' + e.message); 
-        }
-        return result;
-    };
-
-    cfgObject.removePidFile = function(fname){
-        var pidPath = this.cacheAddress(fname,'run');
-        if (fs.existsSync(pidPath)){
-            log.info('Remove pid file: ' + pidPath);
-            fs.unlinkSync(pidPath);
-        }
-    };
-
-    return cfgObject;
-}
-
-function hashText(txt){
-    var hash = crypto.createHash('sha1');
-    hash.update(txt);
-    return hash.digest('hex');
-}
-
-function getObjId(prefix, item) {
-    return prefix + '-' + hashText(
-        process.env.host                    +
-        process.pid.toString()              +
-        process.uptime().toString()         + 
-        (new Date()).valueOf().toString()   +
-        (JSON.stringify(item))            +
-        (Math.random() * 999999999).toString()
-    ).substr(0,14);
 }
 
 function shareLink(req, config, done) {
@@ -333,7 +167,7 @@ function shareLink(req, config, done) {
 
     var s3 = new aws.S3(),
         deferred = q.defer(),
-        id = getObjId('e', item),
+        id = cwrx.util.getObjId('e', item),
         fname = id + '.json',
         params = { Bucket       : config.s3.share.bucket,
                    ACL          : 'public-read',
