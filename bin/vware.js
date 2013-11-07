@@ -17,7 +17,11 @@ try {
 
 function vwOpts(val){
     var nvp = val.split('=');
-    program.vwOpts[nvp[0]] = parseInt(nvp[1],10);
+    if (nvp[0] === 'fx'){
+        program.vwOpts[nvp[0]] = nvp[1];
+    } else {
+        program.vwOpts[nvp[0]] = parseInt(nvp[1],10);
+    }
 }
 
 function main(done){
@@ -89,7 +93,7 @@ function main(done){
         fxLevel     : program.vwOpts.level,
         session     : null
     });
-   
+  
     vw.textToSpeech(rqs,program.file,function(err,rqs,o){
         if (err) {
             console.log(err.message);
