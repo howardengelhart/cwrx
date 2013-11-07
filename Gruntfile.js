@@ -36,7 +36,7 @@ module.exports = function (grunt) {
         settings   : initProps,
 
         jasmine_node: {
-            match   : '(core|av).*',
+            match   : '(core|av|^util).*',
             matchAll : true,
             projectRoot   : './test',
             jUnit: {

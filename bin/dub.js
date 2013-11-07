@@ -101,33 +101,7 @@ function main(done){
         process.setuid(program.uid);
     }
 
-    if (program.config) {
-        userCfg = JSON.parse(fs.readFileSync(program.config, { encoding : 'utf8' }));
-    } else {
-        userCfg = {};
-    }
-
-    Object.keys(defaultConfiguration).forEach(function(section){
-        config[section] = {};
-        Object.keys(defaultConfiguration[section]).forEach(function(key){
-            if ((config[section] !== undefined) && (userCfg[section][key] !== undefined)){
-                config[section][key] = userCfg[section][key];
-            } else {
-                config[section][key] = defaultConfiguration[section][key];
-            }
-        });
-    });
-
-    if (userCfg.log){
-        if (!config.log){
-            config.log = {};
-        }
-        Object.keys(userCfg.log).forEach(function(key){
-            config.log[key] = userCfg.log[key];
-        });
-    }
-   
-    config = cwrx.util.createConfiguration(program, config);
+    config = cwrx.util.createConfiguration(program, defaultConfiguration);
 
     if (program.showConfig){
         console.log(JSON.stringify(config,null,3));
@@ -424,7 +398,7 @@ function createDubJob(id, template, config){
     obj.outputFname = videoBase + '_' + obj.outputHash + videoExt;
     obj.outputPath = config.cacheAddress(obj.outputFname,'output');
     obj.outputUri  = config.uriAddress(obj.outputFname);
-    obj.outputType = config.output.type;
+    obj.outputType = (config.output && config.output.type ? config.output.type : null);
   
     obj.videoMetadataPath   = config.cacheAddress(videoBase + '_metadata.json','video');
 

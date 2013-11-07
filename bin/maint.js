@@ -30,6 +30,9 @@ var fs      = require('fs-extra'),
             auth    : path.join(process.env.HOME,'.aws.json')
         },
         tts : {
+            auth        : path.join(process.env.HOME,'.tts.json'),
+            bitrate     : '48k',
+            frequency   : 22050,
             workspace   : __dirname
         },
     },
@@ -89,33 +92,7 @@ function main(done) {
 
     program.enableAws = true;
 
-    if (program.config) {
-        userCfg = JSON.parse(fs.readFileSync(program.config, { encoding : 'utf8' }));
-    } else {
-        userCfg = {};
-    }
-
-    Object.keys(defaultConfiguration).forEach(function(section){
-        config[section] = {};
-        Object.keys(defaultConfiguration[section]).forEach(function(key){
-            if ((config[section] !== undefined) && (userCfg[section][key] !== undefined)){
-                config[section][key] = userCfg[section][key];
-            } else {
-                config[section][key] = defaultConfiguration[section][key];
-            }
-        });
-    });
-
-    if (userCfg.log){
-        if (!config.log){
-            config.log = {};
-        }
-        Object.keys(userCfg.log).forEach(function(key){
-            config.log[key] = userCfg.log[key];
-        });
-    }
-
-    config = cwrx.util.createConfiguration(program, config);
+    config = cwrx.util.createConfiguration(program, defaultConfiguration);
 
     if (program.showConfig){
         console.log(JSON.stringify(config,null,3));

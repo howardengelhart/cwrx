@@ -3,7 +3,7 @@
         "logLevel" : "info",
         "logDir"   : "/home/evan/Documents/Cinema6/cwrx_tests/logs",
         "logName"  : "maint.log",
-        "media"    : [ { "type" : "console" } ]
+        "media"    : [ { "type" : "file" } ]
     },
     "caches" : {
         "run"     : "/home/evan/Documents/Cinema6/cwrx_tests/run/",
