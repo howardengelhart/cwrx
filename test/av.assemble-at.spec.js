@@ -15,7 +15,7 @@ describe('assemble (AT)',function(){
             ffmpeg      : ffmpeg,
             frequency   : 22050,
             output      : path.join(__dirname,'result.mp3'),
-            workspace   : __dirname,
+            workspace   : '/tmp',
             playList    : [
                 { ts: 2, src: path.join(__dirname,'b0.mp3')},
                 { ts: 8, src: path.join(__dirname,'b1.mp3')},

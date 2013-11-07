@@ -8,6 +8,7 @@
     "caches" : {
         "run"     : "/Users/Howard/share/dub/run/",
         "line"    : "/Users/Howard/share/dub/line/",
+        "blanks"  : "/Users/Howard/share/dub/blanks/",
         "script"  : "/Users/Howard/share/dub/script/",
         "video"   : "/Users/Howard/share/dub/video/",
         "output"  : "/Users/Howard/share/dub/output/"
