@@ -54,6 +54,9 @@ function main(done){
             console.log('  #Use the default voice (Susan)');
             console.log('     $ vware.js "This is a test"');
             console.log('');
+            console.log('  #Use a different engine and voice');
+            console.log('     $ vware.js -o eid=6 -o vid=19 "This is the tipsy voice."')
+            console.log('');
         })
         .parse(process.argv);
 
@@ -92,7 +95,6 @@ function main(done){
             console.log(err.message);
             done(1);
         } else {
-            console.log('File created: ',program.file);
             if (os.platform() === 'darwin'){
                 cp.exec('afplay ' + program.file,function(){
                     if (program.file === 'result.mp3'){
