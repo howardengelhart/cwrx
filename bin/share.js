@@ -4,11 +4,11 @@ var __ut__      = (global.jasmine !== undefined) ? true : false;
 
 var fs       = require('fs-extra'),
     path     = require('path'),
-    crypto   = require('crypto'),
     cp       = require('child_process'),
     express  = require('express'),
     aws      = require('aws-sdk'),
     q        = require('q'),
+    crypto   = require('crypto'),
     cwrx     = require(path.join(__dirname,'../lib/index')),
     app      = express(),
 
@@ -180,23 +180,6 @@ function createConfiguration(cmdLine) {
     return cfgObject;
 }
 
-function hashText(txt){
-    var hash = crypto.createHash('sha1');
-    hash.update(txt);
-    return hash.digest('hex');
-}
-
-function getObjId(prefix, item) {
-    return prefix + '-' + hashText(
-        process.env.host                    +
-        process.pid.toString()              +
-        process.uptime().toString()         + 
-        (new Date()).valueOf().toString()   +
-        (JSON.stringify(item))            +
-        (Math.random() * 999999999).toString()
-    ).substr(0,14);
-}
-
 function shareLink(req, config, done) {
     var log = cwrx.logger.getLog(),
         body = req.body;
@@ -230,7 +213,7 @@ function shareLink(req, config, done) {
 
     var s3 = new aws.S3(),
         deferred = q.defer(),
-        id = getObjId('e', item),
+        id = cwrx.hasher.getObjId('e', item),
         fname = id + '.json',
         params = { Bucket       : config.s3.share.bucket,
                    ACL          : 'public-read',

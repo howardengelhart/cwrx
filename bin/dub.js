@@ -7,11 +7,11 @@ var __ut__      = (global.jasmine !== undefined) ? true : false,
 
 var fs       = require('fs-extra'),
     path     = require('path'),
-    crypto   = require('crypto'),
     cluster  = require('cluster'),
     cp       = require('child_process'),
     express  = require('express'),
     aws      = require('aws-sdk'),
+    crypto   = require('crypto'),
     q        = require('q'),
     cwrx     = require(path.join(__dirname,'../lib/index')),
 
@@ -369,12 +369,6 @@ function createConfiguration(cmdLine) {
     return cfgObject;
 }
 
-function hashText(txt){
-    var hash = crypto.createHash('sha1');
-    hash.update(txt);
-    return hash.digest('hex');
-}
-
 function createDubJob(id, template, config){
     var log = cwrx.logger.getLog(),
         buff,
@@ -410,7 +404,7 @@ function createDubJob(id, template, config){
         var track = {
             ts      : Number(item.ts),
             line    : item.line,
-            hash    : hashText(item.line.toLowerCase() + JSON.stringify(obj.tts))
+            hash    : cwrx.hasher.hashText(item.line.toLowerCase() + JSON.stringify(obj.tts))
         };
         log.trace('[%1] track : %2',obj.id, JSON.stringify(track));
         track.jobId          = obj.id;
@@ -442,8 +436,8 @@ function createDubJob(id, template, config){
         };
     };
 
-    obj.scriptHash = hashText(buff);
-    obj.outputHash  = hashText(template.video + ':' + obj.scriptHash);
+    obj.scriptHash = cwrx.hasher.hashText(buff);
+    obj.outputHash  = cwrx.hasher.hashText(template.video + ':' + obj.scriptHash);
     
     obj.scriptFname = videoBase + '_' + obj.scriptHash + '.mp3';
     obj.scriptPath  = config.cacheAddress(obj.scriptFname,'script');
