@@ -101,7 +101,7 @@ function main(done){
         process.setuid(program.uid);
     }
 
-    config = cwrx.util.createConfiguration(program, defaultConfiguration);
+    config = createConfiguration(program);
 
     if (program.showConfig){
         console.log(JSON.stringify(config,null,3));
@@ -153,7 +153,7 @@ function main(done){
     process.on('SIGTERM',function(){
         log.info('Received TERM, exitting app.');
         if (program.daemon){
-            config.removePidFile("dub.pid");
+            daemon.removePidFile(config.cacheAddress('dub.pid', 'run'));
         }
 
         if (cluster.isMaster){
@@ -168,7 +168,7 @@ function main(done){
     log.info('Running version ' + program.version());
     // Daemonize if so desired
     if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)) {
-        cwrx.util.daemonize(config, "dub", done);
+        cwrx.util.daemonize(config.cacheAddress('dub.pid', 'run'), done);
     }
 
     // Now that we either are or are not a daemon, its time to 
@@ -319,6 +319,62 @@ function loadTemplateFromFile(tmplFile){
     return tmplObj;
 }
 
+function createConfiguration(cmdLine) {
+    var cfgObject = cwrx.config.createConfigObject(cmdLine.config, defaultConfiguration),
+        log;
+
+    if (cfgObject.log) {
+        log = cwrx.logger.createLog(cfgObject.log);
+    }
+
+    if (cfgObject.output && cfgObject.output.uri){
+        if (cfgObject.output.uri.charAt(cfgObject.output.uri.length - 1) !== '/'){
+            cfgObject.output.uri += '/';
+        }
+    }
+
+    if (cmdLine.enableAws){
+        try {
+            aws.config.loadFromPath(cfgObject.s3.auth);
+        }  catch (e) {
+            throw new SyntaxError('Failed to load s3 config: ' + e.message);
+        }
+        if (cmdLine.enableAws){
+            cfgObject.enableAws = true;
+        }
+    }
+
+    cfgObject.ensurePaths = function(){
+        var self = this;
+        Object.keys(self.caches).forEach(function(key){
+            log.trace('Ensure cache[' + key + ']: ' + self.caches[key]);
+            if (!fs.existsSync(self.caches[key])){
+                log.trace('Create cache[' + key + ']: ' + self.caches[key]);
+                fs.mkdirsSync(self.caches[key]);
+            }
+        });
+    };
+
+    cfgObject.uriAddress = function(fname){
+        if ((cfgObject.output) && (cfgObject.output.uri)){
+            return (cfgObject.output.uri + fname);
+        }
+        return fname;
+    };
+
+    cfgObject.cacheAddress = function(fname,cache){
+        return path.join(this.caches[cache],fname);
+    };
+    
+    return cfgObject;
+}
+
+function hashText(txt){
+    var hash = crypto.createHash('sha1');
+    hash.update(txt);
+    return hash.digest('hex');
+}
+
 function createDubJob(id, template, config){
     var log = cwrx.logger.getLog(),
         buff,
@@ -354,7 +410,7 @@ function createDubJob(id, template, config){
         var track = {
             ts      : Number(item.ts),
             line    : item.line,
-            hash    : cwrx.util.hashText(item.line.toLowerCase() + JSON.stringify(obj.tts))
+            hash    : hashText(item.line.toLowerCase() + JSON.stringify(obj.tts))
         };
         log.trace('[%1] track : %2',obj.id, JSON.stringify(track));
         track.jobId          = obj.id;
@@ -386,8 +442,8 @@ function createDubJob(id, template, config){
         };
     };
 
-    obj.scriptHash = cwrx.util.hashText(buff);
-    obj.outputHash  = cwrx.util.hashText(template.video + ':' + obj.scriptHash);
+    obj.scriptHash = hashText(buff);
+    obj.outputHash  = hashText(template.video + ':' + obj.scriptHash);
     
     obj.scriptFname = videoBase + '_' + obj.scriptHash + '.mp3';
     obj.scriptPath  = config.cacheAddress(obj.scriptFname,'script');

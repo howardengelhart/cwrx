@@ -60,7 +60,6 @@ if (!__ut__){
     }
 }
 
-
 function main(done) {
     var program  = require('commander'),
         config = {},
@@ -90,9 +89,7 @@ function main(done) {
         throw new Error("Please use the -c option to provide a config file");
     }
 
-    program.enableAws = true;
-
-    config = cwrx.util.createConfiguration(program, defaultConfiguration);
+    config = createConfiguration(program);
 
     if (program.showConfig){
         console.log(JSON.stringify(config,null,3));
@@ -122,14 +119,14 @@ function main(done) {
     process.on('SIGTERM',function(){
         log.info('Received TERM, exitting app.');
         if (program.daemon){
-            config.removePidFile("maint.pid");
+            daemon.removePidFile(config.cacheAddress('maint.pid', 'run'));
         }
         return done(0,'Exit');
     });
 
     // Daemonize if so desired
     if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)) {
-        cwrx.util.daemonize(config, "maint", done);
+        cwrx.util.daemonize(config.cacheAddress('maint.pid', 'run'), done);
     }
 
     app.use(express.bodyParser());
@@ -222,6 +219,44 @@ function main(done) {
 
     app.listen(program.port);
     log.info("Maintenance server is listening on port: " + program.port);
+}
+
+function createConfiguration(cmdLine) {
+    var cfgObject = cwrx.config.createConfigObject(cmdLine.config, defaultConfiguration);
+
+    if (cfgObject.log) {
+        log = cwrx.logger.createLog(cfgObject.log);
+    }
+
+    try {
+        aws.config.loadFromPath(cfgObject.s3.auth);
+    }  catch (e) {
+        throw new SyntaxError('Failed to load s3 config: ' + e.message);
+    }
+
+    cfgObject.ensurePaths = function(){
+        var self = this;
+        Object.keys(self.caches).forEach(function(key){
+            log.trace('Ensure cache[' + key + ']: ' + self.caches[key]);
+            if (!fs.existsSync(self.caches[key])){
+                log.trace('Create cache[' + key + ']: ' + self.caches[key]);
+                fs.mkdirsSync(self.caches[key]);
+            }
+        });
+    };
+
+    cfgObject.uriAddress = function(fname){
+        if ((cfgObject.output) && (cfgObject.output.uri)){
+            return (cfgObject.output.uri + fname);
+        }
+        return fname;
+    };
+
+    cfgObject.cacheAddress = function(fname,cache){
+        return path.join(this.caches[cache],fname);
+    };
+    
+    return cfgObject;
 }
 
 function removeFiles(remList) {
