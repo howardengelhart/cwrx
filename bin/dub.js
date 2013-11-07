@@ -20,6 +20,7 @@ var fs       = require('fs-extra'),
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/dub/caches/run/'),
             line    : path.normalize('/usr/local/share/cwrx/dub/caches/line/'),
+            blanks  : path.normalize('/usr/local/share/cwrx/dub/caches/blanks/'),
             script  : path.normalize('/usr/local/share/cwrx/dub/caches/script/'),
             video   : path.normalize('/usr/local/share/cwrx/dub/caches/video/'),
             output  : path.normalize('/usr/local/share/cwrx/dub/caches/output/')
@@ -623,13 +624,13 @@ function createDubJob(id, template, config){
             line    : item.line,
             hash    : hashText(item.line.toLowerCase() + JSON.stringify(obj.tts))
         };
+        log.trace('[%1] track : %2',obj.id, JSON.stringify(track));
         track.jobId          = obj.id;
         track.fname          = (track.hash + '.mp3');
         track.fpath          = config.cacheAddress(track.fname,'line');
         track.fpathExists    = (fs.existsSync(track.fpath)) ? true : false;
         track.metaname       = (track.hash + '.json');
         track.metapath       = config.cacheAddress(track.metaname,'line');
-        log.trace('[%1] track : %2',obj.id, JSON.stringify(track));
         obj.tracks.push(track);
         buff += (soh + track.ts.toString() + ':' + track.hash);
     });
@@ -658,6 +659,7 @@ function createDubJob(id, template, config){
     
     obj.scriptFname = videoBase + '_' + obj.scriptHash + '.mp3';
     obj.scriptPath  = config.cacheAddress(obj.scriptFname,'script');
+    obj.blanksPath  = config.cacheAddress('','blanks');
     
     obj.videoPath   = config.cacheAddress(template.video,'video');
   
@@ -665,9 +667,21 @@ function createDubJob(id, template, config){
     obj.outputPath = config.cacheAddress(obj.outputFname,'output');
     obj.outputUri  = config.uriAddress(obj.outputFname);
     obj.outputType = config.output.type;
-    
+  
+    obj.videoMetadataPath   = config.cacheAddress(videoBase + '_metadata.json','video');
+
+    try {
+        obj.videoMetadata = 
+            JSON.parse(fs.readFileSync(obj.videoMetadataPath, { encoding : 'utf8' }));
+
+    } catch(e) {
+        if (e.errno !== 34){
+            log.error('[%1] failed to open videoMetaData file: %2',obj.id, e.message);
+        }
+    }
+
     obj.hasVideoLength = function(){
-        return (this.videoLength && (this.videoLength > 0));
+        return (this.videoMetadata && (this.videoMetadata.duration > 0));
     };
 
     obj.hasVideo = function(){
@@ -697,11 +711,13 @@ function createDubJob(id, template, config){
         var self = this;
         result = {
             id        : self.id,
-            duration  : self.videoLength,
+            duration  : self.videoMetadata.duration,
             bitrate   : obj.tts.bitrate,
             frequency : obj.tts.frequency,
             workspace : obj.tts.workspace,
             output    : self.scriptPath,
+            blanks    : self.blanksPath,
+            preserve  : true,
             ffmpeg    : cwrx.ffmpeg,
             id3Info   : cwrx.id3Info
         };
@@ -876,7 +892,9 @@ function getLineMetadata(track){
             JSON.parse(fs.readFileSync(track.metapath, { encoding : 'utf8' }));
     }
     catch(e){
-        log.trace('[%1] Unable to read metapath file: %2',track.jobId,e.message);
+        if (e.errno !== 34){
+            log.error('[%1] Unable to read metapath file: %2',track.jobId,e.message);
+        }
     }
 
     if ((track.metaData) && (track.metaData.duration)) {
@@ -969,9 +987,14 @@ function getVideoLength(job){
             job.setEndTime(fnName);
             return deferred.promise;
         }
+        try {
+            fs.writeFileSync(job.videoMetadataPath, JSON.stringify(info));
+        } catch(e){
+            log.warn('[%1] Error writing to %2: %3', job.id,job.videoMetadataPath,e.message);
+        }
 
-        job.videoLength = info.duration;
-        log.trace('[%1] Video length: %2', job.id, job.videoLength);
+        job.videoMetadata = info;
+        log.trace('[%1] Video length: %2', job.id, job.videoMetadata.duration);
         job.setEndTime(fnName);
         deferred.resolve(job);
     });
