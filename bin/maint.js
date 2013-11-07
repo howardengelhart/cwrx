@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+var __ut__      = (global.jasmine !== undefined) ? true : false;
+
 var fs      = require('fs-extra'),
     express = require('express'),
     path    = require('path'),
@@ -8,9 +10,42 @@ var fs      = require('fs-extra'),
     aws     = require('aws-sdk'),
     cwrx    = require(path.join(__dirname,'../lib/index')),
     dub     = require(path.join(__dirname,'dub')),
-    app     = express();
-    
-var __ut__      = (global.jasmine !== undefined) ? true : false;
+    app     = express(),
+
+    // This is the template for maint's configuration
+    defaultConfiguration = {
+        caches : {
+            run     : path.normalize('/usr/local/share/cwrx/dub/caches/run/'),
+            line    : path.normalize('/usr/local/share/cwrx/dub/caches/line/'),
+            blanks  : path.normalize('/usr/local/share/cwrx/dub/caches/blanks/'),
+            script  : path.normalize('/usr/local/share/cwrx/dub/caches/script/'),
+            video   : path.normalize('/usr/local/share/cwrx/dub/caches/video/'),
+            output  : path.normalize('/usr/local/share/cwrx/dub/caches/output/')
+        },
+        s3 : {
+            share     : {
+                bucket  : 'c6media',
+                path    : 'usr/screenjack/video/'
+            },
+            auth    : path.join(process.env.HOME,'.aws.json')
+        },
+        tts : {
+            workspace   : __dirname
+        },
+    },
+
+    // Attempt a graceful exit
+    exitApp  = function(resultCode,msg){
+        var log = cwrx.logger.getLog();
+        if (msg){
+            if (resultCode){
+                log.error(msg);
+            } else {
+                log.info(msg);
+            }
+        }
+        process.exit(resultCode);
+    };
 
 if (!__ut__){
     try {
@@ -24,7 +59,9 @@ if (!__ut__){
 
 
 function main(done) {
-    var program = require('commander');
+    var program  = require('commander'),
+        config = {},
+        log, userCfg;
     
     program
         .option('-c, --config [CFGFILE]','Specify a config file')
@@ -52,14 +89,40 @@ function main(done) {
 
     program.enableAws = true;
 
-    var config = cwrx.util.createConfiguration(program);
+    if (program.config) {
+        userCfg = JSON.parse(fs.readFileSync(program.config, { encoding : 'utf8' }));
+    } else {
+        userCfg = {};
+    }
+
+    Object.keys(defaultConfiguration).forEach(function(section){
+        config[section] = {};
+        Object.keys(defaultConfiguration[section]).forEach(function(key){
+            if ((config[section] !== undefined) && (userCfg[section][key] !== undefined)){
+                config[section][key] = userCfg[section][key];
+            } else {
+                config[section][key] = defaultConfiguration[section][key];
+            }
+        });
+    });
+
+    if (userCfg.log){
+        if (!config.log){
+            config.log = {};
+        }
+        Object.keys(userCfg.log).forEach(function(key){
+            config.log[key] = userCfg.log[key];
+        });
+    }
+
+    config = cwrx.util.createConfiguration(program, config);
 
     if (program.showConfig){
         console.log(JSON.stringify(config,null,3));
         process.exit(0);
     }
 
-    var log = cwrx.logger.getLog();
+    log = cwrx.logger.getLog();
 
     if (program.loglevel){
         log.setLevel(program.loglevel);

@@ -2,7 +2,6 @@
 
 var __ut__      = (global.jasmine !== undefined) ? true : false;
 
-
 var fs       = require('fs-extra'),
     path     = require('path'),
     crypto   = require('crypto'),
@@ -12,6 +11,20 @@ var fs       = require('fs-extra'),
     q        = require('q'),
     cwrx     = require(path.join(__dirname,'../lib/index')),
     app      = express(),
+
+    // This is the template for share's configuration
+    defaultConfiguration = {
+        caches : {
+            run     : path.normalize('/usr/local/share/cwrx/dub/caches/run/'),
+        },
+        s3 : {
+            share     : {
+                bucket  : 'c6media',
+                path    : 'usr/screenjack/video/'
+            },
+            auth    : path.join(process.env.HOME,'.aws.json')
+        }
+    },
 
     // Attempt a graceful exit
     exitApp  = function(resultCode,msg){
@@ -38,7 +51,8 @@ if (!__ut__){
 
 function main(done) {
     var program  = require('commander'),
-        config, log;
+        config = {},
+        log, userCfg;
 
     program
         .version('0.1.0')
@@ -63,7 +77,33 @@ function main(done) {
 
     program.enableAws = true;
 
-    config = cwrx.util.createConfiguration(program);
+    if (program.config) {
+        userCfg = JSON.parse(fs.readFileSync(program.config, { encoding : 'utf8' }));
+    } else {
+        userCfg = {};
+    }
+
+    Object.keys(defaultConfiguration).forEach(function(section){
+        config[section] = {};
+        Object.keys(defaultConfiguration[section]).forEach(function(key){
+            if ((config[section] !== undefined) && (userCfg[section][key] !== undefined)){
+                config[section][key] = userCfg[section][key];
+            } else {
+                config[section][key] = defaultConfiguration[section][key];
+            }
+        });
+    });
+
+    if (userCfg.log) {
+        if (!config.log) {
+            config.log = {};
+        }
+        Object.keys(userCfg.log).forEach(function(key){
+            config.log[key] = userCfg.log[key];
+        });
+    }
+
+    config = cwrx.util.createConfiguration(program, config);
 
     if (program.showConfig){
         console.log(JSON.stringify(config,null,3));

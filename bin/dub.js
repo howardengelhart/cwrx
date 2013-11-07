@@ -15,6 +15,39 @@ var fs       = require('fs-extra'),
     q        = require('q'),
     cwrx     = require(path.join(__dirname,'../lib/index')),
 
+    // This is the template for dub's configuration
+    defaultConfiguration = {
+        caches : {
+            run     : path.normalize('/usr/local/share/cwrx/dub/caches/run/'),
+            line    : path.normalize('/usr/local/share/cwrx/dub/caches/line/'),
+            blanks  : path.normalize('/usr/local/share/cwrx/dub/caches/blanks/'),
+            script  : path.normalize('/usr/local/share/cwrx/dub/caches/script/'),
+            video   : path.normalize('/usr/local/share/cwrx/dub/caches/video/'),
+            output  : path.normalize('/usr/local/share/cwrx/dub/caches/output/')
+        },
+        output : {
+            "type" : "local",
+            "uri"  : "/media"
+        },
+        s3 : {
+            src     : {
+                bucket  : 'c6media',
+                path    : 'src/screenjack/video/'
+            },
+            out     : {
+                bucket  : 'c6media',
+                path    : 'usr/screenjack/video/'
+            },
+            auth    : path.join(process.env.HOME,'.aws.json')
+        },
+        tts : {
+            auth        : path.join(process.env.HOME,'.tts.json'),
+            bitrate     : '48k',
+            frequency   : 22050,
+            workspace   : __dirname
+        },
+    },
+
     // Attempt a graceful exit
     exitApp  = function(resultCode,msg){
         var log = cwrx.logger.getLog();
@@ -41,7 +74,8 @@ if (!__ut__ && !__maint__){
 
 function main(done){
     var program  = require('commander'),
-        config, job, log;
+        config = {},
+        job, log, userCfg;
 
     program
         .version('0.1.0')
@@ -66,8 +100,34 @@ function main(done){
         console.log('\nChange process to user: ' + program.uid);
         process.setuid(program.uid);
     }
+
+    if (program.config) {
+        userCfg = JSON.parse(fs.readFileSync(program.config, { encoding : 'utf8' }));
+    } else {
+        userCfg = {};
+    }
+
+    Object.keys(defaultConfiguration).forEach(function(section){
+        config[section] = {};
+        Object.keys(defaultConfiguration[section]).forEach(function(key){
+            if ((config[section] !== undefined) && (userCfg[section][key] !== undefined)){
+                config[section][key] = userCfg[section][key];
+            } else {
+                config[section][key] = defaultConfiguration[section][key];
+            }
+        });
+    });
+
+    if (userCfg.log){
+        if (!config.log){
+            config.log = {};
+        }
+        Object.keys(userCfg.log).forEach(function(key){
+            config.log[key] = userCfg.log[key];
+        });
+    }
    
-    config = cwrx.util.createConfiguration(program);
+    config = cwrx.util.createConfiguration(program, config);
 
     if (program.showConfig){
         console.log(JSON.stringify(config,null,3));
