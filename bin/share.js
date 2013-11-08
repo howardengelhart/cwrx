@@ -211,6 +211,7 @@ function shareLink(req, config, done) {
     var origin = body.origin,
         item = body.data,
         prefix = body.origin.split('/#/')[0];
+
     var generateUrl = function(uri) {
         var url;
         if (!uri) {
@@ -267,3 +268,11 @@ function shareLink(req, config, done) {
     });
 }
 
+if (__ut__) {
+    module.exports = {
+        getVersion: getVersion,
+        createConfiguration: createConfiguration,
+        defaultConfiguration: defaultConfiguration,
+        shareLink: shareLink
+    }
+}
