@@ -25,7 +25,7 @@ describe('uuid', function() {
         var id;
         
         beforeEach(function(){
-            id = uuid.id();
+            id = uuid.createUuid();
         });
 
         it('should exist',function(){
@@ -48,7 +48,7 @@ describe('uuid', function() {
 
             dtStart = new Date();
             for (i = 0; i  < count; i++){
-                ids[i] = uuid.id();
+                ids[i] = uuid.createUuid();
             }
             dtEnd = new Date();
 

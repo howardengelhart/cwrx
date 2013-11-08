@@ -130,7 +130,7 @@ function main(done){
             throw new SyntaxError('Expected a template file.');
         }
 
-        job = createDubJob(uuid.id().substr(0,10),loadTemplateFromFile(program.args[0]), config);
+        job = createDubJob(uuid.createUuid().substr(0,10),loadTemplateFromFile(program.args[0]), config);
         
         handleRequest(job,function(err, finishedJob){
             if (err) {
@@ -244,7 +244,7 @@ function workerMain(config,program,done){
     });
 
     app.all('*',function(req, res, next){
-        req.uuid = uuid.id().substr(0,10);
+        req.uuid = uuid.createUuid().substr(0,10);
         log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
             req.method,req.url,req.httpVersion);
         next();

@@ -126,7 +126,7 @@ function main(done) {
     app.use(express.bodyParser());
 
     app.all('*', function(req, res, next) {
-        req.uuid = uuid.id().substr(0,10);
+        req.uuid = uuid.createUuid().substr(0,10);
         log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
             req.method, req.url, req.httpVersion);
         next();
@@ -216,7 +216,7 @@ function shareLink(req, config, done) {
 
     var s3 = new aws.S3(),
         deferred = q.defer(),
-        id = 'e-' + uuid.id().substr(0,14),
+        id = 'e-' + uuid.createUuid().substr(0,14),
         fname = id + '.json',
         params = { Bucket       : config.s3.share.bucket,
                    ACL          : 'public-read',

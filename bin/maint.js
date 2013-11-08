@@ -170,7 +170,7 @@ function main(done) {
         var job;
         log.info("Starting clean cache");
         try {
-            job = dub.createDubJob(uuid.id().substr(0,10), req.body, config);
+            job = dub.createDubJob(uuid.createUuid().substr(0,10), req.body, config);
         } catch (e){
             log.error("Create job error: " + e.message);
             res.send(500,{
