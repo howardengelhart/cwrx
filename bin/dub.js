@@ -510,8 +510,7 @@ function createDubJob(id, template, config){
             output    : self.scriptPath,
             blanks    : self.blanksPath,
             preserve  : true,
-            ffmpeg    : ffmpeg,
-            id3Info   : id3Info
+            useId3Info: true
         };
         result.playList = [];
         self.tracks.forEach(function(track){
