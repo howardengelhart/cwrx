@@ -1,32 +1,82 @@
-var fs      = require('fs-extra'),
-    express = require('express'),
-    path    = require('path'),
-    q       = require('q'),
-    cp      = require('child_process'),
-    aws     = require('aws-sdk'),
-    cwrx    = require(path.join(__dirname,'../lib/index')),
-    dub     = require(path.join(__dirname,'dub')),
-    app     = express();
-    
-var __ut__   = ((module.parent) && (module.parent.filename) &&
-               (module.parent.filename.match(/\.spec.js$/))) ? true : false;
+#!/usr/bin/env node
 
-if (!__ut__) {
-    main();
+var __ut__      = (global.jasmine !== undefined) ? true : false;
+
+var fs          = require('fs-extra'),
+    express     = require('express'),
+    path        = require('path'),
+    q           = require('q'),
+    cp          = require('child_process'),
+    aws         = require('aws-sdk'),
+    logger      = require('../lib/logger'),
+    daemon      = require('../lib/daemon'),
+    uuid        = require('../lib/uuid'),
+    cwrxConfig  = require('../lib/config'),
+    dub         = require(path.join(__dirname,'dub')),
+    app         = express(),
+
+    // This is the template for maint's configuration
+    defaultConfiguration = {
+        caches : {
+            run     : path.normalize('/usr/local/share/cwrx/dub/caches/run/'),
+            line    : path.normalize('/usr/local/share/cwrx/dub/caches/line/'),
+            blanks  : path.normalize('/usr/local/share/cwrx/dub/caches/blanks/'),
+            script  : path.normalize('/usr/local/share/cwrx/dub/caches/script/'),
+            video   : path.normalize('/usr/local/share/cwrx/dub/caches/video/'),
+            output  : path.normalize('/usr/local/share/cwrx/dub/caches/output/')
+        },
+        s3 : {
+            share     : {
+                bucket  : 'c6media',
+                path    : 'usr/screenjack/video/'
+            },
+            auth    : path.join(process.env.HOME,'.aws.json')
+        },
+        tts : {
+            auth        : path.join(process.env.HOME,'.tts.json'),
+            bitrate     : '48k',
+            frequency   : 22050,
+            workspace   : __dirname
+        },
+    },
+
+    // Attempt a graceful exit
+    exitApp  = function(resultCode,msg){
+        var log = logger.getLog();
+        if (msg){
+            if (resultCode){
+                log.error(msg);
+            } else {
+                log.info(msg);
+            }
+        }
+        process.exit(resultCode);
+    };
+
+if (!__ut__){
+    try {
+        main(function(rc,msg){
+            exitApp(rc,msg);
+        });
+    } catch(e) {
+        exitApp(1,e.stack);
+    }
 }
 
-function main() {
-
-    var program = require('commander');
+function main(done) {
+    var program  = require('commander'),
+        config = {},
+        log, userCfg;
     
     program
-    .option("-c, --config [CFGFILE]','Specify a config file")
-    .option('-g, --gid [GID]','Run as group (id or name).')
-    .option('-u, --uid [UID]','Run as user (id or name).')
-    .option('-l, --loglevel [LEVEL]', 'Specify log level (TRACE|INFO|WARN|ERROR|FATAL)' )
-    .option('-p, --port [PORT]','Listent on port [4000].',4000)
-    .option('-d, --daemon','Run as a daemon.')
-    .parse(process.argv);
+        .option('-c, --config [CFGFILE]','Specify a config file')
+        .option('-g, --gid [GID]','Run as group (id or name).')
+        .option('-u, --uid [UID]','Run as user (id or name).')
+        .option('-l, --loglevel [LEVEL]', 'Specify log level (TRACE|INFO|WARN|ERROR|FATAL)' )
+        .option('-p, --port [PORT]','Listent on port [4000].',4000)
+        .option('-d, --daemon','Run as a daemon.')
+        .option('--show-config','Display configuration and exit.')
+        .parse(process.argv);
 
     if (program.gid){
         console.log('\nChange process to group: ' + program.gid);
@@ -42,10 +92,14 @@ function main() {
         throw new Error("Please use the -c option to provide a config file");
     }
 
-    var config = dub.createConfiguration(program);
-    aws.config.loadFromPath(config.s3.auth);
+    config = createConfiguration(program);
 
-    var log = cwrx.logger.getLog();
+    if (program.showConfig){
+        console.log(JSON.stringify(config,null,3));
+        process.exit(0);
+    }
+
+    log = logger.getLog();
 
     if (program.loglevel){
         log.setLevel(program.loglevel);
@@ -57,71 +111,26 @@ function main() {
         }catch(e){
             console.error('uncaught: ' + err.message + "\n" + err.stack);
         }
-        process.exit(1);
+        return done(2);
     });
 
     process.on('SIGINT',function(){
         log.info('Received SIGINT, exitting app.');
-        process.exit(1);
+        return done(1,'Exit');
     });
 
     process.on('SIGTERM',function(){
         log.info('Received TERM, exitting app.');
         if (program.daemon){
-            config.removePidFile("maint.pid");
+            daemon.removePidFile(config.cacheAddress('maint.pid', 'run'));
         }
-        process.exit(0);
+        return done(0,'Exit');
     });
 
     // Daemonize if so desired
     if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)) {
-
-        // First check to see if we're already running as a daemon
-        var pid = config.readPidFile("maint.pid");
-        if (pid){
-            var exists = false;
-            try {
-                exists = process.kill(pid,0);
-            }catch(e){
-            }
-
-            if (exists) {
-                console.error('It appears daemon is already running (' + pid +
-                    '), please sig term the old process if you wish to run a new one.');
-                return done(1,'need to term ' + pid);
-            } else {
-                log.error('Process [' + pid + '] appears to be gone, will restart.');
-                config.removePidFile("maint.pid");
-            }
-
-        }
-
-        // Proceed with daemonization
-        console.log('Daemonizing.');
-        log.info('Daemonizing and forking child..');
-        var child_args = [];
-        process.argv.forEach(function(val, index) {
-            if (index > 0) {
-                child_args.push(val);            
-            }
-        });
-      
-        // Add the RUNNING_AS_DAEMON var to the environment
-        // we are forwarding along to the child process
-        process.env.RUNNING_AS_DAEMON = true;
-        var child = cp.spawn('node',child_args, { 
-            stdio   : 'ignore',
-            detached: true,
-            env     : process.env
-        });
-      
-        child.unref();
-        log.info('child spawned, pid is ' + child.pid + ', exiting parent process..');
-        config.writePidFile(child.pid, "maint.pid");
-        console.log("child has been forked, exit.");
-        process.exit(0);
+        daemon.daemonize(config.cacheAddress('maint.pid', 'run'), done);
     }
-
 
     app.use(express.bodyParser());
 
@@ -161,7 +170,7 @@ function main() {
         var job;
         log.info("Starting clean cache");
         try {
-            job = dub.createDubJob(cwrx.uuid().substr(0,10), req.body, config);
+            job = dub.createDubJob(uuid.createUuid().substr(0,10), req.body, config);
         } catch (e){
             log.error("Create job error: " + e.message);
             res.send(500,{
@@ -171,8 +180,11 @@ function main() {
             return;
         }
         log.info("Removing cached files for " + job.videoPath.match(/[^\/]*\..*$/)[0]);
-        var remList = [job.videoPath, job.scriptPath, job.outputPath];
-        job.tracks.forEach(function(track) { remList.push(track.fpath); });
+        var remList = [job.videoPath, job.scriptPath, job.outputPath, job.videoMetadataPath];
+        job.tracks.forEach(function(track) { 
+            remList.push(track.fpath);
+            remList.push(track.metapath);
+        });
         
         removeFiles(remList).then(
             function(val) { 
@@ -212,10 +224,48 @@ function main() {
     log.info("Maintenance server is listening on port: " + program.port);
 }
 
+function createConfiguration(cmdLine) {
+    var cfgObject = cwrxConfig.createConfigObject(cmdLine.config, defaultConfiguration);
+
+    if (cfgObject.log) {
+        log = logger.createLog(cfgObject.log);
+    }
+
+    try {
+        aws.config.loadFromPath(cfgObject.s3.auth);
+    }  catch (e) {
+        throw new SyntaxError('Failed to load s3 config: ' + e.message);
+    }
+
+    cfgObject.ensurePaths = function(){
+        var self = this;
+        Object.keys(self.caches).forEach(function(key){
+            log.trace('Ensure cache[' + key + ']: ' + self.caches[key]);
+            if (!fs.existsSync(self.caches[key])){
+                log.trace('Create cache[' + key + ']: ' + self.caches[key]);
+                fs.mkdirsSync(self.caches[key]);
+            }
+        });
+    };
+
+    cfgObject.uriAddress = function(fname){
+        if ((cfgObject.output) && (cfgObject.output.uri)){
+            return (cfgObject.output.uri + fname);
+        }
+        return fname;
+    };
+
+    cfgObject.cacheAddress = function(fname,cache){
+        return path.join(this.caches[cache],fname);
+    };
+    
+    return cfgObject;
+}
+
 function removeFiles(remList) {
     var delCount = 0, 
         deferred = q.defer(),
-        log = cwrx.logger.getLog();
+        log = logger.getLog();
         
     q.all(remList.map(function(fpath) {
         if (fs.existsSync(fpath)) {
