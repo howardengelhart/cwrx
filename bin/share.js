@@ -2,15 +2,18 @@
 
 var __ut__      = (global.jasmine !== undefined) ? true : false;
 
-var fs       = require('fs-extra'),
-    path     = require('path'),
-    cp       = require('child_process'),
-    express  = require('express'),
-    aws      = require('aws-sdk'),
-    q        = require('q'),
-    crypto   = require('crypto'),
-    cwrx     = require(path.join(__dirname,'../lib/index')),
-    app      = express(),
+var fs          = require('fs-extra'),
+    path        = require('path'),
+    cp          = require('child_process'),
+    express     = require('express'),
+    aws         = require('aws-sdk'),
+    q           = require('q'),
+    crypto      = require('crypto'),
+    logger      = require('../lib/logger'),
+    cwrxConfig  = require('../lib/config'),
+    uuid        = require('../lib/uuid'),
+    daemon      = require('../lib/daemon'),
+    app         = express(),
 
     // This is the template for share's configuration
     defaultConfiguration = {
@@ -28,7 +31,7 @@ var fs       = require('fs-extra'),
 
     // Attempt a graceful exit
     exitApp  = function(resultCode,msg){
-        var log = cwrx.logger.getLog();
+        var log = logger.getLog();
         if (msg){
             if (resultCode){
                 log.error(msg);
@@ -86,7 +89,7 @@ function main(done) {
 
     config.ensurePaths();
 
-    log = cwrx.logger.getLog();
+    log = logger.getLog();
 
     if (program.loglevel){
         log.setLevel(program.loglevel);
@@ -117,13 +120,13 @@ function main(done) {
     log.info('Running version ' + program.version());
     // Daemonize if so desired
     if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)) {
-        cwrx.util.daemonize(config.cacheAddress('share.pid', 'run'), done);
+        daemon.daemonize(config.cacheAddress('share.pid', 'run'), done);
     }
 
     app.use(express.bodyParser());
 
     app.all('*', function(req, res, next) {
-        req.uuid = cwrx.uuid().substr(0,10);
+        req.uuid = uuid.id().substr(0,10);
         log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
             req.method, req.url, req.httpVersion);
         next();
@@ -149,11 +152,11 @@ function main(done) {
 }
 
 function createConfiguration(cmdLine) {
-    var cfgObject = cwrx.config.createConfigObject(cmdLine.config, defaultConfiguration),
+    var cfgObject = cwrxConfig.createConfigObject(cmdLine.config, defaultConfiguration),
         log;
 
     if (cfgObject.log) {
-        log = cwrx.logger.createLog(cfgObject.log);
+        log = logger.createLog(cfgObject.log);
     }
 
     try {
@@ -181,7 +184,7 @@ function createConfiguration(cmdLine) {
 }
 
 function shareLink(req, config, done) {
-    var log = cwrx.logger.getLog(),
+    var log = logger.getLog(),
         body = req.body;
     log.info("[%1] Starting shareLink", req.uuid);
 
@@ -213,7 +216,7 @@ function shareLink(req, config, done) {
 
     var s3 = new aws.S3(),
         deferred = q.defer(),
-        id = cwrx.hasher.getObjId('e', item),
+        id = 'e-' + uuid.id().substr(0,14),
         fname = id + '.json',
         params = { Bucket       : config.s3.share.bucket,
                    ACL          : 'public-read',

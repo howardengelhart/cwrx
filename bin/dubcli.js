@@ -2,9 +2,8 @@ var program = require('commander'),
     path    = require('path'),
     fs      = require('fs'),
     http    = require('http'),
-    cwrx    = require(path.join(__dirname,'../lib/index')),
-    log     = cwrx.logger.createLog();
-
+    logger  = require('../lib/logger'),
+    log     = logger.createLog();
 
 try {
     log.setLevel('INFO');
@@ -23,7 +22,7 @@ try {
 
 function main(done){
     var addr, data,opts,
-        log = cwrx.logger.getLog();
+        log = logger.getLog();
    
     program
         .version('0.0.1')

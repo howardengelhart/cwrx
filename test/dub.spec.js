@@ -1,7 +1,7 @@
-var path      = require('path'),
-    fs        = require('fs-extra'),
-    dub       = require('../bin/dub'),
-    util      = require('../lib/util');
+var path        = require('path'),
+    fs          = require('fs-extra'),
+    cwrxConfig  = require('../lib/config'),
+    dub         = require('../bin/dub');
 
 describe('dub',function(){
     var rmList = [];
@@ -50,7 +50,7 @@ describe('dub',function(){
                     workspace   : __dirname
                 }
             }));
-            config = util.createConfiguration(
+            config = dub.createConfiguration(
                 { config : path.join(__dirname,'tmpcfg.json')}
             );
             config.ensurePaths();

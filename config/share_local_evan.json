@@ -6,7 +6,7 @@
         "logLevel" : "trace",
         "logDir"   : "/home/evan/Documents/Cinema6/cwrx_tests/logs",
         "logName"  : "share.log",
-        "media"    : [ { "type" : "console" } ]
+        "media"    : [ { "type" : "file" } ]
     },
     "s3" : {
         "share": {

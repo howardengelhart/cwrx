@@ -8,6 +8,7 @@
     "caches" : {
         "run"     : "/home/evan/Documents/Cinema6/cwrx_tests/run/",
         "line"    : "/home/evan/Documents/Cinema6/cwrx_tests/line/",
+        "blanks"    : "/home/evan/Documents/Cinema6/cwrx_tests/blanks/",
         "script"  : "/home/evan/Documents/Cinema6/cwrx_tests/script/",
         "video"   : "/home/evan/Documents/Cinema6/cwrx_tests/video/",
         "output"  : "/home/evan/Documents/Cinema6/cwrx_tests/output/"

@@ -28,9 +28,12 @@ describe('config', function() {
             var cfg = config.createConfigObject('', defaultCfg);
             
             expect(cfg.caches).toBeDefined();
-            for (var key in cfg.caches) {
-                expect(cfg.caches[key]).toBe(defaultCfg.caches[key]);
-            }
+            expect(cfg.caches.run).toEqual(path.normalize('/usr/local/share/cwrx/dub/caches/run/'));
+            expect(cfg.caches.line).toEqual(path.normalize('/usr/local/share/cwrx/dub/caches/line/'));
+            expect(cfg.caches.blanks).toEqual(path.normalize('/usr/local/share/cwrx/dub/caches/blanks/'));
+            expect(cfg.caches.script).toEqual(path.normalize('/usr/local/share/cwrx/dub/caches/script/'));
+            expect(cfg.caches.video).toEqual(path.normalize('/usr/local/share/cwrx/dub/caches/video/'));
+            expect(cfg.caches.output).toEqual(path.normalize('/usr/local/share/cwrx/dub/caches/output/'));
         });
             
         it('should throw an error if given a non existant configuration file', function(){

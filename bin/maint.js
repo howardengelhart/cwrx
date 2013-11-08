@@ -2,15 +2,18 @@
 
 var __ut__      = (global.jasmine !== undefined) ? true : false;
 
-var fs      = require('fs-extra'),
-    express = require('express'),
-    path    = require('path'),
-    q       = require('q'),
-    cp      = require('child_process'),
-    aws     = require('aws-sdk'),
-    cwrx    = require(path.join(__dirname,'../lib/index')),
-    dub     = require(path.join(__dirname,'dub')),
-    app     = express(),
+var fs          = require('fs-extra'),
+    express     = require('express'),
+    path        = require('path'),
+    q           = require('q'),
+    cp          = require('child_process'),
+    aws         = require('aws-sdk'),
+    logger      = require('../lib/logger'),
+    daemon      = require('../lib/daemon'),
+    uuid        = require('../lib/uuid'),
+    cwrxConfig  = require('../lib/config'),
+    dub         = require(path.join(__dirname,'dub')),
+    app         = express(),
 
     // This is the template for maint's configuration
     defaultConfiguration = {
@@ -39,7 +42,7 @@ var fs      = require('fs-extra'),
 
     // Attempt a graceful exit
     exitApp  = function(resultCode,msg){
-        var log = cwrx.logger.getLog();
+        var log = logger.getLog();
         if (msg){
             if (resultCode){
                 log.error(msg);
@@ -96,7 +99,7 @@ function main(done) {
         process.exit(0);
     }
 
-    log = cwrx.logger.getLog();
+    log = logger.getLog();
 
     if (program.loglevel){
         log.setLevel(program.loglevel);
@@ -126,7 +129,7 @@ function main(done) {
 
     // Daemonize if so desired
     if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)) {
-        cwrx.util.daemonize(config.cacheAddress('maint.pid', 'run'), done);
+        daemon.daemonize(config.cacheAddress('maint.pid', 'run'), done);
     }
 
     app.use(express.bodyParser());
@@ -167,7 +170,7 @@ function main(done) {
         var job;
         log.info("Starting clean cache");
         try {
-            job = dub.createDubJob(cwrx.uuid().substr(0,10), req.body, config);
+            job = dub.createDubJob(uuid.id().substr(0,10), req.body, config);
         } catch (e){
             log.error("Create job error: " + e.message);
             res.send(500,{
@@ -222,10 +225,10 @@ function main(done) {
 }
 
 function createConfiguration(cmdLine) {
-    var cfgObject = cwrx.config.createConfigObject(cmdLine.config, defaultConfiguration);
+    var cfgObject = cwrxConfig.createConfigObject(cmdLine.config, defaultConfiguration);
 
     if (cfgObject.log) {
-        log = cwrx.logger.createLog(cfgObject.log);
+        log = logger.createLog(cfgObject.log);
     }
 
     try {
@@ -262,7 +265,7 @@ function createConfiguration(cmdLine) {
 function removeFiles(remList) {
     var delCount = 0, 
         deferred = q.defer(),
-        log = cwrx.logger.getLog();
+        log = logger.getLog();
         
     q.all(remList.map(function(fpath) {
         if (fs.existsSync(fpath)) {
