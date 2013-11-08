@@ -127,6 +127,8 @@ function main(done) {
         return done(0,'Exit');
     });
 
+    log.info('Running version ' + getVersion());
+    
     // Daemonize if so desired
     if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)) {
         daemon.daemonize(config.cacheAddress('maint.pid', 'run'), done);
@@ -222,6 +224,21 @@ function main(done) {
 
     app.listen(program.port);
     log.info("Maintenance server is listening on port: " + program.port);
+}
+
+function getVersion() {
+    var fpath = path.join(__dirname, 'maint.version'),
+        log = logger.getLog();
+        
+    if (fs.existsSync(fpath)) {
+        try {
+            return fs.readFileSync(fpath).toString();
+        } catch(e) {
+            log.error('Error reading version file: ' + e.message);
+        }
+    }
+    log.warn('No version file found');
+    return 'unknown';
 }
 
 function createConfiguration(cmdLine) {

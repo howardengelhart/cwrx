@@ -86,7 +86,6 @@ function main(done){
         job, log, userCfg;
 
     program
-        .version('0.1.0')
         .option('-c, --config [CFGFILE]','Specify config file')
         .option('-d, --daemon','Run as a daemon (requires -s).')
         .option('-g, --gid [GID]','Run as group (id or name).')
@@ -173,7 +172,9 @@ function main(done){
         return done(0,'Exit');
     });
 
-    log.info('Running version ' + program.version());
+    
+    log.info('Running version ' + getVersion());
+    
     // Daemonize if so desired
     if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)) {
         daemon.daemonize(config.cacheAddress('dub.pid', 'run'), done);
@@ -186,6 +187,21 @@ function main(done){
     } else {
         workerMain(config,program,done);
     }
+}
+
+function getVersion() {
+    var fpath = path.join(__dirname, 'dub.version'),
+        log = logger.getLog();
+        
+    if (fs.existsSync(fpath)) {
+        try {
+            return fs.readFileSync(fpath).toString();
+        } catch(e) {
+            log.error('Error reading version file: ' + e.message);
+        }
+    }
+    log.warn('No version file found');
+    return 'unknown';
 }
 
 function clusterMain(config,program,done) {
