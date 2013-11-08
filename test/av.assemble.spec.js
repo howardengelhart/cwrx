@@ -1,11 +1,48 @@
 var path        = require('path'),
     fs          = require('fs'),
-    crypto      = require('crypto');
+    crypto      = require('crypto'),
+    sanitize    = require('./sanitize'),
+    mockFFmpeg  = {},
+    mockLog     = {},
+    mockId3Info;
+
+mockFFmpeg.probe = function(src,cb){
+    if (src === path.join(__dirname,'b0.mp3')){
+        cb(null,{
+            duration : 666
+        });
+        return;
+    } 
+    cb(new Error('File does not exist: ' + src ));
+};
+
+mockId3Info = function(src,cb){
+    if (src === path.join(__dirname,'b0.mp3')){
+        cb(null,{
+            audio_duration : 666
+        });
+        return;
+    } 
+    cb(new Error('No id3 data for ' + src ));
+};
+
+mockLog.trace   = jasmine.createSpy('log_trace');
+mockLog.error   = jasmine.createSpy('log_error');
+mockLog.warn    = jasmine.createSpy('log_warn');
+mockLog.info    = jasmine.createSpy('log_info');
+mockLog.fatal   = jasmine.createSpy('log_fatal');
+mockLog.log     = jasmine.createSpy('log_log');
 
 describe('assemble (UT)',function(){
-    var assemble, template, log;
+    var assemble, template; 
+
     beforeEach(function(){
-        assemble = require('../lib/assemble');
+        assemble = sanitize(['../lib/assemble'])
+                    .andConfigure( [ ['./ffmpeg',mockFFmpeg], ['./id3', mockId3Info ]])
+                    .andRequire();
+    });
+    
+    beforeEach(function(){
         template = {
             id          : 'test',
             duration    : 16.5,
@@ -19,39 +56,15 @@ describe('assemble (UT)',function(){
                 { ts: 13, src: path.join(__dirname,'b2.mp3')}
             ]
         };
-
-        log = {};
-        log.trace   = jasmine.createSpy('log_trace');
-        log.error   = jasmine.createSpy('log_error');
-        log.warn    = jasmine.createSpy('log_warn');
-        log.info    = jasmine.createSpy('log_info');
-        log.fatal   = jasmine.createSpy('log_fatal');
-        log.log     = jasmine.createSpy('log_log');
     });
 
-
     describe('getSrcInfo',function(){
-
-        beforeEach(function(){
-            template.ffmpeg = {
-                probe : function(src,cb){
-                    if (src === path.join(__dirname,'b0.mp3')){
-                        cb(null,{
-                            duration : 3.335333
-                        });
-                        return;
-                    } 
-                    cb(new Error('File does not exist: ' + src ));
-                }
-            };
-        });
-        
         it('should get the expected duration for a valid file.',function(done){
-            assemble.getSrcInfo(log,template,template.playList[0],0)
+            assemble.getSrcInfo(mockLog,template,template.playList[0],0)
             .done(function(result){
                 expect(result.index).toEqual(0);
                 expect(result.item).toBe(template.playList[0]); 
-                expect(result.item.metaData.duration).toEqual(3.335333);
+                expect(result.item.metaData.duration).toEqual(666);
                 done();
             },function(err){
                 expect(err).not.toBeDefined();
@@ -61,7 +74,7 @@ describe('assemble (UT)',function(){
 
         it('should raise an error if passed a bad parameter.',function(done){
             template.playList[0].src = 'xxxx';
-            assemble.getSrcInfo(log,template,template.playList[0],0)
+            assemble.getSrcInfo(mockLog,template,template.playList[0],0)
             .done(function(result){
                 expect(result).not.toBeDefined();
                 done();
@@ -73,11 +86,11 @@ describe('assemble (UT)',function(){
 
         it('should use the existing duration, if it exists.',function(done){
             template.playList[0].metaData = { duration : 69 };
-            spyOn(template.ffmpeg,'probe');
-            assemble.getSrcInfo(log,template,template.playList[0],0)
+            spyOn(mockFFmpeg,'probe');
+            assemble.getSrcInfo(mockLog,template,template.playList[0],0)
             .done(function(result){
                 expect(result.item.metaData.duration).toEqual(69);
-                expect(template.ffmpeg.probe).not.toHaveBeenCalled();
+                expect(mockFFmpeg.probe).not.toHaveBeenCalled();
                 done();
             },function(err){
                 expect(err).not.toBeDefined();
@@ -88,25 +101,12 @@ describe('assemble (UT)',function(){
         
     describe('getSrcInfoID3',function(){
         
-        beforeEach(function(){
-            template.id3Info = function(src,cb){
-                if (src === path.join(__dirname,'b0.mp3')){
-                    cb(null,{
-                        audio_duration : 2.936
-                    });
-                    return;
-                } 
-                cb(new Error('No id3 data for ' + src ));
-            };
-        });
-        
-        
         it('should get the expected duration for a valid file.',function(done){
-            assemble.getSrcInfoID3(log,template,template.playList[0],0)
+            assemble.getSrcInfoID3(mockLog,template,template.playList[0],0)
             .done(function(result){
                 expect(result.index).toEqual(0);
                 expect(result.item).toBe(template.playList[0]); 
-                expect(result.item.metaData.duration).toEqual(2.936);
+                expect(result.item.metaData.duration).toEqual(666);
                 done();
             },function(err){
                 expect(err).not.toBeDefined();
@@ -117,7 +117,7 @@ describe('assemble (UT)',function(){
 
         it('should raise an error if passed a bad parameter.',function(done){
             template.playList[0].src = 'xxxx';
-            assemble.getSrcInfoID3(log,template,template.playList[0],0)
+            assemble.getSrcInfoID3(mockLog,template,template.playList[0],0)
             .done(function(result){
                 expect(result).not.toBeDefined();
                 done();
@@ -128,12 +128,15 @@ describe('assemble (UT)',function(){
         });
         
         it('should use the existing duration, if it exists.',function(done){
+            var spy = jasmine.createSpy('id3Info'),
+                assemble = sanitize(['../lib/assemble'])
+                            .andConfigure([  ['./id3', spy ] ] )
+                            .andRequire();
             template.playList[0].metaData = { duration : 69 };
-            spyOn(template,'id3Info');
-            assemble.getSrcInfoID3(log,template,template.playList[0],0)
+            assemble.getSrcInfoID3(mockLog,template,template.playList[0],0)
             .done(function(result){
                 expect(result.item.metaData.duration).toEqual(69);
-                expect(template.id3Info).not.toHaveBeenCalled();
+                expect(spy).not.toHaveBeenCalled();
                 done();
             },function(err){
                 expect(err).not.toBeDefined();
@@ -168,7 +171,7 @@ describe('assemble (UT)',function(){
             working[1].item.metaData.duration = 3.75;
             working[2].item.metaData.duration = 2.25;
 
-            assemble.calculateGaps(log,template,working)
+            assemble.calculateGaps(mockLog,template,working)
             .done(function(result){
                 expect(result).toBe(working);
 
@@ -196,7 +199,7 @@ describe('assemble (UT)',function(){
             working[1].item.metaData.duration = 3.75;
             working[2].item.metaData.duration = 2.25;
 
-            assemble.calculateGaps(log,template,working)
+            assemble.calculateGaps(mockLog,template,working)
             .done(function(result){
                 expect(result).toBe(working);
 
@@ -224,7 +227,7 @@ describe('assemble (UT)',function(){
             working[1].item.metaData.duration = 3.75;
             working[2].item.metaData.duration = 10;
 
-            assemble.calculateGaps(log,template,working)
+            assemble.calculateGaps(mockLog,template,working)
             .done(function(result){
                 expect(result).toBe(working);
                 expect(result.length).toEqual(3);

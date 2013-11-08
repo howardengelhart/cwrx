@@ -59,7 +59,7 @@ function main(done){
             console.log('     $ vware.js "This is a test"');
             console.log('');
             console.log('  #Use a different engine and voice');
-            console.log('     $ vware.js -o eid=6 -o vid=19 "This is the tipsy voice."')
+            console.log('     $ vware.js -o eid=6 -o vid=19 "This is the tipsy voice."');
             console.log('');
         })
         .parse(process.argv);
