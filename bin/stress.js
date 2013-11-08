@@ -3,8 +3,8 @@ var program = require('commander'),
     fs      = require('fs-extra'),
     http    = require('http'),
     crypto  = require('crypto'),
-    cwrx    = require(path.join(__dirname,'../lib/index')),
-    log     = cwrx.logger.createLog();
+    logger  = require('../lib/logger'),
+    log     = logger.createLog();
 
 try {
     main(function(rc){
@@ -80,7 +80,7 @@ function sendRequest(host,port,template,iter, cb){
 }
 
 function summarize(passed,failed){
-    var log = cwrx.logger.getLog(), durMin = 9999999999,durMax = 0 ,durAvg = 0, i, dur, durAgg = 0;
+    var log = logger.getLog(), durMin = 9999999999,durMax = 0 ,durAvg = 0, i, dur, durAgg = 0;
 
     log.info('Passed: ' + passed.length);
     for (i = 0; i < passed.length; i++){
@@ -109,7 +109,7 @@ function summarize(passed,failed){
 
 function main(done){
     var addr, template,quotes,ptempl,passed = [],failed = [],
-        log = cwrx.logger.getLog();
+        log = logger.getLog();
 
     program
         .version('0.0.1')

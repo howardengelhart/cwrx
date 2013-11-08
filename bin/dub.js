@@ -5,17 +5,25 @@ var __ut__      = (global.jasmine !== undefined) ? true : false,
     __maint__   = ((module.parent) && (module.parent.filename) &&
                   (module.parent.filename.match(/maint.js$/))) ? true : false;
 
-var fs       = require('fs-extra'),
-    path     = require('path'),
-    crypto   = require('crypto'),
-    cluster  = require('cluster'),
-    cp       = require('child_process'),
-    express  = require('express'),
-    aws      = require('aws-sdk'),
-    q        = require('q'),
-    cwrx     = require(path.join(__dirname,'../lib/index')),
+var fs          = require('fs-extra'),
+    path        = require('path'),
+    cluster     = require('cluster'),
+    cp          = require('child_process'),
+    express     = require('express'),
+    aws         = require('aws-sdk'),
+    crypto      = require('crypto'),
+    q           = require('q'),
+    daemon      = require('../lib/daemon'),
+    logger      = require('../lib/logger'),
+    uuid        = require('../lib/uuid'),
+    cwrxConfig  = require('../lib/config'),
+    ffmpeg      = require('../lib/ffmpeg'),
+    id3Info     = require('../lib/id3'),
+    vocalware   = require('../lib/vocalware'),
+    assemble    = require('../lib/assemble'),
+    s3util      = require('../lib/s3util'),
 
-    // This is the template for our configuration
+    // This is the template for dub's configuration
     defaultConfiguration = {
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/dub/caches/run/'),
@@ -38,10 +46,6 @@ var fs       = require('fs-extra'),
                 bucket  : 'c6media',
                 path    : 'usr/screenjack/video/'
             },
-            share : {
-                bucket  : 'c6media',
-                path    : 'usr/screenjack/data/'
-            },
             auth    : path.join(process.env.HOME,'.aws.json')
         },
         tts : {
@@ -54,7 +58,7 @@ var fs       = require('fs-extra'),
 
     // Attempt a graceful exit
     exitApp  = function(resultCode,msg){
-        var log = cwrx.logger.getLog();
+        var log = logger.getLog();
         if (msg){
             if (resultCode){
                 log.error(msg);
@@ -78,7 +82,8 @@ if (!__ut__ && !__maint__){
 
 function main(done){
     var program  = require('commander'),
-        config, job, log;
+        config = {},
+        job, log, userCfg;
 
     program
         .version('0.1.0')
@@ -103,7 +108,7 @@ function main(done){
         console.log('\nChange process to user: ' + program.uid);
         process.setuid(program.uid);
     }
-   
+
     config = createConfiguration(program);
 
     if (program.showConfig){
@@ -113,7 +118,7 @@ function main(done){
 
     config.ensurePaths();
 
-    log = cwrx.logger.getLog();
+    log = logger.getLog();
 
     if (program.loglevel){
         log.setLevel(program.loglevel);
@@ -125,7 +130,7 @@ function main(done){
             throw new SyntaxError('Expected a template file.');
         }
 
-        job = createDubJob(cwrx.uuid().substr(0,10),loadTemplateFromFile(program.args[0]), config);
+        job = createDubJob(uuid.createUuid().substr(0,10),loadTemplateFromFile(program.args[0]), config);
         
         handleRequest(job,function(err, finishedJob){
             if (err) {
@@ -156,13 +161,10 @@ function main(done){
     process.on('SIGTERM',function(){
         log.info('Received TERM, exitting app.');
         if (program.daemon){
-            config.removePidFile("dub.pid");
+            daemon.removePidFile(config.cacheAddress('dub.pid', 'run'));
         }
 
         if (cluster.isMaster){
-//            Object.keys(cluster.workers).forEach(function(id){
-//                cluster.workers[id].kill('SIGTERM');
-//            });
             cluster.disconnect(function(){
                 return done(0,'Exit');
             });
@@ -173,52 +175,8 @@ function main(done){
 
     log.info('Running version ' + program.version());
     // Daemonize if so desired
-    if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)){
-
-        // First check to see if we're already running as a daemon
-        var pid = config.readPidFile("dub.pid");
-        if (pid){
-            var exists = false;
-            try {
-                exists = process.kill(pid,0);
-            }catch(e){
-            }
-
-            if (exists) {
-                console.error('It appears daemon is already running (' + pid +
-                    '), please sig term the old process if you wish to run a new one.');
-                return done(1,'need to term ' + pid);
-            } else {
-                log.error('Process [' + pid + '] appears to be gone, will restart.');
-                config.removePidFile("dub.pid");
-            }
-
-        } 
-
-        // Proceed with daemonization
-        console.log('Daemonizing.');
-        log.info('Daemonizing and forking child..');
-        var child_args = [];
-        process.argv.forEach(function(val, index) {
-            if (index > 0) {
-                child_args.push(val);            
-            }
-        });
-  
-        // Add the RUNNING_AS_DAEMON var to the environment
-        // we are forwarding along to the child process
-        process.env.RUNNING_AS_DAEMON = true;
-        var child = cp.spawn('node',child_args, { 
-            stdio   : 'ignore',
-            detached: true,
-            env     : process.env
-        });
-  
-        child.unref();
-        log.info('child spawned, pid is ' + child.pid + ', exiting parent process..');
-        config.writePidFile(child.pid, "dub.pid");
-        console.log("child has been forked, exit.");
-        process.exit(0);
+    if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)) {
+        daemon.daemonize(config.cacheAddress('dub.pid', 'run'), done);
     }
 
     // Now that we either are or are not a daemon, its time to 
@@ -231,7 +189,7 @@ function main(done){
 }
 
 function clusterMain(config,program,done) {
-    var log = cwrx.logger.getLog();
+    var log = logger.getLog();
     log.info('Running as cluster master');
 
     cluster.on('exit', function(worker, code, signal) {
@@ -268,7 +226,7 @@ function clusterMain(config,program,done) {
 
 function workerMain(config,program,done){
     var app = express(),
-        log = cwrx.logger.getLog();
+        log = logger.getLog();
 
     log.info('Running as cluster worker, proceed with setting up web server.');
     app.use(express.bodyParser());
@@ -286,25 +244,10 @@ function workerMain(config,program,done){
     });
 
     app.all('*',function(req, res, next){
-        req.uuid = cwrx.uuid().substr(0,10);
+        req.uuid = uuid.createUuid().substr(0,10);
         log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
             req.method,req.url,req.httpVersion);
         next();
-    });
-
-    app.post('/dub/share', function(req, res, next) {
-        shareLink(req, config, function(err, output) {
-            if (err) {
-                res.send(400,{
-                    error  : 'Unable to complete request.',
-                    detail : err
-                });
-                return;
-            }
-            res.send(200, {
-                url : output
-            });
-        });
     });
 
     app.post('/dub/create', function(req, res, next){
@@ -338,108 +281,9 @@ function workerMain(config,program,done){
     app.listen(program.port);
     log.info('Dub server is listening on port: ' + program.port);
 }
-/*
-function authApi(req, res) {
-    var origin = (req.get('origin') ? req.get('origin') : '' ).replace('http://', '').replace(/:\d*$/, ''),
-        host = req.get('host'),
-        hostSplit = host.split('.'),
-        hostName = (hostSplit[hostSplit.length - 2] ? hostSplit[hostSplit.length - 2] : null);
-    console.log(host);    
-    console.log(hostName);
-    console.log(req.host);
-    console.log(origin);
-    console.log(req.get('referer'));
-
-    if (origin == hostName) return true;
-    else return false;
-}
-*/
-function shareLink(req, config, done) {
-    var log = cwrx.logger.getLog(),
-        body = req.body;
-    if (!config.enableAws) {
-        log.error("Must enable AWS to share data");
-        done("You must enable AWS to share data");
-        return;
-    }
-    log.info("Starting shareLink");
-
-    if (!body || !body.origin) {
-        log.error("No origin url in request");
-        done("You must include the origin url to generate a shareable url");
-        return;
-    }
-    var origin = body.origin,
-        item = body.data,
-        prefix = body.origin.split('/#/')[0];
-    var generateUrl = function(uri) {
-        var url;
-        if (!uri) {
-            url = body.origin;
-        } else {
-            url = prefix + '/#/experiences/';
-            url += uri;
-        }
-        //TODO: shorten URL
-        log.info("Finished shareLink: URL = " + url);
-        done(null, url);
-    };
-
-    if (!item) {
-        generateUrl();
-        return;
-    }
-
-    var s3 = new aws.S3(),
-        deferred = q.defer(),
-        id = getObjId('e', item),
-        fname = id + '.json',
-        params = { Bucket       : config.s3.share.bucket,
-                   ACL          : 'public-read',
-                   ContentType  : 'application/JSON',
-                   Key          : path.join(config.s3.share.path, fname)
-                 },
-        
-        hash = crypto.createHash('md5'),
-        headParams = { Bucket: params.Bucket, Key: params.Key};
-    
-    hash.update(JSON.stringify(item));
-    item.id = id;
-    item.uri = item.uri.replace('shared~', '');
-    item.uri = 'shared~' + item.uri.split('~')[0] + '~' + id;
-    params.Body = (item ? new Buffer(JSON.stringify(item)) : null);
-
-    s3.headObject(headParams, function(err, data) {
-        if (data && data.ETag && data.ETag.replace(/"/g, '') == hash.digest('hex')) {
-            log.info("Item already exists on S3, skipping upload");
-            generateUrl(item.uri);
-        } else {
-            log.trace("Uploading data: Bucket - " + params.Bucket + ", Key - " + params.Key);
-            s3.putObject(params, function(err, data) {
-                if (err) {
-                    done(err);
-                } else {
-                    log.trace('SUCCESS: ' + JSON.stringify(data));
-                    generateUrl(item.uri);
-                }
-            });
-        }
-    });
-}
-
-function getObjId(prefix, item) {
-    return prefix + '-' + hashText(
-        process.env.host                    +
-        process.pid.toString()              +
-        process.uptime().toString()         + 
-        (new Date()).valueOf().toString()   +
-        (JSON.stringify(item))            +
-        (Math.random() * 999999999).toString()
-    ).substr(0,14);
-}
 
 function handleRequest(job, done){
-    var log = cwrx.logger.getLog(),
+    var log = logger.getLog(),
         fnName = arguments.callee.name;
     job.setStartTime(fnName);
     
@@ -483,35 +327,20 @@ function loadTemplateFromFile(tmplFile){
     return tmplObj;
 }
 
-function createConfiguration(cmdLine){
-    var log = cwrx.logger.getLog(),
-        cfgObject = {},
-        userCfg;
+function createConfiguration(cmdLine) {
+    var cfgObject = cwrxConfig.createConfigObject(cmdLine.config, defaultConfiguration),
+        log;
 
-    if (cmdLine.config) { 
-        userCfg = JSON.parse(fs.readFileSync(cmdLine.config, { encoding : 'utf8' }));
+    if (cfgObject.log) {
+        log = logger.createLog(cfgObject.log);
     } else {
-        userCfg = {};
+        log = logger.getLog();
     }
 
-    Object.keys(defaultConfiguration).forEach(function(section){
-        cfgObject[section] = {};
-        Object.keys(defaultConfiguration[section]).forEach(function(key){
-            if ((userCfg[section] !== undefined) && (userCfg[section][key] !== undefined)){
-                cfgObject[section][key] = userCfg[section][key];
-            } else {
-                cfgObject[section][key] = defaultConfiguration[section][key];
-            }
-        });
-    });
-
-    if (userCfg.log){
-        if (!cfgObject.log){
-            cfgObject.log = {};
+    if (cfgObject.output && cfgObject.output.uri){
+        if (cfgObject.output.uri.charAt(cfgObject.output.uri.length - 1) !== '/'){
+            cfgObject.output.uri += '/';
         }
-        Object.keys(userCfg.log).forEach(function(key){
-            cfgObject.log[key] = userCfg.log[key];
-        });
     }
 
     if (cmdLine.enableAws){
@@ -523,16 +352,6 @@ function createConfiguration(cmdLine){
         if (cmdLine.enableAws){
             cfgObject.enableAws = true;
         }
-    }
-
-    if (cfgObject.output.uri){
-        if (cfgObject.output.uri.charAt(cfgObject.output.uri.length - 1) !== '/'){
-            cfgObject.output.uri += '/';
-        }
-    }
-
-    if (cfgObject.log) {
-        log = cwrx.logger.createLog(cfgObject.log );
     }
 
     cfgObject.ensurePaths = function(){
@@ -554,41 +373,14 @@ function createConfiguration(cmdLine){
     };
 
     cfgObject.cacheAddress = function(fname,cache){
-        return path.join(this.caches[cache],fname); 
+        return path.join(this.caches[cache],fname);
     };
-
-    cfgObject.writePidFile = function(data, fname){
-        var pidPath = this.cacheAddress(fname,'run');
-        log.info('Write pid file: ' + pidPath);
-        fs.writeFileSync(pidPath,data);
-    };
-
-    cfgObject.readPidFile = function(fname){
-        var pidPath = this.cacheAddress(fname,'run'),
-            result;
-        try {
-            if (fs.existsSync(pidPath)){
-                result = fs.readFileSync(pidPath);
-            }
-        } catch(e){
-            log.error('Error reading [' + pidPath + ']: ' + e.message); 
-        }
-        return result;
-    };
-
-    cfgObject.removePidFile = function(fname){
-        var pidPath = this.cacheAddress(fname,'run');
-        if (fs.existsSync(pidPath)){
-            log.info('Remove pid file: ' + pidPath);
-            fs.unlinkSync(pidPath);
-        }
-    };
-
+    
     return cfgObject;
 }
 
 function createDubJob(id, template, config){
-    var log = cwrx.logger.getLog(),
+    var log = logger.getLog(),
         buff,
         obj       = {},
         soh       = String.fromCharCode(1),
@@ -597,7 +389,7 @@ function createDubJob(id, template, config){
    
     obj.id = id;
 
-    obj.ttsAuth = cwrx.vocalWare.createAuthToken(config.tts.auth);
+    obj.ttsAuth = vocalware.createAuthToken(config.tts.auth);
 
     obj.tts = {};
 
@@ -622,7 +414,7 @@ function createDubJob(id, template, config){
         var track = {
             ts      : Number(item.ts),
             line    : item.line,
-            hash    : hashText(item.line.toLowerCase() + JSON.stringify(obj.tts))
+            hash    : uuid.hashText(item.line.toLowerCase() + JSON.stringify(obj.tts))
         };
         log.trace('[%1] track : %2',obj.id, JSON.stringify(track));
         track.jobId          = obj.id;
@@ -654,8 +446,8 @@ function createDubJob(id, template, config){
         };
     };
 
-    obj.scriptHash = hashText(buff);
-    obj.outputHash  = hashText(template.video + ':' + obj.scriptHash);
+    obj.scriptHash = uuid.hashText(buff);
+    obj.outputHash  = uuid.hashText(template.video + ':' + obj.scriptHash);
     
     obj.scriptFname = videoBase + '_' + obj.scriptHash + '.mp3';
     obj.scriptPath  = config.cacheAddress(obj.scriptFname,'script');
@@ -666,13 +458,13 @@ function createDubJob(id, template, config){
     obj.outputFname = videoBase + '_' + obj.outputHash + videoExt;
     obj.outputPath = config.cacheAddress(obj.outputFname,'output');
     obj.outputUri  = config.uriAddress(obj.outputFname);
-    obj.outputType = config.output.type;
+    obj.outputType = (config.output && config.output.type ? config.output.type : null);
   
     obj.videoMetadataPath   = config.cacheAddress(videoBase + '_metadata.json','video');
 
     try {
         obj.videoMetadata = 
-            JSON.parse(fs.readFileSync(obj.videoMetadataPath, { encoding : 'utf8' }));
+            fs.readJSONSync(obj.videoMetadataPath, { encoding : 'utf8' });
 
     } catch(e) {
         if (e.errno !== 34){
@@ -718,8 +510,8 @@ function createDubJob(id, template, config){
             output    : self.scriptPath,
             blanks    : self.blanksPath,
             preserve  : true,
-            ffmpeg    : cwrx.ffmpeg,
-            id3Info   : cwrx.id3Info
+            ffmpeg    : ffmpeg,
+            id3Info   : id3Info
         };
         result.playList = [];
         self.tracks.forEach(function(track){
@@ -746,7 +538,7 @@ function createDubJob(id, template, config){
     };
     obj.setEndTime = function(fnName) {
         if (!obj.elapsedTimes[fnName] || !obj.elapsedTimes[fnName].start) {
-            log.info("Error: never set start time for [" + fnName + "]");
+            log.error("[%1] Error: never set start time for [" + fnName + "]");
             return;
         }
         obj.elapsedTimes[fnName].end = new Date();
@@ -767,15 +559,9 @@ function createDubJob(id, template, config){
     return obj;
 }
 
-function hashText(txt){
-    var hash = crypto.createHash('sha1');
-    hash.update(txt);
-    return hash.digest('hex');
-}
-
 function getSourceVideo(job) {
     var deferred = q.defer(), 
-        log = cwrx.logger.getLog(),
+        log = logger.getLog(),
         fnName = arguments.callee.name;
     
     if (job.hasOutput() || job.hasVideo()) {
@@ -790,7 +576,7 @@ function getSourceVideo(job) {
         var s3 = new aws.S3(),
             params = job.getS3SrcVideoParams();
         log.trace('[%1] S3 Request: %2',job.id, JSON.stringify(params));
-        cwrx.s3util.getObject(s3, params, job.videoPath).then( 
+        s3util.getObject(s3, params, job.videoPath).then( 
             function (data) { 
                 deferred.resolve(job); 
                 job.setEndTime(fnName);
@@ -808,7 +594,7 @@ function getSourceVideo(job) {
 }
 
 function convertLinesToMP3(job){
-    var log = cwrx.logger.getLog(),
+    var log = logger.getLog(),
         deferred = q.defer(),
         fnName = arguments.callee.name;
 
@@ -823,9 +609,9 @@ function convertLinesToMP3(job){
     var processTrack = q.fbind(function(track){
         var deferred = q.defer();
         if (!fs.existsSync(track.fpath)){
-            var rqs = cwrx.vocalWare.createRequest({authToken : job.ttsAuth}), voice;
+            var rqs = vocalware.createRequest({authToken : job.ttsAuth}), voice;
             if (job.tts.voice){
-                voice = cwrx.vocalWare.voices[job.tts.voice];
+                voice = vocalware.voices[job.tts.voice];
             }
             rqs.say(track.line, voice);
 
@@ -836,7 +622,7 @@ function convertLinesToMP3(job){
             if (job.tts.level) {
                 rqs.fxLevel = job.tts.level;
             }
-            cwrx.vocalWare.textToSpeech(rqs,track.fpath,function(err,rqs,o){
+            vocalware.textToSpeech(rqs,track.fpath,function(err,rqs,o){
                 if (err) {
                     deferred.reject(error);
                 } else {
@@ -885,11 +671,11 @@ function convertLinesToMP3(job){
 }
 
 function getLineMetadata(track){
-    var log = cwrx.logger.getLog(), deferred;
+    var log = logger.getLog(), deferred;
 
     try {
         track.metaData = 
-            JSON.parse(fs.readFileSync(track.metapath, { encoding : 'utf8' }));
+            fs.readJSONSync(track.metapath, { encoding : 'utf8' });
     }
     catch(e){
         if (e.errno !== 34){
@@ -903,7 +689,7 @@ function getLineMetadata(track){
 
     deferred = q.defer();
     log.trace('[%1] getLineMetadata %2',track.jobId,track.fpath);
-    cwrx.id3Info(track.fpath,function(err,data){
+    id3Info(track.fpath,function(err,data){
         if (err) {
             log.error('[%1] Error reading track %2 id3info: %3',
                 track.jobId, track.fpath, err.message);
@@ -935,7 +721,7 @@ function getLineMetadata(track){
 }
 
 function collectLinesMetadata(job){
-    var log     = cwrx.logger.getLog(),
+    var log     = logger.getLog(),
         fnName  = arguments.callee.name,
         deferred;
 
@@ -963,7 +749,7 @@ function collectLinesMetadata(job){
 }
 
 function getVideoLength(job){
-    var log = cwrx.logger.getLog(),
+    var log = logger.getLog(),
         deferred = q.defer(),
         fnName = arguments.callee.name;
 
@@ -975,7 +761,7 @@ function getVideoLength(job){
     log.info("[%1] Starting %2",job.id,fnName);
     job.setStartTime(fnName);        
 
-    cwrx.ffmpeg.probe(job.videoPath,function(err,info){
+    ffmpeg.probe(job.videoPath,function(err,info){
         if (err) {
             deferred.reject({"fnName": fnName, "msg": error});
             job.setEndTime(fnName);
@@ -1002,7 +788,7 @@ function getVideoLength(job){
 }
 
 function convertScriptToMP3(job){
-    var log = cwrx.logger.getLog(),
+    var log = logger.getLog(),
         deferred = q.defer(),
         fnName = arguments.callee.name;
 
@@ -1014,7 +800,7 @@ function convertScriptToMP3(job){
     log.info("[%1] Starting %2",job.id, fnName);
     job.setStartTime(fnName);        
 
-    cwrx.assemble(job.assembleTemplate())
+    assemble(job.assembleTemplate())
     .then(function(tmpl){
         job.setEndTime(fnName);
         log.trace('[%1] Assembled: %2',job.id , tmpl.output);
@@ -1029,7 +815,7 @@ function convertScriptToMP3(job){
 }
 
 function applyScriptToVideo(job){
-    var log = cwrx.logger.getLog(),
+    var log = logger.getLog(),
         deferred = q.defer(),
         fnName = arguments.callee.name;
  
@@ -1041,7 +827,7 @@ function applyScriptToVideo(job){
     log.info("[%1] Starting %2",job.id,fnName);
     job.setStartTime(fnName);        
 
-    cwrx.ffmpeg.mergeAudioToVideo(job.videoPath,job.scriptPath,
+    ffmpeg.mergeAudioToVideo(job.videoPath,job.scriptPath,
             job.outputPath,job.mergeTemplate(), function(err,fpath,cmdline){
                 if (err) {
                     deferred.reject({"fnName": fnName, "msg": err});
@@ -1057,7 +843,7 @@ function applyScriptToVideo(job){
 
 function uploadToStorage(job){
     var deferred = q.defer(),
-        log = cwrx.logger.getLog(),
+        log = logger.getLog(),
         fnName = arguments.callee.name,
     
         localVid = fs.readFileSync(job.outputPath),
@@ -1094,7 +880,7 @@ function uploadToStorage(job){
         } else {
             log.trace('[%1] Uploading to Bucket: %2, Key: %3',job.id,outParams.Bucket,
                 outParams.Key);
-            cwrx.s3util.putObject(s3, job.outputPath, outParams).then(
+            s3util.putObject(s3, job.outputPath, outParams).then(
                 function (res) {
                     log.trace('[%1] SUCCESS: %2',job.id,JSON.stringify(res));
                     job.setEndTime(fnName);
@@ -1111,8 +897,10 @@ function uploadToStorage(job){
 }
 
 module.exports = {
-    'createConfiguration'   : createConfiguration,
     'createDubJob'          : createDubJob,
     'loadTemplateFromFile'  : loadTemplateFromFile
 };
 
+if (__ut__) {
+    module.exports.createConfiguration = createConfiguration;
+}

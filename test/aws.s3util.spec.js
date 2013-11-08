@@ -1,6 +1,6 @@
 var path      = require('path'),
     fs        = require('fs-extra'),
-    cwrx      = require('../lib/index'),
+    s3util    = require('../lib/s3util'),
     aws       = require('aws-sdk'),
     q         = require('q'),
     utKeyBase;
@@ -26,12 +26,11 @@ function makeKeyPath(fpath) {
 
 
 describe('s3util',function(){
-    var s3util, keyBase, bucket, s3;
+    var keyBase, bucket, s3;
 
     beforeEach(function(){
         fs.mkdirsSync('tmp');
         fs.outputFileSync('tmp/test1.txt','abcdefghijklmnopqrstuvwxyz0123456789');
-        s3util      = cwrx.s3util;
         bucket      = 'c6.dev';
         if (!s3){
             // aws.config.loadFromPath(path.join(process.env.HOME,'.aws.ut.json'));

@@ -1,8 +1,7 @@
 var path      = require('path'),
     fs        = require('fs'),
     crypto    = require('crypto'),
-    cwrx      = require('../lib/index'),
-    vocalWare = cwrx.vocalWare,
+    vocalWare = require('../lib/vocalware'),
     tokenData = {
                     apiId       : '9999999',
                     accountId   : '9999999',

@@ -1,6 +1,7 @@
-var path      = require('path'),
-    fs        = require('fs-extra'),
-    dub       = require('../bin/dub');
+var path        = require('path'),
+    fs          = require('fs-extra'),
+    cwrxConfig  = require('../lib/config'),
+    dub         = require('../bin/dub');
 
 describe('dub',function(){
     var rmList = [];
@@ -11,71 +12,6 @@ describe('dub',function(){
             }
         });
     });
-
-    describe('configuration interface',function(){
-
-        describe('createConfiguration method', function(){
-
-            it('should create a configuration object without a config file',function(){
-                var cfg = dub.createConfiguration({});
-                
-                expect(cfg.caches).toBeDefined();
-                expect(cfg.caches.line).toEqual(
-                    path.normalize('/usr/local/share/cwrx/dub/caches/line/'));
-                expect(cfg.caches.script).toEqual(
-                    path.normalize('/usr/local/share/cwrx/dub/caches/script/'));
-                expect(cfg.caches.video).toEqual(
-                    path.normalize('/usr/local/share/cwrx/dub/caches/video/'));
-                expect(cfg.caches.output).toEqual(
-                    path.normalize('/usr/local/share/cwrx/dub/caches/output/'));
-                
-            });
-
-            it('should throw an error if given a non existant configuration file', function(){
-                expect(function(){
-                    dub.createConfiguration({ config : 'abc.cfg' });
-                }).toThrow('ENOENT, no such file or directory \'abc.cfg\'');
-            });
-
-            it('should throw an error if given a badly formed configuration file', function(){
-                rmList.push(path.join(__dirname,'tmpcfg.json'));
-                fs.writeFileSync(path.join(__dirname,'tmpcfg.json'),'abc');
-                expect(function(){
-                    dub.createConfiguration( { config : path.join(__dirname,'tmpcfg.json') });
-                }).toThrow('Unexpected token a');
-            });
-
-            it('creates any required dirs with ensurePaths',function(){
-                rmList.push(path.join(__dirname,'caches')); 
-                rmList.push(path.join(__dirname,'tmpcfg.json'));
-
-                fs.writeFileSync(path.join(__dirname,'tmpcfg.json'),JSON.stringify({
-                    caches : {
-                                line    : path.join(__dirname,'caches/line/'),
-                                script  : path.join(__dirname,'caches/script/'),
-                                video   : path.join(__dirname,'caches/video/'),
-                                output  : path.join(__dirname,'caches/output/')
-                             }
-                }));
-                var cfg = dub.createConfiguration(
-                    { config : path.join(__dirname,'tmpcfg.json') }
-                );
-               
-                cfg.ensurePaths();
-                expect(cfg.caches).toBeDefined();
-                
-                expect(cfg.caches.line).toEqual(path.join(__dirname,   'caches/line/'));
-                expect(cfg.caches.script).toEqual(path.join(__dirname, 'caches/script/'));
-                expect(cfg.caches.video).toEqual(path.join(__dirname,  'caches/video/'));
-                expect(cfg.caches.output).toEqual(path.join(__dirname, 'caches/output/'));
-                
-                expect(fs.existsSync(cfg.caches.line)).toBeTruthy();
-                expect(fs.existsSync(cfg.caches.script)).toBeTruthy();
-                expect(fs.existsSync(cfg.caches.video)).toBeTruthy();
-                expect(fs.existsSync(cfg.caches.output)).toBeTruthy();
-            });
-        }); // end -- describe createConfiguration method
-    }); // end -- describe configuration interface
     
     describe('job', function(){
         var config;
@@ -86,29 +22,36 @@ describe('dub',function(){
             
             fs.writeFileSync(path.join(__dirname,'tmpcfg.json'),JSON.stringify({
                 s3     : {
-                            src : {
-                                bucket : 'c6.dev',
-                                path   : 'media/src/screenjack/video'
-                                  },
-                            out : {
-                                bucket : 'c6.dev',
-                                path   : 'media/usr/screenjack/video'
-                                  }
-                         },
+                    src : {
+                        bucket : 'c6.dev',
+                        path   : 'media/src/screenjack/video'
+                    },
+                    out : {
+                        bucket : 'c6.dev',
+                        path   : 'media/usr/screenjack/video'
+                    }
+                },
                 output : {
-                            uri : "https://s3.amazonaws.com/c6.dev/media/usr/screenjack/video/",
-                            type : "s3"
-                         },
+                    uri : "https://s3.amazonaws.com/c6.dev/media/usr/screenjack/video/",
+                    type : "s3"
+                },
                 caches : {
-                            run     : path.join(__dirname,'caches/run/'),
-                            line    : path.join(__dirname,'caches/line/'),
-                            script  : path.join(__dirname,'caches/script/'),
-                            video   : path.join(__dirname,'caches/video/'),
-                            output  : path.join(__dirname,'caches/output/')
-                         }
+                    run     : path.join(__dirname,'caches/run/'),
+                    line    : path.join(__dirname,'caches/line/'),
+                    blanks  : path.join(__dirname,'caches/blanks/'),
+                    script  : path.join(__dirname,'caches/script/'),
+                    video   : path.join(__dirname,'caches/video/'),
+                    output  : path.join(__dirname,'caches/output/')
+                },
+                tts : {
+                    auth        : path.join(process.env.HOME,'.tts.json'),
+                    bitrate     : '48k',
+                    frequency   : 22050,
+                    workspace   : __dirname
+                }
             }));
             config = dub.createConfiguration(
-                { config : path.join(__dirname,'tmpcfg.json'), enableAws : true }
+                { config : path.join(__dirname,'tmpcfg.json')}
             );
             config.ensurePaths();
         });
@@ -127,7 +70,7 @@ describe('dub',function(){
             
             it('should create a job with valid configuration and template', function(){
                 var jobTemplate = dub.loadTemplateFromFile(path.join(__dirname,'dub_ut_job1.json')),
-                    job = dub.createDubJob(jobTemplate,config);
+                    job = dub.createDubJob('123456',jobTemplate,config);
                 expect(job).toBeDefined();
                 expect(job.ttsAuth).toBeDefined();
                 expect(job.tts).toEqual(config.tts);
