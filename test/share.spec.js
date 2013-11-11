@@ -4,7 +4,8 @@ var include     = require('../lib/inject').require,
     sanitize    = require('./sanitize');
 
 describe('share', function() {
-    var share, traceSpy, errorSpy, warnSpy, infoSpy, fatalSpy, logSpy, putObjSpy, mockLogger;
+    var share, traceSpy, errorSpy, warnSpy, infoSpy, fatalSpy, logSpy, mockLogger,
+        mockAws, putObjSpy;
 
     beforeEach(function() {
         traceSpy    = jasmine.createSpy('log_trace');
@@ -123,17 +124,21 @@ describe('share', function() {
             expect(function() {share.createConfiguration({config: './utConfig'})}).toThrow();
         });
         
-        it('should create a working ensurePaths method', function() {
-            var cfgObject = share.createConfiguration({config: 'utConfig'});
-            existsSpy.andReturn(false);
-            cfgObject.ensurePaths();
-            expect(existsSpy).toHaveBeenCalledWith('ut/run/');
-            expect(mkdirSpy).toHaveBeenCalledWith('ut/run/');
-            mkdirSpy.calls = [];
-
-            existsSpy.andReturn(true);
-            cfgObject.ensurePaths();
-            expect(mkdirSpy.calls.length).toBe(0);
+        describe('ensurePaths method', function() {
+            it('should create directories if needed', function() {
+                var cfgObject = share.createConfiguration({config: 'utConfig'});
+                existsSpy.andReturn(false);
+                cfgObject.ensurePaths();
+                expect(existsSpy).toHaveBeenCalledWith('ut/run/');
+                expect(mkdirSpy).toHaveBeenCalledWith('ut/run/');
+            });
+            
+            it('should not create directories if they exist', function() {
+                var cfgObject = share.createConfiguration({config: 'utConfig'});
+                existsSpy.andReturn(true);
+                cfgObject.ensurePaths();
+                expect(mkdirSpy).not.toHaveBeenCalled();
+            });
         });
         
         it('should create a working cacheAddress method', function() {

@@ -2,17 +2,18 @@
 
 var __ut__      = (global.jasmine !== undefined) ? true : false;
 
-var fs          = require('fs-extra'),
-    express     = require('express'),
-    path        = require('path'),
-    q           = require('q'),
-    cp          = require('child_process'),
-    aws         = require('aws-sdk'),
-    logger      = require('../lib/logger'),
-    daemon      = require('../lib/daemon'),
-    uuid        = require('../lib/uuid'),
-    cwrxConfig  = require('../lib/config'),
-    dub         = require(path.join(__dirname,'dub')),
+var include     = require('../lib/inject').require,
+    fs          = include('fs-extra'),
+    express     = include('express'),
+    path        = include('path'),
+    q           = include('q'),
+    cp          = include('child_process'),
+    aws         = include('aws-sdk'),
+    logger      = include('../lib/logger'),
+    daemon      = include('../lib/daemon'),
+    uuid        = include('../lib/uuid'),
+    cwrxConfig  = include('../lib/config'),
+    dub         = include(path.join(__dirname,'dub')),
     app         = express(),
 
     // This is the template for maint's configuration
@@ -64,7 +65,7 @@ if (!__ut__){
 }
 
 function main(done) {
-    var program  = require('commander'),
+    var program  = include('commander'),
         config = {},
         log, userCfg;
     
@@ -242,7 +243,8 @@ function getVersion() {
 }
 
 function createConfiguration(cmdLine) {
-    var cfgObject = cwrxConfig.createConfigObject(cmdLine.config, defaultConfiguration);
+    var cfgObject = cwrxConfig.createConfigObject(cmdLine.config, defaultConfiguration),
+        log;
 
     if (cfgObject.log) {
         log = logger.createLog(cfgObject.log);
@@ -298,3 +300,11 @@ function removeFiles(remList) {
     return deferred.promise;
 }
 
+if (__ut__) {
+    module.exports = {
+        getVersion: getVersion,
+        createConfiguration: createConfiguration,
+        defaultConfiguration: defaultConfiguration,
+        removeFiles: removeFiles
+    };
+}
