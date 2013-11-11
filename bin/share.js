@@ -2,17 +2,17 @@
 
 var __ut__      = (global.jasmine !== undefined) ? true : false;
 
-var fs          = require('fs-extra'),
-    path        = require('path'),
-    cp          = require('child_process'),
-    express     = require('express'),
-    aws         = require('aws-sdk'),
-    q           = require('q'),
-    crypto      = require('crypto'),
-    logger      = require('../lib/logger'),
-    cwrxConfig  = require('../lib/config'),
-    uuid        = require('../lib/uuid'),
-    daemon      = require('../lib/daemon'),
+var include     = require('../lib/inject').require,
+    fs          = include('fs-extra'),
+    path        = include('path'),
+    cp          = include('child_process'),
+    express     = include('express'),
+    aws         = include('aws-sdk'),
+    q           = include('q'),
+    logger      = include('../lib/logger'),
+    cwrxConfig  = include('../lib/config'),
+    uuid        = include('../lib/uuid'),
+    daemon      = include('../lib/daemon'),
     app         = express(),
 
     // This is the template for share's configuration
@@ -53,7 +53,7 @@ if (!__ut__){
 }
 
 function main(done) {
-    var program  = require('commander'),
+    var program  = include('commander'),
         config = {},
         log, userCfg;
 
@@ -238,32 +238,20 @@ function shareLink(req, config, done) {
                    ACL          : 'public-read',
                    ContentType  : 'application/JSON',
                    Key          : path.join(config.s3.share.path, fname)
-                 },
-        
-        hash = crypto.createHash('md5'),
-        headParams = { Bucket: params.Bucket, Key: params.Key};
+                 };
     
-    hash.update(JSON.stringify(item));
     item.id = id;
     item.uri = item.uri.replace('shared~', '');
     item.uri = 'shared~' + item.uri.split('~')[0] + '~' + id;
     params.Body = (item ? new Buffer(JSON.stringify(item)) : null);
 
-    s3.headObject(headParams, function(err, data) {
-        if (data && data.ETag && data.ETag.replace(/"/g, '') == hash.digest('hex')) {
-            log.info("[%1] Item already exists on S3, skipping upload", req.uuid);
-            generateUrl(item.uri);
+    log.info("[%1] Uploading data: Bucket = %2, Key = %3", req.uuid, params.Bucket, params.Key);
+    s3.putObject(params, function(err, data) {
+        if (err) {
+            done(err);
         } else {
-            log.info("[%1] Uploading data: Bucket = %2, Key = %3",
-                      req.uuid, params.Bucket, params.Key);
-            s3.putObject(params, function(err, data) {
-                if (err) {
-                    done(err);
-                } else {
-                    log.trace('[%1] SUCCESS: ' + JSON.stringify(data), req.uuid);
-                    generateUrl(item.uri);
-                }
-            });
+            log.trace('[%1] SUCCESS: ' + JSON.stringify(data), req.uuid);
+            generateUrl(item.uri);
         }
     });
 }
@@ -274,5 +262,5 @@ if (__ut__) {
         createConfiguration: createConfiguration,
         defaultConfiguration: defaultConfiguration,
         shareLink: shareLink
-    }
+    };
 }
