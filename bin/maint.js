@@ -2,6 +2,8 @@
 
 var __ut__      = (global.jasmine !== undefined) ? true : false;
 
+process.env['maint'] = true;
+
 var include     = require('../lib/inject').require,
     fs          = include('fs-extra'),
     express     = include('express'),
@@ -265,13 +267,6 @@ function createConfiguration(cmdLine) {
                 fs.mkdirsSync(self.caches[key]);
             }
         });
-    };
-
-    cfgObject.uriAddress = function(fname){
-        if ((cfgObject.output) && (cfgObject.output.uri)){
-            return (cfgObject.output.uri + fname);
-        }
-        return fname;
     };
 
     cfgObject.cacheAddress = function(fname,cache){

@@ -1,7 +1,7 @@
 var include     = require('../lib/inject').require,
     path        = include('path'),
     fs          = include('fs-extra'),
-    sanitize    = require('./sanitize');
+    sanitize    = include('../test/sanitize');
 
 describe('share', function() {
     var share, traceSpy, errorSpy, warnSpy, infoSpy, fatalSpy, logSpy, mockLogger,
@@ -117,11 +117,11 @@ describe('share', function() {
         
         it('should throw an error if it can\'t load the s3 config', function() {
             mockAws.config.loadFromPath.andThrow('Exception!');
-            expect(function() {share.createConfiguration({config: './utConfig'})}).toThrow();
+            expect(function() {share.createConfiguration({config: 'utConfig'})}).toThrow();
 
             mockAws.config.loadFromPath.andReturn();
             delete mockConfig.s3;
-            expect(function() {share.createConfiguration({config: './utConfig'})}).toThrow();
+            expect(function() {share.createConfiguration({config: 'utConfig'})}).toThrow();
         });
         
         describe('ensurePaths method', function() {

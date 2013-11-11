@@ -2,26 +2,26 @@
 
 var __ut__      = (global.jasmine !== undefined) ? true : false,
 
-    __maint__   = ((module.parent) && (module.parent.filename) &&
-                  (module.parent.filename.match(/maint.js$/))) ? true : false;
+    __maint__   = process.env['maint'];
 
-var fs          = require('fs-extra'),
-    path        = require('path'),
-    cluster     = require('cluster'),
-    cp          = require('child_process'),
-    express     = require('express'),
-    aws         = require('aws-sdk'),
-    crypto      = require('crypto'),
-    q           = require('q'),
-    daemon      = require('../lib/daemon'),
-    logger      = require('../lib/logger'),
-    uuid        = require('../lib/uuid'),
-    cwrxConfig  = require('../lib/config'),
-    ffmpeg      = require('../lib/ffmpeg'),
-    id3Info     = require('../lib/id3'),
-    vocalware   = require('../lib/vocalware'),
-    assemble    = require('../lib/assemble'),
-    s3util      = require('../lib/s3util'),
+var include     = require('../lib/inject').require,
+    fs          = include('fs-extra'),
+    path        = include('path'),
+    cluster     = include('cluster'),
+    cp          = include('child_process'),
+    express     = include('express'),
+    aws         = include('aws-sdk'),
+    crypto      = include('crypto'),
+    q           = include('q'),
+    daemon      = include('../lib/daemon'),
+    logger      = include('../lib/logger'),
+    uuid        = include('../lib/uuid'),
+    cwrxConfig  = include('../lib/config'),
+    ffmpeg      = include('../lib/ffmpeg'),
+    id3Info     = include('../lib/id3'),
+    vocalware   = include('../lib/vocalware'),
+    assemble    = include('../lib/assemble'),
+    s3util      = include('../lib/s3util'),
 
     // This is the template for dub's configuration
     defaultConfiguration = {
@@ -81,7 +81,7 @@ if (!__ut__ && !__maint__){
 }
 
 function main(done){
-    var program  = require('commander'),
+    var program  = include('commander'),
         config = {},
         job, log, userCfg;
 
@@ -327,11 +327,10 @@ function handleRequest(job, done){
 }
 
 function loadTemplateFromFile(tmplFile){
-    var buff,tmplobj;
+    var tmplobj;
  
-    buff = fs.readFileSync(tmplFile);
     try {
-        tmplObj = JSON.parse(buff);
+        tmplObj = fs.readJSONSync(tmplFile);
     } catch(e) {
         throw new Error('Error parsing template: ' + e.message);
     }
@@ -379,13 +378,6 @@ function createConfiguration(cmdLine) {
                 fs.mkdirsSync(self.caches[key]);
             }
         });
-    };
-
-    cfgObject.uriAddress = function(fname){
-        if ((cfgObject.output) && (cfgObject.output.uri)){
-            return (cfgObject.output.uri + fname);
-        }
-        return fname;
     };
 
     cfgObject.cacheAddress = function(fname,cache){
@@ -473,7 +465,8 @@ function createDubJob(id, template, config){
   
     obj.outputFname = videoBase + '_' + obj.outputHash + videoExt;
     obj.outputPath = config.cacheAddress(obj.outputFname,'output');
-    obj.outputUri  = config.uriAddress(obj.outputFname);
+    obj.outputUri  = config.output && config.output.uri ? config.output.uri + obj.outputFname
+                                                         : obj.outputFname;
     obj.outputType = (config.output && config.output.type ? config.output.type : null);
   
     obj.videoMetadataPath   = config.cacheAddress(videoBase + '_metadata.json','video');
@@ -911,11 +904,12 @@ function uploadToStorage(job){
     return deferred.promise;
 }
 
-module.exports = {
-    'createDubJob'          : createDubJob,
-    'loadTemplateFromFile'  : loadTemplateFromFile
-};
-
 if (__ut__) {
-    module.exports.createConfiguration = createConfiguration;
+    module.exports = {
+        getVersion: getVersion,
+        createConfiguration: createConfiguration,
+        defaultConfiguration: defaultConfiguration
+    }
 }
+
+module.exports.createDubJob = createDubJob;

@@ -1,10 +1,46 @@
-var path        = require('path'),
-    fs          = require('fs-extra'),
-    cwrxConfig  = require('../lib/config'),
-    dub         = require('../bin/dub');
+var include     = require('../lib/inject').require,
+    path        = include('path'),
+    fs          = include('fs-extra'),
+    sanitize    = include('../test/sanitize'),
+    cwrxConfig  = include('../lib/config');
 
 describe('dub',function(){
     var rmList = [];
+    var dub, traceSpy, errorSpy, warnSpy, infoSpy, fatalSpy, logSpy, mockLogger, mockAws;
+    
+    beforeEach(function() {
+        traceSpy    = jasmine.createSpy('log_trace');
+        errorSpy    = jasmine.createSpy('log_error');
+        warnSpy     = jasmine.createSpy('log_warn');
+        infoSpy     = jasmine.createSpy('log_info');
+        fatalSpy    = jasmine.createSpy('log_fatal');
+        logSpy      = jasmine.createSpy('log_log');
+        putObjSpy   = jasmine.createSpy('s3_putObj');
+        
+        var mockLog = {
+            trace : traceSpy,
+            error : errorSpy,
+            warn  : warnSpy,
+            info  : infoSpy,
+            fatal : fatalSpy,
+            log   : logSpy        
+        };
+
+        mockLogger = {
+            createLog: jasmine.createSpy('create_log').andReturn(mockLog),
+            getLog : jasmine.createSpy('get_log').andReturn(mockLog)
+        };
+        mockAws = {
+            config: {
+                loadFromPath: jasmine.createSpy('aws_config_loadFromPath')
+            }
+        };
+    
+        dub = sanitize(['../bin/dub'])
+                .andConfigure([['../lib/logger', mockLogger], ['aws-sdk', mockAws]])
+                .andRequire();
+    });
+
     afterEach(function(){
         rmList.forEach(function(removable){
             if (fs.existsSync(removable)){
@@ -13,7 +49,120 @@ describe('dub',function(){
         });
     });
     
-    describe('job', function(){
+    describe('getVersion', function() {
+        var existsSpy, readFileSpy;
+        
+        beforeEach(function() {
+            existsSpy = spyOn(fs, 'existsSync');
+            readFileSpy = spyOn(fs, 'readFileSync');
+        });
+        
+        it('should exist', function() {
+            expect(dub.getVersion).toBeDefined();
+        });
+        
+        it('should attempt to read a version file', function() {
+            existsSpy.andReturn(true);
+            readFileSpy.andReturn('ut123');
+            
+            expect(dub.getVersion()).toEqual('ut123');
+            expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../bin/dub.version'));
+            expect(readFileSpy).toHaveBeenCalledWith(path.join(__dirname, '../bin/dub.version'));
+        });
+        
+        it('should return "unknown" if it fails to read the version file', function() {
+            existsSpy.andReturn(false);
+            expect(dub.getVersion()).toEqual('unknown');
+            expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../bin/dub.version'));
+            expect(readFileSpy).not.toHaveBeenCalled();
+            
+            existsSpy.andReturn(true);
+            readFileSpy.andThrow('Exception!');
+            expect(dub.getVersion()).toEqual('unknown');
+            expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../bin/dub.version'));
+            expect(readFileSpy).toHaveBeenCalledWith(path.join(__dirname, '../bin/dub.version'));
+        });
+    });
+    
+    describe('createConfiguration', function() {
+        var existsSpy, mkdirSpy, createConfig, mockConfig,
+            program = {
+                config: 'utConfig',
+                enableAws: true
+            };
+        
+        beforeEach(function() {
+            existsSpy = spyOn(fs, 'existsSync');
+            mkdirSpy = spyOn(fs, 'mkdirsSync');
+            mockConfig = {
+                caches: {
+                    line: 'ut/line/',
+                    script: 'ut/script/',
+                },
+                log: {
+                    logLevel: 'trace'
+                },
+                s3: {
+                    auth: 'fakeAuth.json'
+                }
+            },
+            createConfig = spyOn(include('../lib/config'), 'createConfigObject').andReturn(mockConfig);
+        });
+    
+        it('should exist', function() {
+            expect(dub.createConfiguration).toBeDefined();
+        });
+        
+        it('should correctly setup the config object', function() {
+            var cfgObject = dub.createConfiguration(program);
+            expect(createConfig).toHaveBeenCalledWith('utConfig', dub.defaultConfiguration);
+            expect(mockLogger.createLog).toHaveBeenCalledWith(mockConfig.log);
+            expect(mockAws.config.loadFromPath).toHaveBeenCalledWith('fakeAuth.json');
+            
+            expect(cfgObject.caches.line).toBe('ut/line/');
+            expect(cfgObject.caches.script).toBe('ut/script/');
+            expect(cfgObject.ensurePaths).toBeDefined();
+            expect(cfgObject.cacheAddress).toBeDefined();
+        });
+        
+        it('should throw an error if it can\'t load the s3 config', function() {
+            mockAws.config.loadFromPath.andThrow('Exception!');
+            expect(function() {dub.createConfiguration(program);}).toThrow();
+
+            mockAws.config.loadFromPath.andReturn();
+            delete mockConfig.s3;
+            expect(function() {dub.createConfiguration(program);}).toThrow();
+        });
+
+        describe('ensurePaths method', function() {
+            it('should create directories if needed', function() {
+                var cfgObject = dub.createConfiguration(program);
+                existsSpy.andReturn(false);
+                cfgObject.ensurePaths();
+                expect(existsSpy.calls.length).toBe(2);
+                expect(mkdirSpy.calls.length).toBe(2);
+                expect(existsSpy).toHaveBeenCalledWith('ut/line/');
+                expect(mkdirSpy).toHaveBeenCalledWith('ut/line/');
+                expect(existsSpy).toHaveBeenCalledWith('ut/script/');
+                expect(mkdirSpy).toHaveBeenCalledWith('ut/script/');
+            });
+            
+            it('should not create directories if they exist', function() {
+                var cfgObject = dub.createConfiguration(program);
+                existsSpy.andReturn(true);
+                cfgObject.ensurePaths();
+                expect(existsSpy.calls.length).toBe(2);
+                expect(mkdirSpy).not.toHaveBeenCalled();
+            });
+        });
+        
+        it('should create a working cacheAddress method', function() {
+            var cfgObject = dub.createConfiguration(program);
+            expect(cfgObject.cacheAddress('test.mp3', 'line')).toBe('ut/line/test.mp3');
+        });
+    });
+    
+    /*describe('job', function(){
         var config;
         beforeEach(function(){
 
@@ -54,15 +203,6 @@ describe('dub',function(){
                 { config : path.join(__dirname,'tmpcfg.json')}
             );
             config.ensurePaths();
-        });
-
-        describe('loadTemplateFromFile method', function(){
-
-            it('should load a valid template from a file', function(){
-                var tmpl = dub.loadTemplateFromFile(path.join(__dirname,'dub_ut_job1.json'));
-                expect(tmpl).toBeDefined();
-                expect(tmpl.video).toEqual('scream.mp4');
-            });
         });
 
         describe('createDubJob method', function(){
@@ -132,7 +272,7 @@ describe('dub',function(){
 
         }); // end -- describe createDubJob method
 
-    }); // end -- describe job interface
+    });*/ // end -- describe job interface*/
 
 }); // end -- describe dub
 

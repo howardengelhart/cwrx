@@ -2,7 +2,7 @@ var include     = require('../lib/inject').require,
     path        = include('path'),
     fs          = include('fs-extra'),
     q           = include('q'),
-    sanitize    = require('./sanitize');
+    sanitize    = include('../test/sanitize');
 
 describe('maint', function() {
     var maint, traceSpy, errorSpy, warnSpy, infoSpy, fatalSpy, logSpy, mockLogger, mockAws;
@@ -114,11 +114,11 @@ describe('maint', function() {
         
         it('should throw an error if it can\'t load the s3 config', function() {
             mockAws.config.loadFromPath.andThrow('Exception!');
-            expect(function() {maint.createConfiguration({config: './utConfig'})}).toThrow();
+            expect(function() {maint.createConfiguration({config: 'utConfig'})}).toThrow();
 
             mockAws.config.loadFromPath.andReturn();
             delete mockConfig.s3;
-            expect(function() {maint.createConfiguration({config: './utConfig'})}).toThrow();
+            expect(function() {maint.createConfiguration({config: 'utConfig'})}).toThrow();
         });
 
         describe('ensurePaths method', function() {
