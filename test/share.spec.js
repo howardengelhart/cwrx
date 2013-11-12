@@ -243,8 +243,7 @@ describe('share', function() {
                     expect(url).not.toBeDefined();
                 });
             });
-            
-        });
-    });
-});
+        }); // end -- describe tests with S3
+    }); // end -- describe shareLink
+}); // end -- describe share
 

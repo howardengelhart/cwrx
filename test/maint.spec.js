@@ -216,5 +216,5 @@ describe('maint', function() {
             });
             waitsFor(function() { return doneFlag; }, 3000);
         });
-    });
-});
+    }); // end -- describe removeFile
+}); // end -- describe maint

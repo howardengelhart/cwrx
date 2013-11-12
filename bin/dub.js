@@ -472,9 +472,7 @@ function createDubJob(id, template, config){
     obj.videoMetadataPath   = config.cacheAddress(videoBase + '_metadata.json','video');
 
     try {
-        obj.videoMetadata = 
-            fs.readJSONSync(obj.videoMetadataPath, { encoding : 'utf8' });
-
+        obj.videoMetadata = fs.readJSONSync(obj.videoMetadataPath, { encoding : 'utf8' });
     } catch(e) {
         if (e.errno !== 34){
             log.error('[%1] failed to open videoMetaData file: %2',obj.id, e.message);
@@ -552,7 +550,6 @@ function createDubJob(id, template, config){
         obj.elapsedTimes[fnName].end = new Date();
         var elapsed = obj.getElapsedTime(fnName);
         log.info("[%1] Finished {%2} in %3",obj.id, fnName , elapsed);
-            
     };
     obj.getElapsedTime = function(fnName) {
         if (obj.elapsedTimes[fnName] && obj.elapsedTimes[fnName].start && 
@@ -682,8 +679,7 @@ function getLineMetadata(track){
     var log = logger.getLog(), deferred;
 
     try {
-        track.metaData = 
-            fs.readJSONSync(track.metapath, { encoding : 'utf8' });
+        track.metaData = fs.readJSONSync(track.metapath, { encoding : 'utf8' });
     }
     catch(e){
         if (e.errno !== 34){
@@ -906,9 +902,17 @@ function uploadToStorage(job){
 
 if (__ut__) {
     module.exports = {
-        getVersion: getVersion,
-        createConfiguration: createConfiguration,
-        defaultConfiguration: defaultConfiguration
+        getVersion           : getVersion,
+        createConfiguration  : createConfiguration,
+        defaultConfiguration : defaultConfiguration,
+        handleRequest        : handleRequest,
+        getSourceVideo       : getSourceVideo,
+        convertLinesToMP3    : convertLinesToMP3,
+        collectLinesMetadata : collectLinesMetadata,
+        getVideoLength       : getVideoLength,
+        convertScriptToMP3   : convertScriptToMP3,
+        applyScriptToVideo   : applyScriptToVideo,
+        uploadToStorage      : uploadToStorage
     }
 }
 

@@ -1,11 +1,13 @@
 var include     = require('../lib/inject').require,
     path        = include('path'),
     fs          = include('fs-extra'),
+    q           = include('q'),
     sanitize    = include('../test/sanitize'),
-    cwrxConfig  = include('../lib/config');
+    cwrxConfig  = include('../lib/config'),
+    s3util      = include('../lib/s3util'),
+    vocalware   = include('../lib/vocalware');
 
 describe('dub',function(){
-    var rmList = [];
     var dub, traceSpy, errorSpy, warnSpy, infoSpy, fatalSpy, logSpy, mockLogger, mockAws;
     
     beforeEach(function() {
@@ -15,7 +17,7 @@ describe('dub',function(){
         infoSpy     = jasmine.createSpy('log_info');
         fatalSpy    = jasmine.createSpy('log_fatal');
         logSpy      = jasmine.createSpy('log_log');
-        putObjSpy   = jasmine.createSpy('s3_putObj');
+        headObjSpy   = jasmine.createSpy('s3_headObj');
         
         var mockLog = {
             trace : traceSpy,
@@ -33,6 +35,11 @@ describe('dub',function(){
         mockAws = {
             config: {
                 loadFromPath: jasmine.createSpy('aws_config_loadFromPath')
+            },
+            S3: function() {
+                return {
+                    headObject: headObjSpy
+                }
             }
         };
     
@@ -40,15 +47,7 @@ describe('dub',function(){
                 .andConfigure([['../lib/logger', mockLogger], ['aws-sdk', mockAws]])
                 .andRequire();
     });
-
-    afterEach(function(){
-        rmList.forEach(function(removable){
-            if (fs.existsSync(removable)){
-                fs.removeSync(removable);
-            }
-        });
-    });
-    
+   
     describe('getVersion', function() {
         var existsSpy, readFileSpy;
         
@@ -106,7 +105,7 @@ describe('dub',function(){
                     auth: 'fakeAuth.json'
                 }
             },
-            createConfig = spyOn(include('../lib/config'), 'createConfigObject').andReturn(mockConfig);
+            createConfig = spyOn(cwrxConfig, 'createConfigObject').andReturn(mockConfig);
         });
     
         it('should exist', function() {
@@ -162,117 +161,286 @@ describe('dub',function(){
         });
     });
     
-    /*describe('job', function(){
-        var config;
-        beforeEach(function(){
-
-            rmList.push(path.join(__dirname,'caches')); 
-            rmList.push(path.join(__dirname,'tmpcfg.json'));
-            
-            fs.writeFileSync(path.join(__dirname,'tmpcfg.json'),JSON.stringify({
+    describe('job:', function() {
+        var configObject, config, mockTemplate, job, setStartTime, setEndTime,
+            hasVideo, hasOutput, hasLength, hasScript, hasLines;
+        
+        beforeEach(function() {
+            configObject = {
                 s3     : {
                     src : {
-                        bucket : 'c6.dev',
-                        path   : 'media/src/screenjack/video'
+                        bucket : 'ut',
+                        path   : 'ut/media/video'
                     },
                     out : {
-                        bucket : 'c6.dev',
-                        path   : 'media/usr/screenjack/video'
-                    }
+                        bucket : 'ut',
+                        path   : 'ut/media/output'
+                    },
+                    auth: 'fake.aws.json',
                 },
                 output : {
-                    uri : "https://s3.amazonaws.com/c6.dev/media/usr/screenjack/video/",
+                    uri : "https://s3.amazonaws.com/ut/media/output",
                     type : "s3"
                 },
                 caches : {
-                    run     : path.join(__dirname,'caches/run/'),
-                    line    : path.join(__dirname,'caches/line/'),
-                    blanks  : path.join(__dirname,'caches/blanks/'),
-                    script  : path.join(__dirname,'caches/script/'),
-                    video   : path.join(__dirname,'caches/video/'),
-                    output  : path.join(__dirname,'caches/output/')
+                    run     : 'caches/run/',
+                    line    : 'caches/line/',
+                    blanks  : 'caches/blanks/',
+                    script  : 'caches/script/',
+                    video   : 'caches/video/',
+                    output  : 'caches/output/'
                 },
                 tts : {
-                    auth        : path.join(process.env.HOME,'.tts.json'),
+                    auth        : 'fake.tts.json',
                     bitrate     : '48k',
                     frequency   : 22050,
                     workspace   : __dirname
                 }
-            }));
-            config = dub.createConfiguration(
-                { config : path.join(__dirname,'tmpcfg.json')}
-            );
-            config.ensurePaths();
+            };
+            spyOn(cwrxConfig, 'createConfigObject').andReturn(configObject);
+            config = dub.createConfiguration({});
+            config.enableAws = true;
+            
+            mockTemplate = {
+                video   : "test.mp4",
+                script  : [
+                    { "ts" : "1", "line" : "line1"},
+                    { "ts" : "2.2", "line" : "line2"},
+                    { "ts" : "3.3", "line" : "line3"},
+                ]
+            };
+            spyOn(include('../lib/uuid'), 'hashText').andCallFake(function(txt) {
+                if (txt.match(/^line\d/)) {
+                    return 'hashLine--' + txt.match(/^line\d/);
+                } else if (txt.match(/test\.mp4/)) {
+                    return 'hashOutput';
+                } else {
+                    return 'hashScript';
+                }
+            });
+            spyOn(vocalware, 'createAuthToken').andReturn('fakeAuthToken');
+            job = dub.createDubJob('123456', mockTemplate, config);
+            
+            // track these calls and easily manipulate them later, but default is to call through
+            setStartTime = spyOn(job, 'setStartTime').andCallThrough();
+            setEndTime = spyOn(job, 'setEndTime').andCallThrough();
+            hasVideo = spyOn(job, 'hasVideo').andCallThrough();
+            hasOutput = spyOn(job, 'hasOutput').andCallThrough();
+            hasLength = spyOn(job, 'hasVideoLength').andCallThrough();
+            hasScript = spyOn(job, 'hasScript').andCallThrough();
+            hasLines = spyOn(job, 'hasLines').andCallThrough();
         });
 
-        describe('createDubJob method', function(){
-            var jobTemplate;
-            
+        describe('createDubJob method', function() { //TODO: test more stuff?
             it('should create a job with valid configuration and template', function(){
-                var jobTemplate = dub.loadTemplateFromFile(path.join(__dirname,'dub_ut_job1.json')),
-                    job = dub.createDubJob('123456',jobTemplate,config);
                 expect(job).toBeDefined();
-                expect(job.ttsAuth).toBeDefined();
+                expect(job.ttsAuth).toBe('fakeAuthToken');
                 expect(job.tts).toEqual(config.tts);
-                expect(job.tracks.length).toEqual(10);
+                expect(job.tracks.length).toEqual(3);
                 expect(job.enableAws()).toEqual(true);
 
-                expect(job.scriptHash).toEqual(
-                    '18ad78e66da8a3be711011f66ce4fd484fde3373'
-                );
-                expect(job.outputHash).toEqual(
-                    'fdbc5df8ff9e246a5d4f70fac2f362afc80766c6'
-                );
-                expect(job.outputFname).toEqual(
-                    'scream_fdbc5df8ff9e246a5d4f70fac2f362afc80766c6.mp4'
-                );
+                expect(job.scriptHash).toEqual('hashScript');
+                expect(job.outputHash).toEqual('hashOutput');
+                expect(job.outputFname).toEqual('test_hashOutput.mp4');
+                expect(job.blanksPath).toEqual('caches/blanks/');
                 
-                expect(job.videoPath).toEqual(path.join(__dirname,'caches/video/scream.mp4'));
-                expect(job.outputPath).toEqual(path.join(__dirname,
-                    'caches/output/scream_fdbc5df8ff9e246a5d4f70fac2f362afc80766c6.mp4')
-                );
-                expect(job.outputUri).toEqual(
-                    'https://s3.amazonaws.com/c6.dev/media/usr/screenjack/video/scream_fdbc5df8ff9e246a5d4f70fac2f362afc80766c6.mp4'
-                );
+                expect(job.videoPath).toEqual('caches/video/test.mp4');
+                expect(job.outputPath).toEqual('caches/output/test_hashOutput.mp4');
+                expect(job.outputUri).toEqual('https://s3.amazonaws.com/ut/media/output/test_hashOutput.mp4');
                 expect(job.outputType).toEqual('s3');
 
                 var srcParams = job.getS3SrcVideoParams();
-                expect(srcParams.Bucket).toEqual('c6.dev');
-                expect(srcParams.Key).toEqual('media/src/screenjack/video/scream.mp4');
+                expect(srcParams.Bucket).toEqual('ut');
+                expect(srcParams.Key).toEqual('ut/media/video/test.mp4');
 
                 var outParams = job.getS3OutVideoParams();
-                expect(outParams.Bucket).toEqual('c6.dev');
-                expect(outParams.Key).toEqual(
-                    'media/usr/screenjack/video/scream_fdbc5df8ff9e246a5d4f70fac2f362afc80766c6.mp4'
-                );
+                expect(outParams.Bucket).toEqual('ut');
+                expect(outParams.Key).toEqual('ut/media/output/test_hashOutput.mp4');
                 expect(outParams.ACL).toEqual('public-read');
                 expect(outParams.ContentType).toEqual('video/mp4');
+                
+                expect(job.videoMetadataPath).toEqual('caches/video/test_metadata.json');
 
+                
                 expect(job.hasVideoLength()).toBeFalsy();
                 expect(job.hasOutput()).toBeFalsy();
                 expect(job.hasScript()).toBeFalsy();
                 expect(job.hasVideo()).toBeFalsy();
                 
                 var trackFnames = [
-                    "678d97754d976dc300659e383da2d93418bdcce4.mp3",
-                    "94b284a8b497078df74d05a60d129427526b9228.mp3",
-                    "5acda92bba24e111a4b16ccbe0985302a755fedf.mp3",
-                    "b4fbb1374001d7c51262a45c992586230dcf6c75.mp3",
-                    "c2e4f267d36d372cf1a1d8a7f43479d43d1cd063.mp3",
-                    "3101b6063061b820538f4675f80231abcb451946.mp3",
-                    "b5884dc590c5159a633186bfb8e2de7e94733558.mp3",
-                    "a32e8774e9d22404189c38a4bda97fbe2cd7b448.mp3",
-                    "6e69b533aaa3084e6dae7e9932cf5da85ed427a6.mp3",
-                    "752b567f55210732234ab7526022ba2fbc7b9ebc.mp3"
+                    "hashLine--line1.mp3",
+                    "hashLine--line2.mp3",
+                    "hashLine--line3.mp3",
                 ];
                 job.tracks.forEach(function(track, index) {
                     expect(track.fname).toEqual(trackFnames[index]);
+                    expect(track.fpath).toEqual('caches/line/' + trackFnames[index]);
+                    expect(track.metaname).toEqual(trackFnames[index].replace('.mp3', '.json'));
+                    expect(track.metapath).toEqual('caches/line/' + trackFnames[index].replace('.mp3', '.json'));
                 });
             });
-
+            
+            it('should throw an error if the template has no script', function() {
+                delete mockTemplate.script;
+                expect(function() {dub.createDubJob('12345', mockTemplate, config);}).toThrow();
+            });
+            
+            it('should create a working setStartTime method', function() {
+                job.setStartTime('ut');
+                expect(job.elapsedTimes['ut'].start instanceof Date).toBeTruthy();
+            });
+            
+            it('should create a working setEndTime method', function() {
+                spyOn(job, 'getElapsedTime').andReturn(1);
+                
+                job.elapsedTimes['ut'] = {};
+                job.elapsedTimes['ut'].start = new Date();
+                
+                job.setEndTime('ut');
+                expect(job.elapsedTimes['ut'].end instanceof Date).toBeTruthy();
+                expect(job.getElapsedTime).toHaveBeenCalledWith('ut');
+            });
+            
+            it('should create a working getElapsedTime method', function() {
+                job.elapsedTimes['ut'] = {};
+                job.elapsedTimes['ut'].start = new Date();
+                job.elapsedTimes['ut'].end = new Date(job.elapsedTimes['ut'].start.valueOf() + 3000);
+                
+                expect(job.getElapsedTime('ut')).toEqual(3);
+            });
         }); // end -- describe createDubJob method
+        
+        describe('handleRequest', function() { // TODO: fix this - seems like spying on module's functions doesn't affect internal versions of them
+            var getSrc, convertLines, collectMeta, vidLength, convertScript, applyScript, upload, a,
+                doneFlag = false;
+            
+            beforeEach(function() {
+                /*getSrc         = spyOn(dub, 'getSourceVideo').andReturn(q(job));
+                convertLines   = spyOn(dub, 'convertLinesToMP3').andReturn(q(job));
+                collectMeta    = spyOn(dub, 'collectLinesMetadata').andReturn(q(job));
+                vidLength      = spyOn(dub, 'getVideoLength').andReturn(q(job));
+                convertScript  = spyOn(dub, 'convertScriptToMP3').andReturn(q(job));
+                applyScript    = spyOn(dub, 'applyScriptToVideo').andReturn(q(job));
+                upload         = spyOn(dub, 'uploadToStorage').andReturn(q(job));*/
+            });
+            
+            it('should correctly call each function', function() {
+                /*runs(function() {
+                    dub.handleRequest(job, function(err, job) {
+                        expect(err).toBeNull();
+                        expect(setStartTime).toHaveBeenCalledWith('handleRequest');
+                        expect(getSrc).toHaveBeenCalledWith(job);
+                        expect(convertLines).toHaveBeenCalledWith(job);
+                        expect(collectMeta).toHaveBeenCalledWith(job);
+                        expect(vidLength).toHaveBeenCalledWith(job);
+                        expect(convertScript).toHaveBeenCalledWith(job);
+                        expect(applyScript).toHaveBeenCalledWith(job);
+                        expect(upload).toHaveBeenCalledWith(job);
+                        expect(setEndTime).toHaveBeenCalledWith('handleRequest');
+                        doneFlag = true;
+                    });
+                });
+                waitsFor(function() { return doneFlag; }, 3000);*/
+            });
+        });
+        
+        describe('getSourceVideo', function() {
+            var getObjSpy, doneFlag;
+            
+            beforeEach(function() {
+                getObjSpy = spyOn(s3util, 'getObject');
+                doneFlag = false;
+            });
+                        
+            it('should correctly upload a video', function() {
+                getObjSpy.andReturn(q());
+                spyOn(job, 'getS3SrcVideoParams').andReturn('s3SrcParams');
+                runs(function() {
+                    dub.getSourceVideo(job).done(function(retval) {
+                        expect(retval).toBe(job);
+                        expect(getObjSpy).toHaveBeenCalled();
+                        var spyArgs = getObjSpy.calls[0].args;
+                        expect(spyArgs[1]).toEqual('s3SrcParams');
+                        expect(spyArgs[2]).toEqual('caches/video/test.mp4');
+                        expect(setStartTime).toHaveBeenCalledWith('getSourceVideo');
+                        expect(setEndTime).toHaveBeenCalledWith('getSourceVideo');                        
+                        doneFlag = true;
+                    });
+                });
+                waitsFor(function() { return doneFlag; }, 3000);
+            });
+            
+            it('should handle errors from s3util', function() {
+                getObjSpy.andReturn(q.reject('Rejected!'));
+                runs(function() {
+                    dub.getSourceVideo(job).catch(function(error) {
+                        expect(error).toEqual({fnName: 'getSourceVideo', msg: 'Rejected!'});
+                        expect(setStartTime).toHaveBeenCalledWith('getSourceVideo');
+                        expect(setEndTime).toHaveBeenCalledWith('getSourceVideo');                        
+                        doneFlag = true;
+                    });
+                });
+                waitsFor(function() { return doneFlag; }, 3000);                
+            });
+            
+            it('should skip if the source or output already exists', function() {
+                hasVideo.andReturn(true);
+                runs(function() {
+                    dub.getSourceVideo(job).then(function(retval) {
+                        expect(retval).toBe(job);
+                        hasVideo.andReturn(false);
+                        hasOutput.andReturn(true);
+                        return retval;
+                    }).then(dub.getSourceVideo(job)).done(function(retval) {
+                        expect(retval).toBe(job);
+                        expect(getObjSpy).not.toHaveBeenCalled();
+                        expect(setStartTime).not.toHaveBeenCalled();
+                        doneFlag = true;
+                    });
+                });
+                waitsFor(function() { return doneFlag; }, 3000);
+            });
+                        
+            it('should reject with an error if aws is not enabled', function() {
+                spyOn(job, 'enableAws').andReturn(false);
+                runs(function() {
+                    dub.getSourceVideo(job).catch(function(error) {
+                        expect(error).toBeDefined();
+                        expect(getObjSpy).not.toHaveBeenCalled();
+                        expect(setStartTime).toHaveBeenCalledWith('getSourceVideo');
+                        expect(setEndTime).toHaveBeenCalledWith('getSourceVideo');
+                        doneFlag = true;
+                    });
+                });
+                waitsFor(function() { return doneFlag; }, 3000);                
+            });
+        });
+        
+        describe('convertLinesToMP3', function() {
+        
+        });
 
-    });*/ // end -- describe job interface*/
+        describe('collectLinesMetadata', function() {
+        
+        });
+
+        describe('getVideoLength', function() {
+        
+        });
+
+        describe('convertScriptToMP3', function() {
+        
+        });
+
+        describe('applyScriptToVideo', function() {
+        
+        });
+        
+        describe('uploadToStorage', function() {
+        
+        });
+
+    }); // end -- describe job interface*/
 
 }); // end -- describe dub
 
