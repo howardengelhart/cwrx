@@ -2,7 +2,7 @@
 
 var __ut__      = (global.jasmine !== undefined) ? true : false;
 
-process.env['maint'] = true;
+process.env.maint = true;
 
 var include     = require('../lib/inject').require,
     fs          = include('fs-extra'),

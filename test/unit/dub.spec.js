@@ -4,28 +4,23 @@ var include     = require('../../lib/inject').require,
     q           = include('q'),
     sanitize    = include('../test/sanitize'),
     cwrxConfig  = include('../lib/config'),
-    s3util      = include('../lib/s3util'),
-    vocalware   = include('../lib/vocalware');
+    uuid        = include('../lib/uuid'),
+    ffmpeg      = include('../lib/ffmpeg'),
+    s3util      = include('../lib/s3util');
 
 describe('dub',function(){
-    var dub, traceSpy, errorSpy, warnSpy, infoSpy, fatalSpy, logSpy, mockLogger, mockAws;
+    var dub, mockLog, mockLogger, mockAws, mockVware;
     
     beforeEach(function() {
-        traceSpy    = jasmine.createSpy('log_trace');
-        errorSpy    = jasmine.createSpy('log_error');
-        warnSpy     = jasmine.createSpy('log_warn');
-        infoSpy     = jasmine.createSpy('log_info');
-        fatalSpy    = jasmine.createSpy('log_fatal');
-        logSpy      = jasmine.createSpy('log_log');
         headObjSpy   = jasmine.createSpy('s3_headObj');
         
-        var mockLog = {
-            trace : traceSpy,
-            error : errorSpy,
-            warn  : warnSpy,
-            info  : infoSpy,
-            fatal : fatalSpy,
-            log   : logSpy        
+        mockLog = {
+            trace : jasmine.createSpy('log_trace'),
+            error : jasmine.createSpy('log_error'),
+            warn  : jasmine.createSpy('log_warn'),
+            info  : jasmine.createSpy('log_info'),
+            fatal : jasmine.createSpy('log_fatal'),
+            log   : jasmine.createSpy('log_log')
         };
 
         mockLogger = {
@@ -42,9 +37,18 @@ describe('dub',function(){
                 }
             }
         };
-    
+        mockVware = {
+            createAuthToken: jasmine.createSpy('vw_create_auth_token'),
+            createRequest: jasmine.createSpy('vw_create_request'),
+            textToSpeech: jasmine.createSpy('vw_tts'),
+            voices: {
+                'Allison': 'fakeVoiceAllison'
+            }
+        };
+
         dub = sanitize(['../bin/dub'])
-                .andConfigure([['../lib/logger', mockLogger], ['aws-sdk', mockAws]])
+                .andConfigure([['../lib/logger', mockLogger], ['aws-sdk', mockAws],
+                               ['../lib/vocalware', mockVware]])
                 .andRequire();
     });
    
@@ -163,7 +167,8 @@ describe('dub',function(){
     
     describe('job:', function() {
         var configObject, config, mockTemplate, job, setStartTime, setEndTime,
-            hasVideo, hasOutput, hasLength, hasScript, hasLines;
+            hasVideo, hasOutput, hasLength, hasScript, hasLines,
+            doneFlag = false;
         
         beforeEach(function() {
             configObject = {
@@ -191,6 +196,9 @@ describe('dub',function(){
                     output  : 'caches/output/'
                 },
                 tts : {
+                    voice       : "Allison",
+                    effect      : "R",
+                    level       : "3",
                     auth        : 'fake.tts.json',
                     bitrate     : '48k',
                     frequency   : 22050,
@@ -209,7 +217,7 @@ describe('dub',function(){
                     { "ts" : "3.3", "line" : "line3"},
                 ]
             };
-            spyOn(include('../lib/uuid'), 'hashText').andCallFake(function(txt) {
+            spyOn(uuid, 'hashText').andCallFake(function(txt) {
                 if (txt.match(/^line\d/)) {
                     return 'hashLine--' + txt.match(/^line\d/);
                 } else if (txt.match(/test\.mp4/)) {
@@ -218,7 +226,7 @@ describe('dub',function(){
                     return 'hashScript';
                 }
             });
-            spyOn(vocalware, 'createAuthToken').andReturn('fakeAuthToken');
+            mockVware.createAuthToken.andReturn('fakeAuthToken');
             job = dub.createDubJob('123456', mockTemplate, config);
             
             // track these calls and easily manipulate them later, but default is to call through
@@ -229,6 +237,8 @@ describe('dub',function(){
             hasLength = spyOn(job, 'hasVideoLength').andCallThrough();
             hasScript = spyOn(job, 'hasScript').andCallThrough();
             hasLines = spyOn(job, 'hasLines').andCallThrough();
+            
+            doneFlag = false; // used for all async functions
         });
 
         describe('createDubJob method', function() { //TODO: test more stuff?
@@ -311,8 +321,7 @@ describe('dub',function(){
         }); // end -- describe createDubJob method
         
         describe('handleRequest', function() { // TODO: fix this - seems like spying on module's functions doesn't affect internal versions of them
-            var getSrc, convertLines, collectMeta, vidLength, convertScript, applyScript, upload, a,
-                doneFlag = false;
+            var getSrc, convertLines, collectMeta, vidLength, convertScript, applyScript, upload, a;
             
             beforeEach(function() {
                 /*getSrc         = spyOn(dub, 'getSourceVideo').andReturn(q(job));
@@ -345,42 +354,10 @@ describe('dub',function(){
         });
         
         describe('getSourceVideo', function() {
-            var getObjSpy, doneFlag;
+            var getObjSpy;
             
             beforeEach(function() {
                 getObjSpy = spyOn(s3util, 'getObject');
-                doneFlag = false;
-            });
-                        
-            it('should correctly upload a video', function() {
-                getObjSpy.andReturn(q());
-                spyOn(job, 'getS3SrcVideoParams').andReturn('s3SrcParams');
-                runs(function() {
-                    dub.getSourceVideo(job).done(function(retval) {
-                        expect(retval).toBe(job);
-                        expect(getObjSpy).toHaveBeenCalled();
-                        var spyArgs = getObjSpy.calls[0].args;
-                        expect(spyArgs[1]).toEqual('s3SrcParams');
-                        expect(spyArgs[2]).toEqual('caches/video/test.mp4');
-                        expect(setStartTime).toHaveBeenCalledWith('getSourceVideo');
-                        expect(setEndTime).toHaveBeenCalledWith('getSourceVideo');                        
-                        doneFlag = true;
-                    });
-                });
-                waitsFor(function() { return doneFlag; }, 3000);
-            });
-            
-            it('should handle errors from s3util', function() {
-                getObjSpy.andReturn(q.reject('Rejected!'));
-                runs(function() {
-                    dub.getSourceVideo(job).catch(function(error) {
-                        expect(error).toEqual({fnName: 'getSourceVideo', msg: 'Rejected!'});
-                        expect(setStartTime).toHaveBeenCalledWith('getSourceVideo');
-                        expect(setEndTime).toHaveBeenCalledWith('getSourceVideo');                        
-                        doneFlag = true;
-                    });
-                });
-                waitsFor(function() { return doneFlag; }, 3000);                
             });
             
             it('should skip if the source or output already exists', function() {
@@ -405,7 +382,7 @@ describe('dub',function(){
                 spyOn(job, 'enableAws').andReturn(false);
                 runs(function() {
                     dub.getSourceVideo(job).catch(function(error) {
-                        expect(error).toBeDefined();
+                        expect(error.fnName).toBe('getSourceVideo');
                         expect(getObjSpy).not.toHaveBeenCalled();
                         expect(setStartTime).toHaveBeenCalledWith('getSourceVideo');
                         expect(setEndTime).toHaveBeenCalledWith('getSourceVideo');
@@ -414,18 +391,256 @@ describe('dub',function(){
                 });
                 waitsFor(function() { return doneFlag; }, 3000);                
             });
+            
+            it('should correctly upload a video', function() {
+                getObjSpy.andReturn(q());
+                spyOn(job, 'getS3SrcVideoParams').andReturn('s3SrcParams');
+                runs(function() {
+                    dub.getSourceVideo(job).done(function(retval) {
+                        expect(retval).toBe(job);
+                        expect(getObjSpy).toHaveBeenCalled();
+                        var spyArgs = getObjSpy.calls[0].args;
+                        expect(spyArgs[1]).toEqual('s3SrcParams');
+                        expect(spyArgs[2]).toEqual('caches/video/test.mp4');
+                        expect(setStartTime).toHaveBeenCalledWith('getSourceVideo');
+                        expect(setEndTime).toHaveBeenCalledWith('getSourceVideo');                        
+                        doneFlag = true;
+                    });
+                });
+                waitsFor(function() { return doneFlag; }, 3000);
+            });
+            
+            it('should handle errors from s3util', function() {
+                getObjSpy.andReturn(q.reject('Rejected!'));
+                runs(function() {
+                    dub.getSourceVideo(job).catch(function(error) {
+                        expect(error.fnName).toBe('getSourceVideo');
+                        expect(setStartTime).toHaveBeenCalledWith('getSourceVideo');
+                        expect(setEndTime).toHaveBeenCalledWith('getSourceVideo');                        
+                        doneFlag = true;
+                    });
+                });
+                waitsFor(function() { return doneFlag; }, 3000);                
+            });
         });
         
         describe('convertLinesToMP3', function() {
-        
+            var mockSay;
+            
+            beforeEach(function() {
+                mockSay = jasmine.createSpy('vw_rqs_say');
+                mockVware.createRequest.andReturn({ say: mockSay });            
+            });
+            
+            it('should skip if the output, script, or lines already exist', function() {
+                hasOutput.andReturn(true);
+                runs(function() {
+                    dub.convertLinesToMP3(job).then(function(retval) {
+                        expect(retval).toBe(job);
+                        hasOutput.andReturn(false);
+                        hasLines.andReturn(true);
+                        return retval;
+                    }).then(dub.convertLinesToMP3(job)).then(function(retval) {
+                        expect(retval).toBe(job);
+                        hasLines.andReturn(false);
+                        hasScript.andReturn(true);
+                        return retval;
+                    }).then(dub.convertLinesToMP3(job)).done(function(retval) {
+                        expect(mockVware.createRequest).not.toHaveBeenCalled();
+                        expect(setStartTime).not.toHaveBeenCalled();
+                        doneFlag = true;
+                    });
+                });
+                waitsFor(function() { return doneFlag; }, 3000);
+            });
+            
+            it('should convert each line to speech', function() {
+                mockVware.textToSpeech.andCallFake(function(rqs, fpath, cb) {
+                    cb(null, rqs, null);
+                });
+                runs(function() {
+                    dub.convertLinesToMP3(job).done(function(retval) {
+                        expect(retval).toBe(job);
+                        for (var i = 0; i < mockTemplate.script.length; i++) {
+                            expect(mockVware.createRequest.calls[i].args[0]).toEqual({authToken: 'fakeAuthToken'});
+                            expect(mockSay.calls[i].args[0]).toBe('line' + (i + 1));
+                            expect(mockSay.calls[i].args[1]).toBe('fakeVoiceAllison');
+                            
+                            var ttsArgs = mockVware.textToSpeech.calls[i].args;
+                            expect(ttsArgs[1]).toBe("caches/line/hashLine--line" + (i + 1) + ".mp3");
+                            expect(ttsArgs[0].fxType).toBe('R');
+                            expect(ttsArgs[0].fxLevel).toBe('3');
+                        }
+                        expect(setStartTime).toHaveBeenCalledWith('convertLinesToMP3');
+                        expect(setEndTime).toHaveBeenCalledWith('convertLinesToMP3');
+                        doneFlag = true;
+                    });
+                });
+                waitsFor(function() { return doneFlag; }, 3000);
+            });
+
+            it('should retry once per track for a failed conversion', function() {
+                var failed = {};
+                mockVware.textToSpeech.andCallFake(function(rqs, fpath, cb) {
+                    if (!failed[fpath]) {
+                        failed[fpath] = true;
+                        cb('Failing this one', rqs, null);
+                    } else {
+                        cb(null, rqs, null);
+                    }
+                });
+                runs(function() {
+                    dub.convertLinesToMP3(job).done(function(retval) {
+                        expect(retval).toBe(job);
+                        expect(mockLog.error.calls.length).toBe(3);
+                        expect(setStartTime).toHaveBeenCalledWith('convertLinesToMP3');
+                        expect(setEndTime).toHaveBeenCalledWith('convertLinesToMP3');
+                        doneFlag = true;
+                    });
+                });
+                waitsFor(function() { return doneFlag; }, 3000);
+            });
+            
+            it('should fail if even one track fails to convert', function() {
+                mockVware.textToSpeech.andCallFake(function(rqs, fpath, cb) {
+                    if (fpath.match(/line2/)) {
+                        cb('Failing this one', rqs, null);
+                    } else {
+                        cb(null, rqs, null);
+                    }
+                });
+                runs(function() {
+                    dub.convertLinesToMP3(job).catch(function(error) {
+                        expect(error.fnName).toBe('convertLinesToMP3');
+                        expect(mockLog.error.calls.length).toBe(2);
+                        expect(setStartTime).toHaveBeenCalledWith('convertLinesToMP3');
+                        expect(setEndTime).toHaveBeenCalledWith('convertLinesToMP3');
+                        doneFlag = true;
+                    });
+                });
+                waitsFor(function() { return doneFlag; }, 3000);
+            });
         });
 
-        describe('collectLinesMetadata', function() {
-        
+        describe('collectLinesMetadata', function() { //TODO: finish
+            
+            it('should skip if the script or output already exists', function() {
+                hasScript.andReturn(true);
+                runs(function() {
+                    dub.collectLinesMetadata(job).then(function(retval) {
+                        expect(retval).toBe(job);
+                        hasScript.andReturn(false);
+                        hasOutput.andReturn(true);
+                        return retval;
+                    }).then(dub.collectLinesMetadata(job)).done(function(retval) {
+                        expect(retval).toBe(job);
+                        // expect(getObjSpy).not.toHaveBeenCalled(); TODO: replace with something
+                        expect(setStartTime).not.toHaveBeenCalled();
+                        doneFlag = true;
+                    });
+                });
+                waitsFor(function() { return doneFlag; }, 3000);
+            });
         });
 
         describe('getVideoLength', function() {
-        
+            var probeSpy, writeFileSpy;
+            
+            beforeEach(function() {
+                probeSpy = spyOn(ffmpeg, 'probe');
+                writeFileSpy = spyOn(fs, 'writeFileSync');
+            });
+            
+            it('should skip if the output, script, or vid length already exists', function() {
+                hasOutput.andReturn(true);
+                runs(function() {
+                    dub.convertLinesToMP3(job).then(function(retval) {
+                        expect(retval).toBe(job);
+                        hasOutput.andReturn(false);
+                        hasLength.andReturn(true);
+                        return retval;
+                    }).then(dub.convertLinesToMP3(job)).then(function(retval) {
+                        expect(retval).toBe(job);
+                        hasLength.andReturn(false);
+                        hasScript.andReturn(true);
+                        return retval;
+                    }).then(dub.convertLinesToMP3(job)).done(function(retval) {
+                        expect(probeSpy).not.toHaveBeenCalled();
+                        expect(setStartTime).not.toHaveBeenCalled();
+                        doneFlag = true;
+                    });
+                });
+                waitsFor(function() { return doneFlag; }, 3000);
+            });
+            
+            it('should probe for video metadata and write it to a file', function() {
+                probeSpy.andCallFake(function(fpath, cb) {
+                    cb(null, {duration: 3.5});
+                });
+                runs(function() {
+                    dub.getVideoLength(job).done(function(retval) {
+                        expect(retval).toBe(job);
+                        expect(probeSpy.calls[0].args[0]).toBe('caches/video/test.mp4');
+                        var writeFileArgs = writeFileSpy.calls[0].args;
+                        expect(writeFileArgs[0]).toBe('caches/video/test_metadata.json');
+                        expect(writeFileArgs[1]).toEqual(JSON.stringify({duration: 3.5}));
+                        expect(setStartTime).toHaveBeenCalledWith('getVideoLength');
+                        expect(setEndTime).toHaveBeenCalledWith('getVideoLength');
+                        doneFlag = true;
+                    });
+                });
+                waitsFor(function() { return doneFlag; }, 3000);
+            });
+            
+            it('should handle errors from ffmpeg', function() {
+                probeSpy.andCallFake(function(fpath, cb) {
+                    cb('Rejected!', null);
+                });
+                runs(function() {
+                    dub.getVideoLength(job).catch(function(error) {
+                        expect(error.fnName).toBe('getVideoLength');
+                        expect(writeFileSpy).not.toHaveBeenCalled();
+                        expect(setStartTime).toHaveBeenCalledWith('getVideoLength');
+                        expect(setEndTime).toHaveBeenCalledWith('getVideoLength');
+                        doneFlag = true;
+                    });
+                });
+                waitsFor(function() { return doneFlag; }, 3000);
+            });
+            
+            it('should reject if probe returns no video duration', function() {
+                probeSpy.andCallFake(function(fpath, cb) {
+                    cb(null, {foo: 'bar'});
+                });
+                runs(function() {
+                    dub.getVideoLength(job).catch(function(error) {
+                        expect(error.fnName).toBe('getVideoLength');
+                        expect(writeFileSpy).not.toHaveBeenCalled();
+                        expect(setStartTime).toHaveBeenCalledWith('getVideoLength');
+                        expect(setEndTime).toHaveBeenCalledWith('getVideoLength');
+                        doneFlag = true;
+                    });
+                });
+                waitsFor(function() { return doneFlag; }, 3000);
+            });
+            
+            it('should continue if there are errors from writing info to a file', function() {
+                probeSpy.andCallFake(function(fpath, cb) {
+                    cb(null, {duration: 3.5});
+                });
+                writeFileSpy.andThrow('Nope!');
+                runs(function() {
+                    dub.getVideoLength(job).done(function(retval) {
+                        expect(retval).toBe(job);
+                        expect(writeFileSpy).toHaveBeenCalled();
+                        expect(mockLog.warn).toHaveBeenCalled();
+                        expect(setStartTime).toHaveBeenCalledWith('getVideoLength');
+                        expect(setEndTime).toHaveBeenCalledWith('getVideoLength');
+                        doneFlag = true;
+                    });
+                });
+                waitsFor(function() { return doneFlag; }, 3000);
+            });
         });
 
         describe('convertScriptToMP3', function() {

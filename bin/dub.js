@@ -2,7 +2,7 @@
 
 var __ut__      = (global.jasmine !== undefined) ? true : false,
 
-    __maint__   = process.env['maint'];
+    __maint__   = process.env.maint;
 
 var include     = require('../lib/inject').require,
     fs          = include('fs-extra'),
@@ -611,7 +611,7 @@ function convertLinesToMP3(job){
     log.info("[%1] Starting %2",job.id,fnName);
     job.setStartTime(fnName);
 
-    var processTrack = q.fbind(function(track){
+    var processTrack = function(track){
         var deferred = q.defer();
         if (!fs.existsSync(track.fpath)){
             var rqs = vocalware.createRequest({authToken : job.ttsAuth}), voice;
@@ -640,16 +640,16 @@ function convertLinesToMP3(job){
             deferred.resolve();
         }
         return deferred.promise;
-    });
+    };
 
     q.allSettled(job.tracks.map(function(track) {
         var deferred2 = q.defer();
-        processTrack(track).then(
+        q.fcall(processTrack, track).then(
             function() { deferred2.resolve(); },
             function(error) {
                 log.error("[%1] Failed once for %2 with error = %3",job.id,track.fname,error);
                 log.trace("[%1] Retrying...", job.id);
-                processTrack(track).then(
+                q.fcall(processTrack, track).then(
                     function() { deferred2.resolve(); },
                     function(error) { 
                         log.error("[%1] Failed again for %2",job.id, track.fname); 
@@ -767,7 +767,7 @@ function getVideoLength(job){
 
     ffmpeg.probe(job.videoPath,function(err,info){
         if (err) {
-            deferred.reject({"fnName": fnName, "msg": error});
+            deferred.reject({"fnName": fnName, "msg": err});
             job.setEndTime(fnName);
             return deferred.promise;
         }
@@ -913,7 +913,7 @@ if (__ut__) {
         convertScriptToMP3   : convertScriptToMP3,
         applyScriptToVideo   : applyScriptToVideo,
         uploadToStorage      : uploadToStorage
-    }
+    };
 }
 
 module.exports.createDubJob = createDubJob;
