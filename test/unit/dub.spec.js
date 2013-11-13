@@ -1,4 +1,4 @@
-var include     = require('../lib/inject').require,
+var include     = require('../../lib/inject').require,
     path        = include('path'),
     fs          = include('fs-extra'),
     q           = include('q'),
@@ -65,21 +65,21 @@ describe('dub',function(){
             readFileSpy.andReturn('ut123');
             
             expect(dub.getVersion()).toEqual('ut123');
-            expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../bin/dub.version'));
-            expect(readFileSpy).toHaveBeenCalledWith(path.join(__dirname, '../bin/dub.version'));
+            expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../../bin/dub.version'));
+            expect(readFileSpy).toHaveBeenCalledWith(path.join(__dirname, '../../bin/dub.version'));
         });
         
         it('should return "unknown" if it fails to read the version file', function() {
             existsSpy.andReturn(false);
             expect(dub.getVersion()).toEqual('unknown');
-            expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../bin/dub.version'));
+            expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../../bin/dub.version'));
             expect(readFileSpy).not.toHaveBeenCalled();
             
             existsSpy.andReturn(true);
             readFileSpy.andThrow('Exception!');
             expect(dub.getVersion()).toEqual('unknown');
-            expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../bin/dub.version'));
-            expect(readFileSpy).toHaveBeenCalledWith(path.join(__dirname, '../bin/dub.version'));
+            expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../../bin/dub.version'));
+            expect(readFileSpy).toHaveBeenCalledWith(path.join(__dirname, '../../bin/dub.version'));
         });
     });
     

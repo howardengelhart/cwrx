@@ -1,7 +1,7 @@
 describe('formatter',function(){
     var formatter;
     beforeEach(function() {
-        formatter = require('../lib/format');
+        formatter = require('../../lib/format');
     });
     
     it('should exist', function(){

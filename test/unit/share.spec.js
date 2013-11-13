@@ -1,4 +1,4 @@
-var include     = require('../lib/inject').require,
+var include     = require('../../lib/inject').require,
     path        = include('path'),
     fs          = include('fs-extra'),
     sanitize    = include('../test/sanitize');
@@ -62,21 +62,21 @@ describe('share', function() {
             readFileSpy.andReturn('ut123');
             
             expect(share.getVersion()).toEqual('ut123');
-            expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../bin/share.version'));
-            expect(readFileSpy).toHaveBeenCalledWith(path.join(__dirname, '../bin/share.version'));
+            expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../../bin/share.version'));
+            expect(readFileSpy).toHaveBeenCalledWith(path.join(__dirname, '../../bin/share.version'));
         });
         
         it('should return "unknown" if it fails to read the version file', function() {
             existsSpy.andReturn(false);
             expect(share.getVersion()).toEqual('unknown');
-            expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../bin/share.version'));
+            expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../../bin/share.version'));
             expect(readFileSpy).not.toHaveBeenCalled();
             
             existsSpy.andReturn(true);
             readFileSpy.andThrow('Exception!');
             expect(share.getVersion()).toEqual('unknown');
-            expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../bin/share.version'));
-            expect(readFileSpy).toHaveBeenCalledWith(path.join(__dirname, '../bin/share.version'));
+            expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../../bin/share.version'));
+            expect(readFileSpy).toHaveBeenCalledWith(path.join(__dirname, '../../bin/share.version'));
         });
     });
 

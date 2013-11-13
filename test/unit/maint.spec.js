@@ -1,4 +1,4 @@
-var include     = require('../lib/inject').require,
+var include     = require('../../lib/inject').require,
     path        = include('path'),
     fs          = include('fs-extra'),
     q           = include('q'),
@@ -57,21 +57,21 @@ describe('maint', function() {
             readFileSpy.andReturn('ut123');
             
             expect(maint.getVersion()).toEqual('ut123');
-            expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../bin/maint.version'));
-            expect(readFileSpy).toHaveBeenCalledWith(path.join(__dirname, '../bin/maint.version'));
+            expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../../bin/maint.version'));
+            expect(readFileSpy).toHaveBeenCalledWith(path.join(__dirname, '../../bin/maint.version'));
         });
         
         it('should return "unknown" if it fails to read the version file', function() {
             existsSpy.andReturn(false);
             expect(maint.getVersion()).toEqual('unknown');
-            expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../bin/maint.version'));
+            expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../../bin/maint.version'));
             expect(readFileSpy).not.toHaveBeenCalled();
             
             existsSpy.andReturn(true);
             readFileSpy.andThrow('Exception!');
             expect(maint.getVersion()).toEqual('unknown');
-            expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../bin/maint.version'));
-            expect(readFileSpy).toHaveBeenCalledWith(path.join(__dirname, '../bin/maint.version'));
+            expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../../bin/maint.version'));
+            expect(readFileSpy).toHaveBeenCalledWith(path.join(__dirname, '../../bin/maint.version'));
         });
     });
 

@@ -4,7 +4,7 @@ describe('parser.parseNVPStr test suite',function(){
         testStr1 = 'abc=1;def=2;ghi=3';
     
     beforeEach(function(){
-        parser = require('../lib/parser');
+        parser = require('../../lib/parser');
     });
 
     it('parser.parseNVPStr should exist',function(){

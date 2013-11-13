@@ -36,9 +36,8 @@ module.exports = function (grunt) {
         settings   : initProps,
 
         jasmine_node: {
-            match   : '(core|av).*',
             matchAll : true,
-            projectRoot   : './test',
+            projectRoot   : './test/unit/',
             jUnit: {
                 report: true,
                 savePath : __dirname + '/reports/',

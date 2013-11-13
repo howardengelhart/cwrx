@@ -1,14 +1,13 @@
 var path      = require('path'),
     fs        = require('fs'),
     crypto    = require('crypto'),
-    vocalWare = require('../lib/vocalware'),
+    vocalWare = require('../../lib/vocalware'),
     tokenData = {
                     apiId       : '9999999',
                     accountId   : '9999999',
                     secret      : '99999999999999999999999999999999'
-    };
-
-if (!process.env['vwauth']) throw new Error("Need to provide path to vw auth info with '--config vwauth /path/to/.tts.json'");
+    },
+    authLocation = process.env['vwauth'] || path.join(process.env.HOME, '.tts.json');
 
 describe('vocalware authToken',function(){
     var files = [];
@@ -193,7 +192,7 @@ describe('vocalware textToSpeech',function(){
     });
 
     it('should convert text to speech with say',function(done){
-        var token = vocalWare.createAuthToken(process.env['vwauth']),
+        var token = vocalWare.createAuthToken(authLocation),
             rqs = vocalWare.createRequest({ authToken   : token }),
             outputFile = path.join(__dirname,'speech.mp3');
         
