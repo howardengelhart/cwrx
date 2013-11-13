@@ -23,7 +23,7 @@ var include     = require('../lib/inject').require,
     assemble    = include('../lib/assemble'),
     s3util      = include('../lib/s3util'),
     
-    dub = {},
+    dub = {}, // for exporting functions to unit tests
 
     // Attempt a graceful exit
     exitApp  = function(resultCode,msg){
@@ -71,127 +71,6 @@ dub.defaultConfiguration = {
     }
 };
 
-
-if (!__ut__ && !__maint__){
-
-    try {
-        main(function(rc,msg){
-            exitApp(rc,msg);
-        });
-    } catch(e) {
-        exitApp(1,e.stack);
-    }
-}
-
-function main(done){
-    var program  = include('commander'),
-        config = {},
-        job, log, userCfg;
-
-    program
-        .option('-c, --config [CFGFILE]','Specify config file')
-        .option('-d, --daemon','Run as a daemon (requires -s).')
-        .option('-g, --gid [GID]','Run as group (id or name).')
-        .option('-l, --loglevel [LEVEL]', 'Specify log level (TRACE|INFO|WARN|ERROR|FATAL)' )
-        .option('-k, --kids [KIDS]','Number of kids to spawn.', 0)
-        .option('-p, --port [PORT]','Listent on port (requires -s) [3000].', 3000)
-        .option('-s, --server','Run as a server.')
-        .option('-u, --uid [UID]','Run as user (id or name).')
-        .option('--enable-aws','Enable aws access.')
-        .option('--show-config','Display configuration and exit.')
-        .parse(process.argv);
-
-    if (program.gid){
-        console.log('\nChange process to group: ' + program.gid);
-        process.setgid(program.gid);
-    }
-   
-    if (program.uid){
-        console.log('\nChange process to user: ' + program.uid);
-        process.setuid(program.uid);
-    }
-
-    config = dub.createConfiguration(program);
-
-    if (program.showConfig){
-        console.log(JSON.stringify(config,null,3));
-        process.exit(0);
-    }
-
-    config.ensurePaths();
-
-    log = logger.getLog();
-
-    if (program.loglevel){
-        log.setLevel(program.loglevel);
-    }
-
-    if (!program.server){
-        // Running as a simple command line task, do the work and exit
-        if (!program.args[0]){
-            throw new SyntaxError('Expected a template file.');
-        }
-
-        job = dub.createDubJob(uuid.createUuid().substr(0,10),loadTemplateFromFile(program.args[0]), config);
-        
-        handleRequest(job,function(err, finishedJob){
-            if (err) {
-                return done(1,err.message);
-            } else {
-                return done(0,'Done');
-            }
-        });
-
-        return;
-    }
-
-    // Ok, so we're a server, lets do some servery things..
-    process.on('uncaughtException', function(err) {
-        try{
-            log.error('uncaught: ' + err.message + "\n" + err.stack);
-        }catch(e){
-            console.error(e);
-        }
-        return done(2);
-    });
-
-    process.on('SIGINT',function(){
-        log.info('Received SIGINT, exitting app.');
-        return done(1,'Exit');
-    });
-
-    process.on('SIGTERM',function(){
-        log.info('Received TERM, exitting app.');
-        if (program.daemon){
-            daemon.removePidFile(config.cacheAddress('dub.pid', 'run'));
-        }
-
-        if (cluster.isMaster){
-            cluster.disconnect(function(){
-                return done(0,'Exit');
-            });
-            return;
-        }
-        return done(0,'Exit');
-    });
-
-    
-    log.info('Running version ' + getVersion());
-    
-    // Daemonize if so desired
-    if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)) {
-        daemon.daemonize(config.cacheAddress('dub.pid', 'run'), done);
-    }
-
-    // Now that we either are or are not a daemon, its time to 
-    // setup clustering if running as a cluster.
-    if ((cluster.isMaster) && (program.kids > 0)) {
-        clusterMain(config,program,done);
-    } else {
-        workerMain(config,program,done);
-    }
-}
-
 dub.getVersion = function() {
     var fpath = path.join(__dirname, 'dub.version'),
         log = logger.getLog();
@@ -206,144 +85,6 @@ dub.getVersion = function() {
     log.warn('No version file found');
     return 'unknown';
 };
-
-function clusterMain(config,program,done) {
-    var log = logger.getLog();
-    log.info('Running as cluster master');
-
-    cluster.on('exit', function(worker, code, signal) {
-        if (worker.suicide === true){
-            log.error('Worker ' + worker.process.pid + ' died peacefully');
-        } else {
-            log.error('Worker ' + worker.process.pid + ' died, restarting...');
-            cluster.fork();
-        }
-    });
-
-    cluster.on('fork', function(worker){
-        log.info('Worker [' + worker.process.pid + '] has forked.');
-    });
-    
-    cluster.on('online', function(worker){
-        log.info('Worker [' + worker.process.pid + '] is now online.');
-    });
-    
-    cluster.on('listening', function(worker,address){
-        log.info('Worker [' + worker.process.pid + '] is now listening on ' + 
-            address.address + ':' + address.port);
-    });
-    
-    cluster.setupMaster( { silent : true });
-    
-    log.info("Will spawn " + program.kids + " kids.");
-    for (var i = 0; i < program.kids; i++) {
-        cluster.fork();
-    }
-
-    log.info("Spawning done, hanging around my empty nest.");
-}
-
-function workerMain(config,program,done){
-    var app = express(),
-        log = logger.getLog();
-
-    log.info('Running as cluster worker, proceed with setting up web server.');
-    app.use(express.bodyParser());
-
-    app.all('*', function(req, res, next) {
-        res.header("Access-Control-Allow-Origin", "*");
-        res.header("Access-Control-Allow-Headers", 
-                   "Origin, X-Requested-With, Content-Type, Accept");
-
-        if (req.method.toLowerCase() === "options") {
-            res.send(200);
-        } else {
-            next();
-        }
-    });
-
-    app.all('*',function(req, res, next){
-        req.uuid = uuid.createUuid().substr(0,10);
-        log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
-            req.method,req.url,req.httpVersion);
-        next();
-    });
-
-    app.post('/dub/create', function(req, res, next){
-        var job;
-        try {
-            job = dub.createDubJob(req.uuid, req.body, config);
-        }catch (e){
-            log.error('[%1] Create Job Error: %2', req.uuid, e.message);
-            res.send(500,{
-                error  : 'Unable to process request.',
-                detail : e.message
-            });
-            return;
-        }
-        dub.handleRequest(job,function(err){
-            if (err){
-                log.error('[%1] Handle Request Error: %2',req.uuid,err.message);
-                res.send(400,{
-                    error  : 'Unable to complete request.',
-                    detail : err.message
-                });
-                return;
-            }
-            res.send(200, {
-                output : job.outputUri,
-                md5    : job.md5
-            });
-        });
-    });
-
-    app.listen(program.port);
-    log.info('Dub server is listening on port: ' + program.port);
-}
-
-dub.handleRequest = function(job, done){
-    var log = logger.getLog(),
-        fnName = 'handleRequest';
-    job.setStartTime(fnName);
-    
-    // Each function returns a promise for job and checks job to see if it needs to be run.
-    dub.getSourceVideo(job)
-    .then(dub.convertLinesToMP3)
-    .then(dub.collectLinesMetadata)
-    .then(dub.getVideoLength)
-    .then(dub.convertScriptToMP3)
-    .then(dub.applyScriptToVideo)
-    .then(dub.uploadToStorage)
-    .then(
-        function() {
-            log.trace("All tasks succeeded!");
-            job.setEndTime(fnName);
-            done(null, job);
-        }, function(error) {
-            job.setEndTime(fnName);
-            if (error.fnName && error.msg) 
-                done({message : 'Died on [' + error.fnName + ']: ' + error.msg}, job);
-            else
-                done({message : 'Died: ' + error}, job);
-        }
-    );
-};
-
-function loadTemplateFromFile(tmplFile){
-    var tmplobj;
- 
-    try {
-        tmplObj = fs.readJSONSync(tmplFile);
-    } catch(e) {
-        throw new Error('Error parsing template: ' + e.message);
-    }
-
-    if ((!(tmplObj.script instanceof Array)) || (!tmplObj.script.length)){
-        throw new SyntaxError('Template is missing script section');
-    }
-
-    return tmplObj;
-}
 
 dub.createConfiguration = function(cmdLine) {
     var cfgObject = cwrxConfig.createConfigObject(cmdLine.config, dub.defaultConfiguration),
@@ -389,6 +130,22 @@ dub.createConfiguration = function(cmdLine) {
     
     return cfgObject;
 };
+
+function loadTemplateFromFile(tmplFile){
+    var tmplobj;
+ 
+    try {
+        tmplObj = fs.readJSONSync(tmplFile);
+    } catch(e) {
+        throw new Error('Error parsing template: ' + e.message);
+    }
+
+    if ((!(tmplObj.script instanceof Array)) || (!tmplObj.script.length)){
+        throw new SyntaxError('Template is missing script section');
+    }
+
+    return tmplObj;
+}
 
 dub.createDubJob = function(id, template, config){
     var log = logger.getLog(),
@@ -901,15 +658,247 @@ dub.uploadToStorage = function(job){
     return deferred.promise;
 };
 
-var a = function() {
-    console.log('a');
-    return 1;
+dub.handleRequest = function(job, done){
+    var log = logger.getLog(),
+        fnName = 'handleRequest';
+    job.setStartTime(fnName);
+    
+    // Each function returns a promise for job and checks job to see if it needs to be run.
+    dub.getSourceVideo(job)
+    .then(dub.convertLinesToMP3)
+    .then(dub.collectLinesMetadata)
+    .then(dub.getVideoLength)
+    .then(dub.convertScriptToMP3)
+    .then(dub.applyScriptToVideo)
+    .then(dub.uploadToStorage)
+    .then(
+        function() {
+            log.trace("All tasks succeeded!");
+            job.setEndTime(fnName);
+            done(null, job);
+        }, function(error) {
+            job.setEndTime(fnName);
+            if (error.fnName && error.msg) 
+                done({message : 'Died on [' + error.fnName + ']: ' + error.msg}, job);
+            else
+                done({message : 'Died: ' + error}, job);
+        }
+    );
 };
 
-var b = function() {
-    console.log('b');
-    console.log(a());
-};
+function clusterMain(config,program,done) {
+    var log = logger.getLog();
+    log.info('Running as cluster master');
+
+    cluster.on('exit', function(worker, code, signal) {
+        if (worker.suicide === true){
+            log.error('Worker ' + worker.process.pid + ' died peacefully');
+        } else {
+            log.error('Worker ' + worker.process.pid + ' died, restarting...');
+            cluster.fork();
+        }
+    });
+
+    cluster.on('fork', function(worker){
+        log.info('Worker [' + worker.process.pid + '] has forked.');
+    });
+    
+    cluster.on('online', function(worker){
+        log.info('Worker [' + worker.process.pid + '] is now online.');
+    });
+    
+    cluster.on('listening', function(worker,address){
+        log.info('Worker [' + worker.process.pid + '] is now listening on ' + 
+            address.address + ':' + address.port);
+    });
+    
+    cluster.setupMaster( { silent : true });
+    
+    log.info("Will spawn " + program.kids + " kids.");
+    for (var i = 0; i < program.kids; i++) {
+        cluster.fork();
+    }
+
+    log.info("Spawning done, hanging around my empty nest.");
+}
+
+function workerMain(config,program,done){
+    var app = express(),
+        log = logger.getLog();
+
+    log.info('Running as cluster worker, proceed with setting up web server.');
+    app.use(express.bodyParser());
+
+    app.all('*', function(req, res, next) {
+        res.header("Access-Control-Allow-Origin", "*");
+        res.header("Access-Control-Allow-Headers", 
+                   "Origin, X-Requested-With, Content-Type, Accept");
+
+        if (req.method.toLowerCase() === "options") {
+            res.send(200);
+        } else {
+            next();
+        }
+    });
+
+    app.all('*',function(req, res, next){
+        req.uuid = uuid.createUuid().substr(0,10);
+        log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
+            req.method,req.url,req.httpVersion);
+        next();
+    });
+
+    app.post('/dub/create', function(req, res, next){
+        var job;
+        try {
+            job = dub.createDubJob(req.uuid, req.body, config);
+        }catch (e){
+            log.error('[%1] Create Job Error: %2', req.uuid, e.message);
+            res.send(500,{
+                error  : 'Unable to process request.',
+                detail : e.message
+            });
+            return;
+        }
+        dub.handleRequest(job,function(err){
+            if (err){
+                log.error('[%1] Handle Request Error: %2',req.uuid,err.message);
+                res.send(400,{
+                    error  : 'Unable to complete request.',
+                    detail : err.message
+                });
+                return;
+            }
+            res.send(200, {
+                output : job.outputUri,
+                md5    : job.md5
+            });
+        });
+    });
+
+    app.listen(program.port);
+    log.info('Dub server is listening on port: ' + program.port);
+}
+
+if (!__ut__ && !__maint__){
+
+    try {
+        main(function(rc,msg){
+            exitApp(rc,msg);
+        });
+    } catch(e) {
+        exitApp(1,e.stack);
+    }
+}
+
+function main(done){
+    var program  = include('commander'),
+        config = {},
+        job, log, userCfg;
+
+    program
+        .option('-c, --config [CFGFILE]','Specify config file')
+        .option('-d, --daemon','Run as a daemon (requires -s).')
+        .option('-g, --gid [GID]','Run as group (id or name).')
+        .option('-l, --loglevel [LEVEL]', 'Specify log level (TRACE|INFO|WARN|ERROR|FATAL)' )
+        .option('-k, --kids [KIDS]','Number of kids to spawn.', 0)
+        .option('-p, --port [PORT]','Listent on port (requires -s) [3000].', 3000)
+        .option('-s, --server','Run as a server.')
+        .option('-u, --uid [UID]','Run as user (id or name).')
+        .option('--enable-aws','Enable aws access.')
+        .option('--show-config','Display configuration and exit.')
+        .parse(process.argv);
+
+    if (program.gid){
+        console.log('\nChange process to group: ' + program.gid);
+        process.setgid(program.gid);
+    }
+   
+    if (program.uid){
+        console.log('\nChange process to user: ' + program.uid);
+        process.setuid(program.uid);
+    }
+
+    config = dub.createConfiguration(program);
+
+    if (program.showConfig){
+        console.log(JSON.stringify(config,null,3));
+        process.exit(0);
+    }
+
+    config.ensurePaths();
+
+    log = logger.getLog();
+
+    if (program.loglevel){
+        log.setLevel(program.loglevel);
+    }
+
+    if (!program.server){
+        // Running as a simple command line task, do the work and exit
+        if (!program.args[0]){
+            throw new SyntaxError('Expected a template file.');
+        }
+
+        job = dub.createDubJob(uuid.createUuid().substr(0,10),loadTemplateFromFile(program.args[0]), config);
+        
+        handleRequest(job,function(err, finishedJob){
+            if (err) {
+                return done(1,err.message);
+            } else {
+                return done(0,'Done');
+            }
+        });
+
+        return;
+    }
+
+    // Ok, so we're a server, lets do some servery things..
+    process.on('uncaughtException', function(err) {
+        try{
+            log.error('uncaught: ' + err.message + "\n" + err.stack);
+        }catch(e){
+            console.error(e);
+        }
+        return done(2);
+    });
+
+    process.on('SIGINT',function(){
+        log.info('Received SIGINT, exitting app.');
+        return done(1,'Exit');
+    });
+
+    process.on('SIGTERM',function(){
+        log.info('Received TERM, exitting app.');
+        if (program.daemon){
+            daemon.removePidFile(config.cacheAddress('dub.pid', 'run'));
+        }
+
+        if (cluster.isMaster){
+            cluster.disconnect(function(){
+                return done(0,'Exit');
+            });
+            return;
+        }
+        return done(0,'Exit');
+    });
+
+    
+    log.info('Running version ' + dub.getVersion());
+    
+    // Daemonize if so desired
+    if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)) {
+        daemon.daemonize(config.cacheAddress('dub.pid', 'run'), done);
+    }
+
+    // Now that we either are or are not a daemon, its time to 
+    // setup clustering if running as a cluster.
+    if ((cluster.isMaster) && (program.kids > 0)) {
+        clusterMain(config,program,done);
+    } else {
+        workerMain(config,program,done);
+    }
+}
 
 if (__ut__) {
     module.exports = dub;
