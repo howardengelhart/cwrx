@@ -22,39 +22,8 @@ var include     = require('../lib/inject').require,
     vocalware   = include('../lib/vocalware'),
     assemble    = include('../lib/assemble'),
     s3util      = include('../lib/s3util'),
-
-    // This is the template for dub's configuration
-    defaultConfiguration = {
-        caches : {
-            run     : path.normalize('/usr/local/share/cwrx/dub/caches/run/'),
-            line    : path.normalize('/usr/local/share/cwrx/dub/caches/line/'),
-            blanks  : path.normalize('/usr/local/share/cwrx/dub/caches/blanks/'),
-            script  : path.normalize('/usr/local/share/cwrx/dub/caches/script/'),
-            video   : path.normalize('/usr/local/share/cwrx/dub/caches/video/'),
-            output  : path.normalize('/usr/local/share/cwrx/dub/caches/output/')
-        },
-        output : {
-            "type" : "local",
-            "uri"  : "/media"
-        },
-        s3 : {
-            src     : {
-                bucket  : 'c6media',
-                path    : 'src/screenjack/video/'
-            },
-            out     : {
-                bucket  : 'c6media',
-                path    : 'usr/screenjack/video/'
-            },
-            auth    : path.join(process.env.HOME,'.aws.json')
-        },
-        tts : {
-            auth        : path.join(process.env.HOME,'.tts.json'),
-            bitrate     : '48k',
-            frequency   : 22050,
-            workspace   : __dirname
-        },
-    },
+    
+    dub = {},
 
     // Attempt a graceful exit
     exitApp  = function(resultCode,msg){
@@ -68,6 +37,40 @@ var include     = require('../lib/inject').require,
         }
         process.exit(resultCode);
     };
+
+// This is the template for dub's configuration
+dub.defaultConfiguration = {
+    caches : {
+        run     : path.normalize('/usr/local/share/cwrx/dub/caches/run/'),
+        line    : path.normalize('/usr/local/share/cwrx/dub/caches/line/'),
+        blanks  : path.normalize('/usr/local/share/cwrx/dub/caches/blanks/'),
+        script  : path.normalize('/usr/local/share/cwrx/dub/caches/script/'),
+        video   : path.normalize('/usr/local/share/cwrx/dub/caches/video/'),
+        output  : path.normalize('/usr/local/share/cwrx/dub/caches/output/')
+    },
+    output : {
+        "type" : "local",
+        "uri"  : "/media"
+    },
+    s3 : {
+        src     : {
+            bucket  : 'c6media',
+            path    : 'src/screenjack/video/'
+        },
+        out     : {
+            bucket  : 'c6media',
+            path    : 'usr/screenjack/video/'
+        },
+        auth    : path.join(process.env.HOME,'.aws.json')
+    },
+    tts : {
+        auth        : path.join(process.env.HOME,'.tts.json'),
+        bitrate     : '48k',
+        frequency   : 22050,
+        workspace   : __dirname
+    }
+};
+
 
 if (!__ut__ && !__maint__){
 
@@ -108,7 +111,7 @@ function main(done){
         process.setuid(program.uid);
     }
 
-    config = createConfiguration(program);
+    config = dub.createConfiguration(program);
 
     if (program.showConfig){
         console.log(JSON.stringify(config,null,3));
@@ -129,7 +132,7 @@ function main(done){
             throw new SyntaxError('Expected a template file.');
         }
 
-        job = createDubJob(uuid.createUuid().substr(0,10),loadTemplateFromFile(program.args[0]), config);
+        job = dub.createDubJob(uuid.createUuid().substr(0,10),loadTemplateFromFile(program.args[0]), config);
         
         handleRequest(job,function(err, finishedJob){
             if (err) {
@@ -189,7 +192,7 @@ function main(done){
     }
 }
 
-function getVersion() {
+dub.getVersion = function() {
     var fpath = path.join(__dirname, 'dub.version'),
         log = logger.getLog();
         
@@ -202,7 +205,7 @@ function getVersion() {
     }
     log.warn('No version file found');
     return 'unknown';
-}
+};
 
 function clusterMain(config,program,done) {
     var log = logger.getLog();
@@ -269,7 +272,7 @@ function workerMain(config,program,done){
     app.post('/dub/create', function(req, res, next){
         var job;
         try {
-            job = createDubJob(req.uuid, req.body, config);
+            job = dub.createDubJob(req.uuid, req.body, config);
         }catch (e){
             log.error('[%1] Create Job Error: %2', req.uuid, e.message);
             res.send(500,{
@@ -278,7 +281,7 @@ function workerMain(config,program,done){
             });
             return;
         }
-        handleRequest(job,function(err){
+        dub.handleRequest(job,function(err){
             if (err){
                 log.error('[%1] Handle Request Error: %2',req.uuid,err.message);
                 res.send(400,{
@@ -298,19 +301,19 @@ function workerMain(config,program,done){
     log.info('Dub server is listening on port: ' + program.port);
 }
 
-function handleRequest(job, done){
+dub.handleRequest = function(job, done){
     var log = logger.getLog(),
-        fnName = arguments.callee.name;
+        fnName = 'handleRequest';
     job.setStartTime(fnName);
     
     // Each function returns a promise for job and checks job to see if it needs to be run.
-    getSourceVideo(job)
-    .then(convertLinesToMP3)
-    .then(collectLinesMetadata)
-    .then(getVideoLength)
-    .then(convertScriptToMP3)
-    .then(applyScriptToVideo)
-    .then(uploadToStorage)
+    dub.getSourceVideo(job)
+    .then(dub.convertLinesToMP3)
+    .then(dub.collectLinesMetadata)
+    .then(dub.getVideoLength)
+    .then(dub.convertScriptToMP3)
+    .then(dub.applyScriptToVideo)
+    .then(dub.uploadToStorage)
     .then(
         function() {
             log.trace("All tasks succeeded!");
@@ -324,7 +327,7 @@ function handleRequest(job, done){
                 done({message : 'Died: ' + error}, job);
         }
     );
-}
+};
 
 function loadTemplateFromFile(tmplFile){
     var tmplobj;
@@ -342,8 +345,8 @@ function loadTemplateFromFile(tmplFile){
     return tmplObj;
 }
 
-function createConfiguration(cmdLine) {
-    var cfgObject = cwrxConfig.createConfigObject(cmdLine.config, defaultConfiguration),
+dub.createConfiguration = function(cmdLine) {
+    var cfgObject = cwrxConfig.createConfigObject(cmdLine.config, dub.defaultConfiguration),
         log;
 
     if (cfgObject.log) {
@@ -385,9 +388,9 @@ function createConfiguration(cmdLine) {
     };
     
     return cfgObject;
-}
+};
 
-function createDubJob(id, template, config){
+dub.createDubJob = function(id, template, config){
     var log = logger.getLog(),
         buff,
         obj       = {},
@@ -562,15 +565,15 @@ function createDubJob(id, template, config){
     };
 
     return obj;
-}
+};
 
-function getSourceVideo(job) {
+dub.getSourceVideo = function(job) {
     var deferred = q.defer(), 
         log = logger.getLog(),
-        fnName = arguments.callee.name;
+        fnName = 'getSourceVideo';
     
     if (job.hasOutput() || job.hasVideo()) {
-        log.info("[%1] Skipping getSourceVideo",job.id);
+        log.info("[%1] Skipping %2",job.id, fnName);
         return q(job);
     }
 
@@ -596,15 +599,15 @@ function getSourceVideo(job) {
     }
     
     return deferred.promise;
-}
+};
 
-function convertLinesToMP3(job){
+dub.convertLinesToMP3 = function(job){
     var log = logger.getLog(),
         deferred = q.defer(),
-        fnName = arguments.callee.name;
+        fnName = 'convertLinesToMP3';
 
     if (job.hasOutput() || job.hasScript() || job.hasLines()) {
-        log.info("[%1] Skipping convertLinesToMP3",job.id);
+        log.info("[%1] Skipping %2",job.id, fnName);
         return q(job);
     }
 
@@ -673,9 +676,9 @@ function convertLinesToMP3(job){
     });
 
     return deferred.promise;
-}
+};
 
-function getLineMetadata(track){
+dub.getLineMetadata = function(track){
     var log = logger.getLog(), deferred;
 
     try {
@@ -722,15 +725,15 @@ function getLineMetadata(track){
     });
 
     return deferred.promise;
-}
+};
 
-function collectLinesMetadata(job){
+dub.collectLinesMetadata = function(job){
     var log     = logger.getLog(),
-        fnName  = arguments.callee.name,
+        fnName  = 'collectLinesMetadata',
         deferred;
 
     if (job.hasOutput() || job.hasScript() ) {
-        log.info("[%1] Skipping collectLinesMetadata",job.id);
+        log.info("[%1] Skipping %2",job.id, fnName);
         return q(job);
     }
 
@@ -739,7 +742,7 @@ function collectLinesMetadata(job){
     deferred = q.defer();
     
     q.all(job.tracks.map(function(track){
-        return getLineMetadata(track);
+        return dub.getLineMetadata(track);
     }))
     .then(function(results){
         job.setEndTime(fnName);
@@ -750,15 +753,15 @@ function collectLinesMetadata(job){
         deferred.reject({"fnName": fnName, "msg": err});
     });
     return deferred.promise;
-}
+};
 
-function getVideoLength(job){
+dub.getVideoLength = function(job){
     var log = logger.getLog(),
         deferred = q.defer(),
-        fnName = arguments.callee.name;
+        fnName = 'getVideoLength';
 
     if (job.hasOutput() || job.hasScript() || job.hasVideoLength()) {
-        log.info("[%1] Skipping getVideoLength",job.id);
+        log.info("[%1] Skipping %2",job.id, fnName);
         return q(job);
     }
 
@@ -789,15 +792,15 @@ function getVideoLength(job){
         deferred.resolve(job);
     });
     return deferred.promise;
-}
+};
 
-function convertScriptToMP3(job){
+dub.convertScriptToMP3 = function(job){
     var log = logger.getLog(),
         deferred = q.defer(),
-        fnName = arguments.callee.name;
+        fnName = 'convertScriptToMP3';
 
     if (job.hasOutput() || job.hasScript()) {
-        log.info("[%1] Skipping convertScriptToMP3", job.id);
+        log.info("[%1] Skipping %2", job.id, fnName);
         return q(job);
     }
 
@@ -816,15 +819,15 @@ function convertScriptToMP3(job){
     });
         
     return deferred.promise;
-}
+};
 
-function applyScriptToVideo(job){
+dub.applyScriptToVideo = function(job){
     var log = logger.getLog(),
         deferred = q.defer(),
-        fnName = arguments.callee.name;
+        fnName = 'applyScriptToVideo';
  
     if (job.hasOutput()) {
-        log.info("[%1] Skipping applyScriptToVideo", job.id);
+        log.info("[%1] Skipping %2", job.id, fnName);
         return q(job);
     }
 
@@ -843,20 +846,13 @@ function applyScriptToVideo(job){
                 deferred.resolve(job);
             });
     return deferred.promise;
-}
+};
 
-function uploadToStorage(job){
+dub.uploadToStorage = function(job){
     var deferred = q.defer(),
         log = logger.getLog(),
-        fnName = arguments.callee.name,
+        fnName = 'uploadToStorage';
     
-        localVid = fs.readFileSync(job.outputPath),
-        hash = crypto.createHash('md5');
-
-    hash.update(localVid);
-    job.md5 = hash.digest('hex');
-    log.trace("[%1] Local File MD5: %2",job.id, job.md5);
-
     if (job.outputType === 'local') {
         log.trace('[%1] Output type is set to "local", skipping S3 upload.',job.id);
         deferred.resolve(job);
@@ -874,7 +870,13 @@ function uploadToStorage(job){
 
     var s3 = new aws.S3(),
         outParams = job.getS3OutVideoParams(),
-        headParams = {Key: outParams.Key, Bucket: outParams.Bucket};
+        headParams = {Key: outParams.Key, Bucket: outParams.Bucket},
+        localVid = fs.readFileSync(job.outputPath),
+        hash = crypto.createHash('md5');
+
+    hash.update(localVid);
+    job.md5 = hash.digest('hex');
+    log.trace("[%1] Local File MD5: %2",job.id, job.md5);
 
     s3.headObject(headParams, function(err, data) {
         if (data && data.ETag && data.ETag.replace(/"/g, '') == job.md5) {
@@ -896,24 +898,21 @@ function uploadToStorage(job){
                 });
         }
     });
-
     return deferred.promise;
-}
+};
+
+var a = function() {
+    console.log('a');
+    return 1;
+};
+
+var b = function() {
+    console.log('b');
+    console.log(a());
+};
 
 if (__ut__) {
-    module.exports = {
-        getVersion           : getVersion,
-        createConfiguration  : createConfiguration,
-        defaultConfiguration : defaultConfiguration,
-        handleRequest        : handleRequest,
-        getSourceVideo       : getSourceVideo,
-        convertLinesToMP3    : convertLinesToMP3,
-        collectLinesMetadata : collectLinesMetadata,
-        getVideoLength       : getVideoLength,
-        convertScriptToMP3   : convertScriptToMP3,
-        applyScriptToVideo   : applyScriptToVideo,
-        uploadToStorage      : uploadToStorage
-    };
+    module.exports = dub;
+} else {
+    module.exports.createDubJob = dub.createDubJob;
 }
-
-module.exports.createDubJob = createDubJob;
