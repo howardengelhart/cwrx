@@ -48,7 +48,7 @@ describe('dub',function(){
         mockId3 = jasmine.createSpy('id3Info');
 
         dub = sanitize(['../bin/dub'])
-                .andConfigure([['../lib/logger', mockLogger], ['aws-sdk', mockAws],
+                .andConfigure([['../lib/logger', mockLogger],   ['aws-sdk', mockAws],
                                ['../lib/vocalware', mockVware], ['../lib/assemble', mockAssemble],
                                ['../lib/id3', mockId3]])
                 .andRequire();
@@ -130,7 +130,7 @@ describe('dub',function(){
             expect(cfgObject.cacheAddress).toBeDefined();
         });
         
-        it('should throw an error if it can\'t load the s3 config', function() {
+        it('should throw an error if it cannot load the s3 config', function() {
             mockAws.config.loadFromPath.andThrow('Exception!');
             expect(function() {dub.createConfiguration(program);}).toThrow();
 
@@ -164,12 +164,12 @@ describe('dub',function(){
         it('should create a working cacheAddress method', function() {
             var cfgObject = dub.createConfiguration(program);
             expect(cfgObject.cacheAddress('test.mp3', 'line')).toBe('ut/line/test.mp3');
+            expect(cfgObject.cacheAddress('script.mp3', 'script')).toBe('ut/script/script.mp3');
         });
     });
     
     describe('job:', function() {
-        var configObject, config, mockTemplate, job, setStartTime, setEndTime,
-            hasVideo, hasOutput, hasLength, hasScript, hasLines,
+        var configObject, config, mockTemplate, job,
             doneFlag = false;
         
         beforeEach(function() {
@@ -232,13 +232,13 @@ describe('dub',function(){
             job = dub.createDubJob('123456', mockTemplate, config);
             
             // track these calls and easily manipulate them later, but default is to call through
-            setStartTime = spyOn(job, 'setStartTime').andCallThrough();
-            setEndTime = spyOn(job, 'setEndTime').andCallThrough();
-            hasVideo = spyOn(job, 'hasVideo').andCallThrough();
-            hasOutput = spyOn(job, 'hasOutput').andCallThrough();
-            hasLength = spyOn(job, 'hasVideoLength').andCallThrough();
-            hasScript = spyOn(job, 'hasScript').andCallThrough();
-            hasLines = spyOn(job, 'hasLines').andCallThrough();
+            spyOn(job, 'setStartTime').andCallThrough();
+            spyOn(job, 'setEndTime').andCallThrough();
+            spyOn(job, 'hasVideo').andCallThrough();
+            spyOn(job, 'hasOutput').andCallThrough();
+            spyOn(job, 'hasVideoLength').andCallThrough();
+            spyOn(job, 'hasScript').andCallThrough();
+            spyOn(job, 'hasLines').andCallThrough();
             
             doneFlag = false; // used for all async functions
         });
@@ -368,7 +368,7 @@ describe('dub',function(){
                 runs(function() {
                     dub.handleRequest(job, function(err, job) {
                         expect(err).toBeNull();
-                        expect(setStartTime).toHaveBeenCalledWith('handleRequest');
+                        expect(job.setStartTime).toHaveBeenCalledWith('handleRequest');
                         expect(getSrc).toHaveBeenCalledWith(job);
                         expect(convertLines).toHaveBeenCalledWith(job);
                         expect(collectMeta).toHaveBeenCalledWith(job);
@@ -376,7 +376,7 @@ describe('dub',function(){
                         expect(convertScript).toHaveBeenCalledWith(job);
                         expect(applyScript).toHaveBeenCalledWith(job);
                         expect(upload).toHaveBeenCalledWith(job);
-                        expect(setEndTime).toHaveBeenCalledWith('handleRequest');
+                        expect(job.setEndTime).toHaveBeenCalledWith('handleRequest');
                         doneFlag = true;
                     });
                 });
@@ -388,7 +388,7 @@ describe('dub',function(){
                 runs(function() {
                     dub.handleRequest(job, function(err, job) {
                         expect(err).toBeDefined();
-                        expect(setStartTime).toHaveBeenCalledWith('handleRequest');
+                        expect(job.setStartTime).toHaveBeenCalledWith('handleRequest');
                         expect(getSrc).toHaveBeenCalledWith(job);
                         expect(convertLines).toHaveBeenCalledWith(job);
                         expect(collectMeta).toHaveBeenCalledWith(job);
@@ -398,7 +398,7 @@ describe('dub',function(){
                         expect(applyScript).not.toHaveBeenCalled();
                         expect(upload).not.toHaveBeenCalled();
                         
-                        expect(setEndTime).toHaveBeenCalledWith('handleRequest');
+                        expect(job.setEndTime).toHaveBeenCalledWith('handleRequest');
                         doneFlag = true;
                     });
                 });
@@ -414,17 +414,20 @@ describe('dub',function(){
             });
             
             it('should skip if the source or output already exists', function() {
-                hasVideo.andReturn(true);
+                job.hasVideo.andReturn(true);
                 runs(function() {
                     dub.getSourceVideo(job).then(function(retval) {
                         expect(retval).toBe(job);
-                        hasVideo.andReturn(false);
-                        hasOutput.andReturn(true);
+                        job.hasVideo.andReturn(false);
+                        job.hasOutput.andReturn(true);
                         return retval;
-                    }).then(dub.getSourceVideo(job)).done(function(retval) {
+                    }).then(dub.getSourceVideo(job)).then(function(retval) {
                         expect(retval).toBe(job);
                         expect(getObjSpy).not.toHaveBeenCalled();
-                        expect(setStartTime).not.toHaveBeenCalled();
+                        expect(job.setStartTime).not.toHaveBeenCalled();
+                        doneFlag = true;
+                    }).catch(function(error) { 
+                        expect(error).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -437,8 +440,8 @@ describe('dub',function(){
                     dub.getSourceVideo(job).catch(function(error) {
                         expect(error.fnName).toBe('getSourceVideo');
                         expect(getObjSpy).not.toHaveBeenCalled();
-                        expect(setStartTime).toHaveBeenCalledWith('getSourceVideo');
-                        expect(setEndTime).toHaveBeenCalledWith('getSourceVideo');
+                        expect(job.setStartTime).toHaveBeenCalledWith('getSourceVideo');
+                        expect(job.setEndTime).toHaveBeenCalledWith('getSourceVideo');
                         doneFlag = true;
                     });
                 });
@@ -449,14 +452,17 @@ describe('dub',function(){
                 getObjSpy.andReturn(q());
                 spyOn(job, 'getS3SrcVideoParams').andReturn('s3SrcParams');
                 runs(function() {
-                    dub.getSourceVideo(job).done(function(retval) {
+                    dub.getSourceVideo(job).then(function(retval) {
                         expect(retval).toBe(job);
                         expect(getObjSpy).toHaveBeenCalled();
                         var spyArgs = getObjSpy.calls[0].args;
                         expect(spyArgs[1]).toEqual('s3SrcParams');
                         expect(spyArgs[2]).toEqual('caches/video/test.mp4');
-                        expect(setStartTime).toHaveBeenCalledWith('getSourceVideo');
-                        expect(setEndTime).toHaveBeenCalledWith('getSourceVideo');                        
+                        expect(job.setStartTime).toHaveBeenCalledWith('getSourceVideo');
+                        expect(job.setEndTime).toHaveBeenCalledWith('getSourceVideo');                        
+                        doneFlag = true;
+                    }).catch(function(error) { 
+                        expect(error).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -468,8 +474,8 @@ describe('dub',function(){
                 runs(function() {
                     dub.getSourceVideo(job).catch(function(error) {
                         expect(error.fnName).toBe('getSourceVideo');
-                        expect(setStartTime).toHaveBeenCalledWith('getSourceVideo');
-                        expect(setEndTime).toHaveBeenCalledWith('getSourceVideo');                        
+                        expect(job.setStartTime).toHaveBeenCalledWith('getSourceVideo');
+                        expect(job.setEndTime).toHaveBeenCalledWith('getSourceVideo');                        
                         doneFlag = true;
                     });
                 });
@@ -486,22 +492,25 @@ describe('dub',function(){
             });
             
             it('should skip if the output, script, or lines already exist', function() {
-                hasOutput.andReturn(true);
+                job.hasOutput.andReturn(true);
                 runs(function() {
                     dub.convertLinesToMP3(job).then(function(retval) {
                         expect(retval).toBe(job);
-                        hasOutput.andReturn(false);
-                        hasLines.andReturn(true);
+                        job.hasOutput.andReturn(false);
+                        job.hasLines.andReturn(true);
                         return retval;
                     }).then(dub.convertLinesToMP3(job)).then(function(retval) {
                         expect(retval).toBe(job);
-                        hasLines.andReturn(false);
-                        hasScript.andReturn(true);
+                        job.hasLines.andReturn(false);
+                        job.hasScript.andReturn(true);
                         return retval;
-                    }).then(dub.convertLinesToMP3(job)).done(function(retval) {
+                    }).then(dub.convertLinesToMP3(job)).then(function(retval) {
                         expect(retval).toBe(job);
                         expect(mockVware.createRequest).not.toHaveBeenCalled();
-                        expect(setStartTime).not.toHaveBeenCalled();
+                        expect(job.setStartTime).not.toHaveBeenCalled();
+                        doneFlag = true;
+                    }).catch(function(error) { 
+                        expect(error).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -513,7 +522,7 @@ describe('dub',function(){
                     cb(null, rqs, null);
                 });
                 runs(function() {
-                    dub.convertLinesToMP3(job).done(function(retval) {
+                    dub.convertLinesToMP3(job).then(function(retval) {
                         expect(retval).toBe(job);
                         for (var i = 0; i < mockTemplate.script.length; i++) {
                             expect(mockVware.createRequest.calls[i].args[0]).toEqual({authToken: 'fakeAuthToken'});
@@ -525,8 +534,11 @@ describe('dub',function(){
                             expect(ttsArgs[0].fxType).toBe('R');
                             expect(ttsArgs[0].fxLevel).toBe('3');
                         }
-                        expect(setStartTime).toHaveBeenCalledWith('convertLinesToMP3');
-                        expect(setEndTime).toHaveBeenCalledWith('convertLinesToMP3');
+                        expect(job.setStartTime).toHaveBeenCalledWith('convertLinesToMP3');
+                        expect(job.setEndTime).toHaveBeenCalledWith('convertLinesToMP3');
+                        doneFlag = true;
+                    }).catch(function(error) { 
+                        expect(error).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -538,17 +550,20 @@ describe('dub',function(){
                 mockVware.textToSpeech.andCallFake(function(rqs, fpath, cb) {
                     if (!failed[fpath]) {
                         failed[fpath] = true;
-                        cb('Failing this one', rqs, null);
+                        cb('Failing this once', rqs, null);
                     } else {
                         cb(null, rqs, null);
                     }
                 });
                 runs(function() {
-                    dub.convertLinesToMP3(job).done(function(retval) {
+                    dub.convertLinesToMP3(job).then(function(retval) {
                         expect(retval).toBe(job);
                         expect(mockLog.error.calls.length).toBe(3);
-                        expect(setStartTime).toHaveBeenCalledWith('convertLinesToMP3');
-                        expect(setEndTime).toHaveBeenCalledWith('convertLinesToMP3');
+                        expect(job.setStartTime).toHaveBeenCalledWith('convertLinesToMP3');
+                        expect(job.setEndTime).toHaveBeenCalledWith('convertLinesToMP3');
+                        doneFlag = true;
+                    }).catch(function(error) { 
+                        expect(error).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -567,8 +582,8 @@ describe('dub',function(){
                     dub.convertLinesToMP3(job).catch(function(error) {
                         expect(error.fnName).toBe('convertLinesToMP3');
                         expect(mockLog.error.calls.length).toBe(2);
-                        expect(setStartTime).toHaveBeenCalledWith('convertLinesToMP3');
-                        expect(setEndTime).toHaveBeenCalledWith('convertLinesToMP3');
+                        expect(job.setStartTime).toHaveBeenCalledWith('convertLinesToMP3');
+                        expect(job.setEndTime).toHaveBeenCalledWith('convertLinesToMP3');
                         doneFlag = true;
                     });
                 });
@@ -584,17 +599,20 @@ describe('dub',function(){
             });
             
             it('should skip if the script or output already exists', function() {
-                hasScript.andReturn(true);
+                job.hasScript.andReturn(true);
                 runs(function() {
                     dub.collectLinesMetadata(job).then(function(retval) {
                         expect(retval).toBe(job);
-                        hasScript.andReturn(false);
-                        hasOutput.andReturn(true);
+                        job.hasScript.andReturn(false);
+                        job.hasOutput.andReturn(true);
                         return retval;
-                    }).then(dub.collectLinesMetadata(job)).done(function(retval) {
+                    }).then(dub.collectLinesMetadata(job)).then(function(retval) {
                         expect(retval).toBe(job);
                         expect(getLineMeta).not.toHaveBeenCalled();
-                        expect(setStartTime).not.toHaveBeenCalled();
+                        expect(job.setStartTime).not.toHaveBeenCalled();
+                        doneFlag = true;
+                    }).catch(function(error) { 
+                        expect(error).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -605,14 +623,17 @@ describe('dub',function(){
                 getLineMeta.andReturn(q());
                 
                 runs(function() {
-                    dub.collectLinesMetadata(job).done(function(retval) {
+                    dub.collectLinesMetadata(job).then(function(retval) {
                         expect(retval).toBe(job);
                         expect(getLineMeta.calls.length).toEqual(3);
                         expect(getLineMeta.calls[0].args[0].fname).toEqual("hashLine--line1.mp3");
                         expect(getLineMeta.calls[1].args[0].fname).toEqual("hashLine--line2.mp3");
                         expect(getLineMeta.calls[2].args[0].fname).toEqual("hashLine--line3.mp3");
-                        expect(setStartTime).toHaveBeenCalledWith('collectLinesMetadata');
-                        expect(setEndTime).toHaveBeenCalledWith('collectLinesMetadata');
+                        expect(job.setStartTime).toHaveBeenCalledWith('collectLinesMetadata');
+                        expect(job.setEndTime).toHaveBeenCalledWith('collectLinesMetadata');
+                        doneFlag = true;
+                    }).catch(function(error) { 
+                        expect(error).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -632,8 +653,8 @@ describe('dub',function(){
                     dub.collectLinesMetadata(job).catch(function(error) {
                         expect(error.fnName).toEqual('collectLinesMetadata');
                         expect(getLineMeta.calls.length).toEqual(3);
-                        expect(setStartTime).toHaveBeenCalledWith('collectLinesMetadata');
-                        expect(setEndTime).toHaveBeenCalledWith('collectLinesMetadata');
+                        expect(job.setStartTime).toHaveBeenCalledWith('collectLinesMetadata');
+                        expect(job.setEndTime).toHaveBeenCalledWith('collectLinesMetadata');
                         doneFlag = true;
                     });
                 });
@@ -657,10 +678,13 @@ describe('dub',function(){
                 readJsonSpy.andReturn({duration: 3.5});
                 
                 runs(function() {
-                    dub.getLineMetadata(mockTrack).done(function(retval) {
+                    dub.getLineMetadata(mockTrack).then(function(retval) {
                         expect(retval).toBe(mockTrack);
                         expect(mockId3).not.toHaveBeenCalled();
                         expect(writeFileSpy).not.toHaveBeenCalled();
+                        doneFlag = true;
+                    }).catch(function(error) { 
+                        expect(error).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -677,7 +701,7 @@ describe('dub',function(){
                 writeFileSpy.andReturn();
                 
                 runs(function() {
-                    dub.getLineMetadata(mockTrack).done(function(retval) {
+                    dub.getLineMetadata(mockTrack).then(function(retval) {
                         expect(retval).toBe(mockTrack);
                         expect(mockLog.error).not.toHaveBeenCalled();
                         expect(readJsonSpy.calls[0].args[0]).toEqual('fakeMetaPath');
@@ -686,6 +710,9 @@ describe('dub',function(){
                         expect(writeFileSpy.calls[0].args[0]).toEqual('fakeMetaPath');
                         expect(writeFileSpy.calls[0].args[1]).toEqual(JSON.stringify(
                             {foo: 'bar', duration: 3.5}));
+                        doneFlag = true;
+                    }).catch(function(error) { 
+                        expect(error).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -702,11 +729,14 @@ describe('dub',function(){
                 writeFileSpy.andReturn();
                 
                 runs(function() {
-                    dub.getLineMetadata(mockTrack).done(function(retval) {
+                    dub.getLineMetadata(mockTrack).then(function(retval) {
                         expect(retval).toBe(mockTrack);
                         expect(mockLog.error).toHaveBeenCalled();
                         expect(mockId3).toHaveBeenCalled();
                         expect(writeFileSpy).toHaveBeenCalled();
+                        doneFlag = true;
+                    }).catch(function(error) { 
+                        expect(error).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -725,11 +755,14 @@ describe('dub',function(){
                 });
                 
                 runs(function() {
-                    dub.getLineMetadata(mockTrack).done(function(retval) {
+                    dub.getLineMetadata(mockTrack).then(function(retval) {
                         expect(retval).toBe(mockTrack);
                         expect(mockLog.warn).toHaveBeenCalled();
                         expect(mockId3).toHaveBeenCalled();
                         expect(writeFileSpy).toHaveBeenCalled();
+                        doneFlag = true;
+                    }).catch(function(error) { 
+                        expect(error).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -784,22 +817,25 @@ describe('dub',function(){
             });
             
             it('should skip if the output, script, or vid length already exists', function() {
-                hasOutput.andReturn(true);
+                job.hasOutput.andReturn(true);
                 runs(function() {
-                    dub.convertLinesToMP3(job).then(function(retval) {
+                    dub.getVideoLength(job).then(function(retval) {
                         expect(retval).toBe(job);
-                        hasOutput.andReturn(false);
-                        hasLength.andReturn(true);
+                        job.hasOutput.andReturn(false);
+                        job.hasVideoLength.andReturn(true);
                         return retval;
-                    }).then(dub.convertLinesToMP3(job)).then(function(retval) {
+                    }).then(dub.getVideoLength(job)).then(function(retval) {
                         expect(retval).toBe(job);
-                        hasLength.andReturn(false);
-                        hasScript.andReturn(true);
+                        job.hasVideoLength.andReturn(false);
+                        job.hasScript.andReturn(true);
                         return retval;
-                    }).then(dub.convertLinesToMP3(job)).done(function(retval) {
+                    }).then(dub.getVideoLength(job)).then(function(retval) {
                         expect(retval).toBe(job);
                         expect(probeSpy).not.toHaveBeenCalled();
-                        expect(setStartTime).not.toHaveBeenCalled();
+                        expect(job.setStartTime).not.toHaveBeenCalled();
+                        doneFlag = true;
+                    }).catch(function(error) { 
+                        expect(error).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -811,14 +847,17 @@ describe('dub',function(){
                     cb(null, {duration: 3.5});
                 });
                 runs(function() {
-                    dub.getVideoLength(job).done(function(retval) {
+                    dub.getVideoLength(job).then(function(retval) {
                         expect(retval).toBe(job);
                         expect(probeSpy.calls[0].args[0]).toBe('caches/video/test.mp4');
                         var writeFileArgs = writeFileSpy.calls[0].args;
                         expect(writeFileArgs[0]).toBe('caches/video/test_metadata.json');
                         expect(writeFileArgs[1]).toEqual(JSON.stringify({duration: 3.5}));
-                        expect(setStartTime).toHaveBeenCalledWith('getVideoLength');
-                        expect(setEndTime).toHaveBeenCalledWith('getVideoLength');
+                        expect(job.setStartTime).toHaveBeenCalledWith('getVideoLength');
+                        expect(job.setEndTime).toHaveBeenCalledWith('getVideoLength');
+                        doneFlag = true;
+                    }).catch(function(error) { 
+                        expect(error).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -833,8 +872,8 @@ describe('dub',function(){
                     dub.getVideoLength(job).catch(function(error) {
                         expect(error.fnName).toBe('getVideoLength');
                         expect(writeFileSpy).not.toHaveBeenCalled();
-                        expect(setStartTime).toHaveBeenCalledWith('getVideoLength');
-                        expect(setEndTime).toHaveBeenCalledWith('getVideoLength');
+                        expect(job.setStartTime).toHaveBeenCalledWith('getVideoLength');
+                        expect(job.setEndTime).toHaveBeenCalledWith('getVideoLength');
                         doneFlag = true;
                     });
                 });
@@ -849,26 +888,29 @@ describe('dub',function(){
                     dub.getVideoLength(job).catch(function(error) {
                         expect(error.fnName).toBe('getVideoLength');
                         expect(writeFileSpy).not.toHaveBeenCalled();
-                        expect(setStartTime).toHaveBeenCalledWith('getVideoLength');
-                        expect(setEndTime).toHaveBeenCalledWith('getVideoLength');
+                        expect(job.setStartTime).toHaveBeenCalledWith('getVideoLength');
+                        expect(job.setEndTime).toHaveBeenCalledWith('getVideoLength');
                         doneFlag = true;
                     });
                 });
                 waitsFor(function() { return doneFlag; }, 3000);
             });
             
-            it('should continue if there are errors from writing info to a file', function() {
+            it('should succeed even if there are errors from writing info to a file', function() {
                 probeSpy.andCallFake(function(fpath, cb) {
                     cb(null, {duration: 3.5});
                 });
                 writeFileSpy.andThrow('Nope!');
                 runs(function() {
-                    dub.getVideoLength(job).done(function(retval) {
+                    dub.getVideoLength(job).then(function(retval) {
                         expect(retval).toBe(job);
                         expect(writeFileSpy).toHaveBeenCalled();
                         expect(mockLog.warn).toHaveBeenCalled();
-                        expect(setStartTime).toHaveBeenCalledWith('getVideoLength');
-                        expect(setEndTime).toHaveBeenCalledWith('getVideoLength');
+                        expect(job.setStartTime).toHaveBeenCalledWith('getVideoLength');
+                        expect(job.setEndTime).toHaveBeenCalledWith('getVideoLength');
+                        doneFlag = true;
+                    }).catch(function(error) { 
+                        expect(error).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -884,17 +926,20 @@ describe('dub',function(){
             });
         
             it('should skip if the output, script, or vid length already exists', function() {
-                hasOutput.andReturn(true);
+                job.hasOutput.andReturn(true);
                 runs(function() {
                     dub.convertScriptToMP3(job).then(function(retval) {
                         expect(retval).toBe(job);
-                        hasOutput.andReturn(false);
-                        hasScript.andReturn(true);
+                        job.hasOutput.andReturn(false);
+                        job.hasScript.andReturn(true);
                         return retval;
-                    }).then(dub.convertScriptToMP3(job)).done(function(retval) {
+                    }).then(dub.convertScriptToMP3(job)).then(function(retval) {
                         expect(retval).toBe(job);
                         expect(mockAssemble).not.toHaveBeenCalled();
-                        expect(setStartTime).not.toHaveBeenCalled();
+                        expect(job.setStartTime).not.toHaveBeenCalled();
+                        doneFlag = true;
+                    }).catch(function(error) { 
+                        expect(error).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -904,11 +949,14 @@ describe('dub',function(){
             it('should assemble a script', function() {
                 mockAssemble.andReturn(q({}));
                 runs(function() {
-                    dub.convertScriptToMP3(job).done(function(retval) {
+                    dub.convertScriptToMP3(job).then(function(retval) {
                         expect(retval).toBe(job);
                         expect(mockAssemble).toHaveBeenCalledWith('Fake Template');
-                        expect(setStartTime).toHaveBeenCalledWith('convertScriptToMP3');
-                        expect(setEndTime).toHaveBeenCalledWith('convertScriptToMP3');
+                        expect(job.setStartTime).toHaveBeenCalledWith('convertScriptToMP3');
+                        expect(job.setEndTime).toHaveBeenCalledWith('convertScriptToMP3');
+                        doneFlag = true;
+                    }).catch(function(error) { 
+                        expect(error).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -920,8 +968,8 @@ describe('dub',function(){
                 runs(function() {
                     dub.convertScriptToMP3(job).catch(function(error) {
                         expect(error.fnName).toBe('convertScriptToMP3');
-                        expect(setStartTime).toHaveBeenCalledWith('convertScriptToMP3');
-                        expect(setEndTime).toHaveBeenCalledWith('convertScriptToMP3');
+                        expect(job.setStartTime).toHaveBeenCalledWith('convertScriptToMP3');
+                        expect(job.setEndTime).toHaveBeenCalledWith('convertScriptToMP3');
                         doneFlag = true;
                     });
                 });
@@ -937,12 +985,15 @@ describe('dub',function(){
             });
         
             it('should skip if the output already exists', function() {
-                hasOutput.andReturn(true);
+                job.hasOutput.andReturn(true);
                 runs(function() {
-                    dub.applyScriptToVideo(job).done(function(retval) {
+                    dub.applyScriptToVideo(job).then(function(retval) {
                         expect(retval).toBe(job);
                         expect(mergeSpy).not.toHaveBeenCalled();
-                        expect(setStartTime).not.toHaveBeenCalled();
+                        expect(job.setStartTime).not.toHaveBeenCalled();
+                        doneFlag = true;
+                    }).catch(function(error) { 
+                        expect(error).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -954,15 +1005,18 @@ describe('dub',function(){
                     cb(null, null, null);
                 });
                 runs(function() {
-                    dub.applyScriptToVideo(job).done(function(retval) {
+                    dub.applyScriptToVideo(job).then(function(retval) {
                         expect(retval).toBe(job);
                         var mergeArgs = mergeSpy.calls[0].args;
                         expect(mergeArgs[0]).toEqual('caches/video/test.mp4');
                         expect(mergeArgs[1]).toEqual('caches/script/test_hashScript.mp3');
                         expect(mergeArgs[2]).toEqual('caches/output/test_hashOutput.mp4');
                         expect(mergeArgs[3].frequency).toEqual(22050);
-                        expect(setStartTime).toHaveBeenCalledWith('applyScriptToVideo');
-                        expect(setEndTime).toHaveBeenCalledWith('applyScriptToVideo');
+                        expect(job.setStartTime).toHaveBeenCalledWith('applyScriptToVideo');
+                        expect(job.setEndTime).toHaveBeenCalledWith('applyScriptToVideo');
+                        doneFlag = true;
+                    }).catch(function(error) { 
+                        expect(error).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -976,8 +1030,8 @@ describe('dub',function(){
                 runs(function() {
                     dub.applyScriptToVideo(job).catch(function(error) {
                         expect(error.fnName).toBe('applyScriptToVideo');
-                        expect(setStartTime).toHaveBeenCalledWith('applyScriptToVideo');
-                        expect(setEndTime).toHaveBeenCalledWith('applyScriptToVideo');
+                        expect(job.setStartTime).toHaveBeenCalledWith('applyScriptToVideo');
+                        expect(job.setEndTime).toHaveBeenCalledWith('applyScriptToVideo');
                         doneFlag = true;
                     });
                 });
@@ -1013,10 +1067,13 @@ describe('dub',function(){
                         job.outputType = 's3';
                         spyOn(job, 'enableAws').andReturn(false);
                         return retval;
-                    }).then(dub.uploadToStorage(job)).done(function(retval) {
+                    }).then(dub.uploadToStorage(job)).then(function(retval) {
                         expect(retval).toBe(job);
                         expect(headSpy).not.toHaveBeenCalled();
-                        expect(setStartTime).not.toHaveBeenCalled();
+                        expect(job.setStartTime).not.toHaveBeenCalled();
+                        doneFlag = true;
+                    }).catch(function(error) { 
+                        expect(error).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -1031,7 +1088,7 @@ describe('dub',function(){
                 putSpy.andReturn(q('Success!'));
                 
                 runs(function() {
-                    dub.uploadToStorage(job).done(function(retval) {
+                    dub.uploadToStorage(job).then(function(retval) {
                         expect(retval).toBe(job);
                         expect(readFileSpy).toHaveBeenCalledWith('caches/output/test_hashOutput.mp4');
                         expect(hashSpy).toHaveBeenCalledWith('md5');
@@ -1049,8 +1106,11 @@ describe('dub',function(){
                         expect(putParams.ACL).toEqual('public-read');
                         expect(putParams.ContentType).toEqual('video/mp4');
                         
-                        expect(setStartTime).toHaveBeenCalledWith('uploadToStorage');
-                        expect(setEndTime).toHaveBeenCalledWith('uploadToStorage');
+                        expect(job.setStartTime).toHaveBeenCalledWith('uploadToStorage');
+                        expect(job.setEndTime).toHaveBeenCalledWith('uploadToStorage');
+                        doneFlag = true;
+                    }).catch(function(error) { 
+                        expect(error).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -1064,12 +1124,15 @@ describe('dub',function(){
                 });
                 
                 runs(function() {
-                    dub.uploadToStorage(job).done(function(retval) {
+                    dub.uploadToStorage(job).then(function(retval) {
                         expect(retval).toBe(job);
                         expect(headSpy).toHaveBeenCalled();
                         expect(putSpy).not.toHaveBeenCalled();                        
-                        expect(setStartTime).toHaveBeenCalledWith('uploadToStorage');
-                        expect(setEndTime).toHaveBeenCalledWith('uploadToStorage');
+                        expect(job.setStartTime).toHaveBeenCalledWith('uploadToStorage');
+                        expect(job.setEndTime).toHaveBeenCalledWith('uploadToStorage');
+                        doneFlag = true;
+                    }).catch(function(error) { 
+                        expect(error).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -1086,8 +1149,8 @@ describe('dub',function(){
                 runs(function() {
                     dub.uploadToStorage(job).catch(function(error) {
                         expect(error.fnName).toBe('uploadToStorage');
-                        expect(setStartTime).toHaveBeenCalledWith('uploadToStorage');
-                        expect(setEndTime).toHaveBeenCalledWith('uploadToStorage');
+                        expect(job.setStartTime).toHaveBeenCalledWith('uploadToStorage');
+                        expect(job.setEndTime).toHaveBeenCalledWith('uploadToStorage');
                         doneFlag = true;
                     });
                 });
