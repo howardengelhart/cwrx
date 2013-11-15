@@ -1,4 +1,4 @@
-var uuid = require('../lib/uuid');
+var uuid = require('../../lib/uuid');
 
 describe('uuid', function() {
     describe('hashText', function() {

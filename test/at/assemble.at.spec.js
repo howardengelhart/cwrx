@@ -1,7 +1,7 @@
 var path        = require('path'),
     fs          = require('fs'),
     crypto      = require('crypto'),
-    assemble    = require('../lib/assemble'),
+    assemble    = require('../../lib/assemble'),
     template, 
     files = [ path.join(__dirname,'result.mp3') ];
 

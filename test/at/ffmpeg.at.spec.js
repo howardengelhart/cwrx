@@ -1,6 +1,6 @@
 var path = require('path'),
     fs   = require('fs');
-    ffmpeg     = require('../lib/ffmpeg'),
+    ffmpeg     = require('../../lib/ffmpeg'),
     testFile0  = path.join(__dirname,'b0.mp3'),
     testFile1  = path.join(__dirname,'b1.mp3'),
     testFile2  = path.join(__dirname,'b2.mp3'),

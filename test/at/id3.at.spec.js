@@ -1,5 +1,5 @@
 var path = require('path'),
-    id3Info = require('../lib/id3');
+    id3Info = require('../../lib/id3');
 
 describe('id3 test suite',function(){
 

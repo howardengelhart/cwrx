@@ -1,6 +1,6 @@
 var path      = require('path'),
     fs        = require('fs-extra'),
-    s3util    = require('../lib/s3util'),
+    s3util    = require('../../lib/s3util'),
     aws       = require('aws-sdk'),
     q         = require('q'),
     utKeyBase;

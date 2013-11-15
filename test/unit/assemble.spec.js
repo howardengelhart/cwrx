@@ -1,7 +1,7 @@
 var path        = require('path'),
     fs          = require('fs'),
     crypto      = require('crypto'),
-    sanitize    = require('./sanitize'),
+    sanitize    = require('../sanitize'),
     mockFFmpeg  = {},
     mockLog     = {},
     mockId3Info;

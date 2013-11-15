@@ -2,7 +2,7 @@ describe('inject',function(){
     var module;
 
     beforeEach(function(){
-        module = require('../lib/inject');
+        module = require('../../lib/inject');
     });
 
     describe('injector',function(){

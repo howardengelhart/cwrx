@@ -1,6 +1,6 @@
 var path      = require('path'),
     fs        = require('fs-extra'),
-    config    = require('../lib/config');
+    config    = require('../../lib/config');
 
 describe('config', function() {
     var rmList = [];

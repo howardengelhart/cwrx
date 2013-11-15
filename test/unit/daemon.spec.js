@@ -1,7 +1,7 @@
 var path      = require('path'),
     fs        = require('fs-extra'),
     cp        = require('child_process'),
-    daemon    = require('../lib/daemon');
+    daemon    = require('../../lib/daemon');
 
 describe('daemon', function() {
     var pidPath = path.join(__dirname, 'util.pid');

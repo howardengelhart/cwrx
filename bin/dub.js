@@ -2,59 +2,28 @@
 
 var __ut__      = (global.jasmine !== undefined) ? true : false,
 
-    __maint__   = ((module.parent) && (module.parent.filename) &&
-                  (module.parent.filename.match(/maint.js$/))) ? true : false;
+    __maint__   = process.env.maint;
 
-var fs          = require('fs-extra'),
-    path        = require('path'),
-    cluster     = require('cluster'),
-    cp          = require('child_process'),
-    express     = require('express'),
-    aws         = require('aws-sdk'),
-    crypto      = require('crypto'),
-    q           = require('q'),
-    daemon      = require('../lib/daemon'),
-    logger      = require('../lib/logger'),
-    uuid        = require('../lib/uuid'),
-    cwrxConfig  = require('../lib/config'),
-    ffmpeg      = require('../lib/ffmpeg'),
-    id3Info     = require('../lib/id3'),
-    vocalware   = require('../lib/vocalware'),
-    assemble    = require('../lib/assemble'),
-    s3util      = require('../lib/s3util'),
-
-    // This is the template for dub's configuration
-    defaultConfiguration = {
-        caches : {
-            run     : path.normalize('/usr/local/share/cwrx/dub/caches/run/'),
-            line    : path.normalize('/usr/local/share/cwrx/dub/caches/line/'),
-            blanks  : path.normalize('/usr/local/share/cwrx/dub/caches/blanks/'),
-            script  : path.normalize('/usr/local/share/cwrx/dub/caches/script/'),
-            video   : path.normalize('/usr/local/share/cwrx/dub/caches/video/'),
-            output  : path.normalize('/usr/local/share/cwrx/dub/caches/output/')
-        },
-        output : {
-            "type" : "local",
-            "uri"  : "/media"
-        },
-        s3 : {
-            src     : {
-                bucket  : 'c6media',
-                path    : 'src/screenjack/video/'
-            },
-            out     : {
-                bucket  : 'c6media',
-                path    : 'usr/screenjack/video/'
-            },
-            auth    : path.join(process.env.HOME,'.aws.json')
-        },
-        tts : {
-            auth        : path.join(process.env.HOME,'.tts.json'),
-            bitrate     : '48k',
-            frequency   : 22050,
-            workspace   : __dirname
-        },
-    },
+var include     = require('../lib/inject').require,
+    fs          = include('fs-extra'),
+    path        = include('path'),
+    cluster     = include('cluster'),
+    cp          = include('child_process'),
+    express     = include('express'),
+    aws         = include('aws-sdk'),
+    crypto      = include('crypto'),
+    q           = include('q'),
+    daemon      = include('../lib/daemon'),
+    logger      = include('../lib/logger'),
+    uuid        = include('../lib/uuid'),
+    cwrxConfig  = include('../lib/config'),
+    ffmpeg      = include('../lib/ffmpeg'),
+    id3Info     = include('../lib/id3'),
+    vocalware   = include('../lib/vocalware'),
+    assemble    = include('../lib/assemble'),
+    s3util      = include('../lib/s3util'),
+    
+    dub = {}, // for exporting functions to unit tests
 
     // Attempt a graceful exit
     exitApp  = function(resultCode,msg){
@@ -69,127 +38,40 @@ var fs          = require('fs-extra'),
         process.exit(resultCode);
     };
 
-if (!__ut__ && !__maint__){
-
-    try {
-        main(function(rc,msg){
-            exitApp(rc,msg);
-        });
-    } catch(e) {
-        exitApp(1,e.stack);
+// This is the template for dub's configuration
+dub.defaultConfiguration = {
+    caches : {
+        run     : path.normalize('/usr/local/share/cwrx/dub/caches/run/'),
+        line    : path.normalize('/usr/local/share/cwrx/dub/caches/line/'),
+        blanks  : path.normalize('/usr/local/share/cwrx/dub/caches/blanks/'),
+        script  : path.normalize('/usr/local/share/cwrx/dub/caches/script/'),
+        video   : path.normalize('/usr/local/share/cwrx/dub/caches/video/'),
+        output  : path.normalize('/usr/local/share/cwrx/dub/caches/output/')
+    },
+    output : {
+        "type" : "local",
+        "uri"  : "/media"
+    },
+    s3 : {
+        src     : {
+            bucket  : 'c6media',
+            path    : 'src/screenjack/video/'
+        },
+        out     : {
+            bucket  : 'c6media',
+            path    : 'usr/screenjack/video/'
+        },
+        auth    : path.join(process.env.HOME,'.aws.json')
+    },
+    tts : {
+        auth        : path.join(process.env.HOME,'.tts.json'),
+        bitrate     : '48k',
+        frequency   : 22050,
+        workspace   : __dirname
     }
-}
+};
 
-function main(done){
-    var program  = require('commander'),
-        config = {},
-        job, log, userCfg;
-
-    program
-        .option('-c, --config [CFGFILE]','Specify config file')
-        .option('-d, --daemon','Run as a daemon (requires -s).')
-        .option('-g, --gid [GID]','Run as group (id or name).')
-        .option('-l, --loglevel [LEVEL]', 'Specify log level (TRACE|INFO|WARN|ERROR|FATAL)' )
-        .option('-k, --kids [KIDS]','Number of kids to spawn.', 0)
-        .option('-p, --port [PORT]','Listent on port (requires -s) [3000].', 3000)
-        .option('-s, --server','Run as a server.')
-        .option('-u, --uid [UID]','Run as user (id or name).')
-        .option('--enable-aws','Enable aws access.')
-        .option('--show-config','Display configuration and exit.')
-        .parse(process.argv);
-
-    if (program.gid){
-        console.log('\nChange process to group: ' + program.gid);
-        process.setgid(program.gid);
-    }
-   
-    if (program.uid){
-        console.log('\nChange process to user: ' + program.uid);
-        process.setuid(program.uid);
-    }
-
-    config = createConfiguration(program);
-
-    if (program.showConfig){
-        console.log(JSON.stringify(config,null,3));
-        process.exit(0);
-    }
-
-    config.ensurePaths();
-
-    log = logger.getLog();
-
-    if (program.loglevel){
-        log.setLevel(program.loglevel);
-    }
-
-    if (!program.server){
-        // Running as a simple command line task, do the work and exit
-        if (!program.args[0]){
-            throw new SyntaxError('Expected a template file.');
-        }
-
-        job = createDubJob(uuid.createUuid().substr(0,10),loadTemplateFromFile(program.args[0]), config);
-        
-        handleRequest(job,function(err, finishedJob){
-            if (err) {
-                return done(1,err.message);
-            } else {
-                return done(0,'Done');
-            }
-        });
-
-        return;
-    }
-
-    // Ok, so we're a server, lets do some servery things..
-    process.on('uncaughtException', function(err) {
-        try{
-            log.error('uncaught: ' + err.message + "\n" + err.stack);
-        }catch(e){
-            console.error(e);
-        }
-        return done(2);
-    });
-
-    process.on('SIGINT',function(){
-        log.info('Received SIGINT, exitting app.');
-        return done(1,'Exit');
-    });
-
-    process.on('SIGTERM',function(){
-        log.info('Received TERM, exitting app.');
-        if (program.daemon){
-            daemon.removePidFile(config.cacheAddress('dub.pid', 'run'));
-        }
-
-        if (cluster.isMaster){
-            cluster.disconnect(function(){
-                return done(0,'Exit');
-            });
-            return;
-        }
-        return done(0,'Exit');
-    });
-
-    
-    log.info('Running version ' + getVersion());
-    
-    // Daemonize if so desired
-    if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)) {
-        daemon.daemonize(config.cacheAddress('dub.pid', 'run'), done);
-    }
-
-    // Now that we either are or are not a daemon, its time to 
-    // setup clustering if running as a cluster.
-    if ((cluster.isMaster) && (program.kids > 0)) {
-        clusterMain(config,program,done);
-    } else {
-        workerMain(config,program,done);
-    }
-}
-
-function getVersion() {
+dub.getVersion = function() {
     var fpath = path.join(__dirname, 'dub.version'),
         log = logger.getLog();
         
@@ -202,149 +84,10 @@ function getVersion() {
     }
     log.warn('No version file found');
     return 'unknown';
-}
+};
 
-function clusterMain(config,program,done) {
-    var log = logger.getLog();
-    log.info('Running as cluster master');
-
-    cluster.on('exit', function(worker, code, signal) {
-        if (worker.suicide === true){
-            log.error('Worker ' + worker.process.pid + ' died peacefully');
-        } else {
-            log.error('Worker ' + worker.process.pid + ' died, restarting...');
-            cluster.fork();
-        }
-    });
-
-    cluster.on('fork', function(worker){
-        log.info('Worker [' + worker.process.pid + '] has forked.');
-    });
-    
-    cluster.on('online', function(worker){
-        log.info('Worker [' + worker.process.pid + '] is now online.');
-    });
-    
-    cluster.on('listening', function(worker,address){
-        log.info('Worker [' + worker.process.pid + '] is now listening on ' + 
-            address.address + ':' + address.port);
-    });
-    
-    cluster.setupMaster( { silent : true });
-    
-    log.info("Will spawn " + program.kids + " kids.");
-    for (var i = 0; i < program.kids; i++) {
-        cluster.fork();
-    }
-
-    log.info("Spawning done, hanging around my empty nest.");
-}
-
-function workerMain(config,program,done){
-    var app = express(),
-        log = logger.getLog();
-
-    log.info('Running as cluster worker, proceed with setting up web server.');
-    app.use(express.bodyParser());
-
-    app.all('*', function(req, res, next) {
-        res.header("Access-Control-Allow-Origin", "*");
-        res.header("Access-Control-Allow-Headers", 
-                   "Origin, X-Requested-With, Content-Type, Accept");
-
-        if (req.method.toLowerCase() === "options") {
-            res.send(200);
-        } else {
-            next();
-        }
-    });
-
-    app.all('*',function(req, res, next){
-        req.uuid = uuid.createUuid().substr(0,10);
-        log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
-            req.method,req.url,req.httpVersion);
-        next();
-    });
-
-    app.post('/dub/create', function(req, res, next){
-        var job;
-        try {
-            job = createDubJob(req.uuid, req.body, config);
-        }catch (e){
-            log.error('[%1] Create Job Error: %2', req.uuid, e.message);
-            res.send(500,{
-                error  : 'Unable to process request.',
-                detail : e.message
-            });
-            return;
-        }
-        handleRequest(job,function(err){
-            if (err){
-                log.error('[%1] Handle Request Error: %2',req.uuid,err.message);
-                res.send(400,{
-                    error  : 'Unable to complete request.',
-                    detail : err.message
-                });
-                return;
-            }
-            res.send(200, {
-                output : job.outputUri,
-                md5    : job.md5
-            });
-        });
-    });
-
-    app.listen(program.port);
-    log.info('Dub server is listening on port: ' + program.port);
-}
-
-function handleRequest(job, done){
-    var log = logger.getLog(),
-        fnName = arguments.callee.name;
-    job.setStartTime(fnName);
-    
-    // Each function returns a promise for job and checks job to see if it needs to be run.
-    getSourceVideo(job)
-    .then(convertLinesToMP3)
-    .then(collectLinesMetadata)
-    .then(getVideoLength)
-    .then(convertScriptToMP3)
-    .then(applyScriptToVideo)
-    .then(uploadToStorage)
-    .then(
-        function() {
-            log.trace("All tasks succeeded!");
-            job.setEndTime(fnName);
-            done(null, job);
-        }, function(error) {
-            job.setEndTime(fnName);
-            if (error.fnName && error.msg) 
-                done({message : 'Died on [' + error.fnName + ']: ' + error.msg}, job);
-            else
-                done({message : 'Died: ' + error}, job);
-        }
-    );
-}
-
-function loadTemplateFromFile(tmplFile){
-    var buff,tmplobj;
- 
-    buff = fs.readFileSync(tmplFile);
-    try {
-        tmplObj = JSON.parse(buff);
-    } catch(e) {
-        throw new Error('Error parsing template: ' + e.message);
-    }
-
-    if ((!(tmplObj.script instanceof Array)) || (!tmplObj.script.length)){
-        throw new SyntaxError('Template is missing script section');
-    }
-
-    return tmplObj;
-}
-
-function createConfiguration(cmdLine) {
-    var cfgObject = cwrxConfig.createConfigObject(cmdLine.config, defaultConfiguration),
+dub.createConfiguration = function(cmdLine) {
+    var cfgObject = cwrxConfig.createConfigObject(cmdLine.config, dub.defaultConfiguration),
         log;
 
     if (cfgObject.log) {
@@ -381,21 +124,30 @@ function createConfiguration(cmdLine) {
         });
     };
 
-    cfgObject.uriAddress = function(fname){
-        if ((cfgObject.output) && (cfgObject.output.uri)){
-            return (cfgObject.output.uri + fname);
-        }
-        return fname;
-    };
-
     cfgObject.cacheAddress = function(fname,cache){
         return path.join(this.caches[cache],fname);
     };
     
     return cfgObject;
+};
+
+function loadTemplateFromFile(tmplFile){
+    var tmplobj;
+ 
+    try {
+        tmplObj = fs.readJSONSync(tmplFile);
+    } catch(e) {
+        throw new Error('Error parsing template: ' + e.message);
+    }
+
+    if ((!(tmplObj.script instanceof Array)) || (!tmplObj.script.length)){
+        throw new SyntaxError('Template is missing script section');
+    }
+
+    return tmplObj;
 }
 
-function createDubJob(id, template, config){
+dub.createDubJob = function(id, template, config){
     var log = logger.getLog(),
         buff,
         obj       = {},
@@ -473,15 +225,14 @@ function createDubJob(id, template, config){
   
     obj.outputFname = videoBase + '_' + obj.outputHash + videoExt;
     obj.outputPath = config.cacheAddress(obj.outputFname,'output');
-    obj.outputUri  = config.uriAddress(obj.outputFname);
+    obj.outputUri  = config.output && config.output.uri ? config.output.uri + obj.outputFname
+                                                         : obj.outputFname;
     obj.outputType = (config.output && config.output.type ? config.output.type : null);
   
     obj.videoMetadataPath   = config.cacheAddress(videoBase + '_metadata.json','video');
 
     try {
-        obj.videoMetadata = 
-            fs.readJSONSync(obj.videoMetadataPath, { encoding : 'utf8' });
-
+        obj.videoMetadata = fs.readJSONSync(obj.videoMetadataPath, { encoding : 'utf8' });
     } catch(e) {
         if (e.errno !== 34){
             log.error('[%1] failed to open videoMetaData file: %2',obj.id, e.message);
@@ -559,7 +310,6 @@ function createDubJob(id, template, config){
         obj.elapsedTimes[fnName].end = new Date();
         var elapsed = obj.getElapsedTime(fnName);
         log.info("[%1] Finished {%2} in %3",obj.id, fnName , elapsed);
-            
     };
     obj.getElapsedTime = function(fnName) {
         if (obj.elapsedTimes[fnName] && obj.elapsedTimes[fnName].start && 
@@ -572,15 +322,15 @@ function createDubJob(id, template, config){
     };
 
     return obj;
-}
+};
 
-function getSourceVideo(job) {
+dub.getSourceVideo = function(job) {
     var deferred = q.defer(), 
         log = logger.getLog(),
-        fnName = arguments.callee.name;
+        fnName = 'getSourceVideo';
     
     if (job.hasOutput() || job.hasVideo()) {
-        log.info("[%1] Skipping getSourceVideo",job.id);
+        log.info("[%1] Skipping %2",job.id, fnName);
         return q(job);
     }
 
@@ -606,22 +356,22 @@ function getSourceVideo(job) {
     }
     
     return deferred.promise;
-}
+};
 
-function convertLinesToMP3(job){
+dub.convertLinesToMP3 = function(job){
     var log = logger.getLog(),
         deferred = q.defer(),
-        fnName = arguments.callee.name;
+        fnName = 'convertLinesToMP3';
 
     if (job.hasOutput() || job.hasScript() || job.hasLines()) {
-        log.info("[%1] Skipping convertLinesToMP3",job.id);
+        log.info("[%1] Skipping %2",job.id, fnName);
         return q(job);
     }
 
     log.info("[%1] Starting %2",job.id,fnName);
     job.setStartTime(fnName);
 
-    var processTrack = q.fbind(function(track){
+    var processTrack = function(track){
         var deferred = q.defer();
         if (!fs.existsSync(track.fpath)){
             var rqs = vocalware.createRequest({authToken : job.ttsAuth}), voice;
@@ -650,16 +400,16 @@ function convertLinesToMP3(job){
             deferred.resolve();
         }
         return deferred.promise;
-    });
+    };
 
     q.allSettled(job.tracks.map(function(track) {
         var deferred2 = q.defer();
-        processTrack(track).then(
+        q.fcall(processTrack, track).then(
             function() { deferred2.resolve(); },
             function(error) {
                 log.error("[%1] Failed once for %2 with error = %3",job.id,track.fname,error);
                 log.trace("[%1] Retrying...", job.id);
-                processTrack(track).then(
+                q.fcall(processTrack, track).then(
                     function() { deferred2.resolve(); },
                     function(error) { 
                         log.error("[%1] Failed again for %2",job.id, track.fname); 
@@ -683,14 +433,13 @@ function convertLinesToMP3(job){
     });
 
     return deferred.promise;
-}
+};
 
-function getLineMetadata(track){
+dub.getLineMetadata = function(track){
     var log = logger.getLog(), deferred;
 
     try {
-        track.metaData = 
-            fs.readJSONSync(track.metapath, { encoding : 'utf8' });
+        track.metaData = fs.readJSONSync(track.metapath, { encoding : 'utf8' });
     }
     catch(e){
         if (e.errno !== 34){
@@ -733,15 +482,15 @@ function getLineMetadata(track){
     });
 
     return deferred.promise;
-}
+};
 
-function collectLinesMetadata(job){
+dub.collectLinesMetadata = function(job){
     var log     = logger.getLog(),
-        fnName  = arguments.callee.name,
+        fnName  = 'collectLinesMetadata',
         deferred;
 
     if (job.hasOutput() || job.hasScript() ) {
-        log.info("[%1] Skipping collectLinesMetadata",job.id);
+        log.info("[%1] Skipping %2",job.id, fnName);
         return q(job);
     }
 
@@ -750,7 +499,7 @@ function collectLinesMetadata(job){
     deferred = q.defer();
     
     q.all(job.tracks.map(function(track){
-        return getLineMetadata(track);
+        return dub.getLineMetadata(track);
     }))
     .then(function(results){
         job.setEndTime(fnName);
@@ -761,15 +510,15 @@ function collectLinesMetadata(job){
         deferred.reject({"fnName": fnName, "msg": err});
     });
     return deferred.promise;
-}
+};
 
-function getVideoLength(job){
+dub.getVideoLength = function(job){
     var log = logger.getLog(),
         deferred = q.defer(),
-        fnName = arguments.callee.name;
+        fnName = 'getVideoLength';
 
     if (job.hasOutput() || job.hasScript() || job.hasVideoLength()) {
-        log.info("[%1] Skipping getVideoLength",job.id);
+        log.info("[%1] Skipping %2",job.id, fnName);
         return q(job);
     }
 
@@ -778,7 +527,7 @@ function getVideoLength(job){
 
     ffmpeg.probe(job.videoPath,function(err,info){
         if (err) {
-            deferred.reject({"fnName": fnName, "msg": error});
+            deferred.reject({"fnName": fnName, "msg": err});
             job.setEndTime(fnName);
             return deferred.promise;
         }
@@ -800,15 +549,15 @@ function getVideoLength(job){
         deferred.resolve(job);
     });
     return deferred.promise;
-}
+};
 
-function convertScriptToMP3(job){
+dub.convertScriptToMP3 = function(job){
     var log = logger.getLog(),
         deferred = q.defer(),
-        fnName = arguments.callee.name;
+        fnName = 'convertScriptToMP3';
 
     if (job.hasOutput() || job.hasScript()) {
-        log.info("[%1] Skipping convertScriptToMP3", job.id);
+        log.info("[%1] Skipping %2", job.id, fnName);
         return q(job);
     }
 
@@ -827,15 +576,15 @@ function convertScriptToMP3(job){
     });
         
     return deferred.promise;
-}
+};
 
-function applyScriptToVideo(job){
+dub.applyScriptToVideo = function(job){
     var log = logger.getLog(),
         deferred = q.defer(),
-        fnName = arguments.callee.name;
+        fnName = 'applyScriptToVideo';
  
     if (job.hasOutput()) {
-        log.info("[%1] Skipping applyScriptToVideo", job.id);
+        log.info("[%1] Skipping %2", job.id, fnName);
         return q(job);
     }
 
@@ -854,20 +603,13 @@ function applyScriptToVideo(job){
                 deferred.resolve(job);
             });
     return deferred.promise;
-}
+};
 
-function uploadToStorage(job){
+dub.uploadToStorage = function(job){
     var deferred = q.defer(),
         log = logger.getLog(),
-        fnName = arguments.callee.name,
+        fnName = 'uploadToStorage';
     
-        localVid = fs.readFileSync(job.outputPath),
-        hash = crypto.createHash('md5');
-
-    hash.update(localVid);
-    job.md5 = hash.digest('hex');
-    log.trace("[%1] Local File MD5: %2",job.id, job.md5);
-
     if (job.outputType === 'local') {
         log.trace('[%1] Output type is set to "local", skipping S3 upload.',job.id);
         deferred.resolve(job);
@@ -885,7 +627,13 @@ function uploadToStorage(job){
 
     var s3 = new aws.S3(),
         outParams = job.getS3OutVideoParams(),
-        headParams = {Key: outParams.Key, Bucket: outParams.Bucket};
+        headParams = {Key: outParams.Key, Bucket: outParams.Bucket},
+        localVid = fs.readFileSync(job.outputPath),
+        hash = crypto.createHash('md5');
+
+    hash.update(localVid);
+    job.md5 = hash.digest('hex');
+    log.trace("[%1] Local File MD5: %2",job.id, job.md5);
 
     s3.headObject(headParams, function(err, data) {
         if (data && data.ETag && data.ETag.replace(/"/g, '') == job.md5) {
@@ -907,15 +655,253 @@ function uploadToStorage(job){
                 });
         }
     });
-
     return deferred.promise;
-}
-
-module.exports = {
-    'createDubJob'          : createDubJob,
-    'loadTemplateFromFile'  : loadTemplateFromFile
 };
 
+dub.handleRequest = function(job, done){
+    var log = logger.getLog(),
+        fnName = 'handleRequest';
+    job.setStartTime(fnName);
+    
+    // Each function returns a promise for job and checks job to see if it needs to be run.
+    dub.getSourceVideo(job)
+    .then(dub.convertLinesToMP3)
+    .then(dub.collectLinesMetadata)
+    .then(dub.getVideoLength)
+    .then(dub.convertScriptToMP3)
+    .then(dub.applyScriptToVideo)
+    .then(dub.uploadToStorage)
+    .then(
+        function() {
+            log.trace("All tasks succeeded!");
+            job.setEndTime(fnName);
+            done(null, job);
+        }, function(error) {
+            job.setEndTime(fnName);
+            if (error.fnName && error.msg) 
+                done({message : 'Died on [' + error.fnName + ']: ' + error.msg}, job);
+            else
+                done({message : 'Died: ' + error}, job);
+        }
+    );
+};
+
+function clusterMain(config,program,done) {
+    var log = logger.getLog();
+    log.info('Running as cluster master');
+
+    cluster.on('exit', function(worker, code, signal) {
+        if (worker.suicide === true){
+            log.error('Worker ' + worker.process.pid + ' died peacefully');
+        } else {
+            log.error('Worker ' + worker.process.pid + ' died, restarting...');
+            cluster.fork();
+        }
+    });
+
+    cluster.on('fork', function(worker){
+        log.info('Worker [' + worker.process.pid + '] has forked.');
+    });
+    
+    cluster.on('online', function(worker){
+        log.info('Worker [' + worker.process.pid + '] is now online.');
+    });
+    
+    cluster.on('listening', function(worker,address){
+        log.info('Worker [' + worker.process.pid + '] is now listening on ' + 
+            address.address + ':' + address.port);
+    });
+    
+    cluster.setupMaster( { silent : true });
+    
+    log.info("Will spawn " + program.kids + " kids.");
+    for (var i = 0; i < program.kids; i++) {
+        cluster.fork();
+    }
+
+    log.info("Spawning done, hanging around my empty nest.");
+}
+
+function workerMain(config,program,done){
+    var app = express(),
+        log = logger.getLog();
+
+    log.info('Running as cluster worker, proceed with setting up web server.');
+    app.use(express.bodyParser());
+
+    app.all('*', function(req, res, next) {
+        res.header("Access-Control-Allow-Origin", "*");
+        res.header("Access-Control-Allow-Headers", 
+                   "Origin, X-Requested-With, Content-Type, Accept");
+
+        if (req.method.toLowerCase() === "options") {
+            res.send(200);
+        } else {
+            next();
+        }
+    });
+
+    app.all('*',function(req, res, next){
+        req.uuid = uuid.createUuid().substr(0,10);
+        log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
+            req.method,req.url,req.httpVersion);
+        next();
+    });
+
+    app.post('/dub/create', function(req, res, next){
+        var job;
+        try {
+            job = dub.createDubJob(req.uuid, req.body, config);
+        }catch (e){
+            log.error('[%1] Create Job Error: %2', req.uuid, e.message);
+            res.send(500,{
+                error  : 'Unable to process request.',
+                detail : e.message
+            });
+            return;
+        }
+        dub.handleRequest(job,function(err){
+            if (err){
+                log.error('[%1] Handle Request Error: %2',req.uuid,err.message);
+                res.send(400,{
+                    error  : 'Unable to complete request.',
+                    detail : err.message
+                });
+                return;
+            }
+            res.send(200, {
+                output : job.outputUri,
+                md5    : job.md5
+            });
+        });
+    });
+
+    app.listen(program.port);
+    log.info('Dub server is listening on port: ' + program.port);
+}
+
+if (!__ut__ && !__maint__){
+
+    try {
+        main(function(rc,msg){
+            exitApp(rc,msg);
+        });
+    } catch(e) {
+        exitApp(1,e.stack);
+    }
+}
+
+function main(done){
+    var program  = include('commander'),
+        config = {},
+        job, log, userCfg;
+
+    program
+        .option('-c, --config [CFGFILE]','Specify config file')
+        .option('-d, --daemon','Run as a daemon (requires -s).')
+        .option('-g, --gid [GID]','Run as group (id or name).')
+        .option('-l, --loglevel [LEVEL]', 'Specify log level (TRACE|INFO|WARN|ERROR|FATAL)' )
+        .option('-k, --kids [KIDS]','Number of kids to spawn.', 0)
+        .option('-p, --port [PORT]','Listent on port (requires -s) [3000].', 3000)
+        .option('-s, --server','Run as a server.')
+        .option('-u, --uid [UID]','Run as user (id or name).')
+        .option('--enable-aws','Enable aws access.')
+        .option('--show-config','Display configuration and exit.')
+        .parse(process.argv);
+
+    if (program.gid){
+        console.log('\nChange process to group: ' + program.gid);
+        process.setgid(program.gid);
+    }
+   
+    if (program.uid){
+        console.log('\nChange process to user: ' + program.uid);
+        process.setuid(program.uid);
+    }
+
+    config = dub.createConfiguration(program);
+
+    if (program.showConfig){
+        console.log(JSON.stringify(config,null,3));
+        process.exit(0);
+    }
+
+    config.ensurePaths();
+
+    log = logger.getLog();
+
+    if (program.loglevel){
+        log.setLevel(program.loglevel);
+    }
+
+    if (!program.server){
+        // Running as a simple command line task, do the work and exit
+        if (!program.args[0]){
+            throw new SyntaxError('Expected a template file.');
+        }
+
+        job = dub.createDubJob(uuid.createUuid().substr(0,10),loadTemplateFromFile(program.args[0]), config);
+        
+        handleRequest(job,function(err, finishedJob){
+            if (err) {
+                return done(1,err.message);
+            } else {
+                return done(0,'Done');
+            }
+        });
+
+        return;
+    }
+
+    // Ok, so we're a server, lets do some servery things..
+    process.on('uncaughtException', function(err) {
+        try{
+            log.error('uncaught: ' + err.message + "\n" + err.stack);
+        }catch(e){
+            console.error(e);
+        }
+        return done(2);
+    });
+
+    process.on('SIGINT',function(){
+        log.info('Received SIGINT, exitting app.');
+        return done(1,'Exit');
+    });
+
+    process.on('SIGTERM',function(){
+        log.info('Received TERM, exitting app.');
+        if (program.daemon){
+            daemon.removePidFile(config.cacheAddress('dub.pid', 'run'));
+        }
+
+        if (cluster.isMaster){
+            cluster.disconnect(function(){
+                return done(0,'Exit');
+            });
+            return;
+        }
+        return done(0,'Exit');
+    });
+
+    
+    log.info('Running version ' + dub.getVersion());
+    
+    // Daemonize if so desired
+    if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)) {
+        daemon.daemonize(config.cacheAddress('dub.pid', 'run'), done);
+    }
+
+    // Now that we either are or are not a daemon, its time to 
+    // setup clustering if running as a cluster.
+    if ((cluster.isMaster) && (program.kids > 0)) {
+        clusterMain(config,program,done);
+    } else {
+        workerMain(config,program,done);
+    }
+}
+
 if (__ut__) {
-    module.exports.createConfiguration = createConfiguration;
+    module.exports = dub;
+} else {
+    module.exports.createDubJob = dub.createDubJob;
 }

@@ -1,6 +1,6 @@
 var     fs   = require('fs-extra'),
         path = require('path'),
-        logger = require('../lib/logger');
+        logger = require('../../lib/logger');
 
 describe("basic logger creation and initialization",function(){
 
@@ -283,9 +283,9 @@ describe("log stack",function(){
         someFunc();
         expect(testMedia.lines.length).toEqual(2);
         expect(testMedia.lines[0].match(
-                /\[info\] {null.<anonymous>:core.logger.spec.js:282} test1/)).not.toBeNull();
+                /\[info\] {null.<anonymous>:logger.at.spec.js:282} test1/)).not.toBeNull();
         expect(testMedia.lines[1].match(
-                /\[info\] {someFunc:core.logger.spec.js:280} test2/)).not.toBeNull();
+                /\[info\] {someFunc:logger.at.spec.js:280} test2/)).not.toBeNull();
     });
 });
 
