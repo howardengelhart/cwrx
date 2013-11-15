@@ -1,8 +1,8 @@
-var include     = require('../../lib/inject').require,
-    path        = include('path'),
-    fs          = include('fs-extra'),
-    q           = include('q'),
-    sanitize    = include('../test/sanitize');
+var path        = require('path'),
+    fs          = require('fs-extra'),
+    q           = require('q'),
+    cwrxConfig  = require('../../lib/config'),
+    sanitize    = require('../sanitize');
 
 describe('maint', function() {
     var maint, traceSpy, errorSpy, warnSpy, infoSpy, fatalSpy, logSpy, mockLogger, mockAws;
@@ -93,7 +93,7 @@ describe('maint', function() {
                     auth: 'fakeAuth.json'
                 }
             },
-            createConfig = spyOn(include('../lib/config'), 'createConfigObject').andReturn(mockConfig);
+            createConfig = spyOn(cwrxConfig, 'createConfigObject').andReturn(mockConfig);
         });
     
         it('should exist', function() {

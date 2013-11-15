@@ -1,7 +1,8 @@
-var include     = require('../../lib/inject').require,
-    path        = include('path'),
-    fs          = include('fs-extra'),
-    sanitize    = include('../test/sanitize');
+var path        = require('path'),
+    fs          = require('fs-extra'),
+    cwrxConfig  = require('../../lib/config'),
+    uuid        = require('../../lib/uuid'),
+    sanitize    = require('../sanitize');
 
 describe('share', function() {
     var share, traceSpy, errorSpy, warnSpy, infoSpy, fatalSpy, logSpy, mockLogger,
@@ -97,7 +98,7 @@ describe('share', function() {
                     auth: 'fakeAuth.json'
                 }
             },
-            createConfig = spyOn(include('../lib/config'), 'createConfigObject').andReturn(mockConfig);
+            createConfig = spyOn(cwrxConfig, 'createConfigObject').andReturn(mockConfig);
         });
     
         it('should exist', function() {
@@ -187,7 +188,7 @@ describe('share', function() {
             var config, req, uuidSpy;
                 
             beforeEach(function() {
-                uuidSpy = spyOn(include('../lib/uuid'), 'createUuid').andReturn('ut1'),
+                uuidSpy = spyOn(uuid, 'createUuid').andReturn('ut1'),
                 config = {
                     s3: {
                         share: {

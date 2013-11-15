@@ -1,13 +1,12 @@
-var include     = require('../../lib/inject').require,
-    path        = include('path'),
-    fs          = include('fs-extra'),
-    q           = include('q'),
-    crypto      = include('crypto'),
-    sanitize    = include('../test/sanitize'),
-    cwrxConfig  = include('../lib/config'),
-    uuid        = include('../lib/uuid'),
-    ffmpeg      = include('../lib/ffmpeg'),
-    s3util      = include('../lib/s3util');
+var path        = require('path'),
+    fs          = require('fs-extra'),
+    q           = require('q'),
+    crypto      = require('crypto'),
+    cwrxConfig  = require('../../lib/config'),
+    uuid        = require('../../lib/uuid'),
+    ffmpeg      = require('../../lib/ffmpeg'),
+    sanitize    = require('../sanitize'),
+    s3util      = require('../../lib/s3util');
 
 describe('dub',function(){
     var dub, mockLog, mockLogger, mockAws, mockVware, mockAssemble, mockId3;
