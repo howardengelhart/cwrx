@@ -9,7 +9,7 @@ module.exports = function (grunt) {
             prefix      : process.env.HOME,
             dist        : path.join(__dirname,'dist'),
             packageInfo : grunt.file.readJSON('package.json'),
-            awsAuth     : path.join(process.env.HOME,'.aws.json')
+            awsAuth     : grunt.option('awsAuth') || path.join(process.env.HOME,'.aws.json')
         };
 
     initProps.version     = function(){
