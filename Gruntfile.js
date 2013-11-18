@@ -31,16 +31,6 @@ module.exports = function (grunt) {
     
     grunt.initConfig({
         settings   : initProps,
-        jasmine_node: {
-            matchAll : true,
-            projectRoot   : './test/unit/',
-            jUnit: {
-                report: true,
-                savePath : __dirname + '/reports/',
-                useDotNotation : true,
-                consolidate : true
-            }
-        },
         jshint: {
             options: {
                 jshintrc: 'jshint.json'
@@ -64,10 +54,6 @@ module.exports = function (grunt) {
         rmbuild : {
             history : 2 
         },
-        start_instance: {
-            pollingInterval: 5,
-            maxIters: 12
-        },
         test: {
             unit: {
                 reportDir: 'reports/unit/'
@@ -76,15 +62,17 @@ module.exports = function (grunt) {
                 reportDir: 'reports/acceptance/'
             },
             e2e: {
-                reportDir: 'reports/e2e/',
-                host: 'localhost'
-            }
+                reportDir: 'reports/e2e/'
+            },
+        },
+        start_instance: {
+            pollingInterval: 5,
+            maxIters: 12
         }
     });
     
     grunt.loadNpmTasks('grunt-contrib-jshint');
     grunt.loadNpmTasks('grunt-contrib-watch');
-    grunt.loadNpmTasks('grunt-jasmine-node');
 
     grunt.registerTask('default', function(){
         grunt.task.run('jshint');
@@ -132,7 +120,7 @@ module.exports = function (grunt) {
         });
     });
 
-    grunt.registerTask('gitstatus','Make surethere are no pending commits', function(){
+    grunt.registerTask('gitstatus','Make sure there are no pending commits', function(){
         var done = this.async();
         grunt.util.spawn({
             cmd     : 'git',
@@ -199,15 +187,15 @@ module.exports = function (grunt) {
         }
     });
     
-    grunt.registerMultiTask('test', function() {
+    grunt.registerMultiTask('test', 'Run jasmine tests', function() {
         var target = this.target,
             data = this.data,
             done = this.async(),
             args = ['--test-dir', 'test/' + target + '/', '--captureExceptions', '--junitreport',
                     '--output', path.join(__dirname, data.reportDir)];
         
-        if (target === 'e2e' && data.host) {
-            args.push('--config', 'host', data.host);
+        if (target === 'e2e' && grunt.option('testHost')) {
+            args.push('--config', 'host', grunt.option('testHost'));
         }
             
         grunt.log.writeln('Running ' + target + ' tests:');
@@ -225,7 +213,7 @@ module.exports = function (grunt) {
         });
     });
     
-    grunt.registerTask('stop_instance', function(id) {
+    grunt.registerTask('stop_instance', 'stop the test instance', function(id) {
         var settings = grunt.config.get('settings'),
             auth     = settings.awsAuth;
 
@@ -251,7 +239,7 @@ module.exports = function (grunt) {
         });
     });
 
-    grunt.registerTask('start_instance', function(id) {
+    grunt.registerTask('start_instance', 'start an instance for running tests', function(id) {
         var settings = grunt.config.get('settings'),
             auth     = settings.awsAuth,
             interval = (grunt.config.get('start_instance.pollingInterval') || 5) * 1000,
