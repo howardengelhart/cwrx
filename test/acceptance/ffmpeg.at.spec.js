@@ -1,11 +1,11 @@
 var path = require('path'),
-    fs   = require('fs');
+    fs   = require('fs'),
     ffmpeg     = require('../../lib/ffmpeg'),
     testFile0  = path.join(__dirname,'b0.mp3'),
     testFile1  = path.join(__dirname,'b1.mp3'),
     testFile2  = path.join(__dirname,'b2.mp3'),
     concatMp3File    = path.join(__dirname,'output.mp3'),
-    videoFile        = path.join(__dirname,'test.mp4');
+    videoFile        = path.join(__dirname,'test.mp4'),
     mergedVideoFile  = path.join(__dirname,'merged.mp4');
 
 describe('ffmpeg init',function(){

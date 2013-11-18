@@ -70,13 +70,14 @@ module.exports = function (grunt) {
         },
         test: {
             unit: {
-            
+                reportDir: 'reports/unit/'
             },
             acceptance: {
-            
+                reportDir: 'reports/acceptance/'
             },
             e2e: {
-            
+                reportDir: 'reports/e2e/',
+                host: 'localhost'
             }
         }
     });
@@ -196,6 +197,32 @@ module.exports = function (grunt) {
                 fs.removeSync(path.join(installRoot,dir));
             }
         }
+    });
+    
+    grunt.registerMultiTask('test', function() {
+        var target = this.target,
+            data = this.data,
+            done = this.async(),
+            args = ['--test-dir', 'test/' + target + '/', '--captureExceptions', '--junitreport',
+                    '--output', path.join(__dirname, data.reportDir)];
+        
+        if (target === 'e2e' && data.host) {
+            args.push('--config', 'host', data.host);
+        }
+            
+        grunt.log.writeln('Running ' + target + ' tests:');
+        grunt.util.spawn({
+            cmd : 'jasmine-node',
+            args : args
+        }, function(error,result,code) {
+            grunt.log.writeln(result.stdout);
+            if (error) {
+                grunt.log.errorlns(target + ' tests failed: ' + error);
+                done(false);
+                return;
+            }
+            done(true);
+        });
     });
     
     grunt.registerTask('stop_instance', function(id) {

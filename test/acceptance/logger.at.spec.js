@@ -35,22 +35,22 @@ describe("basic logger creation and initialization",function(){
     it('checks values passed for logLevel and stackType',function(){
         ['faTal','error ',' Warn',' info ','TRACE'].forEach(function(level){
             expect(function(){
-                logger.createLog( { logLevel : level } )
+                logger.createLog( { logLevel : level } );
             }).not.toThrow();
         });
 
         expect(function(){
-            logger.createLog( { logLevel : 'FUDGE' } )
+            logger.createLog( { logLevel : 'FUDGE' } );
         }).toThrow('Unrecognized logLevel: FUDGE');
 
         ['none ',' Partial', ' full '].forEach(function(sttype){
             expect(function(){
-                logger.createLog( { stackType : sttype })
+                logger.createLog( { stackType : sttype });
             }).not.toThrow();
         });
         
         expect(function(){
-            logger.createLog( { stackType : 'sttype' })
+            logger.createLog( { stackType : 'sttype' });
         }).toThrow('Unrecognized stackType: sttype');
     });
 });
@@ -72,9 +72,9 @@ describe("adding media to logger",function(){
             var media = {};
             media.writeLine = function(line){
                 lines.push(line); 
-            }
+            };
 
-            media.id = function() { return 'testMedia'; }
+            media.id = function() { return 'testMedia'; };
             return media;
         }() ) );
         log.fatal('test');
@@ -265,7 +265,7 @@ describe("log stack",function(){
         log.setLogStack('PARTIAL');
         function someFunc(){
             log.info('test2');
-        };
+        }
         log.info('test1');
         someFunc();
         
@@ -278,7 +278,7 @@ describe("log stack",function(){
         log.setLogStack('FULL');
         function someFunc(){
             log.info('test2');
-        };
+        }
         log.info('test1');
         someFunc();
         expect(testMedia.lines.length).toEqual(2);
@@ -295,12 +295,12 @@ describe("file logger initialization",function(){
     it('should initialize properly with defaults',function(){
         var fm = new logger.FileLogMedia();
         expect(fm).toBeDefined();
-	    expect(fm.logDir).toEqual('./');
-	    expect(fm.logName).toEqual('log');
-	    expect(fm.backupLogs).toEqual(3);
-	    expect(fm.maxBytes).toEqual(5000000);
-	    expect(fm.maxLineSize).toEqual(1024);
-	    expect(fm.logBasePath).toEqual(path.join('./', 'log'));
+        expect(fm.logDir).toEqual('./');
+        expect(fm.logName).toEqual('log');
+        expect(fm.backupLogs).toEqual(3);
+        expect(fm.maxBytes).toEqual(5000000);
+        expect(fm.maxLineSize).toEqual(1024);
+        expect(fm.logBasePath).toEqual(path.join('./', 'log'));
         expect(fm.buff).toBeDefined();
         expect(fm.bytes).toEqual(-1);
         expect(fm.fd).toBeNull();
@@ -316,11 +316,11 @@ describe("file logger initialization",function(){
             maxLineSize : 12
         });
 
-	    expect(fm.logDir).toEqual(logDir);
-	    expect(fm.logName).toEqual('ut.log');
-	    expect(fm.backupLogs).toEqual(1);
-	    expect(fm.maxBytes).toEqual(100);
-	    expect(fm.maxLineSize).toEqual(12);
+        expect(fm.logDir).toEqual(logDir);
+        expect(fm.logName).toEqual('ut.log');
+        expect(fm.backupLogs).toEqual(1);
+        expect(fm.maxBytes).toEqual(100);
+        expect(fm.maxLineSize).toEqual(12);
     });
 
     it('should initialize properly when given gloabl and local configuration',function(){
@@ -336,11 +336,11 @@ describe("file logger initialization",function(){
             maxBytes : 200
         });
 
-	    expect(fm.logDir).toEqual(logDir);
-	    expect(fm.logName).toEqual('ut2.log');
-	    expect(fm.backupLogs).toEqual(2);
-	    expect(fm.maxBytes).toEqual(200);
-	    expect(fm.maxLineSize).toEqual(12);
+        expect(fm.logDir).toEqual(logDir);
+        expect(fm.logName).toEqual('ut2.log');
+        expect(fm.backupLogs).toEqual(2);
+        expect(fm.maxBytes).toEqual(200);
+        expect(fm.maxLineSize).toEqual(12);
     });
 });
 
@@ -553,7 +553,7 @@ describe('file logger logging',function(){
                         maxBytes    : 100
                     }
                 ]
-             });
+            });
 
         expect(fs.existsSync(path.join(logDir,'ut.log'))).toEqual(false);
         for (var i = 0; i < 30; i++){
@@ -577,7 +577,7 @@ describe('file logger logging',function(){
                         backupLogs  : 3
                     }
                 ]
-             });
+            });
         
         fs.mkdirsSync(logDir);
         expect(fs.readdirSync(logDir).length).toEqual(0);
@@ -610,7 +610,7 @@ describe('file logger logging',function(){
                         maxLineSize : 50
                     }
                 ]
-             });
+            });
         for (var i = 0; i < 30; i++) {
             log.info('abcdefghijklmnopqrstuvwxyz');
         }
@@ -634,7 +634,7 @@ describe('file logger logging',function(){
                     { type        : 'file' },
                     { type        : 'file' }
                 ]
-             });
+            });
         }).toThrow('Can only have one log media with id: ' + path.join(logDir,'ut.log'));
     });
 
@@ -654,7 +654,7 @@ describe('file logger logging',function(){
                         maxBytes    : 100
                     }
                 ]
-             });
+            });
 
         for (var i = 0; i < 50; i++) {
             log.info('abcdefghijklmnopqrstuvwxyz');
@@ -674,7 +674,7 @@ describe('file logger logging and exits',function(){
 
     var exec   = require('child_process').exec,
         gc     = [],
-        logDir = path.join(__dirname,'logs');
+        logDir = path.join(__dirname,'logs'),
         exec_ext_test = function(args,cb){
                 var cmd = 'node ' + path.join(__dirname,'tlog.js') + ' ' + args;
                 exec(cmd,cb);

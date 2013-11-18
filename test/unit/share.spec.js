@@ -37,7 +37,7 @@ describe('share', function() {
             S3: function() {
                 return {
                     putObject: putObjSpy
-                }
+                };
             }
         };
 
@@ -97,7 +97,7 @@ describe('share', function() {
                 s3: {
                     auth: 'fakeAuth.json'
                 }
-            },
+            };
             createConfig = spyOn(cwrxConfig, 'createConfigObject').andReturn(mockConfig);
         });
     
@@ -118,11 +118,11 @@ describe('share', function() {
         
         it('should throw an error if it can\'t load the s3 config', function() {
             mockAws.config.loadFromPath.andThrow('Exception!');
-            expect(function() {share.createConfiguration({config: 'utConfig'})}).toThrow();
+            expect(function() {share.createConfiguration({config: 'utConfig'});}).toThrow();
 
             mockAws.config.loadFromPath.andReturn();
             delete mockConfig.s3;
-            expect(function() {share.createConfiguration({config: 'utConfig'})}).toThrow();
+            expect(function() {share.createConfiguration({config: 'utConfig'});}).toThrow();
         });
         
         describe('ensurePaths method', function() {
@@ -188,7 +188,7 @@ describe('share', function() {
             var config, req, uuidSpy;
                 
             beforeEach(function() {
-                uuidSpy = spyOn(uuid, 'createUuid').andReturn('ut1'),
+                uuidSpy = spyOn(uuid, 'createUuid').andReturn('ut1');
                 config = {
                     s3: {
                         share: {
@@ -196,7 +196,7 @@ describe('share', function() {
                             path: 'ut/'
                         }
                     }
-                },
+                };
                 req = {
                     uuid: 'abc123',
                     body: {
