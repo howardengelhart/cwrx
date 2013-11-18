@@ -58,7 +58,7 @@ module.exports = function (grunt) {
                     __dirname + '/lib/**/*.js',
                     __dirname + '/test/**/*.js' 
                 ],
-                tasks: ['jshint', 'jasmine_node']
+                tasks: ['jshint', 'test:unit']
             }
         },
         rmbuild : {
@@ -88,7 +88,7 @@ module.exports = function (grunt) {
 
     grunt.registerTask('default', function(){
         grunt.task.run('jshint');
-        grunt.task.run('jasmine_node');
+        grunt.task.run('test:unit');
     });
     
     grunt.registerTask('installCleanup', [

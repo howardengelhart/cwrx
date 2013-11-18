@@ -3,7 +3,7 @@
  */
 
 var path   = require('path'),
-    logger = require('../lib/logger'),
+    logger = require('../../lib/logger'),
     logDir = path.join(__dirname,'logs'),
     test   = process.argv[2];
 
