@@ -1,12 +1,15 @@
-var fs   = require('fs-extra'),
-    path = require('path');
+var fs      = require('fs-extra'),
+    path    = require('path'),
+    q       = require('q'),
+    aws     = require('aws-sdk');
 
 module.exports = function (grunt) {
 
     var initProps = {
             prefix      : process.env.HOME,
             dist        : path.join(__dirname,'dist'),
-            packageInfo : grunt.file.readJSON('package.json')
+            packageInfo : grunt.file.readJSON('package.json'),
+            awsAuth     : path.join(process.env.HOME,'.aws.json')
         };
 
     initProps.version     = function(){
@@ -25,16 +28,9 @@ module.exports = function (grunt) {
     initProps.installPath = function(){
         return (path.join(this.prefix, 'releases', this.installDir()));
     };
-    initProps.linkPath = function(){
-        return path.join(this.prefix, 'services' );
-    };
-    initProps.distVersionPath= function() {
-        return path.join(this.dist, this.gitLastCommit.commit);
-    };
-
+    
     grunt.initConfig({
         settings   : initProps,
-
         jasmine_node: {
             matchAll : true,
             projectRoot   : './test/unit/',
@@ -45,7 +41,6 @@ module.exports = function (grunt) {
                 consolidate : true
             }
         },
-
         jshint: {
             options: {
                 jshintrc: 'jshint.json'
@@ -55,7 +50,6 @@ module.exports = function (grunt) {
                 __dirname + '/lib/{,*/}*.js'
             ]
         },
-        
         watch: {
             scripts: {
                 files: [
@@ -67,49 +61,26 @@ module.exports = function (grunt) {
                 tasks: ['jshint', 'jasmine_node']
             }
         },
-        
-        copy    : {
-            release : { 
-                files:  [
-                            { 
-                                expand: true, 
-                                dest: '<%= settings.installPath() %>', 
-                                src: [ 'bin/*', 'lib/**', 'config/*', 'node_modules/**', 'package.json', 'README.md' ] 
-                            }
-                        ]
-               }
-        },
-
-        link : {
-                options : {
-                    overwrite: true,
-                    force    : true,
-                    mode     : '755'
-                },
-                service : {
-                    target : '<%= settings.installPath() %>',
-                    link   : path.join('<%= settings.linkPath() %>','<%= settings.packageInfo.name %>')
-                },
-                dub : {
-                    target : path.join('<%= settings.installPath() %>','bin','dub.js'),
-                    link   : path.join('<%= settings.installPath() %>','bin','dub')
-                },
-                dubcli : {
-                    target : path.join('<%= settings.installPath() %>','bin','dubcli.js'),
-                    link   : path.join('<%= settings.installPath() %>','bin','dubcli')
-                }
-        },
-
         rmbuild : {
             history : 2 
         },
-
-        service : {
-            main : { services :     [ 'dub' ] }
+        start_instance: {
+            pollingInterval: 5,
+            maxIters: 12
+        },
+        test: {
+            unit: {
+            
+            },
+            acceptance: {
+            
+            },
+            e2e: {
+            
+            }
         }
     });
     
-    grunt.loadNpmTasks('grunt-contrib-copy');
     grunt.loadNpmTasks('grunt-contrib-jshint');
     grunt.loadNpmTasks('grunt-contrib-watch');
     grunt.loadNpmTasks('grunt-jasmine-node');
@@ -118,33 +89,11 @@ module.exports = function (grunt) {
         grunt.task.run('jshint');
         grunt.task.run('jasmine_node');
     });
-
-    grunt.registerTask('install', 'Install', function(){
-        grunt.task.run('gitLastCommit');
-        grunt.task.run('installCheck');
-        grunt.task.run('mvbuild');
-        grunt.task.run('link');
-        if (require('os').platform() === 'linux'){
-            grunt.task.run('service');
-        }
-        grunt.task.run('installCleanup');
-    });
     
     grunt.registerTask('installCleanup', [
         'gitLastCommit',
         'rmbuild'
     ]);
-    
-    grunt.registerTask('installCheck', 'Install check', function(){
-        var settings = grunt.config.get('settings'),
-            installPath = settings.installPath();
-
-        if (fs.existsSync(installPath)){
-            grunt.log.errorlns('Install dir (' + installPath +
-                                ') already exists.');
-            return false;
-        }
-    });
 
     grunt.registerTask('gitLastCommit','Get a version number using git commit', function(){
         var settings = grunt.config.get('settings'),
@@ -202,70 +151,6 @@ module.exports = function (grunt) {
         });
     });
     
-    grunt.registerTask('mvbuild', 'Move the build to a release folder.', function(){
-        if (grunt.config.get('moved')){
-            grunt.log.writeln('Already moved!');
-            return;
-        }
-        var settings = grunt.config.get('settings'),
-            installPath = settings.installPath();
-        grunt.log.writeln('Moving the module to ' + installPath);
-        grunt.task.run('copy:release');
-        grunt.config.set('moved',true);
-    });
-    
-    grunt.registerMultiTask('link', 'Link release apps.', function(){
-        var opts = grunt.config.get('link.options'),
-            data = this.data;
-
-        if (!opts) {
-            opts = {};
-        }
-
-        if (!data.options){
-            data.options = {};
-        }
-
-        if (!opts.mode){
-            opts.mode = '0755';
-        }
-
-        if (opts){
-            Object.keys(opts).forEach(function(opt){
-                if (data.options[opt] === undefined){
-                    data.options[opt] = opts[opt];
-                }
-            });
-        }
-
-        if (data.options.overwrite === true){
-            try {
-                grunt.log.writelns('Removing old link: ' + data.link);
-                fs.unlinkSync(data.link);
-            } catch(e){
-                if (! e.message.match(/ENOENT, no such file or directory/) ){
-                    grunt.log.errorlns('Hh:' + e.message);
-                }
-            }
-        }
-
-        if (data.options.force){
-            var linkDir = path.dirname(data.link);
-            if (!fs.existsSync(linkDir)){
-                grunt.log.writelns('Creating linkDir: ' + linkDir);
-                grunt.file.mkdir(linkDir, '0755');
-            }
-        }
-
-        grunt.log.writelns('Create link: ' + data.link + ' ==> ' + data.target);
-        fs.symlinkSync(data.target, data.link);
-
-        grunt.log.writelns('Make link executable.');
-        fs.chmodSync(data.link,data.options.mode);
-
-        grunt.log.writelns(data.link + ' is ready.');
-    });
-    
     grunt.registerTask('rmbuild','Remove old copies of the install',function(){
         this.requires(['gitLastCommit']);
         var settings       = grunt.config.get('settings'),
@@ -312,60 +197,99 @@ module.exports = function (grunt) {
             }
         }
     });
-
-    grunt.registerMultiTask('service','Send service restart', function(){
-        var opts = grunt.config.get('service.options'),
-            data = this.data,
-            done = this.async,
-            retval = true,
-            results = 0;
-
-        if (!opts) {
-            opts = {};
-        }
-
-        if (!data.options){
-            data.options = {};
-        }
-
-        if (!opts.command){
-            opts.command = 'restart';
-        }
-
-        if (!opts.servicePath){
-            opts.servicePath = '/sbin/service';
-        }
     
-        if (opts){
-           Object.keys(opts).forEach(function(opt){
-                if (data.options[opt] === undefined){
-                    data.options[opt] = opts[opt];
-                }
-           });
+    grunt.registerTask('stop_instance', function(id) {
+        var settings = grunt.config.get('settings'),
+            auth     = settings.awsAuth;
+
+        if (!id) {
+            grunt.log.errorlns('No instance id!');
+            return;
         }
+        
+        var done = this.async();
+        aws.config.loadFromPath(auth);
+        var ec2 = new aws.EC2();
 
-        data.services.forEach(function(service){
-            grunt.log.writelns('will: service ' + service + ' ' + data.options.command);
-            grunt.util.spawn({
-                cmd : data.options.servicePath,
-                args: [service,data.options.command]
-            },function(err,result,code){
-                if ((err) || (code !== 0)){
-                    grunt.log.errorlns('service error on ' + service + ': ' + err);
-                    retval = false;
-                }
-
-                if (result){
-                    grunt.log.writelns('RESULT: ' + result);
-                }
-
-                if (++results === data.services.length){
-                    done(retval);
-                }
-            });
+        grunt.log.writelns('Stopping instance ' + id);
+        ec2.stopInstances({InstanceIds: [id]}, function(err, data) {
+            if (err) {
+                grunt.log.errorlns(err);
+                done(false);
+            } else {
+                grunt.log.writelns('Previous state: ' + data.StoppingInstances[0].PreviousState.Name);
+                grunt.log.writelns('Current state: ' + data.StoppingInstances[0].CurrentState.Name);
+                done(true);
+            }
         });
     });
-    
 
+    grunt.registerTask('start_instance', function(id) {
+        var settings = grunt.config.get('settings'),
+            auth     = settings.awsAuth,
+            interval = (grunt.config.get('start_instance.pollingInterval') || 5) * 1000,
+            maxIters = grunt.config.get('start_instance.maxIters') || 12;
+            
+        if (!id) {
+            grunt.log.errorlns('No instance id!');
+            return;
+        }
+        
+        var done = this.async();
+        aws.config.loadFromPath(auth);
+        var ec2 = new aws.EC2();
+        
+        grunt.log.writelns('Starting instance ' + id);
+        ec2.startInstances({InstanceIds: [id]}, function(err, data) {
+            if (err) {
+                grunt.log.errorlns(err);
+                done(false);
+            } else {
+                grunt.log.writelns('Previous state: ' + data.StartingInstances[0].PreviousState.Name);
+                grunt.log.writelns('Current state: ' + data.StartingInstances[0].CurrentState.Name);
+                if (data.StartingInstances[0].CurrentState.Name === 'running') {
+                    grunt.log.writelns('Instance ' + id + ' is ready to go!');
+                    done(true);
+                    return;
+                }
+                setTimeout(function() {
+                    checkRunning(id, ec2, interval, 0, maxIters).then(function() {
+                        grunt.log.writelns('Instance ' + id + ' is ready to go!');
+                        done(true);
+                    }, function(error) {
+                        grunt.log.errorlns(error);
+                        done(false);
+                    });
+                }, interval);
+            }
+        });
+    });
+
+    function checkRunning(id, ec2, interval, iters, maxIters, promise) {
+        var deferred = promise || q.defer();
+        grunt.log.writelns('Polling instance ' + id + ' for its state');
+        ec2.describeInstances({InstanceIds: [id]}, function(err, data) {
+            if (err) {
+                deferred.reject(err);
+                return;
+            }
+            if (!data || !data.Reservations || !data.Reservations[0].Instances) {
+                deferred.reject('Incomplete information from describeInstances');
+                return;
+            }
+            if (data.Reservations[0].Instances[0].State.Name === 'running') {
+                deferred.resolve();
+                return;
+            }
+            iters++;
+            if (iters >= maxIters) {
+                deferred.reject('Timed out after ' + iters + ' iterations');
+                return;
+            }
+            setTimeout(checkRunning, interval, id, ec2, interval, iters, maxIters, deferred);
+            return;
+        });
+        return deferred.promise;
+    }
 };
 
