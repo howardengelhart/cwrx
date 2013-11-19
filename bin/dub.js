@@ -389,7 +389,7 @@ dub.convertLinesToMP3 = function(job){
             }
             vocalware.textToSpeech(rqs,track.fpath,function(err,rqs,o){
                 if (err) {
-                    deferred.reject(error);
+                    deferred.reject(err);
                 } else {
                     log.trace("[%1] Succeeded: name = %2, ts = %3",job.id , track.fname ,track.ts);
                     deferred.resolve();
