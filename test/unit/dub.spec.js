@@ -580,6 +580,7 @@ describe('dub',function(){
                 runs(function() {
                     dub.convertLinesToMP3(job).catch(function(error) {
                         expect(error.fnName).toBe('convertLinesToMP3');
+                        expect(error.msg).toBe('Failing this one');
                         expect(mockLog.error.calls.length).toBe(2);
                         expect(job.setStartTime).toHaveBeenCalledWith('convertLinesToMP3');
                         expect(job.setEndTime).toHaveBeenCalledWith('convertLinesToMP3');
