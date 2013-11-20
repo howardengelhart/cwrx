@@ -6,7 +6,7 @@ var request = require('request'),
     },
     
     screamTemplate = {
-        'video'   : 'scream.mp4',
+        'video'   : 'scream_e2e.mp4',
         'tts'     : {
               'voice'  : 'Paul',
               'effect' : 'R',
@@ -25,7 +25,7 @@ var request = require('request'),
             { 'ts': '45.00', 'line': 'That is funny, I wear a mask sometimes too.  But, mine is made out of dried human pee, and poop, that I find in the park.  I would really like to come over and massage your butt.  Lets see how it goes.  I\'ve already updated my Facebook status to say, I\'m cooking popcorn with that chick from E T <Break time=\'250ms\'/>  hash tag winning.' }
         ],
         'e2e'     : {
-            'md5': 'f698b7fd42850771be1ed534608a118c'  // NOTE: if you change the 'script' section or the source video on S3, you will need to update this md5
+            'md5': '55f69223027db8d68d36dff26ccaea39'  // NOTE: if you change the 'script' section or the source video on S3, you will need to update this md5
         }
     },
     badTemplate = {
