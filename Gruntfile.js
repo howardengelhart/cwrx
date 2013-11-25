@@ -33,19 +33,8 @@ module.exports = function (grunt) {
                     __dirname + '/lib/**/*.js',
                     __dirname + '/test/**/*.js' 
                 ],
-                tasks: ['jshint', 'test:unit']
+                tasks: ['jshint', 'unit_tests']
             }
-        },
-        test: {
-            unit: {
-                reportDir: 'reports/unit/'
-            },
-            acceptance: {
-                reportDir: 'reports/acceptance/'
-            },
-            e2e: {
-                reportDir: 'reports/e2e/'
-            },
         },
         stop_instance: {
             pollingInterval: 5,
@@ -62,28 +51,74 @@ module.exports = function (grunt) {
 
     grunt.registerTask('default', function(){
         grunt.task.run('jshint');
-        grunt.task.run('test:unit');
+        grunt.task.run('unit_tests');
     });
-
-    grunt.registerMultiTask('test', 'Run jasmine tests', function() {
-        var target = this.target,
-            data = this.data,
-            done = this.async(),
-            args = ['--test-dir', 'test/' + target + '/', '--captureExceptions', '--junitreport',
-                    '--output', path.join(__dirname, data.reportDir)];
+    
+    grunt.registerTask('unit_tests', 'Run jasmine unit tests', function(svc) {
+        var done = this.async(),
+            args = ['--test-dir', 'test/unit/', '--captureExceptions', '--junitreport', '--output',
+                    path.join(__dirname, 'reports/unit/')];
         
-        if (target === 'e2e' && grunt.option('testHost')) {
-            args.push('--config', 'host', grunt.option('testHost'));
+        if (svc) {
+            var regexp = '^(' + svc + '\\.svc|[^\\.]+\\.(?!svc))\\.?';
+            args.push('--match', regexp);
         }
-            
-        grunt.log.writeln('Running ' + target + ' tests:');
+        grunt.log.writeln('Running unit tests' + (svc ? ' for ' + svc : '') + ':');
         grunt.util.spawn({
             cmd : 'jasmine-node',
             args : args
         }, function(error,result,code) {
             grunt.log.writeln(result.stdout);
             if (error) {
-                grunt.log.errorlns(target + ' tests failed: ' + error);
+                grunt.log.errorlns('unit tests failed: ' + error);
+                done(false);
+                return;
+            }
+            done(true);
+        });
+    });
+
+    grunt.registerTask('acceptance_tests', 'Run jasmine acceptance tests', function() {
+        var done = this.async(),
+            args = ['--test-dir', 'test/acceptance/', '--captureExceptions', '--junitreport',
+                    '--output', path.join(__dirname, 'reports/acceptance/')];
+        
+        grunt.log.writeln('Running acceptance tests:');
+        grunt.util.spawn({
+            cmd : 'jasmine-node',
+            args : args
+        }, function(error,result,code) {
+            grunt.log.writeln(result.stdout);
+            if (error) {
+                grunt.log.errorlns('acceptance tests failed: ' + error);
+                done(false);
+                return;
+            }
+            done(true);
+        });
+    });
+    
+    grunt.registerTask('e2e_tests', 'Run jasmine end-to-end tests', function(svc) {
+        var done = this.async(),
+            args = ['--test-dir', 'test/e2e/', '--captureExceptions', '--junitreport', '--output',
+                    path.join(__dirname, 'reports/e2e/')];
+        
+        if (svc) {
+            var regexp = '^' + svc + '\\.e2e\\.';
+            args.push('--match', regexp);
+        }
+        if (grunt.option('testHost')) {
+            args.push('--config', 'host', grunt.option('testHost'));
+        }
+        
+        grunt.log.writeln('Running e2e tests' + (svc ? ' for ' + svc : '') + ':');
+        grunt.util.spawn({
+            cmd : 'jasmine-node',
+            args : args
+        }, function(error,result,code) {
+            grunt.log.writeln(result.stdout);
+            if (error) {
+                grunt.log.errorlns('e2e tests failed: ' + error);
                 done(false);
                 return;
             }
