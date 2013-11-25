@@ -229,7 +229,8 @@ dub.createDubJob = function(id, template, config){
                                                          : obj.outputFname;
     obj.outputType = (config.output && config.output.type ? config.output.type : null);
   
-    obj.videoMetadataPath   = config.cacheAddress(videoBase + '_metadata.json','video');
+    obj.videoMetadataPath   = config.cacheAddress(videoBase + '_' + videoExt.replace(/^\./, '') +
+                                                  '_metadata.json','video');
 
     try {
         obj.videoMetadata = fs.readJSONSync(obj.videoMetadataPath, { encoding : 'utf8' });

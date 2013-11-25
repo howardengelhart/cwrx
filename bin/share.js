@@ -126,6 +126,18 @@ function main(done) {
     app.use(express.bodyParser());
 
     app.all('*', function(req, res, next) {
+        res.header("Access-Control-Allow-Origin", "*");
+        res.header("Access-Control-Allow-Headers", 
+                   "Origin, X-Requested-With, Content-Type, Accept");
+
+        if (req.method.toLowerCase() === "options") {
+            res.send(200);
+        } else {
+            next();
+        }
+    });
+
+    app.all('*', function(req, res, next) {
         req.uuid = uuid.createUuid().substr(0,10);
         log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
             req.method, req.url, req.httpVersion);

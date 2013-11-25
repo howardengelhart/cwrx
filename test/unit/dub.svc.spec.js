@@ -273,7 +273,7 @@ describe('dub',function(){
                 expect(outParams.ACL).toEqual('public-read');
                 expect(outParams.ContentType).toEqual('video/mp4');
                 
-                expect(job.videoMetadataPath).toEqual('caches/video/test_metadata.json');
+                expect(job.videoMetadataPath).toEqual('caches/video/test_mp4_metadata.json');
                 
                 expect(job.hasVideoLength()).toBeFalsy();
                 expect(job.hasOutput()).toBeFalsy();
@@ -851,7 +851,7 @@ describe('dub',function(){
                         expect(retval).toBe(job);
                         expect(probeSpy.calls[0].args[0]).toBe('caches/video/test.mp4');
                         var writeFileArgs = writeFileSpy.calls[0].args;
-                        expect(writeFileArgs[0]).toBe('caches/video/test_metadata.json');
+                        expect(writeFileArgs[0]).toBe('caches/video/test_mp4_metadata.json');
                         expect(writeFileArgs[1]).toEqual(JSON.stringify({duration: 3.5}));
                         expect(job.setStartTime).toHaveBeenCalledWith('getVideoLength');
                         expect(job.setEndTime).toHaveBeenCalledWith('getVideoLength');
