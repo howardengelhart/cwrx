@@ -41,8 +41,10 @@ module.exports = function (grunt) {
             maxIters: 12
         },
         start_instance: {
-            pollingInterval: 5,
-            maxIters: 12
+            stateInterval: 5,
+            stateIters: 12,
+            sshInterval: 5,
+            sshIters: 12
         }
     });
     
@@ -129,11 +131,13 @@ module.exports = function (grunt) {
     grunt.registerTask('start_instance', 'start an instance for running tests', function(id) {
         var settings = grunt.config.get('settings'),
             auth     = settings.awsAuth,
-            interval = (grunt.config.get('start_instance.pollingInterval') || 5) * 1000,
-            maxIters = grunt.config.get('start_instance.maxIters') || 12;
+            stateInterval = (grunt.config.get('start_instance.stateInterval') || 5) * 1000,
+            stateIters = grunt.config.get('start_instance.stateIters') || 12;
+            sshInterval = (grunt.config.get('start_instance.sshInterval') || 5) * 1000,
+            sshIters = grunt.config.get('start_instance.sshIters') || 12;
             
-        if (!id) {
-            grunt.log.errorlns('No instance id!');
+        if (!id || !grunt.option('testHost')) {
+            grunt.log.errorlns('Need both an instance id and instance ip!');
             return false;
         }
         
@@ -147,28 +151,39 @@ module.exports = function (grunt) {
                 grunt.log.errorlns(err);
                 done(false);
             } else {
+                var stateOpts = {
+                    id: id,
+                    state: 'running',
+                    interval: stateInterval,
+                    maxIters: stateIters
+                };
+                var sshOpts = {
+                    ip: grunt.option('testHost'),
+                    interval: sshInterval,
+                    maxIters: sshIters
+                };
                 grunt.log.writelns('Previous state: ' + data.StartingInstances[0].PreviousState.Name);
                 grunt.log.writelns('Current state: ' + data.StartingInstances[0].CurrentState.Name);
                 if (data.StartingInstances[0].CurrentState.Name === 'running') {
-                    grunt.log.writelns('Instance ' + id + ' is ready to go!');
-                    done(true);
-                    return;
-                }
-                setTimeout(function() {
-                    var opts = {
-                        id: id,
-                        state: 'running',
-                        interval: interval,
-                        maxIters: maxIters
-                    }
-                    checkState(opts, ec2, 0).then(function() {
+                    checkSSH(sshOpts, 0).then(function() {
                         grunt.log.writelns('Instance ' + id + ' is ready to go!');
                         done(true);
                     }, function(error) {
                         grunt.log.errorlns(error);
                         done(false);
                     });
-                }, interval);
+                } else {
+                    setTimeout(function() {
+                        checkState(stateOpts, ec2, 0).then(function() { return checkSSH(sshOpts, 0);})
+                        .then(function() {
+                            grunt.log.writelns('Instance ' + id + ' is ready to go!');
+                            done(true);
+                        }, function(error) {
+                            grunt.log.errorlns(error);
+                            done(false);
+                        });
+                    }, stateInterval);
+                }
             }
         });
     });
@@ -207,7 +222,7 @@ module.exports = function (grunt) {
                         state: 'stopped',
                         interval: interval,
                         maxIters: maxIters
-                    }
+                    };
                     checkState(opts, ec2, 0).then(function() {
                         grunt.log.writelns('Instance ' + id + ' has stopped!');
                         done(true);
@@ -233,6 +248,7 @@ module.exports = function (grunt) {
                 return;
             }
             if (data.Reservations[0].Instances[0].State.Name === opts.state) {
+                grunt.log.writelns('Instance ' + opts.id + ' is in the ' + opts.state + ' state');
                 deferred.resolve();
                 return;
             }
@@ -243,6 +259,27 @@ module.exports = function (grunt) {
             }
             setTimeout(checkState, opts.interval, opts, ec2, iters, deferred);
             return;
+        });
+        return deferred.promise;
+    }
+    
+    function checkSSH(opts, iters, promise) {
+        var deferred = promise || q.defer();
+        grunt.log.writelns('Checking if instance ' + opts.ip + ' is accessible by SSH');
+        grunt.util.spawn({cmd: 'ssh', args: [opts.ip, 'echo ready']}, function(error,result,code) {
+            if (error) {
+                iters++;
+                if (iters >= opts.maxiters) {
+                    deferred.reject('Timed out after ' + iters + ' iterations');
+                    return;
+                }
+                setTimeout(checkSSH, opts.interval, opts, iters, deferred);
+                return;
+            } else {
+                grunt.log.writelns('Can ssh into instance ' + opts.ip);
+                deferred.resolve();
+                return;
+            }
         });
         return deferred.promise;
     }
