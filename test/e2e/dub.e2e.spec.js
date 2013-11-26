@@ -38,7 +38,7 @@ var request = require('request'),
             }
     };
 
-describe('dub video server:', function() {
+describe('dub (E2E)', function() {
     var templateFile, templateJSON;
 
     describe('uncached valid template test - scream', function() {
