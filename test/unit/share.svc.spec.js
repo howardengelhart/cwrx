@@ -4,7 +4,7 @@ var path        = require('path'),
     uuid        = require('../../lib/uuid'),
     sanitize    = require('../sanitize');
 
-describe('share', function() {
+describe('share (UT)', function() {
     var share, traceSpy, errorSpy, warnSpy, infoSpy, fatalSpy, logSpy, mockLogger,
         mockAws, putObjSpy;
 

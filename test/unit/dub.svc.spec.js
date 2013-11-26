@@ -8,7 +8,7 @@ var path        = require('path'),
     sanitize    = require('../sanitize'),
     s3util      = require('../../lib/s3util');
 
-describe('dub',function(){
+describe('dub (UT)',function(){
     var dub, mockLog, mockLogger, mockAws, mockVware, mockAssemble, mockId3;
     
     beforeEach(function() {

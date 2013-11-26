@@ -4,7 +4,7 @@ var path        = require('path'),
     cwrxConfig  = require('../../lib/config'),
     sanitize    = require('../sanitize');
 
-describe('maint', function() {
+describe('maint (UT)', function() {
     var maint, traceSpy, errorSpy, warnSpy, infoSpy, fatalSpy, logSpy, mockLogger, mockAws;
     
     beforeEach(function() {

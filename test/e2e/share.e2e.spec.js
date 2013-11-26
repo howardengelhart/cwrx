@@ -18,7 +18,7 @@ var request = require('request'),
         }
     };
 
-describe('share server:', function() {
+describe('share (E2E)', function() {
     describe('valid script test - scream', function() {
         it('should successfully send a request to the dub server', function() {
             var fakeOrigin = 'http://cinema6.com/#/experiences/screenjack~brucelee';
