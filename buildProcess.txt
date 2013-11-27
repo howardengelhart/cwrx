@@ -1,0 +1,26 @@
+Build and release process for backend service
+Make local changes, commit + merge to master (via pull request)
+Merge master to {service}_qa (via pull request)
+manually start QA jenkins job:
+current build + test job:
+checkout repo on jenkins machine
+npm install, etc.
+unit tests on jenkins machine
+start up test instance
+chef-client on test instance
+run e2e tests on test instance
+stop test instance
+tag + deploy code to staging
+tag branch with version: [RELEASE TYPE][RELEASE NUM].[HOT FIX NUM].rc[RC NUM].build[JENKINS BUILD NUM]
+-- release type, num, and hot fix num come from user in jenkins params
+-- rc num should start at 1, increment with each successful jenkins build
+    before code is pushed to production
+-- example: release1.2.rc1.build40
+push tags to repo
+deploy code to dv-api1 machine (knife ssh sudo chef-client)
+manual tests, etc. to verify that things work ok
+merge QA to {service}_release (via pull request)
+deploy code to production:
+jenkins job deploys code (knife ssh sudo chef-client)
+
+
