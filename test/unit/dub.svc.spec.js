@@ -856,7 +856,7 @@ describe('dub (UT)',function(){
                         expect(job.setStartTime).toHaveBeenCalledWith('getVideoLength');
                         expect(job.setEndTime).toHaveBeenCalledWith('getVideoLength');
                         doneFlag = true;
-                    }).catch(function(error) { 
+                    }).catch(function(error) {
                         expect(error).not.toBeDefined();
                         doneFlag = true;
                     });
@@ -864,7 +864,27 @@ describe('dub (UT)',function(){
                 waitsFor(function() { return doneFlag; }, 3000);
             });
             
-            it('should handle errors from ffmpeg', function() {
+            it('should print errors from ffmpeg even if the command succeeded', function() {
+                probeSpy.andCallFake(function(fpath, cb) {
+                    cb(null, {duration: 3.5}, null, 'stderr errors');
+                });
+                runs(function() {
+                    dub.getVideoLength(job).then(function(retval) {
+                        expect(retval).toBe(job);
+                        expect(mockLog.warn).toHaveBeenCalled();
+                        expect(mockLog.warn.calls[0].args[2]).toBe('stderr errors');
+                        expect(job.setStartTime).toHaveBeenCalledWith('getVideoLength');
+                        expect(job.setEndTime).toHaveBeenCalledWith('getVideoLength');
+                        doneFlag = true;
+                    }).catch(function(error) {
+                        expect(error).not.toBeDefined();
+                        doneFlag = true;
+                    });
+                });
+                waitsFor(function() { return doneFlag; }, 3000);                
+            });
+            
+            it('should handle failures from ffmpeg', function() {
                 probeSpy.andCallFake(function(fpath, cb) {
                     cb('Rejected!', null);
                 });
@@ -1021,6 +1041,26 @@ describe('dub (UT)',function(){
                     });
                 });
                 waitsFor(function() { return doneFlag; }, 3000);
+            });
+            
+            it('should print errors from ffmpeg even if the command succeeded', function() {
+                mergeSpy.andCallFake(function(vpath, spath, opath, tmpl, cb) {
+                    cb(null, null, null, 'stderr errors');
+                });
+                runs(function() {
+                    dub.applyScriptToVideo(job).then(function(retval) {
+                        expect(retval).toBe(job);
+                        expect(mockLog.warn).toHaveBeenCalled();
+                        expect(mockLog.warn.calls[0].args[2]).toBe('stderr errors');
+                        expect(job.setStartTime).toHaveBeenCalledWith('applyScriptToVideo');
+                        expect(job.setEndTime).toHaveBeenCalledWith('applyScriptToVideo');
+                        doneFlag = true;
+                    }).catch(function(error) {
+                        expect(error).not.toBeDefined();
+                        doneFlag = true;
+                    });
+                });
+                waitsFor(function() { return doneFlag; }, 3000);                
             });
             
             it('should handle errors from ffmpeg', function() {

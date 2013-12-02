@@ -390,6 +390,7 @@ dub.convertLinesToMP3 = function(job){
             }
             vocalware.textToSpeech(rqs,track.fpath,function(err,rqs,o){
                 if (err) {
+                    log.info('[%1] Failed, rqs = %2', job.id, JSON.stringify(rqs));
                     deferred.reject(err);
                 } else {
                     log.trace("[%1] Succeeded: name = %2, ts = %3",job.id , track.fname ,track.ts);
@@ -526,13 +527,15 @@ dub.getVideoLength = function(job){
     log.info("[%1] Starting %2",job.id,fnName);
     job.setStartTime(fnName);        
 
-    ffmpeg.probe(job.videoPath,function(err,info){
+    ffmpeg.probe(job.videoPath,function(err,info,cmdline,stderr){
+        if (stderr) {
+            log.warn('[%1] ffmpeg errors: %2', job.id, stderr.replace('\n','; '));
+        }
         if (err) {
             deferred.reject({"fnName": fnName, "msg": err});
             job.setEndTime(fnName);
             return deferred.promise;
         }
-
         if (!info.duration){
             deferred.reject({"fnName": fnName, "msg": 'Unable to determine video length.'});
             job.setEndTime(fnName);
@@ -593,7 +596,10 @@ dub.applyScriptToVideo = function(job){
     job.setStartTime(fnName);        
 
     ffmpeg.mergeAudioToVideo(job.videoPath,job.scriptPath,
-            job.outputPath,job.mergeTemplate(), function(err,fpath,cmdline){
+            job.outputPath,job.mergeTemplate(), function(err,fpath,cmdline,stderr){
+                if (stderr) {
+                    log.warn('[%1] ffmpeg errors: %2', job.id, stderr.replace('\n','; '));
+                }
                 if (err) {
                     deferred.reject({"fnName": fnName, "msg": err});
                     job.setEndTime(fnName);
@@ -843,7 +849,7 @@ function main(done){
 
         job = dub.createDubJob(uuid.createUuid().substr(0,10),loadTemplateFromFile(program.args[0]), config);
         
-        handleRequest(job,function(err, finishedJob){
+        dub.handleRequest(job,function(err, finishedJob){
             if (err) {
                 return done(1,err.message);
             } else {
