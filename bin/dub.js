@@ -390,6 +390,7 @@ dub.convertLinesToMP3 = function(job){
             }
             vocalware.textToSpeech(rqs,track.fpath,function(err,rqs,o){
                 if (err) {
+                    log.info('[%1] Failed, rqs = %2', job.id, JSON.stringify(rqs));
                     deferred.reject(err);
                 } else {
                     log.trace("[%1] Succeeded: name = %2, ts = %3",job.id , track.fname ,track.ts);
@@ -843,7 +844,7 @@ function main(done){
 
         job = dub.createDubJob(uuid.createUuid().substr(0,10),loadTemplateFromFile(program.args[0]), config);
         
-        handleRequest(job,function(err, finishedJob){
+        dub.handleRequest(job,function(err, finishedJob){
             if (err) {
                 return done(1,err.message);
             } else {
