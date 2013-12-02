@@ -83,6 +83,22 @@ describe('assemble (UT)',function(){
                 done();
             });
         });
+        
+        it('should print errors from ffmpeg even if the command succeeded', function(done){
+            spyOn(mockFFmpeg,'probe').andCallFake(function(src, cb) {
+                cb(null, null, null, 'stderr errors');
+            });
+            
+            assemble.getSrcInfo(mockLog,template,template.playList[0],0)
+            .done(function(result){
+                expect(mockLog.warn).toHaveBeenCalled();
+                expect(mockLog.warn.calls[0].args[2]).toBe('stderr errors');
+                done();
+            },function(err){
+                expect(err).not.toBeDefined();
+                done();
+            });
+        });
 
         it('should use the existing duration, if it exists.',function(done){
             template.playList[0].metaData = { duration : 69 };
