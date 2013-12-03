@@ -5,6 +5,7 @@ var __ut__      = (global.jasmine !== undefined) ? true : false;
 var include     = require('../lib/inject').require,
     fs          = include('fs-extra'),
     path        = include('path'),
+    request     = include('request'),
     cp          = include('child_process'),
     express     = include('express'),
     aws         = include('aws-sdk'),
@@ -145,7 +146,7 @@ function main(done) {
     });
 
     app.post('/share', function(req, res, next) {
-        shareLink(req, config, function(err, output) {
+        shareLink(req, config, function(err, output, short_url) {
             if (err) {
                 res.send(400,{
                     error  : 'Unable to complete request.',
@@ -154,7 +155,8 @@ function main(done) {
                 return;
             }
             res.send(200, {
-                url : output
+                url: output,
+                short_url: short_url
             });
         });
     });
@@ -222,19 +224,24 @@ function shareLink(req, config, done) {
     }
     var origin = body.origin,
         item = body.data,
-        prefix = body.origin.split('/#/')[0];
+        prefix = body.origin.split('experiences/')[0];
 
     var generateUrl = function(uri) {
         var url;
         if (!uri) {
             url = body.origin;
         } else {
-            url = prefix + '/#/experiences/';
+            url = prefix + 'experiences/';
             url += uri;
         }
-        //TODO: shorten URL
-        log.info("[%1] Finished shareLink: URL = %2", req.uuid, url);
-        done(null, url);
+        
+        shortenUrl(url, req.body.awesm_params).then(function(short_url) {
+            log.info("[%1] Finished shareLink: URL = %2, short = %3", req.uuid, url, short_url);
+            done(null, url, short_url);
+        }).catch(function(error) {
+            log.error('[%1] Failed to shorten url: url = %2, error = %3', req.uuid, url, error);
+            done(null, url, null);
+        });
     };
 
     if (!item) {
@@ -266,6 +273,45 @@ function shareLink(req, config, done) {
             generateUrl(item.uri);
         }
     });
+}
+
+function shortenUrl(orig_url, params) {
+    var deferred = q.defer(),
+        log = logger.getLog(),
+        options = {
+            url: 'http://api.awe.sm/url.json?v=3&key=c6dc7ece16b2950bf2a746a2e2eeabcdefa26be40fb1fdd78642b777d0399759&channel=email'
+        };
+        
+    if (params && params.tag === 'release') {
+        log.trace('using release sharer');
+        options.url += '&tool=NQlq1r';
+        options.url += '&tag=release';
+    } else {
+        log.trace('using staging sharer');
+        options.url += '&tool=gRgPad';
+        options.url += '&tag=staging';
+    }
+    for (var key in (params || {})) {
+        if (key === 'tag') continue;
+        options.url += '&' + key + '=' + encodeURIComponent(params[key]);
+    };
+    options.url += '&url=' + encodeURIComponent(orig_url);
+    log.trace(options.url);
+    request.post(options, function(error, response, body) {
+        var data;
+        try {
+            data = JSON.parse(body);
+        } catch(e) {
+            deferred.reject('error parsing response as json');
+            return;
+        }
+        if (error || data.error) {
+            deferred.reject(error || body);
+            return;
+        }
+        deferred.resolve(data.awesm_url);
+    });
+    return deferred.promise;
 }
 
 if (__ut__) {
