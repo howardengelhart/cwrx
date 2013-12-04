@@ -1,7 +1,7 @@
 var path        = require('path'),
     sanitize    = require('../sanitize'),
     vocalWare   = require('../../lib/vocalware'),
-    fsMock = {};
+    fsMock = {}, httpMock = {};
 
 describe('vocalWare', function() {
     
@@ -11,6 +11,9 @@ describe('vocalWare', function() {
         fsMock.readFileSync      = spyOn(fs, 'readFileSync');
         fsMock.existsSync        = spyOn(fs, 'existsSync');
         fsMock.createWriteStream = spyOn(fs, 'createWriteStream');
+        
+        httpMock.request = spyOn(http, 'request');
+
     //    assemble = sanitize(['../lib/assemble'])
     //                .andConfigure( [ ['./ffmpeg',mockFFmpeg], ['./id3', mockId3Info ]])
     //                .andRequire();
@@ -425,5 +428,133 @@ describe('vocalWare', function() {
 
     });
 
+    describe('textToSpeech',function(){
+
+        var rqs, cbSpy, httpResponseMock, httpRequestMock, nextTickSpy,
+            ttsHttpCallback, writeStreamMock;
+        beforeEach(function(){
+            var token = vocalWare.createAuthToken({
+                    apiId       : 'abc',
+                    accountId   : 'def',
+                    secret      : 'ghi'
+                });
+            rqs = vocalWare.createRequest({ authToken : token, text : 'hello' });
+            cbSpy = jasmine.createSpy('textToSpeechCallback');
+
+            writeStreamMock = {
+                write   : jasmine.createSpy('ws::write'),
+                on      : jasmine.createSpy('ws::on'),
+                end     : jasmine.createSpy('ws::end'),
+                _events : {
+                    'close' : function(){}
+                }
+            };
+
+            httpResponseMock = {
+                statusCode : 0,
+                headers : { 'content-type' : 'text/plain' },
+                on      : jasmine.createSpy('httpResponseMock::on'),
+                _events :  {
+                    'data' : function(){},
+                    'end'  : function(){}
+                }
+            };
+            
+            httpRequestMock = {
+                on  : jasmine.createSpy('httpRequestMock::on'),
+                end : jasmine.createSpy('httpRequestMock::end'),
+                _events : {
+                    'error' : function(){}
+                }
+            };
+            
+            httpMock.request.andCallFake(function(opts,callback){
+                ttsHttpCallback = callback;
+                return httpRequestMock;
+            });
+
+            httpRequestMock.on.andCallFake(function(eventName,callback){
+                httpRequestMock._events[eventName] = callback;
+            });
+
+            httpResponseMock.on.andCallFake(function(eventName,callback){
+                httpResponseMock._events[eventName] = callback;
+            });
+
+            writeStreamMock.on.andCallFake(function(eventName,callback){
+                writeStreamMock._events[eventName] = callback;
+            });
+            
+            fsMock.createWriteStream.andReturn(writeStreamMock);
+            fsMock.existsSync.andReturn(false);
+
+            nextTickSpy      = spyOn(process, 'nextTick');
+            nextTickSpy.andCallFake(function(cb){
+                cb();
+            });
+        });
+
+        it('will callback with an error if the output exists',function(){
+            fsMock.existsSync.andReturn(true);
+            vocalWare.textToSpeech(rqs,'somefile.mp3',cbSpy);
+            expect(cbSpy.mostRecentCall.args[0].message)
+                .toEqual('File already exists: somefile.mp3');
+        });
+
+        it('will callback with an error if the request is invalid',function(){
+            vocalWare.textToSpeech(vocalWare.createRequest(),'somefile.mp3',cbSpy);
+            expect(cbSpy.mostRecentCall.args[0].message)
+                .toEqual('Cannot call method \'getAccountId\' of null');
+        });
+
+        it('will callback with an error if the request does not succeed',function(){
+            
+            httpResponseMock.on.andCallFake(function(eventName,cb){
+                if (eventName === 'data'){
+                    return cb( 'Too many TTS Requests' );
+                }
+
+                if (eventName === 'end'){
+                    return cb();
+                }
+            });
+
+            vocalWare.textToSpeech(rqs,'somefile.mp3',cbSpy);
+
+            httpResponseMock.statusCode = 301;
+            
+            ttsHttpCallback(httpResponseMock);
+
+            httpResponseMock._events.data('Too many TTS Requests');
+            httpResponseMock._events.end();
+            
+            expect(cbSpy.mostRecentCall.args[0].message)
+                .toEqual('request error: Too many TTS Requests');
+        });
+
+        it('will handle a successful request',function(){
+            vocalWare.textToSpeech(rqs,'somefile.mp3',cbSpy);
+
+            httpResponseMock.statusCode = 200;
+            httpResponseMock.headers['content-type'] = 'audio/mpeg';
+            
+            ttsHttpCallback(httpResponseMock);
+            
+            httpResponseMock._events.data('chunk1');
+            httpResponseMock._events.data('chunk2');
+            httpResponseMock._events.data('chunk3');
+            httpResponseMock._events.end();
+            writeStreamMock._events.close();
+
+            expect(writeStreamMock.write.calls[0].args[0]).toEqual('chunk1');
+            expect(writeStreamMock.write.calls[1].args[0]).toEqual('chunk2');
+            expect(writeStreamMock.write.calls[2].args[0]).toEqual('chunk3');
+            expect(writeStreamMock.end).toHaveBeenCalled();
+
+            expect(cbSpy.mostRecentCall.args[0]).toBeNull();
+            expect(cbSpy.mostRecentCall.args[1]).toBe(rqs);
+            expect(cbSpy.mostRecentCall.args[2]).toEqual('somefile.mp3');
+        });
+    });
 });
 
