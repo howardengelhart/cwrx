@@ -21,8 +21,8 @@ var request = require('request'),
 jasmine.getEnv().defaultTimeoutInterval = 30000;
 
 describe('share (E2E)', function() {
-    describe('valid script test - scream', function() {
-        it('should successfully send a request to the dub server', function(done) {
+    describe('valid script test', function() {
+        it('should successfully send a request to the share server', function(done) {
             var options = {
                 url: config.share_url,
                 json: {
