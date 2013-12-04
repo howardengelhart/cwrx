@@ -97,12 +97,16 @@ share.createConfiguration = function(cmdLine) {
     return cfgObject;
 }
 
-share.shortenUrl = function(origUrl, config, params) {
+share.shortenUrl = function(origUrl, config, params, staticLink) {
     var deferred = q.defer(),
         log = logger.getLog(),
-        options = {
-            url: 'http://api.awe.sm/url.json?v=3&key=' + config.awesm.key + '&channel=email'
-        };
+        options = {};
+    
+    if (staticLink) {
+        options.url = 'http://api.awe.sm/url/static.json?v=3&key=' + config.awesm.key + '&channel=email';
+    } else {
+        options.url = 'http://api.awe.sm/url.json?v=3&key=' + config.awesm.key + '&channel=email';
+    }
         
     if (params && params.tag === 'release') {
         log.trace('using release sharer');
@@ -159,7 +163,7 @@ share.shareLink = function(req, config, done) {
             url += uri;
         }
         
-        share.shortenUrl(url, config, req.body.awesm_params).then(function(shortUrl) {
+        share.shortenUrl(url, config, req.body.awesmParams, req.body.staticLink).then(function(shortUrl) {
             log.info("[%1] Finished shareLink: URL = %2, short = %3", req.uuid, url, shortUrl);
             done(null, url, shortUrl);
         }).catch(function(error) {

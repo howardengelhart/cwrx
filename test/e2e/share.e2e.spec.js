@@ -18,58 +18,84 @@ var request = require('request'),
         }
     };
 
+jasmine.getEnv().defaultTimeoutInterval = 30000;
+
 describe('share (E2E)', function() {
     describe('valid script test - scream', function() {
-        it('should successfully send a request to the dub server', function() {
-            var fakeOrigin = 'http://cinema6.com/#/experiences/screenjack~brucelee';
-
+        it('should successfully send a request to the dub server', function(done) {
             var options = {
                 url: config.share_url,
                 json: {
                     data: shareItem,
-                    origin: fakeOrigin
+                    origin: 'http://cinema6.com/#/experiences/screenjack~brucelee'
                 }
-            }, reqFlag = false;
+            };
 
-            runs(function() {
-                request.post(options, function(error, response, body) {
-                    expect(body).toBeDefined();
-                    expect(error).toBeNull('error');
-                    if (body) {
-                        expect(body['error']).not.toBeDefined('body[\'error\']');
-                        expect(body['url']).toBeDefined('url');
-                        expect(body['url']).not.toBe(fakeOrigin);
-                        
-                        var scriptId;
-                        if (body['url']) {
-                            var urlParts = body['url'].split('~');
-                            var scriptId = urlParts[urlParts.length - 1];
-                        }
-                    }
-
-                    // cleanup
-                    if (!scriptId) {
-                        reqFlag = true;
-                        return;
-                    }
-                    var options = {
-                        url : config.remove_script_url,
-                        json: {
-                            fname: scriptId + '.json'
-                        }
-                    }
-                    request.post(options, function(error, response, body) {
-                        expect(error).toBeNull();
-                        if (body) {
-                            expect(body['error']).not.toBeDefined();
-                        }
-                    });
+            request.post(options, function(error, response, body) {
+                expect(body).toBeDefined();
+                expect(error).toBeNull();
+                if (body) {
+                    expect(body.error).not.toBeDefined();
+                    expect(body.url).toBeDefined();
+                    expect(body.url.match(/^http:\/\/cinema6.com\/#\/experiences\/shared~screenjack~e-\w{14}$/)).toBeTruthy();
+                    expect(body.shortUrl.match(/http:\/\/awe\.sm\/\w+$/)).toBeTruthy();
                     
-                    reqFlag = true;
+                    var scriptId;
+                    if (body['url']) {
+                        var urlParts = body['url'].split('~');
+                        var scriptId = urlParts[urlParts.length - 1];
+                    }
+                }
+
+                // cleanup
+                if (!scriptId) {
+                    done();
+                    return;
+                }
+                var options = {
+                    url : config.remove_script_url,
+                    json: {
+                        fname: scriptId + '.json'
+                    }
+                }
+                request.post(options, function(error, response, body) {
+                    expect(error).toBeNull();
+                    if (body) {
+                        expect(body['error']).not.toBeDefined();
+                    }
                 });
+                
+                done();
             });
-            waitsFor(function() { return reqFlag }, 40000);
         });
     });
-});
+    
+    describe('awesm release sharer', function() {
+        it('should successfully create a shortened link', function(done) {
+            var options = {
+                url: config.share_url,
+                json: {
+                    origin: 'http://fake.cinema6.com/',
+                    awesmParams: {
+                        tag: 'release'
+                    },
+                    staticLink: true
+                }
+            };
+            
+            request.post(options, function(error, response, body) {
+                expect(error).toBeNull();
+                expect(body).toBeDefined();
+                if (!body) {
+                    done();
+                    return;
+                }
+                expect(body.error).not.toBeDefined();
+                expect(body.url).toBe('http://fake.cinema6.com/');
+                expect(body.shortUrl).toBe('http://awe.sm/s4MTd');
+                done();
+            });
+        });
+    }); // end -- awesm release sharer
+}); // end -- share (E2E)
 

@@ -243,6 +243,22 @@ describe('share (UT)', function() {
                 done();
             });
         });
+        
+        it('should use the static api endpoint if the staticLink param is passed to it', function(done) {
+            request.post.andCallFake(function(opts, cb) {
+                cb(null, null, '{"awesm_url": "http://cinema6.com/short"}');
+            });
+            share.shortenUrl(url, config, null, true).then(function(shortUrl) {
+                expect(shortUrl).toBe('http://cinema6.com/short');
+                expect(request.post).toHaveBeenCalled();
+                var opts = request.post.calls[0].args[0];
+                expect(opts.url.match(/^http:\/\/api.awe.sm\/url\/static\.json\?v=3/)).toBeTruthy();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
     });
 
     describe('shareLink', function() {
