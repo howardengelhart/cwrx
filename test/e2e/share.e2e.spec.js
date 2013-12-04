@@ -37,6 +37,7 @@ describe('share (E2E)', function() {
                 if (body) {
                     expect(body.error).not.toBeDefined();
                     expect(body.url).toBeDefined();
+                    expect(body.shortUrl).toBeDefined();
                     expect(body.url.match(/^http:\/\/cinema6.com\/#\/experiences\/shared~screenjack~e-\w{14}$/)).toBeTruthy();
                     expect(body.shortUrl.match(/http:\/\/awe\.sm\/\w+$/)).toBeTruthy();
                     
