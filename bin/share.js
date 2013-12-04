@@ -48,7 +48,7 @@ share.defaultConfiguration = {
         releaseTool: 'NQlq1r',
         stagingTool: 'gRgPad'
     }
-},
+};
 
 share.getVersion = function() {
     var fpath = path.join(__dirname, 'share.version'),
@@ -63,7 +63,7 @@ share.getVersion = function() {
     }
     log.warn('No version file found');
     return 'unknown';
-}
+};
 
 share.createConfiguration = function(cmdLine) {
     var cfgObject = cwrxConfig.createConfigObject(cmdLine.config, share.defaultConfiguration),
@@ -95,7 +95,7 @@ share.createConfiguration = function(cmdLine) {
     };
     
     return cfgObject;
-}
+};
 
 share.shortenUrl = function(origUrl, config, params, staticLink) {
     var deferred = q.defer(),
@@ -120,7 +120,7 @@ share.shortenUrl = function(origUrl, config, params, staticLink) {
     for (var key in (params || {})) {
         if (key === 'tag') continue;
         options.url += '&' + key + '=' + encodeURIComponent(params[key]);
-    };
+    }
     options.url += '&url=' + encodeURIComponent(origUrl);
     log.trace(options.url);
     request.post(options, function(error, response, body) {
@@ -138,7 +138,7 @@ share.shortenUrl = function(origUrl, config, params, staticLink) {
         deferred.resolve(data.awesm_url);
     });
     return deferred.promise;
-}
+};
 
 share.shareLink = function(req, config, done) {
     var log = logger.getLog(),
@@ -201,7 +201,7 @@ share.shareLink = function(req, config, done) {
             generateUrl(item.uri);
         }
     });
-}
+};
 
 if (!__ut__){
     try {
