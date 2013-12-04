@@ -39,7 +39,7 @@ describe('share (E2E)', function() {
                     expect(body.url).toBeDefined();
                     expect(body.shortUrl).toBeDefined();
                     expect(body.url.match(/^http:\/\/cinema6.com\/#\/experiences\/shared~screenjack~e-\w{14}$/)).toBeTruthy();
-                    expect(body.shortUrl.match(/http:\/\/awe\.sm\/\w+$/)).toBeTruthy();
+                    expect(body.shortUrl.match(/http:\/\/(awe|c-6|ci6)\.(sm|co)\/\w+$/)).toBeTruthy();
                     
                     var scriptId;
                     if (body['url']) {
@@ -93,7 +93,7 @@ describe('share (E2E)', function() {
                 }
                 expect(body.error).not.toBeDefined();
                 expect(body.url).toBe('http://fake.cinema6.com/');
-                expect(body.shortUrl).toBe('http://awe.sm/s4MTd');
+                expect(body.shortUrl).toBe('http://ci6.co/t2');
                 done();
             });
         });
