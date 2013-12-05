@@ -29,24 +29,22 @@ describe('dub-light (E2E)', function() {
         };
     });
 
-    describe('cached valid template test - siri', function() {
-        it('should successfully send a request to the dub server', function(done) {
-            var options = {
-                url: config.video_url,
-                json: siriTemplate
-            };
-
-            request.post(options, function(error, response, body) {
-                expect(error).toBeNull();
-                expect(body).toBeDefined();
-                if (body) {
-                    expect(body.error).not.toBeDefined();
-                    expect(body.output).toBeDefined();
-                    expect(typeof(body.output)).toEqual('string');
-                    expect(body.md5).toEqual(siriTemplate.e2e.md5);
-                }
-                done();
-            });
+    it('should succeed with a valid slightly random template', function(done) {
+        var options = {
+            url: config.video_url,
+            json: siriTemplate
+        };
+        siriTemplate.script[Math.floor(Math.random() * siriTemplate.script.length)].line += Math.round(Math.random() * 10000);
+        request.post(options, function(error, response, body) {
+            expect(error).toBeNull();
+            expect(body).toBeDefined();
+            if (body) {
+                expect(body.error).not.toBeDefined();
+                expect(body.output).toBeDefined();
+                expect(typeof(body.output)).toEqual('string');
+                expect(body.md5).not.toEqual(siriTemplate.e2e.md5);
+            }
+            done();
         });
     });
 });
