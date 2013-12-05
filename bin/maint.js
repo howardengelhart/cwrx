@@ -141,7 +141,7 @@ function main(done) {
 
     app.post("/maint/remove_S3_script", function(req, res, next) {
         log.info("Starting remove S3 script");
-        log.info(JSON.stringify(req.body));
+        log.trace(JSON.stringify(req.body));
         var fname = req.body.fname;
         if (!fname) {
             log.error("Incomplete params in request");
@@ -167,6 +167,30 @@ function main(done) {
             } else {
                 log.info("Successfully removed script");
                 res.send(200, { msg: "Successfully removed script" });
+            }
+        });
+    });
+    
+    app.post("/maint/cache_file", function(req, res, next) {
+        log.info("Starting cache file");
+        if (!req.body || !req.body.fname || !req.body.data || !req.body.cache) {
+            log.error("Incomplete params in request");
+            res.send(400, {
+                error   : "Bad request",
+                detail  : "Need filename, cache name, and data in request"
+            });
+            return;
+        }
+        fs.writeFile(config.cacheAddress(req.body.fname, req.body.cache), req.body.data, function(error) {
+            if (error) {
+                log.error("Error writing to file: " + error);
+                res.send(500, {
+                    error   : "Unable to process request",
+                    detail  : error
+                });
+            } else {
+                log.info("Successfully wrote file " + req.body.fname);
+                res.send(200, {msg: "Successfully wrote file " + req.body.fname});
             }
         });
     });

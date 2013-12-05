@@ -176,6 +176,11 @@ share.shareLink = function(req, config, done) {
         generateUrl();
         return;
     }
+    if (!item.uri || !item.uri.match(/^(shared~)?[^~]+~[^~]+$/)) {
+        log.error('[%1] Bad item uri: %2', req.uuid, (item.uri || 'missing uri'));
+        done('Bad item uri: ' + (item.uri || 'missing uri'));
+        return;
+    }
 
     var s3 = new aws.S3(),
         deferred = q.defer(),
@@ -186,7 +191,6 @@ share.shareLink = function(req, config, done) {
                    ContentType  : 'application/JSON',
                    Key          : path.join(config.s3.share.path, fname)
                  };
-    
     item.id = id;
     item.uri = item.uri.replace('shared~', '');
     item.uri = 'shared~' + item.uri.split('~')[0] + '~' + id;
