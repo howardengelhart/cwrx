@@ -72,6 +72,20 @@ var testVoices = [
         md5   : "37d58b4c0a570abab2547ccb91cebb73"
     },
     {
+        voice : "Paul",
+        test  : "Hello, my name is Paul. Duration 1",
+        fxType : 'D',
+        fxLevel : 1,
+        md5   : "1ac2904981591f11d851343c35c50727"
+    },
+    {
+        voice : "Paul",
+        test  : "Hello, my name is Paul. Robotic 3",
+        fxType : 'R',
+        fxLevel : 3,
+        md5   : "f76f4cf57f5b2dc3d0b2078947533c57"
+    },
+    {
         voice : "Julie",
         test  : "Hello, my name is Julie.",
         md5   : "fdc14fda70775cd0e6f8d8bc24be2592"
@@ -83,6 +97,8 @@ var testVoices = [
     }
 ];
 
+/////////////////////////
+// Helpers for q
 function textToSpeech(params){
     var deferred = q.defer();
     vocalWare.textToSpeech(params.ttsRequest,params.requestFile,function(err,rqs,result){
@@ -103,28 +119,42 @@ function getCheckSum(params){
     return params;
 }
 
+/////////////////////////
+// The tests
 describe('tts_' + testService + '_e2e_', function() {
     var workSpace = path.join('ws','e2e',uuid().substr(0,10));
     beforeEach(function(){
         fs.mkdirsSync(workSpace);
     });
-    describe('api',function(){
+    describe('voices',function(){
         var authToken;
         beforeEach(function(){
             authToken = vocalWare.createAuthToken(testToken); 
         });
 
-        it('should do something',function(done){
+        it('should sound like we expect',function(done){
             q.all(testVoices.map(function(voiceConfig){
-                var request, fileName;
-                fileName = path.join(
-                    workSpace,testService + '_' + voiceConfig.voice.toLowerCase() + '.mp3');
+                var request, voicePrint, fileName;
                 request = vocalWare.createRequest({
                     authToken : authToken,
                     service   : testService
                 });
 
                 request.say(voiceConfig.test,voiceConfig.voice);
+
+                voicePrint = voiceConfig.voice.toLowerCase();
+
+                if (voiceConfig.fxType){
+                    request.fxType = voiceConfig.fxType;
+                    voicePrint += '_' + request.fxType.toLowerCase();
+                }
+            
+                if (voiceConfig.fxLevel){
+                    request.fxLevel = voiceConfig.fxLevel;
+                    voicePrint += '_' + request.fxLevel.toString();
+                }
+                
+                fileName = path.join( workSpace,testService + '_' + voicePrint + '.mp3');
             
                 return textToSpeech({
                     ttsRequest  : request,
