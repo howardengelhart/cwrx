@@ -1,22 +1,15 @@
 var path        = require('path'),
     sanitize    = require('../sanitize'),
     vocalWare   = require('../../lib/vocalware'),
-    fsMock = {}, httpMock = {};
+    fsMock = {};
 
 describe('vocalWare', function() {
     
     beforeEach(function(){
-        var fs      = require('fs'),
-            http    = require('http');
+        var fs      = require('fs');
         fsMock.readFileSync      = spyOn(fs, 'readFileSync');
         fsMock.existsSync        = spyOn(fs, 'existsSync');
         fsMock.createWriteStream = spyOn(fs, 'createWriteStream');
-        
-        httpMock.request = spyOn(http, 'request');
-
-    //    assemble = sanitize(['../lib/assemble'])
-    //                .andConfigure( [ ['./ffmpeg',mockFFmpeg], ['./id3', mockId3Info ]])
-    //                .andRequire();
     });
 
 
@@ -110,33 +103,37 @@ describe('vocalWare', function() {
             var tokenData = {
                             apiId       : '9999999',
                             accountId   : '9999999',
-                            secret      : '99999999999999999999999999999999'
+                            secret      : '99999999999999999999999999999999',
+                            service     : 'vocalware'
                 },
                 token = vocalWare.createAuthToken(tokenData);
 
             expect(token.getApiId()).toEqual(tokenData.apiId);
             expect(token.getAccountId()).toEqual(tokenData.accountId);
             expect(token.getSecret()).toEqual(tokenData.secret);
+            expect(token.getService()).toEqual(tokenData.service);
         });
 
         it('should create authToken from init object without an apiId',function(){
             var tokenData = {
                             accountId   : '9999999',
-                            secret      : '99999999999999999999999999999999'
+                            secret      : '99999999999999999999999999999999',
+                            service     : 'vocalware'
                 },
                 token = vocalWare.createAuthToken(tokenData);
 
             expect(token.getApiId()).not.toBeDefined();
             expect(token.getAccountId()).toEqual(tokenData.accountId);
             expect(token.getSecret()).toEqual(tokenData.secret);
+            expect(token.getService()).toEqual(tokenData.service);
         });
         
         it('should except if accountId or secret are missing',function(){
             expect(function(){
-                vocalWare.createAuthToken({ apiId : 'xxx', accountId : 'yyyy'});
+                vocalWare.createAuthToken({ apiId : 'xxx', accountId : 'yyyy', service: 'vw'});
             }).toThrow('token is missing secret');
             expect(function(){
-                vocalWare.createAuthToken({ apiId : 'xxx', secret : 'yyyy'});
+                vocalWare.createAuthToken({ apiId : 'xxx', secret : 'yyyy', service: 'vw'});
             }).toThrow('token is missing accountId');
         });
         
@@ -144,7 +141,8 @@ describe('vocalWare', function() {
             var tokenData = {
                 apiId : 'abc',
                 accountId: 'def',
-                secret: 'ghi'
+                secret: 'ghi',
+                service: 'vocalware'
             }, token;
 
             fsMock.readFileSync.andReturn(JSON.stringify(tokenData));
@@ -153,12 +151,14 @@ describe('vocalWare', function() {
             expect(token.getApiId()).toEqual(tokenData.apiId);
             expect(token.getAccountId()).toEqual(tokenData.accountId);
             expect(token.getSecret()).toEqual(tokenData.secret);
+            expect(token.getService()).toEqual(tokenData.service);
         });
 
         it('should create authToken from file without apiId',function(){
             var tokenData = {
                 accountId: 'def',
-                secret: 'ghi'
+                secret: 'ghi',
+                service: 'vocalware'
             }, token;
 
             fsMock.readFileSync.andReturn(JSON.stringify(tokenData));
@@ -166,6 +166,7 @@ describe('vocalWare', function() {
             expect(fsMock.readFileSync).toHaveBeenCalledWith('somefile.json');
             expect(token.getAccountId()).toEqual(tokenData.accountId);
             expect(token.getSecret()).toEqual(tokenData.secret);
+            expect(token.getService()).toEqual(tokenData.service);
         });
         
         it('should except if the token file read fails',function(){
@@ -226,6 +227,17 @@ describe('vocalWare', function() {
             expect(rqs.checksum).toBeDefined();
             expect(rqs.toHttpOpts).toBeDefined();
 
+        });
+
+        it('should set request to authToken service if set',function(){
+            var token = vocalWare.createAuthToken({
+                    apiId       : 'abc',
+                    accountId   : 'def',
+                    secret      : 'ghi',
+                    service     : 'oddcast'
+                });
+            rqs = vocalWare.createRequest({ authToken : token, text : 'hello' });
+            expect(rqs.service).toEqual('oddcast');
         });
 
         it('should apply the correct hostName if service is "vocalware"',function(){
@@ -429,8 +441,7 @@ describe('vocalWare', function() {
     });
 
     describe('textToSpeech',function(){
-
-        var rqs, cbSpy, httpResponseMock, httpRequestMock, nextTickSpy,
+        var rqs, cbSpy, httpMock, httpResponseMock, httpRequestMock, nextTickSpy,
             ttsHttpCallback, writeStreamMock;
         beforeEach(function(){
             var token = vocalWare.createAuthToken({
@@ -441,6 +452,9 @@ describe('vocalWare', function() {
             rqs = vocalWare.createRequest({ authToken : token, text : 'hello' });
             cbSpy = jasmine.createSpy('textToSpeechCallback');
 
+            // The _events object on these mocks are used to capture the
+            // callback functions vocalWare.textToSpeech will set vian "on" method calls.
+            // They are initialized with no-ops
             writeStreamMock = {
                 write   : jasmine.createSpy('ws::write'),
                 on      : jasmine.createSpy('ws::on'),
@@ -467,7 +481,14 @@ describe('vocalWare', function() {
                     'error' : function(){}
                 }
             };
-            
+       
+            httpMock = {};
+            httpMock.request = spyOn(require('http'), 'request');
+           
+            // ttsHttpCallback is the function that vocalWare.textToSpeech
+            // will pass to http.request.  We need to capture that so the
+            // unit tests can use it to pass back the httpResponseMock
+            // with the correct statusCode / headers for the given test.
             httpMock.request.andCallFake(function(opts,callback){
                 ttsHttpCallback = callback;
                 return httpRequestMock;
@@ -557,4 +578,3 @@ describe('vocalWare', function() {
         });
     });
 });
-
