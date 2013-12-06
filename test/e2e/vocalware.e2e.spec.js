@@ -2,100 +2,20 @@ var crypto      = require('crypto'),
     q           = require('q'),
     fs          = require('fs-extra'),
     path        = require('path'),
+    exec        = require('child_process').exec,
     vocalWare   = require('../../lib/vocalware'),
+    ffmpeg      = require('../../lib/ffmpeg'),
+    id3Info     = require('../../lib/id3'),
     uuid        = require('../../lib/uuid').createUuid,
+    testVoices  = (function(){
+        return fs.readJsonSync(path.join(__dirname,'voices.json'));
+    }()),
     testToken   = (function(){
        return fs.readJsonSync(process.env['E2E_TTS_TOKEN_FILE']);
     }()),
     testService = testToken.service;
 
-    
-var testVoices = [
-    {
-        voice : "Susan",
-        test  : "Hello, my name is Susan.",
-        md5   : "593c925da0473ac96e6e8d0a1b1d4152"
-    },
-    {
-        voice : "Dave",
-        test  : "Hello, my name is Dave.",
-        md5   : "4a30afdef798077a166403366f96cbd1"
-    },
-    {
-        voice : "Elizabeth",
-        test  : "Hello, my name is Elizabeth.",
-        md5   : "607520d997d52196400941ad7cb82883"
-    },
-    {
-        voice : "Simon",
-        test  : "Hello, my name is Simon.",
-        md5   : "07bebaa6ecd6b698ef5b34df9a74a2c3"
-    },
-    {
-        voice : "Catherine",
-        test  : "Hello, my name is Catherine.",
-        md5   : "36fb48117c73b7ac078c5627c52124de"
-    },
-    {
-        voice : "Allison",
-        test  : "Hello, my name is Allison.",
-        md5   : "7044a6d670e66d8524ff9f1dcb5a6eba"
-    },
-    {
-        voice : "Steven",
-        test  : "Hello, my name is Steven.",
-        md5   : "a8ad4def28efafc8c41c7eac6340f7c5"
-    },
-    {
-        voice : "Alan",
-        test  : "Hello, my name is Alan.",
-        md5   : "939a262bfd872e6945710910777ffd37"
-    },
-    {
-        voice : "Grace",
-        test  : "Hello, my name is Grace.",
-        md5   : "ddccc0e046c3fa4bf91e6eda39dce407"
-    },
-    {
-        voice : "Veena",
-        test  : "Hello, my name is Veena.",
-        md5   : "134b528241dde60f13230c33dbe1d118"
-    },
-    {
-        voice : "Kate",
-        test  : "Hello, my name is Kate.",
-        md5   : "e5d7fb865ea76b402d107d94a80482d6"
-    },
-    {
-        voice : "Paul",
-        test  : "Hello, my name is Paul.",
-        md5   : "37d58b4c0a570abab2547ccb91cebb73"
-    },
-    {
-        voice : "Paul",
-        test  : "Hello, my name is Paul. Duration 1",
-        fxType : 'D',
-        fxLevel : 1,
-        md5   : "1ac2904981591f11d851343c35c50727"
-    },
-    {
-        voice : "Paul",
-        test  : "Hello, my name is Paul. Robotic 3",
-        fxType : 'R',
-        fxLevel : 3,
-        md5   : "f76f4cf57f5b2dc3d0b2078947533c57"
-    },
-    {
-        voice : "Julie",
-        test  : "Hello, my name is Julie.",
-        md5   : "fdc14fda70775cd0e6f8d8bc24be2592"
-    },
-    {
-        voice : "Bridget",
-        test  : "Hello, my name is Bridget.",
-        md5   : "da400b58b2a62e03fd1418e638392f4e"
-    }
-];
+var dataDump = {};
 
 /////////////////////////
 // Helpers for q
@@ -111,12 +31,49 @@ function textToSpeech(params){
     return deferred.promise;
 }
 
+function getId3Info(params){
+    var deferred = q.defer();
+    id3Info(params.resultFile,function(err,result){
+        if (err) {
+            return deferred.reject(err);
+        }
+        params.resultId3Info = result;
+        
+        return deferred.resolve(params);
+    });
+    return deferred.promise;
+}
+
+function stripId3Tags(params){
+    var deferred = q.defer();
+    id3.id3Strip(params.resultFile,function(err,result){
+        if (err) {
+            return deferred.reject(err);
+        }
+        return deferred.resolve(params);
+    });
+    return deferred.promise;
+}
+
 function getCheckSum(params){
     var contents = fs.readFileSync(params.resultFile),
         hash = crypto.createHash('md5');
     hash.update(contents);
     params.resultMD5 = hash.digest('hex');
     return params;
+}
+
+function backupResultMp3(params){
+    var deferred = q.defer();
+    exec('cp ' + params.resultFile + ' ' + params.resultFile + '.bak',function(error,stdout,stderr){
+        if (error){
+            deferred.reject(error);
+            return;
+        }
+   
+        deferred.resolve(params);
+    });
+    return deferred.promise;
 }
 
 /////////////////////////
@@ -133,7 +90,7 @@ describe('tts_' + testService + '_e2e_', function() {
         });
 
         it('should sound like we expect',function(done){
-            q.all(testVoices.map(function(voiceConfig){
+            q.all(testVoices.voices.map(function(voiceConfig){
                 var request, voicePrint, fileName;
                 request = vocalWare.createRequest({
                     authToken : authToken,
@@ -164,13 +121,21 @@ describe('tts_' + testService + '_e2e_', function() {
             }))
             .then(function(results){
                 return q.all(results.map(function(params){
-                    return getCheckSum(params);
+                    return getId3Info(params);
                 }));
             })
             .then(function(results){
-                expect(results.length).toEqual(testVoices.length);
+                var dataDump = { voices : [] }; 
+                console.log('Evaluate run:',workSpace);
+                expect(results.length).toEqual(testVoices.voices.length);
                 results.forEach(function(result){
-                    expect(result.resultMD5).toEqual(result.voiceCfg.md5);
+                    var o_id3Info = result.voiceCfg.id3Info,
+                        r_id3Info = result.resultId3Info;
+                    expect(r_id3Info.audio_duration).toEqual(o_id3Info.audio_duration);
+                    expect(r_id3Info.kbps).toEqual(o_id3Info.kbps);
+                    expect(r_id3Info.khz).toEqual(o_id3Info.khz);
+                    expect(r_id3Info.lips).toEqual(o_id3Info.lips);
+                    expect(r_id3Info.phonemes).toEqual(o_id3Info.phonemes);
                 });
                 done();
             })

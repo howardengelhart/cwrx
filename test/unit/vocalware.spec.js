@@ -234,10 +234,11 @@ describe('vocalWare', function() {
                     apiId       : 'abc',
                     accountId   : 'def',
                     secret      : 'ghi',
-                    service     : 'oddcast'
+                    service     : 'vocalWare'
                 });
             rqs = vocalWare.createRequest({ authToken : token, text : 'hello' });
-            expect(rqs.service).toEqual('oddcast');
+            expect(rqs.service).toEqual('vocalWare');
+            expect(rqs.serviceHostName).toEqual('www.vocalware.com');
         });
 
         it('should apply the correct hostName if service is "vocalware"',function(){
