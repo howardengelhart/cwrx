@@ -79,8 +79,8 @@ Vagrant.configure("2") do |config|
   # config.berkshelf.except = []
 
   config.vm.provision :chef_solo do |chef|
-    chef.data_bags_path = "#{ENV['HOME']}/.c6dev/data_bags"
-    chef.encrypted_data_bag_secret_key_path = "#{ENV['HOME']}/.ssh/c6data"
+    chef.data_bags_path = "#{ENV['CHEF_REPO']}/data_bags"
+    chef.encrypted_data_bag_secret_key_path = "#{ENV['HOME']}/.chef/c6data.pem"
     chef.json = {
       :dub => {
        :source => {
