@@ -140,45 +140,6 @@ module.exports = function (grunt) {
             done(true);
         });
     });
-    
-    grunt.registerTask('light_tests', 'Run quick jasmine end-to-end tests', function(svc) {
-        var done = this.async(),
-            args = ['--test-dir', 'test/e2e/', '--captureExceptions', '--junitreport', '--output',
-                    path.join(__dirname, 'reports/e2e/')];
-        
-        if (svc) {
-            var regexp = '^' + svc + '-light\\.e2e\\.';
-            args.push('--match', regexp);
-        } else {
-            var regexp = '-light\\.e2e\\.';
-            args.push('--match', regexp);
-        }
-        
-        if (grunt.option('testHost')) {
-            args.push('--config', 'host', grunt.option('testHost'));
-        }
-        
-        if (grunt.option('e2e-config')){
-            var cfgObj = JSON.parse(grunt.option('e2e-config'));
-            for (var key in cfgObj){
-                args.push('--config',key,cfgObj[key]);
-            }
-        }
-        
-        grunt.log.writeln('Running light e2e tests' + (svc ? ' for ' + svc : '') + ':');
-        grunt.util.spawn({
-            cmd : 'jasmine-node',
-            args : args
-        }, function(error,result,code) {
-            grunt.log.writeln(result.stdout);
-            if (error) {
-                grunt.log.errorlns('e2e tests failed: ' + error);
-                done(false);
-                return;
-            }
-            done(true);
-        });
-    });
 
     grunt.registerTask('start_instance', 'start an instance for running tests', function(id) {
         var settings = grunt.config.get('settings'),
