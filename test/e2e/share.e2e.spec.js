@@ -1,4 +1,5 @@
 var request = require('request'),
+    q       = require('q'),
     host = process.env['host'] ? process.env['host'] : 'localhost',
     config = {
         'share_url': 'http://' + (host === 'localhost' ? host + ':3100' : host) + '/share',
@@ -184,6 +185,66 @@ describe('share (E2E)', function() {
                 done();
             });
         });
-    }); // end -- describe malformed item test
-}); // end -- describe share (E2E)
+    });
+    
+    describe('facebook share bad params test', function() {
+        it('should fail if not given the correct params', function(done) {
+            var options = {
+                url: config.share_url + '/facebook?'
+            };
+            
+            q.npost(request, 'get', [options]).then(function(values) {
+                expect(values).toBeDefined();
+                expect(values[0].statusCode).toBe(400);
+                expect(values[1]).toBe('Unable to complete request.');
+                options.url += '&fbUrl=http://facebook.com'
+                return q.npost(request, 'get', [options]);
+            }).then(function(values) {
+                expect(values).toBeDefined();
+                expect(values[0].statusCode).toBe(400);
+                expect(values[1]).toBe('Unable to complete request.');
+                options.url = config.share_url + '/facebook?&origin=http://cinema6.com'
+                return q.npost(request, 'get', [options]);
+            }).then(function(values) {
+                expect(values).toBeDefined();
+                expect(values[0].statusCode).toBe(400);
+                expect(values[1]).toBe('Unable to complete request.');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+    });
+    
+    describe('twitter share bad params test', function() {
+        it('should fail if not given the correct params', function(done) {
+            var options = {
+                url: config.share_url + '/twitter?'
+            };
+            
+            q.npost(request, 'get', [options]).then(function(values) {
+                expect(values).toBeDefined();
+                expect(values[0].statusCode).toBe(400);
+                expect(values[1]).toBe('Unable to complete request.');
+                options.url += '&twitUrl=http://twitter.com'
+                return q.npost(request, 'get', [options]);
+            }).then(function(values) {
+                expect(values).toBeDefined();
+                expect(values[0].statusCode).toBe(400);
+                expect(values[1]).toBe('Unable to complete request.');
+                options.url = config.share_url + '/twitter?&origin=http://cinema6.com'
+                return q.npost(request, 'get', [options]);
+            }).then(function(values) {
+                expect(values).toBeDefined();
+                expect(values[0].statusCode).toBe(400);
+                expect(values[1]).toBe('Unable to complete request.');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+    });  //  end -- describe twitter share bad params test
+});  // end -- describe share (E2E)
 
