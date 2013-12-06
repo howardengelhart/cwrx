@@ -158,6 +158,13 @@ module.exports = function (grunt) {
             args.push('--config', 'host', grunt.option('testHost'));
         }
         
+        if (grunt.option('e2e-config')){
+            var cfgObj = JSON.parse(grunt.option('e2e-config'));
+            for (var key in cfgObj){
+                args.push('--config',key,cfgObj[key]);
+            }
+        }
+        
         grunt.log.writeln('Running light e2e tests' + (svc ? ' for ' + svc : '') + ':');
         grunt.util.spawn({
             cmd : 'jasmine-node',
