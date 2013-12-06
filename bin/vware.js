@@ -33,7 +33,7 @@ function main(done){
 //                      '-o fx=<none>' + 
 //                      '-o level=<none>', 
         rqs,
-        authToken;
+        authToken,m;
 
     program.vwOpts = {
         eid : defaultVoice.EngineId(),
@@ -104,7 +104,7 @@ function main(done){
 
     if (program.duration){
         program.vwOpts.fx  = 'D';
-        var m = program.duration.match(/(n*)(\d)/);
+        m = program.duration.match(/(n*)(\d)/);
         if (!m){
             console.log('*** ' + program.duration  + ' is not a valid duration setting.');
             return done(1);
@@ -117,7 +117,7 @@ function main(done){
     
     if (program.pitch){
         program.vwOpts.fx  = 'P';
-        var m = program.pitch.match(/(n*)(\d)/);
+        m = program.pitch.match(/(n*)(\d)/);
         if (!m){
             console.log('*** ' + program.pitch  + ' is not a valid pitch setting.');
             return done(1);
@@ -135,7 +135,7 @@ function main(done){
     
     if (program.speed){
         program.vwOpts.fx  = 'S';
-        var m = program.speed.match(/(n*)(\d)/);
+        m = program.speed.match(/(n*)(\d)/);
         if (!m){
             console.log('*** ' + program.speed  + ' is not a valid speed setting.');
             return done(1);
