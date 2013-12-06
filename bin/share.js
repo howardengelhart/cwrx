@@ -10,6 +10,7 @@ var include     = require('../lib/inject').require,
     express     = include('express'),
     aws         = include('aws-sdk'),
     q           = include('q'),
+    querystring = include('querystring'),
     logger      = include('../lib/logger'),
     cwrxConfig  = include('../lib/config'),
     uuid        = include('../lib/uuid'),
@@ -44,9 +45,8 @@ share.defaultConfiguration = {
         auth    : path.join(process.env.HOME,'.aws.json')
     },
     awesm: {
-        key: 'c6dc7ece16b2950bf2a746a2e2eeabcdefa26be40fb1fdd78642b777d0399759',
-        releaseTool: 'NQlq1r',
-        stagingTool: 'gRgPad'
+        key: 'xxxx',
+        toolKey: 'xxxx'
     }
 };
 
@@ -100,29 +100,27 @@ share.createConfiguration = function(cmdLine) {
 share.shortenUrl = function(origUrl, config, params, staticLink) {
     var deferred = q.defer(),
         log = logger.getLog(),
+        params = params || {},
         options = {};
     
     if (staticLink) {
-        options.url = 'http://api.awe.sm/url/static.json?v=3&key=' + config.awesm.key + '&channel=email';
+        options.url = 'http://api.awe.sm/url/static.json?v=3&key=' + config.awesm.key;
     } else {
-        options.url = 'http://api.awe.sm/url.json?v=3&key=' + config.awesm.key + '&channel=email';
+        options.url = 'http://api.awe.sm/url.json?v=3&key=' + config.awesm.key;
     }
-        
-    if (params && params.tag === 'release') {
-        log.trace('using release sharer');
-        options.url += '&tool=' + config.awesm.releaseTool;
-        options.url += '&tag=release';
+    options.url += '&tool=' + config.awesm.toolKey;
+    if (params.channel) {
+        options.url += '&channel=' + params.channel;
     } else {
-        log.trace('using staging sharer');
-        options.url += '&tool=' + config.awesm.stagingTool;
-        options.url += '&tag=staging';
+        options.url += '&channel=email';
     }
-    for (var key in (params || {})) {
-        if (key === 'tag') continue;
+    delete params.channel;
+    for (var key in params) {
         options.url += '&' + key + '=' + encodeURIComponent(params[key]);
     }
     options.url += '&url=' + encodeURIComponent(origUrl);
     log.trace(options.url);
+    
     request.post(options, function(error, response, body) {
         var data;
         try {
@@ -205,6 +203,16 @@ share.shareLink = function(req, config, done) {
             generateUrl(item.uri);
         }
     });
+};
+
+share.processUrl = function(url) {
+    var urlParts = url.split('?');
+    var query = querystring.parse(urlParts[1] || '');
+    var newUrl = urlParts[0] + '?';
+    for (var key in query) {
+        newUrl += '&' + key + '=' + encodeURIComponent(query[key]);
+    }
+    return newUrl;
 };
 
 if (!__ut__){
@@ -307,6 +315,42 @@ function main(done) {
         log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
             req.method, req.url, req.httpVersion);
         next();
+    });
+    
+    app.get('/share/facebook', function(req, res, next) {
+        log.info('[%1] Starting facebook share', req.uuid);
+        if (!req.query || !req.query.origin || !req.query.fbUrl) {
+            log.error('[%1] Need origin and fbUrl to redirect to in query string', req.uuid);
+            res.send(400, 'Unable to complete request.');
+            return;
+        }
+        var origin = req.query.origin;
+        var newUrl = share.processUrl(req.query.fbUrl);
+        share.shortenUrl(req.query.origin, config, {channel: 'facebook-post'})
+        .then(function(url) {
+            res.redirect(newUrl + '&link=' + encodeURIComponent(url));
+        }).catch(function(error) {
+            log.error('[%1] Failed to shorten url: url = %2, error = %3', req.uuid, origin, error);
+            res.redirect(newUrl + '&link=' + encodeURIComponent(req.query.origin));
+        });
+    });
+    
+    app.get('/share/twitter', function(req, res, next) {
+        log.info('[%1] Starting twitter share', req.uuid);
+        if (!req.query || !req.query.origin || !req.query.twitUrl) {
+            log.error('[%1] Need origin and twitUrl to redirect to in query string', req.uuid);
+            res.send(400, 'Unable to complete request.');
+            return;
+        }
+        var origin = req.query.origin;
+        var newUrl = share.processUrl(req.query.twitUrl);
+        share.shortenUrl(req.query.origin, config, {channel: 'twitter'})
+        .then(function(url) {
+            res.redirect(newUrl + '&url=' + encodeURIComponent(url));
+        }).catch(function(error) {
+            log.error('[%1] Failed to shorten url: url = %2, error = %3', req.uuid, origin, error);
+            res.redirect(newUrl + '&url=' + encodeURIComponent(req.query.origin));
+        });
     });
 
     app.post('/share', function(req, res, next) {
