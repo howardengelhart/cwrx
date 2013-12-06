@@ -88,7 +88,7 @@ share.createConfiguration = function(cmdLine) {
             return;
         }
         cfgObject.awesmKey = awesmAuth.apiKey;
-        cfgObject.awesmTool = awesmAuth.toolKey
+        cfgObject.awesmTool = awesmAuth.toolKey;
     });
 
     cfgObject.ensurePaths = function(){
@@ -112,8 +112,8 @@ share.createConfiguration = function(cmdLine) {
 share.shortenUrl = function(origUrl, config, params, staticLink) {
     var deferred = q.defer(),
         log = logger.getLog(),
-        params = params || {},
         options = {};
+    params = params || {};
 
     if (!config.awesmKey || ! config.awesmTool) {
         deferred.reject('Never loaded awesm credentials properly');
