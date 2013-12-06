@@ -60,9 +60,9 @@ describe('share (E2E)', function() {
                 }
             }
             request.post(options, function(error, response, body) {
-                expect(error).toBeNull();
+                expect(error).toBeNull('maint error');
                 if (body) {
-                    expect(body['error']).not.toBeDefined();
+                    expect(body.error).not.toBeDefined('maint error');
                 }
                 done();
             });
@@ -105,9 +105,9 @@ describe('share (E2E)', function() {
                 }
             }
             request.post(options, function(error, response, body) {
-                expect(error).toBeNull();
+                expect(error).toBeNull('maint error');
                 if (body) {
-                    expect(body['error']).not.toBeDefined();
+                    expect(body.error).not.toBeDefined('maint error');
                 }
                 done();
             });

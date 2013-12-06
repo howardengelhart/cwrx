@@ -45,8 +45,7 @@ share.defaultConfiguration = {
         auth    : path.join(process.env.HOME,'.aws.json')
     },
     awesm: {
-        key: 'xxxx',
-        toolKey: 'xxxx'
+        auth: path.join(process.env.HOME, '.awesm.json')
     }
 };
 
@@ -78,6 +77,19 @@ share.createConfiguration = function(cmdLine) {
     }  catch (e) {
         throw new SyntaxError('Failed to load s3 config: ' + e.message);
     }
+    
+    fs.readJson(cfgObject.awesm.auth, function(error, awesmAuth) {
+        if (error) {
+            log.error('Failed to load awesm credentials');
+            return;
+        }
+        if (!awesmAuth.apiKey || !awesmAuth.toolKey) {
+            log.error('Incomplete awesm credentials: needs apiKey + toolKey');
+            return;
+        }
+        cfgObject.awesmKey = awesmAuth.apiKey;
+        cfgObject.awesmTool = awesmAuth.toolKey
+    });
 
     cfgObject.ensurePaths = function(){
         var self = this;
@@ -102,13 +114,17 @@ share.shortenUrl = function(origUrl, config, params, staticLink) {
         log = logger.getLog(),
         params = params || {},
         options = {};
-    
-    if (staticLink) {
-        options.url = 'http://api.awe.sm/url/static.json?v=3&key=' + config.awesm.key;
-    } else {
-        options.url = 'http://api.awe.sm/url.json?v=3&key=' + config.awesm.key;
+
+    if (!config.awesmKey || ! config.awesmTool) {
+        deferred.reject('Never loaded awesm credentials properly');
+        return deferred.promise;
     }
-    options.url += '&tool=' + config.awesm.toolKey;
+    if (staticLink) {
+        options.url = 'http://api.awe.sm/url/static.json?v=3&key=' + config.awesmKey;
+    } else {
+        options.url = 'http://api.awe.sm/url.json?v=3&key=' + config.awesmKey;
+    }
+    options.url += '&tool=' + config.awesmTool;
     if (params.channel) {
         options.url += '&channel=' + params.channel;
     } else {
@@ -326,8 +342,9 @@ function main(done) {
         }
         var origin = req.query.origin;
         var newUrl = share.processUrl(req.query.fbUrl);
-        share.shortenUrl(req.query.origin, config, {channel: 'facebook-post'})
+        share.shortenUrl(req.query.origin, config, {channel: 'facebook-post'}, req.query.staticLink)
         .then(function(url) {
+            log.info('[%1] Got short url %2', req.uuid, url);
             res.redirect(newUrl + '&link=' + encodeURIComponent(url));
         }).catch(function(error) {
             log.error('[%1] Failed to shorten url: url = %2, error = %3', req.uuid, origin, error);
@@ -344,8 +361,9 @@ function main(done) {
         }
         var origin = req.query.origin;
         var newUrl = share.processUrl(req.query.twitUrl);
-        share.shortenUrl(req.query.origin, config, {channel: 'twitter'})
+        share.shortenUrl(req.query.origin, config, {channel: 'twitter'}, req.query.staticLink)
         .then(function(url) {
+            log.info('[%1] Got short url %2', req.uuid, url);
             res.redirect(newUrl + '&url=' + encodeURIComponent(url));
         }).catch(function(error) {
             log.error('[%1] Failed to shorten url: url = %2, error = %3', req.uuid, origin, error);

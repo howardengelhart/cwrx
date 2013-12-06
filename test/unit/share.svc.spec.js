@@ -50,11 +50,10 @@ describe('share (UT)', function() {
     });
 
     describe('getVersion', function() {
-        var existsSpy, readFileSpy;
         
         beforeEach(function() {
-            existsSpy = spyOn(fs, 'existsSync');
-            readFileSpy = spyOn(fs, 'readFileSync');
+            spyOn(fs, 'existsSync');
+            spyOn(fs, 'readFileSync');
         });
         
         it('should exist', function() {
@@ -62,34 +61,36 @@ describe('share (UT)', function() {
         });
         
         it('should attempt to read a version file', function() {
-            existsSpy.andReturn(true);
-            readFileSpy.andReturn('ut123');
+            fs.existsSync.andReturn(true);
+            fs.readFileSync.andReturn('ut123');
             
             expect(share.getVersion()).toEqual('ut123');
-            expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../../bin/share.version'));
-            expect(readFileSpy).toHaveBeenCalledWith(path.join(__dirname, '../../bin/share.version'));
+            expect(fs.existsSync).toHaveBeenCalledWith(path.join(__dirname, '../../bin/share.version'));
+            expect(fs.readFileSync).toHaveBeenCalledWith(path.join(__dirname, '../../bin/share.version'));
         });
         
         it('should return "unknown" if it fails to read the version file', function() {
-            existsSpy.andReturn(false);
+            fs.existsSync.andReturn(false);
             expect(share.getVersion()).toEqual('unknown');
-            expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../../bin/share.version'));
-            expect(readFileSpy).not.toHaveBeenCalled();
+            expect(fs.existsSync).toHaveBeenCalledWith(path.join(__dirname, '../../bin/share.version'));
+            expect(fs.readFileSync).not.toHaveBeenCalled();
             
-            existsSpy.andReturn(true);
-            readFileSpy.andThrow('Exception!');
+            fs.existsSync.andReturn(true);
+            fs.readFileSync.andThrow('Exception!');
             expect(share.getVersion()).toEqual('unknown');
-            expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../../bin/share.version'));
-            expect(readFileSpy).toHaveBeenCalledWith(path.join(__dirname, '../../bin/share.version'));
+            expect(fs.existsSync).toHaveBeenCalledWith(path.join(__dirname, '../../bin/share.version'));
+            expect(fs.readFileSync).toHaveBeenCalledWith(path.join(__dirname, '../../bin/share.version'));
         });
     });
 
     describe('createConfiguration', function() {
-        var existsSpy, mkdirSpy, createConfig, mockConfig;
+        var createConfig, mockConfig;
         
         beforeEach(function() {
-            existsSpy = spyOn(fs, 'existsSync');
-            mkdirSpy = spyOn(fs, 'mkdirsSync');
+            spyOn(fs, 'existsSync');
+            spyOn(fs, 'mkdirsSync');
+            spyOn(fs, 'readJson');
+            
             mockConfig = {
                 caches: {
                     run: 'ut/run/'
@@ -99,6 +100,9 @@ describe('share (UT)', function() {
                 },
                 s3: {
                     auth: 'fakeAuth.json'
+                },
+                awesm: {
+                    auth: 'fakeAwesm.json'
                 }
             };
             createConfig = spyOn(cwrxConfig, 'createConfigObject').andReturn(mockConfig);
@@ -113,6 +117,8 @@ describe('share (UT)', function() {
             expect(createConfig).toHaveBeenCalledWith('utConfig', share.defaultConfiguration);
             expect(mockLogger.createLog).toHaveBeenCalledWith(mockConfig.log);
             expect(mockAws.config.loadFromPath).toHaveBeenCalledWith('fakeAuth.json');
+            expect(fs.readJson).toHaveBeenCalled();
+            expect(fs.readJson.calls[0].args[0]).toBe('fakeAwesm.json');
             
             expect(cfgObject.caches.run).toBe('ut/run/');
             expect(cfgObject.ensurePaths).toBeDefined();
@@ -128,20 +134,32 @@ describe('share (UT)', function() {
             expect(function() {share.createConfiguration({config: 'utConfig'});}).toThrow();
         });
         
+        it('should just log an error if it can\'t load the awesm config', function(done) {
+            fs.readJson.andCallFake(function(path, cb) {
+                cb('Error!', null);
+            });
+            
+            var cfgObject = share.createConfiguration({config: 'utConfig'});
+            expect(cfgObject).toBeDefined();
+            expect(fs.readJson).toHaveBeenCalled();
+            expect(errorSpy).toHaveBeenCalled();
+            done();
+        });
+        
         describe('ensurePaths method', function() {
             it('should create directories if needed', function() {
                 var cfgObject = share.createConfiguration({config: 'utConfig'});
-                existsSpy.andReturn(false);
+                fs.existsSync.andReturn(false);
                 cfgObject.ensurePaths();
-                expect(existsSpy).toHaveBeenCalledWith('ut/run/');
-                expect(mkdirSpy).toHaveBeenCalledWith('ut/run/');
+                expect(fs.existsSync).toHaveBeenCalledWith('ut/run/');
+                expect(fs.mkdirsSync).toHaveBeenCalledWith('ut/run/');
             });
             
             it('should not create directories if they exist', function() {
                 var cfgObject = share.createConfiguration({config: 'utConfig'});
-                existsSpy.andReturn(true);
+                fs.existsSync.andReturn(true);
                 cfgObject.ensurePaths();
-                expect(mkdirSpy).not.toHaveBeenCalled();
+                expect(fs.mkdirsSync).not.toHaveBeenCalled();
             });
         });
         
@@ -151,17 +169,31 @@ describe('share (UT)', function() {
         });
     });
     
+    describe('processUrl', function() {
+        it('should exist', function() {
+            expect(share.processUrl).toBeDefined();
+        });
+        
+        it('should correctly process a url with a query string', function() {
+            expect(share.processUrl('http://test.com/?a=1&b=2')).toBe('http://test.com/?&a=1&b=2');
+            
+            var orig = 'http://test.com/?a=http://a.com&b=http://b.com&c=http://c.com';
+            var processed = 'http://test.com/?&a=http%3A%2F%2Fa.com&b=http%3A%2F%2Fb.com&c=http%3A%2F%2Fc.com'
+            var url = 'http://test.com/?a=' + encodeURIComponent('http://a.com') +
+                      '&b=' + encodeURIComponent('http://b.com') +
+                      '&c=' + encodeURIComponent('http://c.com');
+            expect(share.processUrl(orig)).toBe(processed);
+        });
+    });
+    
     describe('shortenUrl', function() {
         var config, url;
         
         beforeEach(function() {
             url = 'http://cinema6.com';
             config = {
-                awesm: {
-                    key: 'awesmKey',
-                    releaseTool: 'relTool',
-                    stagingTool: 'stagTool'
-                }
+                awesmKey: 'fakeKey',
+                awesmTool: 'fakeTool'
             };
             spyOn(request, 'post');
         });
@@ -182,13 +214,26 @@ describe('share (UT)', function() {
                 expect(opts.url.match(/^http:\/\/api.awe.sm\/url\.json\?v=3/)).toBeTruthy();
                 
                 var query = querystring.parse(opts.url.split('?')[1]);
-                expect(query.key).toBe('awesmKey');
-                expect(query.tag).toBe('staging');
-                expect(query.tool).toBe('stagTool');
+                expect(query.key).toBe('fakeKey');
+                expect(query.tool).toBe('fakeTool');
                 expect(query.url).toBe('http://cinema6.com');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should fail immediately if the awesm config was not loaded properly', function(done) {
+            delete config.awesmKey;
+            share.shortenUrl(url, config, null).catch(function(error) {
+                expect(error).toBe('Never loaded awesm credentials properly');
+            });
+            
+            config.awesmKey = 'fakeKey';
+            delete config.awesmTool;
+            share.shortenUrl(url, config, null).catch(function(error) {
+                expect(error).toBe('Never loaded awesm credentials properly');
                 done();
             });
         });
@@ -233,7 +278,6 @@ describe('share (UT)', function() {
                 
                 var opts = request.post.calls[0].args[0];
                 var query = querystring.parse(opts.url.split('?')[1]);
-                expect(query.tool).toBe('relTool');
                 expect(query.tag).toBe('release');
                 expect(query.campaign).toBe('utCampaign');
                 expect(query.notes).toBe('utNotes');
