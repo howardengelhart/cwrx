@@ -106,7 +106,7 @@ module.exports = function (grunt) {
                     path.join(__dirname, 'reports/e2e/')];
         
         if (svc) {
-            var regexp = '^' + svc + '\\.e2e\\.';
+            var regexp = '^' + svc + '(-light)?\\.e2e\\.';
             args.push('--match', regexp);
         }
         if (grunt.option('testHost')) {

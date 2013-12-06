@@ -38,136 +38,144 @@ describe('dub (E2E)', function() {
         };
     });
 
-    it('should succeed with a valid template', function(done) {
-
-        var options = {
-            url: config.video_url,
-            json: screamTemplate
-        }, reqFlag = false;
-        
-        request.post(options, function(error, response, body) {
-            expect(error).toBeNull();
-            expect(body).toBeDefined();
-            if (body) {
-                expect(body.error).not.toBeDefined();
-                expect(body.output).toBeDefined();
-                expect(typeof(body.output)).toEqual('string');
-                expect(body.md5).toEqual(screamTemplate.e2e.md5);
-            }
-
+    describe('valid template test', function() {
+        it('should succeed with a valid template', function(done) {
             var options = {
-                url : config.clean_cache_url,
+                url: config.video_url,
                 json: screamTemplate
-            }
-            request.post(options, function(error, response, body) {
-                if (error) console.log('Error cleaning caches: ' + error);
-                done();
-            });
-        });
-    });
-
-    it('should succeed with a randomized template', function(done) {
-        var options = {
-            url: config.video_url,
-            json: screamTemplate
-        };
-        
-        screamTemplate.script.forEach(function(track) {
-            track.line += Math.round(Math.random() * 10000);
-        });
-
-        request.post(options, function(error, response, body) {
-            expect(error).toBeNull();
-            expect(body).toBeDefined();
-            if (body) {
-                expect(body.error).not.toBeDefined();
-                expect(body.output).toBeDefined();
-                expect(typeof(body.output)).toEqual('string');
-                expect(body.md5).toBeDefined();
-                expect(body.md5).not.toEqual(screamTemplate.e2e.md5);
-            }
+            }, reqFlag = false;
             
-            var options = {
-                url : config.clean_cache_url,
-                json: screamTemplate
-            }
             request.post(options, function(error, response, body) {
-                if (error) console.log('Error cleaning caches: ' + error);
-                done();
+                expect(error).toBeNull();
+                expect(body).toBeDefined();
+                if (body) {
+                    expect(body.error).not.toBeDefined();
+                    expect(body.output).toBeDefined();
+                    expect(typeof(body.output)).toEqual('string');
+                    expect(body.md5).toEqual(screamTemplate.e2e.md5);
+                }
+
+                var options = {
+                    url : config.clean_cache_url,
+                    json: screamTemplate
+                }
+                request.post(options, function(error, response, body) {
+                    if (error) console.log('Error cleaning caches: ' + error);
+                    done();
+                });
             });
         });
     });
 
-    it('should fail if given a template with no script', function(done) {
-        var options = {
-            url: config.video_url,
-            json: screamTemplate
-        };
-        
-        delete screamTemplate.script;
-        
-        request.post(options, function(error, response, body) {
-            expect(body).toBeDefined();
-            if (body) {
-                expect(body.error).toBeDefined();
-                expect(body.detail).toEqual('Expected script section in template');
-            }
-            done();
-        });
-    });
-    
-    it('should fail if given an invalid source video', function(done) {
-        var cacheOpts = {
-            url: config.cache_file_url,
-            json: {
-                fname: 'invalid.mp4',
-                data: 'This is a fake video file',
-                cache: 'video'
-            }
-        };
-        
-        q.npost(request, 'post', [cacheOpts]).then(function() {
-            var vidOpts = {
+    describe('randomized template test', function() {
+        it('should succeed with a randomized template', function(done) {
+            var options = {
                 url: config.video_url,
                 json: screamTemplate
             };
-            screamTemplate.video = 'invalid.mp4';
-            return q.npost(request, 'post', [vidOpts]);
-        }).then(function(values) {  // values = [request, body]
-            expect(values).toBeDefined();
-            expect(values[1]).toBeDefined();
-            expect(values[1].error).toBeDefined();
-            expect(values[1].detail.match(/invalid\.mp4: Invalid data found when processing input/)).toBeTruthy();
             
-            var cleanOpts = {
-                url: config.clean_cache_url,
+            screamTemplate.script.forEach(function(track) {
+                track.line += Math.round(Math.random() * 10000);
+            });
+
+            request.post(options, function(error, response, body) {
+                expect(error).toBeNull();
+                expect(body).toBeDefined();
+                if (body) {
+                    expect(body.error).not.toBeDefined();
+                    expect(body.output).toBeDefined();
+                    expect(typeof(body.output)).toEqual('string');
+                    expect(body.md5).toBeDefined();
+                    expect(body.md5).not.toEqual(screamTemplate.e2e.md5);
+                }
+                
+                var options = {
+                    url : config.clean_cache_url,
+                    json: screamTemplate
+                }
+                request.post(options, function(error, response, body) {
+                    if (error) console.log('Error cleaning caches: ' + error);
+                    done();
+                });
+            });
+        });
+    });
+
+    describe('missing script test', function() {
+        it('should fail if given a template with no script', function(done) {
+            var options = {
+                url: config.video_url,
                 json: screamTemplate
-            }
-            return q.npost(request, 'post', [cleanOpts]);
-        }).then(function() {
-            done();
-        }).catch(function(error) {
-            expect(error).not.toBeDefined();
-            done();
+            };
+            
+            delete screamTemplate.script;
+            
+            request.post(options, function(error, response, body) {
+                expect(body).toBeDefined();
+                if (body) {
+                    expect(body.error).toBeDefined();
+                    expect(body.detail).toEqual('Expected script section in template');
+                }
+                done();
+            });
+        });
+    });
+    
+    describe('invalid source test', function() {
+        it('should fail if given an invalid source video', function(done) {
+            var cacheOpts = {
+                url: config.cache_file_url,
+                json: {
+                    fname: 'invalid.mp4',
+                    data: 'This is a fake video file',
+                    cache: 'video'
+                }
+            };
+            
+            q.npost(request, 'post', [cacheOpts]).then(function() {
+                var vidOpts = {
+                    url: config.video_url,
+                    json: screamTemplate
+                };
+                screamTemplate.video = 'invalid.mp4';
+                return q.npost(request, 'post', [vidOpts]);
+            }).then(function(values) {  // values = [request, body]
+                expect(values).toBeDefined();
+                expect(values[1]).toBeDefined();
+                expect(values[1].error).toBeDefined();
+                expect(values[1].detail.match(/invalid\.mp4: Invalid data found when processing input/)).toBeTruthy();
+                
+                var cleanOpts = {
+                    url: config.clean_cache_url,
+                    json: screamTemplate
+                }
+                return q.npost(request, 'post', [cleanOpts]);
+            }).then(function() {
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
         });
     });
 
-    it('should fail if given a template with a non-existent video', function(done) {
-        var options = {
-            url: config.video_url,
-            json: screamTemplate
-        };
-        
-        screamTemplate.video = 'fake_video.mp4';
-        
-        request.post(options, function(error, response, body) {
-            expect(body).toBeDefined();
-            if (body) {
-                expect(body.error).toBeDefined();
-                expect(body.detail.match(/NoSuchKey: The specified key does not exist/)).toBeTruthy();
-            }
-            done();
+    describe('non-existent source test', function() {
+        it('should fail if given a template with a non-existent video', function(done) {
+            var options = {
+                url: config.video_url,
+                json: screamTemplate
+            };
+            
+            screamTemplate.video = 'fake_video.mp4';
+            
+            request.post(options, function(error, response, body) {
+                expect(body).toBeDefined();
+                if (body) {
+                    expect(body.error).toBeDefined();
+                    expect(body.detail.match(/NoSuchKey: The specified key does not exist/)).toBeTruthy();
+                }
+                done();
+            });
         });
-    });
-});
-
+    });  //  end -- describe non-existent source test
+});  //  end -- describe dub (E2E)
