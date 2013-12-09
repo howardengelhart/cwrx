@@ -259,7 +259,7 @@ function getVersion() {
         
     if (fs.existsSync(fpath)) {
         try {
-            return fs.readFileSync(fpath).toString();
+            return fs.readFileSync(fpath).toString().trim();
         } catch(e) {
             log.error('Error reading version file: ' + e.message);
         }

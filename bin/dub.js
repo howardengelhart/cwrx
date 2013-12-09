@@ -77,7 +77,7 @@ dub.getVersion = function() {
         
     if (fs.existsSync(fpath)) {
         try {
-            return fs.readFileSync(fpath).toString();
+            return fs.readFileSync(fpath).toString().trim();
         } catch(e) {
             log.error('Error reading version file: ' + e.message);
         }
@@ -648,15 +648,15 @@ dub.uploadToStorage = function(job){
             job.setEndTime(fnName);
             deferred.resolve(job);
         } else {
-            log.trace('[%1] Uploading to Bucket: %2, Key: %3',job.id,outParams.Bucket,
+            log.info('[%1] Uploading to Bucket: %2, Key: %3',job.id,outParams.Bucket,
                 outParams.Key);
             s3util.putObject(s3, job.outputPath, outParams).then(
                 function (res) {
-                    log.trace('[%1] SUCCESS: %2',job.id,JSON.stringify(res));
+                    log.info('[%1] SUCCESS: %2',job.id,JSON.stringify(res));
                     job.setEndTime(fnName);
                     deferred.resolve(job);
                 }, function (error) {
-                    log.error('[%1] ERROR: %2',job.id, JSON.stringify(err));
+                    log.error('[%1] ERROR: %2',job.id, JSON.stringify(error));
                     job.setEndTime(fnName);
                     deferred.reject({"fnName": fnName, "msg": 'S3 upload error'});
                 });
@@ -781,6 +781,20 @@ function workerMain(config,program,done){
                 md5    : job.md5
             });
         });
+    });
+    
+    app.get('/dub/meta', function(req, res, next){
+        var data = {
+            version: dub.getVersion(),
+            config: {
+                output: config.output,
+                s3: {
+                    src: config.s3.src,
+                    out: config.s3.out
+                }
+            }
+        }
+        res.send(200, data);
     });
 
     app.listen(program.port);

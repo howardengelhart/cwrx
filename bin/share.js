@@ -55,7 +55,7 @@ share.getVersion = function() {
         
     if (fs.existsSync(fpath)) {
         try {
-            return fs.readFileSync(fpath).toString();
+            return fs.readFileSync(fpath).toString().trim();
         } catch(e) {
             log.error('Error reading version file: ' + e.message);
         }
@@ -213,9 +213,10 @@ share.shareLink = function(req, config, done) {
     log.info("[%1] Uploading data: Bucket = %2, Key = %3", req.uuid, params.Bucket, params.Key);
     s3.putObject(params, function(err, data) {
         if (err) {
+            log.error('[%1] Error uploading data: %2', req.uuid, JSON.stringify(err));
             done(err);
         } else {
-            log.trace('[%1] SUCCESS: ' + JSON.stringify(data), req.uuid);
+            log.trace('[%1] SUCCESS: %2', req.uuid, JSON.stringify(data));
             generateUrl(item.uri);
         }
     });
@@ -385,6 +386,19 @@ function main(done) {
                 shortUrl: shortUrl
             });
         });
+    });
+    
+    app.get('/share/meta', function(req, res, next){
+        var data = {
+            version: share.getVersion(),
+            config: {
+                output: config.output,
+                s3: {
+                    share: config.s3.share
+                }
+            }
+        }
+        res.send(200, data);
     });
 
     app.listen(program.port);

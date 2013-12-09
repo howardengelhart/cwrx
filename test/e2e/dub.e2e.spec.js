@@ -37,8 +37,8 @@ describe('dub (E2E)', function() {
             }
         };
     });
-
-    describe('valid template test', function() {
+    
+    describe('/dub/create', function() {
         it('should succeed with a valid template', function(done) {
             var options = {
                 url: config.video_url,
@@ -65,9 +65,7 @@ describe('dub (E2E)', function() {
                 });
             });
         });
-    });
 
-    describe('randomized template test', function() {
         it('should succeed with a randomized template', function(done) {
             var options = {
                 url: config.video_url,
@@ -99,9 +97,7 @@ describe('dub (E2E)', function() {
                 });
             });
         });
-    });
 
-    describe('missing script test', function() {
         it('should fail if given a template with no script', function(done) {
             var options = {
                 url: config.video_url,
@@ -119,9 +115,7 @@ describe('dub (E2E)', function() {
                 done();
             });
         });
-    });
     
-    describe('invalid source test', function() {
         it('should fail if given an invalid source video', function(done) {
             var cacheOpts = {
                 url: config.cache_file_url,
@@ -157,9 +151,7 @@ describe('dub (E2E)', function() {
                 done();
             });
         });
-    });
 
-    describe('non-existent source test', function() {
         it('should fail if given a template with a non-existent video', function(done) {
             var options = {
                 url: config.video_url,
@@ -177,5 +169,5 @@ describe('dub (E2E)', function() {
                 done();
             });
         });
-    });  //  end -- describe non-existent source test
+    });  //  end -- describe /dub/create
 });  //  end -- describe dub (E2E)

@@ -1,7 +1,7 @@
 var request = require('request'),
     host = process.env['host'] ? process.env['host'] : 'localhost',
     config = {
-        'video_url': 'http://' + (host === 'localhost' ? host + ':3000' : host) + '/dub/create',
+        'dubUrl': 'http://' + (host === 'localhost' ? host + ':3000' : host) + '/dub',
     };
 
 jasmine.getEnv().defaultTimeoutInterval = 40000;
@@ -29,24 +29,53 @@ describe('dub-light (E2E)', function() {
         };
     });
 
-    describe('random template test', function() {
+    describe('/dub/create', function() {
         it('should succeed with a valid slightly random template', function(done) {
             var options = {
-                url: config.video_url,
+                url: config.dubUrl + '/create',
                 json: siriTemplate
             };
             siriTemplate.script[Math.floor(Math.random() * siriTemplate.script.length)].line += Math.round(Math.random() * 10000);
             request.post(options, function(error, response, body) {
                 expect(error).toBeNull();
                 expect(body).toBeDefined();
-                if (body) {
-                    expect(body.error).not.toBeDefined();
-                    expect(body.output).toBeDefined();
-                    expect(typeof(body.output)).toEqual('string');
-                    expect(body.md5).not.toEqual(siriTemplate.e2e.md5);
-                }
+                body = body || {};
+                expect(body.error).not.toBeDefined();
+                expect(body.output).toBeDefined();
+                expect(typeof(body.output)).toEqual('string');
+                expect(body.md5).not.toEqual(siriTemplate.e2e.md5);
                 done();
             });
         });
-    });  //  end -- describe random template test
+    });
+    
+    describe('/dub/meta', function() {
+        it('should print out appropriate metadata about the dub service', function(done) {
+            var options = {
+                url: config.dubUrl + '/meta'
+            };
+            request.get(options, function(error, response, body) {
+                expect(error).toBeNull();
+                expect(body).toBeDefined();
+                var data = JSON.parse(body);
+                expect(data.version).toBeDefined();
+                expect(data.version.match(/^\w+_\w+\.build\d+-\d+-g\w+$/)).toBeTruthy('version match');
+                expect(data.config).toBeDefined();
+                
+                expect(data.config.output).toBeDefined();
+                expect(data.config.output.type).toBe('s3');
+                expect(data.config.output.uri.match(/https:\/\/s3.amazonaws.com\/.+\/usr\/screenjack\/video/)).toBeTruthy();
+                
+                var bucket = process.env.bucket || 'c6.dev';
+                var media = (bucket === 'c6.dev') ? 'media/' : '';
+                expect(data.config.s3).toBeDefined();
+                expect(data.config.s3.src).toBeDefined();
+                expect(data.config.s3.src.bucket).toBe(bucket);
+                expect(data.config.s3.src.path).toBe(media + 'src/screenjack/video');
+                expect(data.config.s3.out.bucket).toBe(bucket);
+                expect(data.config.s3.out.path).toBe(media + 'usr/screenjack/video');
+                done();
+            });
+        });
+    });  //  end -- describe /dub/meta
 });  //  end -- describe dub-light (E2E)
