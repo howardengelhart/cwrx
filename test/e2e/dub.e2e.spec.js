@@ -164,7 +164,7 @@ describe('dub (E2E)', function() {
                 expect(body).toBeDefined();
                 if (body) {
                     expect(body.error).toBeDefined();
-                    expect(body.detail.match(/NoSuchKey: The specified key does not exist/)).toBeTruthy();
+                    expect(body.detail).toBeDefined();
                 }
                 done();
             });
