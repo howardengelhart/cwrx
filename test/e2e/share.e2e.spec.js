@@ -177,6 +177,7 @@ describe('share (E2E)', function() {
                 done();
             });
         });
+    });
     
     describe('/share/facebook', function() {
         it('should fail if not given the correct params', function(done) {
