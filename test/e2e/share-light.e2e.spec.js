@@ -78,7 +78,7 @@ describe('share-light (E2E)', function() {
                 expect(body).toBeDefined();
                 var data = JSON.parse(body);
                 expect(data.version).toBeDefined();
-                expect(data.version.match(/^\w+_\w+\.build\d+-\d+-g\w+$/)).toBeTruthy('version match');
+                expect(data.version.match(/^.+\.build\d+-\d+-g\w+$/)).toBeTruthy('version match');
                 expect(data.config).toBeDefined();
                                 
                 var bucket = process.env.bucket || 'c6.dev';
