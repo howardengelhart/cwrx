@@ -397,7 +397,7 @@ function main(done) {
                     share: config.s3.share
                 }
             }
-        }
+        };
         res.send(200, data);
     });
 

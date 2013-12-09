@@ -793,7 +793,7 @@ function workerMain(config,program,done){
                     out: config.s3.out
                 }
             }
-        }
+        };
         res.send(200, data);
     });
 
