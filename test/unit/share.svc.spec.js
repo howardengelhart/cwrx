@@ -169,23 +169,6 @@ describe('share (UT)', function() {
         });
     });
     
-    describe('processUrl', function() {
-        it('should exist', function() {
-            expect(share.processUrl).toBeDefined();
-        });
-        
-        it('should correctly process a url with a query string', function() {
-            expect(share.processUrl('http://test.com/?a=1&b=2')).toBe('http://test.com/?&a=1&b=2');
-            
-            var orig = 'http://test.com/?a=http://a.com&b=http://b.com&c=http://c.com';
-            var processed = 'http://test.com/?&a=http%3A%2F%2Fa.com&b=http%3A%2F%2Fb.com&c=http%3A%2F%2Fc.com'
-            var url = 'http://test.com/?a=' + encodeURIComponent('http://a.com') +
-                      '&b=' + encodeURIComponent('http://b.com') +
-                      '&c=' + encodeURIComponent('http://c.com');
-            expect(share.processUrl(orig)).toBe(processed);
-        });
-    });
-    
     describe('shortenUrl', function() {
         var config, url;
         

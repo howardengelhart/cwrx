@@ -26,8 +26,8 @@ describe('share (E2E)', function() {
         };
     });
     
-    describe('valid template test', function() {
-        it('should successfully share the script', function(done) {
+    describe('/share', function() {
+        it('should successfully share a valid script', function(done) {
             var options = {
                 url: config.share_url,
                 json: {
@@ -70,11 +70,9 @@ describe('share (E2E)', function() {
                 });
             });
         });
-    });
     
-    // the client should prevent this through caching, but the backend should still handle it correctly
-    describe('re-sharing shared link test', function() {
-        it('should be able to re-share the link', function(done) {
+        // the client should prevent this through caching, but the backend should still handle it correctly
+        it('should be able to re-share a link', function(done) {
             var options = {
                 url: config.share_url,
                 json: {
@@ -117,9 +115,7 @@ describe('share (E2E)', function() {
                 });
             });
         });
-    });
     
-    describe('missing uri test', function() {
         it('should fail if given an item with no uri', function(done) {
             var options = {
                 url: config.share_url,
@@ -140,9 +136,7 @@ describe('share (E2E)', function() {
                 done();
             });
         });
-    });
     
-    describe('malformed uri test', function() {
         it('should fail if given an item with a malformed uri', function(done) {
             var options = {
                 url: config.share_url,
@@ -163,9 +157,7 @@ describe('share (E2E)', function() {
                 done();
             });
         });
-    });
     
-    describe('malformed item test', function() {
         it('should fail if given a malformed item', function(done) {
             var options = {
                 url: config.share_url,
@@ -187,7 +179,7 @@ describe('share (E2E)', function() {
         });
     });
     
-    describe('facebook share bad params test', function() {
+    describe('/share/facebook', function() {
         it('should fail if not given the correct params', function(done) {
             var options = {
                 url: config.share_url + '/facebook?'
@@ -217,7 +209,7 @@ describe('share (E2E)', function() {
         });
     });
     
-    describe('twitter share bad params test', function() {
+    describe('/share/twitter', function() {
         it('should fail if not given the correct params', function(done) {
             var options = {
                 url: config.share_url + '/twitter?'
@@ -245,6 +237,6 @@ describe('share (E2E)', function() {
                 done();
             });
         });
-    });  //  end -- describe twitter share bad params test
+    });  //  end -- describe /share/twitter
 });  // end -- describe share (E2E)
 

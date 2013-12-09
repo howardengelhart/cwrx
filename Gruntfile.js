@@ -112,6 +112,9 @@ module.exports = function (grunt) {
         if (grunt.option('testHost')) {
             args.push('--config', 'host', grunt.option('testHost'));
         }
+        if (grunt.option('bucket')) {
+            args.push('--config', 'bucket', grunt.option('bucket'));
+        }
         
         if (grunt.option('e2e-config')){
             var cfgObj = JSON.parse(grunt.option('e2e-config'));

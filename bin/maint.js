@@ -249,6 +249,19 @@ function main(done) {
         );
     });
 
+    app.get('/maint/meta', function(req, res, next){
+        var data = {
+            version: getVersion(),
+            config: {
+                caches: config.caches,
+                s3: {
+                    share: config.s3.share
+                }
+            }
+        };
+        res.send(200, data);
+    });
+
     app.listen(program.port);
     log.info("Maintenance server is listening on port: " + program.port);
 }
@@ -259,7 +272,7 @@ function getVersion() {
         
     if (fs.existsSync(fpath)) {
         try {
-            return fs.readFileSync(fpath).toString();
+            return fs.readFileSync(fpath).toString().trim();
         } catch(e) {
             log.error('Error reading version file: ' + e.message);
         }

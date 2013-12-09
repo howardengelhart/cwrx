@@ -55,7 +55,7 @@ share.getVersion = function() {
         
     if (fs.existsSync(fpath)) {
         try {
-            return fs.readFileSync(fpath).toString();
+            return fs.readFileSync(fpath).toString().trim();
         } catch(e) {
             log.error('Error reading version file: ' + e.message);
         }
@@ -213,22 +213,13 @@ share.shareLink = function(req, config, done) {
     log.info("[%1] Uploading data: Bucket = %2, Key = %3", req.uuid, params.Bucket, params.Key);
     s3.putObject(params, function(err, data) {
         if (err) {
+            log.error('[%1] Error uploading data: %2', req.uuid, JSON.stringify(err));
             done(err);
         } else {
-            log.trace('[%1] SUCCESS: ' + JSON.stringify(data), req.uuid);
+            log.trace('[%1] SUCCESS: %2', req.uuid, JSON.stringify(data));
             generateUrl(item.uri);
         }
     });
-};
-
-share.processUrl = function(url) {
-    var urlParts = url.split('?');
-    var query = querystring.parse(urlParts[1] || '');
-    var newUrl = urlParts[0] + '?';
-    for (var key in query) {
-        newUrl += '&' + key + '=' + encodeURIComponent(query[key]);
-    }
-    return newUrl;
 };
 
 if (!__ut__){
@@ -341,14 +332,13 @@ function main(done) {
             return;
         }
         var origin = req.query.origin;
-        var newUrl = share.processUrl(req.query.fbUrl);
         share.shortenUrl(req.query.origin, config, {channel: 'facebook-post'}, req.query.staticLink)
         .then(function(url) {
             log.info('[%1] Got short url %2', req.uuid, url);
-            res.redirect(newUrl + '&link=' + encodeURIComponent(url));
+            res.redirect(req.query.fbUrl + '&link=' + encodeURIComponent(url));
         }).catch(function(error) {
             log.error('[%1] Failed to shorten url: url = %2, error = %3', req.uuid, origin, error);
-            res.redirect(newUrl + '&link=' + encodeURIComponent(req.query.origin));
+            res.redirect(req.query.fbUrl + '&link=' + encodeURIComponent(req.query.origin));
         });
     });
     
@@ -360,14 +350,13 @@ function main(done) {
             return;
         }
         var origin = req.query.origin;
-        var newUrl = share.processUrl(req.query.twitUrl);
         share.shortenUrl(req.query.origin, config, {channel: 'twitter'}, req.query.staticLink)
         .then(function(url) {
             log.info('[%1] Got short url %2', req.uuid, url);
-            res.redirect(newUrl + '&url=' + encodeURIComponent(url));
+            res.redirect(req.query.twitUrl + '&url=' + encodeURIComponent(url));
         }).catch(function(error) {
             log.error('[%1] Failed to shorten url: url = %2, error = %3', req.uuid, origin, error);
-            res.redirect(newUrl + '&url=' + encodeURIComponent(req.query.origin));
+            res.redirect(req.query.twitUrl + '&url=' + encodeURIComponent(req.query.origin));
         });
     });
 
@@ -385,6 +374,19 @@ function main(done) {
                 shortUrl: shortUrl
             });
         });
+    });
+    
+    app.get('/share/meta', function(req, res, next){
+        var data = {
+            version: share.getVersion(),
+            config: {
+                output: config.output,
+                s3: {
+                    share: config.s3.share
+                }
+            }
+        };
+        res.send(200, data);
     });
 
     app.listen(program.port);
