@@ -222,16 +222,6 @@ share.shareLink = function(req, config, done) {
     });
 };
 
-share.processUrl = function(url) {
-    var urlParts = url.split('?');
-    var query = querystring.parse(urlParts[1] || '');
-    var newUrl = urlParts[0] + '?';
-    for (var key in query) {
-        newUrl += '&' + key + '=' + encodeURIComponent(query[key]);
-    }
-    return newUrl;
-};
-
 if (!__ut__){
     try {
         main(function(rc,msg){
@@ -342,14 +332,13 @@ function main(done) {
             return;
         }
         var origin = req.query.origin;
-        var newUrl = share.processUrl(req.query.fbUrl);
         share.shortenUrl(req.query.origin, config, {channel: 'facebook-post'}, req.query.staticLink)
         .then(function(url) {
             log.info('[%1] Got short url %2', req.uuid, url);
-            res.redirect(newUrl + '&link=' + encodeURIComponent(url));
+            res.redirect(req.query.fbUrl + '&link=' + encodeURIComponent(url));
         }).catch(function(error) {
             log.error('[%1] Failed to shorten url: url = %2, error = %3', req.uuid, origin, error);
-            res.redirect(newUrl + '&link=' + encodeURIComponent(req.query.origin));
+            res.redirect(req.query.fbUrl + '&link=' + encodeURIComponent(req.query.origin));
         });
     });
     
@@ -361,14 +350,13 @@ function main(done) {
             return;
         }
         var origin = req.query.origin;
-        var newUrl = share.processUrl(req.query.twitUrl);
         share.shortenUrl(req.query.origin, config, {channel: 'twitter'}, req.query.staticLink)
         .then(function(url) {
             log.info('[%1] Got short url %2', req.uuid, url);
-            res.redirect(newUrl + '&url=' + encodeURIComponent(url));
+            res.redirect(req.query.twitUrl + '&url=' + encodeURIComponent(url));
         }).catch(function(error) {
             log.error('[%1] Failed to shorten url: url = %2, error = %3', req.uuid, origin, error);
-            res.redirect(newUrl + '&url=' + encodeURIComponent(req.query.origin));
+            res.redirect(req.query.twitUrl + '&url=' + encodeURIComponent(req.query.origin));
         });
     });
 
