@@ -59,12 +59,12 @@ describe('dub-light (E2E)', function() {
                 expect(body).toBeDefined();
                 var data = JSON.parse(body);
                 expect(data.version).toBeDefined();
-                expect(data.version.match(/^\w+_\w+\.build\d+-\d+-g\w+$/)).toBeTruthy('version match');
+                expect(data.version.match(/^.+\.build\d+-\d+-g\w+$/)).toBeTruthy('version match');
                 expect(data.config).toBeDefined();
                 
                 expect(data.config.output).toBeDefined();
                 expect(data.config.output.type).toBe('s3');
-                expect(data.config.output.uri.match(/https:\/\/s3.amazonaws.com\/.+\/usr\/screenjack\/video/)).toBeTruthy();
+                expect(data.config.output.uri.match(/\/usr\/screenjack\/video/)).toBeTruthy();
                 
                 var bucket = process.env.bucket || 'c6.dev';
                 var media = (bucket === 'c6.dev') ? 'media/' : '';
