@@ -23,20 +23,7 @@ var include     = require('../lib/inject').require,
     assemble    = include('../lib/assemble'),
     s3util      = include('../lib/s3util'),
     
-    dub = {}, // for exporting functions to unit tests
-
-    // Attempt a graceful exit
-    exitApp  = function(resultCode,msg){
-        var log = logger.getLog();
-        if (msg){
-            if (resultCode){
-                log.error(msg);
-            } else {
-                log.info(msg);
-            }
-        }
-        process.exit(resultCode);
-    };
+    dub = {}; // for exporting functions to unit tests
 
 // This is the template for dub's configuration
 dub.defaultConfiguration = {
@@ -46,7 +33,8 @@ dub.defaultConfiguration = {
         blanks  : path.normalize('/usr/local/share/cwrx/dub/caches/blanks/'),
         script  : path.normalize('/usr/local/share/cwrx/dub/caches/script/'),
         video   : path.normalize('/usr/local/share/cwrx/dub/caches/video/'),
-        output  : path.normalize('/usr/local/share/cwrx/dub/caches/output/')
+        output  : path.normalize('/usr/local/share/cwrx/dub/caches/output/'),
+        jobs    : path.normalize('/usr/local/share/cwrx/dub/caches/jobs/')
     },
     output : {
         "type" : "local",
@@ -131,6 +119,58 @@ dub.createConfiguration = function(cmdLine) {
     return cfgObject;
 };
 
+dub.createJobFile = function(job, config) {
+    var now = new Date().valueOf(),
+        data = {
+            jobId: job.id,
+            createTime: now,
+            lastUpdateTime: now,
+            lastStatus: {
+                code: 202,
+                step: 'Initialization'
+            },
+            resultFile: job.outputFname,
+            resultUrl: job.outputUri
+        };
+    
+    fs.writeJsonSync(config.cacheAddress('job-' + job.id + '.json', 'jobs'), data);
+    return config.cacheAddress('job-' + job.id + '.json', 'jobs');
+};
+
+dub.updateJobStatus = function(fpath, code, step, data) {
+    var now = new Date().valueOf(),
+        deferred = q.defer();
+        
+    if (code === 500) {
+        log.warn(fpath);
+        log.warn(JSON.stringify(data));
+    }    
+    q.npost(fs, 'readJson', [fpath])
+    .then(function(jobFile) {
+        log = logger.getLog();
+        log.info(JSON.stringify(jobFile));
+        jobFile.lastUpdateTime = now;
+        jobFile.lastStatus = {
+            code: code,
+            step: step
+        };
+        if (data && (typeof data === 'object')) {
+            for (var key in data) {
+                log.warn(key);
+                log.warn(data[key]);
+                jobFile[key] = data[key];
+            }
+        }
+        return q.npost(fs, 'writeJson', [fpath, jobFile]);
+    }).then(function() {
+        deferred.resolve();
+    }).catch(function(error) {
+        deferred.reject(error);
+    });
+    
+    return deferred.promise;
+};
+
 function loadTemplateFromFile(tmplFile){
     var tmplobj;
  
@@ -148,8 +188,8 @@ function loadTemplateFromFile(tmplFile){
 }
 
 dub.createDubJob = function(id, template, config){
-    var log = logger.getLog(),
-        buff,
+    var buff,
+        log = logger.getLog(),
         obj       = {},
         soh       = String.fromCharCode(1),
         videoExt  = path.extname(template.video),
@@ -321,6 +361,9 @@ dub.createDubJob = function(id, template, config){
             return -1;
         }
     };
+    
+    obj.jobFilePath = dub.createJobFile(obj, config);
+    log.info('[%1] Created job file %2', obj.id, obj.jobFilePath);
 
     return obj;
 };
@@ -337,6 +380,10 @@ dub.getSourceVideo = function(job) {
 
     log.info("[%1] Starting %2",job.id, fnName);
     job.setStartTime(fnName);
+    dub.updateJobStatus(job.jobFilePath, 202, fnName)
+    .catch(function(error) {
+        log.error("[%1] Failed to update job file at step %2: %3", job.id, fnName, error);
+    });
 
     if (job.enableAws()) {
         var s3 = new aws.S3(),
@@ -344,7 +391,7 @@ dub.getSourceVideo = function(job) {
         log.trace('[%1] S3 Request: %2',job.id, JSON.stringify(params));
         s3util.getObject(s3, params, job.videoPath).then( 
             function (data) { 
-                deferred.resolve(job); 
+                deferred.resolve(job);
                 job.setEndTime(fnName);
             }, function (error) { 
                 deferred.reject({"fnName": fnName, "msg": error});
@@ -371,6 +418,10 @@ dub.convertLinesToMP3 = function(job){
 
     log.info("[%1] Starting %2",job.id,fnName);
     job.setStartTime(fnName);
+    dub.updateJobStatus(job.jobFilePath, 202, fnName)
+    .catch(function(error) {
+        log.error("[%1] Failed to update job file at step %2: %3", job.id, fnName, error);
+    });
 
     var processTrack = function(track){
         var deferred = q.defer();
@@ -498,6 +549,11 @@ dub.collectLinesMetadata = function(job){
 
     log.info("[%1] Starting %2",job.id,fnName);
     job.setStartTime(fnName);
+    dub.updateJobStatus(job.jobFilePath, 202, fnName)
+    .catch(function(error) {
+        log.error("[%1] Failed to update job file at step %2: %3", job.id, fnName, error);
+    });
+
     deferred = q.defer();
     
     q.all(job.tracks.map(function(track){
@@ -525,7 +581,11 @@ dub.getVideoLength = function(job){
     }
 
     log.info("[%1] Starting %2",job.id,fnName);
-    job.setStartTime(fnName);        
+    job.setStartTime(fnName);
+    dub.updateJobStatus(job.jobFilePath, 202, fnName)
+    .catch(function(error) {
+        log.error("[%1] Failed to update job file at step %2: %3", job.id, fnName, error);
+    });
 
     ffmpeg.probe(job.videoPath,function(err,info,cmdline,stderr){
         if (stderr) {
@@ -566,7 +626,11 @@ dub.convertScriptToMP3 = function(job){
     }
 
     log.info("[%1] Starting %2",job.id, fnName);
-    job.setStartTime(fnName);        
+    job.setStartTime(fnName);
+    dub.updateJobStatus(job.jobFilePath, 202, fnName)
+    .catch(function(error) {
+        log.error("[%1] Failed to update job file at step %2: %3", job.id, fnName, error);
+    });
 
     assemble(job.assembleTemplate())
     .then(function(tmpl){
@@ -593,7 +657,11 @@ dub.applyScriptToVideo = function(job){
     }
 
     log.info("[%1] Starting %2",job.id,fnName);
-    job.setStartTime(fnName);        
+    job.setStartTime(fnName);
+    dub.updateJobStatus(job.jobFilePath, 202, fnName)
+    .catch(function(error) {
+        log.error("[%1] Failed to update job file at step %2: %3", job.id, fnName, error);
+    });
 
     ffmpeg.mergeAudioToVideo(job.videoPath,job.scriptPath,
             job.outputPath,job.mergeTemplate(), function(err,fpath,cmdline,stderr){
@@ -631,6 +699,10 @@ dub.uploadToStorage = function(job){
 
     log.info("[%1] Starting %2",job.id,fnName);
     job.setStartTime(fnName);
+    dub.updateJobStatus(job.jobFilePath, 202, fnName)
+    .catch(function(error) {
+        log.error("[%1] Failed to update job file at step %2: %3", job.id, fnName, error);
+    });
 
     var s3 = new aws.S3(),
         outParams = job.getS3OutVideoParams(),
@@ -682,16 +754,28 @@ dub.handleRequest = function(job, done){
         function() {
             log.trace("All tasks succeeded!");
             job.setEndTime(fnName);
-            done(null, job);
+            dub.updateJobStatus(job.jobFilePath, 201, 'Completed', {resultMD5: job.md5})
+            .catch(function(error) {
+                log.error("[%1] Failed to update job file at completion: %3", job.id, error);
+            }).finally(function() {
+                done(null, job);
+            });
         }, function(error) {
             job.setEndTime(fnName);
-            if (error.fnName && error.msg) 
-                done({message : 'Died on [' + error.fnName + ']: ' + error.msg}, job);
-            else
-                done({message : 'Died: ' + error}, job);
+            var lastStep = error.fnName || 'unknown';
+            var msg = error.msg || JSON.stringify(error);
+            
+            dub.updateJobStatus(job.jobFilePath, 500, lastStep, {failMsg: msg})
+            .catch(function(error2) {
+                log.error("[%1] Failed to update job file at error resolution: %2", job.id, error2);
+            }).finally(function() {
+                done({message : 'Died on [' + lastStep + ']: ' + msg}, job);
+            });
         }
     );
 };
+
+
 
 function clusterMain(config,program,done) {
     var log = logger.getLog();
@@ -800,6 +884,19 @@ function workerMain(config,program,done){
     app.listen(program.port);
     log.info('Dub server is listening on port: ' + program.port);
 }
+
+// Attempt a graceful exit
+var exitApp  = function(resultCode,msg){
+    var log = logger.getLog();
+    if (msg){
+        if (resultCode){
+            log.error(msg);
+        } else {
+            log.info(msg);
+        }
+    }
+    process.exit(resultCode);
+};
 
 if (!__ut__ && !__maint__){
 
