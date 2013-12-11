@@ -38,13 +38,13 @@ module.exports = function (grunt) {
         },
         stop_instance: {
             pollingInterval: 5,
-            maxIters: 12
+            maxIters: 24
         },
         start_instance: {
             stateInterval: 5,
-            stateIters: 12,
+            stateIters: 24,
             sshInterval: 5,
-            sshIters: 12
+            sshIters: 24
         }
     });
     
