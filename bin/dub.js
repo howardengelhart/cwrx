@@ -750,7 +750,53 @@ dub.handleRequest = function(job, done){
     );
 };
 
-
+dub.removeJobFiles = function(config, maxAge, done) {
+    var start = new Date().valueOf(),
+        log = logger.getLog();
+    
+    q.npost(fs, 'readdir', [config.caches.jobs])
+    .then(function(files) {
+        return q.allSettled(files.map(function(file) {
+            var deferred = q.defer();
+            
+            q.npost(fs, 'readJson', [config.cacheAddress(file, 'jobs')])
+            .then(function(fileJson) {
+                var ageDiff = (start - (fileJson.createTime || 0)) / 1000;
+                if (ageDiff > maxAge) {
+                    return q.npost(fs, 'remove', [config.cacheAddress(file, 'jobs')]);
+                }
+                return "Spared " + file;
+            }).then(function(msg) {
+                if (msg && msg.match(/^Spared/)) {
+                    deferred.resolve(msg);
+                } else {
+                    deferred.resolve("Deleted " + file);
+                }
+            }).catch(function(error) {
+                deferred.reject("Failed for " + file + ": " + error);
+            });
+            
+            return deferred.promise;
+        }));
+    }).then(function(results) {
+        var delCount = 0;
+        results.forEach(function(result) {
+            if (result.state === 'fulfilled') {
+                log.trace("[JobFileRemoval] %1", result.value);
+                if (result.value.match(/^Deleted/)) {
+                    delCount++;
+                }
+            } else {
+                log.error("[JobFileRemoval] %1", result.reason);
+            }
+        });
+        log.info("[JobFileRemoval] Deleted %1 files", delCount);
+        done();
+    }).catch(function(error) {
+        log.error("[JobFileRemoval] Unhandled error: " + error);
+        done(error);
+    });
+};
 
 function clusterMain(config,program,done) {
     var log = logger.getLog();
@@ -899,6 +945,8 @@ function main(done){
         .option('-p, --port [PORT]','Listent on port (requires -s) [3000].', 3000)
         .option('-s, --server','Run as a server.')
         .option('-u, --uid [UID]','Run as user (id or name).')
+        .option('--clear-jobs-cache', 'Remove old job files from the cache')
+        .option('--max-job-file-age [AGE]', 'Maximum age of job files (in seconds) to keep', 300)
         .option('--enable-aws','Enable aws access.')
         .option('--show-config','Display configuration and exit.')
         .parse(process.argv);
@@ -926,6 +974,18 @@ function main(done){
 
     if (program.loglevel){
         log.setLevel(program.loglevel);
+    }
+    
+    if (program.clearJobsCache) {
+        dub.removeJobFiles(config, program.maxJobFileAge, function(err) {
+            if (err) {
+                return done(1, err.message);
+            } else {
+                return done(0, '[JobFileRemoval] Done');
+            }
+        });
+        
+        return;
     }
 
     if (!program.server){
