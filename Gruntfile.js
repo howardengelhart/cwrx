@@ -62,7 +62,7 @@ module.exports = function (grunt) {
                     path.join(__dirname, 'reports/unit/')];
         
         if (svc) {
-            var regexp = '^(' + svc + '\\.svc|[^\\.]+\\.(?!svc))\\.?';
+            var regexp = '^(' + svc + '(\\.[^\\.]+)?\\.svc|[^\\.]+\\.(?!svc))\\.?';
             args.push('--match', regexp);
         }
         grunt.log.writeln('Running unit tests' + (svc ? ' for ' + svc : '') + ':');
