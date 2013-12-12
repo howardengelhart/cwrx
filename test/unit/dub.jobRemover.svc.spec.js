@@ -43,8 +43,8 @@ describe('dub job remover (UT)', function() {
             spyOn(fs, 'readdir').andCallFake(function(path, cb) {
                 cb(null, ['job-1.json', 'job-2.json', 'job-3.json']);
             });
-            spyOn(fs, 'readJson').andCallFake(function(fpath, cb) {
-                cb(null, jobs[fpath]);
+            spyOn(fs, 'stat').andCallFake(function(fpath, cb) {
+                cb(null, {mtime: jobs[fpath].createTime});
             });
             spyOn(fs, 'remove').andCallFake(function(fpath, cb) {
                 cb();
@@ -56,8 +56,8 @@ describe('dub job remover (UT)', function() {
                 expect(error).not.toBeDefined();
                 expect(fs.readdir).toHaveBeenCalled();
                 expect(fs.readdir.calls[0].args[0]).toBe('caches/jobs/');
-                expect(fs.readJson.calls.length).toBe(3);
-                fs.readJson.calls.forEach(function(fcall, ind) {
+                expect(fs.stat.calls.length).toBe(3);
+                fs.stat.calls.forEach(function(fcall, ind) {
                     expect(fcall.args[0]).toBe(Object.keys(jobs)[ind]);
                 });
                 expect(fs.remove.calls.length).toBe(1);
@@ -81,13 +81,13 @@ describe('dub job remover (UT)', function() {
         });
         
         it('should handle failures to read individual files', function(done) {
-            fs.readJson.andCallFake(function(fpath, cb) {
+            fs.stat.andCallFake(function(fpath, cb) {
                 if (fpath.match('caches/jobs/job-2.json')) cb('Error!');
-                else cb(null, jobs[fpath]);
+                else cb(null, {mtime: jobs[fpath].createTime});
             });
             dub.removeJobFiles(config, maxAge, function(error) {
                 expect(error).not.toBeDefined();
-                expect(fs.readJson.calls.length).toBe(3);
+                expect(fs.stat.calls.length).toBe(3);
                 expect(fs.remove).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(mockLog.error.calls[0].args[1].match('Error!')).toBeTruthy();
@@ -103,7 +103,7 @@ describe('dub job remover (UT)', function() {
                 expect(error).toBe('Error!');
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(mockLog.error.calls[0].args[0].match('Error!')).toBeTruthy();
-                expect(fs.readJson).not.toHaveBeenCalled();
+                expect(fs.stat).not.toHaveBeenCalled();
                 expect(fs.remove).not.toHaveBeenCalled();
                 done();
             });

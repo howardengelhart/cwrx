@@ -759,9 +759,9 @@ dub.removeJobFiles = function(config, maxAge, done) {
         return q.allSettled(files.map(function(file) {
             var deferred = q.defer();
             
-            q.npost(fs, 'readJson', [config.cacheAddress(file, 'jobs')])
-            .then(function(fileJson) {
-                var ageDiff = (start - (fileJson.createTime || 0)) / 1000;
+            q.npost(fs, 'stat', [config.cacheAddress(file, 'jobs')])
+            .then(function(stats) {
+                var ageDiff = (start - (stats.mtime || 0)) / 1000;
                 if (ageDiff > maxAge) {
                     return q.npost(fs, 'remove', [config.cacheAddress(file, 'jobs')]);
                 }
