@@ -230,11 +230,11 @@ describe('dub (UT)',function(){
                     return 'hashScript';
                 }
             });
-            spyOn(dub, 'createJobFile').andReturn('ut-job.json');
-            spyOn(dub, 'updateJobStatus').andReturn(q());
+            spyOn(dub, 'updateJobStatus');
             
             mockVware.createAuthToken.andReturn('fakeAuthToken');
             job = dub.createDubJob('123456', mockTemplate, config);
+            job.jobFilePath = 'ut-job.json';
             
             // track these calls and easily manipulate them later, but default is to call through
             spyOn(job, 'setStartTime').andCallThrough();
@@ -250,14 +250,14 @@ describe('dub (UT)',function(){
         
         describe('createJobFile', function() {
             beforeEach(function() {
-                dub.createJobFile.andCallThrough();
                 spyOn(fs, 'writeJsonSync');
             });
             
             it('should write information to a job file and return its path', function() {
                 fs.writeJsonSync.andReturn();
                 var now = new Date().valueOf();
-                expect(dub.createJobFile(job, config)).toBe('caches/jobs/job-123456.json');
+                dub.createJobFile(job, config);
+                expect(job.jobFilePath).toBe('caches/jobs/job-123456.json');
                 expect(fs.writeJsonSync).toHaveBeenCalled();
                 expect(fs.writeJsonSync.calls[0].args[0]).toBe('caches/jobs/job-123456.json');
                 
@@ -273,11 +273,12 @@ describe('dub (UT)',function(){
                 expect(data.resultMD5).not.toBeDefined();
             });
             
-            it('should throw an error if it fails to write to the file', function() {
+            it('should log an error if it fails to write to the file', function() {
                 fs.writeJsonSync.andCallFake(function() {
                     throw new Error("Error!");
                 });
-                expect(function() {dub.createJobFile(job, config);}).toThrow("Error!");
+                expect(function() {dub.createJobFile(job, config);}).not.toThrow();
+                expect(mockLog.error).toHaveBeenCalled();
             });
         });
         
@@ -298,82 +299,63 @@ describe('dub (UT)',function(){
                     resultUrl: 'http://resultUrl.com'
                 };
                 dub.updateJobStatus.andCallThrough();
-                spyOn(fs, 'readJson').andCallFake(function(fname, cb) {
-                    cb(null, jobFile);
-                });
-                spyOn(fs, 'writeJson').andCallFake(function(fname, obj, cb) {
-                    cb();
-                });
+                spyOn(fs, 'readJsonSync').andReturn(jobFile);
+                spyOn(fs, 'writeJsonSync').andReturn();
             });
             
-            it('should update the lastStatus in the job file', function(done) {
-                dub.updateJobStatus('fpath.json', 111, 'UnitTest')
-                .then(function() {
-                    expect(fs.readJson).toHaveBeenCalled();
-                    expect(fs.readJson.calls[0].args[0]).toBe('fpath.json')
-                    expect(fs.writeJson).toHaveBeenCalled();
-                    expect(fs.writeJson.calls[0].args[0]).toBe('fpath.json');
-                    expect(fs.writeJson.calls[0].args[1]).toBe(jobFile);
-                    
-                    expect(jobFile.lastStatus.code).toBe(111);
-                    expect(jobFile.lastStatus.step).toBe('UnitTest');
-                    expect(jobFile.lastUpdateTime).toBeGreaterThan(jobFile.createTime);
-                    done();
-                }).catch(function(error) {
-                    expect(error).not.toBeDefined();
-                    done();
-                });
+            it('should update the lastStatus in the job file', function() {
+                expect(function() {dub.updateJobStatus(job, 111, 'UnitTest');}).not.toThrow();
+                expect(fs.readJsonSync).toHaveBeenCalled();
+                expect(fs.readJsonSync).toHaveBeenCalledWith('ut-job.json');
+                expect(fs.writeJsonSync).toHaveBeenCalledWith('ut-job.json', jobFile);
+                
+                expect(jobFile.lastStatus.code).toBe(111);
+                expect(jobFile.lastStatus.step).toBe('UnitTest');
+                expect(jobFile.lastUpdateTime).toBeGreaterThan(jobFile.createTime);
             });
             
-            it('should be able to copy over arbitrary JSON data passed to it', function(done) {
+            it('should be able to copy over arbitrary JSON data passed to it', function() {
                 var data = {
                     resultMD5: 'fakeMD5',
                     resultFile: 'newFile.mp4'
                 };
-                dub.updateJobStatus('fpath.json', 111, 'UnitTest', data)
-                .then(function() {
-                    expect(fs.readJson).toHaveBeenCalled();
-                    expect(fs.readJson.calls[0].args[0]).toBe('fpath.json')
-                    expect(fs.writeJson).toHaveBeenCalled();
-                    expect(fs.writeJson.calls[0].args[0]).toBe('fpath.json');
-                    expect(fs.writeJson.calls[0].args[1]).toBe(jobFile);
+                expect(function() {dub.updateJobStatus(job, 111, 'UnitTest', data);}).not.toThrow();
+                expect(fs.readJsonSync).toHaveBeenCalled();
+                expect(fs.readJsonSync).toHaveBeenCalledWith('ut-job.json');
+                expect(fs.writeJsonSync).toHaveBeenCalledWith('ut-job.json', jobFile);
                     
-                    expect(jobFile.lastStatus.code).toBe(111);
-                    expect(jobFile.lastStatus.step).toBe('UnitTest');
-                    expect(jobFile.lastUpdateTime).toBeGreaterThan(jobFile.createTime);
-                    expect(jobFile.resultMD5).toBe('fakeMD5');
-                    expect(jobFile.resultFile).toBe('newFile.mp4');
-                    done();
-                }).catch(function(error) {
-                    expect(error).not.toBeDefined();
-                    done();
-                });
+                expect(jobFile.lastStatus.code).toBe(111);
+                expect(jobFile.lastStatus.step).toBe('UnitTest');
+                expect(jobFile.lastUpdateTime).toBeGreaterThan(jobFile.createTime);
+                expect(jobFile.resultMD5).toBe('fakeMD5');
+                expect(jobFile.resultFile).toBe('newFile.mp4');
             });
             
-            it('should pass along failures from reading and parsing the file', function(done) {
-                fs.readJson.andCallFake(function(fname, cb) {
-                    cb('Error!');
+            it('should handle failures from reading and parsing the file', function() {
+                fs.readJsonSync.andCallFake(function(fname) {
+                    throw new Error("Error!");
                 });
-                dub.updateJobStatus('fpath.json', 111, 'UnitTest')
-                .catch(function(error) {
-                    expect(fs.readJson).toHaveBeenCalled();
-                    expect(fs.writeJson).not.toHaveBeenCalled();
-                    expect(error).toBe('Error!');
-                    done();
-                });
+                expect(function() {dub.updateJobStatus(job, 111, 'UnitTest');}).not.toThrow();
+                expect(fs.readJsonSync).toHaveBeenCalled();
+                expect(fs.writeJsonSync).not.toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
             });
             
-            it('should pass along failures from writing the file', function(done) {
-                fs.writeJson.andCallFake(function(fname, obj, cb) {
-                    cb('Error!');
+            it('should pass along failures from writing the file', function() {
+                fs.writeJsonSync.andCallFake(function(fname, obj) {
+                    throw new Error('Error!');
                 });
-                dub.updateJobStatus('fpath.json', 111, 'UnitTest')
-                .catch(function(error) {
-                    expect(fs.readJson).toHaveBeenCalled();
-                    expect(fs.writeJson).toHaveBeenCalled();
-                    expect(error).toBe('Error!');
-                    done();
-                });
+                expect(function() {dub.updateJobStatus(job, 111, 'UnitTest');}).not.toThrow();
+                expect(fs.readJsonSync).toHaveBeenCalled();
+                expect(fs.writeJsonSync).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+            });
+            
+            it('should skip if the job file was never created', function() {
+                delete job.jobFilePath;
+                expect(function() {dub.updateJobStatus(job, 111, 'UnitTest');}).not.toThrow();
+                expect(fs.readJsonSync).not.toHaveBeenCalled();
+                expect(fs.writeJsonSync).not.toHaveBeenCalled();
             });
         });
 
@@ -426,11 +408,6 @@ describe('dub (UT)',function(){
                     expect(track.metaname).toEqual(trackFnames[index].replace('.mp3', '.json'));
                     expect(track.metapath).toEqual('caches/line/' + trackFnames[index].replace('.mp3', '.json'));
                 });
-                
-                expect(dub.createJobFile).toHaveBeenCalled();
-                expect(dub.createJobFile.calls[0].args[0]).toBe(job);
-                expect(dub.createJobFile.calls[0].args[1]).toBe(config);
-                expect(job.jobFilePath).toBe('ut-job.json');
             });
             
             it('should throw an error if the template has no script', function() {
@@ -518,7 +495,7 @@ describe('dub (UT)',function(){
                     
                     expect(job.setEndTime).toHaveBeenCalledWith('handleRequest');
                     expect(dub.updateJobStatus).toHaveBeenCalledWith(
-                        'ut-job.json', 201, 'Completed', {resultMD5: 'fakeMD5'});
+                        job, 201, 'Completed', {resultMD5: 'fakeMD5'});
                     done();
                 });
             });
@@ -539,7 +516,7 @@ describe('dub (UT)',function(){
                     
                     expect(job.setEndTime).toHaveBeenCalledWith('handleRequest');
                     expect(dub.updateJobStatus).toHaveBeenCalledWith(
-                        'ut-job.json', 500, 'convertScriptToMP3', {failMsg: 'Died!'});
+                        job, 500, 'convertScriptToMP3', {failMsg: 'Died!'});
                     done();
                 });
             });
@@ -580,7 +557,7 @@ describe('dub (UT)',function(){
                         expect(error.fnName).toBe('getSourceVideo');
                         expect(getObjSpy).not.toHaveBeenCalled();
                         expect(job.setStartTime).toHaveBeenCalledWith('getSourceVideo');
-                        expect(dub.updateJobStatus).toHaveBeenCalledWith('ut-job.json', 202, 'getSourceVideo');
+                        expect(dub.updateJobStatus).toHaveBeenCalledWith(job, 202, 'getSourceVideo');
                         expect(job.setEndTime).toHaveBeenCalledWith('getSourceVideo');
                         doneFlag = true;
                     });
@@ -599,7 +576,7 @@ describe('dub (UT)',function(){
                         expect(spyArgs[1]).toEqual('s3SrcParams');
                         expect(spyArgs[2]).toEqual('caches/video/test.mp4');
                         expect(job.setStartTime).toHaveBeenCalledWith('getSourceVideo');
-                        expect(dub.updateJobStatus).toHaveBeenCalledWith('ut-job.json', 202, 'getSourceVideo');
+                        expect(dub.updateJobStatus).toHaveBeenCalledWith(job, 202, 'getSourceVideo');
                         expect(job.setEndTime).toHaveBeenCalledWith('getSourceVideo');
                         doneFlag = true;
                     }).catch(function(error) { 
@@ -616,7 +593,7 @@ describe('dub (UT)',function(){
                     dub.getSourceVideo(job).catch(function(error) {
                         expect(error.fnName).toBe('getSourceVideo');
                         expect(job.setStartTime).toHaveBeenCalledWith('getSourceVideo');
-                        expect(dub.updateJobStatus).toHaveBeenCalledWith('ut-job.json', 202, 'getSourceVideo');
+                        expect(dub.updateJobStatus).toHaveBeenCalledWith(job, 202, 'getSourceVideo');
                         expect(job.setEndTime).toHaveBeenCalledWith('getSourceVideo');                        
                         doneFlag = true;
                     });
@@ -677,7 +654,7 @@ describe('dub (UT)',function(){
                             expect(ttsArgs[0].fxLevel).toBe('3');
                         }
                         expect(job.setStartTime).toHaveBeenCalledWith('convertLinesToMP3');
-                        expect(dub.updateJobStatus).toHaveBeenCalledWith('ut-job.json', 202, 'convertLinesToMP3');
+                        expect(dub.updateJobStatus).toHaveBeenCalledWith(job, 202, 'convertLinesToMP3');
                         expect(job.setEndTime).toHaveBeenCalledWith('convertLinesToMP3');
                         doneFlag = true;
                     }).catch(function(error) { 
@@ -703,7 +680,7 @@ describe('dub (UT)',function(){
                         expect(retval).toBe(job);
                         expect(mockLog.error.calls.length).toBe(3);
                         expect(job.setStartTime).toHaveBeenCalledWith('convertLinesToMP3');
-                        expect(dub.updateJobStatus).toHaveBeenCalledWith('ut-job.json', 202, 'convertLinesToMP3');
+                        expect(dub.updateJobStatus).toHaveBeenCalledWith(job, 202, 'convertLinesToMP3');
                         expect(job.setEndTime).toHaveBeenCalledWith('convertLinesToMP3');
                         doneFlag = true;
                     }).catch(function(error) { 
@@ -728,7 +705,7 @@ describe('dub (UT)',function(){
                         expect(error.msg).toBe('Failing this one');
                         expect(mockLog.error.calls.length).toBe(2);
                         expect(job.setStartTime).toHaveBeenCalledWith('convertLinesToMP3');
-                        expect(dub.updateJobStatus).toHaveBeenCalledWith('ut-job.json', 202, 'convertLinesToMP3');
+                        expect(dub.updateJobStatus).toHaveBeenCalledWith(job, 202, 'convertLinesToMP3');
                         expect(job.setEndTime).toHaveBeenCalledWith('convertLinesToMP3');
                         doneFlag = true;
                     });
@@ -776,7 +753,7 @@ describe('dub (UT)',function(){
                         expect(getLineMeta.calls[1].args[0].fname).toEqual("hashLine--line2.mp3");
                         expect(getLineMeta.calls[2].args[0].fname).toEqual("hashLine--line3.mp3");
                         expect(job.setStartTime).toHaveBeenCalledWith('collectLinesMetadata');
-                        expect(dub.updateJobStatus).toHaveBeenCalledWith('ut-job.json', 202, 'collectLinesMetadata');
+                        expect(dub.updateJobStatus).toHaveBeenCalledWith(job, 202, 'collectLinesMetadata');
                         expect(job.setEndTime).toHaveBeenCalledWith('collectLinesMetadata');
                         doneFlag = true;
                     }).catch(function(error) { 
@@ -801,7 +778,7 @@ describe('dub (UT)',function(){
                         expect(error.fnName).toEqual('collectLinesMetadata');
                         expect(getLineMeta.calls.length).toEqual(3);
                         expect(job.setStartTime).toHaveBeenCalledWith('collectLinesMetadata');
-                        expect(dub.updateJobStatus).toHaveBeenCalledWith('ut-job.json', 202, 'collectLinesMetadata');
+                        expect(dub.updateJobStatus).toHaveBeenCalledWith(job, 202, 'collectLinesMetadata');
                         expect(job.setEndTime).toHaveBeenCalledWith('collectLinesMetadata');
                         doneFlag = true;
                     });
@@ -1002,7 +979,7 @@ describe('dub (UT)',function(){
                         expect(writeFileArgs[0]).toBe('caches/video/test_mp4_metadata.json');
                         expect(writeFileArgs[1]).toEqual(JSON.stringify({duration: 3.5}));
                         expect(job.setStartTime).toHaveBeenCalledWith('getVideoLength');
-                        expect(dub.updateJobStatus).toHaveBeenCalledWith('ut-job.json', 202, 'getVideoLength');
+                        expect(dub.updateJobStatus).toHaveBeenCalledWith(job, 202, 'getVideoLength');
                         expect(job.setEndTime).toHaveBeenCalledWith('getVideoLength');
                         doneFlag = true;
                     }).catch(function(error) {
@@ -1023,7 +1000,7 @@ describe('dub (UT)',function(){
                         expect(mockLog.warn).toHaveBeenCalled();
                         expect(mockLog.warn.calls[0].args[2]).toBe('stderr errors');
                         expect(job.setStartTime).toHaveBeenCalledWith('getVideoLength');
-                        expect(dub.updateJobStatus).toHaveBeenCalledWith('ut-job.json', 202, 'getVideoLength');
+                        expect(dub.updateJobStatus).toHaveBeenCalledWith(job, 202, 'getVideoLength');
                         expect(job.setEndTime).toHaveBeenCalledWith('getVideoLength');
                         doneFlag = true;
                     }).catch(function(error) {
@@ -1043,7 +1020,7 @@ describe('dub (UT)',function(){
                         expect(error.fnName).toBe('getVideoLength');
                         expect(writeFileSpy).not.toHaveBeenCalled();
                         expect(job.setStartTime).toHaveBeenCalledWith('getVideoLength');
-                        expect(dub.updateJobStatus).toHaveBeenCalledWith('ut-job.json', 202, 'getVideoLength');
+                        expect(dub.updateJobStatus).toHaveBeenCalledWith(job, 202, 'getVideoLength');
                         expect(job.setEndTime).toHaveBeenCalledWith('getVideoLength');
                         doneFlag = true;
                     });
@@ -1060,7 +1037,7 @@ describe('dub (UT)',function(){
                         expect(error.fnName).toBe('getVideoLength');
                         expect(writeFileSpy).not.toHaveBeenCalled();
                         expect(job.setStartTime).toHaveBeenCalledWith('getVideoLength');
-                        expect(dub.updateJobStatus).toHaveBeenCalledWith('ut-job.json', 202, 'getVideoLength');
+                        expect(dub.updateJobStatus).toHaveBeenCalledWith(job, 202, 'getVideoLength');
                         expect(job.setEndTime).toHaveBeenCalledWith('getVideoLength');
                         doneFlag = true;
                     });
@@ -1079,7 +1056,7 @@ describe('dub (UT)',function(){
                         expect(writeFileSpy).toHaveBeenCalled();
                         expect(mockLog.warn).toHaveBeenCalled();
                         expect(job.setStartTime).toHaveBeenCalledWith('getVideoLength');
-                        expect(dub.updateJobStatus).toHaveBeenCalledWith('ut-job.json', 202, 'getVideoLength');
+                        expect(dub.updateJobStatus).toHaveBeenCalledWith(job, 202, 'getVideoLength');
                         expect(job.setEndTime).toHaveBeenCalledWith('getVideoLength');
                         doneFlag = true;
                     }).catch(function(error) { 
@@ -1126,7 +1103,7 @@ describe('dub (UT)',function(){
                         expect(retval).toBe(job);
                         expect(mockAssemble).toHaveBeenCalledWith('Fake Template');
                         expect(job.setStartTime).toHaveBeenCalledWith('convertScriptToMP3');
-                        expect(dub.updateJobStatus).toHaveBeenCalledWith('ut-job.json', 202, 'convertScriptToMP3');
+                        expect(dub.updateJobStatus).toHaveBeenCalledWith(job, 202, 'convertScriptToMP3');
                         expect(job.setEndTime).toHaveBeenCalledWith('convertScriptToMP3');
                         doneFlag = true;
                     }).catch(function(error) { 
@@ -1143,7 +1120,7 @@ describe('dub (UT)',function(){
                     dub.convertScriptToMP3(job).catch(function(error) {
                         expect(error.fnName).toBe('convertScriptToMP3');
                         expect(job.setStartTime).toHaveBeenCalledWith('convertScriptToMP3');
-                        expect(dub.updateJobStatus).toHaveBeenCalledWith('ut-job.json', 202, 'convertScriptToMP3');
+                        expect(dub.updateJobStatus).toHaveBeenCalledWith(job, 202, 'convertScriptToMP3');
                         expect(job.setEndTime).toHaveBeenCalledWith('convertScriptToMP3');
                         doneFlag = true;
                     });
@@ -1188,7 +1165,7 @@ describe('dub (UT)',function(){
                         expect(mergeArgs[2]).toEqual('caches/output/test_hashOutput.mp4');
                         expect(mergeArgs[3].frequency).toEqual(22050);
                         expect(job.setStartTime).toHaveBeenCalledWith('applyScriptToVideo');
-                        expect(dub.updateJobStatus).toHaveBeenCalledWith('ut-job.json', 202, 'applyScriptToVideo');
+                        expect(dub.updateJobStatus).toHaveBeenCalledWith(job, 202, 'applyScriptToVideo');
                         expect(job.setEndTime).toHaveBeenCalledWith('applyScriptToVideo');
                         doneFlag = true;
                     }).catch(function(error) { 
@@ -1209,7 +1186,7 @@ describe('dub (UT)',function(){
                         expect(mockLog.warn).toHaveBeenCalled();
                         expect(mockLog.warn.calls[0].args[2]).toBe('stderr errors');
                         expect(job.setStartTime).toHaveBeenCalledWith('applyScriptToVideo');
-                        expect(dub.updateJobStatus).toHaveBeenCalledWith('ut-job.json', 202, 'applyScriptToVideo');
+                        expect(dub.updateJobStatus).toHaveBeenCalledWith(job, 202, 'applyScriptToVideo');
                         expect(job.setEndTime).toHaveBeenCalledWith('applyScriptToVideo');
                         doneFlag = true;
                     }).catch(function(error) {
@@ -1228,7 +1205,7 @@ describe('dub (UT)',function(){
                     dub.applyScriptToVideo(job).catch(function(error) {
                         expect(error.fnName).toBe('applyScriptToVideo');
                         expect(job.setStartTime).toHaveBeenCalledWith('applyScriptToVideo');
-                        expect(dub.updateJobStatus).toHaveBeenCalledWith('ut-job.json', 202, 'applyScriptToVideo');
+                        expect(dub.updateJobStatus).toHaveBeenCalledWith(job, 202, 'applyScriptToVideo');
                         expect(job.setEndTime).toHaveBeenCalledWith('applyScriptToVideo');
                         doneFlag = true;
                     });
@@ -1305,7 +1282,7 @@ describe('dub (UT)',function(){
                         expect(putParams.ContentType).toEqual('video/mp4');
                         
                         expect(job.setStartTime).toHaveBeenCalledWith('uploadToStorage');
-                        expect(dub.updateJobStatus).toHaveBeenCalledWith('ut-job.json', 202, 'uploadToStorage');
+                        expect(dub.updateJobStatus).toHaveBeenCalledWith(job, 202, 'uploadToStorage');
                         expect(job.setEndTime).toHaveBeenCalledWith('uploadToStorage');
                         doneFlag = true;
                     }).catch(function(error) { 
@@ -1328,7 +1305,7 @@ describe('dub (UT)',function(){
                         expect(headSpy).toHaveBeenCalled();
                         expect(putSpy).not.toHaveBeenCalled();                        
                         expect(job.setStartTime).toHaveBeenCalledWith('uploadToStorage');
-                        expect(dub.updateJobStatus).toHaveBeenCalledWith('ut-job.json', 202, 'uploadToStorage');
+                        expect(dub.updateJobStatus).toHaveBeenCalledWith(job, 202, 'uploadToStorage');
                         expect(job.setEndTime).toHaveBeenCalledWith('uploadToStorage');
                         doneFlag = true;
                     }).catch(function(error) { 
@@ -1350,7 +1327,7 @@ describe('dub (UT)',function(){
                     dub.uploadToStorage(job).catch(function(error) {
                         expect(error.fnName).toBe('uploadToStorage');
                         expect(job.setStartTime).toHaveBeenCalledWith('uploadToStorage');
-                        expect(dub.updateJobStatus).toHaveBeenCalledWith('ut-job.json', 202, 'uploadToStorage');
+                        expect(dub.updateJobStatus).toHaveBeenCalledWith(job, 202, 'uploadToStorage');
                         expect(job.setEndTime).toHaveBeenCalledWith('uploadToStorage');
                         doneFlag = true;
                     });
