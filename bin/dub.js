@@ -744,7 +744,7 @@ dub.handleRequest = function(job, done){
             var lastStep = error.fnName || 'unknown';
             var msg = error.msg || JSON.stringify(error);
             
-            dub.updateJobStatus(job, 500, lastStep, {failMsg: msg})
+            dub.updateJobStatus(job, 500, lastStep, {failMsg: msg});
             done({message : 'Died on [' + lastStep + ']: ' + msg}, job);
         }
     );
