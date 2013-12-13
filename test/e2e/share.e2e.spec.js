@@ -1,16 +1,52 @@
 var request = require('request'),
     q       = require('q'),
+    path    = require('path'),
+    fs      = require('fs-extra'),
     host = process.env['host'] ? process.env['host'] : 'localhost',
     config = {
-        'share_url': 'http://' + (host === 'localhost' ? host + ':3100' : host) + '/share',
-        'remove_script_url': 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint/remove_S3_script'
+        'shareUrl': 'http://' + (host === 'localhost' ? host + ':3100' : host) + '/share',
+        'maintUrl': 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint'
     };
 
 jasmine.getEnv().defaultTimeoutInterval = 30000;
 
 describe('share (E2E)', function() {
-    var shareItem;
+    var shareItem,
+        testNum = 0;
     
+    beforeEach(function(done) {
+        var options = {
+            url: config.maintUrl + '/clear_log',
+            json: {
+                logFile: 'share.log'
+            }
+        };
+        request.post(options, function(error, response, body) {
+            if (body.error) {
+                console.log("Error clearing share log: " + JSON.stringify(body));
+            }
+            done();
+        });
+    });
+    afterEach(function(done) {
+        testNum++;
+        var options = {
+            url: config.maintUrl + '/get_log?logFile=share.log'
+        };
+        q.npost(request, 'get', [options])
+        .then(function(values) {
+            if (!values[1]) return q.reject();
+            if (values[1].error) return q.reject(values[1]);
+            var fname = path.join(__dirname, 'logs/share.test' + testNum + '.log');
+            return q.npost(fs, 'outputFile', [fname, values[1]]);
+        }).then(function() {
+            done();
+        }).catch(function(error) {
+            console.log("Error getting log file for test " + testNum + ": " + JSON.stringify(error));
+            done();
+        });
+    });
+
     beforeEach(function() {
         shareItem = {
             'id': 'e-123',
@@ -29,7 +65,7 @@ describe('share (E2E)', function() {
     describe('/share', function() {
         it('should successfully share a valid script', function(done) {
             var options = {
-                url: config.share_url,
+                url: config.shareUrl,
                 json: {
                     data: shareItem,
                     origin: 'http://cinema6.com/#/experiences/screenjack~brucelee'
@@ -56,7 +92,7 @@ describe('share (E2E)', function() {
                     return;
                 }
                 var options = {
-                    url : config.remove_script_url,
+                    url : config.maintUrl + 'remove_S3_script',
                     json: {
                         fname: scriptId[0] + '.json'
                     }
@@ -74,7 +110,7 @@ describe('share (E2E)', function() {
         // the client should prevent this through caching, but the backend should still handle it correctly
         it('should be able to re-share a link', function(done) {
             var options = {
-                url: config.share_url,
+                url: config.shareUrl,
                 json: {
                     data: shareItem,
                     origin: 'http://cinema6.com/#/experiences/shared~screenjack~e-1234567890abcd'
@@ -101,7 +137,7 @@ describe('share (E2E)', function() {
                     return;
                 }
                 var options = {
-                    url : config.remove_script_url,
+                    url : config.maintUrl + 'remove_S3_script',
                     json: {
                         fname: scriptId[0] + '.json'
                     }
@@ -118,7 +154,7 @@ describe('share (E2E)', function() {
     
         it('should fail if given an item with no uri', function(done) {
             var options = {
-                url: config.share_url,
+                url: config.shareUrl,
                 json: {
                     origin: 'http://cinema6.com/#/experiences/screenjack~brucelee',
                     data: shareItem
@@ -139,7 +175,7 @@ describe('share (E2E)', function() {
     
         it('should fail if given an item with a malformed uri', function(done) {
             var options = {
-                url: config.share_url,
+                url: config.shareUrl,
                 json: {
                     origin: 'http://cinema6.com/#/experiences/screenjack~brucelee',
                     data: shareItem
@@ -160,7 +196,7 @@ describe('share (E2E)', function() {
     
         it('should fail if given a malformed item', function(done) {
             var options = {
-                url: config.share_url,
+                url: config.shareUrl,
                 json: {
                     origin: 'http://cinema6.com/#/experiences/screenjack~brucelee',
                     data: 'This is fake data'
@@ -182,7 +218,7 @@ describe('share (E2E)', function() {
     describe('/share/facebook', function() {
         it('should fail if not given the correct params', function(done) {
             var options = {
-                url: config.share_url + '/facebook?'
+                url: config.shareUrl + '/facebook?'
             };
             
             q.npost(request, 'get', [options]).then(function(values) {
@@ -195,7 +231,7 @@ describe('share (E2E)', function() {
                 expect(values).toBeDefined();
                 expect(values[0].statusCode).toBe(400);
                 expect(values[1]).toBe('Unable to complete request.');
-                options.url = config.share_url + '/facebook?&origin=http://cinema6.com'
+                options.url = config.shareUrl + '/facebook?&origin=http://cinema6.com'
                 return q.npost(request, 'get', [options]);
             }).then(function(values) {
                 expect(values).toBeDefined();
@@ -212,7 +248,7 @@ describe('share (E2E)', function() {
     describe('/share/twitter', function() {
         it('should fail if not given the correct params', function(done) {
             var options = {
-                url: config.share_url + '/twitter?'
+                url: config.shareUrl + '/twitter?'
             };
             
             q.npost(request, 'get', [options]).then(function(values) {
@@ -225,7 +261,7 @@ describe('share (E2E)', function() {
                 expect(values).toBeDefined();
                 expect(values[0].statusCode).toBe(400);
                 expect(values[1]).toBe('Unable to complete request.');
-                options.url = config.share_url + '/twitter?&origin=http://cinema6.com'
+                options.url = config.shareUrl + '/twitter?&origin=http://cinema6.com'
                 return q.npost(request, 'get', [options]);
             }).then(function(values) {
                 expect(values).toBeDefined();

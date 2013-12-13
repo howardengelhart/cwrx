@@ -1,12 +1,50 @@
 var request = require('request'),
+    path    = require('path'),
+    fs      = require('fs-extra'),
+    q       = require('q'),
     host = process.env['host'] ? process.env['host'] : 'localhost',
     config = {
         'shareUrl': 'http://' + (host === 'localhost' ? host + ':3100' : host) + '/share',
+        'maintUrl': 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint',
     };
 
-jasmine.getEnv().defaultTimeoutInterval = 30000;
+jasmine.getEnv().defaultTimeoutInterval = 3000;
 
 describe('share-light (E2E)', function() {
+    var testNum = 0;
+    beforeEach(function(done) {
+        var options = {
+            url: config.maintUrl + '/clear_log',
+            json: {
+                logFile: 'share.log'
+            }
+        };
+        request.post(options, function(error, response, body) {
+            if (body.error) {
+                console.log("Error clearing share log: " + JSON.stringify(body));
+            }
+            done();
+        });
+    });
+    afterEach(function(done) {
+        testNum++;
+        var options = {
+            url: config.maintUrl + '/get_log?logFile=share.log'
+        };
+        q.npost(request, 'get', [options])
+        .then(function(values) {
+            if (!values[1]) return q.reject();
+            if (values[1].error) return q.reject(values[1]);
+            var fname = path.join(__dirname, 'logs/share-light.test' + testNum + '.log');
+            return q.npost(fs, 'outputFile', [fname, values[1]]);
+        }).then(function() {
+            done();
+        }).catch(function(error) {
+            console.log("Error getting log file for test " + testNum + ": " + JSON.stringify(error));
+            done();
+        });
+    });
+    
     describe('/share', function() {
         it('should successfully share a shortened url', function(done) {
             var options = {

@@ -248,7 +248,55 @@ function main(done) {
             }
         );
     });
-
+    
+    app.post('/maint/clear_log', function(req, res, next) {
+        if (!req.body || (!req.body.logFile && !req.body.logPath)) {
+            res.send(400, {
+                error: "Bad request",
+                detail: "You must include the log filename or full path in the request"
+            });
+            return;
+        }
+        var logFile = req.body.logPath || path.join(config.log.logDir, req.body.logFile);
+        log.info("Clearing log %1", logFile);
+        fs.writeFile(logFile, '', function(error) {
+            if (error) {
+                log.error("Error clearing log %1: %2", logFile, error);
+                res.send(500, {
+                    error: "Unable to process request",
+                    detail: error
+                });
+            } else {
+                log.info("Successfully cleared log %1", logFile);
+                res.send(200, {msg: "Successfully cleared log %1" + logFile});
+            }
+        });
+    });
+    
+    app.get('/maint/get_log', function(req, res, next) {
+        if (!req.query || (!req.query.logFile && !req.query.logPath)) {
+            res.send(400, {
+                error: "Bad request",
+                detail: "You must include the log filename or full path in the request"
+            });
+            return;
+        }
+        var logFile = req.query.logPath || path.join(config.log.logDir, req.query.logFile);
+        log.info("Reading log %1", logFile);
+        fs.readFile(logFile, function(error, contents) {
+            if (error) {
+                log.error("Error reading log %1: %2", logFile, error);
+                res.send(500, {
+                    error: "Unable to process request",
+                    detail: error
+                });
+            } else {
+                log.info("Successfully read log %1", logFile);
+                res.send(200, contents);
+            }
+        });
+    });
+    
     app.get('/maint/meta', function(req, res, next){
         var data = {
             version: getVersion(),
