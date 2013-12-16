@@ -2,6 +2,7 @@ var path        = require('path'),
     fs          = require('fs-extra'),
     q           = require('q'),
     crypto      = require('crypto'),
+    os          = require('os'),
     cwrxConfig  = require('../../lib/config'),
     uuid        = require('../../lib/uuid'),
     ffmpeg      = require('../../lib/ffmpeg'),
@@ -190,6 +191,7 @@ describe('dub (UT)',function(){
                     uri : "https://s3.amazonaws.com/ut/media/output",
                     type : "s3"
                 },
+                responseTimeout: 1000,
                 caches : {
                     run     : 'caches/run/',
                     line    : 'caches/line/',
@@ -362,6 +364,9 @@ describe('dub (UT)',function(){
         describe('createDubJob', function() {
             it('should create a job with valid configuration and template', function(){
                 expect(job).toBeDefined();
+                expect(job.id).toBe('123456');
+                expect(job.version).toBe(1);
+                
                 expect(job.ttsAuth).toBe('fakeAuthToken');
                 expect(job.tts).toEqual(config.tts);
                 expect(job.tracks.length).toEqual(3);
@@ -463,6 +468,127 @@ describe('dub (UT)',function(){
                     expect(track.ts).toEqual(playlist[i].ts);
                     expect(track.src).toEqual(playlist[i].src);
                     expect(track.metaData).toEqual(playlist[i].metaData);
+                });
+            });
+        });
+        
+        describe('startCreateJob', function() {
+            var headSpy, timerCallback;
+            beforeEach(function() {
+                jasmine.Clock.useMock();
+                spyOn(dub, 'handleRequest');
+                timerCallback = jasmine.createSpy('timer_callback');
+                headSpy = jasmine.createSpy('s3_head_obj');
+                mockAws.S3 = function() {
+                    return {headObject: headSpy};
+                };
+            });
+            
+            it('should respond with the video\'s url if it exists', function(done) {
+                headSpy.andCallFake(function(params, cb) {
+                    setTimeout(function() {
+                        timerCallback();
+                        cb(null, {ETag: 'fakeMD5'});
+                    }, 500);
+                });
+                
+                var promise = dub.startCreateJob(job, config);
+                jasmine.Clock.tick(500);
+                promise.then(function(resp) {
+                    expect(resp).toBeDefined();
+                    expect(resp.code).toBe(201);
+                    expect(resp.data.output).toBe('https://s3.amazonaws.com/ut/media/output/test_hashOutput.mp4');
+                    expect(resp.data.md5).toBe('fakeMD5');
+                    
+                    expect(timerCallback).toHaveBeenCalled();
+                    expect(JSON.stringify(headSpy.calls[0].args[0])).toBe(
+                        JSON.stringify({Key: 'ut/media/output/test_hashOutput.mp4', Bucket: 'ut'}));
+                    expect(dub.updateJobStatus).toHaveBeenCalledWith(job, 201, 'Completed', {resultMD5: 'fakeMD5'});
+                    expect(dub.handleRequest).not.toHaveBeenCalled();
+                    done();
+                }).catch(function(error) {
+                    expect(error).not.toBeDefined();
+                    done();
+                });
+            });
+            
+            it('should start handleRequest if the video does not exist', function(done) {
+                headSpy.andCallFake(function(params, cb) {
+                    setTimeout(function() {
+                        timerCallback();
+                        cb('No such video!');
+                    }, 500);
+                });
+                spyOn(os, 'hostname').andReturn('fakeHost');
+                
+                var promise = dub.startCreateJob(job, config);
+                jasmine.Clock.tick(500);
+                promise.then(function(resp) {
+                    expect(resp).toBeDefined();
+                    expect(resp.code).toBe(202);
+                    expect(resp.data.jobId).toBe('123456');
+                    expect(resp.data.host).toBe('fakeHost');
+                    expect(dub.handleRequest).toHaveBeenCalled();
+                    done();
+                }).catch(function(error) {
+                    expect(error).not.toBeDefined();
+                    done();
+                });
+            });
+            
+            it('should respond quickly through a timeout if s3.headObject takes too long', function(done) {
+                headSpy.andCallFake(function(params, cb) {
+                    setTimeout(function() {
+                        timerCallback();
+                        cb(null, {ETag: 'fakeMD5'});
+                    }, 1500);
+                });
+                spyOn(os, 'hostname').andReturn('fakeHost');
+                
+                var promise = dub.startCreateJob(job, config);
+                jasmine.Clock.tick(1000);
+                promise.then(function(resp) {
+                    expect(resp).toBeDefined();
+                    expect(resp.code).toBe(202);
+                    expect(resp.data.jobId).toBe('123456');
+                    expect(resp.data.host).toBe('fakeHost');
+                    
+                    jasmine.Clock.tick(500);
+                    expect(dub.updateJobStatus).toHaveBeenCalledWith(job, 201, 'Completed', {resultMD5: 'fakeMD5'});
+                    expect(dub.handleRequest).not.toHaveBeenCalled();
+                    done();
+                }).catch(function(error) {
+                    expect(error).not.toBeDefined();
+                    done();
+                });
+            });
+            
+            it('should handle errors from handleRequest', function(done) {
+                headSpy.andCallFake(function(params, cb) {
+                    setTimeout(function() {
+                        timerCallback();
+                        cb('No such video!');
+                    }, 500);
+                });
+                spyOn(os, 'hostname').andReturn('fakeHost');
+                dub.handleRequest.andCallFake(function(job, cb) {
+                    cb('Error!');
+                });
+                
+                var promise = dub.startCreateJob(job, config);
+                jasmine.Clock.tick(500);
+                promise.then(function(resp) {
+                    expect(resp).toBeDefined();
+                    expect(resp.code).toBe(202);
+                    expect(resp.data.jobId).toBe('123456');
+                    expect(resp.data.host).toBe('fakeHost');
+                    
+                    expect(dub.handleRequest).toHaveBeenCalled();
+                    expect(mockLog.error).toHaveBeenCalled();
+                    done();
+                }).catch(function(error) {
+                    expect(error).not.toBeDefined();
+                    done();
                 });
             });
         });

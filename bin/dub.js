@@ -7,6 +7,7 @@ var __ut__      = (global.jasmine !== undefined) ? true : false,
 var include     = require('../lib/inject').require,
     fs          = include('fs-extra'),
     path        = include('path'),
+    os          = include('os'),
     cluster     = include('cluster'),
     cp          = include('child_process'),
     express     = include('express'),
@@ -40,6 +41,7 @@ dub.defaultConfiguration = {
         "type" : "local",
         "uri"  : "/media"
     },
+    responseTimeout: 1000,
     s3 : {
         src     : {
             bucket  : 'c6media',
@@ -203,6 +205,7 @@ dub.createDubJob = function(id, template, config){
         videoBase = path.basename(template.video,videoExt);
    
     obj.id = id;
+    obj.version = template.version || 1;
 
     obj.ttsAuth = vocalware.createAuthToken(config.tts.auth);
 
@@ -750,6 +753,63 @@ dub.handleRequest = function(job, done){
     );
 };
 
+dub.startCreateJob = function(job, config) {
+    var timedOut = false,
+        log      = logger.getLog(),
+        deferred = q.defer();
+        
+    var timeout = setTimeout(function() {
+        timedOut = true;
+        log.warn('[%1] s3.headObject took too long, responding with 202', job.id);
+        deferred.resolve({
+            code: 202,
+            data: {
+                jobId: job.id,
+                host: os.hostname()
+            }
+        });
+    }, config.responseTimeout);
+    
+    var s3 = new aws.S3(),
+        outParams = job.getS3OutVideoParams(),
+        headParams = {Key: outParams.Key, Bucket: outParams.Bucket};
+    
+    s3.headObject(headParams, function(err, data) {
+        if (!err && data) {
+            clearTimeout(timeout);
+            log.info('[%1] Found existing video: Bucket: %2, Key: %3',job.id,headParams.Bucket,
+                headParams.Key);
+            dub.updateJobStatus(job, 201, 'Completed', {resultMD5: data.ETag});
+            deferred.resolve({
+                code: 201,
+                data: {
+                    output : job.outputUri,
+                    md5    : data.ETag
+                }
+            });
+        } else {
+            clearTimeout(timeout);
+            deferred.resolve({
+                code: 202,
+                data: {
+                    jobId: job.id,
+                    host: os.hostname()
+                }
+            });
+            log.info('[%1] No existing video found for params: Bucket: %2, Key: %3', job.id,
+                headParams.Bucket, headParams.Key);
+                
+            dub.handleRequest(job, function(err) {
+                if (err) {
+                    log.error('[%1] Handle Request Error: %2', job.id, err.message);
+                }
+            });
+        }
+    });
+    
+    return deferred.promise;
+};
+
 dub.removeJobFiles = function(config, maxAge, done) {
     var start = new Date().valueOf(),
         log = logger.getLog();
@@ -866,28 +926,39 @@ function workerMain(config,program,done){
             job = dub.createDubJob(req.uuid, req.body, config);
         }catch (e){
             log.error('[%1] Create Job Error: %2', req.uuid, e.message);
-            res.send(500,{
+            res.send(400,{
                 error  : 'Unable to process request.',
                 detail : e.message
             });
             return;
         }
         dub.createJobFile(job, config);
-        dub.handleRequest(job,function(err){
-            if (err){
-                log.error('[%1] Handle Request Error: %2',req.uuid,err.message);
-                res.send(400,{
-                    error  : 'Unable to complete request.',
-                    detail : err.message
-                });
-                return;
-            }
-            res.send(200, {
-                output : job.outputUri,
-                md5    : job.md5
+        
+        if (job.version === 2) {
+            dub.startCreateJob(job, config)
+            .then(function(resp) {
+                res.send(resp.code, resp.data);
+            }).catch(function(error) {
+                log.error('[%1] Error starting create job: %2', req.uuid, JSON.stringify(error));
+                res.send(400, error);
             });
-        });
-    });
+        } else {
+            dub.handleRequest(job,function(err){
+                if (err){
+                    log.error('[%1] Handle Request Error: %2',req.uuid,err.message);
+                    res.send(500,{
+                        error  : 'Unable to complete request.',
+                        detail : err.message
+                    });
+                    return;
+                }
+                res.send(200, {
+                    output : job.outputUri,
+                    md5    : job.md5
+                });
+            });
+        }
+    }); 
     
     app.get('/dub/meta', function(req, res, next){
         var data = {
