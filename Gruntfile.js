@@ -104,7 +104,6 @@ module.exports = function (grunt) {
         var done = this.async(),
             args = ['--test-dir', 'test/e2e/', '--captureExceptions', '--junitreport', '--output',
                     path.join(__dirname, 'reports/e2e/')];
-        
         if (svc) {
             var regexp = '^' + svc + '(-light)?\\.e2e\\.';
             args.push('--match', regexp);
@@ -115,9 +114,12 @@ module.exports = function (grunt) {
         if (grunt.option('bucket')) {
             args.push('--config', 'bucket', grunt.option('bucket'));
         }
+        if (grunt.option('getLogs')) {
+            args.push('--config', 'getLogs', grunt.option('getLogs'));
+        }
         
         if (grunt.option('e2e-config')){
-            var cfgObj = JSON.parse(grunt.option('e2e-config'));
+            var cfgObj = fs.readJsonSync(grunt.option('e2e-config'));
             for (var key in cfgObj){
                 args.push('--config',key,cfgObj[key]);
             }

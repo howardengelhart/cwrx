@@ -1,16 +1,59 @@
 var request = require('request'),
     q       = require('q'),
+    path    = require('path'),
+    fs      = require('fs-extra'),
     host = process.env['host'] ? process.env['host'] : 'localhost',
     config = {
-        'video_url': 'http://' + (host === 'localhost' ? host + ':3000' : host) + '/dub/create',
-        'clean_cache_url': 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint/clean_cache',
-        'cache_file_url': 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint/cache_file',
+        'dubUrl': 'http://' + (host === 'localhost' ? host + ':3000' : host) + '/dub',
+        'maintUrl': 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint',
     };
 
 jasmine.getEnv().defaultTimeoutInterval = 40000;
 
 describe('dub (E2E)', function() {
-    var templateFile, templateJSON, screamTemplate, badTemplate;
+    var templateFile, templateJSON, screamTemplate, badTemplate,
+        testNum = 0;
+    
+    beforeEach(function(done) {
+        if (!process.env['getLogs']) return done();
+        var options = {
+            url: config.maintUrl + '/clear_log',
+            json: {
+                logFile: 'dub.log'
+            }
+        };
+        request.post(options, function(error, response, body) {
+            if (body && body.error) {
+                console.log("Error clearing dub log: " + JSON.stringify(body));
+            }
+            done();
+        });
+    });
+    afterEach(function(done) {
+        if (!process.env['getLogs']) return done();
+        var spec = jasmine.getEnv().currentSpec;
+        testNum++;
+        var options = {
+            url: config.maintUrl + '/get_log?logFile=dub.log'
+        };
+        q.npost(request, 'get', [options])
+        .then(function(values) {
+            if (!values[1]) return q.reject();
+            if (values[1].error) return q.reject(values[1]);
+            if (spec && spec.results && spec.results().failedCount != 0) {
+                console.log('\nRemote log for failed spec "' + spec.description + '":\n');
+                console.log(values[1]);
+                console.log('-------------------------------------------------------------------');
+            }
+            var fname = path.join(__dirname, 'logs/dub.test' + testNum + '.log');
+            return q.npost(fs, 'outputFile', [fname, values[1]]);
+        }).then(function() {
+            done();
+        }).catch(function(error) {
+            console.log("Error getting log file for test " + testNum + ": " + JSON.stringify(error));
+            done();
+        });
+    });
     
     beforeEach(function() {
         screamTemplate = {
@@ -41,7 +84,7 @@ describe('dub (E2E)', function() {
     describe('/dub/create', function() {
         it('should succeed with a valid template', function(done) {
             var options = {
-                url: config.video_url,
+                url: config.dubUrl + '/create',
                 json: screamTemplate
             }, reqFlag = false;
             
@@ -54,9 +97,13 @@ describe('dub (E2E)', function() {
                     expect(typeof(body.output)).toEqual('string');
                     expect(body.md5).toEqual(screamTemplate.e2e.md5);
                 }
+                
+                if (body.md5 !== screamTemplate.e2e.md5) {
+                    return done();
+                }
 
                 var options = {
-                    url : config.clean_cache_url,
+                    url : config.maintUrl + '/clean_cache',
                     json: screamTemplate
                 }
                 request.post(options, function(error, response, body) {
@@ -68,7 +115,7 @@ describe('dub (E2E)', function() {
 
         it('should succeed with a randomized template', function(done) {
             var options = {
-                url: config.video_url,
+                url: config.dubUrl + '/create',
                 json: screamTemplate
             };
             
@@ -88,7 +135,7 @@ describe('dub (E2E)', function() {
                 }
                 
                 var options = {
-                    url : config.clean_cache_url,
+                    url : config.maintUrl + '/clean_cache',
                     json: screamTemplate
                 }
                 request.post(options, function(error, response, body) {
@@ -100,7 +147,7 @@ describe('dub (E2E)', function() {
 
         it('should fail if given a template with no script', function(done) {
             var options = {
-                url: config.video_url,
+                url: config.dubUrl + '/create',
                 json: screamTemplate
             };
             
@@ -118,7 +165,7 @@ describe('dub (E2E)', function() {
     
         it('should fail if given an invalid source video', function(done) {
             var cacheOpts = {
-                url: config.cache_file_url,
+                url: config.maintUrl + '/cache_file',
                 json: {
                     fname: 'invalid.mp4',
                     data: 'This is a fake video file',
@@ -128,7 +175,7 @@ describe('dub (E2E)', function() {
             
             q.npost(request, 'post', [cacheOpts]).then(function() {
                 var vidOpts = {
-                    url: config.video_url,
+                    url: config.dubUrl + '/create',
                     json: screamTemplate
                 };
                 screamTemplate.video = 'invalid.mp4';
@@ -140,7 +187,7 @@ describe('dub (E2E)', function() {
                 expect(values[1].detail.match(/invalid\.mp4: Invalid data found when processing input/)).toBeTruthy();
                 
                 var cleanOpts = {
-                    url: config.clean_cache_url,
+                    url: config.maintUrl + '/clean_cache',
                     json: screamTemplate
                 }
                 return q.npost(request, 'post', [cleanOpts]);
@@ -154,7 +201,7 @@ describe('dub (E2E)', function() {
 
         it('should fail if given a template with a non-existent video', function(done) {
             var options = {
-                url: config.video_url,
+                url: config.dubUrl + '/create',
                 json: screamTemplate
             };
             
