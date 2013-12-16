@@ -15,6 +15,7 @@ describe('dub (E2E)', function() {
         testNum = 0;
     
     beforeEach(function(done) {
+        if (!process.env['getLogs']) return done();
         var options = {
             url: config.maintUrl + '/clear_log',
             json: {
@@ -22,13 +23,15 @@ describe('dub (E2E)', function() {
             }
         };
         request.post(options, function(error, response, body) {
-            if (body.error) {
+            if (body && body.error) {
                 console.log("Error clearing dub log: " + JSON.stringify(body));
             }
             done();
         });
     });
     afterEach(function(done) {
+        if (!process.env['getLogs']) return done();
+        var spec = jasmine.getEnv().currentSpec;
         testNum++;
         var options = {
             url: config.maintUrl + '/get_log?logFile=dub.log'
@@ -37,6 +40,11 @@ describe('dub (E2E)', function() {
         .then(function(values) {
             if (!values[1]) return q.reject();
             if (values[1].error) return q.reject(values[1]);
+            if (spec && spec.results && spec.results().failedCount != 0) {
+                console.log('\nRemote log for failed spec "' + spec.description + '":\n');
+                console.log(values[1]);
+                console.log('-------------------------------------------------------------------');
+            }
             var fname = path.join(__dirname, 'logs/dub.test' + testNum + '.log');
             return q.npost(fs, 'outputFile', [fname, values[1]]);
         }).then(function() {
