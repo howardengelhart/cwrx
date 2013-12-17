@@ -1049,6 +1049,9 @@ function workerMain(config,program,done){
         var data = {
             version: dub.getVersion(),
             config: {
+                hostname: config.hostname,
+                proxyTimeout: config.proxyTimeout,
+                responseTimeout: config.responseTimeout,
                 output: config.output,
                 s3: {
                     src: config.s3.src,
