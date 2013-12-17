@@ -855,8 +855,13 @@ function workerMain(config,program,done){
 
     app.all('*',function(req, res, next){
         req.uuid = uuid.createUuid().substr(0,10);
-        log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
-            req.method,req.url,req.httpVersion);
+        if (!req.headers['user-agent'] || !req.headers['user-agent'].match(/^ELB-HealthChecker/)) {
+            log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
+                req.method,req.url,req.httpVersion);
+        } else {
+            log.trace('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
+                req.method,req.url,req.httpVersion);
+        }
         next();
     });
 
