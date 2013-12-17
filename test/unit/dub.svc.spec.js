@@ -2,7 +2,7 @@ var path        = require('path'),
     fs          = require('fs-extra'),
     q           = require('q'),
     crypto      = require('crypto'),
-    os          = require('os'),
+    request     = require('request'),
     cwrxConfig  = require('../../lib/config'),
     uuid        = require('../../lib/uuid'),
     ffmpeg      = require('../../lib/ffmpeg'),
@@ -191,7 +191,9 @@ describe('dub (UT)',function(){
                     uri : "https://s3.amazonaws.com/ut/media/output",
                     type : "s3"
                 },
+                proxyTimeout: 5000,
                 responseTimeout: 1000,
+                hostname: 'fakeHost',
                 caches : {
                     run     : 'caches/run/',
                     line    : 'caches/line/',
@@ -519,7 +521,6 @@ describe('dub (UT)',function(){
                         cb('No such video!');
                     }, 500);
                 });
-                spyOn(os, 'hostname').andReturn('fakeHost');
                 
                 var promise = dub.startCreateJob(job, config);
                 jasmine.Clock.tick(500);
@@ -543,7 +544,6 @@ describe('dub (UT)',function(){
                         cb(null, {ETag: 'fakeMD5'});
                     }, 1500);
                 });
-                spyOn(os, 'hostname').andReturn('fakeHost');
                 
                 var promise = dub.startCreateJob(job, config);
                 jasmine.Clock.tick(1000);
@@ -552,6 +552,7 @@ describe('dub (UT)',function(){
                     expect(resp.code).toBe(202);
                     expect(resp.data.jobId).toBe('123456');
                     expect(resp.data.host).toBe('fakeHost');
+                    expect(timerCallback).not.toHaveBeenCalled();
                     
                     jasmine.Clock.tick(500);
                     expect(dub.updateJobStatus).toHaveBeenCalledWith(job, 201, 'Completed', {resultMD5: 'fakeMD5'});
@@ -570,7 +571,6 @@ describe('dub (UT)',function(){
                         cb('No such video!');
                     }, 500);
                 });
-                spyOn(os, 'hostname').andReturn('fakeHost');
                 dub.handleRequest.andCallFake(function(job, cb) {
                     cb('Error!');
                 });
@@ -589,6 +589,154 @@ describe('dub (UT)',function(){
                 }).catch(function(error) {
                     expect(error).not.toBeDefined();
                     done();
+                });
+            });
+        });
+        
+        describe('getStatus', function() {
+            describe('with matched hosts', function() {
+                beforeEach(function() {
+                    spyOn(fs, 'readJson');
+                });
+                
+                it('should successfully read the status from the file', function(done) {
+                    fs.readJson.andCallFake(function(fpath, cb) {
+                        cb(null, {lastStatus: {code: 201}});
+                    });
+                    
+                    dub.getStatus('123456', 'fakeHost', config)
+                    .then(function(resp) {
+                        expect(resp).toBeDefined();
+                        expect(resp.code).toBe(201);
+                        expect(JSON.stringify(resp.data)).toBe(
+                            JSON.stringify({jobId: '123456', lastStatus: {code: 201}}));
+                        
+                        expect(fs.readJson).toHaveBeenCalled();
+                        expect(fs.readJson.calls[0].args[0]).toBe('caches/jobs/job-123456.json');
+                        done();
+                    }).catch(function(error) {
+                        expect(error).not.toBeDefined();
+                        done();
+                    });
+                });
+            
+                it('should handle failures to read + parse the file', function(done) {
+                    fs.readJson.andCallFake(function(fpath, cb) {
+                        cb('Error!');
+                    });
+                    
+                    dub.getStatus('123456', 'fakeHost', config)
+                    .catch(function(error) {
+                        expect(error).toBe('Error!');
+                        expect(fs.readJson).toHaveBeenCalled();
+                        done();
+                    });
+                });
+                
+                it('should fail if lastStatus is missing from the file', function(done) {
+                    fs.readJson.andCallFake(function(fpath, cb) {
+                        cb(null, {foo: 'bar'});
+                    });
+                    
+                    dub.getStatus('123456', 'fakeHost', config)
+                    .catch(function(error) {
+                        expect(error).toBe('missing or malformed lastStatus in job file');
+                        expect(fs.readJson).toHaveBeenCalled();
+                        done();
+                    });
+                });
+                
+                it('should fail if the lastStatus code is missing from the file', function(done) {
+                    fs.readJson.andCallFake(function(fpath, cb) {
+                        cb(null, {lastStatus: {step: 'foo'}});
+                    });
+                    
+                    dub.getStatus('123456', 'fakeHost', config)
+                    .catch(function(error) {
+                        expect(error).toBe('missing or malformed lastStatus in job file');
+                        expect(fs.readJson).toHaveBeenCalled();
+                        done();
+                    });
+                });
+            });
+            
+            describe('with unmatched hosts', function() {
+                var timerCallback;
+                beforeEach(function() {
+                    jasmine.Clock.useMock();
+                    spyOn(request, 'get');
+                    timerCallback = jasmine.createSpy('timer_callback');
+                });
+                
+                it('should successfully proxy the request', function(done) {
+                    request.get.andCallFake(function(url, cb) {
+                        setTimeout(function() {
+                            timerCallback();
+                            cb(null, {statusCode: 201}, 'fakeBody');
+                        }, 1000);
+                    });
+                    
+                    var promise = dub.getStatus('123456', 'differentHost', config);
+                    jasmine.Clock.tick(1000)
+                    promise.then(function(resp) {
+                        expect(resp).toBeDefined();
+                        expect(resp.code).toBe(201);
+                        expect(resp.data).toBe('fakeBody');
+                        
+                        expect(timerCallback).toHaveBeenCalled();
+                        expect(request.get).toHaveBeenCalled();
+                        expect(request.get.calls[0].args[0])
+                            .toBe('http://differentHost/dub/status/123456?host=differentHost');
+                        done();
+                    }).catch(function(error) {
+                        expect(error).not.toBeDefined();
+                        done();
+                    });
+                });
+                
+                it('should handle failures from the proxied host', function(done) {
+                    request.get.andCallFake(function(url, cb) {
+                        setTimeout(function() {
+                            timerCallback();
+                            cb(null, {statusCode: 500}, {error: 'Error!'});
+                        }, 1000);
+                    });
+                    
+                    var promise = dub.getStatus('123456', 'differentHost', config);
+                    jasmine.Clock.tick(1000)
+                    promise.then(function(resp) {
+                        expect(resp).toBeDefined();
+                        expect(resp.code).toBe(500);
+                        expect(JSON.stringify(resp.data)).toBe(JSON.stringify({error: 'Error!'}));
+                        expect(timerCallback).toHaveBeenCalled();
+                        done();
+                    }).catch(function(error) {
+                        expect(error).not.toBeDefined();
+                        done();
+                    });
+                });
+                
+                it('should timeout if the host takes too long', function(done) {
+                    request.get.andCallFake(function(url, cb) {
+                        setTimeout(function() {
+                            timerCallback();
+                            cb(null, {statusCode: 500}, {error: 'Error!'});
+                        }, 5100);
+                    });
+                    
+                    var promise = dub.getStatus('123456', 'differentHost', config);
+                    jasmine.Clock.tick(5000)
+                    promise.then(function(resp) {
+                        expect(resp).toBeDefined();
+                        expect(resp.code).toBe(504);
+                        expect(resp.data).toBe('Timed out while proxying request');
+                        expect(request.get).toHaveBeenCalled();
+                        expect(timerCallback).not.toHaveBeenCalled();
+                        done();
+                    }).catch(function(error) {
+                        expect(error).not.toBeDefined();
+                        done();
+                    });
                 });
             });
         });

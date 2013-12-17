@@ -8,6 +8,7 @@ var include     = require('../lib/inject').require,
     fs          = include('fs-extra'),
     path        = include('path'),
     os          = include('os'),
+    request     = include('request'),
     cluster     = include('cluster'),
     cp          = include('child_process'),
     express     = include('express'),
@@ -42,6 +43,8 @@ dub.defaultConfiguration = {
         "uri"  : "/media"
     },
     responseTimeout: 1000,
+    proxyTimeout: 5000,
+    hostname: 'localhost',
     s3 : {
         src     : {
             bucket  : 'c6media',
@@ -765,7 +768,7 @@ dub.startCreateJob = function(job, config) {
             code: 202,
             data: {
                 jobId: job.id,
-                host: os.hostname()
+                host: config.hostname
             }
         });
     }, config.responseTimeout);
@@ -793,7 +796,7 @@ dub.startCreateJob = function(job, config) {
                 code: 202,
                 data: {
                     jobId: job.id,
-                    host: os.hostname()
+                    host: config.hostname
                 }
             });
             log.info('[%1] No existing video found for params: Bucket: %2, Key: %3', job.id,
@@ -806,6 +809,62 @@ dub.startCreateJob = function(job, config) {
             });
         }
     });
+    
+    return deferred.promise;
+};
+
+dub.getStatus = function(jobId, host, config) {
+    var deferred = q.defer(),
+        log = logger.getLog();
+    
+    if (host === config.hostname) {
+        var fpath = config.cacheAddress('job-' + jobId + '.json', 'jobs');
+        log.info('[StatusCheck] [%1] Checking locally for status in %2', jobId, fpath);
+        q.npost(fs, 'readJson', [fpath])
+        .then(function(jobFile) {
+            if (!jobFile.lastStatus || !jobFile.lastStatus.code) {
+                deferred.reject('missing or malformed lastStatus in job file');
+                return;
+            }
+            log.info('[StatusCheck] [%1] job has lastStatus %2',
+                     jobId, JSON.stringify(jobFile.lastStatus));
+            deferred.resolve({
+                code: jobFile.lastStatus.code,
+                data: {
+                    jobId: jobId,
+                    lastStatus: jobFile.lastStatus
+                }
+            });
+        }).catch(function(error) {
+            deferred.reject(error);
+        });
+    } else {
+        var timeout = setTimeout(function() {
+            log.error('[StatusCheck] [%1] Timed out while proxying request to host %2', jobId, host);
+            deferred.resolve({
+                code: 504,
+                data: 'Timed out while proxying request'
+            });
+        }, config.proxyTimeout);
+        
+        log.info('[StatusCheck] [%1] Proxying request to host %2', jobId, host);
+        request.get('http://' + host + '/dub/status/' + jobId + '?host=' + host, function(error, response, body) {
+            clearTimeout(timeout);
+            if (error || body.error) {
+                log.error('[StatusCheck] [%1] Host %2 responded with error: %3', jobId, host, JSON.stringify(error));
+                deferred.resolve({
+                    code: response.statusCode,
+                    data: error || body
+                });
+                return;
+            }
+            log.info('[StatusCheck] [%1] Host %2 responded: %3', jobId, host, JSON.stringify(body));
+            deferred.resolve({
+                code: response.statusCode,
+                data: body
+            });
+        });
+    }
     
     return deferred.promise;
 };
@@ -940,7 +999,10 @@ function workerMain(config,program,done){
                 res.send(resp.code, resp.data);
             }).catch(function(error) {
                 log.error('[%1] Error starting create job: %2', req.uuid, JSON.stringify(error));
-                res.send(400, error);
+                res.send(400, {
+                    error  : 'Unable to start job',
+                    detail : error
+                });
             });
         } else {
             dub.handleRequest(job,function(err){
@@ -958,7 +1020,25 @@ function workerMain(config,program,done){
                 });
             });
         }
-    }); 
+    });
+    
+    app.get('/dub/status/:jobId', function(req, res, next){
+        if (!req.params || !req.params.jobId || !req.query || !req.query.host) {
+            res.send(400, 'You must provide the jobId in the request url and the host in the query');
+            return;
+        }
+        dub.getStatus(req.params.jobId, req.query.host, config)
+        .then(function(resp) {
+            res.send(resp.code, resp.data);
+        }).catch(function(error) {
+            log.error('[StatusCheck] [%1] Error checking status of job at host %2: %3',
+                      req.params.jobId, req.query.host, JSON.stringify(error));
+            res.send(400, {
+                error  : 'Unable to check status',
+                detail : error
+            });
+        });
+    });
     
     app.get('/dub/meta', function(req, res, next){
         var data = {
