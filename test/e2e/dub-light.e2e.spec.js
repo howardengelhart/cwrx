@@ -1,12 +1,17 @@
-var request = require('request'),
-    q       = require('q'),
-    path    = require('path'),
-    fs      = require('fs-extra'),
-    host    = process.env['host'] ? process.env['host'] : 'localhost',
-    config = {
-        'dubUrl': 'http://' + (host === 'localhost' ? host + ':3000' : host) + '/dub',
-        'maintUrl': 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint',
-    };
+var request     = require('request'),
+    q           = require('q'),
+    path        = require('path'),
+    fs          = require('fs-extra'),
+    host        = process.env['host'] ? process.env['host'] : 'localhost',
+    statusHost  = process.env['statusHost'] ? process.env['statusHost'] : host,
+    config      = {
+        dubUrl: 'http://' + (host === 'localhost' ? host + ':3000' : host) + '/dub',
+        maintUrl: 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint',
+        statusUrl: 'http://' + (statusHost === 'localhost' ? statusHost + ':3000' : statusHost) + '/dub/status/'
+    },
+    statusTimeout = 35000;
+
+jasmine.getEnv().defaultTimeoutInterval = 40000;
 
 function checkStatus(jobId, host) {
     var interval, timeout,
@@ -47,8 +52,6 @@ function checkStatus(jobId, host) {
     
     return deferred.promise;
 }
-
-jasmine.getEnv().defaultTimeoutInterval = 40000;
 
 describe('dub-light (E2E)', function() {
     var templateFile, templateJSON, siriTemplate,
@@ -159,7 +162,7 @@ describe('dub-light (E2E)', function() {
                 expect(resp.data.lastStatus.step).toBe('Completed');
                 expect(resp.data.resultMD5).toBeDefined();
                 expect(resp.data.resultUrl).toBeDefined();
-                
+                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
                 done();

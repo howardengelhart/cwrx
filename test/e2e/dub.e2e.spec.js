@@ -1,15 +1,12 @@
-var request     = require('request'),
-    q           = require('q'),
-    path        = require('path'),
-    fs          = require('fs-extra'),
-    host        = process.env['host'] ? process.env['host'] : 'localhost',
-    statusHost  = process.env['statusHost'] ? process.env['statusHost'] : host,
-    config      = {
+var request = require('request'),
+    q       = require('q'),
+    path    = require('path'),
+    fs      = require('fs-extra'),
+    host    = process.env['host'] ? process.env['host'] : 'localhost',
+    config  = {
         dubUrl: 'http://' + (host === 'localhost' ? host + ':3000' : host) + '/dub',
-        statusUrl: 'http://' + (statusHost === 'localhost' ? statusHost + ':3000' : statusHost) + '/dub/status/',
         maintUrl: 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint',
-    },
-    statusTimeout = 35000;
+    };
 
 jasmine.getEnv().defaultTimeoutInterval = 40000;
 
