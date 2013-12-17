@@ -828,12 +828,17 @@ dub.getStatus = function(jobId, host, config) {
             }
             log.info('[StatusCheck] [%1] job has lastStatus %2',
                      jobId, JSON.stringify(jobFile.lastStatus));
+            var data = {
+                jobId: jobId,
+                lastStatus: jobFile.lastStatus
+            };
+            if (jobFile.lastStatus.code === 201) {
+                data.resultUrl = jobFile.resultUrl;
+                data.resultMD5 = jobFile.resultMD5;
+            }
             deferred.resolve({
                 code: jobFile.lastStatus.code,
-                data: {
-                    jobId: jobId,
-                    lastStatus: jobFile.lastStatus
-                }
+                data: data
             });
         }).catch(function(error) {
             deferred.reject(error);
@@ -999,6 +1004,7 @@ function workerMain(config,program,done){
         dub.createJobFile(job, config);
         
         if (job.version === 2) {
+            log.info("[%1] Using API version 2", req.uuid);
             dub.startCreateJob(job, config)
             .then(function(resp) {
                 res.send(resp.code, resp.data);
@@ -1010,6 +1016,7 @@ function workerMain(config,program,done){
                 });
             });
         } else {
+            log.info("[%1] Using API version 1", req.uuid);
             dub.handleRequest(job,function(err){
                 if (err){
                     log.error('[%1] Handle Request Error: %2',req.uuid,err.message);
