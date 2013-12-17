@@ -8,6 +8,46 @@ var request = require('request'),
         'maintUrl': 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint',
     };
 
+function checkStatus(jobId, host) {
+    var interval, timeout,
+        deferred = q.defer(),
+        options = {
+            url: config.statusUrl + jobId + '?host=' + host 
+        };
+    
+    interval = setInterval(function() {
+        q.npost(request, 'get', [options])
+        .then(function(values) {
+            var data;
+            try {
+                data = JSON.parse(values[1]);
+            } catch(e) {
+                return q.reject(e);
+            }
+            if (data.error) return q.reject(data.error);
+            if (values[0].statusCode !== 202) {
+                clearInterval(interval);
+                clearTimeout(timeout);
+                deferred.resolve({
+                    code: values[0].statusCode,
+                    data: data
+                });
+            }
+        }).catch(function(error) {
+            clearInterval(interval);
+            clearTimeout(timeout);
+            deferred.reject(error);
+        });
+    }, 5000);
+    
+    timeout = setTimeout(function() {
+        clearInterval(interval);
+        deferred.reject('Timed out polling status of job');
+    }, statusTimeout);
+    
+    return deferred.promise;
+}
+
 jasmine.getEnv().defaultTimeoutInterval = 40000;
 
 describe('dub-light (E2E)', function() {
@@ -93,6 +133,38 @@ describe('dub-light (E2E)', function() {
                 done();
             });
         });
+        
+        it('should succeed using API version 2', function(done) {
+            var options = {
+                url: config.dubUrl + '/create',
+                json: siriTemplate 
+            }, jobId, host;
+            siriTemplate.version = 2;
+            siriTemplate.script[Math.floor(Math.random() * siriTemplate.script.length)].line += Math.round(Math.random() * 10000);
+            
+            q.npost(request, 'post', [options])
+            .then(function(values) {
+                if (!values[1]) return q.reject('No body!');
+                if (values[1].error) return q.reject(values[1].error);
+                expect(values[0].statusCode).toBe(202);
+                expect(values[1].jobId.match(/^\w{10}$/)).toBeTruthy();
+                expect(values[1].host).toBeDefined();
+                return checkStatus(values[1].jobId, values[1].host)
+            }).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(201);
+                expect(resp.data).toBeDefined();
+                expect(resp.data.lastStatus).toBeDefined();
+                expect(resp.data.lastStatus.code).toBe(201);
+                expect(resp.data.lastStatus.step).toBe('Completed');
+                expect(resp.data.resultMD5).toBeDefined();
+                expect(resp.data.resultUrl).toBeDefined();
+                
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
     });
     
     describe('/dub/meta', function() {
@@ -107,6 +179,10 @@ describe('dub-light (E2E)', function() {
                 expect(data.version).toBeDefined();
                 expect(data.version.match(/^.+\.build\d+-\d+-g\w+$/)).toBeTruthy('version match');
                 expect(data.config).toBeDefined();
+                
+                expect(data.config.hostname).toBeDefined();
+                expect(data.config.proxyTimeout).toBeDefined();
+                expect(data.config.responseTimeout).toBeDefined();
                 
                 expect(data.config.output).toBeDefined();
                 expect(data.config.output.type).toBe('s3');

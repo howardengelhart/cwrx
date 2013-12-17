@@ -247,7 +247,7 @@ describe('share (E2E)', function() {
                 expect(values[1]).toBe('Unable to complete request.');
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
@@ -277,7 +277,7 @@ describe('share (E2E)', function() {
                 expect(values[1]).toBe('Unable to complete request.');
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });

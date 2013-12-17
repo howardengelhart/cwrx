@@ -757,12 +757,10 @@ dub.handleRequest = function(job, done){
 };
 
 dub.startCreateJob = function(job, config) {
-    var timedOut = false,
-        log      = logger.getLog(),
+    var log      = logger.getLog(),
         deferred = q.defer();
         
     var timeout = setTimeout(function() {
-        timedOut = true;
         log.warn('[%1] s3.headObject took too long, responding with 202', job.id);
         deferred.resolve({
             code: 202,

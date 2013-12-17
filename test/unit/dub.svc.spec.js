@@ -509,7 +509,7 @@ describe('dub (UT)',function(){
                     expect(dub.handleRequest).not.toHaveBeenCalled();
                     done();
                 }).catch(function(error) {
-                    expect(error).not.toBeDefined();
+                    expect(error.toString()).not.toBeDefined();
                     done();
                 });
             });
@@ -532,7 +532,7 @@ describe('dub (UT)',function(){
                     expect(dub.handleRequest).toHaveBeenCalled();
                     done();
                 }).catch(function(error) {
-                    expect(error).not.toBeDefined();
+                    expect(error.toString()).not.toBeDefined();
                     done();
                 });
             });
@@ -559,7 +559,7 @@ describe('dub (UT)',function(){
                     expect(dub.handleRequest).not.toHaveBeenCalled();
                     done();
                 }).catch(function(error) {
-                    expect(error).not.toBeDefined();
+                    expect(error.toString()).not.toBeDefined();
                     done();
                 });
             });
@@ -587,7 +587,7 @@ describe('dub (UT)',function(){
                     expect(mockLog.error).toHaveBeenCalled();
                     done();
                 }).catch(function(error) {
-                    expect(error).not.toBeDefined();
+                    expect(error.toString()).not.toBeDefined();
                     done();
                 });
             });
@@ -601,21 +601,27 @@ describe('dub (UT)',function(){
                 
                 it('should successfully read the status from the file', function(done) {
                     fs.readJson.andCallFake(function(fpath, cb) {
-                        cb(null, {lastStatus: {code: 201}});
+                        cb(null, {
+                            lastStatus: {code: 201},
+                            resultUrl: 'http://fake.com',
+                            resultMD5: 'fakeMD5'
+                        });
                     });
                     
                     dub.getStatus('123456', 'fakeHost', config)
                     .then(function(resp) {
                         expect(resp).toBeDefined();
                         expect(resp.code).toBe(201);
-                        expect(JSON.stringify(resp.data)).toBe(
-                            JSON.stringify({jobId: '123456', lastStatus: {code: 201}}));
+                        expect(JSON.stringify(resp.data.lastStatus)).toBe(JSON.stringify({code: 201}));
+                        expect(resp.data.jobId).toBe('123456');
+                        expect(resp.data.resultUrl).toBe('http://fake.com');
+                        expect(resp.data.resultMD5).toBe('fakeMD5');
                         
                         expect(fs.readJson).toHaveBeenCalled();
                         expect(fs.readJson.calls[0].args[0]).toBe('caches/jobs/job-123456.json');
                         done();
                     }).catch(function(error) {
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         done();
                     });
                 });
@@ -689,7 +695,7 @@ describe('dub (UT)',function(){
                             .toBe('http://differentHost/dub/status/123456?host=differentHost');
                         done();
                     }).catch(function(error) {
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         done();
                     });
                 });
@@ -711,7 +717,7 @@ describe('dub (UT)',function(){
                         expect(timerCallback).toHaveBeenCalled();
                         done();
                     }).catch(function(error) {
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         done();
                     });
                 });
@@ -734,7 +740,7 @@ describe('dub (UT)',function(){
                         expect(timerCallback).not.toHaveBeenCalled();
                         done();
                     }).catch(function(error) {
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         done();
                     });
                 });
@@ -817,7 +823,7 @@ describe('dub (UT)',function(){
                         expect(job.setStartTime).not.toHaveBeenCalled();
                         doneFlag = true;
                     }).catch(function(error) { 
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -854,7 +860,7 @@ describe('dub (UT)',function(){
                         expect(job.setEndTime).toHaveBeenCalledWith('getSourceVideo');
                         doneFlag = true;
                     }).catch(function(error) { 
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -903,7 +909,7 @@ describe('dub (UT)',function(){
                         expect(job.setStartTime).not.toHaveBeenCalled();
                         doneFlag = true;
                     }).catch(function(error) { 
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -932,7 +938,7 @@ describe('dub (UT)',function(){
                         expect(job.setEndTime).toHaveBeenCalledWith('convertLinesToMP3');
                         doneFlag = true;
                     }).catch(function(error) { 
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -958,7 +964,7 @@ describe('dub (UT)',function(){
                         expect(job.setEndTime).toHaveBeenCalledWith('convertLinesToMP3');
                         doneFlag = true;
                     }).catch(function(error) { 
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -1009,7 +1015,7 @@ describe('dub (UT)',function(){
                         expect(job.setStartTime).not.toHaveBeenCalled();
                         doneFlag = true;
                     }).catch(function(error) { 
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -1031,7 +1037,7 @@ describe('dub (UT)',function(){
                         expect(job.setEndTime).toHaveBeenCalledWith('collectLinesMetadata');
                         doneFlag = true;
                     }).catch(function(error) { 
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -1083,7 +1089,7 @@ describe('dub (UT)',function(){
                         expect(writeFileSpy).not.toHaveBeenCalled();
                         doneFlag = true;
                     }).catch(function(error) { 
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -1111,7 +1117,7 @@ describe('dub (UT)',function(){
                             {foo: 'bar', duration: 3.5}));
                         doneFlag = true;
                     }).catch(function(error) { 
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -1135,7 +1141,7 @@ describe('dub (UT)',function(){
                         expect(writeFileSpy).toHaveBeenCalled();
                         doneFlag = true;
                     }).catch(function(error) { 
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -1161,7 +1167,7 @@ describe('dub (UT)',function(){
                         expect(writeFileSpy).toHaveBeenCalled();
                         doneFlag = true;
                     }).catch(function(error) { 
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -1234,7 +1240,7 @@ describe('dub (UT)',function(){
                         expect(job.setStartTime).not.toHaveBeenCalled();
                         doneFlag = true;
                     }).catch(function(error) { 
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -1257,7 +1263,7 @@ describe('dub (UT)',function(){
                         expect(job.setEndTime).toHaveBeenCalledWith('getVideoLength');
                         doneFlag = true;
                     }).catch(function(error) {
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -1278,7 +1284,7 @@ describe('dub (UT)',function(){
                         expect(job.setEndTime).toHaveBeenCalledWith('getVideoLength');
                         doneFlag = true;
                     }).catch(function(error) {
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -1334,7 +1340,7 @@ describe('dub (UT)',function(){
                         expect(job.setEndTime).toHaveBeenCalledWith('getVideoLength');
                         doneFlag = true;
                     }).catch(function(error) { 
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -1363,7 +1369,7 @@ describe('dub (UT)',function(){
                         expect(job.setStartTime).not.toHaveBeenCalled();
                         doneFlag = true;
                     }).catch(function(error) { 
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -1381,7 +1387,7 @@ describe('dub (UT)',function(){
                         expect(job.setEndTime).toHaveBeenCalledWith('convertScriptToMP3');
                         doneFlag = true;
                     }).catch(function(error) { 
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -1419,7 +1425,7 @@ describe('dub (UT)',function(){
                         expect(job.setStartTime).not.toHaveBeenCalled();
                         doneFlag = true;
                     }).catch(function(error) { 
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -1443,7 +1449,7 @@ describe('dub (UT)',function(){
                         expect(job.setEndTime).toHaveBeenCalledWith('applyScriptToVideo');
                         doneFlag = true;
                     }).catch(function(error) { 
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -1464,7 +1470,7 @@ describe('dub (UT)',function(){
                         expect(job.setEndTime).toHaveBeenCalledWith('applyScriptToVideo');
                         doneFlag = true;
                     }).catch(function(error) {
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -1522,7 +1528,7 @@ describe('dub (UT)',function(){
                         expect(job.setStartTime).not.toHaveBeenCalled();
                         doneFlag = true;
                     }).catch(function(error) { 
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -1560,7 +1566,7 @@ describe('dub (UT)',function(){
                         expect(job.setEndTime).toHaveBeenCalledWith('uploadToStorage');
                         doneFlag = true;
                     }).catch(function(error) { 
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
@@ -1583,7 +1589,7 @@ describe('dub (UT)',function(){
                         expect(job.setEndTime).toHaveBeenCalledWith('uploadToStorage');
                         doneFlag = true;
                     }).catch(function(error) { 
-                        expect(error).not.toBeDefined();
+                        expect(error.toString()).not.toBeDefined();
                         doneFlag = true;
                     });
                 });

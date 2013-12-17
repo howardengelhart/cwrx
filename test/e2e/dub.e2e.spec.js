@@ -3,7 +3,7 @@ var request     = require('request'),
     path        = require('path'),
     fs          = require('fs-extra'),
     host        = process.env['host'] ? process.env['host'] : 'localhost',
-    statusHost  = process.env['statusHost'] ? process.env['statusHost'] : 'localhost',
+    statusHost  = process.env['statusHost'] ? process.env['statusHost'] : host,
     config      = {
         dubUrl: 'http://' + (host === 'localhost' ? host + ':3000' : host) + '/dub',
         statusUrl: 'http://' + (statusHost === 'localhost' ? statusHost + ':3000' : statusHost) + '/dub/status/',
@@ -12,46 +12,6 @@ var request     = require('request'),
     statusTimeout = 35000;
 
 jasmine.getEnv().defaultTimeoutInterval = 40000;
-
-function checkStatus(jobId, host) {
-    var interval, timeout,
-        deferred = q.defer(),
-        options = {
-            url: config.statusUrl + jobId + '?host=' + host 
-        };
-    
-    interval = setInterval(function() {
-        q.npost(request, 'get', [options])
-        .then(function(values) {
-            var data;
-            try {
-                data = JSON.parse(values[1]);
-            } catch(e) {
-                return q.reject(e);
-            }
-            if (data.error) return q.reject(data.error);
-            if (values[0].statusCode !== 202) {
-                clearInterval(interval);
-                clearTimeout(timeout);
-                deferred.resolve({
-                    code: values[0].statusCode,
-                    data: data
-                });
-            }
-        }).catch(function(error) {
-            clearInterval(interval);
-            clearTimeout(timeout);
-            deferred.reject(error);
-        });
-    }, 5000);
-    
-    timeout = setTimeout(function() {
-        clearInterval(interval);
-        deferred.reject('Timed out polling status of job');
-    }, statusTimeout);
-    
-    return deferred.promise;
-}
 
 describe('dub (E2E)', function() {
     var templateFile, templateJSON, screamTemplate, badTemplate,
@@ -187,46 +147,6 @@ describe('dub (E2E)', function() {
                 });
             });
         });
-        
-        it('should succeed using API version 2', function(done) {
-            var options = {
-                url: config.dubUrl + '/create',
-                json: screamTemplate 
-            }, jobId, host;
-            screamTemplate.version = 2;
-            screamTemplate.script[Math.floor(Math.random() * screamTemplate.script.length)].line += Math.round(Math.random() * 10000);
-            
-            q.npost(request, 'post', [options])
-            .then(function(values) {
-                if (!values[1]) return q.reject('No body!');
-                if (values[1].error) return q.reject(values[1].error);
-                expect(values[0].statusCode).toBe(202);
-                expect(values[1].jobId.match(/^\w{10}$/)).toBeTruthy();
-                expect(values[1].host).toBeDefined();
-                return checkStatus(values[1].jobId, values[1].host)
-            }).then(function(resp) {
-                expect(resp).toBeDefined();
-                expect(resp.code).toBe(201);
-                expect(resp.data).toBeDefined();
-                expect(resp.data.lastStatus).toBeDefined();
-                expect(resp.data.lastStatus.code).toBe(201);
-                expect(resp.data.lastStatus.step).toBe('Completed');
-                expect(resp.data.resultMD5).toBeDefined();
-                expect(resp.data.resultUrl).toBeDefined();
-                
-                var options = {
-                    url : config.maintUrl + '/clean_cache',
-                    json: screamTemplate
-                };
-                request.post(options, function(error, response, body) {
-                    if (error) console.log('Error cleaning caches: ' + error);
-                    done();
-                });
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-                done();
-            });
-        });
 
         it('should fail if given a template with no script', function(done) {
             var options = {
@@ -277,7 +197,7 @@ describe('dub (E2E)', function() {
             }).then(function() {
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
