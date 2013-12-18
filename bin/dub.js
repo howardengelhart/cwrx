@@ -141,10 +141,10 @@ dub.createJobFile = function(job, config) {
         };
     try {
         fs.writeJsonSync(fpath, data);
-        log.info('[%1] Created job file %2', job.id, fpath);
+        log.info('[create] [%1] Created job file %2', job.id, fpath);
         job.jobFilePath = fpath;
     } catch(e) {
-        log.error("[%1] Failed to create job file: %2", job.id, e);
+        log.error("[create] [%1] Failed to create job file: %2", job.id, e);
     }
 };
 
@@ -159,7 +159,7 @@ dub.updateJobStatus = function(job, code, step, data) {
     try {
         jobFile = fs.readJsonSync(job.jobFilePath);
     } catch(e) {
-        log.error("[%1] Failed to read job file at step %2: %3", job.id, step, e);
+        log.error("[create] [%1] Failed to read job file at step %2: %3", job.id, step, e);
         return;
     }
 
@@ -177,7 +177,7 @@ dub.updateJobStatus = function(job, code, step, data) {
     try {
         fs.writeJsonSync(job.jobFilePath, jobFile);
     } catch(e) {
-        log.error("[%1] Failed to write job file at step %2: %3", job.id, step, e);
+        log.error("[create] [%1] Failed to write job file at step %2: %3", job.id, step, e);
     }
     
     return;
@@ -226,7 +226,7 @@ dub.createDubJob = function(id, template, config){
         });
     }
 
-    log.trace('[%1] job tts : %2',obj.id ,JSON.stringify(obj.tts));
+    log.trace('[create] [%1] job tts : %2',obj.id ,JSON.stringify(obj.tts));
     obj.tracks = [];
     if (!template.script) throw new Error("Expected script section in template");
     template.script.forEach(function(item){
@@ -237,7 +237,7 @@ dub.createDubJob = function(id, template, config){
             line    : item.line,
             hash    : uuid.hashText(item.line.toLowerCase() + JSON.stringify(obj.tts))
         };
-        log.trace('[%1] track : %2',obj.id, JSON.stringify(track));
+        log.trace('[create] [%1] track : %2',obj.id, JSON.stringify(track));
         track.jobId          = obj.id;
         track.fname          = (track.hash + '.mp3');
         track.fpath          = config.cacheAddress(track.fname,'line');
@@ -289,7 +289,7 @@ dub.createDubJob = function(id, template, config){
         obj.videoMetadata = fs.readJSONSync(obj.videoMetadataPath, { encoding : 'utf8' });
     } catch(e) {
         if (e.errno !== 34){
-            log.error('[%1] failed to open videoMetaData file: %2',obj.id, e.message);
+            log.error('[create] [%1] failed to open videoMetaData file: %2',obj.id, e.message);
         }
     }
 
@@ -358,12 +358,12 @@ dub.createDubJob = function(id, template, config){
     };
     obj.setEndTime = function(fnName) {
         if (!obj.elapsedTimes[fnName] || !obj.elapsedTimes[fnName].start) {
-            log.error("[%1] Error: never set start time for [" + fnName + "]");
+            log.error("[create] [%1] Error: never set start time for [" + fnName + "]");
             return;
         }
         obj.elapsedTimes[fnName].end = new Date();
         var elapsed = obj.getElapsedTime(fnName);
-        log.info("[%1] Finished {%2} in %3",obj.id, fnName , elapsed);
+        log.info("[create] [%1] Finished {%2} in %3",obj.id, fnName , elapsed);
     };
     obj.getElapsedTime = function(fnName) {
         if (obj.elapsedTimes[fnName] && obj.elapsedTimes[fnName].start && 
@@ -384,18 +384,18 @@ dub.getSourceVideo = function(job) {
         fnName = 'getSourceVideo';
     
     if (job.hasOutput() || job.hasVideo()) {
-        log.info("[%1] Skipping %2",job.id, fnName);
+        log.info("[create] [%1] Skipping %2",job.id, fnName);
         return q(job);
     }
 
-    log.info("[%1] Starting %2",job.id, fnName);
+    log.info("[create] [%1] Starting %2",job.id, fnName);
     job.setStartTime(fnName);
     dub.updateJobStatus(job, 202, fnName);
 
     if (job.enableAws()) {
         var s3 = new aws.S3(),
             params = job.getS3SrcVideoParams();
-        log.trace('[%1] S3 Request: %2',job.id, JSON.stringify(params));
+        log.trace('[create] [%1] S3 Request: %2',job.id, JSON.stringify(params));
         s3util.getObject(s3, params, job.videoPath).then( 
             function (data) { 
                 deferred.resolve(job);
@@ -419,11 +419,11 @@ dub.convertLinesToMP3 = function(job){
         fnName = 'convertLinesToMP3';
 
     if (job.hasOutput() || job.hasScript() || job.hasLines()) {
-        log.info("[%1] Skipping %2",job.id, fnName);
+        log.info("[create] [%1] Skipping %2",job.id, fnName);
         return q(job);
     }
 
-    log.info("[%1] Starting %2",job.id,fnName);
+    log.info("[create] [%1] Starting %2",job.id,fnName);
     job.setStartTime(fnName);
     dub.updateJobStatus(job, 202, fnName);
 
@@ -445,15 +445,15 @@ dub.convertLinesToMP3 = function(job){
             }
             vocalware.textToSpeech(rqs,track.fpath,function(err,rqs,o){
                 if (err) {
-                    log.info('[%1] Failed, rqs = %2', job.id, JSON.stringify(rqs));
+                    log.info('[create] [%1] Failed, rqs = %2', job.id, JSON.stringify(rqs));
                     deferred.reject(err);
                 } else {
-                    log.trace("[%1] Succeeded: name = %2, ts = %3",job.id , track.fname ,track.ts);
+                    log.trace("[create] [%1] Succeeded: name = %2, ts = %3",job.id , track.fname ,track.ts);
                     deferred.resolve();
                 }
             });
         } else {
-            log.trace('[%1] Track already exists at %2',job.id, track.fpath);
+            log.trace('[create] [%1] Track already exists at %2',job.id, track.fpath);
             deferred.resolve();
         }
         return deferred.promise;
@@ -464,12 +464,12 @@ dub.convertLinesToMP3 = function(job){
         q.fcall(processTrack, track).then(
             function() { deferred2.resolve(); },
             function(error) {
-                log.error("[%1] Failed once for %2 with error = %3",job.id,track.fname,error);
-                log.trace("[%1] Retrying...", job.id);
+                log.error("[create] [%1] Failed once for %2 with error = %3",job.id,track.fname,error);
+                log.trace("[create] [%1] Retrying...", job.id);
                 q.fcall(processTrack, track).then(
                     function() { deferred2.resolve(); },
                     function(error) { 
-                        log.error("[%1] Failed again for %2",job.id, track.fname); 
+                        log.error("[create] [%1] Failed again for %2",job.id, track.fname); 
                         deferred2.reject(error); 
                     }
                 );
@@ -484,7 +484,7 @@ dub.convertLinesToMP3 = function(job){
                 return;
             }
         }
-        log.trace('[%1] All tracks succeeded', job.id); 
+        log.trace('[create] [%1] All tracks succeeded', job.id); 
         deferred.resolve(job);
         job.setEndTime(fnName);
     });
@@ -500,7 +500,7 @@ dub.getLineMetadata = function(track){
     }
     catch(e){
         if (e.errno !== 34){
-            log.error('[%1] Unable to read metapath file: %2',track.jobId,e.message);
+            log.error('[create] [%1] Unable to read metapath file: %2',track.jobId,e.message);
         }
     }
 
@@ -509,17 +509,17 @@ dub.getLineMetadata = function(track){
     }
 
     deferred = q.defer();
-    log.trace('[%1] getLineMetadata %2',track.jobId,track.fpath);
+    log.trace('[create] [%1] getLineMetadata %2',track.jobId,track.fpath);
     id3Info(track.fpath,function(err,data){
         if (err) {
-            log.error('[%1] Error reading track %2 id3info: %3',
+            log.error('[create] [%1] Error reading track %2 id3info: %3',
                 track.jobId, track.fpath, err.message);
             deferred.reject(err);
             return;
         }
 
         if (!data.audio_duration) {
-            log.error('[%1] Reading track %2 id3info returned no duration',
+            log.error('[create] [%1] Reading track %2 id3info returned no duration',
                 track.jobId, track.fpath);
             deferred.reject(new Error('No valid duration found.'));
             return;
@@ -532,7 +532,7 @@ dub.getLineMetadata = function(track){
         try {
             fs.writeFileSync(track.metapath, JSON.stringify(track.metaData));
         } catch(e){
-            log.warn('[%1] Error writing to %2: %3', track.jobId,track.metapath,e.message);
+            log.warn('[create] [%1] Error writing to %2: %3', track.jobId,track.metapath,e.message);
         }
 
         deferred.resolve(track);
@@ -547,11 +547,11 @@ dub.collectLinesMetadata = function(job){
         deferred;
 
     if (job.hasOutput() || job.hasScript() ) {
-        log.info("[%1] Skipping %2",job.id, fnName);
+        log.info("[create] [%1] Skipping %2",job.id, fnName);
         return q(job);
     }
 
-    log.info("[%1] Starting %2",job.id,fnName);
+    log.info("[create] [%1] Starting %2",job.id,fnName);
     job.setStartTime(fnName);
     dub.updateJobStatus(job, 202, fnName);
 
@@ -577,17 +577,17 @@ dub.getVideoLength = function(job){
         fnName = 'getVideoLength';
 
     if (job.hasOutput() || job.hasScript() || job.hasVideoLength()) {
-        log.info("[%1] Skipping %2",job.id, fnName);
+        log.info("[create] [%1] Skipping %2",job.id, fnName);
         return q(job);
     }
 
-    log.info("[%1] Starting %2",job.id,fnName);
+    log.info("[create] [%1] Starting %2",job.id,fnName);
     job.setStartTime(fnName);
     dub.updateJobStatus(job, 202, fnName);
 
     ffmpeg.probe(job.videoPath,function(err,info,cmdline,stderr){
         if (stderr) {
-            log.warn('[%1] ffmpeg errors: %2', job.id, stderr.replace('\n','; '));
+            log.warn('[create] [%1] ffmpeg errors: %2', job.id, stderr.replace('\n','; '));
         }
         if (err) {
             deferred.reject({"fnName": fnName, "msg": err});
@@ -602,11 +602,11 @@ dub.getVideoLength = function(job){
         try {
             fs.writeFileSync(job.videoMetadataPath, JSON.stringify(info));
         } catch(e){
-            log.warn('[%1] Error writing to %2: %3', job.id,job.videoMetadataPath,e.message);
+            log.warn('[create] [%1] Error writing to %2: %3', job.id,job.videoMetadataPath,e.message);
         }
 
         job.videoMetadata = info;
-        log.trace('[%1] Video length: %2', job.id, job.videoMetadata.duration);
+        log.trace('[create] [%1] Video length: %2', job.id, job.videoMetadata.duration);
         job.setEndTime(fnName);
         deferred.resolve(job);
     });
@@ -619,18 +619,18 @@ dub.convertScriptToMP3 = function(job){
         fnName = 'convertScriptToMP3';
 
     if (job.hasOutput() || job.hasScript()) {
-        log.info("[%1] Skipping %2", job.id, fnName);
+        log.info("[create] [%1] Skipping %2", job.id, fnName);
         return q(job);
     }
 
-    log.info("[%1] Starting %2",job.id, fnName);
+    log.info("[create] [%1] Starting %2",job.id, fnName);
     job.setStartTime(fnName);
     dub.updateJobStatus(job, 202, fnName);
 
     assemble(job.assembleTemplate())
     .then(function(tmpl){
         job.setEndTime(fnName);
-        log.trace('[%1] Assembled: %2',job.id , tmpl.output);
+        log.trace('[create] [%1] Assembled: %2',job.id , tmpl.output);
         deferred.resolve(job);
     })
     .fail(function(err){
@@ -647,25 +647,25 @@ dub.applyScriptToVideo = function(job){
         fnName = 'applyScriptToVideo';
  
     if (job.hasOutput()) {
-        log.info("[%1] Skipping %2", job.id, fnName);
+        log.info("[create] [%1] Skipping %2", job.id, fnName);
         return q(job);
     }
 
-    log.info("[%1] Starting %2",job.id,fnName);
+    log.info("[create] [%1] Starting %2",job.id,fnName);
     job.setStartTime(fnName);
     dub.updateJobStatus(job, 202, fnName);
 
     ffmpeg.mergeAudioToVideo(job.videoPath,job.scriptPath,
             job.outputPath,job.mergeTemplate(), function(err,fpath,cmdline,stderr){
                 if (stderr) {
-                    log.warn('[%1] ffmpeg errors: %2', job.id, stderr.replace('\n','; '));
+                    log.warn('[create] [%1] ffmpeg errors: %2', job.id, stderr.replace('\n','; '));
                 }
                 if (err) {
                     deferred.reject({"fnName": fnName, "msg": err});
                     job.setEndTime(fnName);
                     return deferred.promise;
                 }
-                log.trace('[%1] Merged: %2',job.id , fpath);
+                log.trace('[create] [%1] Merged: %2',job.id , fpath);
                 job.setEndTime(fnName);
                 deferred.resolve(job);
             });
@@ -678,18 +678,18 @@ dub.uploadToStorage = function(job){
         fnName = 'uploadToStorage';
     
     if (job.outputType === 'local') {
-        log.trace('[%1] Output type is set to "local", skipping S3 upload.',job.id);
+        log.trace('[create] [%1] Output type is set to "local", skipping S3 upload.',job.id);
         deferred.resolve(job);
         return deferred.promise;
     }
     
     if (!job.enableAws()){
-        log.trace('[%1] Cannot upload, aws is not enabled.',job.id);
+        log.trace('[create] [%1] Cannot upload, aws is not enabled.',job.id);
         deferred.resolve(job);
         return deferred.promise;
     }
 
-    log.info("[%1] Starting %2",job.id,fnName);
+    log.info("[create] [%1] Starting %2",job.id,fnName);
     job.setStartTime(fnName);
     dub.updateJobStatus(job, 202, fnName);
 
@@ -701,23 +701,23 @@ dub.uploadToStorage = function(job){
 
     hash.update(localVid);
     job.md5 = hash.digest('hex');
-    log.trace("[%1] Local File MD5: %2",job.id, job.md5);
+    log.trace("[create] [%1] Local File MD5: %2",job.id, job.md5);
 
     s3.headObject(headParams, function(err, data) {
         if (data && data.ETag && data.ETag.replace(/"/g, '') == job.md5) {
-            log.info("[%1] Local video already exists on S3, skipping upload",job.id);
+            log.info("[create] [%1] Local video already exists on S3, skipping upload",job.id);
             job.setEndTime(fnName);
             deferred.resolve(job);
         } else {
-            log.info('[%1] Uploading to Bucket: %2, Key: %3',job.id,outParams.Bucket,
+            log.info('[create] [%1] Uploading to Bucket: %2, Key: %3',job.id,outParams.Bucket,
                 outParams.Key);
             s3util.putObject(s3, job.outputPath, outParams).then(
                 function (res) {
-                    log.info('[%1] SUCCESS: %2',job.id,JSON.stringify(res));
+                    log.info('[create] [%1] SUCCESS: %2',job.id,JSON.stringify(res));
                     job.setEndTime(fnName);
                     deferred.resolve(job);
                 }, function (error) {
-                    log.error('[%1] ERROR: %2',job.id, JSON.stringify(error));
+                    log.error('[create] [%1] ERROR: %2',job.id, JSON.stringify(error));
                     job.setEndTime(fnName);
                     deferred.reject({"fnName": fnName, "msg": 'S3 upload error'});
                 });
@@ -741,7 +741,7 @@ dub.handleRequest = function(job, done){
     .then(dub.uploadToStorage)
     .then(
         function() {
-            log.trace("All tasks succeeded!");
+            log.trace("[create] [%1] All tasks succeeded!", job.id);
             job.setEndTime(fnName);
             dub.updateJobStatus(job, 201, 'Completed', {resultMD5: job.md5});
             done(null, job);
@@ -761,7 +761,7 @@ dub.startCreateJob = function(job, config) {
         deferred = q.defer();
         
     var timeout = setTimeout(function() {
-        log.warn('[%1] s3.headObject took too long, responding with 202', job.id);
+        log.warn('[create] [%1] s3.headObject took too long, responding with 202', job.id);
         deferred.resolve({
             code: 202,
             data: {
@@ -778,7 +778,7 @@ dub.startCreateJob = function(job, config) {
     s3.headObject(headParams, function(err, data) {
         if (!err && data) {
             clearTimeout(timeout);
-            log.info('[%1] Found existing video: Bucket: %2, Key: %3',job.id,headParams.Bucket,
+            log.info('[create] [%1] Found existing video: Bucket: %2, Key: %3',job.id,headParams.Bucket,
                 headParams.Key);
             dub.updateJobStatus(job, 201, 'Completed', {resultMD5: data.ETag});
             deferred.resolve({
@@ -797,12 +797,12 @@ dub.startCreateJob = function(job, config) {
                     host: config.hostname
                 }
             });
-            log.info('[%1] No existing video found for params: Bucket: %2, Key: %3', job.id,
+            log.info('[create] [%1] No existing video found for params: Bucket: %2, Key: %3', job.id,
                 headParams.Bucket, headParams.Key);
                 
             dub.handleRequest(job, function(err) {
                 if (err) {
-                    log.error('[%1] Handle Request Error: %2', job.id, err.message);
+                    log.error('[create] [%1] Handle Request Error: %2', job.id, err.message);
                 }
             });
         }
@@ -811,21 +811,21 @@ dub.startCreateJob = function(job, config) {
     return deferred.promise;
 };
 
-dub.getStatus = function(jobId, host, config) {
+dub.getStatus = function(reqId, jobId, host, config) {
     var deferred = q.defer(),
         log = logger.getLog();
     
     if (host === config.hostname) {
         var fpath = config.cacheAddress('job-' + jobId + '.json', 'jobs');
-        log.info('[StatusCheck] [%1] Checking locally for status in %2', jobId, fpath);
+        log.info('[status] [%1] Checking locally for status of %2 in %3', reqId, jobId, fpath);
         q.npost(fs, 'readJson', [fpath])
         .then(function(jobFile) {
             if (!jobFile.lastStatus || !jobFile.lastStatus.code) {
                 deferred.reject('missing or malformed lastStatus in job file');
                 return;
             }
-            log.info('[StatusCheck] [%1] job has lastStatus %2',
-                     jobId, JSON.stringify(jobFile.lastStatus));
+            log.info('[status] [%1] job %2 has lastStatus %3',
+                     reqId, jobId, JSON.stringify(jobFile.lastStatus));
             var data = {
                 jobId: jobId,
                 lastStatus: jobFile.lastStatus
@@ -843,25 +843,27 @@ dub.getStatus = function(jobId, host, config) {
         });
     } else {
         var timeout = setTimeout(function() {
-            log.error('[StatusCheck] [%1] Timed out while proxying request to host %2', jobId, host);
+            log.error('[status] [%1] Timed out while proxying request to host %2', jobId, host);
             deferred.resolve({
                 code: 504,
                 data: 'Timed out while proxying request'
             });
         }, config.proxyTimeout);
         
-        log.info('[StatusCheck] [%1] Proxying request to host %2', jobId, host);
-        request.get('http://' + host + '/dub/status/' + jobId + '?host=' + host, function(error, response, body) {
+        log.info('[status] [%1] Proxying request for job %2 to host %3', reqId, jobId, host);
+        var url = 'http://' + host + '/dub/status/' + jobId + '?host=' + host;
+        request.get(url, function(error, response, body) {
             clearTimeout(timeout);
             if (error || body.error) {
-                log.error('[StatusCheck] [%1] Host %2 responded with error: %3', jobId, host, JSON.stringify(error));
+                log.error('[status] [%1] Host %2 responded with error: %3',
+                          reqId, host, JSON.stringify(error));
                 deferred.resolve({
                     code: response.statusCode,
                     data: error || body
                 });
                 return;
             }
-            log.info('[StatusCheck] [%1] Host %2 responded: %3', jobId, host, JSON.stringify(body));
+            log.info('[status] [%1] Host %2 responded: %3', reqId, host, JSON.stringify(body));
             deferred.resolve({
                 code: response.statusCode,
                 data: body
@@ -992,7 +994,7 @@ function workerMain(config,program,done){
         try {
             job = dub.createDubJob(req.uuid, req.body, config);
         }catch (e){
-            log.error('[%1] Create Job Error: %2', req.uuid, e.message);
+            log.error('[create] [%1] Create Job Error: %2', req.uuid, e.message);
             res.send(400,{
                 error  : 'Unable to process request.',
                 detail : e.message
@@ -1002,22 +1004,22 @@ function workerMain(config,program,done){
         dub.createJobFile(job, config);
         
         if (job.version === 2) {
-            log.info("[%1] Using API version 2", req.uuid);
+            log.info("[create] [%1] Using API version 2", req.uuid);
             dub.startCreateJob(job, config)
             .then(function(resp) {
                 res.send(resp.code, resp.data);
             }).catch(function(error) {
-                log.error('[%1] Error starting create job: %2', req.uuid, JSON.stringify(error));
+                log.error('[create] [%1] Error starting create job: %2', req.uuid, JSON.stringify(error));
                 res.send(400, {
                     error  : 'Unable to start job',
                     detail : error
                 });
             });
         } else {
-            log.info("[%1] Using API version 1", req.uuid);
+            log.info("[create] [%1] Using API version 1", req.uuid);
             dub.handleRequest(job,function(err){
                 if (err){
-                    log.error('[%1] Handle Request Error: %2',req.uuid,err.message);
+                    log.error('[create] [%1] Handle Request Error: %2',req.uuid,err.message);
                     res.send(500,{
                         error  : 'Unable to complete request.',
                         detail : err.message
@@ -1037,12 +1039,12 @@ function workerMain(config,program,done){
             res.send(400, 'You must provide the jobId in the request url and the host in the query');
             return;
         }
-        dub.getStatus(req.params.jobId, req.query.host, config)
+        dub.getStatus(req.uuid, req.params.jobId, req.query.host, config)
         .then(function(resp) {
             res.send(resp.code, resp.data);
         }).catch(function(error) {
-            log.error('[StatusCheck] [%1] Error checking status of job at host %2: %3',
-                      req.params.jobId, req.query.host, JSON.stringify(error));
+            log.error('[status] [%1] Error checking status of job [%2] at host %3: %4',
+                      req.uuid, req.params.jobId, req.query.host, JSON.stringify(error));
             res.send(400, {
                 error  : 'Unable to check status',
                 detail : error
