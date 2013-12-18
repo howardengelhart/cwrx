@@ -608,7 +608,7 @@ describe('dub (UT)',function(){
                         });
                     });
                     
-                    dub.getStatus('123456', 'fakeHost', config)
+                    dub.getStatus('status1', '123456', 'fakeHost', config)
                     .then(function(resp) {
                         expect(resp).toBeDefined();
                         expect(resp.code).toBe(201);
@@ -631,7 +631,7 @@ describe('dub (UT)',function(){
                         cb('Error!');
                     });
                     
-                    dub.getStatus('123456', 'fakeHost', config)
+                    dub.getStatus('status1', '123456', 'fakeHost', config)
                     .catch(function(error) {
                         expect(error).toBe('Error!');
                         expect(fs.readJson).toHaveBeenCalled();
@@ -644,7 +644,7 @@ describe('dub (UT)',function(){
                         cb(null, {foo: 'bar'});
                     });
                     
-                    dub.getStatus('123456', 'fakeHost', config)
+                    dub.getStatus('status1', '123456', 'fakeHost', config)
                     .catch(function(error) {
                         expect(error).toBe('missing or malformed lastStatus in job file');
                         expect(fs.readJson).toHaveBeenCalled();
@@ -657,7 +657,7 @@ describe('dub (UT)',function(){
                         cb(null, {lastStatus: {step: 'foo'}});
                     });
                     
-                    dub.getStatus('123456', 'fakeHost', config)
+                    dub.getStatus('status1', '123456', 'fakeHost', config)
                     .catch(function(error) {
                         expect(error).toBe('missing or malformed lastStatus in job file');
                         expect(fs.readJson).toHaveBeenCalled();
@@ -682,7 +682,7 @@ describe('dub (UT)',function(){
                         }, 1000);
                     });
                     
-                    var promise = dub.getStatus('123456', 'differentHost', config);
+                    var promise = dub.getStatus('status1', '123456', 'differentHost', config);
                     jasmine.Clock.tick(1000)
                     promise.then(function(resp) {
                         expect(resp).toBeDefined();
@@ -692,7 +692,7 @@ describe('dub (UT)',function(){
                         expect(timerCallback).toHaveBeenCalled();
                         expect(request.get).toHaveBeenCalled();
                         expect(request.get.calls[0].args[0])
-                            .toBe('http://differentHost/dub/status/123456?host=differentHost');
+                            .toBe('http://differentHost/dub/status/123456?host=differentHost&proxied=true');
                         done();
                     }).catch(function(error) {
                         expect(error.toString()).not.toBeDefined();
@@ -708,7 +708,7 @@ describe('dub (UT)',function(){
                         }, 1000);
                     });
                     
-                    var promise = dub.getStatus('123456', 'differentHost', config);
+                    var promise = dub.getStatus('status1', '123456', 'differentHost', config);
                     jasmine.Clock.tick(1000)
                     promise.then(function(resp) {
                         expect(resp).toBeDefined();
@@ -730,7 +730,7 @@ describe('dub (UT)',function(){
                         }, 5100);
                     });
                     
-                    var promise = dub.getStatus('123456', 'differentHost', config);
+                    var promise = dub.getStatus('status1', '123456', 'differentHost', config);
                     jasmine.Clock.tick(5000)
                     promise.then(function(resp) {
                         expect(resp).toBeDefined();

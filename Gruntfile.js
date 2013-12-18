@@ -111,6 +111,9 @@ module.exports = function (grunt) {
         if (grunt.option('testHost')) {
             args.push('--config', 'host', grunt.option('testHost'));
         }
+        if (grunt.option('statusHost')) {
+            args.push('--config', 'statusHost', grunt.option('statusHost'));
+        }
         if (grunt.option('bucket')) {
             args.push('--config', 'bucket', grunt.option('bucket'));
         }

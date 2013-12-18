@@ -811,12 +811,16 @@ dub.startCreateJob = function(job, config) {
     return deferred.promise;
 };
 
-dub.getStatus = function(reqId, jobId, host, config) {
+dub.getStatus = function(reqId, jobId, host, config, proxied) {
     var deferred = q.defer(),
         log = logger.getLog();
     
-    if (host === config.hostname) {
+    if (host === config.hostname || proxied) {
         var fpath = config.cacheAddress('job-' + jobId + '.json', 'jobs');
+        if (host !== config.hostname) {
+            log.error('[status] [%1] Got proxied request to %2 but this host is %3',
+                      reqId, host, config.hostname);
+        }
         log.info('[status] [%1] Checking locally for status of %2 in %3', reqId, jobId, fpath);
         q.npost(fs, 'readJson', [fpath])
         .then(function(jobFile) {
@@ -851,7 +855,7 @@ dub.getStatus = function(reqId, jobId, host, config) {
         }, config.proxyTimeout);
         
         log.info('[status] [%1] Proxying request for job %2 to host %3', reqId, jobId, host);
-        var url = 'http://' + host + '/dub/status/' + jobId + '?host=' + host;
+        var url = 'http://' + host + '/dub/status/' + jobId + '?host=' + host + '&proxied=true';
         request.get(url, function(error, response, body) {
             clearTimeout(timeout);
             if (error || body.error) {
@@ -1039,7 +1043,7 @@ function workerMain(config,program,done){
             res.send(400, 'You must provide the jobId in the request url and the host in the query');
             return;
         }
-        dub.getStatus(req.uuid, req.params.jobId, req.query.host, config)
+        dub.getStatus(req.uuid, req.params.jobId, req.query.host, config, req.query.proxied)
         .then(function(resp) {
             res.send(resp.code, resp.data);
         }).catch(function(error) {
