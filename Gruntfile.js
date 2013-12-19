@@ -152,10 +152,10 @@ module.exports = function (grunt) {
     grunt.registerTask('start_instances', 'starts instances for running tests', function(idString) {
         var settings = grunt.config.get('settings'),
             auth     = settings.awsAuth,
-            stateInterval = (grunt.config.get('start_instances.stateInterval') || 5) * 1000,
-            stateIters = grunt.config.get('start_instances.stateIters') || 12,
-            sshInterval = (grunt.config.get('start_instances.sshInterval') || 5) * 1000,
-            sshIters = grunt.config.get('start_instances.sshIters') || 12;
+            stateInterval = grunt.config.get('start_instances.stateInterval') * 1000,
+            stateIters = grunt.config.get('start_instances.stateIters'),
+            sshInterval = grunt.config.get('start_instances.sshInterval') * 1000,
+            sshIters = grunt.config.get('start_instances.sshIters');
             ids = idString.split(',');
         
         if (!ids) {
@@ -204,8 +204,8 @@ module.exports = function (grunt) {
     grunt.registerTask('stop_instances', 'stops the test instances', function(idString) {
         var settings = grunt.config.get('settings'),
             auth     = settings.awsAuth,
-            interval = (grunt.config.get('stop_instances.pollingInterval') || 5) * 1000,
-            maxIters = grunt.config.get('stop_instances.maxIters') || 12,
+            interval = grunt.config.get('stop_instances.pollingInterval') * 1000,
+            maxIters = grunt.config.get('stop_instances.maxIters'),
             ids = idString.split(',');
         
         if (!ids) {

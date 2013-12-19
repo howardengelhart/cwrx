@@ -1,10 +1,11 @@
 var fs          = require('fs-extra'),
+    path        = require('path'),
     sanitize    = require('../sanitize'),
+    q           = require('q'),
     cwrxConfig  = require('../../lib/config');
 
 describe('dub job remover (UT)', function() {
-
-    var dub, mockLog, mockLogger;
+    var dub, mockLog, mockLogger, mockHostname;
     
     beforeEach(function() {
         mockLog = {
@@ -19,9 +20,10 @@ describe('dub job remover (UT)', function() {
             createLog: jasmine.createSpy('create_log').andReturn(mockLog),
             getLog : jasmine.createSpy('get_log').andReturn(mockLog)
         };
+        mockHostname = jasmine.createSpy('hostname').andReturn(q('fakeHost'));
 
         dub = sanitize(['../bin/dub'])
-                .andConfigure([['../lib/logger', mockLogger]])
+                .andConfigure([['../lib/logger', mockLogger], ['../lib/hostname', mockHostname]])
                 .andRequire();
     });
 
@@ -35,11 +37,12 @@ describe('dub job remover (UT)', function() {
                 'caches/jobs/job-2.json': { createTime: start - (maxAge + 1) * 1000 },
                 'caches/jobs/job-3.json': { createTime: start }
             };
-            var configObject = {
-                caches: { jobs: 'caches/jobs/' }
+            config = {
+                caches: { jobs: 'caches/jobs/' },
+                cacheAddress: function(fname, cache) {
+                    return path.join(this.caches[cache],fname);
+                }
             };
-            spyOn(cwrxConfig, 'createConfigObject').andReturn(configObject);
-            config = dub.createConfiguration({});
             spyOn(fs, 'readdir').andCallFake(function(path, cb) {
                 cb(null, ['job-1.json', 'job-2.json', 'job-3.json']);
             });
