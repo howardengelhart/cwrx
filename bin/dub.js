@@ -833,14 +833,14 @@ dub.getStatus = function(jobId, host, config, proxied) {
             log.error('Got proxied request for status of %1 to %2 but this host is %3',
                       jobId, host, config.hostname);
         }
-        log.info('Checking locally for status of %2 in %3', jobId, fpath);
+        log.info('Checking locally for status of %1 in %2', jobId, fpath);
         q.npost(fs, 'readJson', [fpath])
         .then(function(jobFile) {
             if (!jobFile.lastStatus || !jobFile.lastStatus.code) {
                 deferred.reject('missing or malformed lastStatus in job file');
                 return;
             }
-            log.info('job %2 has lastStatus %3', jobId, JSON.stringify(jobFile.lastStatus));
+            log.info('job %1 has lastStatus %2', jobId, JSON.stringify(jobFile.lastStatus));
             var data = {
                 jobId: jobId,
                 lastStatus: jobFile.lastStatus
@@ -865,19 +865,19 @@ dub.getStatus = function(jobId, host, config, proxied) {
             });
         }, config.proxyTimeout);
         
-        log.info('Proxying request for job %2 to host %3', jobId, host);
+        log.info('Proxying request for job %1 to host %2', jobId, host);
         var url = 'http://' + host + '/dub/status/' + jobId + '?host=' + host + '&proxied=true';
         request.get(url, function(error, response, body) {
             clearTimeout(timeout);
             if (error || body.error) {
-                log.error('Host %2 responded with error: %3', host, JSON.stringify(error));
+                log.error('Host %1 responded with error: %2', host, JSON.stringify(error));
                 deferred.resolve({
                     code: response.statusCode,
                     data: error || body
                 });
                 return;
             }
-            log.info('Host %2 responded: %3', host, JSON.stringify(body));
+            log.info('Host %1 responded: %2', host, JSON.stringify(body));
             deferred.resolve({
                 code: response.statusCode,
                 data: body
@@ -1053,12 +1053,12 @@ function workerMain(config,program,done){
             res.send(400, 'You must provide the jobId in the request url and the host in the query');
             return;
         }
-        dub.getStatus(req.uuid, req.params.jobId, req.query.host, config, req.query.proxied)
+        dub.getStatus(req.params.jobId, req.query.host, config, req.query.proxied)
         .then(function(resp) {
             res.send(resp.code, resp.data);
         }).catch(function(error) {
-            log.error('[%1] Error checking status of job [%2] at host %3: %4',
-                      req.uuid, req.params.jobId, req.query.host, JSON.stringify(error));
+            log.error('Error checking status of job [%1] at host %2: %3',
+                      req.params.jobId, req.query.host, JSON.stringify(error));
             res.send(400, {
                 error  : 'Unable to check status',
                 detail : error
@@ -1067,7 +1067,6 @@ function workerMain(config,program,done){
     });
     
     app.get('/dub/meta', function(req, res, next){
-        log.info(req.headers.host);
         var data = {
             version: dub.getVersion(),
             config: {

@@ -2,6 +2,7 @@ var request     = require('request'),
     q           = require('q'),
     path        = require('path'),
     fs          = require('fs-extra'),
+    testUtils   = require('./testUtils'),
     host        = process.env['host'] ? process.env['host'] : 'localhost',
     statusHost  = process.env['statusHost'] ? process.env['statusHost'] : host,
     config      = {
@@ -12,46 +13,6 @@ var request     = require('request'),
     statusTimeout = 35000;
 
 jasmine.getEnv().defaultTimeoutInterval = 40000;
-
-function checkStatus(jobId, host) {
-    var interval, timeout,
-        deferred = q.defer(),
-        options = {
-            url: config.statusUrl + jobId + '?host=' + host 
-        };
-    
-    interval = setInterval(function() {
-        q.npost(request, 'get', [options])
-        .then(function(values) {
-            var data;
-            try {
-                data = JSON.parse(values[1]);
-            } catch(e) {
-                return q.reject(e);
-            }
-            if (data.error) return q.reject(data.error);
-            if (values[0].statusCode !== 202) {
-                clearInterval(interval);
-                clearTimeout(timeout);
-                deferred.resolve({
-                    code: values[0].statusCode,
-                    data: data
-                });
-            }
-        }).catch(function(error) {
-            clearInterval(interval);
-            clearTimeout(timeout);
-            deferred.reject(error);
-        });
-    }, 5000);
-    
-    timeout = setTimeout(function() {
-        clearInterval(interval);
-        deferred.reject('Timed out polling status of job');
-    }, statusTimeout);
-    
-    return deferred.promise;
-}
 
 describe('dub-light (E2E)', function() {
     var templateFile, templateJSON, siriTemplate,
@@ -74,23 +35,8 @@ describe('dub-light (E2E)', function() {
     });
     afterEach(function(done) {
         if (!process.env['getLogs']) return done();
-        var spec = jasmine.getEnv().currentSpec;
-        testNum++;
-        var options = {
-            url: config.maintUrl + '/get_log?logFile=dub.log'
-        };
-        q.npost(request, 'get', [options])
-        .then(function(values) {
-            if (!values[1]) return q.reject();
-            if (values[1].error) return q.reject(values[1]);
-            if (spec && spec.results && spec.results().failedCount != 0) {
-                console.log('\nRemote log for failed spec "' + spec.description + '":\n');
-                console.log(values[1]);
-                console.log('-------------------------------------------------------------------');
-            }
-            var fname = path.join(__dirname, 'logs/dub-light.test' + testNum + '.log');
-            return q.npost(fs, 'outputFile', [fname, values[1]]);
-        }).then(function() {
+        testUtils.getLog('dub.log', maintUrl, jasmine.getEnv().currentSpec, ++testNum)
+        .then(function() {
             done();
         }).catch(function(error) {
             console.log("Error getting log file for test " + testNum + ": " + JSON.stringify(error));
@@ -143,7 +89,8 @@ describe('dub-light (E2E)', function() {
                 json: siriTemplate 
             }, jobId, host;
             siriTemplate.version = 2;
-            siriTemplate.script[Math.floor(Math.random() * siriTemplate.script.length)].line += Math.round(Math.random() * 10000);
+            siriTemplate.script[Math.floor(Math.random() * siriTemplate.script.length)].line +=
+                                Math.round(Math.random() * 10000);
             
             q.npost(request, 'post', [options])
             .then(function(values) {
@@ -152,7 +99,7 @@ describe('dub-light (E2E)', function() {
                 expect(values[0].statusCode).toBe(202);
                 expect(values[1].jobId.match(/^\w{10}$/)).toBeTruthy();
                 expect(values[1].host).toBeDefined();
-                return checkStatus(values[1].jobId, values[1].host)
+                return testUtils.checkStatus(values[1].jobId, values[1].host, config.statusUrl, statusTimeout);
             }).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(201);
