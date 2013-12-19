@@ -6,9 +6,9 @@ var request     = require('request'),
     host        = process.env['host'] ? process.env['host'] : 'localhost',
     statusHost  = process.env['statusHost'] ? process.env['statusHost'] : host,
     config      = {
-        dubUrl: 'http://' + (host === 'localhost' ? host + ':3000' : host) + '/dub',
-        maintUrl: 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint',
-        statusUrl: 'http://' + (statusHost === 'localhost' ? statusHost + ':3000' : statusHost) + '/dub/status/'
+        dubUrl    : 'http://' + (host === 'localhost' ? host + ':3000' : host) + '/dub',
+        maintUrl  : 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint',
+        statusUrl : 'http://' + (statusHost === 'localhost' ? statusHost + ':3000' : statusHost) + '/dub/status/'
     },
     statusTimeout = 35000;
 
@@ -35,7 +35,7 @@ describe('dub-light (E2E)', function() {
     });
     afterEach(function(done) {
         if (!process.env['getLogs']) return done();
-        testUtils.getLog('dub.log', maintUrl, jasmine.getEnv().currentSpec, ++testNum)
+        testUtils.getLog('dub.log', config.maintUrl, jasmine.getEnv().currentSpec, ++testNum)
         .then(function() {
             done();
         }).catch(function(error) {

@@ -26,7 +26,8 @@ var include     = require('../lib/inject').require,
             blanks  : path.normalize('/usr/local/share/cwrx/dub/caches/blanks/'),
             script  : path.normalize('/usr/local/share/cwrx/dub/caches/script/'),
             video   : path.normalize('/usr/local/share/cwrx/dub/caches/video/'),
-            output  : path.normalize('/usr/local/share/cwrx/dub/caches/output/')
+            output  : path.normalize('/usr/local/share/cwrx/dub/caches/output/'),
+            jobs    : path.normalize('/usr/local/share/cwrx/dub/caches/jobs/'),
         },
         s3 : {
             share     : {
@@ -181,7 +182,8 @@ function main(done) {
             });
             return;
         }
-        fs.writeFile(config.cacheAddress(req.body.fname, req.body.cache), req.body.data, function(error) {
+        fs.writeFile(config.cacheAddress(req.body.fname, req.body.cache),
+                     JSON.stringify(req.body.data), function(error) {
             if (error) {
                 log.error("Error writing to file: " + error);
                 res.send(500, {

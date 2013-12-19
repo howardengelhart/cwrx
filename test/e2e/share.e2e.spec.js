@@ -1,7 +1,8 @@
-var request = require('request'),
-    q       = require('q'),
-    path    = require('path'),
-    fs      = require('fs-extra'),
+var request     = require('request'),
+    q           = require('q'),
+    path        = require('path'),
+    fs          = require('fs-extra'),
+    testUtils   = require('./testUtils'),
     host = process.env['host'] ? process.env['host'] : 'localhost',
     config = {
         'shareUrl': 'http://' + (host === 'localhost' ? host + ':3100' : host) + '/share',
@@ -31,23 +32,8 @@ describe('share (E2E)', function() {
     });
     afterEach(function(done) {
         if (!process.env['getLogs']) return done();
-        var spec = jasmine.getEnv().currentSpec;
-        testNum++;
-        var options = {
-            url: config.maintUrl + '/get_log?logFile=share.log'
-        };
-        q.npost(request, 'get', [options])
-        .then(function(values) {
-            if (!values[1]) return q.reject();
-            if (values[1].error) return q.reject(values[1]);
-            if (spec && spec.results && spec.results().failedCount != 0) {
-                console.log('\nRemote log for failed spec "' + spec.description + '":\n');
-                console.log(values[1]);
-                console.log('-------------------------------------------------------------------');
-            }
-            var fname = path.join(__dirname, 'logs/share.test' + testNum + '.log');
-            return q.npost(fs, 'outputFile', [fname, values[1]]);
-        }).then(function() {
+        testUtils.getLog('share.log', config.maintUrl, jasmine.getEnv().currentSpec, ++testNum)
+        .then(function() {
             done();
         }).catch(function(error) {
             console.log("Error getting log file for test " + testNum + ": " + JSON.stringify(error));
