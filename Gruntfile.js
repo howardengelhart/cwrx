@@ -122,7 +122,7 @@ module.exports = function (grunt) {
         }
         
         if (grunt.option('e2e-config')){
-            var cfgObj = fs.readJsonSync(grunt.option('e2e-config'));
+            var cfgObj = JSON.parse(grunt.option('e2e-config'));
             for (var key in cfgObj){
                 args.push('--config',key,cfgObj[key]);
             }
