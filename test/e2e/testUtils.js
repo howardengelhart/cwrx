@@ -3,6 +3,22 @@ var request     = require('request'),
     path        = require('path'),
     fs          = require('fs-extra');
 
+function qRequest(method, opts) {
+    var deferred = q.defer();
+    
+    q.npost(request, method, opts)
+    .then(function(values) {
+        if (!values) return q.reject('Received no data');
+        if (!values[1]) return q.reject('Response missing body');
+        if (values[1].error) return q.reject('Error in body: ' + JSON.stringify(values[1]));
+        deferred.resolve({response: values[0], body: values[1]});
+    }).catch(function(error) {
+        deferred.reject(error);
+    });
+    
+    return deferred.promise;
+}
+
 function getLog(logFile, maintUrl, spec, testNum) {
     var options = {
         url: maintUrl + '/get_log?logFile=dub.log'
@@ -61,6 +77,7 @@ function checkStatus(jobId, host, statusUrl, statusTimeout) {
 }
 
 module.exports = {
+    qRequest: qRequest,
     getLog: getLog,
     checkStatus: checkStatus
 };
