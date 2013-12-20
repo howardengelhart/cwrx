@@ -36,11 +36,11 @@ module.exports = function (grunt) {
                 tasks: ['jshint', 'unit_tests']
             }
         },
-        stop_instance: {
+        stop_instances: {
             pollingInterval: 5,
             maxIters: 24
         },
-        start_instance: {
+        start_instances: {
             stateInterval: 5,
             stateIters: 24,
             sshInterval: 5,
@@ -111,6 +111,9 @@ module.exports = function (grunt) {
         if (grunt.option('testHost')) {
             args.push('--config', 'host', grunt.option('testHost'));
         }
+        if (grunt.option('statusHost')) {
+            args.push('--config', 'statusHost', grunt.option('statusHost'));
+        }
         if (grunt.option('bucket')) {
             args.push('--config', 'bucket', grunt.option('bucket'));
         }
@@ -146,16 +149,17 @@ module.exports = function (grunt) {
         });
     });
 
-    grunt.registerTask('start_instance', 'start an instance for running tests', function(id) {
+    grunt.registerTask('start_instances', 'starts instances for running tests', function(idString) {
         var settings = grunt.config.get('settings'),
             auth     = settings.awsAuth,
-            stateInterval = (grunt.config.get('start_instance.stateInterval') || 5) * 1000,
-            stateIters = grunt.config.get('start_instance.stateIters') || 12;
-            sshInterval = (grunt.config.get('start_instance.sshInterval') || 5) * 1000,
-            sshIters = grunt.config.get('start_instance.sshIters') || 12;
-            
-        if (!id || !grunt.option('testHost')) {
-            grunt.log.errorlns('Need both an instance id and instance ip!');
+            stateInterval = grunt.config.get('start_instances.stateInterval') * 1000,
+            stateIters = grunt.config.get('start_instances.stateIters'),
+            sshInterval = grunt.config.get('start_instances.sshInterval') * 1000,
+            sshIters = grunt.config.get('start_instances.sshIters');
+            ids = idString.split(',');
+        
+        if (!ids) {
+            grunt.log.errorlns('Need to provide an instance id or comma-separated string of ids');
             return false;
         }
         
@@ -163,57 +167,49 @@ module.exports = function (grunt) {
         aws.config.loadFromPath(auth);
         var ec2 = new aws.EC2();
         
-        grunt.log.writelns('Starting instance ' + id);
-        ec2.startInstances({InstanceIds: [id]}, function(err, data) {
+        grunt.log.writelns('Starting instances ' + ids.toString());
+        ec2.startInstances({InstanceIds: ids}, function(err, data) {
             if (err) {
                 grunt.log.errorlns(err);
-                done(false);
-            } else {
-                var stateOpts = {
-                    id: id,
-                    state: 'running',
-                    interval: stateInterval,
-                    maxIters: stateIters
-                };
-                var sshOpts = {
-                    ip: grunt.option('testHost'),
-                    interval: sshInterval,
-                    maxIters: sshIters
-                };
-                grunt.log.writelns('Previous state: ' + data.StartingInstances[0].PreviousState.Name);
-                grunt.log.writelns('Current state: ' + data.StartingInstances[0].CurrentState.Name);
-                if (data.StartingInstances[0].CurrentState.Name === 'running') {
-                    checkSSH(sshOpts, 0).then(function() {
-                        grunt.log.writelns('Instance ' + id + ' is ready to go!');
-                        done(true);
-                    }, function(error) {
-                        grunt.log.errorlns(error);
-                        done(false);
-                    });
-                } else {
-                    setTimeout(function() {
-                        checkState(stateOpts, ec2, 0).then(function() { return checkSSH(sshOpts, 0);})
-                        .then(function() {
-                            grunt.log.writelns('Instance ' + id + ' is ready to go!');
-                            done(true);
-                        }, function(error) {
-                            grunt.log.errorlns(error);
-                            done(false);
-                        });
-                    }, stateInterval);
-                }
+                return done(false);
             }
+            var stateOpts = {
+                ids: ids,
+                state: 'running',
+                interval: stateInterval,
+                maxIters: stateIters
+            };
+            
+            checkState(stateOpts, ec2, 0)
+            .then(function(ips) {
+                grunt.log.writelns('All instances are in the running state');
+                return q.all(ips.map(function(ip) {
+                    var sshOpts = {
+                        ip: ip,
+                        interval: sshInterval,
+                        maxIters: sshIters
+                    };
+                    return checkSSH(sshOpts, 0);
+                }));
+            }).then(function() {
+                grunt.log.writelns('All instances are ready to go!');
+                done(true);
+            }).catch(function(error) {
+                grunt.log.errorlns(error);
+                done(false);
+            });
         });
     });
 
-    grunt.registerTask('stop_instance', 'stop the test instance', function(id) {
+    grunt.registerTask('stop_instances', 'stops the test instances', function(idString) {
         var settings = grunt.config.get('settings'),
             auth     = settings.awsAuth,
-            interval = (grunt.config.get('stop_instance.pollingInterval') || 5) * 1000,
-            maxIters = grunt.config.get('stop_instance.maxIters') || 12;
-            
-        if (!id) {
-            grunt.log.errorlns('No instance id!');
+            interval = grunt.config.get('stop_instances.pollingInterval') * 1000,
+            maxIters = grunt.config.get('stop_instances.maxIters'),
+            ids = idString.split(',');
+        
+        if (!ids) {
+            grunt.log.errorlns('Need to provide an instance id or comma-separated string of ids');
             return false;
         }
         
@@ -221,70 +217,74 @@ module.exports = function (grunt) {
         aws.config.loadFromPath(auth);
         var ec2 = new aws.EC2();
         
-        grunt.log.writelns('Stopping instance ' + id);
-        ec2.stopInstances({InstanceIds: [id]}, function(err, data) {
+        grunt.log.writelns('Stopping instances ' + ids.toString());
+        ec2.stopInstances({InstanceIds: ids}, function(err, data) {
             if (err) {
                 grunt.log.errorlns(err);
-                done(false);
-            } else {
-                grunt.log.writelns('Previous state: ' + data.StoppingInstances[0].PreviousState.Name);
-                grunt.log.writelns('Current state: ' + data.StoppingInstances[0].CurrentState.Name);
-                if (data.StoppingInstances[0].CurrentState.Name === 'stopped') {
-                    grunt.log.writelns('Instance ' + id + ' has stopped!');
-                    done(true);
-                    return;
-                }
-                setTimeout(function() {
-                    var opts = {
-                        id: id,
-                        state: 'stopped',
-                        interval: interval,
-                        maxIters: maxIters
-                    };
-                    checkState(opts, ec2, 0).then(function() {
-                        grunt.log.writelns('Instance ' + id + ' has stopped!');
-                        done(true);
-                    }, function(error) {
-                        grunt.log.errorlns(error);
-                        done(false);
-                    });
-                }, interval);
+                return done(false);
             }
+            var stateOpts = {
+                ids: ids,
+                state: 'stopped',
+                interval: interval,
+                maxIters: maxIters
+            };
+            
+            checkState(stateOpts, ec2, 0)
+            .then(function(ips) {
+                grunt.log.writelns('All instances have stopped');
+                done(true);
+            }).catch(function(error) {
+                grunt.log.errorlns(error);
+                done(false);
+            });
         });
     });
 
     function checkState(opts, ec2, iters, promise) {
-        var deferred = promise || q.defer();
-        grunt.log.writelns('Polling instance ' + opts.id + ' for its state');
-        ec2.describeInstances({InstanceIds: [opts.id]}, function(err, data) {
+        var deferred = promise || q.defer(),
+            ips = [],
+            notReady = false;
+        grunt.log.writelns('Polling instances ' + opts.ids.toString() + ' for their state');
+        ec2.describeInstances({InstanceIds: opts.ids}, function(err, data) {
             if (err) {
                 deferred.reject(err);
                 return;
             }
-            if (!data || !data.Reservations || !data.Reservations[0].Instances) {
+            if (!data || !data.Reservations) {
                 deferred.reject('Incomplete information from describeInstances');
                 return;
             }
-            if (data.Reservations[0].Instances[0].State.Name === opts.state) {
-                grunt.log.writelns('Instance ' + opts.id + ' is in the ' + opts.state + ' state');
-                deferred.resolve();
-                return;
+            
+            data.Reservations.forEach(function(reserv) {
+                reserv.Instances.forEach(function(instance) {
+                    if (instance.State.Name === opts.state) {
+                        ips.push(instance.PrivateIpAddress);
+                    } else {
+                        notReady = true;
+                    }
+                });
+            });
+            
+            if (notReady) {
+                iters++;
+                if (iters >= opts.maxIters) {
+                    deferred.reject('Timed out after ' + iters + ' iterations');
+                    return;
+                }
+                setTimeout(checkState, opts.interval, opts, ec2, iters, deferred);
+            } else {
+                deferred.resolve(ips);
             }
-            iters++;
-            if (iters >= opts.maxIters) {
-                deferred.reject('Timed out after ' + iters + ' iterations');
-                return;
-            }
-            setTimeout(checkState, opts.interval, opts, ec2, iters, deferred);
-            return;
         });
         return deferred.promise;
     }
     
     function checkSSH(opts, iters, promise) {
         var deferred = promise || q.defer();
+            
         grunt.log.writelns('Checking if instance ' + opts.ip + ' is accessible by SSH');
-        grunt.util.spawn({cmd: 'ssh', args: [opts.ip, 'echo ready']}, function(error,result,code) {
+        grunt.util.spawn({cmd: 'nc', args: ['-zv', opts.ip, 22]}, function(error,result,code) {
             if (error) {
                 iters++;
                 if (iters >= opts.maxiters) {

@@ -1,11 +1,14 @@
-var request = require('request'),
-    q       = require('q'),
-    path    = require('path'),
-    fs      = require('fs-extra'),
-    host = process.env['host'] ? process.env['host'] : 'localhost',
-    config = {
-        'dubUrl': 'http://' + (host === 'localhost' ? host + ':3000' : host) + '/dub',
-        'maintUrl': 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint',
+var request     = require('request'),
+    q           = require('q'),
+    path        = require('path'),
+    fs          = require('fs-extra'),
+    testUtils   = require('./testUtils'),
+    host        = process.env['host'] ? process.env['host'] : 'localhost',
+    statusHost  = process.env['statusHost'] ? process.env['statusHost'] : host,
+    config      = {
+        dubUrl   : 'http://' + (host === 'localhost' ? host + ':3000' : host) + '/dub',
+        maintUrl : 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint',
+        proxyUrl : 'http://' + (statusHost === 'localhost' ? statusHost + ':3000' : statusHost) + '/dub'
     };
 
 jasmine.getEnv().defaultTimeoutInterval = 40000;
@@ -31,23 +34,8 @@ describe('dub (E2E)', function() {
     });
     afterEach(function(done) {
         if (!process.env['getLogs']) return done();
-        var spec = jasmine.getEnv().currentSpec;
-        testNum++;
-        var options = {
-            url: config.maintUrl + '/get_log?logFile=dub.log'
-        };
-        q.npost(request, 'get', [options])
-        .then(function(values) {
-            if (!values[1]) return q.reject();
-            if (values[1].error) return q.reject(values[1]);
-            if (spec && spec.results && spec.results().failedCount != 0) {
-                console.log('\nRemote log for failed spec "' + spec.description + '":\n');
-                console.log(values[1]);
-                console.log('-------------------------------------------------------------------');
-            }
-            var fname = path.join(__dirname, 'logs/dub.test' + testNum + '.log');
-            return q.npost(fs, 'outputFile', [fname, values[1]]);
-        }).then(function() {
+        testUtils.getLog('dub.log', config.maintUrl, jasmine.getEnv().currentSpec, ++testNum)
+        .then(function() {
             done();
         }).catch(function(error) {
             console.log("Error getting log file for test " + testNum + ": " + JSON.stringify(error));
@@ -194,7 +182,7 @@ describe('dub (E2E)', function() {
             }).then(function() {
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
@@ -216,5 +204,149 @@ describe('dub (E2E)', function() {
                 done();
             });
         });
-    });  //  end -- describe /dub/create
+    });
+    
+    describe('/dub/status', function() {
+        it('should succeed for a valid job id', function(done) {
+            var fileOpts = {
+                url: config.maintUrl + '/cache_file',
+                json: {
+                    fname: "job-e2eJob.json",
+                    data: {
+                        jobId: "e2eJob",
+                        lastStatus: {
+                            code: 201,
+                            step: "Completed"
+                        }
+                    },
+                    cache: 'jobs'
+                }
+            };
+            
+            q.npost(request, 'post', [fileOpts])
+            .then(function() {
+                var statOpts = {
+                    url: config.dubUrl + '/status/e2eJob?host=' + host
+                };
+                return q.npost(request, 'get', [statOpts]);
+            }).then(function(values) {
+                expect(values[0].statusCode).toBe(201);
+                var data;
+                try {
+                    data = JSON.parse(values[1]);
+                } catch(e) {
+                    return q.reject(e);
+                }
+                if (data.error) return q.reject(data.error);
+                expect(data).toBeDefined();
+                expect(data.lastStatus).toBeDefined();
+                expect(data.lastStatus.code).toBe(201);
+                expect(data.lastStatus.step).toBe("Completed");
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should succeed at proxying a status request for a valid job id', function(done) {
+            if (statusHost === host) {
+                console.log("statusHost not defined or identical to testHost. Not running proxy /status test");
+                return done();
+            }
+            var fileOpts = {
+                url: config.maintUrl + '/cache_file',
+                json: {
+                    fname: "job-e2eJob.json",
+                    data: {
+                        jobId: "e2eJob",
+                        lastStatus: {
+                            code: 201,
+                            step: "Completed"
+                        }
+                    },
+                    cache: 'jobs'
+                }
+            };
+            
+            q.npost(request, 'post', [fileOpts])
+            .then(function() {
+                var statOpts = {
+                    url: config.proxyUrl + '/status/e2eJob?host=' + host
+                };
+                return q.npost(request, 'get', [statOpts]);
+            }).then(function(values) {
+                expect(values[0].statusCode).toBe(201);
+                var data;
+                try {
+                    data = JSON.parse(values[1]);
+                } catch(e) {
+                    return q.reject(e);
+                }
+                if (data.error) return q.reject(data.error);
+                expect(data).toBeDefined();
+                expect(data.lastStatus).toBeDefined();
+                expect(data.lastStatus.code).toBe(201);
+                expect(data.lastStatus.step).toBe("Completed");
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+    
+        it('should fail for an invalid job id', function(done) {
+            var options = {
+                url: config.dubUrl + '/status/nonexistent?host=' + host
+            };
+            
+            q.npost(request, 'get', [options])
+            .then(function(values) {
+                expect(values[0].statusCode).toBe(400);
+                var data;
+                try {
+                    data = JSON.parse(values[1]);
+                } catch(e) {
+                    return q.reject(e);
+                }
+                expect(data.error).toBe('Unable to check status');
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should fail for an invalid job file', function(done) {
+            var fileOpts = {
+                url: config.maintUrl + '/cache_file',
+                json: {
+                    fname: "job-invalid.json",
+                    data: "This is not a job file",
+                    cache: 'jobs'
+                }
+            };
+            
+            q.npost(request, 'post', [fileOpts])
+            .then(function() {
+                var statOpts = {
+                    url: config.dubUrl + '/status/invalid?host=' + host
+                };
+                return q.npost(request, 'get', [statOpts]);
+            }).then(function(values) {
+                expect(values[0].statusCode).toBe(400);
+                var data;
+                try {
+                    data = JSON.parse(values[1]);
+                } catch(e) {
+                    return q.reject(e);
+                }
+                expect(data.error).toBe('Unable to check status');
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+    });  //  end -- describe /dub/status
 });  //  end -- describe dub (E2E)

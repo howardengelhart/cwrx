@@ -202,7 +202,7 @@ describe('share (UT)', function() {
                 expect(query.url).toBe('http://cinema6.com');
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
@@ -266,7 +266,7 @@ describe('share (UT)', function() {
                 expect(query.notes).toBe('utNotes');
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
@@ -282,7 +282,7 @@ describe('share (UT)', function() {
                 expect(opts.url.match(/^http:\/\/api.awe.sm\/url\/static\.json\?v=3/)).toBeTruthy();
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });

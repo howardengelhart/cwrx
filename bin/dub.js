@@ -7,13 +7,15 @@ var __ut__      = (global.jasmine !== undefined) ? true : false,
 var include     = require('../lib/inject').require,
     fs          = include('fs-extra'),
     path        = include('path'),
+    os          = include('os'),
+    request     = include('request'),
     cluster     = include('cluster'),
-    cp          = include('child_process'),
     express     = include('express'),
     aws         = include('aws-sdk'),
     crypto      = include('crypto'),
     q           = include('q'),
     daemon      = include('../lib/daemon'),
+    hostname    = include('../lib/hostname'),
     logger      = include('../lib/logger'),
     uuid        = include('../lib/uuid'),
     cwrxConfig  = include('../lib/config'),
@@ -40,6 +42,8 @@ dub.defaultConfiguration = {
         "type" : "local",
         "uri"  : "/media"
     },
+    responseTimeout: 1000,
+    proxyTimeout: 5000,
     s3 : {
         src     : {
             bucket  : 'c6media',
@@ -76,6 +80,7 @@ dub.getVersion = function() {
 
 dub.createConfiguration = function(cmdLine) {
     var cfgObject = cwrxConfig.createConfigObject(cmdLine.config, dub.defaultConfiguration),
+        deferred = q.defer(),
         log;
 
     if (cfgObject.log) {
@@ -94,7 +99,8 @@ dub.createConfiguration = function(cmdLine) {
         try {
             aws.config.loadFromPath(cfgObject.s3.auth);
         }  catch (e) {
-            throw new SyntaxError('Failed to load s3 config: ' + e.message);
+            deferred.reject('Failed to load s3 config: ' + e.message);
+            return deferred.promise;
         }
         if (cmdLine.enableAws){
             cfgObject.enableAws = true;
@@ -116,7 +122,18 @@ dub.createConfiguration = function(cmdLine) {
         return path.join(this.caches[cache],fname);
     };
     
-    return cfgObject;
+    if (!cfgObject.hostname) {
+        hostname().then(function(host) {
+            cfgObject.hostname = host;
+            deferred.resolve(cfgObject);
+        }).catch(function(error) {
+            deferred.reject(error);
+        });
+    } else {
+        deferred.resolve(cfgObject);
+    }
+    
+    return deferred.promise;
 };
 
 dub.createJobFile = function(job, config) {
@@ -203,6 +220,7 @@ dub.createDubJob = function(id, template, config){
         videoBase = path.basename(template.video,videoExt);
    
     obj.id = id;
+    obj.version = template.version || 1;
 
     obj.ttsAuth = vocalware.createAuthToken(config.tts.auth);
 
@@ -735,7 +753,7 @@ dub.handleRequest = function(job, done){
     .then(dub.uploadToStorage)
     .then(
         function() {
-            log.trace("All tasks succeeded!");
+            log.trace("[%1] All tasks succeeded!", job.id);
             job.setEndTime(fnName);
             dub.updateJobStatus(job, 201, 'Completed', {resultMD5: job.md5});
             done(null, job);
@@ -748,6 +766,126 @@ dub.handleRequest = function(job, done){
             done({message : 'Died on [' + lastStep + ']: ' + msg}, job);
         }
     );
+};
+
+dub.startCreateJob = function(job, config) {
+    var log      = logger.getLog(),
+        deferred = q.defer();
+        
+    var timeout = setTimeout(function() {
+        log.warn('[%1] s3.headObject took too long, responding with 202', job.id);
+        deferred.resolve({
+            code: 202,
+            data: {
+                jobId: job.id,
+                host: config.hostname
+            }
+        });
+    }, config.responseTimeout);
+    
+    var s3 = new aws.S3(),
+        outParams = job.getS3OutVideoParams(),
+        headParams = {Key: outParams.Key, Bucket: outParams.Bucket};
+    
+    s3.headObject(headParams, function(err, data) {
+        if (!err && data) {
+            clearTimeout(timeout);
+            log.info('[%1] Found existing video: Bucket: %2, Key: %3',job.id,headParams.Bucket,
+                headParams.Key);
+            dub.updateJobStatus(job, 201, 'Completed', {resultMD5: data.ETag});
+            deferred.resolve({
+                code: 201,
+                data: {
+                    output : job.outputUri,
+                    md5    : data.ETag
+                }
+            });
+        } else {
+            clearTimeout(timeout);
+            deferred.resolve({
+                code: 202,
+                data: {
+                    jobId: job.id,
+                    host: config.hostname
+                }
+            });
+            log.info('[%1] No existing video found for params: Bucket: %2, Key: %3', job.id,
+                headParams.Bucket, headParams.Key);
+                
+            dub.handleRequest(job, function(err) {
+                if (err) {
+                    log.error('[%1] Handle Request Error: %2', job.id, err.message);
+                }
+            });
+        }
+    });
+    
+    return deferred.promise;
+};
+
+dub.getStatus = function(jobId, host, config, proxied) {
+    var deferred = q.defer(),
+        log = logger.getLog();
+    
+    if (host === config.hostname || proxied) {
+        var fpath = config.cacheAddress('job-' + jobId + '.json', 'jobs');
+        if (host !== config.hostname) {
+            log.error('Got proxied request for status of %1 to %2 but this host is %3',
+                      jobId, host, config.hostname);
+        }
+        log.info('Checking locally for status of %1 in %2', jobId, fpath);
+        q.npost(fs, 'readJson', [fpath])
+        .then(function(jobFile) {
+            if (!jobFile.lastStatus || !jobFile.lastStatus.code) {
+                deferred.reject('missing or malformed lastStatus in job file');
+                return;
+            }
+            log.info('job %1 has lastStatus %2', jobId, JSON.stringify(jobFile.lastStatus));
+            var data = {
+                jobId: jobId,
+                lastStatus: jobFile.lastStatus
+            };
+            if (jobFile.lastStatus.code === 201) {
+                data.resultUrl = jobFile.resultUrl;
+                data.resultMD5 = jobFile.resultMD5;
+            }
+            deferred.resolve({
+                code: jobFile.lastStatus.code,
+                data: data
+            });
+        }).catch(function(error) {
+            deferred.reject(error);
+        });
+    } else {
+        var timeout = setTimeout(function() {
+            log.error('Timed out while proxying request for %1 to host %2', jobId, host);
+            deferred.resolve({
+                code: 504,
+                data: 'Timed out while proxying request'
+            });
+        }, config.proxyTimeout);
+        
+        log.info('Proxying request for job %1 to host %2', jobId, host);
+        var url = 'http://' + host + '/dub/status/' + jobId + '?host=' + host + '&proxied=true';
+        request.get(url, function(error, response, body) {
+            clearTimeout(timeout);
+            if (error || body.error) {
+                log.error('Host %1 responded with error: %2', host, JSON.stringify(error));
+                deferred.resolve({
+                    code: response.statusCode,
+                    data: error || body
+                });
+                return;
+            }
+            log.info('Host %1 responded: %2', host, JSON.stringify(body));
+            deferred.resolve({
+                code: response.statusCode,
+                data: body
+            });
+        });
+    }
+    
+    return deferred.promise;
 };
 
 dub.removeJobFiles = function(config, maxAge, done) {
@@ -871,25 +1009,59 @@ function workerMain(config,program,done){
             job = dub.createDubJob(req.uuid, req.body, config);
         }catch (e){
             log.error('[%1] Create Job Error: %2', req.uuid, e.message);
-            res.send(500,{
+            res.send(400,{
                 error  : 'Unable to process request.',
                 detail : e.message
             });
             return;
         }
         dub.createJobFile(job, config);
-        dub.handleRequest(job,function(err){
-            if (err){
-                log.error('[%1] Handle Request Error: %2',req.uuid,err.message);
-                res.send(400,{
-                    error  : 'Unable to complete request.',
-                    detail : err.message
+        
+        if (job.version === 2) {
+            log.info("[%1] Using API version 2", req.uuid);
+            dub.startCreateJob(job, config)
+            .then(function(resp) {
+                res.send(resp.code, resp.data);
+            }).catch(function(error) {
+                log.error('[%1] Error starting create job: %2', req.uuid, JSON.stringify(error));
+                res.send(400, {
+                    error  : 'Unable to start job',
+                    detail : error
                 });
-                return;
-            }
-            res.send(200, {
-                output : job.outputUri,
-                md5    : job.md5
+            });
+        } else {
+            log.info("[%1] Using API version 1", req.uuid);
+            dub.handleRequest(job,function(err){
+                if (err){
+                    log.error('[%1] Handle Request Error: %2',req.uuid,err.message);
+                    res.send(500,{
+                        error  : 'Unable to complete request.',
+                        detail : err.message
+                    });
+                    return;
+                }
+                res.send(200, {
+                    output : job.outputUri,
+                    md5    : job.md5
+                });
+            });
+        }
+    });
+    
+    app.get('/dub/status/:jobId', function(req, res, next){
+        if (!req.params || !req.params.jobId || !req.query || !req.query.host) {
+            res.send(400, 'You must provide the jobId in the request url and the host in the query');
+            return;
+        }
+        dub.getStatus(req.params.jobId, req.query.host, config, req.query.proxied)
+        .then(function(resp) {
+            res.send(resp.code, resp.data);
+        }).catch(function(error) {
+            log.error('Error checking status of job [%1] at host %2: %3',
+                      req.params.jobId, req.query.host, JSON.stringify(error));
+            res.send(400, {
+                error  : 'Unable to check status',
+                detail : error
             });
         });
     });
@@ -898,6 +1070,9 @@ function workerMain(config,program,done){
         var data = {
             version: dub.getVersion(),
             config: {
+                hostname: config.hostname,
+                proxyTimeout: config.proxyTimeout,
+                responseTimeout: config.responseTimeout,
                 output: config.output,
                 s3: {
                     src: config.s3.src,
@@ -938,7 +1113,6 @@ if (!__ut__ && !__maint__){
 
 function main(done){
     var program  = include('commander'),
-        config = {},
         job, log, userCfg;
 
     program
@@ -966,98 +1140,96 @@ function main(done){
         process.setuid(program.uid);
     }
 
-    config = dub.createConfiguration(program);
+    dub.createConfiguration(program).done(function(config) {
+        if (program.showConfig){
+            console.log(JSON.stringify(config,null,3));
+            process.exit(0);
+        }
+        config.ensurePaths();
 
-    if (program.showConfig){
-        console.log(JSON.stringify(config,null,3));
-        process.exit(0);
-    }
-
-    config.ensurePaths();
-
-    log = logger.getLog();
-
-    if (program.loglevel){
-        log.setLevel(program.loglevel);
-    }
-    
-    if (program.clearJobsCache) {
-        dub.removeJobFiles(config, program.maxJobFileAge, function(err) {
-            if (err) {
-                return done(1, err.message);
-            } else {
-                return done(0, '[JobFileRemoval] Done');
-            }
-        });
+        log = logger.getLog();
+        if (program.loglevel){
+            log.setLevel(program.loglevel);
+        }
         
-        return;
-    }
-
-    if (!program.server){
-        // Running as a simple command line task, do the work and exit
-        if (!program.args[0]){
-            throw new SyntaxError('Expected a template file.');
-        }
-
-        job = dub.createDubJob(uuid.createUuid().substr(0,10),loadTemplateFromFile(program.args[0]), config);
-        dub.createJobFile(job, config);
-        
-        dub.handleRequest(job,function(err, finishedJob){
-            if (err) {
-                return done(1,err.message);
-            } else {
-                return done(0,'Done');
-            }
-        });
-
-        return;
-    }
-
-    // Ok, so we're a server, lets do some servery things..
-    process.on('uncaughtException', function(err) {
-        try{
-            log.error('uncaught: ' + err.message + "\n" + err.stack);
-        }catch(e){
-            console.error(e);
-        }
-        return done(2);
-    });
-
-    process.on('SIGINT',function(){
-        log.info('Received SIGINT, exitting app.');
-        return done(1,'Exit');
-    });
-
-    process.on('SIGTERM',function(){
-        log.info('Received TERM, exitting app.');
-        if (program.daemon){
-            daemon.removePidFile(config.cacheAddress('dub.pid', 'run'));
-        }
-
-        if (cluster.isMaster){
-            cluster.disconnect(function(){
-                return done(0,'Exit');
+        if (program.clearJobsCache) {
+            dub.removeJobFiles(config, program.maxJobFileAge, function(err) {
+                if (err) {
+                    return done(1, err.message);
+                } else {
+                    return done(0, '[JobFileRemoval] Done');
+                }
             });
+            
             return;
         }
-        return done(0,'Exit');
+
+        if (!program.server){
+            // Running as a simple command line task, do the work and exit
+            if (!program.args[0]){
+                throw new SyntaxError('Expected a template file.');
+            }
+
+            job = dub.createDubJob(uuid.createUuid().substr(0,10),loadTemplateFromFile(program.args[0]), config);
+            dub.createJobFile(job, config);
+            
+            dub.handleRequest(job,function(err, finishedJob){
+                if (err) {
+                    return done(1,err.message);
+                } else {
+                    return done(0,'Done');
+                }
+            });
+
+            return;
+        }
+
+        // Ok, so we're a server, lets do some servery things..
+        process.on('uncaughtException', function(err) {
+            try{
+                log.error('uncaught: ' + err.message + "\n" + err.stack);
+            }catch(e){
+                console.error(e);
+            }
+            return done(2);
+        });
+
+        process.on('SIGINT',function(){
+            log.info('Received SIGINT, exitting app.');
+            return done(1,'Exit');
+        });
+
+        process.on('SIGTERM',function(){
+            log.info('Received TERM, exitting app.');
+            if (program.daemon){
+                daemon.removePidFile(config.cacheAddress('dub.pid', 'run'));
+            }
+
+            if (cluster.isMaster){
+                cluster.disconnect(function(){
+                    return done(0,'Exit');
+                });
+                return;
+            }
+            return done(0,'Exit');
+        });
+
+        
+        log.info('Running version ' + dub.getVersion());
+        
+        // Daemonize if so desired
+        if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)) {
+            daemon.daemonize(config.cacheAddress('dub.pid', 'run'), done);
+        }
+
+        // Now that we either are or are not a daemon, its time to 
+        // setup clustering if running as a cluster.
+        if ((cluster.isMaster) && (program.kids > 0)) {
+            clusterMain(config,program,done);
+        } else {
+            workerMain(config,program,done);
+        }
     });
-
-    
-    log.info('Running version ' + dub.getVersion());
-    
-    // Daemonize if so desired
-    if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)) {
-        daemon.daemonize(config.cacheAddress('dub.pid', 'run'), done);
-    }
-
-    // Now that we either are or are not a daemon, its time to 
-    // setup clustering if running as a cluster.
-    if ((cluster.isMaster) && (program.kids > 0)) {
-        clusterMain(config,program,done);
-    } else {
-        workerMain(config,program,done);
-    }
 }
 
 if (__ut__) {
