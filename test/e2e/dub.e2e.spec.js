@@ -25,20 +25,19 @@ describe('dub (E2E)', function() {
                 logFile: 'dub.log'
             }
         };
-        request.post(options, function(error, response, body) {
-            if (body && body.error) {
-                console.log("Error clearing dub log: " + JSON.stringify(body));
-            }
+        testUtils.qRequest('post', [options])
+        .catch(function(error) {
+            console.log("Error clearing dub log: " + JSON.stringify(error));
+        }).finally(function() {
             done();
         });
     });
     afterEach(function(done) {
         if (!process.env['getLogs']) return done();
         testUtils.getLog('dub.log', config.maintUrl, jasmine.getEnv().currentSpec, ++testNum)
-        .then(function() {
-            done();
-        }).catch(function(error) {
+        .catch(function(error) {
             console.log("Error getting log file for test " + testNum + ": " + JSON.stringify(error));
+        }).finally(function() {
             done();
         });
     });
@@ -76,17 +75,13 @@ describe('dub (E2E)', function() {
                 json: screamTemplate
             }, reqFlag = false;
             
-            request.post(options, function(error, response, body) {
-                expect(error).toBeNull();
-                expect(body).toBeDefined();
-                if (body) {
-                    expect(body.error).not.toBeDefined();
-                    expect(body.output).toBeDefined();
-                    expect(typeof(body.output)).toEqual('string');
-                    expect(body.md5).toEqual(screamTemplate.e2e.md5);
-                }
+            testUtils.qRequest('post', [options])
+            .then(function(resp) {
+                expect(resp.body.output).toBeDefined();
+                expect(typeof(resp.body.output)).toEqual('string');
+                expect(resp.body.md5).toEqual(screamTemplate.e2e.md5);
                 
-                if (body.md5 !== screamTemplate.e2e.md5) {
+                if (resp.body.md5 !== screamTemplate.e2e.md5) {
                     return done();
                 }
 
@@ -94,10 +89,15 @@ describe('dub (E2E)', function() {
                     url : config.maintUrl + '/clean_cache',
                     json: screamTemplate
                 }
-                request.post(options, function(error, response, body) {
-                    if (error) console.log('Error cleaning caches: ' + error);
+                testUtils.qRequest('post', [options])
+                .catch(function(error) {
+                    console.log('Error cleaning caches: ' + error);
+                }).finally(function() {
                     done();
                 });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
             });
         });
 
@@ -111,25 +111,25 @@ describe('dub (E2E)', function() {
                 track.line += Math.round(Math.random() * 10000);
             });
 
-            request.post(options, function(error, response, body) {
-                expect(error).toBeNull();
-                expect(body).toBeDefined();
-                if (body) {
-                    expect(body.error).not.toBeDefined();
-                    expect(body.output).toBeDefined();
-                    expect(typeof(body.output)).toEqual('string');
-                    expect(body.md5).toBeDefined();
-                    expect(body.md5).not.toEqual(screamTemplate.e2e.md5);
-                }
-                
+            testUtils.qRequest('post', [options])
+            .then(function(resp) {
+                expect(resp.body.output).toBeDefined();
+                expect(typeof(resp.body.output)).toEqual('string');
+                expect(resp.body.md5).not.toEqual(screamTemplate.e2e.md5);
+
                 var options = {
                     url : config.maintUrl + '/clean_cache',
                     json: screamTemplate
                 }
-                request.post(options, function(error, response, body) {
-                    if (error) console.log('Error cleaning caches: ' + error);
+                testUtils.qRequest('post', [options])
+                .catch(function(error) {
+                    console.log('Error cleaning caches: ' + error);
+                }).finally(function() {
                     done();
                 });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
             });
         });
 
@@ -141,12 +141,13 @@ describe('dub (E2E)', function() {
             
             delete screamTemplate.script;
             
-            request.post(options, function(error, response, body) {
-                expect(body).toBeDefined();
-                if (body) {
-                    expect(body.error).toBeDefined();
-                    expect(body.detail).toEqual('Expected script section in template');
-                }
+            testUtils.qRequest('post', [options])
+            .then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toBeDefined();
+                expect(error.detail).toBe('Expected script section in template');
                 done();
             });
         });
@@ -161,29 +162,30 @@ describe('dub (E2E)', function() {
                 }
             };
             
-            q.npost(request, 'post', [cacheOpts]).then(function() {
+            testUtils.qRequest('post', [cacheOpts])
+            .then(function(resp) {
                 var vidOpts = {
                     url: config.dubUrl + '/create',
                     json: screamTemplate
                 };
                 screamTemplate.video = 'invalid.mp4';
-                return q.npost(request, 'post', [vidOpts]);
-            }).then(function(values) {  // values = [request, body]
-                expect(values).toBeDefined();
-                expect(values[1]).toBeDefined();
-                expect(values[1].error).toBeDefined();
-                expect(values[1].detail.match(/invalid\.mp4: Invalid data found when processing input/)).toBeTruthy();
-                
+                return testUtils.qRequest(request, 'post', [vidOpts]);
+            }).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBeDefined();
+                expect(error.detail.match(/invalid\.mp4: Invalid data found when processing input/)).toBeTruthy();
+            }).finally(function() {
                 var cleanOpts = {
                     url: config.maintUrl + '/clean_cache',
                     json: screamTemplate
                 }
-                return q.npost(request, 'post', [cleanOpts]);
-            }).then(function() {
-                done();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-                done();
+                testUtils.qRequest('post', [cleanOpts])
+                .catch(function(error) {
+                    console.log('Error cleaning caches: ' + error);
+                }).finally(function() {
+                    done();
+                });
             });
         });
 
@@ -195,12 +197,13 @@ describe('dub (E2E)', function() {
             
             screamTemplate.video = 'fake_video.mp4';
             
-            request.post(options, function(error, response, body) {
-                expect(body).toBeDefined();
-                if (body) {
-                    expect(body.error).toBeDefined();
-                    expect(body.detail).toBeDefined();
-                }
+            testUtils.qRequest('post', [options])
+            .then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toBeDefined();
+                expect(error.detail.match('The specified key does not exist')).toBeTruthy();
                 done();
             });
         });
@@ -223,25 +226,17 @@ describe('dub (E2E)', function() {
                 }
             };
             
-            q.npost(request, 'post', [fileOpts])
+            testUtils.qRequest('post', [fileOpts])
             .then(function() {
                 var statOpts = {
                     url: config.dubUrl + '/status/e2eJob?host=' + host
                 };
-                return q.npost(request, 'get', [statOpts]);
-            }).then(function(values) {
-                expect(values[0].statusCode).toBe(201);
-                var data;
-                try {
-                    data = JSON.parse(values[1]);
-                } catch(e) {
-                    return q.reject(e);
-                }
-                if (data.error) return q.reject(data.error);
-                expect(data).toBeDefined();
-                expect(data.lastStatus).toBeDefined();
-                expect(data.lastStatus.code).toBe(201);
-                expect(data.lastStatus.step).toBe("Completed");
+                return testUtils.qRequest('get', [statOpts]);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body.lastStatus).toBeDefined();
+                expect(resp.body.lastStatus.code).toBe(201);
+                expect(resp.body.lastStatus.step).toBe("Completed");
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -269,25 +264,17 @@ describe('dub (E2E)', function() {
                 }
             };
             
-            q.npost(request, 'post', [fileOpts])
+            testUtils.qRequest('post', [fileOpts])
             .then(function() {
                 var statOpts = {
                     url: config.proxyUrl + '/status/e2eJob?host=' + host
                 };
-                return q.npost(request, 'get', [statOpts]);
-            }).then(function(values) {
-                expect(values[0].statusCode).toBe(201);
-                var data;
-                try {
-                    data = JSON.parse(values[1]);
-                } catch(e) {
-                    return q.reject(e);
-                }
-                if (data.error) return q.reject(data.error);
-                expect(data).toBeDefined();
-                expect(data.lastStatus).toBeDefined();
-                expect(data.lastStatus.code).toBe(201);
-                expect(data.lastStatus.step).toBe("Completed");
+                return testUtils.qRequest('get', [statOpts]);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body.lastStatus).toBeDefined();
+                expect(resp.body.lastStatus.code).toBe(201);
+                expect(resp.body.lastStatus.step).toBe("Completed");
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -300,19 +287,13 @@ describe('dub (E2E)', function() {
                 url: config.dubUrl + '/status/nonexistent?host=' + host
             };
             
-            q.npost(request, 'get', [options])
-            .then(function(values) {
-                expect(values[0].statusCode).toBe(400);
-                var data;
-                try {
-                    data = JSON.parse(values[1]);
-                } catch(e) {
-                    return q.reject(e);
-                }
-                expect(data.error).toBe('Unable to check status');
+            testUtils.qRequest('get', [options])
+            .then(function(resp) {
+                expect(resp).not.toBeDefined();
                 done();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+            }).catch(function(errorObj) {
+                expect(errorObj.error).toBe('Unable to check status');
+                expect(errorObj.detail.code).toBe('ENOENT');
                 done();
             });
         });
@@ -327,24 +308,18 @@ describe('dub (E2E)', function() {
                 }
             };
             
-            q.npost(request, 'post', [fileOpts])
+            testUtils.qRequest('post', [fileOpts])
             .then(function() {
                 var statOpts = {
                     url: config.dubUrl + '/status/invalid?host=' + host
                 };
-                return q.npost(request, 'get', [statOpts]);
-            }).then(function(values) {
-                expect(values[0].statusCode).toBe(400);
-                var data;
-                try {
-                    data = JSON.parse(values[1]);
-                } catch(e) {
-                    return q.reject(e);
-                }
-                expect(data.error).toBe('Unable to check status');
+                return testUtils.qRequest('get', [statOpts]);
+            }).then(function(resp) {
+                expect(resp).not.toBeDefined();
                 done();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+            }).catch(function(errorObj) {
+                expect(errorObj.error).toBe('Unable to check status');
+                expect(errorObj.detail).toBe('missing or malformed lastStatus in job file');
                 done();
             });
         });

@@ -792,12 +792,12 @@ dub.startCreateJob = function(job, config) {
             clearTimeout(timeout);
             log.info('[%1] Found existing video: Bucket: %2, Key: %3',job.id,headParams.Bucket,
                 headParams.Key);
-            dub.updateJobStatus(job, 201, 'Completed', {resultMD5: data.ETag});
+            dub.updateJobStatus(job, 201, 'Completed', {resultMD5: data.ETag.replace(/"/g, '')});
             deferred.resolve({
                 code: 201,
                 data: {
                     output : job.outputUri,
-                    md5    : data.ETag
+                    md5    : data.ETag.replace(/"/g, '')
                 }
             });
         } else {
@@ -861,7 +861,10 @@ dub.getStatus = function(jobId, host, config, proxied) {
             log.error('Timed out while proxying request for %1 to host %2', jobId, host);
             deferred.resolve({
                 code: 504,
-                data: 'Timed out while proxying request'
+                data: {
+                    error: 'Unable to get status',
+                    detail: 'Timed out while proxying request'
+                }
             });
         }, config.proxyTimeout);
         
@@ -869,11 +872,14 @@ dub.getStatus = function(jobId, host, config, proxied) {
         var url = 'http://' + host + '/dub/status/' + jobId + '?host=' + host + '&proxied=true';
         request.get(url, function(error, response, body) {
             clearTimeout(timeout);
-            if (error || body.error) {
+            if (error || body.error || !response) {
                 log.error('Host %1 responded with error: %2', host, JSON.stringify(error));
                 deferred.resolve({
-                    code: response.statusCode,
-                    data: error || body
+                    code: ((response && response.statusCode) || 500),
+                    data: {
+                        error: 'Unable to get status',
+                        detail: error || body
+                    }
                 });
                 return;
             }
@@ -983,6 +989,7 @@ function workerMain(config,program,done){
         res.header("Access-Control-Allow-Origin", "*");
         res.header("Access-Control-Allow-Headers", 
                    "Origin, X-Requested-With, Content-Type, Accept");
+        res.header("cache-control", "max-age=0");
 
         if (req.method.toLowerCase() === "options") {
             res.send(200);

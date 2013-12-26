@@ -22,20 +22,19 @@ describe('share-light (E2E)', function() {
                 logFile: 'share.log'
             }
         };
-        request.post(options, function(error, response, body) {
-            if (body && body.error) {
-                console.log("Error clearing share log: " + JSON.stringify(body));
-            }
+        testUtils.qRequest('post', [options])
+        .catch(function(error) {
+            console.log("Error clearing share log: " + JSON.stringify(error));
+        }).finally(function() {
             done();
         });
     });
     afterEach(function(done) {
         if (!process.env['getLogs']) return done();
         testUtils.getLog('share.log', config.maintUrl, jasmine.getEnv().currentSpec, ++testNum)
-        .then(function() {
-            done();
-        }).catch(function(error) {
+        .catch(function(error) {
             console.log("Error getting log file for test " + testNum + ": " + JSON.stringify(error));
+        }).finally(function() {
             done();
         });
     });
@@ -50,13 +49,13 @@ describe('share-light (E2E)', function() {
                 }
             };
             
-            request.post(options, function(error, response, body) {
-                expect(error).toBeNull();
-                expect(body).toBeDefined();
-                body = body || {};
-                expect(body.error).not.toBeDefined();
-                expect(body.url).toBe('http://fake.cinema6.com/');
-                expect(body.shortUrl.match(/http:\/\/ci6\.co\/(g6|i5)/)).toBeTruthy();
+            testUtils.qRequest('post', [options])
+            .then(function(resp) {
+                expect(resp.body.url).toBe('http://fake.cinema6.com/');
+                expect(resp.body.shortUrl.match(/http:\/\/ci6\.co\/(g6|i5)/)).toBeTruthy();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
@@ -70,12 +69,13 @@ describe('share-light (E2E)', function() {
                      '&origin=' + encodeURIComponent('http://fake.cinema6.com') + '&staticLink=true'
             };
             
-            request.get(options, function(error, response, body) {
-                expect(error).toBeNull();
-                expect(body).toBeDefined();
-                expect(response).toBeDefined();
-                expect(response.statusCode).toBe(200);
-                expect(response.request.href.match(/^https:\/\/www\.facebook\.com/)).toBeTruthy();
+            testUtils.qRequest('get', [options])
+            .then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.response.request.href.match(/^https:\/\/www\.facebook\.com/)).toBeTruthy();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
@@ -89,13 +89,14 @@ describe('share-light (E2E)', function() {
                      '&origin=' + encodeURIComponent('http://fake.cinema6.com') + '&staticLink=true'
             };
             
-            request.get(options, function(error, response, body) {
-                expect(error).toBeNull();
-                expect(body).toBeDefined();
-                expect(response).toBeDefined();
-                expect(response.statusCode).toBe(200);
-                expect(response.request.href.match(
+            testUtils.qRequest('get', [options])
+            .then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.response.request.href.match(
                     /^https:\/\/twitter\.com\/intent\/tweet\?text=Hello&url=http%3A%2F%2Fci6\.co%2F(j6|r8)/)).toBeTruthy();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
@@ -106,20 +107,21 @@ describe('share-light (E2E)', function() {
             var options = {
                 url: config.shareUrl + '/meta'
             };
-            request.get(options, function(error, response, body) {
-                expect(error).toBeNull();
-                expect(body).toBeDefined();
-                var data = JSON.parse(body);
-                expect(data.version).toBeDefined();
-                expect(data.version.match(/^.+\.build\d+-\d+-g\w+$/)).toBeTruthy('version match');
-                expect(data.config).toBeDefined();
+            testUtils.qRequest('get', [options])
+            .then(function(resp) {
+                expect(resp.body.version).toBeDefined();
+                expect(resp.body.version.match(/^.+\.build\d+-\d+-g\w+$/)).toBeTruthy('version match');
+                expect(resp.body.config).toBeDefined();
                                 
                 var bucket = process.env.bucket || 'c6.dev';
                 var media = (bucket === 'c6.dev') ? 'media/' : '';
-                expect(data.config.s3).toBeDefined();
-                expect(data.config.s3.share).toBeDefined();
-                expect(data.config.s3.share.bucket).toBe(bucket);
-                expect(data.config.s3.share.path).toBe(media + 'usr/screenjack/data');
+                expect(resp.body.config.s3).toBeDefined();
+                expect(resp.body.config.s3.share).toBeDefined();
+                expect(resp.body.config.s3.share.bucket).toBe(bucket);
+                expect(resp.body.config.s3.share.path).toBe(media + 'usr/screenjack/data');
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });

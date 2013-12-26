@@ -8,10 +8,16 @@ function qRequest(method, opts) {
     
     q.npost(request, method, opts)
     .then(function(values) {
-        if (!values) return q.reject('Received no data');
-        if (!values[1]) return q.reject('Response missing body');
-        if (values[1].error) return q.reject('Error in body: ' + JSON.stringify(values[1]));
-        deferred.resolve({response: values[0], body: values[1]});
+        if (!values) return q.reject({error: 'Received no data'});
+        if (!values[0]) return q.reject({error: 'Missing response'});
+        if (!values[1]) return q.reject({error: 'Missing body'});
+        var body = values[1];
+        try {
+            body = JSON.parse(body);
+        } catch(e) {
+        }
+        if (body.error) return q.reject(body);
+        deferred.resolve({response: values[0], body: body});
     }).catch(function(error) {
         deferred.reject(error);
     });
@@ -23,16 +29,15 @@ function getLog(logFile, maintUrl, spec, testNum) {
     var options = {
         url: maintUrl + '/get_log?logFile=dub.log'
     };
-    return q.npost(request, 'get', [options]).then(function(values) {
-        if (!values[1]) return q.reject('Missing body');
-        if (values[1].error) return q.reject(values[1]);
+    return qRequest('get', [options])
+    .then(function(resp) {
         if (spec && spec.results && spec.results().failedCount != 0) {
             console.log('\nRemote log for failed spec "' + spec.description + '":\n');
-            console.log(values[1]);
+            console.log(resp.body);
             console.log('-------------------------------------------------------------------');
         }
         var fname = path.join(__dirname, 'logs/dub-light.test' + testNum + '.log');
-        return q.npost(fs, 'outputFile', [fname, values[1]]);
+        return q.npost(fs, 'outputFile', [fname, resp.body]);
     });
 }
 
@@ -44,21 +49,14 @@ function checkStatus(jobId, host, statusUrl, statusTimeout) {
         };
     
     interval = setInterval(function() {
-        q.npost(request, 'get', [options])
-        .then(function(values) {
-            var data;
-            try {
-                data = JSON.parse(values[1]);
-            } catch(e) {
-                return q.reject(e);
-            }
-            if (data.error) return q.reject(data.error);
-            if (values[0].statusCode !== 202) {
+        qRequest('get', [options])
+        .then(function(resp) {
+            if (resp.response.statusCode !== 202) {
                 clearInterval(interval);
                 clearTimeout(timeout);
                 deferred.resolve({
-                    code: values[0].statusCode,
-                    data: data
+                    code: resp.response.statusCode,
+                    data: resp.body
                 });
             }
         }).catch(function(error) {
