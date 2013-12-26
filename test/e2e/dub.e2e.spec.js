@@ -203,7 +203,7 @@ describe('dub (E2E)', function() {
                 done();
             }).catch(function(error) {
                 expect(error).toBeDefined();
-                expect(error.detail.match('The specified key does not exist')).toBeTruthy();
+                expect(error.detail).toBeDefined();
                 done();
             });
         });
