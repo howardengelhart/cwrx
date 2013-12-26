@@ -23,20 +23,19 @@ describe('share (E2E)', function() {
                 logFile: 'share.log'
             }
         };
-        request.post(options, function(error, response, body) {
-            if (body && body.error) {
-                console.log("Error clearing share log: " + JSON.stringify(body));
-            }
+        testUtils.qRequest('post', [options])
+        .catch(function(error) {
+            console.log("Error clearing share log: " + JSON.stringify(error));
+        }).finally(function() {
             done();
         });
     });
     afterEach(function(done) {
         if (!process.env['getLogs']) return done();
         testUtils.getLog('share.log', config.maintUrl, jasmine.getEnv().currentSpec, ++testNum)
-        .then(function() {
-            done();
-        }).catch(function(error) {
+        .catch(function(error) {
             console.log("Error getting log file for test " + testNum + ": " + JSON.stringify(error));
+        }).finally(function() {
             done();
         });
     });
@@ -66,24 +65,20 @@ describe('share (E2E)', function() {
                 }
             };
 
-            request.post(options, function(error, response, body) {
+            testUtils.qRequest('post', [options])
+            .then(function(resp) {
                 var scriptId;
-                expect(body).toBeDefined();
-                expect(error).toBeNull();
-                body = body || {};
-                expect(body.error).not.toBeDefined();
-                expect(body.url).toBeDefined();
-                expect(body.shortUrl).toBeDefined();
-                body.url = body.url || '';
-                body.shortUrl = body.shortUrl || '';
-                expect(body.url.match(/^http:\/\/cinema6.com\/#\/experiences\/shared~screenjack~e-\w{14}$/)).toBeTruthy();
-                expect(body.shortUrl.match(/http:\/\/(awe|c-6|ci6)\.(sm|co)\/\w+$/)).toBeTruthy();
+                expect(resp.body.url).toBeDefined();
+                expect(resp.body.shortUrl).toBeDefined();
+                resp.body.url = resp.body.url || '';
+                resp.body.shortUrl = resp.body.shortUrl || '';
+                expect(resp.body.url.match(/^http:\/\/cinema6.com\/#\/experiences\/shared~screenjack~e-\w{14}$/)).toBeTruthy();
+                expect(resp.body.shortUrl.match(/http:\/\/(awe|c-6|ci6)\.(sm|co)\/\w+$/)).toBeTruthy();
 
                 // cleanup
-                var scriptId = body.url.match(/e-\w{14}$/);
+                var scriptId = resp.body.url.match(/e-\w{14}$/);
                 if (!scriptId) {
-                    done();
-                    return;
+                    return done();
                 }
                 var options = {
                     url : config.maintUrl + 'remove_S3_script',
@@ -91,13 +86,15 @@ describe('share (E2E)', function() {
                         fname: scriptId[0] + '.json'
                     }
                 }
-                request.post(options, function(error, response, body) {
-                    expect(error).toBeNull('maint error');
-                    if (body) {
-                        expect(body.error).not.toBeDefined('maint error');
-                    }
+                testUtils.qRequest('post', [options])
+                .catch(function(error) {
+                    console.log('Error removing S3 script: ' + error);
+                }).finally(function() {
                     done();
                 });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
             });
         });
     
@@ -111,24 +108,20 @@ describe('share (E2E)', function() {
                 }
             };
 
-            request.post(options, function(error, response, body) {
-                expect(body).toBeDefined();
-                expect(error).toBeNull();
-                body = body || {};
-                expect(body.error).not.toBeDefined();
-                expect(body.url).toBeDefined();
-                expect(body.shortUrl).toBeDefined();
-                body.url = body.url || '';
-                body.shortUrl = body.shortUrl || '';
-                expect(body.url.match(/^http:\/\/cinema6.com\/#\/experiences\/shared~screenjack~e-\w{14}$/)).toBeTruthy();
-                expect(body.url).not.toEqual('http://cinema6.com/#/experiences/shared~screenjack~e-1234567890abcd');
-                expect(body.shortUrl.match(/http:\/\/(awe|c-6|ci6)\.(sm|co)\/\w+$/)).toBeTruthy();
+            testUtils.qRequest('post', [options])
+            .then(function(resp) {
+                expect(resp.body.url).toBeDefined();
+                expect(resp.body.shortUrl).toBeDefined();
+                resp.body.url = resp.body.url || '';
+                resp.body.shortUrl = resp.body.shortUrl || '';
+                expect(resp.body.url.match(/^http:\/\/cinema6.com\/#\/experiences\/shared~screenjack~e-\w{14}$/)).toBeTruthy();
+                expect(resp.body.url).not.toEqual('http://cinema6.com/#/experiences/shared~screenjack~e-1234567890abcd');
+                expect(resp.body.shortUrl.match(/http:\/\/(awe|c-6|ci6)\.(sm|co)\/\w+$/)).toBeTruthy();
                 
                 // cleanup
-                var scriptId = body.url.match(/e-\w{14}$/);
+                var scriptId = resp.body.url.match(/e-\w{14}$/);
                 if (!scriptId) {
-                    done();
-                    return;
+                    return done();
                 }
                 var options = {
                     url : config.maintUrl + 'remove_S3_script',
@@ -136,13 +129,15 @@ describe('share (E2E)', function() {
                         fname: scriptId[0] + '.json'
                     }
                 }
-                request.post(options, function(error, response, body) {
-                    expect(error).toBeNull('maint error');
-                    if (body) {
-                        expect(body.error).not.toBeDefined('maint error');
-                    }
+                testUtils.qRequest('post', [options])
+                .catch(function(error) {
+                    console.log('Error removing S3 script: ' + error);
+                }).finally(function() {
                     done();
                 });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
             });
         });
     
@@ -156,13 +151,13 @@ describe('share (E2E)', function() {
             };
             delete shareItem.uri;
             
-            request.post(options, function(error, response, body) {
-                expect(body).toBeDefined();
-                body = body || {};
-                expect(body.error).toBeDefined();
-                expect(body.detail).toBeDefined();
-                body.detail = body.detail || '';
-                expect(body.detail.match(/missing uri/)).toBeTruthy();
+            testUtils.qRequest('post', [options])
+            .then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(errorObj) {
+                expect(errorObj.error).toBeDefined();
+                expect(errorObj.detail.match(/missing uri/)).toBeTruthy();
                 done();
             });
         });
@@ -177,18 +172,18 @@ describe('share (E2E)', function() {
             };
             shareItem.uri = 'fakeUri';
             
-            request.post(options, function(error, response, body) {
-                expect(body).toBeDefined();
-                body = body || {};
-                expect(body.error).toBeDefined();
-                expect(body.detail).toBeDefined();
-                body.detail = body.detail || '';
-                expect(body.detail.match(/fakeUri/)).toBeTruthy();
+            testUtils.qRequest('post', [options])
+            .then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(errorObj) {
+                expect(errorObj.error).toBeDefined();
+                expect(errorObj.detail.match(/fakeUri/)).toBeTruthy();
                 done();
             });
         });
     
-        it('should fail if given a malformed item', function(done) {
+       it('should fail if given a malformed item', function(done) {
             var options = {
                 url: config.shareUrl,
                 json: {
@@ -197,13 +192,13 @@ describe('share (E2E)', function() {
                 }
             };
             
-            request.post(options, function(error, response, body) {
-                expect(body).toBeDefined();
-                body = body || {};
-                expect(body.error).toBeDefined();
-                expect(body.detail).toBeDefined();
-                body.detail = body.detail || '';
-                expect(body.detail.match(/missing uri/)).toBeTruthy();
+            testUtils.qRequest('post', [options])
+            .then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(errorObj) {
+                expect(errorObj.error).toBeDefined();
+                expect(errorObj.detail.match(/missing uri/)).toBeTruthy();
                 done();
             });
         });
@@ -215,25 +210,20 @@ describe('share (E2E)', function() {
                 url: config.shareUrl + '/facebook?'
             };
             
-            q.npost(request, 'get', [options]).then(function(values) {
-                expect(values).toBeDefined();
-                expect(values[0].statusCode).toBe(400);
-                expect(values[1]).toBe('Unable to complete request.');
+            testUtils.qRequest('get', [options])
+            .catch(function(errorObj) {
+                expect(errorObj.error).toBe('Unable to complete request.');
                 options.url += '&fbUrl=http://facebook.com'
-                return q.npost(request, 'get', [options]);
-            }).then(function(values) {
-                expect(values).toBeDefined();
-                expect(values[0].statusCode).toBe(400);
-                expect(values[1]).toBe('Unable to complete request.');
+                return testUtils.qRequest('get', [options]);
+            }).catch(function(errorObj) {
+                expect(errorObj.error).toBe('Unable to complete request.');
                 options.url = config.shareUrl + '/facebook?&origin=http://cinema6.com'
-                return q.npost(request, 'get', [options]);
-            }).then(function(values) {
-                expect(values).toBeDefined();
-                expect(values[0].statusCode).toBe(400);
-                expect(values[1]).toBe('Unable to complete request.');
+                return testUtils.qRequest('get', [options]);
+            }).catch(function(errorObj) {
+                expect(errorObj.error).toBe('Unable to complete request.');
                 done();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+            }).then(function(resp) {
+                expect(resp).not.toBeDefined();
                 done();
             });
         });
@@ -245,25 +235,20 @@ describe('share (E2E)', function() {
                 url: config.shareUrl + '/twitter?'
             };
             
-            q.npost(request, 'get', [options]).then(function(values) {
-                expect(values).toBeDefined();
-                expect(values[0].statusCode).toBe(400);
-                expect(values[1]).toBe('Unable to complete request.');
+            testUtils.qRequest('get', [options])
+            .catch(function(errorObj) {
+                expect(errorObj.error).toBe('Unable to complete request.');
                 options.url += '&twitUrl=http://twitter.com'
-                return q.npost(request, 'get', [options]);
-            }).then(function(values) {
-                expect(values).toBeDefined();
-                expect(values[0].statusCode).toBe(400);
-                expect(values[1]).toBe('Unable to complete request.');
+                return testUtils.qRequest('get', [options]);
+            }).catch(function(errorObj) {
+                expect(errorObj.error).toBe('Unable to complete request.');
                 options.url = config.shareUrl + '/twitter?&origin=http://cinema6.com'
-                return q.npost(request, 'get', [options]);
-            }).then(function(values) {
-                expect(values).toBeDefined();
-                expect(values[0].statusCode).toBe(400);
-                expect(values[1]).toBe('Unable to complete request.');
+                return testUtils.qRequest('get', [options]);
+            }).catch(function(errorObj) {
+                expect(errorObj.error).toBe('Unable to complete request.');
                 done();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+            }).then(function(resp) {
+                expect(resp).not.toBeDefined();
                 done();
             });
         });

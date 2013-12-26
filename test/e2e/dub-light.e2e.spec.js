@@ -26,20 +26,19 @@ describe('dub-light (E2E)', function() {
                 logFile: 'dub.log'
             }
         };
-        request.post(options, function(error, response, body) {
-            if (body && body.error) {
-                console.log("Error clearing dub log: " + JSON.stringify(body));
-            }
+        testUtils.qRequest('post', [options])
+        .catch(function(error) {
+            console.log("Error clearing dub log: " + JSON.stringify(error));
+        }).finally(function() {
             done();
         });
     });
     afterEach(function(done) {
         if (!process.env['getLogs']) return done();
         testUtils.getLog('dub.log', config.maintUrl, jasmine.getEnv().currentSpec, ++testNum)
-        .then(function() {
-            done();
-        }).catch(function(error) {
+        .catch(function(error) {
             console.log("Error getting log file for test " + testNum + ": " + JSON.stringify(error));
+        }).finally(function() {
             done();
         });
     });
@@ -71,14 +70,14 @@ describe('dub-light (E2E)', function() {
                 json: siriTemplate
             };
             siriTemplate.script[Math.floor(Math.random() * siriTemplate.script.length)].line += Math.round(Math.random() * 10000);
-            request.post(options, function(error, response, body) {
-                expect(error).toBeNull();
-                expect(body).toBeDefined();
-                body = body || {};
-                expect(body.error).not.toBeDefined();
-                expect(body.output).toBeDefined();
-                expect(typeof(body.output)).toEqual('string');
-                expect(body.md5).not.toEqual(siriTemplate.e2e.md5);
+            testUtils.qRequest('post', [options])
+            .then(function(resp) {
+                expect(resp.body.output).toBeDefined();
+                expect(typeof(resp.body.output)).toEqual('string');
+                expect(resp.body.md5).not.toEqual(siriTemplate.e2e.md5);
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
@@ -92,14 +91,12 @@ describe('dub-light (E2E)', function() {
             siriTemplate.script[Math.floor(Math.random() * siriTemplate.script.length)].line +=
                                 Math.round(Math.random() * 10000);
             
-            q.npost(request, 'post', [options])
-            .then(function(values) {
-                if (!values[1]) return q.reject('No body!');
-                if (values[1].error) return q.reject(values[1].error);
-                expect(values[0].statusCode).toBe(202);
-                expect(values[1].jobId.match(/^\w{10}$/)).toBeTruthy();
-                expect(values[1].host).toBeDefined();
-                return testUtils.checkStatus(values[1].jobId, values[1].host, config.statusUrl, statusTimeout);
+            testUtils.qRequest('post', [options])
+            .then(function(resp) {
+                expect(resp.response.statusCode).toBe(202);
+                expect(resp.body.jobId.match(/^\w{10}$/)).toBeTruthy();
+                expect(resp.body.host).toBeDefined();
+                return testUtils.checkStatus(resp.body.jobId, resp.body.host, config.statusUrl, statusTimeout);
             }).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(201);
@@ -122,30 +119,31 @@ describe('dub-light (E2E)', function() {
             var options = {
                 url: config.dubUrl + '/meta'
             };
-            request.get(options, function(error, response, body) {
-                expect(error).toBeNull();
-                expect(body).toBeDefined();
-                var data = JSON.parse(body);
-                expect(data.version).toBeDefined();
-                expect(data.version.match(/^.+\.build\d+-\d+-g\w+$/)).toBeTruthy('version match');
-                expect(data.config).toBeDefined();
+            testUtils.qRequest('get', [options])
+            .then(function(resp) {
+                expect(resp.body.version).toBeDefined();
+                expect(resp.body.version.match(/^.+\.build\d+-\d+-g\w+$/)).toBeTruthy('version match');
+                expect(resp.body.config).toBeDefined();
                 
-                expect(data.config.hostname).toBeDefined();
-                expect(data.config.proxyTimeout).toBeDefined();
-                expect(data.config.responseTimeout).toBeDefined();
+                expect(resp.body.config.hostname).toBeDefined();
+                expect(resp.body.config.proxyTimeout).toBeDefined();
+                expect(resp.body.config.responseTimeout).toBeDefined();
                 
-                expect(data.config.output).toBeDefined();
-                expect(data.config.output.type).toBe('s3');
-                expect(data.config.output.uri.match(/\/usr\/screenjack\/video/)).toBeTruthy();
+                expect(resp.body.config.output).toBeDefined();
+                expect(resp.body.config.output.type).toBe('s3');
+                expect(resp.body.config.output.uri.match(/\/usr\/screenjack\/video/)).toBeTruthy();
                 
                 var bucket = process.env.bucket || 'c6.dev';
                 var media = (bucket === 'c6.dev') ? 'media/' : '';
-                expect(data.config.s3).toBeDefined();
-                expect(data.config.s3.src).toBeDefined();
-                expect(data.config.s3.src.bucket).toBe(bucket);
-                expect(data.config.s3.src.path).toBe(media + 'src/screenjack/video');
-                expect(data.config.s3.out.bucket).toBe(bucket);
-                expect(data.config.s3.out.path).toBe(media + 'usr/screenjack/video');
+                expect(resp.body.config.s3).toBeDefined();
+                expect(resp.body.config.s3.src).toBeDefined();
+                expect(resp.body.config.s3.src.bucket).toBe(bucket);
+                expect(resp.body.config.s3.src.path).toBe(media + 'src/screenjack/video');
+                expect(resp.body.config.s3.out.bucket).toBe(bucket);
+                expect(resp.body.config.s3.out.path).toBe(media + 'usr/screenjack/video');
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });

@@ -309,6 +309,7 @@ function main(done) {
         res.header("Access-Control-Allow-Origin", "*");
         res.header("Access-Control-Allow-Headers", 
                    "Origin, X-Requested-With, Content-Type, Accept");
+        res.header("cache-control", "max-age=0");
 
         if (req.method.toLowerCase() === "options") {
             res.send(200);
@@ -332,8 +333,9 @@ function main(done) {
     app.get('/share/facebook', function(req, res, next) {
         log.info('[%1] Starting facebook share', req.uuid);
         if (!req.query || !req.query.origin || !req.query.fbUrl) {
-            log.error('[%1] Need origin and fbUrl to redirect to in query string', req.uuid);
-            res.send(400, 'Unable to complete request.');
+            var msg = 'Need origin and fbUrl to redirect to in query string';
+            log.error('[%1] %2', req.uuid, msg);
+            res.send(400, {error: 'Unable to complete request.', detail: msg});
             return;
         }
         var origin = req.query.origin;
@@ -350,8 +352,9 @@ function main(done) {
     app.get('/share/twitter', function(req, res, next) {
         log.info('[%1] Starting twitter share', req.uuid);
         if (!req.query || !req.query.origin || !req.query.twitUrl) {
-            log.error('[%1] Need origin and twitUrl to redirect to in query string', req.uuid);
-            res.send(400, 'Unable to complete request.');
+            var msg = 'Need origin and twiturl to redirect to in query string';
+            log.error('[%1] %2', req.uuid, msg);
+            res.send(400, {error: 'Unable to complete request.', detail: msg});
             return;
         }
         var origin = req.query.origin;
