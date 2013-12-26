@@ -744,7 +744,7 @@ describe('dub (UT)',function(){
                     promise.then(function(resp) {
                         expect(resp).toBeDefined();
                         expect(resp.code).toBe(500);
-                        expect(JSON.stringify(resp.data)).toBe(JSON.stringify({error: 'Error!'}));
+                        expect(JSON.stringify(resp.data.detail)).toBe(JSON.stringify({error: 'Error!'}));
                         expect(timerCallback).toHaveBeenCalled();
                         done();
                     }).catch(function(error) {
@@ -766,7 +766,7 @@ describe('dub (UT)',function(){
                     promise.then(function(resp) {
                         expect(resp).toBeDefined();
                         expect(resp.code).toBe(504);
-                        expect(resp.data).toBe('Timed out while proxying request');
+                        expect(resp.data.detail).toBe('Timed out while proxying request');
                         expect(request.get).toHaveBeenCalled();
                         expect(timerCallback).not.toHaveBeenCalled();
                         done();

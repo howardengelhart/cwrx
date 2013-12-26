@@ -333,7 +333,7 @@ function main(done) {
     app.get('/share/facebook', function(req, res, next) {
         log.info('[%1] Starting facebook share', req.uuid);
         if (!req.query || !req.query.origin || !req.query.fbUrl) {
-            var msg = 'Need origin and fbUrl to redirect to in query string'
+            var msg = 'Need origin and fbUrl to redirect to in query string';
             log.error('[%1] %2', req.uuid, msg);
             res.send(400, {error: 'Unable to complete request.', detail: msg});
             return;
@@ -352,7 +352,7 @@ function main(done) {
     app.get('/share/twitter', function(req, res, next) {
         log.info('[%1] Starting twitter share', req.uuid);
         if (!req.query || !req.query.origin || !req.query.twitUrl) {
-            var msg = 'Need origin and twiturl to redirect to in query string'
+            var msg = 'Need origin and twiturl to redirect to in query string';
             log.error('[%1] %2', req.uuid, msg);
             res.send(400, {error: 'Unable to complete request.', detail: msg});
             return;
