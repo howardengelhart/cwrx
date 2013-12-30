@@ -25,7 +25,7 @@ function qRequest(method, opts) {
     return deferred.promise;
 }
 
-function getLog(logFile, maintUrl, spec, testNum) {
+function getLog(logFile, maintUrl, spec, testName, testNum) {
     var options = {
         url: maintUrl + '/get_log?logFile=dub.log'
     };
@@ -36,7 +36,7 @@ function getLog(logFile, maintUrl, spec, testNum) {
             console.log(resp.body);
             console.log('-------------------------------------------------------------------');
         }
-        var fname = path.join(__dirname, 'logs/dub-light.test' + testNum + '.log');
+        var fname = path.join(__dirname, 'logs/' + testName + '.test' + testNum + '.log');
         return q.npost(fs, 'outputFile', [fname, resp.body]);
     });
 }

@@ -35,7 +35,7 @@ describe('dub-light (E2E)', function() {
     });
     afterEach(function(done) {
         if (!process.env['getLogs']) return done();
-        testUtils.getLog('dub.log', config.maintUrl, jasmine.getEnv().currentSpec, ++testNum)
+        testUtils.getLog('dub.log', config.maintUrl, jasmine.getEnv().currentSpec, 'dub-light', ++testNum)
         .catch(function(error) {
             console.log("Error getting log file for test " + testNum + ": " + JSON.stringify(error));
         }).finally(function() {
