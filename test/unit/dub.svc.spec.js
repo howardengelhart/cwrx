@@ -292,9 +292,9 @@ describe('dub (UT)',function(){
                 fs.writeJsonSync.andReturn();
                 var now = new Date().valueOf();
                 dub.createJobFile(job, config);
-                expect(job.jobFilePath).toBe('caches/jobs/job-123456.json');
+                expect(job.jobFilePath).toBe('caches/jobs/job_123456.json');
                 expect(fs.writeJsonSync).toHaveBeenCalled();
-                expect(fs.writeJsonSync.calls[0].args[0]).toBe('caches/jobs/job-123456.json');
+                expect(fs.writeJsonSync.calls[0].args[0]).toBe('caches/jobs/job_123456.json');
                 
                 var data = fs.writeJsonSync.calls[0].args[1] || {};
                 expect(data.jobId).toBe('123456');
@@ -422,7 +422,7 @@ describe('dub (UT)',function(){
                 expect(srcParams.Bucket).toEqual('ut');
                 expect(srcParams.Key).toEqual('ut/media/video/test.mp4');
 
-                var outParams = job.getS3OutVideoParams();
+                var outParams = job.getS3OutParams();
                 expect(outParams.Bucket).toEqual('ut');
                 expect(outParams.Key).toEqual('ut/media/output/test_hashOutput.mp4');
                 expect(outParams.ACL).toEqual('public-read');
@@ -510,6 +510,7 @@ describe('dub (UT)',function(){
             beforeEach(function() {
                 jasmine.Clock.useMock();
                 spyOn(dub, 'handleRequest');
+                spyOn(dub, 'handleTrackRequest');
                 timerCallback = jasmine.createSpy('timer_callback');
                 headSpy = jasmine.createSpy('s3_head_obj');
                 mockAws.S3 = function() {
@@ -561,6 +562,27 @@ describe('dub (UT)',function(){
                     expect(resp.data.jobId).toBe('123456');
                     expect(resp.data.host).toBe('fakeHost');
                     expect(dub.handleRequest).toHaveBeenCalled();
+                    done();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                    done();
+                });
+            });
+            
+            it('should call handleTrackRequest for a track conversion job', function(done) {
+                headSpy.andCallFake(function(params, cb) {
+                    setTimeout(function() {
+                        timerCallback();
+                        cb('No such video!');
+                    }, 500);
+                });
+                job.trackConversion = true;
+                
+                var promise = dub.startCreateJob(job, config);
+                jasmine.Clock.tick(500);
+                promise.then(function(resp) {
+                    expect(resp).toBeDefined();
+                    expect(dub.handleTrackRequest).toHaveBeenCalled();
                     done();
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
@@ -645,11 +667,11 @@ describe('dub (UT)',function(){
                         expect(resp.code).toBe(201);
                         expect(JSON.stringify(resp.data.lastStatus)).toBe(JSON.stringify({code: 201}));
                         expect(resp.data.jobId).toBe('123456');
-                        expect(resp.data.resultUrl).toBe('http://fake.com');
-                        expect(resp.data.resultMD5).toBe('fakeMD5');
+                        expect(resp.data.output).toBe('http://fake.com');
+                        expect(resp.data.md5).toBe('fakeMD5');
                         
                         expect(fs.readJson).toHaveBeenCalled();
-                        expect(fs.readJson.calls[0].args[0]).toBe('caches/jobs/job-123456.json');
+                        expect(fs.readJson.calls[0].args[0]).toBe('caches/jobs/job_123456.json');
                         done();
                     }).catch(function(error) {
                         expect(error.toString()).not.toBeDefined();
@@ -724,6 +746,32 @@ describe('dub (UT)',function(){
                         expect(request.get).toHaveBeenCalled();
                         expect(request.get.calls[0].args[0])
                             .toBe('http://differentHost/dub/status/123456?host=differentHost&proxied=true');
+                        done();
+                    }).catch(function(error) {
+                        expect(error.toString()).not.toBeDefined();
+                        done();
+                    });
+                });
+                
+                it('should use a different url if the jobId is a track job', function(done) {
+                    request.get.andCallFake(function(url, cb) {
+                        setTimeout(function() {
+                            timerCallback();
+                            cb(null, {statusCode: 201}, 'fakeBody');
+                        }, 1000);
+                    });
+                    
+                    var promise = dub.getStatus('t-123456', 'differentHost', config);
+                    jasmine.Clock.tick(1000)
+                    promise.then(function(resp) {
+                        expect(resp).toBeDefined();
+                        expect(resp.code).toBe(201);
+                        expect(resp.data).toBe('fakeBody');
+                        
+                        expect(timerCallback).toHaveBeenCalled();
+                        expect(request.get).toHaveBeenCalled();
+                        expect(request.get.calls[0].args[0])
+                            .toBe('http://differentHost/dub/track/status/t-123456?host=differentHost&proxied=true');
                         done();
                     }).catch(function(error) {
                         expect(error.toString()).not.toBeDefined();
@@ -969,7 +1017,7 @@ describe('dub (UT)',function(){
                         expect(job.setEndTime).toHaveBeenCalledWith('convertLinesToMP3');
                         doneFlag = true;
                     }).catch(function(error) { 
-                        expect(error.toString()).not.toBeDefined();
+                        expect(error).not.toBeDefined();
                         doneFlag = true;
                     });
                 });
