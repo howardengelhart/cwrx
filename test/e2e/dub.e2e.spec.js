@@ -216,7 +216,7 @@ describe('dub (E2E)', function() {
             var fileOpts = {
                 url: config.maintUrl + '/cache_file',
                 json: {
-                    fname: "job-e2eJob.json",
+                    fname: "job_e2eJob.json",
                     data: {
                         jobId: "e2eJob",
                         lastStatus: {
@@ -241,7 +241,7 @@ describe('dub (E2E)', function() {
                 expect(resp.body.lastStatus.step).toBe("Completed");
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(JSON.stringfiy(error)).not.toBeDefined();
                 done();
             });
         });
@@ -254,7 +254,7 @@ describe('dub (E2E)', function() {
             var fileOpts = {
                 url: config.maintUrl + '/cache_file',
                 json: {
-                    fname: "job-e2eJob.json",
+                    fname: "job_e2eJob.json",
                     data: {
                         jobId: "e2eJob",
                         lastStatus: {
@@ -279,7 +279,7 @@ describe('dub (E2E)', function() {
                 expect(resp.body.lastStatus.step).toBe("Completed");
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(JSON.stringify(error)).not.toBeDefined();
                 done();
             });
         });
@@ -304,7 +304,7 @@ describe('dub (E2E)', function() {
             var fileOpts = {
                 url: config.maintUrl + '/cache_file',
                 json: {
-                    fname: "job-invalid.json",
+                    fname: "job_invalid.json",
                     data: "This is not a job file",
                     cache: 'jobs'
                 }
