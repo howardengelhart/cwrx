@@ -8,8 +8,10 @@ var request     = require('request'),
     config      = {
         dubUrl   : 'http://' + (host === 'localhost' ? host + ':3000' : host) + '/dub',
         maintUrl : 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint',
-        proxyUrl : 'http://' + (statusHost === 'localhost' ? statusHost + ':3000' : statusHost) + '/dub'
-    };
+        proxyUrl : 'http://' + (statusHost === 'localhost' ? statusHost + ':3000' : statusHost) + '/dub',
+        trackStatUrl : 'http://' + (statusHost === 'localhost' ? statusHost + ':3000' : statusHost) + '/dub/track/status/'
+    },
+    statusTimeout = 10000;
 
 jasmine.getEnv().defaultTimeoutInterval = 40000;
 
@@ -34,7 +36,7 @@ describe('dub (E2E)', function() {
     });
     afterEach(function(done) {
         if (!process.env['getLogs']) return done();
-        testUtils.getLog('dub.log', config.maintUrl, jasmine.getEnv().currentSpec, ++testNum)
+        testUtils.getLog('dub.log', config.maintUrl, jasmine.getEnv().currentSpec, 'dub', ++testNum)
         .catch(function(error) {
             console.log("Error getting log file for test " + testNum + ": " + JSON.stringify(error));
         }).finally(function() {
@@ -214,7 +216,7 @@ describe('dub (E2E)', function() {
             var fileOpts = {
                 url: config.maintUrl + '/cache_file',
                 json: {
-                    fname: "job-e2eJob.json",
+                    fname: "job_e2eJob.json",
                     data: {
                         jobId: "e2eJob",
                         lastStatus: {
@@ -239,7 +241,7 @@ describe('dub (E2E)', function() {
                 expect(resp.body.lastStatus.step).toBe("Completed");
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(JSON.stringfiy(error)).not.toBeDefined();
                 done();
             });
         });
@@ -252,7 +254,7 @@ describe('dub (E2E)', function() {
             var fileOpts = {
                 url: config.maintUrl + '/cache_file',
                 json: {
-                    fname: "job-e2eJob.json",
+                    fname: "job_e2eJob.json",
                     data: {
                         jobId: "e2eJob",
                         lastStatus: {
@@ -277,7 +279,7 @@ describe('dub (E2E)', function() {
                 expect(resp.body.lastStatus.step).toBe("Completed");
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(JSON.stringify(error)).not.toBeDefined();
                 done();
             });
         });
@@ -302,7 +304,7 @@ describe('dub (E2E)', function() {
             var fileOpts = {
                 url: config.maintUrl + '/cache_file',
                 json: {
-                    fname: "job-invalid.json",
+                    fname: "job_invalid.json",
                     data: "This is not a job file",
                     cache: 'jobs'
                 }
@@ -323,5 +325,92 @@ describe('dub (E2E)', function() {
                 done();
             });
         });
-    });  //  end -- describe /dub/status
+    });
+    
+    describe('/dub/track/create', function(done) {
+        it('should create an mp3 with the correct MD5', function(done) {
+            var options = {
+                url: config.dubUrl + '/track/create',
+                json: {
+                    tts: {
+                        voice: "Paul"
+                    },
+                    line: "This is a test line"
+                }
+            };
+            var md5 = '22cbe6e36f735521064ff28425ef3054';
+            
+            testUtils.qRequest('post', [options])
+            .then(function(resp) {
+                expect(resp.response.statusCode).toBe(202);
+                expect(resp.body.jobId.match(/^t-\w{10}$/)).toBeTruthy();
+                expect(resp.body.host).toBeDefined();
+                return testUtils.checkStatus(resp.body.jobId, resp.body.host, config.trackStatUrl,
+                                             statusTimeout, 1000);
+            }).then(function(resp) {
+                expect(resp.data.output).toBeDefined();
+                expect(typeof(resp.data.output)).toEqual('string');
+                expect(resp.data.md5).toEqual(md5);
+                
+                if (resp.data.md5 !== md5) {
+                    return done();
+                }
+
+                var cleanOpts = {
+                    url : config.maintUrl + '/clean_track',
+                    json: options.json
+                }
+                testUtils.qRequest('post', [cleanOpts])
+                .catch(function(error) {
+                    console.log('Error removing track: ' + JSON.stringify(error));
+                }).finally(function() {
+                    done();
+                });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should fail if given a template with no line', function(done) {
+            var options = {
+                url: config.dubUrl + '/track/create',
+                json: {}
+            };
+        
+            testUtils.qRequest('post', [options])
+            .then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(errorObj) {
+                expect(errorObj).toBeDefined();
+                expect(errorObj.error).toBe('Unable to process request.');
+                expect(errorObj.detail).toBe('Expected line string in template');
+                done();
+            });
+        });
+        
+        it('should fail if given an invalid template', function(done) {
+            var options = {
+                url: config.dubUrl + '/track/create',
+                json: {
+                    line: {
+                        ts: '0.1',
+                        text: 'This is a test'
+                    }
+                }
+            };
+        
+            testUtils.qRequest('post', [options])
+            .then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(errorObj) {
+                expect(errorObj).toBeDefined();
+                expect(errorObj.error).toBe('Unable to process request.');
+                expect(errorObj.detail).toBe('Expected line string in template');
+                done();
+            });
+        });
+    });  //  end -- describe /dub/track/create
 });  //  end -- describe dub (E2E)

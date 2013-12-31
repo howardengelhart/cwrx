@@ -31,7 +31,7 @@ describe('share-light (E2E)', function() {
     });
     afterEach(function(done) {
         if (!process.env['getLogs']) return done();
-        testUtils.getLog('share.log', config.maintUrl, jasmine.getEnv().currentSpec, ++testNum)
+        testUtils.getLog('share.log', config.maintUrl, jasmine.getEnv().currentSpec, 'share-light', ++testNum)
         .catch(function(error) {
             console.log("Error getting log file for test " + testNum + ": " + JSON.stringify(error));
         }).finally(function() {

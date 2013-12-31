@@ -35,7 +35,7 @@ describe('dub-light (E2E)', function() {
     });
     afterEach(function(done) {
         if (!process.env['getLogs']) return done();
-        testUtils.getLog('dub.log', config.maintUrl, jasmine.getEnv().currentSpec, ++testNum)
+        testUtils.getLog('dub.log', config.maintUrl, jasmine.getEnv().currentSpec, 'dub-light', ++testNum)
         .catch(function(error) {
             console.log("Error getting log file for test " + testNum + ": " + JSON.stringify(error));
         }).finally(function() {
@@ -94,7 +94,7 @@ describe('dub-light (E2E)', function() {
             testUtils.qRequest('post', [options])
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(202);
-                expect(resp.body.jobId.match(/^\w{10}$/)).toBeTruthy();
+                expect(resp.body.jobId.match(/^v-\w{10}$/)).toBeTruthy();
                 expect(resp.body.host).toBeDefined();
                 return testUtils.checkStatus(resp.body.jobId, resp.body.host, config.statusUrl, statusTimeout);
             }).then(function(resp) {
@@ -104,8 +104,40 @@ describe('dub-light (E2E)', function() {
                 expect(resp.data.lastStatus).toBeDefined();
                 expect(resp.data.lastStatus.code).toBe(201);
                 expect(resp.data.lastStatus.step).toBe('Completed');
-                expect(resp.data.resultMD5).toBeDefined();
-                expect(resp.data.resultUrl).toBeDefined();
+                expect(resp.data.output).toBeDefined();
+                expect(resp.data.md5).toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+    });
+    
+    describe('/dub/track/create', function() {
+        it('should succeed with a valid slightly random line', function(done) {
+            var options = {
+                url: config.dubUrl + '/track/create',
+                json: {
+                    line: 'This is a test ' + Math.round(Math.random() * 10000)
+                }
+            };
+            
+            testUtils.qRequest('post', [options])
+            .then(function(resp) {
+                expect(resp.response.statusCode).toBe(202);
+                expect(resp.body.jobId.match(/^t-\w{10}$/)).toBeTruthy();
+                expect(resp.body.host).toBeDefined();
+                return testUtils.checkStatus(resp.body.jobId, resp.body.host, config.statusUrl, statusTimeout);
+            }).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(201);
+                expect(resp.data).toBeDefined();
+                expect(resp.data.lastStatus).toBeDefined();
+                expect(resp.data.lastStatus.code).toBe(201);
+                expect(resp.data.lastStatus.step).toBe('Completed');
+                expect(resp.data.output).toBeDefined();
+                expect(resp.data.md5).toBeDefined();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -141,6 +173,8 @@ describe('dub-light (E2E)', function() {
                 expect(resp.body.config.s3.src.path).toBe(media + 'src/screenjack/video');
                 expect(resp.body.config.s3.out.bucket).toBe(bucket);
                 expect(resp.body.config.s3.out.path).toBe(media + 'usr/screenjack/video');
+                expect(resp.body.config.s3.tracks.bucket).toBe(bucket);
+                expect(resp.body.config.s3.tracks.path).toBe(media + 'usr/screenjack/track');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
