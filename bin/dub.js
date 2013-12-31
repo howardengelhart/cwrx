@@ -252,7 +252,7 @@ dub.createTrackJob = function(id, template, config) {
     obj.outputFname = obj.tracks[0].fname;
     obj.outputPath = obj.tracks[0].fpath;
     obj.outputType = (config.output && config.output.type ? config.output.type : null);
-    obj.outputUri  = config.output.trackUri + obj.outputFname;
+    obj.outputUri  = config.output && (config.output.trackUri + obj.outputFname) || obj.outputFname;
     obj.getS3OutParams = function(){
         return {
             Bucket : config.s3.tracks.bucket,
@@ -539,7 +539,7 @@ dub.convertLinesToMP3 = function(job){
                     log.info('[%1] Failed, rqs = %2', job.id, JSON.stringify(rqs));
                     deferred.reject(err);
                 } else {
-                    log.trace("[%1] Succeeded: name = %2, ts = %3", job.id, track.fname, track.ts);
+                    log.trace("[%1] Succeeded: name = %2, ts = %3", job.id, track.fname, track.ts || 0);
                     deferred.resolve();
                 }
             });
@@ -891,7 +891,7 @@ dub.startCreateJob = function(job, config) {
     s3.headObject(headParams, function(err, data) {
         if (!err && data) {
             clearTimeout(timeout);
-            log.info('[%1] Found existing video: Bucket: %2, Key: %3',job.id,headParams.Bucket,
+            log.info('[%1] Found existing file: Bucket: %2, Key: %3',job.id,headParams.Bucket,
                 headParams.Key);
             dub.updateJobStatus(job, 201, 'Completed', {resultMD5: data.ETag.replace(/"/g, '')});
             deferred.resolve({
@@ -1241,7 +1241,8 @@ function workerMain(config,program,done){
                 output: config.output,
                 s3: {
                     src: config.s3.src,
-                    out: config.s3.out
+                    out: config.s3.out,
+                    tracks: config.s3.tracks
                 }
             }
         };
@@ -1401,4 +1402,5 @@ if (__ut__) {
     module.exports = dub;
 } else {
     module.exports.createDubJob = dub.createDubJob;
+    module.exports.createTrackJob = dub.createTrackJob;
 }

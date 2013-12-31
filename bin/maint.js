@@ -30,9 +30,13 @@ var include     = require('../lib/inject').require,
             jobs    : path.normalize('/usr/local/share/cwrx/dub/caches/jobs/'),
         },
         s3 : {
-            share     : {
-                bucket  : 'c6media',
-                path    : 'usr/screenjack/video/'
+            share   : {
+                bucket  : 'c6.dev',
+                path    : 'media/usr/screenjack/video/'
+            },
+            tracks  : {
+                bucket  : 'c6.dev',
+                path    : 'media/usr/screenjack/track/'
             },
             auth    : path.join(process.env.HOME,'.aws.json')
         },
@@ -230,6 +234,45 @@ function main(done) {
             }
         );
     });
+    
+    app.post("/maint/clean_track", function(req, res, next) {
+        var job;
+        log.info("Starting clean track");
+        try {
+            job = dub.createTrackJob(uuid.createUuid().substr(0,10), req.body, config);
+        } catch (e){
+            log.error("Create job error: " + e.message);
+            res.send(500,{
+                error  : 'Unable to process request.',
+                detail : e.message
+            });
+            return;
+        }
+        var remList = [job.outputPath],
+            s3 = new aws.S3(),            
+            outParams = job.getS3OutParams(),
+            params = {
+                Bucket: outParams.Bucket,
+                Key: outParams.Key
+            };
+        
+        log.info("Removing cached file " + job.outputFname);
+        removeFiles(remList)
+        .then(function(val) {
+            log.info("Successfully removed local file " + job.outputPath);
+            log.info("Removing track on S3: Bucket = " + params.Bucket + ", Key = " + params.Key);
+            return q.npost(s3, 'deleteObject', [params]);
+        }).then(function() {
+            log.info("Successfully removed track on S3");
+            res.send(200, "Successfully removed track");
+        }).catch(function(error) {
+            log.error("Error removing track: " + error);
+            res.send(500,{
+                error  : 'Unable to process request.',
+                detail : error
+            });
+        });
+    });
 
     app.post("/maint/clean_all_caches", function(req, res, next) {
         var remList = [];
@@ -305,7 +348,8 @@ function main(done) {
             config: {
                 caches: config.caches,
                 s3: {
-                    share: config.s3.share
+                    share: config.s3.share,
+                    tracks: config.s3.tracks
                 }
             }
         };

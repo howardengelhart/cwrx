@@ -41,8 +41,9 @@ function getLog(logFile, maintUrl, spec, testName, testNum) {
     });
 }
 
-function checkStatus(jobId, host, statusUrl, statusTimeout) {
+function checkStatus(jobId, host, statusUrl, statusTimeout, pollInterval) {
     var interval, timeout,
+        pollInterval = pollInterval || 5000,
         deferred = q.defer(),
         options = {
             url: statusUrl + jobId + '?host=' + host 
@@ -64,7 +65,7 @@ function checkStatus(jobId, host, statusUrl, statusTimeout) {
             clearTimeout(timeout);
             deferred.reject(error);
         });
-    }, 5000);
+    }, pollInterval);
     
     timeout = setTimeout(function() {
         clearInterval(interval);
