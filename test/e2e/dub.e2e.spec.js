@@ -3,6 +3,7 @@ var request     = require('request'),
     path        = require('path'),
     fs          = require('fs-extra'),
     testUtils   = require('./testUtils'),
+    id3Info     = require('../../lib/id3'),
     host        = process.env['host'] ? process.env['host'] : 'localhost',
     statusHost  = process.env['statusHost'] ? process.env['statusHost'] : host,
     config      = {
@@ -328,17 +329,41 @@ describe('dub (E2E)', function() {
     });
     
     describe('/dub/track/create', function(done) {
-        it('should create an mp3 with the correct MD5', function(done) {
+        it('should create a correct mp3 file', function(done) {
             var options = {
                 url: config.dubUrl + '/track/create',
                 json: {
                     tts: {
-                        voice: "Paul"
+                        voice: "Paul",
+                        randTag: Math.random()
                     },
                     line: "This is a test line"
                 }
             };
-            var md5 = '22cbe6e36f735521064ff28425ef3054';
+            var correctId3 = {
+                audio_duration: 1.446,
+                kbps: 48,
+                khz: 22050,
+                lips: 'f0=15&f1=15&f2=15&f3=9&f4=9&f5=15&f6=9&f7=5&f8=6&f9=15&f10=9&f11=9&f12=12&f13=12&f14=12&f15=5&f16=7&f17=0&nofudge=1&lipversion=2&ok=1',
+                phonemes: 'P,0,66,13,xS,66,1396,71,.G,66,346,77,6W,66,346,77,ThisP,66,116,60,DP,116,206,89,iP,206,346,76,sW,346,526,71,isP,346,426,62,iP,426,526,79,zW,526,596,72,aP,526,596,72,!W,596,976,60,testP,596,726,59,tP,726,816,90,eP,816,916,44,sP,916,976,38,tW,976,1396,74,lineP,976,1176,82,lP,1176,1266,91,IP,1266,1396,52,nP,1396,1426,13,x'
+            };
+            
+            function getTrackID3(url) {
+                var options = {
+                    url: url
+                }, deferred = q.defer();
+                
+                testUtils.qRequest('get', [options])
+                .then(function(resp) {
+                    return q.npost(fs, 'writeFile', [path.join(__dirname, 'temp.mp3'), resp.body]);
+                }).then(function() {
+                    id3Info(path.join(__dirname, 'temp.mp3'), function(err, result) {
+                        if (err) deferred.reject(err);
+                        else deferred.resolve(result);
+                    });
+                });
+                return deferred.promise;
+            }
             
             testUtils.qRequest('post', [options])
             .then(function(resp) {
@@ -350,16 +375,25 @@ describe('dub (E2E)', function() {
             }).then(function(resp) {
                 expect(resp.data.output).toBeDefined();
                 expect(typeof(resp.data.output)).toEqual('string');
-                expect(resp.data.md5).toEqual(md5);
+                return getTrackID3(resp.data.output);
+            }).then(function(result) {
+                expect(result).toBeDefined();
+                var equal = true;
+                Object.keys(correctId3).forEach(function(key) {
+                    if (key === 'phonemes') {
+                        result[key] = result[key].replace(/\s+/g, '');
+                    }
+                    expect(result[key]).toBe(correctId3[key]);
+                    if (result[key] !== correctId3[key]) equal = false;
+                });
                 
-                if (resp.data.md5 !== md5) {
-                    return done();
-                }
+                if (equal) fs.removeSync(path.join(__dirname, 'temp.mp3'));
 
                 var cleanOpts = {
                     url : config.maintUrl + '/clean_track',
                     json: options.json
-                }
+                };
+                
                 testUtils.qRequest('post', [cleanOpts])
                 .catch(function(error) {
                     console.log('Error removing track: ' + JSON.stringify(error));
