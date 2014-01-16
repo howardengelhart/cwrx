@@ -5,9 +5,8 @@ var __ut__      = (global.jasmine !== undefined) ? true : false;
 var include     = require('../lib/inject').require,
     fs          = include('fs-extra'),
     path        = include('path'),
+    q           = include('q'),
     express     = include('express'),
-    passport    = include('passport'),
-    localStrat  = include('passport-local').Strategy,
     MongoStore  = include('connect-mongo')(express),
     bcrypt      = include('bcrypt'),
     logger      = include('../lib/logger'),
@@ -97,90 +96,113 @@ auth.createConfiguration = function(cmdLine) { // TODO
     return cfgObject;
 };
 
-auth.configPassport = function(passport, config) {
-    var log = logger.getLog();
+auth.login = function(req, users) {
+    if (!req.body || !req.body.username || !req.body.password) {
+        return q({
+            code: 400,
+            body: 'You need to provide a username and password in the body'
+        });
+    }
+    var deferred = q.defer(),
+        log = logger.getLog(),
+        userAccount;
     
-    mongoUtils.connect(config.mongo.host, config.mongo.port)
-    .done(function(mongoClient) { // TODO: handle errors here???
-        var db = mongoClient.db(config.mongo.db);
-        var accounts = db.collection('accounts');
-        var users = db.collection('users');
-
-        // serialize the user for the session
-        passport.serializeUser(function(user, done) {
-            console.log('serializing user');
-            done(null, user.id);
-        });
-
-        // deserialize the user from the session
-        passport.deserializeUser(function(id, done) { //TODO
-            console.log('deserializing user');
-            users.findOne({id: id}, done);
-        });
-
-        // setup a strategy for logging in with username/password        
-        passport.use('local-login', {passReqToCallback : true}, new LocalStrategy(
-        function(req, username, password, done) {
-            accounts.findOne({username: username}, function(err, userAccount) {
-                if (err) {
-                    log.error('[%1] Error looking up user %2 in accounts: %3', req.uuid, username, err);
-                    return done(err);
-                }
-                if (!userAccount) {
-                    log.info('[%1] Failed login for user %2: unknown username', req.uuid, username);
-                    return done('No user with that username found.');
-                }   
-                bcrypt.compare(password, userAccount.password, function(err, match) {
-                    if (err) {
-                        log.error('[%1] Error comparing passwords for user %2: %3', req.uuid, err);
-                        return done('Error checking password');
-                    }
-                    if (match) {
-                        log.info('[%1] Successful login for user %2', req.uuid, username);
-                        users.findOne({username: username}, done);
-                    } else {
-                        log.info('[%1] Failed login for user %2: invalid password', req.uuid, username);
-                        done('Wrong password for this user');
-                    }
-                });
+    log.info('[%1] Starting login for user %2', req.uuid, req.body.username);
+    q.npost(users, 'findOne', [{username: req.body.username}])
+    .then(function(account) {
+        if (!account) {
+            log.info('[%1] Failed login for user %2: unknown username', req.uuid, req.body.username);
+            return q.reject();
+        }
+        userAccount = account;
+        return q.npost(bcrypt, 'compare', [req.body.password, userAccount.password]);
+    }).then(function(matching) {
+        if (matching) {
+            log.info('[%1] Successful login for user %2', req.uuid, req.body.username);
+            var user = mongoUtils.safeUser(userAccount);
+            req.session.regenerate(function() {
+                req.session.user = user;
             });
-        }));
-        
-        // setup a strategy for creating a new account with username/password
-        passport.use('local-signup', {passReqToCallback : true}, new LocalStrategy(
-        function(req, username, password, done) {
-            // check if the user exists first
-            accounts.findOne({username: username}, function(err, userAccount) {
-                if (err) {
-                    log.error('[%1] Error looking up user %2 in accounts: %3', req.uuid, username, err);
-                    return done(err);
+            deferred.resolve({
+                code: 200,
+                body: {
+                    user: user
                 }
-                if (userAccount) {
-                    return done('That username is already taken');
-                } else {
-                    var newUser = {
-                        username: username,
-                    };
-				    // if there is no user with that email
-                    // create the user
-                    var newUser            = new User();
-
-                    // set the user's local credentials
-                    newUser.local.email    = email;
-                    newUser.local.password = newUser.generateHash(password);
-
-				    // save the user
-                    newUser.save(function(err) {
-                        if (err)
-                            throw err;
-                        return done(null, newUser);
-                    });
-                }
-
-            });        
-
-        }));
+            });
+        } else {
+            log.info('[%1] Failed login for user %2: invalid password', req.uuid, req.body.username);
+            return q.reject();
+        }
+    }).catch(function(error) {
+        if (error) { // actual server error, reject the promise
+            log.error('[%1] Error logging in user %2: %3', req.uuid, req.body.username, error);
+            deferred.reject(error);
+        } else { // failed authentication b/c of bad credentials, resolve with 401
+            deferred.resolve({
+                code: 401,
+                body: 'Invalid username or password'
+            });
+        }
     });
+    
+    return deferred.promise;
+};
+
+// This may be subject to significant change later, but should act as a basic start/example
+auth.signup = function(req, users) {
+    if (!req.body || !req.body.username || !req.body.password) {
+        return q({
+            code: 400,
+            body: 'You need to provide a username and password in the body'
+        });
+    }
+    var deferred = q.defer(),
+        log = logger.getLog(),
+        newUser;
+    
+    log.info('[%1] Starting signup of user %2', req.uuid, req.body.username);
+    // check if a user already exists with that username
+    q.npost(users, 'findOne', [{username: req.body.username}])
+    .then(function(userAccount) {
+        if (userAccount) {
+            log.info('[%1] User %2 already exists', req.uuid, req.body.username);
+            deferred.resolve({
+                code: 400,
+                body: 'A user with that username already exists'
+            });
+            return q();
+        }
+        newUser = {
+            id: 'u-' + uuid.createUuid().substr(0,14),
+            created: new Date(),
+            username: req.body.username
+        };
+        return q.npost(bcrypt, 'hash', [req.body.password, bcrypt.genSaltSync()])
+        .then(function(hashed) {
+            newUser.password = hashed;
+            // save to users with normal + journal write concern; guarantees write goes through
+            return q.npost(users, 'insert', [newUser, {w: 1, journal: true}]);
+        }).then(function() {
+            // Log the user in
+            log.info('[%1] Successfully created an account for user %2, id: %3',
+                     req.uuid, req.body.username, newUser.id);
+            var user = mongoUtils.safeUser(newUser);
+            req.session.regenerate(function() {
+                req.session.user = user;
+            });
+            deferred.resolve({
+                code: 200,
+                body: {
+                    user: user
+                }
+            });
+        });
+    }).catch(function(error) {
+        log.error('[%1] Error creating user account %2: %3', req.uuid, req.body.username, error);
+        deferred.reject(error);
+    });
+    
+    return deferred.promise;
 };
 
 if (!__ut__){
@@ -221,7 +243,7 @@ function main(done) {
     program.enableAws = true;
 
     config = auth.createConfiguration(program);
-
+    
     if (program.showConfig){
         console.log(JSON.stringify(config,null,3));
         process.exit(0);
@@ -234,102 +256,109 @@ function main(done) {
     if (program.loglevel){
         log.setLevel(program.loglevel);
     }
-
-    process.on('uncaughtException', function(err) {
-        try{
-            log.error('uncaught: ' + err.message + "\n" + err.stack);
-        }catch(e){
-            console.error(e);
-        }
-        return done(2);
-    });
-
-    process.on('SIGINT',function(){
-        log.info('Received SIGINT, exitting app.');
-        return done(1,'Exit');
-    });
-
-    process.on('SIGTERM',function(){
-        log.info('Received TERM, exitting app.');
-        if (program.daemon){
-            daemon.removePidFile(config.cacheAddress('auth.pid', 'run'));
-        }
-        return done(0,'Exit');
-    });
-
-    log.info('Running version ' + auth.getVersion());
     
-    // Daemonize if so desired
-    if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)) {
-        daemon.daemonize(config.cacheAddress('auth.pid', 'run'), done);
-    }
+    mongoUtils.connect(config.mongo.host, config.mongo.port).done(function(mongoClient) {
+        log.info('Successfully connected to mongo at %1:%2', config.mongo.host, config.mongo.port);
+        
+        process.on('uncaughtException', function(err) {
+            try{
+                log.error('uncaught: ' + err.message + "\n" + err.stack);
+            }catch(e){
+                console.error(e);
+            }
+            return done(2);
+        });
 
-    app.use(express.bodyParser());
-    app.use(express.cookieParser(config.secrets.cookieParser || '')); //TODO different session config????
-    app.use(express.session({
-        key: config.session.key,
-        secret: config.secrets.session || '',
-        cookie: {
-            maxAge: config.session.maxAge
-        },
-        store: new MongoStore({
-            db: config.session.mongo.db,
-            host: config.session.mongo.host,
-            port: config.session.mongo.port
-        })
-    }));
-    app.use(passport.initialize());
-    app.use(passport.session()); // persistent login sessions
+        process.on('SIGINT',function(){
+            log.info('Received SIGINT, exitting app.');
+            return done(1,'Exit');
+        });
 
-    app.all('*', function(req, res, next) { // TODO keep all this????
-        res.header("Access-Control-Allow-Origin", "*");
-        res.header("Access-Control-Allow-Headers", 
-                   "Origin, X-Requested-With, Content-Type, Accept");
-        res.header("cache-control", "max-age=0");
+        process.on('SIGTERM',function(){
+            log.info('Received TERM, exitting app.');
+            if (program.daemon){
+                daemon.removePidFile(config.cacheAddress('auth.pid', 'run'));
+            }
+            return done(0,'Exit');
+        });
 
-        if (req.method.toLowerCase() === "options") {
-            res.send(200);
-        } else {
-            next();
+        log.info('Running version ' + auth.getVersion());
+        
+        // Daemonize if so desired
+        if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)) {
+            daemon.daemonize(config.cacheAddress('auth.pid', 'run'), done);
         }
-    });
 
-    app.all('*', function(req, res, next) {
-        req.uuid = uuid.createUuid().substr(0,10);
-        if (!req.headers['user-agent'] || !req.headers['user-agent'].match(/^ELB-HealthChecker/)) {
-            log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
-                req.method, req.url, req.httpVersion);
-        } else {
-            log.trace('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
-                req.method, req.url, req.httpVersion);
-        }
-        next();
-    });
-    
-    app.post('/auth/login', function(req, res, next) {
-        passport.authenticate('local', function(err, user, info) {
-            if (err) {
-                res.send(401, 'Invalid username or password');
+        app.use(express.bodyParser());
+        app.use(express.cookieParser(config.secrets.cookieParser || '')); //TODO different session config????
+        app.use(express.session({
+            key: config.session.key,
+            secret: config.secrets.session || '',
+            cookie: {
+                httpOnly: false,
+                maxAge: config.session.maxAge
+            },
+            store: new MongoStore({
+                db: config.session.mongo.db,
+                host: config.session.mongo.host,
+                port: config.session.mongo.port
+            })
+        }));
+
+        app.all('*', function(req, res, next) { // TODO keep all this????
+            res.header("Access-Control-Allow-Origin", "*");
+            res.header("Access-Control-Allow-Headers", 
+                       "Origin, X-Requested-With, Content-Type, Accept");
+            res.header("cache-control", "max-age=0");
+
+            if (req.method.toLowerCase() === "options") {
+                res.send(200);
             } else {
-                res.send(200, {
-                    user: user
-                });
+                next();
             }
-        })(req, res, next);
-    });
-    
-    app.get('/auth/meta', function(req, res, next){
-        var data = {
-            version: auth.getVersion(),
-            config: {
-                session: config.session
-            }
-        };
-        res.send(200, data);
-    });
+        });
 
-    app.listen(program.port);
-    log.info('auth server is listening on port: ' + program.port);
+        app.all('*', function(req, res, next) {
+            req.uuid = uuid.createUuid().substr(0,10);
+            if (!req.headers['user-agent'] || !req.headers['user-agent'].match(/^ELB-HealthChecker/)) {
+                log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
+                    req.method, req.url, req.httpVersion);
+            } else {
+                log.trace('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
+                    req.method, req.url, req.httpVersion);
+            }
+            next();
+        });
+        var users = mongoClient.db(config.mongo.db).collection('users');
+        app.post('/auth/login', function(req, res, next) { //TODO change how failed auth is dealt with???
+            auth.login(req, users).then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, 'Error processing login');
+            });
+        });
+        
+        app.post('/auth/signup', function(req, res, next) {
+            auth.signup(req, users).then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, 'Error processing login');
+            });
+        });
+        
+        app.get('/auth/meta', function(req, res, next){
+            var data = {
+                version: auth.getVersion(),
+                config: {
+                    session: config.session
+                }
+            };
+            res.send(200, data);
+        });
+
+        app.listen(program.port);
+        log.info('auth server is listening on port: ' + program.port);
+    });
 }
 
 if (__ut__) {

@@ -46,4 +46,19 @@ describe('mongoUtils', function() {
             });
         });
     });
+    
+    describe('safe user', function() {
+        it('should create a new user object without any sensitive fields', function() {
+            var user = {
+                username: 'johnnyTestmonkey',
+                password: 'hashofasecret'
+            };
+            var newUser = mongoUtils.safeUser(user);
+            expect(newUser.username).toBe('johnnyTestmonkey');
+            expect(newUser.password).not.toBeDefined();
+            // shouldn't edit existing user object
+            expect(user.username).toBe('johnnyTestmonkey');
+            expect(user.password).toBe('hashofasecret');
+        });
+    });
 });
