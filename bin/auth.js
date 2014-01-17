@@ -39,14 +39,13 @@ auth.defaultConfiguration = {
     session: {
         key: 'c6Auth',
         maxAge: 14*24*60*60*1000, // 14 days; unit here is milliseconds
-        mongo: {
-            db: 'sessions',
-            host: 'localhost',
-            port: 27017
-        }
+        db: 'sessions'
     },
-    secrets: {
-        path: path.join(process.env.HOME,'.secrets.json')
+    secretsPath: path.join(process.env.HOME,'.secrets.json'),
+    mongo: {
+        host: 'localhost',
+        port: 27017,
+        db: 'c6DevDb'
     }
 };
 
@@ -65,17 +64,12 @@ auth.getVersion = function() {
     return 'unknown';
 };
 
-auth.createConfiguration = function(cmdLine) { // TODO
+auth.createConfiguration = function(cmdLine) {
     var cfgObject = cwrxConfig.createConfigObject(cmdLine.config, auth.defaultConfiguration),
         log;
 
     if (cfgObject.log) {
         log = logger.createLog(cfgObject.log);
-    }
-    
-    var secretsObj = fs.readJsonSync(cfgObject.secrets.path);
-    for (var key in secretsObj) {
-        cfgObject.secrets[key] = secretsObj[key];
     }
 
     cfgObject.ensurePaths = function(){
@@ -225,7 +219,7 @@ function main(done) {
         .option('-d, --daemon','Run as a daemon (requires -s).')
         .option('-g, --gid [GID]','Run as group (id or name).')
         .option('-l, --loglevel [LEVEL]', 'Specify log level (TRACE|INFO|WARN|ERROR|FATAL)' )
-        .option('-p, --port [PORT]','Listent on port (requires -s) [3100].', 3100)
+        .option('-p, --port [PORT]','Listent on port (requires -s) [3200].', 3200)
         .option('-u, --uid [UID]','Run as user (id or name).')
         .option('--show-config','Display configuration and exit.')
         .parse(process.argv);
@@ -256,6 +250,8 @@ function main(done) {
     if (program.loglevel){
         log.setLevel(program.loglevel);
     }
+    
+    var secrets = fs.readJsonSync(config.secretsPath);
     
     mongoUtils.connect(config.mongo.host, config.mongo.port).done(function(mongoClient) {
         log.info('Successfully connected to mongo at %1:%2', config.mongo.host, config.mongo.port);
@@ -288,24 +284,33 @@ function main(done) {
         if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)) {
             daemon.daemonize(config.cacheAddress('auth.pid', 'run'), done);
         }
+        
+        // if connection to mongo is down; immediately reject all requests
+        // otherwise the request will hang trying to get the session from mongo
+        app.use(function(req, res, next) {
+            mongoUtils.checkRunning(config.mongo.host, config.mongo.port)
+            .then(function() {
+                next();
+            }).catch(function(error) {
+                log.error('Connection to mongo is down: %1', error);
+                res.send(500, 'Connection to database is down');
+            });
+        });
 
         app.use(express.bodyParser());
-        app.use(express.cookieParser(config.secrets.cookieParser || '')); //TODO different session config????
+        app.use(express.cookieParser(secrets.cookieParser || ''));
         app.use(express.session({
             key: config.session.key,
-            secret: config.secrets.session || '',
             cookie: {
                 httpOnly: false,
                 maxAge: config.session.maxAge
             },
             store: new MongoStore({
-                db: config.session.mongo.db,
-                host: config.session.mongo.host,
-                port: config.session.mongo.port
+                db: mongoClient.db(config.session.db)
             })
         }));
 
-        app.all('*', function(req, res, next) { // TODO keep all this????
+        app.all('*', function(req, res, next) {
             res.header("Access-Control-Allow-Origin", "*");
             res.header("Access-Control-Allow-Headers", 
                        "Origin, X-Requested-With, Content-Type, Accept");
@@ -329,8 +334,9 @@ function main(done) {
             }
             next();
         });
+        
         var users = mongoClient.db(config.mongo.db).collection('users');
-        app.post('/auth/login', function(req, res, next) { //TODO change how failed auth is dealt with???
+        app.post('/auth/login', function(req, res, next) {
             auth.login(req, users).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {

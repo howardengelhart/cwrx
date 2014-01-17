@@ -84,7 +84,6 @@ describe('auth (UT)', function() {
         beforeEach(function() {
             spyOn(fs, 'existsSync');
             spyOn(fs, 'mkdirsSync');
-            spyOn(fs, 'readJsonSync');
             
             mockConfig = {
                 caches: {
@@ -93,9 +92,7 @@ describe('auth (UT)', function() {
                 log: {
                     logLevel: 'trace'
                 },
-                secrets: {
-                    path: '/secrets/.secrets.json'
-                }
+                secretsPath: '/secrets/.secrets.json'
             };
             createConfig = spyOn(cwrxConfig, 'createConfigObject').andReturn(mockConfig);
         });
@@ -108,21 +105,10 @@ describe('auth (UT)', function() {
             var cfgObject = auth.createConfiguration({config: 'utConfig'});
             expect(createConfig).toHaveBeenCalledWith('utConfig', auth.defaultConfiguration);
             expect(mockLogger.createLog).toHaveBeenCalledWith(mockConfig.log);
-            expect(fs.readJsonSync).toHaveBeenCalledWith('/secrets/.secrets.json');
             
             expect(cfgObject.caches.run).toBe('ut/run/');
             expect(cfgObject.ensurePaths).toBeDefined();
             expect(cfgObject.cacheAddress).toBeDefined();
-        });
-        
-        it('should correctly load secrets from a file', function() {
-            fs.readJsonSync.andReturn({
-                cookieParser: 'cookieSecret',
-                session: 'secretSession',
-            });
-            var cfgObject = auth.createConfiguration({config: 'utConfig'});
-            expect(cfgObject.secrets.cookieParser).toBe('cookieSecret');
-            expect(cfgObject.secrets.session).toBe('secretSession');
         });
         
         describe('ensurePaths method', function() {

@@ -5,7 +5,9 @@ var request     = require('request'),
 
 function qRequest(method, opts) {
     var deferred = q.defer();
-    
+    if (!(opts instanceof Array)) {
+        opts = [opts];
+    }
     q.npost(request, method, opts)
     .then(function(values) {
         if (!values) return q.reject({error: 'Received no data'});
