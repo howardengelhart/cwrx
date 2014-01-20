@@ -29,7 +29,7 @@ function qRequest(method, opts) {
 
 function getLog(logFile, maintUrl, spec, testName, testNum) {
     var options = {
-        url: maintUrl + '/get_log?logFile=dub.log'
+        url: maintUrl + '/get_log?logFile=' + logFile
     };
     return qRequest('get', [options])
     .then(function(resp) {

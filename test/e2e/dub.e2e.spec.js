@@ -1,5 +1,4 @@
-var request     = require('request'),
-    q           = require('q'),
+var q           = require('q'),
     path        = require('path'),
     fs          = require('fs-extra'),
     testUtils   = require('./testUtils'),
@@ -172,7 +171,7 @@ describe('dub (E2E)', function() {
                     json: screamTemplate
                 };
                 screamTemplate.video = 'invalid.mp4';
-                return testUtils.qRequest(request, 'post', [vidOpts]);
+                return testUtils.qRequest('post', [vidOpts]);
             }).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {

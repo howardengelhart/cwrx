@@ -100,6 +100,8 @@ auth.login = function(req, users) {
     var deferred = q.defer(),
         log = logger.getLog(),
         userAccount;
+    // if (req.session && req.session.user) log.info(req.session.user);
+    // else log.info("no user in session");
     
     log.info('[%1] Starting login for user %2', req.uuid, req.body.username);
     q.npost(users, 'findOne', [{username: req.body.username}])
@@ -356,7 +358,8 @@ function main(done) {
             var data = {
                 version: auth.getVersion(),
                 config: {
-                    session: config.session
+                    session: config.session,
+                    mongo: config.mongo
                 }
             };
             res.send(200, data);
