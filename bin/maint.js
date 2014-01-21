@@ -144,7 +144,7 @@ function resetCollection(db, collName, data, config) {
             log.info("Collection %1 does not exist in db %2", collName, config.mongo.db);
             return q();
         } else {
-            return q.npost(collection, 'drop')
+            return q.npost(collection, 'drop');
         }
     }).then(function() {
         if (!data) {

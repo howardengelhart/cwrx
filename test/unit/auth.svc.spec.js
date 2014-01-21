@@ -184,7 +184,7 @@ describe('auth (UT)', function() {
                     username: 'user'
                 };
                 expect(resp.body.user).toEqual(safeUser);
-                expect(req.session.user).toEqual(safeUser);
+                expect(req.session.user).toEqual(safeUser.id);
                 expect(origUser.password).toBe('hashpass'); // shouldn't accidentally delete this
                 
                 expect(users.findOne).toHaveBeenCalled();
@@ -236,6 +236,19 @@ describe('auth (UT)', function() {
                 expect(error).not.toBeDefined();
                 done();
             });
+        });
+        
+        it('should reject with an error if session.regenerate fails with an error', function(done) {
+            req.session.regenerate.andCallFake(function(cb) {
+                cb('Error!');
+            });
+            auth.login(req, users).catch(function(error) {
+                expect(error).toBe('Error!');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(req.session.user).not.toBeDefined();
+                expect(req.session.regenerate).toHaveBeenCalled();
+                done();
+            });            
         });
         
         it('should reject with an error if bcrypt.compare fails with an error', function(done) {
@@ -316,7 +329,7 @@ describe('auth (UT)', function() {
                 expect(resp.body.user.username).toBe('user');
                 expect(resp.body.user.created instanceof Date).toBeTruthy('created instanceof Date');
                 expect(resp.body.user.password).not.toBeDefined();
-                expect(req.session.user).toEqual(resp.body.user);
+                expect(req.session.user).toEqual('u-1234567890abcd');
                 
                 expect(users.findOne).toHaveBeenCalled();
                 expect(users.findOne.calls[0].args[0]).toEqual({'username': 'user'});
@@ -350,6 +363,19 @@ describe('auth (UT)', function() {
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should reject with an error if session.regenerate fails with an error', function(done) {
+            req.session.regenerate.andCallFake(function(cb) {
+                cb('Error!');
+            });
+            auth.signup(req, users).catch(function(error) {
+                expect(error).toBe('Error!');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(req.session.user).not.toBeDefined();
+                expect(req.session.regenerate).toHaveBeenCalled();
                 done();
             });
         });
@@ -394,6 +420,60 @@ describe('auth (UT)', function() {
                 done();
             });
         });
+    });
+    
+    describe('logout', function() {
+        var req;
+        beforeEach(function() {
+            req = {
+                session: {
+                    user: 'u-123',
+                    destroy: jasmine.createSpy('session_destroy')
+                }
+            };
+        });
         
-    }); // end -- describe signup
+        it('should correctly call req.session.destroy to log a user out', function(done) {
+            req.session.destroy.andCallFake(function(cb) {
+                cb();
+            });
+            auth.logout(req).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(200);
+                expect(resp.body).toBe("Successful logout");
+                expect(req.session.destroy).toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should respond with a 400 if the user is not logged in', function(done) {
+            delete req.session.user;
+            auth.logout(req).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(400);
+                expect(resp.body).toBe("You are not logged in");
+                expect(mockLog.error).not.toHaveBeenCalled();
+                expect(req.session.destroy).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should pass along errors from req.session.destroy', function(done) {
+            req.session.destroy.andCallFake(function(cb) {
+                cb('Error!');
+            });
+            auth.logout(req).catch(function(error) {
+                expect(req.session.destroy).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(error).toBe('Error!');
+                done();
+            });
+        });
+    }); // end -- describe logout
 });  // end -- describe auth

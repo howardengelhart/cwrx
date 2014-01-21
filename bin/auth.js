@@ -116,14 +116,15 @@ auth.login = function(req, users) {
         if (matching) {
             log.info('[%1] Successful login for user %2', req.uuid, req.body.username);
             var user = mongoUtils.safeUser(userAccount);
-            req.session.regenerate(function() {
-                req.session.user = user;
-            });
-            deferred.resolve({
-                code: 200,
-                body: {
-                    user: user
-                }
+            return q.npost(req.session, 'regenerate').then(function() {
+                req.session.user = user.id;
+                deferred.resolve({
+                    code: 200,
+                    body: {
+                        user: user
+                    }
+                });
+                return q();
             });
         } else {
             log.info('[%1] Failed login for user %2: invalid password', req.uuid, req.body.username);
@@ -183,14 +184,15 @@ auth.signup = function(req, users) {
             log.info('[%1] Successfully created an account for user %2, id: %3',
                      req.uuid, req.body.username, newUser.id);
             var user = mongoUtils.safeUser(newUser);
-            req.session.regenerate(function() {
-                req.session.user = user;
-            });
-            deferred.resolve({
-                code: 200,
-                body: {
-                    user: user
-                }
+            return q.npost(req.session, 'regenerate').then(function() {
+                req.session.user = user.id;
+                deferred.resolve({
+                    code: 200,
+                    body: {
+                        user: user
+                    }
+                });
+                return q();
             });
         });
     }).catch(function(error) {
@@ -198,6 +200,27 @@ auth.signup = function(req, users) {
         deferred.reject(error);
     });
     
+    return deferred.promise;
+};
+
+auth.logout = function(req) {
+    var deferred = q.defer(),
+        log = logger.getLog();
+    log.info("[%1] Starting logout for %2", req.uuid, req.sessionID);
+    if (!req.session || !req.session.user) {
+        log.info("[%1] User with sessionID %2 attempting to logout but is not logged in",
+                 req.uuid, req.sessionID);
+        deferred.resolve({code: 400, body: "You are not logged in"});
+    } else {
+        log.info("[%1] Logging out user %2 with sessionID %3",
+                 req.uuid, req.session.user, req.sessionID);
+        q.npost(req.session, 'destroy').then(function() {
+            deferred.resolve({code: 200, body: "Successful logout"});
+        }).catch(function(error) {
+            log.error('[%1] Error logging out user %2: %3', req.uuid, req.session.user, error);
+            deferred.reject(error);
+        });
+    }
     return deferred.promise;
 };
 
@@ -342,7 +365,9 @@ function main(done) {
             auth.login(req, users).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
-                res.send(500, 'Error processing login');
+                res.send(500, {
+                    error: 'Error processing login'
+                });
             });
         });
         
@@ -350,7 +375,19 @@ function main(done) {
             auth.signup(req, users).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
-                res.send(500, 'Error processing login');
+                res.send(500, {
+                    error: 'Error processing signup'
+                });
+            });
+        });
+        
+        app.delete('/auth/logout', function(req, res, next) {
+            auth.logout(req).then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error processing logout'
+                });
             });
         });
         

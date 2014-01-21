@@ -229,4 +229,56 @@ describe('auth (E2E)', function() {
             });
         });
     });
-});
+    
+    describe('/auth/logout', function() {
+        it('should successfully log a user out', function(done) {
+            var resetOpts = {
+                url: config.maintUrl + '/reset_collection',
+                jar: true,
+                json: {
+                    collection: 'users'
+                }
+            };
+            testUtils.qRequest('post', resetOpts).then(function(resp) {
+                var signupOpts = {
+                    url: config.authUrl + '/signup',
+                    jar: true,
+                    json: {
+                        username: 'johnnyTestmonkey',
+                        password: 'password'
+                    }
+                };
+                return testUtils.qRequest('post', signupOpts);
+            }).then(function(resp) {
+                var options = {
+                    url: config.authUrl + '/logout',
+                    jar: true
+                };
+                return testUtils.qRequest('del', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBe("Successful logout");
+                expect(resp.response.headers['set-cookie']).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should respond with a 400 if the user is not logged in', function(done) {
+            var options = {
+                url: config.authUrl + '/logout',
+                jar: true
+            };
+            testUtils.qRequest('del', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe("You are not logged in");
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+    });  // end describe /auth/logout
+});  // end describe auth (E2E)
