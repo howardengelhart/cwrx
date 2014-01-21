@@ -8,7 +8,7 @@ var q           = require('q'),
 
 jasmine.getEnv().defaultTimeoutInterval = 5000;
 
-describe('auth (E2E)', function() {
+describe('auth (E2E):', function() {
     var testNum = 0;
     
     beforeEach(function(done) {
@@ -234,7 +234,6 @@ describe('auth (E2E)', function() {
         it('should successfully log a user out', function(done) {
             var resetOpts = {
                 url: config.maintUrl + '/reset_collection',
-                jar: true,
                 json: {
                     collection: 'users'
                 }
@@ -250,6 +249,7 @@ describe('auth (E2E)', function() {
                 };
                 return testUtils.qRequest('post', signupOpts);
             }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
                 var options = {
                     url: config.authUrl + '/logout',
                     jar: true
@@ -266,7 +266,7 @@ describe('auth (E2E)', function() {
             });
         });
         
-        it('should respond with a 400 if the user is not logged in', function(done) {
+        it('should fail if the user is not logged in', function(done) {
             var options = {
                 url: config.authUrl + '/logout',
                 jar: true
@@ -280,5 +280,62 @@ describe('auth (E2E)', function() {
                 done();
             });
         });
-    });  // end describe /auth/logout
+    });
+    
+    describe('/auth/delete_account', function() {
+        it('should successfully delete a user account', function(done) {
+            var options = {
+                url: config.authUrl + '/signup',
+                jar: true,
+                json: {
+                    username: 'johnnyTestmonkey',
+                    password: 'password'
+                }
+            };
+            var resetOpts = {
+                url: config.maintUrl + '/reset_collection',
+                json: {
+                    collection: 'users'
+                }
+            };
+            testUtils.qRequest('post', resetOpts).then(function(resp) {
+                return testUtils.qRequest('post', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                var deleteOpts = {
+                    url: config.authUrl + '/delete_account',
+                    jar: true
+                };
+                return testUtils.qRequest('del', deleteOpts);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBe("Successfully deleted account");
+                expect(resp.response.headers['set-cookie']).not.toBeDefined();
+                options.url = config.authUrl + '/login';
+                return testUtils.qRequest('post', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe("Invalid username or password");
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should fail if the user is not logged in', function(done) {
+            var options = {
+                url: config.authUrl + '/delete_account',
+                jar: true
+            };
+            testUtils.qRequest('del', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe("You are not logged in");
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+    });  // end describe /auth/delete_account
 });  // end describe auth (E2E)

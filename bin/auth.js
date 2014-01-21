@@ -224,6 +224,29 @@ auth.logout = function(req) {
     return deferred.promise;
 };
 
+auth.deleteAccount = function(req, users) {
+    var deferred = q.defer(),
+        log = logger.getLog();
+    if (!req.session || !req.session.user) {
+        log.info("[%1] User with sessionID %2 attempting to delete account but is not logged in",
+                 req.uuid, req.sessionID);
+        deferred.resolve({code: 400, body: "You are not logged in"});
+    } else {
+        log.info("[%1] Deleting account of user %2", req.uuid, req.session.user);
+        
+        q.npost(users, 'remove', [{id: req.session.user}, {w: 1, journal: true}])
+        .then(function() {
+            return q.npost(req.session, 'destroy');
+        }).then(function() {
+            deferred.resolve({code: 200, body: "Successfully deleted account"});
+        }).catch(function(error) {
+            log.error('[%1] Error deleting account of user %2: %3', req.uuid, req.session.user, error);
+            deferred.reject(error);
+        });
+    }
+    return deferred.promise;
+};
+
 if (!__ut__){
     try {
         main(function(rc,msg){
@@ -280,6 +303,7 @@ function main(done) {
     
     mongoUtils.connect(config.mongo.host, config.mongo.port).done(function(mongoClient) {
         log.info('Successfully connected to mongo at %1:%2', config.mongo.host, config.mongo.port);
+        var users = mongoClient.db(config.mongo.db).collection('users');
         
         process.on('uncaughtException', function(err) {
             try{
@@ -360,7 +384,6 @@ function main(done) {
             next();
         });
         
-        var users = mongoClient.db(config.mongo.db).collection('users');
         app.post('/auth/login', function(req, res, next) {
             auth.login(req, users).then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -387,6 +410,16 @@ function main(done) {
             }).catch(function(error) {
                 res.send(500, {
                     error: 'Error processing logout'
+                });
+            });
+        });
+        
+        app.delete('/auth/delete_account', function(req, res, next) {
+            auth.deleteAccount(req, users).then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error deleting account'
                 });
             });
         });

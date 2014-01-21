@@ -469,11 +469,83 @@ describe('auth (UT)', function() {
                 cb('Error!');
             });
             auth.logout(req).catch(function(error) {
+                expect(error).toBe('Error!');
                 expect(req.session.destroy).toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
-                expect(error).toBe('Error!');
                 done();
             });
         });
-    }); // end -- describe logout
+    });
+    
+    describe('deleteAccount', function() {
+        var req;
+        beforeEach(function() {
+            req = {
+                session: {
+                    user: 'u-123',
+                    destroy: jasmine.createSpy('sess_destroy').andCallFake(function(cb) { cb(); })
+                }
+            };
+            users.remove = jasmine.createSpy('users_remove').andCallFake(function(query, opts, cb) {
+                cb(null, 1);
+            });
+        });
+        
+        it('should correctly delete a user account', function(done) {
+            auth.deleteAccount(req, users).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(200);
+                expect(resp.body).toBe("Successfully deleted account");
+                expect(users.remove).toHaveBeenCalled();
+                expect(users.remove.calls[0].args[0]).toEqual({id: 'u-123'});
+                expect(users.remove.calls[0].args[1]).toEqual({w: 1, journal: true});
+                expect(req.session.destroy).toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should respond with a 400 if the user is not logged in', function(done) {
+            delete req.session.user;
+            auth.deleteAccount(req, users).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(400);
+                expect(resp.body).toBe("You are not logged in");
+                expect(mockLog.error).not.toHaveBeenCalled();
+                expect(users.remove).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should fail if users.remove fails', function(done) {
+            users.remove.andCallFake(function(query, opts, cb) {
+                cb('Error!');
+            });
+            auth.deleteAccount(req, users).catch(function(error) {
+                expect(error).toBe('Error!');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(users.remove).toHaveBeenCalled();
+                expect(req.session.destroy).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should fail if req.session.destroy fails', function(done) {
+            req.session.destroy.andCallFake(function(cb) {
+                cb('Error!');
+            });
+            auth.deleteAccount(req, users).catch(function(error) {
+                expect(error).toBe('Error!');
+                expect(req.session.destroy).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(users.remove).toHaveBeenCalled();
+                done();
+            });
+        });
+    }); // end -- describe deleteAccount
 });  // end -- describe auth
