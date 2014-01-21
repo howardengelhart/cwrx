@@ -1,15 +1,17 @@
 var path        = require('path'),
     q           = require('q'),
+    daemon      = require('../../lib/daemon'),
     sanitize    = require('../sanitize');
 
 describe('vote (UT)',function(){
     
-    var vote, state, mockLog, mockLogger, mockFs, processProperties;
+    var vote, state, mockLog, mockLogger, mockFs, processProperties,
+        resolveSpy, rejectSpy;
     
     beforeEach(function() {
-        state = { cmdl : {}, defaultConfig : {}  },
-        mockFs = {},
-        mockLog = {
+        state       = { cmdl : {}, defaultConfig : {}  },
+        mockFs      = {},
+        mockLog     = {
             trace : jasmine.createSpy('log_trace'),
             error : jasmine.createSpy('log_error'),
             warn  : jasmine.createSpy('log_warn'),
@@ -27,13 +29,16 @@ describe('vote (UT)',function(){
             'setuid'    : process.setuid,
             'setgid'    : process.setgid,
             'exit'      : process.exit,
-            'argv'      : process.argv
+            'argv'      : process.argv,
+            'env'       : process.env
         }
 
         spyOn(process,'on');
         spyOn(process,'exit');
         spyOn(process,'setuid');
         spyOn(process,'setgid');
+        process.env  = {};
+        process.argv = [];
 
         vote = sanitize(['../bin/vote'])
                 .andConfigure([
@@ -84,15 +89,9 @@ describe('vote (UT)',function(){
     });
 
     describe('parseCmdLine',function(){
-        var resolveSpy, rejectSpy, argv;
         beforeEach(function(){
             resolveSpy = jasmine.createSpy('parseCmdLine.resolve');
             rejectSpy  = jasmine.createSpy('parseCmdLine.reject');
-            argv = process.argv;
-        });
-
-        afterEach(function(){
-            process.argv = argv;
         });
 
         it('adds proper defaults to state object',function(done){
@@ -128,6 +127,18 @@ describe('vote (UT)',function(){
                     expect(state.cmdl.showConfig).toBeTruthy('cmdl.showConfig');
                 }).done(done);
         });
+
+        it('sets server to true if daemonize is true',function(done){
+            process.argv = ['node','test','--daemon'];
+            q.fcall(vote.service.parseCmdLine,state)
+                .then(resolveSpy,rejectSpy)
+                .finally(function(){
+                    expect(rejectSpy).not.toHaveBeenCalled();
+                    expect(resolveSpy).toHaveBeenCalledWith(state);
+                    expect(state.cmdl.daemon).toBeTruthy('cmdl.daemon');
+                    expect(state.cmdl.server).toBeTruthy('cmdl.server');
+                }).done(done);
+        });
         
         it('sets uid if uid commandline arg is set',function(done){
             process.argv = ['node','test','--uid=test'];
@@ -154,7 +165,6 @@ describe('vote (UT)',function(){
     });
     
     describe('configure',function(){
-        var resolveSpy, rejectSpy;
         beforeEach(function(){
             resolveSpy = jasmine.createSpy('configure.resolve');
             rejectSpy  = jasmine.createSpy('configure.reject');
@@ -162,21 +172,21 @@ describe('vote (UT)',function(){
 
         it('uses defaults if no config is passed',function(done){
             state.defaultConfig = {
-                pidFile : 'abc'
+                pidFile : 'vote.pid',
+                pidDir  : '/opt/sixxy/run/'
             };
             q.fcall(vote.service.configure,state)
                 .then(resolveSpy,rejectSpy)
                 .finally(function(){
                     expect(resolveSpy).toHaveBeenCalledWith(state);
                     expect(rejectSpy).not.toHaveBeenCalled();
-                    expect(state.config.pidFile).toEqual('abc');
+                    expect(state.config.pidPath).toEqual('/opt/sixxy/run/vote.pid');
                 }).done(done);
         });
 
     });
 
     describe('handleSignals',function(){
-        var resolveSpy, rejectSpy;
         beforeEach(function(){
             resolveSpy = jasmine.createSpy('parseCmdLine.resolve');
             rejectSpy  = jasmine.createSpy('parseCmdLine.reject');
@@ -208,6 +218,48 @@ describe('vote (UT)',function(){
     });
 
     describe('daemonize',function(){
+        beforeEach(function(){
+            resolveSpy = jasmine.createSpy('daemonize.resolve');
+            rejectSpy  = jasmine.createSpy('daemonize.reject');
+        });
+
+        it('does nothing if daemonize not in command line',function(done){
+            q.fcall(vote.service.daemonize,state)
+                .then(resolveSpy,rejectSpy)
+                .finally(function(){
+                    expect(resolveSpy).toHaveBeenCalledWith(state);
+                    expect(rejectSpy).not.toHaveBeenCalled();
+                }).done(done);
+        });
+
+        it('does nothing if RUNNING_AS_DAEMON is true',function(done){
+            state.cmdl.daemon = true;
+            process.env.RUNNING_AS_DAEMON = true;
+            q.fcall(vote.service.daemonize,state)
+                .then(resolveSpy,rejectSpy)
+                .finally(function(){
+                    expect(resolveSpy).toHaveBeenCalledWith(state);
+                    expect(rejectSpy).not.toHaveBeenCalled();
+                }).done(done);
+        });
+
+        it('will return an error if daemonization fails',function(done){
+            state.cmdl.daemon = true;
+            state.config = { pidFile : 'xxx' };
+            spyOn(daemon,'daemonize').andCallFake(function(pidFile,cb){
+                cb(4,'test error');
+            });
+            q.fcall(vote.service.daemonize,state)
+                .then(resolveSpy,rejectSpy)
+                .finally(function(){
+                    expect(daemon.daemonize).toHaveBeenCalled();
+                    expect(resolveSpy).not.toHaveBeenCalledWith(state);
+                    expect(rejectSpy).toHaveBeenCalled();
+                    expect(rejectSpy.argsForCall[0]).toEqual(
+                        [{ message: 'test error', code : 4}]
+                    );
+                }).done(done);
+        });
 
 
 

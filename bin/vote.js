@@ -19,7 +19,12 @@ var include     = require('../lib/inject').require,
 
 
 state.defaultConfig = {
-    pidFile : '/opt/sixxy/run/vote.pid'
+    log    : {
+        logLevel : 'info',
+        media    : [ { type : 'console' } ]
+    },
+    pidFile : 'vote.pid',
+    pidDir  : './'
 };
 
 
@@ -52,7 +57,11 @@ service.parseCmdLine = function(state){
         .option('-u, --uid [UID]','Run as user (id or name).')
         .option('--show-config','Display configuration and exit.')
         .parse(process.argv);
-    
+   
+    if (state.cmdl.daemon) {
+        state.cmdl.server = true;
+    }
+
     if (state.cmdl.gid){
         console.log('\nChange process to group: ' + state.cmdl.gid);
         process.setgid(state.cmdl.gid);
@@ -76,6 +85,9 @@ service.configure = function(state){
         log = logger.getLog();
     }
 
+    if (!state.config.pidPath){
+        state.config.pidPath = path.join(state.config.pidDir,state.config.pidFile);
+    }
     return q(state);
 };
 
@@ -101,17 +113,19 @@ service.handleSignals = function(state){
     });
 
     process.on('SIGTERM',function(){
-        log.info('Received TERM, exitting app.');
+        log.info('Received TERM');
         if (state.cmdl.daemon){
-            daemon.removePidFile(state.config.pidFile);
+            daemon.removePidFile(state.config.pidPath);
         }
 
         if (cluster.isMaster){
             cluster.disconnect(function(){
+                log.info('Cluster disconnected, exit.');
                 return process.exit(0);
             });
             return;
         }
+        log.info('Exit.');
         return process.exit(0);
     });
 
@@ -138,7 +152,7 @@ service.daemonize = function(state){
     }
   
     deferred = q.defer();
-    daemon.daemonize(state.config.pidFile, function(rc,msg){
+    daemon.daemonize(state.config.pidPath, function(rc,msg){
         deferred.reject({ message : msg, code: rc });
     });
 
@@ -148,36 +162,38 @@ service.daemonize = function(state){
 };
 
 service.listen = function(state){
-    var deferred = q.defer();
-    console.log('listening');
+    var log = logger.getLog(), deferred = q.defer();
+    log.info('listening');
+    
     setTimeout(function(){
+        log.info('done listening, lets quit');
         deferred.resolve(state);
-    },4000);
+    },60000);
+    
     return deferred.promise;
 };
 
 if (!__ut__){
-
-    q(service.parseCmdLine(state))
+    q.fcall(service.parseCmdLine,state)
     .then(service.configure)
     .then(service.daemonize)
     .then(service.cluster)
     .then(service.handleSignals)
     .then(service.listen)
-    .then(function(state){
-        log.info('all done:',state);
-        process.exit(0);
-    })
     .catch( function(err){
-        var log = lgger.getLog();
-        console.log('GOT AN ERROR:',err);
+        var log = logger.getLog();
+        console.log(err.message);
         log.error(err.message);
         if (err.code)   {
             process.exit(err.code); 
         }
         process.exit(1);
+    })
+    .done(function(){
+        var log = logger.getLog();
+        log.info('all done, exit');
+        process.exit(0);
     });
-
 }
 
 module.exports = {
