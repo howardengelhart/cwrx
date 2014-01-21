@@ -4,9 +4,10 @@ var path        = require('path'),
 
 describe('vote (UT)',function(){
     
-    var vote, mockLog, mockLogger, mockFs;
+    var vote, state, mockLog, mockLogger, mockFs, processProperties;
     
     beforeEach(function() {
+        state = { cmdl : {}, defaultConfig : {}  },
         mockFs = {},
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -21,12 +22,31 @@ describe('vote (UT)',function(){
             getLog      : jasmine.createSpy('get_log').andReturn(mockLog)
         };
 
+        processProperties = {
+            'on'        : process.on,
+            'setuid'    : process.setuid,
+            'setgid'    : process.setgid,
+            'exit'      : process.exit,
+            'argv'      : process.argv
+        }
+
+        spyOn(process,'on');
+        spyOn(process,'exit');
+        spyOn(process,'setuid');
+        spyOn(process,'setgid');
+
         vote = sanitize(['../bin/vote'])
                 .andConfigure([
                     ['fs-extra'     , mockFs],
                     ['../lib/logger', mockLogger]
                 ])
                 .andRequire();
+    });
+
+    afterEach(function(){
+        for (var prop in processProperties){
+            process[prop] = processProperties[prop];
+        }
     });
 
     describe('getVersion',function(){
@@ -64,15 +84,19 @@ describe('vote (UT)',function(){
     });
 
     describe('parseCmdLine',function(){
-        var state, resolveSpy, rejectSpy;
+        var resolveSpy, rejectSpy, argv;
         beforeEach(function(){
             resolveSpy = jasmine.createSpy('parseCmdLine.resolve');
             rejectSpy  = jasmine.createSpy('parseCmdLine.reject');
-            state = {};
+            argv = process.argv;
+        });
+
+        afterEach(function(){
+            process.argv = argv;
         });
 
         it('adds proper defaults to state object',function(done){
-            state.argv = ['node','test'];
+            process.argv = ['node','test'];
             q.fcall(vote.service.parseCmdLine,state)
                 .then(resolveSpy,rejectSpy)
                 .finally(function(){
@@ -88,12 +112,12 @@ describe('vote (UT)',function(){
                     expect(state.cmdl.server).not.toBeDefined('cmdl.server');
                     expect(state.cmdl.uid).not.toBeDefined('cmdl.uid');
                     expect(state.cmdl.showConfig).not.toBeDefined('cmdl.showConfig');
-                    done();
-                });
+                })
+                .done(done);
         });
 
         it ('handles command line arguments',function(done){
-            state.argv = ['node','test','--server','--uid=test','--show-config'];
+            process.argv = ['node','test','--server','--uid=test','--show-config'];
             q.fcall(vote.service.parseCmdLine,state)
                 .then(resolveSpy,rejectSpy)
                 .finally(function(){
@@ -102,12 +126,92 @@ describe('vote (UT)',function(){
                     expect(state.cmdl.server).toBeTruthy('cmdl.server');
                     expect(state.cmdl.uid).toEqual('test');
                     expect(state.cmdl.showConfig).toBeTruthy('cmdl.showConfig');
-                    done();
-                });
+                }).done(done);
+        });
+        
+        it('sets uid if uid commandline arg is set',function(done){
+            process.argv = ['node','test','--uid=test'];
+            q.fcall(vote.service.parseCmdLine,state)
+                .then(resolveSpy,rejectSpy)
+                .finally(function(){
+                    expect(resolveSpy).toHaveBeenCalledWith(state);
+                    expect(rejectSpy).not.toHaveBeenCalled();
+                    expect(process.setuid).toHaveBeenCalledWith('test');
+                }).done(done);
+        });
+        
+        it('sets gid if gid commandline arg is set',function(done){
+            process.argv = ['node','test','--gid=test'];
+            q.fcall(vote.service.parseCmdLine,state)
+                .then(resolveSpy,rejectSpy)
+                .finally(function(){
+                    expect(resolveSpy).toHaveBeenCalledWith(state);
+                    expect(rejectSpy).not.toHaveBeenCalled();
+                    expect(process.setgid).toHaveBeenCalledWith('test');
+                }).done(done);
+        });
+        
+    });
+    
+    describe('configure',function(){
+        var resolveSpy, rejectSpy;
+        beforeEach(function(){
+            resolveSpy = jasmine.createSpy('configure.resolve');
+            rejectSpy  = jasmine.createSpy('configure.reject');
+        });
+
+        it('uses defaults if no config is passed',function(done){
+            state.defaultConfig = {
+                pidFile : 'abc'
+            };
+            q.fcall(vote.service.configure,state)
+                .then(resolveSpy,rejectSpy)
+                .finally(function(){
+                    expect(resolveSpy).toHaveBeenCalledWith(state);
+                    expect(rejectSpy).not.toHaveBeenCalled();
+                    expect(state.config.pidFile).toEqual('abc');
+                }).done(done);
         });
 
     });
 
+    describe('handleSignals',function(){
+        var resolveSpy, rejectSpy;
+        beforeEach(function(){
+            resolveSpy = jasmine.createSpy('parseCmdLine.resolve');
+            rejectSpy  = jasmine.createSpy('parseCmdLine.reject');
+        });
+
+        it('does nothing if not running as server',function(done){
+            q.fcall(vote.service.handleSignals,state)
+                .then(resolveSpy,rejectSpy)
+                .finally(function(){
+                    expect(resolveSpy).toHaveBeenCalledWith(state);
+                    expect(rejectSpy).not.toHaveBeenCalled();
+                    expect(process.on).not.toHaveBeenCalled();
+                }).done(done);
+        });
+
+        it('sets up process handlers if in server mode',function(done){
+            state.cmdl.server = true;
+            q.fcall(vote.service.handleSignals,state)
+                .then(resolveSpy,rejectSpy)
+                .finally(function(){
+                    expect(resolveSpy).toHaveBeenCalledWith(state);
+                    expect(rejectSpy).not.toHaveBeenCalled();
+                    expect(process.on.callCount).toEqual(3);
+                    expect(process.on.argsForCall[0][0]).toEqual('uncaughtException');
+                    expect(process.on.argsForCall[1][0]).toEqual('SIGINT');
+                    expect(process.on.argsForCall[2][0]).toEqual('SIGTERM');
+                }).done(done);
+        });
+    });
+
+    describe('daemonize',function(){
+
+
+
+    });
 
 
 });

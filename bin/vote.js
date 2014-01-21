@@ -14,10 +14,14 @@ var include     = require('../lib/inject').require,
     uuid        = include('../lib/uuid'),
     config      = include('../lib/config'),
     __ut__      = (global.jasmine !== undefined) ? true : false,
-    state       = {
-        argv : process.argv
-    },
+    state       = {},
     service     = {};   // for exporting functions to unit tests
+
+
+state.defaultConfig = {
+    pidFile : '/opt/sixxy/run/vote.pid'
+};
+
 
 service.getVersion = function(appName) {
     var fpath = path.join(__dirname, appName ? appName + '.version' : '.version'),
@@ -47,14 +51,24 @@ service.parseCmdLine = function(state){
         .option('-s, --server','Run as a server.')
         .option('-u, --uid [UID]','Run as user (id or name).')
         .option('--show-config','Display configuration and exit.')
-        .parse(state.argv);
+        .parse(process.argv);
+    
+    if (state.cmdl.gid){
+        console.log('\nChange process to group: ' + state.cmdl.gid);
+        process.setgid(state.cmdl.gid);
+    }
+   
+    if (state.cmdl.uid){
+        console.log('\nChange process to user: ' + state.cmdl.uid);
+        process.setuid(state.cmdl.uid);
+    }
 
     return q(state);
 };
 
 service.configure = function(state){
     var log;
-    state.config = config.createConfigObject(state.cmdl.config, {});
+    state.config = config.createConfigObject(state.cmdl.config, state.defaultConfig);
     
     if (state.config.log) {
         log = logger.createLog(state.config.log);
@@ -66,17 +80,71 @@ service.configure = function(state){
 };
 
 service.handleSignals = function(state){
+    var log = logger.getLog();
+    if (!state.cmdl.server){
+        log.trace('not running as server, no need to handleSignals');
+        return q(state);
+    }
 
+    process.on('uncaughtException', function(err) {
+        try{
+            log.error('uncaught: ' + err.message + "\n" + err.stack);
+        }catch(e){
+            console.error(err);
+        }
+        return process.exit(2);
+    });
 
+    process.on('SIGINT',function(){
+        log.info('Received SIGINT, exitting app.');
+        return process.exit(1);
+    });
+
+    process.on('SIGTERM',function(){
+        log.info('Received TERM, exitting app.');
+        if (state.cmdl.daemon){
+            daemon.removePidFile(state.config.pidFile);
+        }
+
+        if (cluster.isMaster){
+            cluster.disconnect(function(){
+                return process.exit(0);
+            });
+            return;
+        }
+        return process.exit(0);
+    });
+
+    return q(state);
 };
 
 service.cluster = function(state){
 
 
+    return q(state);
 };
 
 service.daemonize = function(state){
-    return q(state);
+    // Daemonize if so desired
+    var log = logger.getLog(), deferred;
+    if (!state.cmdl.daemon){
+        log.trace('no need to daemonize');
+        return q(state);
+    }
+
+    if (process.env.RUNNING_AS_DAEMON !== undefined) {
+        log.trace('i am the daemon');
+        return q(state); 
+    }
+  
+    deferred = q.defer();
+    daemon.daemonize(state.config.pidFile, function(rc,msg){
+        deferred.reject({ message : msg, code: rc });
+    });
+
+    // if daemonize succeeds the process will exit, so no
+    // need to resolve.
+    return deferred.promise;
 };
 
 service.listen = function(state){
