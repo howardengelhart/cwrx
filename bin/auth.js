@@ -301,9 +301,17 @@ function main(done) {
     
     var secrets = fs.readJsonSync(config.secretsPath);
     
-    mongoUtils.connect(config.mongo.host, config.mongo.port).done(function(mongoClient) {
+    var db, sessions;
+    mongoUtils.connect(config.mongo.host, config.mongo.port).then(function(mongoClient) {
+        db = mongoClient.db(config.mongo.db);
+        sessions = mongoClient.db(config.mongo.db);
+        return q.all([db, sessions].map(function(db) {
+            return q.npost(db, 'authenticate', 
+                           [secrets.mongoCredentials.user, secrets.mongoCredentials.password]);
+        }));
+    }).done(function() {
         log.info('Successfully connected to mongo at %1:%2', config.mongo.host, config.mongo.port);
-        var users = mongoClient.db(config.mongo.db).collection('users');
+        var users = db.collection('users');
         
         process.on('uncaughtException', function(err) {
             try{
@@ -355,7 +363,7 @@ function main(done) {
                 maxAge: config.session.maxAge
             },
             store: new MongoStore({
-                db: mongoClient.db(config.session.db)
+                db: sessions
             })
         }));
 
