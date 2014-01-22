@@ -1,17 +1,22 @@
-var path        = require('path'),
-    q           = require('q'),
-    cluster     = require('cluster'),
-    daemon      = require('../../lib/daemon'),
-    sanitize    = require('../sanitize');
-
-describe('vote (UT)',function(){
+describe('aavote (UT)',function(){
     
-    var vote, state, mockLog, mockLogger, mockFs, processProperties, clusterProperties,
-        resolveSpy, rejectSpy ;
+    var vote, state, mockLog, processProperties, resolveSpy, rejectSpy,
+        path, q, cluster, fs, logger, daemon;
     
     beforeEach(function() {
+        for (var mod in require.cache){
+            delete require.cache[mod];
+        }
+        
+        path        = require('path');
+        q           = require('q');
+        cluster     = require('cluster');
+        fs          = require('fs-extra');
+        logger      = require('../../lib/logger');
+        daemon      = require('../../lib/daemon');
+        vote        = require('../../bin/vote');
+
         state       = { cmdl : {}, defaultConfig : {}  };
-        mockFs      = {};
         mockLog     = {
             trace : jasmine.createSpy('log_trace'),
             error : jasmine.createSpy('log_error'),
@@ -20,43 +25,29 @@ describe('vote (UT)',function(){
             fatal : jasmine.createSpy('log_fatal'),
             log   : jasmine.createSpy('log_log')
         };
-        mockLogger = {
-            createLog   : jasmine.createSpy('create_log').andReturn(mockLog),
-            getLog      : jasmine.createSpy('get_log').andReturn(mockLog)
-        };
 
-        processProperties = {
-            'on'        : process.on,
-            'setuid'    : process.setuid,
-            'setgid'    : process.setgid,
-            'exit'      : process.exit,
-            'argv'      : process.argv,
-            'env'       : process.env
-        }
+        processProperties = {};
+        Object.keys(process).forEach(function(key){
+            processProperties[key] = process[key];
+        });
 
+        process.env  = {};
+        process.argv = [];
+        
         spyOn(process,'on');
         spyOn(process,'exit');
         spyOn(process,'setuid');
         spyOn(process,'setgid');
-        process.env  = {};
-        process.argv = [];
 
-        clusterProperties = {
-            'on'          : cluster.on,
-            'fork'        : cluster.fork,
-            'setupMaster' : cluster.setupMaster
-        };
+        spyOn(logger,'createLog').andReturn(mockLog);
+        spyOn(logger,'getLog').andReturn(mockLog);
+
+        spyOn(fs,'existsSync');
+        spyOn(fs,'readFileSync');
 
         spyOn(cluster,'on');
         spyOn(cluster,'fork');
         spyOn(cluster,'setupMaster');
-
-        vote = sanitize(['../bin/vote'])
-                .andConfigure([
-                    ['fs-extra'     , mockFs],
-                    ['../lib/logger', mockLogger]
-                ])
-                .andRequire();
     });
 
     afterEach(function(){
@@ -67,31 +58,31 @@ describe('vote (UT)',function(){
 
     describe('getVersion',function(){
         beforeEach(function(){
-            mockFs.existsSync   = jasmine.createSpy('fs.existsSync').andReturn(true);
-            mockFs.readFileSync = jasmine.createSpy('fs.readFileSync').andReturn('abc123');
+            fs.existsSync.andReturn(true);
+            fs.readFileSync.andReturn('abc123');
         });
 
         it('looks for version file with name if passed',function(){
             vote.service.getVersion('test');
-            expect(mockFs.existsSync).toHaveBeenCalledWith(
+            expect(fs.existsSync).toHaveBeenCalledWith(
                 path.resolve(path.join(__dirname,'../../bin/test.version'))
             );
         });
 
         it('looks for version file named .version if name not passed',function(){
             vote.service.getVersion();
-            expect(mockFs.existsSync).toHaveBeenCalledWith(
+            expect(fs.existsSync).toHaveBeenCalledWith(
                 path.resolve(path.join(__dirname,'../../bin/.version'))
             );
         });
 
         it('returns unknown if the version file does not exist',function(){
-            mockFs.existsSync.andReturn(false);
+            fs.existsSync.andReturn(false);
             expect(vote.service.getVersion()).toEqual('unknown');
         });
 
         it('returns unknown if reading the file results in an exception',function(){
-            mockFs.readFileSync.andCallFake(function(){
+            fs.readFileSync.andCallFake(function(){
                 throw new Error('test error');
             });
             expect(vote.service.getVersion()).toEqual('unknown');

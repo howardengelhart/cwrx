@@ -1,13 +1,19 @@
-var path        = require('path'),
-    fs          = require('fs-extra'),
-    q           = require('q'),
-    cwrxConfig  = require('../../lib/config'),
-    sanitize    = require('../sanitize');
-
 describe('maint (UT)', function() {
-    var maint, traceSpy, errorSpy, warnSpy, infoSpy, fatalSpy, logSpy, mockLogger, mockAws;
+    var maint, traceSpy, errorSpy, warnSpy, infoSpy, fatalSpy, logSpy, mockLogger, mockAws,
+        path, fs, q, cwrxConfig, sanitize;
     
     beforeEach(function() {
+        for (var mod in require.cache){
+            delete require.cache[mod];
+        }
+
+        path        = require('path');
+        fs          = require('fs-extra');
+        q           = require('q');
+        cwrxConfig  = require('../../lib/config');
+        sanitize    = require('../sanitize');
+
+
         traceSpy    = jasmine.createSpy('log_trace');
         errorSpy    = jasmine.createSpy('log_error');
         warnSpy     = jasmine.createSpy('log_warn');

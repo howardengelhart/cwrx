@@ -1,15 +1,20 @@
-var fs          = require('fs-extra'),
-    path        = require('path'),
-    sanitize    = require('../sanitize'),
-    q           = require('q'),
-    uuid        = require('../../lib/uuid'),
-    vocalware   = require('../../lib/vocalware'),
-    cwrxConfig  = require('../../lib/config');
-
 describe('dub track job (UT)', function() {
-    var dub, mockLog, mockLogger, mockHostname, mockTemplate, job, config;
+    var dub, mockLog, mockLogger, mockHostname, mockTemplate, job, config,
+        fs, path, sanitize, q, uuid, vocalware, cwrxConfig;
     
     beforeEach(function(done) {
+        for (var mod in require.cache){
+            delete require.cache[mod];
+        }
+
+        fs          = require('fs-extra');
+        path        = require('path');
+        sanitize    = require('../sanitize');
+        q           = require('q');
+        uuid        = require('../../lib/uuid');
+        vocalware   = require('../../lib/vocalware');
+        cwrxConfig  = require('../../lib/config');
+
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
             error : jasmine.createSpy('log_error'),

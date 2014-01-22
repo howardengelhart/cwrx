@@ -1,15 +1,14 @@
 #!/usr/bin/env node
-var include     = require('../lib/inject').require,
-    fs          = include('fs-extra'),
-    path        = include('path'),
-    request     = include('request'),
-    cluster     = include('cluster'),
-    express     = include('express'),
-    q           = include('q'),
-    uuid        = include('../lib/uuid'),
-    daemon      = include('../lib/daemon'),
-    logger      = include('../lib/logger'),
-    config      = include('../lib/config'),
+var fs          = require('fs-extra'),
+    path        = require('path'),
+    request     = require('request'),
+    cluster     = require('cluster'),
+    express     = require('express'),
+    q           = require('q'),
+    uuid        = require('../lib/uuid'),
+    daemon      = require('../lib/daemon'),
+    logger      = require('../lib/logger'),
+    config      = require('../lib/config'),
     __ut__      = (global.jasmine !== undefined) ? true : false,
     state       = {},
     service     = {};   // for exporting functions to unit tests
@@ -45,7 +44,7 @@ service.start = function(state){
 };
 
 service.parseCmdLine = function(state){
-    state.cmdl = include('commander');
+    state.cmdl = require('commander');
     
     state.cmdl
         .option('-c, --config [CFGFILE]','Specify config file')
@@ -69,12 +68,10 @@ service.parseCmdLine = function(state){
     }
 
     if (state.cmdl.gid){
-        console.log('\nChange process to group: ' + state.cmdl.gid);
         process.setgid(state.cmdl.gid);
     }
    
     if (state.cmdl.uid){
-        console.log('\nChange process to user: ' + state.cmdl.uid);
         process.setuid(state.cmdl.uid);
     }
 

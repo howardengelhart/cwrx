@@ -1,21 +1,26 @@
-var path        = require('path'),
-    fs          = require('fs-extra'),
-    q           = require('q'),
-    crypto      = require('crypto'),
-    request     = require('request'),
-    cwrxConfig  = require('../../lib/config'),
-    uuid        = require('../../lib/uuid'),
-    hostname    = require('../../lib/hostname'),
-    ffmpeg      = require('../../lib/ffmpeg'),
-    sanitize    = require('../sanitize'),
-    s3util      = require('../../lib/s3util');
-
-jasmine.getEnv().defaultTimeoutInterval = 3000;
-
 describe('dub (UT)',function(){
-    var dub, mockLog, mockLogger, mockAws, mockVware, mockAssemble, mockId3, mockHostname;
+    var dub, mockLog, mockLogger, mockAws, mockVware, mockAssemble, mockId3, mockHostname,
+        path, fs, q, crypto, request, cwrxConfig, uuid, hostname, ffmpeg, sanitize, s3util;
     
     beforeEach(function() {
+        jasmine.getEnv().defaultTimeoutInterval = 3000;
+
+        for (var mod in require.cache){
+            delete require.cache[mod];
+        }
+
+        path        = require('path');
+        fs          = require('fs-extra');
+        q           = require('q');
+        crypto      = require('crypto');
+        request     = require('request');
+        cwrxConfig  = require('../../lib/config');
+        uuid        = require('../../lib/uuid');
+        hostname    = require('../../lib/hostname');
+        ffmpeg      = require('../../lib/ffmpeg');
+        sanitize    = require('../sanitize');
+        s3util      = require('../../lib/s3util');
+
         headObjSpy = jasmine.createSpy('s3_headObj');
         
         mockLog = {

@@ -1,5 +1,4 @@
 var path        = require('path'),
-    sanitize    = require('../sanitize'),
     vocalWare   = require('../../lib/vocalware'),
     fsMock = {};
 
