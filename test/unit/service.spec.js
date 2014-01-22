@@ -1,4 +1,4 @@
-describe('aavote (UT)',function(){
+describe('service (UT)',function(){
     
     var vote, state, mockLog, processProperties, resolveSpy, rejectSpy,
         path, q, cluster, fs, logger, daemon;
@@ -14,7 +14,7 @@ describe('aavote (UT)',function(){
         fs          = require('fs-extra');
         logger      = require('../../lib/logger');
         daemon      = require('../../lib/daemon');
-        vote        = require('../../bin/vote');
+        service     = require('../../lib/service');
 
         state       = { cmdl : {}, defaultConfig : {}  };
         mockLog     = {
@@ -63,29 +63,30 @@ describe('aavote (UT)',function(){
         });
 
         it('looks for version file with name if passed',function(){
-            vote.service.getVersion('test');
-            expect(fs.existsSync).toHaveBeenCalledWith(
-                path.resolve(path.join(__dirname,'../../bin/test.version'))
-            );
+            service.getVersion('test');
+            expect(fs.existsSync).toHaveBeenCalledWith('test.version');
+        });
+
+        it('looks for version file with name in dir if passed',function(){
+            service.getVersion('test','somedir');
+            expect(fs.existsSync).toHaveBeenCalledWith('somedir/test.version');
         });
 
         it('looks for version file named .version if name not passed',function(){
-            vote.service.getVersion();
-            expect(fs.existsSync).toHaveBeenCalledWith(
-                path.resolve(path.join(__dirname,'../../bin/.version'))
-            );
+            service.getVersion();
+            expect(fs.existsSync).toHaveBeenCalledWith('.version');
         });
 
         it('returns unknown if the version file does not exist',function(){
             fs.existsSync.andReturn(false);
-            expect(vote.service.getVersion()).toEqual('unknown');
+            expect(service.getVersion()).toEqual('unknown');
         });
 
         it('returns unknown if reading the file results in an exception',function(){
             fs.readFileSync.andCallFake(function(){
                 throw new Error('test error');
             });
-            expect(vote.service.getVersion()).toEqual('unknown');
+            expect(service.getVersion()).toEqual('unknown');
             expect(mockLog.error.callCount).toEqual(1);
         });
     });
@@ -98,7 +99,7 @@ describe('aavote (UT)',function(){
 
         it('adds proper defaults to state object',function(done){
             process.argv = ['node','test'];
-            q.fcall(vote.service.parseCmdLine,state)
+            q.fcall(service.parseCmdLine,state)
                 .then(resolveSpy,rejectSpy)
                 .finally(function(){
                     expect(rejectSpy).not.toHaveBeenCalled();
@@ -119,7 +120,7 @@ describe('aavote (UT)',function(){
 
         it ('handles command line arguments',function(done){
             process.argv = ['node','test','--server','--uid=test','--show-config'];
-            q.fcall(vote.service.parseCmdLine,state)
+            q.fcall(service.parseCmdLine,state)
                 .then(resolveSpy,rejectSpy)
                 .finally(function(){
                     expect(rejectSpy).not.toHaveBeenCalled();
@@ -132,7 +133,7 @@ describe('aavote (UT)',function(){
 
         it('sets server to true if daemon is true',function(done){
             process.argv = ['node','test','--daemon'];
-            q.fcall(vote.service.parseCmdLine,state)
+            q.fcall(service.parseCmdLine,state)
                 .then(resolveSpy,rejectSpy)
                 .finally(function(){
                     expect(rejectSpy).not.toHaveBeenCalled();
@@ -144,7 +145,7 @@ describe('aavote (UT)',function(){
         
         it('sets server,daemon to true if kids > 0',function(done){
             process.argv = ['node','test','--kids=3'];
-            q.fcall(vote.service.parseCmdLine,state)
+            q.fcall(service.parseCmdLine,state)
                 .then(resolveSpy,rejectSpy)
                 .finally(function(){
                     expect(rejectSpy).not.toHaveBeenCalled();
@@ -157,7 +158,7 @@ describe('aavote (UT)',function(){
         
         it('sets uid if uid commandline arg is set',function(done){
             process.argv = ['node','test','--uid=test'];
-            q.fcall(vote.service.parseCmdLine,state)
+            q.fcall(service.parseCmdLine,state)
                 .then(resolveSpy,rejectSpy)
                 .finally(function(){
                     expect(resolveSpy).toHaveBeenCalledWith(state);
@@ -168,7 +169,7 @@ describe('aavote (UT)',function(){
         
         it('sets gid if gid commandline arg is set',function(done){
             process.argv = ['node','test','--gid=test'];
-            q.fcall(vote.service.parseCmdLine,state)
+            q.fcall(service.parseCmdLine,state)
                 .then(resolveSpy,rejectSpy)
                 .finally(function(){
                     expect(resolveSpy).toHaveBeenCalledWith(state);
@@ -190,7 +191,7 @@ describe('aavote (UT)',function(){
                 pidFile : 'vote.pid',
                 pidDir  : '/opt/sixxy/run/'
             };
-            q.fcall(vote.service.configure,state)
+            q.fcall(service.configure,state)
                 .then(resolveSpy,rejectSpy)
                 .finally(function(){
                     expect(resolveSpy).toHaveBeenCalledWith(state);
@@ -208,7 +209,7 @@ describe('aavote (UT)',function(){
         });
 
         it('does nothing if not running as server',function(done){
-            q.fcall(vote.service.handleSignals,state)
+            q.fcall(service.handleSignals,state)
                 .then(resolveSpy,rejectSpy)
                 .finally(function(){
                     expect(resolveSpy).toHaveBeenCalledWith(state);
@@ -219,7 +220,7 @@ describe('aavote (UT)',function(){
 
         it('sets up process handlers if in server mode',function(done){
             state.cmdl.server = true;
-            q.fcall(vote.service.handleSignals,state)
+            q.fcall(service.handleSignals,state)
                 .then(resolveSpy,rejectSpy)
                 .finally(function(){
                     expect(resolveSpy).toHaveBeenCalledWith(state);
@@ -239,7 +240,7 @@ describe('aavote (UT)',function(){
         });
 
         it('does nothing if daemonize not in command line',function(done){
-            q.fcall(vote.service.daemonize,state)
+            q.fcall(service.daemonize,state)
                 .then(resolveSpy,rejectSpy)
                 .finally(function(){
                     expect(resolveSpy).toHaveBeenCalledWith(state);
@@ -250,7 +251,7 @@ describe('aavote (UT)',function(){
         it('does nothing if RUNNING_AS_DAEMON is true',function(done){
             state.cmdl.daemon = true;
             process.env.RUNNING_AS_DAEMON = true;
-            q.fcall(vote.service.daemonize,state)
+            q.fcall(service.daemonize,state)
                 .then(resolveSpy,rejectSpy)
                 .finally(function(){
                     expect(resolveSpy).toHaveBeenCalledWith(state);
@@ -264,7 +265,7 @@ describe('aavote (UT)',function(){
             spyOn(daemon,'daemonize').andCallFake(function(pidFile,cb){
                 cb(4,'test error');
             });
-            q.fcall(vote.service.daemonize,state)
+            q.fcall(service.daemonize,state)
                 .then(resolveSpy,rejectSpy)
                 .finally(function(){
                     expect(daemon.daemonize).toHaveBeenCalled();
@@ -285,39 +286,40 @@ describe('aavote (UT)',function(){
 
         it ('does nothing if state.cmdl.kids < 1',function(done){
             state.cmdl.kids =0 ;
-            q.fcall(vote.service.cluster,state)
+            q.fcall(service.cluster,state)
                 .then(resolveSpy,rejectSpy)
                 .finally(function(){
                     expect(resolveSpy).toHaveBeenCalledWith(state);
                     expect(rejectSpy).not.toHaveBeenCalled();
                     expect(cluster.fork).not.toHaveBeenCalled();
+                    expect(state.clusterMaster).not.toBeTruthy();
                 }).done(done);
         });
 
         it ('does nothing if cluster.isMaster is false',function(done){
             state.cmdl.kids =3 ;
             cluster.isMaster = false;
-            q.fcall(vote.service.cluster,state)
+            q.fcall(service.cluster,state)
                 .then(resolveSpy,rejectSpy)
                 .finally(function(){
                     expect(resolveSpy).toHaveBeenCalledWith(state);
                     expect(rejectSpy).not.toHaveBeenCalled();
                     expect(cluster.fork).not.toHaveBeenCalled();
+                    expect(state.clusterMaster).not.toBeTruthy();
                 }).done(done);
         });
 
         it ('will fork the right number of kids',function(done){
             state.cmdl.kids =3 ;
             cluster.isMaster = true;
-            q.fcall(vote.service.cluster,state)
+            q.fcall(service.cluster,state)
                 .then(resolveSpy,rejectSpy)
                 .finally(function(){
                     expect(resolveSpy).toHaveBeenCalledWith(state);
                     expect(rejectSpy).not.toHaveBeenCalled();
                     expect(cluster.fork.callCount).toEqual(3);
+                    expect(state.clusterMaster).toEqual(true);
                 }).done(done);
         });
     });
-
-
 });
