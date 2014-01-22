@@ -5,26 +5,17 @@ var path        = require('path'),
     sanitize    = require('../sanitize');
 
 describe('maint (UT)', function() {
-    var maint, traceSpy, errorSpy, warnSpy, infoSpy, fatalSpy, logSpy, mockLogger, mockAws;
+    var maint, mockLog, mockLogger, mockAws;
     
     beforeEach(function() {
-        traceSpy    = jasmine.createSpy('log_trace');
-        errorSpy    = jasmine.createSpy('log_error');
-        warnSpy     = jasmine.createSpy('log_warn');
-        infoSpy     = jasmine.createSpy('log_info');
-        fatalSpy    = jasmine.createSpy('log_fatal');
-        logSpy      = jasmine.createSpy('log_log');
-        putObjSpy   = jasmine.createSpy('s3_putObj');
-        
-        var mockLog = {
-            trace : traceSpy,
-            error : errorSpy,
-            warn  : warnSpy,
-            info  : infoSpy,
-            fatal : fatalSpy,
-            log   : logSpy        
+        mockLog = {
+            trace : jasmine.createSpy('log_trace'),
+            error : jasmine.createSpy('log_error'),
+            warn  : jasmine.createSpy('log_warn'),
+            info  : jasmine.createSpy('log_info'),
+            fatal : jasmine.createSpy('log_fatal'),
+            log   : jasmine.createSpy('log_log')
         };
-
         mockLogger = {
             createLog: jasmine.createSpy('create_log').andReturn(mockLog),
             getLog : jasmine.createSpy('get_log').andReturn(mockLog)
@@ -216,5 +207,140 @@ describe('maint (UT)', function() {
             });
             waitsFor(function() { return doneFlag; }, 3000);
         });
-    }); // end -- describe removeFile
+    });
+    
+    describe('resetCollection', function() {
+        var db, collection, config;
+        
+        beforeEach(function() {
+            config = {
+                mongo: {
+                    host: 'fakeHost',
+                    port: 666,
+                    db: 'fakeDb'
+                }
+            };
+            collection = {
+                drop: jasmine.createSpy("coll_drop").andCallFake(function(cb) { cb(); }),
+                insert: jasmine.createSpy("coll_insert").andCallFake(function(query, opts, cb) { cb(); })
+            };
+            db = {
+                collection: jasmine.createSpy("db_collection").andReturn(collection),
+                collectionNames: jasmine.createSpy("db_cnames").andCallFake(function(query, cb) {
+                    cb(null, [query]);
+                })
+            };
+        });
+    
+        it("should successfully reset a collection with new data", function(done) {
+            var data = {
+                foo: 'bar'
+            };
+            maint.resetCollection(db, "users", data, config).then(function() {
+                expect(db.collection).toHaveBeenCalledWith('users');
+                expect(db.collectionNames).toHaveBeenCalled();
+                expect(db.collectionNames.calls[0].args[0]).toBe('users');
+                expect(collection.drop).toHaveBeenCalled();
+                expect(collection.insert).toHaveBeenCalled();
+                expect(collection.insert.calls[0].args[0]).toEqual({foo: 'bar'});
+                expect(collection.insert.calls[0].args[1]).toEqual({w: 1, journal: true});
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it("should be able to fill a collection with multiple records", function(done) {
+            var data = [ { foo: 'bar' }, { foo: 'baz' } ];
+            maint.resetCollection(db, "users", data, config).then(function() {
+                expect(collection.drop).toHaveBeenCalled();
+                expect(collection.insert.calls.length).toBe(2);
+                expect(collection.insert.calls[0].args[0]).toEqual({foo: 'bar'});
+                expect(collection.insert.calls[0].args[1]).toEqual({w: 1, journal: true});
+                expect(collection.insert.calls[1].args[0]).toEqual({foo: 'baz'});
+                expect(collection.insert.calls[1].args[1]).toEqual({w: 1, journal: true});
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it("should reset a collection with new data even if it did not exist", function(done) {
+            db.collectionNames.andCallFake(function(query, cb) {
+                cb(null, []);
+            });
+            var data = {
+                foo: 'bar'
+            };
+            maint.resetCollection(db, "users", data, config).then(function() {
+                expect(db.collectionNames).toHaveBeenCalled();
+                expect(collection.drop).not.toHaveBeenCalled();
+                expect(collection.insert).toHaveBeenCalled();
+                expect(collection.insert.calls[0].args[0]).toEqual({foo: 'bar'});
+                expect(collection.insert.calls[0].args[1]).toEqual({w: 1, journal: true});
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it("should not fill a collection with anything if data is not provided", function(done) {
+            maint.resetCollection(db, "users", null, config).then(function() {
+                expect(collection.drop).toHaveBeenCalled();
+                expect(collection.insert).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it("should fail if collection.insert fails", function(done) {
+            collection.insert.andCallFake(function(query, opts, cb) {
+                cb('Error!');
+            });
+            var data = {
+                foo: 'bar'
+            };
+            maint.resetCollection(db, "users", data, config).catch(function(error) {
+                expect(error).toBe('Error!');
+                expect(collection.insert).toHaveBeenCalled();
+                done();
+            });
+        });
+    
+        it("should fail if collection.drop fails", function(done) {
+            collection.drop.andCallFake(function(cb) {
+                cb('Error!');
+            });
+            var data = {
+                foo: 'bar'
+            };
+            maint.resetCollection(db, "users", data, config).catch(function(error) {
+                expect(error).toBe('Error!');
+                expect(collection.insert).not.toHaveBeenCalled();
+                expect(collection.drop).toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it("should fail if db.collectionNames fails", function(done) {
+            db.collectionNames.andCallFake(function(query, cb) {
+                cb('Error!');
+            });
+            var data = {
+                foo: 'bar'
+            };
+            maint.resetCollection(db, "users", data, config).catch(function(error) {
+                expect(error).toBe('Error!');
+                expect(db.collectionNames).toHaveBeenCalled();
+                expect(collection.insert).not.toHaveBeenCalled();
+                expect(collection.drop).not.toHaveBeenCalled();
+                done();
+            });
+        });
+    }); // end -- describe resetCollection
 }); // end -- describe maint
