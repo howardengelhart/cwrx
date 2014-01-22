@@ -1,16 +1,17 @@
 var path        = require('path'),
     q           = require('q'),
+    cluster     = require('cluster'),
     daemon      = require('../../lib/daemon'),
     sanitize    = require('../sanitize');
 
 describe('vote (UT)',function(){
     
-    var vote, state, mockLog, mockLogger, mockFs, processProperties,
-        resolveSpy, rejectSpy;
+    var vote, state, mockLog, mockLogger, mockFs, processProperties, clusterProperties,
+        resolveSpy, rejectSpy ;
     
     beforeEach(function() {
-        state       = { cmdl : {}, defaultConfig : {}  },
-        mockFs      = {},
+        state       = { cmdl : {}, defaultConfig : {}  };
+        mockFs      = {};
         mockLog     = {
             trace : jasmine.createSpy('log_trace'),
             error : jasmine.createSpy('log_error'),
@@ -39,6 +40,16 @@ describe('vote (UT)',function(){
         spyOn(process,'setgid');
         process.env  = {};
         process.argv = [];
+
+        clusterProperties = {
+            'on'          : cluster.on,
+            'fork'        : cluster.fork,
+            'setupMaster' : cluster.setupMaster
+        };
+
+        spyOn(cluster,'on');
+        spyOn(cluster,'fork');
+        spyOn(cluster,'setupMaster');
 
         vote = sanitize(['../bin/vote'])
                 .andConfigure([
@@ -128,13 +139,26 @@ describe('vote (UT)',function(){
                 }).done(done);
         });
 
-        it('sets server to true if daemonize is true',function(done){
+        it('sets server to true if daemon is true',function(done){
             process.argv = ['node','test','--daemon'];
             q.fcall(vote.service.parseCmdLine,state)
                 .then(resolveSpy,rejectSpy)
                 .finally(function(){
                     expect(rejectSpy).not.toHaveBeenCalled();
                     expect(resolveSpy).toHaveBeenCalledWith(state);
+                    expect(state.cmdl.daemon).toBeTruthy('cmdl.daemon');
+                    expect(state.cmdl.server).toBeTruthy('cmdl.server');
+                }).done(done);
+        });
+        
+        it('sets server,daemon to true if kids > 0',function(done){
+            process.argv = ['node','test','--kids=3'];
+            q.fcall(vote.service.parseCmdLine,state)
+                .then(resolveSpy,rejectSpy)
+                .finally(function(){
+                    expect(rejectSpy).not.toHaveBeenCalled();
+                    expect(resolveSpy).toHaveBeenCalledWith(state);
+                    expect(state.cmdl.kids).toEqual(3);
                     expect(state.cmdl.daemon).toBeTruthy('cmdl.daemon');
                     expect(state.cmdl.server).toBeTruthy('cmdl.server');
                 }).done(done);
@@ -260,9 +284,48 @@ describe('vote (UT)',function(){
                     );
                 }).done(done);
         });
+    });
 
+    describe('cluster',function(){
+        beforeEach(function(){
+            resolveSpy = jasmine.createSpy('cluster.resolve');
+            rejectSpy  = jasmine.createSpy('cluster.reject');
+        });
 
+        it ('does nothing if state.cmdl.kids < 1',function(done){
+            state.cmdl.kids =0 ;
+            q.fcall(vote.service.cluster,state)
+                .then(resolveSpy,rejectSpy)
+                .finally(function(){
+                    expect(resolveSpy).toHaveBeenCalledWith(state);
+                    expect(rejectSpy).not.toHaveBeenCalled();
+                    expect(cluster.fork).not.toHaveBeenCalled();
+                }).done(done);
+        });
 
+        it ('does nothing if cluster.isMaster is false',function(done){
+            state.cmdl.kids =3 ;
+            cluster.isMaster = false;
+            q.fcall(vote.service.cluster,state)
+                .then(resolveSpy,rejectSpy)
+                .finally(function(){
+                    expect(resolveSpy).toHaveBeenCalledWith(state);
+                    expect(rejectSpy).not.toHaveBeenCalled();
+                    expect(cluster.fork).not.toHaveBeenCalled();
+                }).done(done);
+        });
+
+        it ('will fork the right number of kids',function(done){
+            state.cmdl.kids =3 ;
+            cluster.isMaster = true;
+            q.fcall(vote.service.cluster,state)
+                .then(resolveSpy,rejectSpy)
+                .finally(function(){
+                    expect(resolveSpy).toHaveBeenCalledWith(state);
+                    expect(rejectSpy).not.toHaveBeenCalled();
+                    expect(cluster.fork.callCount).toEqual(3);
+                }).done(done);
+        });
     });
 
 
