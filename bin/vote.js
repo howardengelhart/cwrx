@@ -2,22 +2,19 @@
 var include     = require('../lib/inject').require,
     fs          = include('fs-extra'),
     path        = include('path'),
-    os          = include('os'),
     request     = include('request'),
     cluster     = include('cluster'),
     express     = include('express'),
-    aws         = include('aws-sdk'),
     q           = include('q'),
-    daemon      = include('../lib/daemon'),
-    hostname    = include('../lib/hostname'),
-    logger      = include('../lib/logger'),
     uuid        = include('../lib/uuid'),
+    daemon      = include('../lib/daemon'),
+    logger      = include('../lib/logger'),
     config      = include('../lib/config'),
     __ut__      = (global.jasmine !== undefined) ? true : false,
     state       = {},
     service     = {};   // for exporting functions to unit tests
 
-
+state.name = 'vote';
 state.defaultConfig = {
     log    : {
         logLevel : 'info',
@@ -41,6 +38,10 @@ service.getVersion = function(appName) {
     }
     log.warn('No version file found');
     return 'unknown';
+};
+
+service.start = function(state){
+    return q(state);
 };
 
 service.parseCmdLine = function(state){
@@ -122,7 +123,7 @@ service.handleSignals = function(state){
             daemon.removePidFile(state.config.pidPath);
         }
 
-        if (cluster.isMaster){
+        if (cluster.isMaster && (state.cmdl.kids > 0)){
             cluster.disconnect(function(){
                 if (state.kids){
                     state.kids.forEach(function(kid){
@@ -226,23 +227,58 @@ service.daemonize = function(state){
 };
 
 service.listen = function(state){
-    var log = logger.getLog(), deferred = q.defer();
+    var log = logger.getLog(), app;
     if ((state.cmdl.kids > 0) && cluster.isMaster){
         log.info('Cluster master, not a worker');
-        return deferred.promise;
+        return state;
     }
-    log.info('Cluster work, I am listening');
+    log.info('Running as cluster worker, proceed with setting up web server.');
+    app = express();
+    app.use(express.bodyParser());
+
+    app.all('*', function(req, res, next) {
+        res.header("Access-Control-Allow-Origin", "*");
+        res.header("Access-Control-Allow-Headers", 
+                   "Origin, X-Requested-With, Content-Type, Accept");
+//        res.header("cache-control", "max-age=0");
+
+        if (req.method.toLowerCase() === "options") {
+            res.send(200);
+        } else {
+            next();
+        }
+    });
     
-    setTimeout(function(){
-        log.info('done listening, lets quit');
-        deferred.resolve(state);
-    },60000);
-    
-    return deferred.promise;
+    app.all('*',function(req, res, next){
+        req.uuid = uuid.createUuid().substr(0,10);
+        if (!req.headers['user-agent'] || 
+                !req.headers['user-agent'].match(/^ELB-HealthChecker/)) {
+            log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
+                req.method,req.url,req.httpVersion);
+        } else {
+            log.trace('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
+                req.method,req.url,req.httpVersion);
+        }
+        next();
+    });
+
+    app.get('/vote/:jobId', function(req, res, next){
+        if (!req.params || !req.params.jobId ) {
+            res.send(400, 'You must provide the jobId in the request url.\n');
+            return;
+        }
+        res.send(200,'Doing fine!\n');
+    });
+
+    app.listen(state.cmdl.port);
+    log.info('Service is listening on port: ' + state.cmdl.port);
+
+    return state;
 };
 
 if (!__ut__){
-    q.fcall(service.parseCmdLine,state)
+    service.start(state)
+    .then(service.parseCmdLine)
     .then(service.configure)
     .then(service.handleSignals)
     .then(service.daemonize)
@@ -259,8 +295,7 @@ if (!__ut__){
     })
     .done(function(){
         var log = logger.getLog();
-        log.info('all done, exit');
-        process.exit(0);
+        log.info('Service bootstrap is complete.');
     });
 }
 
