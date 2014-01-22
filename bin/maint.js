@@ -47,10 +47,11 @@ var include     = require('../lib/inject').require,
             frequency   : 22050,
             workspace   : __dirname
         },
+        secretsPath: path.join(process.env.HOME,'.maint.secrets.json'),
         mongo: {
             host: 'localhost',
             port: 27017,
-            db: 'c6DevDb'
+            db: 'c6Db'
         }
     },
 
@@ -215,8 +216,15 @@ function main(done) {
     if (program.loglevel){
         log.setLevel(program.loglevel);
     }
+    
+    var secrets = fs.readJsonSync(config.secretsPath);
 
-    mongoUtils.connect(config.mongo.host, config.mongo.port).done(function(mongoClient) {
+    var db;
+    mongoUtils.connect(config.mongo.host, config.mongo.port).then(function(mongoClient) {
+        db = mongoClient.db(config.mongo.db);
+        return q.npost(db, 'authenticate', 
+                       [secrets.mongoCredentials.user, secrets.mongoCredentials.password]);
+    }).done(function(result) {
         log.info('Successfully connected to mongo at %1:%2', config.mongo.host, config.mongo.port);
         
         process.on('uncaughtException', function(err) {
@@ -481,7 +489,7 @@ function main(done) {
                 });
                 return;
             }
-            resetCollection(mongoClient.db(config.mongo.db),req.body.collection,req.body.data,config)
+            resetCollection(db, req.body.collection, req.body.data,config)
             .then(function() {
                 log.info("Successfully reset collection");
                 res.send(200, "Successfully reset collection");

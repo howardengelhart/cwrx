@@ -41,11 +41,11 @@ auth.defaultConfiguration = {
         maxAge: 14*24*60*60*1000, // 14 days; unit here is milliseconds
         db: 'sessions'
     },
-    secretsPath: path.join(process.env.HOME,'.secrets.json'),
+    secretsPath: path.join(process.env.HOME,'.auth.secrets.json'),
     mongo: {
         host: 'localhost',
         port: 27017,
-        db: 'c6DevDb'
+        db: 'c6Db'
     }
 };
 
@@ -305,11 +305,10 @@ function main(done) {
     mongoUtils.connect(config.mongo.host, config.mongo.port).then(function(mongoClient) {
         db = mongoClient.db(config.mongo.db);
         sessions = mongoClient.db(config.mongo.db);
-        return q.all([db, sessions].map(function(db) {
-            return q.npost(db, 'authenticate', 
-                           [secrets.mongoCredentials.user, secrets.mongoCredentials.password]);
-        }));
-    }).done(function() {
+        return q.npost(db, 'authenticate', 
+                       [secrets.mongoCredentials.user, secrets.mongoCredentials.password]);
+    }).done(function(result) {
+        log.info(result);
         log.info('Successfully connected to mongo at %1:%2', config.mongo.host, config.mongo.port);
         var users = db.collection('users');
         
@@ -363,6 +362,8 @@ function main(done) {
                 maxAge: config.session.maxAge
             },
             store: new MongoStore({
+                username: secrets.mongoCredentials.user,
+                password: secrets.mongoCredentials.password,
                 db: sessions
             })
         }));
