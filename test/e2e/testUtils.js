@@ -5,7 +5,9 @@ var request     = require('request'),
 
 function qRequest(method, opts) {
     var deferred = q.defer();
-    
+    if (!(opts instanceof Array)) {
+        opts = [opts];
+    }
     q.npost(request, method, opts)
     .then(function(values) {
         if (!values) return q.reject({error: 'Received no data'});
@@ -27,7 +29,7 @@ function qRequest(method, opts) {
 
 function getLog(logFile, maintUrl, spec, testName, testNum) {
     var options = {
-        url: maintUrl + '/get_log?logFile=dub.log'
+        url: maintUrl + '/get_log?logFile=' + logFile
     };
     return qRequest('get', [options])
     .then(function(resp) {
