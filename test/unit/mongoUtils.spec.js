@@ -1,5 +1,4 @@
 var mongodb     = require('mongodb'),
-    q           = require('q'),
     mongoUtils  = require('../../lib/mongoUtils');
     
 describe('mongoUtils', function() {

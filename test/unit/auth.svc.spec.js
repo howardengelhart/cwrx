@@ -144,7 +144,7 @@ describe('auth (UT)', function() {
             };
             users.findOne.andCallFake(function(query, cb) {
                 cb(null, origUser);
-            })
+            });
             spyOn(bcrypt, 'compare').andCallFake(function(pass, hashed, cb) {
                 cb(null, true);
             });
