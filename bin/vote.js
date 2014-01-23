@@ -55,12 +55,22 @@ app.main = function(state){
         next();
     });
 
-    webServer.get('/vote/:jobId', function(req, res, next){
-        if (!req.params || !req.params.jobId ) {
-            res.send(400, 'You must provide the jobId in the request url.\n');
+    webServer.get('/election/:electionId', function(req, res, next){
+        if (!req.params || !req.params.electionId ) {
+            res.send(400, 'You must provide the electionId in the request url.\n');
             return;
         }
-        res.send(200,'Doing fine!\n');
+        res.send(200,'Election is: ' + req.params.electionId + '\n');
+    });
+
+    webServer.get('/election/:electionId/ballot/:itemId', function(req, res, next){
+        if (!req.params || !req.params.electionId || !req.params.itemId) {
+            res.send(400, 'You must provide the electionId and itemId in the request url.\n');
+            return;
+        }
+        res.send(200,
+            'Election is: ' + req.params.electionId + '\n' + 
+            'Item id is: ' + req.params.itemId + '\n');
     });
 
     webServer.listen(state.cmdl.port);
@@ -90,4 +100,8 @@ if (!__ut__){
         var log = logger.getLog();
         log.info('ready to serve');
     });
+} else {
+    module.exports = {
+        'app' : app
+    };
 }

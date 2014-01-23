@@ -28,7 +28,7 @@ module.exports = function (grunt) {
         watch: {
             scripts: {
                 options: {
-                    debounceDelay : 5000
+                    debounceDelay : 10000
                 },
                 files: [
                     __filename,
