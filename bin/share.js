@@ -35,7 +35,7 @@ var include     = require('../lib/inject').require,
 // This is the template for share's configuration
 share.defaultConfiguration = {
     caches : {
-        run     : path.normalize('/usr/local/share/cwrx/dub/caches/run/'),
+        run     : path.normalize('/usr/local/share/cwrx/share/caches/run/'),
     },
     s3 : {
         share     : {
