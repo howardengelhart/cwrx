@@ -83,7 +83,7 @@ if (!__ut__){
     service.start(state)
     .then(service.parseCmdLine)
     .then(service.configure)
-    .then(service.handleSignals)
+    .then(service.prepareServer)
     .then(service.daemonize)
     .then(service.cluster)
     .then(app.main)
