@@ -1,5 +1,7 @@
 var q           = require('q'),
     authUtils   = require('../../lib/authUtils')(),
+    uuid        = require('../../lib/uuid'),
+    logger      = require('../../lib/logger'),
     mongoUtils  = require('../../lib/mongoUtils');
 
 describe('authUtils', function() {
@@ -123,14 +125,13 @@ describe('authUtils', function() {
     
     describe('compare', function() {
         var a, b;
+        
         it('should do a deep compare of two objects', function() {
             a = { a: { foo: 'bar' }, b: 1 };
             b = { a: { foo: 'bar' }, b: 1 };
             expect(authUtils.compare(a, b)).toBeTruthy();
-            
             b.a.foo = 'baz';
             expect(authUtils.compare(a, b)).toBeFalsy();
-            
             a = {a: 1, b: 2};
             b = {b: 2, a: 1};
             expect(authUtils.compare(a, b)).toBeTruthy();
@@ -140,7 +141,6 @@ describe('authUtils', function() {
             a = { a: 1 };
             b = { a: 1, b: 2};
             expect(authUtils.compare(a, b)).toBeTruthy();
-            
             b.c = {d: 3};
             expect(authUtils.compare(a, b)).toBeTruthy();
         });
@@ -148,7 +148,6 @@ describe('authUtils', function() {
         it('should be able to compare two non-objects', function() {
             a = 'asdf', b = 'asdfq';
             expect(authUtils.compare(a, b)).toBeFalsy();
-            
             b = 'asdf';
             expect(authUtils.compare(a, b)).toBeTruthy();
         });
@@ -236,5 +235,130 @@ describe('authUtils', function() {
                 done();
             });
         });
-    });  // end -- describe authUser
+    });
+    describe('middlewarify: ', function() {
+        
+        it('should return a function', function() {
+            var midWare = authUtils.middlewarify('fakeDb', 'fakePerms');
+            expect(typeof midWare).toBe('function');
+        });
+        
+        describe('middleware', function() {
+            var db, perms, mockLog, req, res, next;
+            beforeEach(function() {
+                db = "mockDb";
+                perms = "fakePerms";
+                mockLog = {
+                    trace : jasmine.createSpy('log_trace'),
+                    error : jasmine.createSpy('log_error'),
+                    warn  : jasmine.createSpy('log_warn'),
+                    info  : jasmine.createSpy('log_info'),
+                    fatal : jasmine.createSpy('log_fatal'),
+                    log   : jasmine.createSpy('log_log')
+                };
+                spyOn(logger, 'getLog').andReturn(mockLog);
+                spyOn(uuid, 'createUuid').andReturn('1234567890abcd');
+                req = {
+                    uuid: '1234',
+                    route: {
+                        method: 'get',
+                        path: '/ut'
+                    },
+                    session: {
+                        user: 'u-123'
+                    }
+                };
+                res = {};
+                spyOn(authUtils, 'authUser').andReturn(q({ id: 'u-123' }));
+            });
+        
+            it('should correctly wrap authUser', function(done) {
+                var midWare = authUtils.middlewarify(db, perms);
+                res.send = function(code, data) {
+                    expect(code).not.toBeDefined();
+                    expect(data).not.toBeDefined();
+                    done();
+                };
+                midWare(req, res, function() {
+                    expect(req.user).toEqual({id: 'u-123'});
+                    expect(mockLog.info).toHaveBeenCalled();
+                    expect(req.uuid).toBe('1234');
+                    expect(uuid.createUuid).not.toHaveBeenCalled();
+                    expect(authUtils.authUser).toHaveBeenCalledWith('u-123', 'mockDb', 'fakePerms');
+                    done();
+                });
+            });
+            
+            it('should call createUuid if there is no req.uuid', function(done) {
+                delete req.uuid;
+                var midWare = authUtils.middlewarify(db, perms);
+                res.send = function(code, data) {
+                    expect(code).not.toBeDefined();
+                    expect(data).not.toBeDefined();
+                    done();
+                };
+                midWare(req, res, function() {
+                    expect(req.uuid).toBe('1234567890');
+                    expect(uuid.createUuid).toHaveBeenCalled();
+                    done();
+                });
+            });
+            
+            it('should fail with a 401 if there is no user in the session', function(done) {
+                delete req.session.user;
+                var midWare = authUtils.middlewarify(db, perms);
+                res.send = function(code, data) {
+                    expect(code).toBe(401);
+                    expect(data).toBe("Unauthorized");
+                    expect(mockLog.info).toHaveBeenCalled();
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                    expect(authUtils.authUser).not.toHaveBeenCalled();
+                    done();
+                };
+                midWare(req, res, function() {
+                    // indicate test failure in some way if we reach this point
+                    expect('called next()').toBe('should never have called next()');
+                    expect(req.user).not.toBeDefined();
+                    done();
+                });
+            });
+            
+            it('should fail with a 401 if the user is unauthorized', function(done) {
+                authUtils.authUser.andReturn(q.reject({error: 'Error!'}));
+                var midWare = authUtils.middlewarify(db, perms);
+                res.send = function(code, data) {
+                    expect(code).toBe(401);
+                    expect(data).toBe("Unauthorized");
+                    expect(mockLog.info).toHaveBeenCalled();
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                    expect(authUtils.authUser).toHaveBeenCalled();
+                    done();
+                };
+                midWare(req, res, function() {
+                    // indicate test failure in some way if we reach this point
+                    expect('called next()').toBe('should never have called next()');
+                    expect(req.user).not.toBeDefined();
+                    done();
+                });
+            });
+            
+            it('should fail with a 500 if there was an internal error', function(done) {
+                authUtils.authUser.andReturn(q.reject({error: 'Error!', detail: 'It broke!'}));
+                var midWare = authUtils.middlewarify(db, perms);
+                res.send = function(code, data) {
+                    expect(code).toBe(500);
+                    expect(data).toBe("Error checking authorization of user");
+                    expect(mockLog.error).toHaveBeenCalled();
+                    expect(authUtils.authUser).toHaveBeenCalled();
+                    done();
+                };
+                midWare(req, res, function() {
+                    // indicate test failure in some way if we reach this point
+                    expect('called next()').toBe('should never have called next()');
+                    expect(req.user).not.toBeDefined();
+                    done();
+                });
+            });
+        });  // end -- describe returned function
+    });  // end -- describe middlewarify
 });  // end -- describe authUtils
