@@ -26,17 +26,25 @@ module.exports = function (grunt) {
             ]
         },
         watch: {
-            scripts: {
-                options: {
-                    debounceDelay : 10000
-                },
+            lint: {
                 files: [
                     __filename,
                     __dirname + '/bin/**/*.js',
                     __dirname + '/lib/**/*.js',
                     __dirname + '/test/**/*.js' 
                 ],
-                tasks: ['jshint', 'unit_tests']
+                tasks: ['jshint']
+            },
+            test: {
+                options: {
+                    debounceDelay : 30000
+                },
+                files: [
+                    __dirname + '/bin/**/*.js',
+                    __dirname + '/lib/**/*.js',
+                    __dirname + '/test/**/*.js' 
+                ],
+                tasks: ['unit_tests']
             }
         },
         stop_instances: {
@@ -57,6 +65,28 @@ module.exports = function (grunt) {
     grunt.registerTask('default', function(){
         grunt.task.run('jshint');
         grunt.task.run('unit_tests');
+    });
+
+    grunt.registerTask('install_hook','Installs pre-commit hook', function(){
+        var hookPath = path.join(__dirname,'.git/hooks/pre-commit'), hookFile,
+            done = this.async();
+        hookFile =  '# Installed by grunt install_hook\n\n'
+        hookFile += 'grunt jshint\n';
+        hookFile += 'grunt unit_tests\n';
+        
+        fs.outputFileSync(hookPath,hookFile);
+        grunt.util.spawn({
+            cmd : 'chmod',
+            args : ['755',hookPath]
+        }, function(error,result,code) {
+            grunt.log.writeln(result.stdout);
+            if (error) {
+                grunt.log.errorlns('failed to change mode: ' + error);
+                done(false);
+                return;
+            }
+            done(true);
+        });
     });
     
     grunt.registerTask('unit_tests', 'Run jasmine unit tests', function(svc) {
