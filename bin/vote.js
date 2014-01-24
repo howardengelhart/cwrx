@@ -18,13 +18,12 @@ state.defaultConfig = {
     pidDir  : './'
 };
 
-function VoteData(db,syncIval,syncTimeout){
+function VoteData(db,syncIval){
     this._db            = db;
     this._syncIval      = syncIval;
-    this._syncTimeout   = syncTimeout;
     this._cache         = {};
 
-    this._defGetElection = {};
+    this._deferred = {};
 
     if (!this._db){
         throw new Error('A mongo db connection is required.');
@@ -37,14 +36,6 @@ function VoteData(db,syncIval,syncTimeout){
     if (this._syncIval < 1000){
         throw new Error('VoteData syncIval cannot be less than 1000 ms.');
     }
-    
-    if (!this._syncTimeout){
-        this._syncTimeout = 2000;
-    }
-
-    if (this._syncTimeout < 100){
-        throw new Error('VoteData syncTimeout cannot be less than 100 ms.');
-    }
 }
 
 VoteData.prototype.shouldSync = function(lastSync){
@@ -56,23 +47,21 @@ VoteData.prototype.shouldSync = function(lastSync){
 };
 
 VoteData.prototype.getElection    = function(electionId){
-    if (this._defGetElection[electionId]){
-        return this._defGetElection[electionId].promise;
+    if (this._deferred[electionId]){
+        return this._deferred[electionId].promise;
     }
 
-    var self = this, election = self._cache[electionId], cursor ;
+    var self = this, election = self._cache[electionId] ;
 
     if (election && !self.shouldSync(election.lastSync)){
         return q(election.data);
     }
    
-    self._defGetElection[electionId] = q.defer();
+    self._deferred[electionId] = q.defer();
     
-    cursor = self._db.find({'electionId' : electionId});
-
-    cursor.nextObject(function(err,item){
-        var deferred = self._defGetElection[electionId];
-        delete self._defGetElection[electionId];
+    self._db.findOne({'electionId' : electionId}, function(err,item){
+        var deferred = self._deferred[electionId];
+        delete self._deferred[electionId];
         if (err) {
             deferred.reject(err);
         }
@@ -90,12 +79,42 @@ VoteData.prototype.getElection    = function(electionId){
         }
     });
 
-    return self._defGetElection[electionId].promise;
+    return self._deferred[electionId].promise;
 };
 
 VoteData.prototype.getBallotItem  = function(electionId,itemId){
+    var defKey = electionId + '::' + itemId, self = this;
+    if (self._deferred[defKey]){
+        return self._deferred[defKey];
+    }
 
+    self._deferred[defKey] = q.defer();
 
+    self.getElection(electionId)
+        .then(function(election){
+            var deferred = self._deferred[defKey];
+            delete self._deferred[defKey];   
+
+            if (!election.ballot){
+                deferred.reject(
+                    new Error('Corrupt election, missing ballot.')
+                );
+            }
+            else if (!election.ballot[itemId]){
+                deferred.reject(
+                    new Error('Unable to locate ballot item.')
+                );
+            } else {
+                deferred.resolve(election.ballot[itemId]);
+            }
+        })
+        .catch(function(err){
+            var deferred = self._deferred[defKey];
+            delete self._deferred[defKey];   
+            deferred.reject(err);
+        });
+
+    return self._deferred[defKey].promise;
 };
 
 VoteData.prototype.recordVote     = function(ballot){

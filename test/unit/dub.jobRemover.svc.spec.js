@@ -1,11 +1,10 @@
+var flush = true;
 describe('dub job remover (UT)', function() {
     var dub, mockLog, mockLogger, mockHostname,
         fs, path, sanitize, q, cwrxConfig;
     
     beforeEach(function() {
-        for (var mod in require.cache){
-            delete require.cache[mod];
-        }
+        if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
 
         fs          = require('fs-extra');
         path        = require('path');

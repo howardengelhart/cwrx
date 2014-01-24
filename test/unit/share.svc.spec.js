@@ -1,13 +1,11 @@
+var flush = true;
 describe('share (UT)', function() {
     var share, traceSpy, errorSpy, warnSpy, infoSpy, fatalSpy, logSpy, mockLogger,
         mockAws, putObjSpy,
         path, fs, q, request, querystring, cwrxConfig, uuid, sanitize;
 
     beforeEach(function() {
-        
-        for (var mod in require.cache){
-            delete require.cache[mod];
-        }
+        if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
 
         path        = require('path');
         fs          = require('fs-extra');
