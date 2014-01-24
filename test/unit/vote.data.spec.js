@@ -181,4 +181,59 @@ describe('vote.data (UT)',function(){
                 }).done(done);
         });
     });
+/*
+    describe('getBallotItem',function(){
+        var vd;
+
+        beforeEach(function(){
+            vd = new VoteData(mockDb);
+            vd._cache['r-738c2403d83ddc'] = {
+                lastSync : (new Date()).valueOf(),
+                data : {
+                    electionId: 'r-738c2403d83ddc',
+                    ballot:   {
+                        'rv-22119a8cf9f755' : {
+                            question : 'Good, bad or ugly?',
+                            returns  : [
+                                { response : 'good and plenty', votes : 100 },
+                                { response : 'bad and nasty', votes    : 200 },
+                                { response : 'ugly and fat', votes    : 300 }
+                            ]
+                        },
+                        'rv-4770a2d7f85ce0' : {
+                            question : 'Smelly or not smelly?',
+                            returns  : [
+                                { response : 'smelly', votes    : 100 },
+                                { response : 'not smelly', votes    : 200 }
+                            ]
+                        }
+                    }
+                }
+            };
+            resolveSpy = jasmine.createSpy('getBallotItem.resolve');
+            rejectSpy = jasmine.createSpy('getBallotItem.reject');
+        });
+
+        it('will fail if passed an invalid electionId',function(){
+            mockCursor.nextObject.andCallFake(function(cb){
+                process.nextTick(function(){
+                    cb(null,null);
+                });
+            });
+
+            vd.getElection('abc')
+                .then(resolveSpy,rejectSpy)
+                .finally(function(){
+                    expect(resolveSpy).not.toHaveBeenCalled();
+                    expect(rejectSpy).toHaveBeenCalled();
+                    expect(rejectSpy.argsForCall[0][0].message)
+                        .toEqual('Unable to locate election');
+                    expect(vd._defGetElection['abc']).not.toBeDefined();
+                }).done(done);
+
+        });
+*/
+
+
+    });
 });

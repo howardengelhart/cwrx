@@ -95,6 +95,7 @@ VoteData.prototype.getElection    = function(electionId){
 
 VoteData.prototype.getBallotItem  = function(electionId,itemId){
 
+
 };
 
 VoteData.prototype.recordVote     = function(ballot){
