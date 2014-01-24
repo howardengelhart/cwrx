@@ -1,13 +1,14 @@
-var q           = require('q'),
-    authUtils   = require('../../lib/authUtils')(),
-    uuid        = require('../../lib/uuid'),
-    logger      = require('../../lib/logger'),
-    mongoUtils  = require('../../lib/mongoUtils');
-
 describe('authUtils', function() {
-    var mockUser;
+    var mockUser, q, authUtils, uuid, logger, mongoUtils;
     
     beforeEach(function() {
+        for (var mod in require.cache){
+            delete require.cache[mod];
+        }
+        
+        q = require('q');
+        authUtils = require('../../lib/authUtils')();
+        
         mockUser = {
             id: 'u-1234',
             status: 'active',
@@ -35,6 +36,7 @@ describe('authUtils', function() {
             db = {
                 collection: jasmine.createSpy('db_coll').andReturn(collection)
             };
+            mongoUtils = require('../../lib/mongoUtils');
             spyOn(mongoUtils, 'safeUser').andCallThrough();
         });
         
@@ -146,35 +148,31 @@ describe('authUtils', function() {
         });
         
         it('should be able to compare two non-objects', function() {
-            a = 'asdf', b = 'asdfq';
+            a = 'foo', b = 'foob';
             expect(authUtils.compare(a, b)).toBeFalsy();
-            b = 'asdf';
+            b = 'foo';
             expect(authUtils.compare(a, b)).toBeTruthy();
         });
     });
     
     describe('authUser', function() {
-        var perms, db, req;
+        var perms, db;
         beforeEach(function() {
             perms = {
                 dub: {
                     create: true
                 }
             };
-            req = {
-                session: {
-                    user: 'u-1234'
-                }
-            };
             db = "mockDB";
             spyOn(authUtils, 'compare').andReturn(true);
+            mongoUtils = require('../../lib/mongoUtils');
             spyOn(authUtils, 'getUser').andCallFake(function() {
                 return q(mongoUtils.safeUser(mockUser));
             });
         });
         
         it('should succeed if the user is found and the permissions match', function(done) {
-            authUtils.authUser(req, db, perms).then(function(user) {
+            authUtils.authUser('u-1234', db, perms).then(function(user) {
                 delete mockUser.password;
                 expect(user).toEqual(mockUser);
                 expect(authUtils.getUser).toHaveBeenCalled();
@@ -190,7 +188,7 @@ describe('authUtils', function() {
         
         it('should fail the permissions do not match', function(done) {
             authUtils.compare.andReturn(false);
-            authUtils.authUser(req, db, perms).catch(function(errorObj) {
+            authUtils.authUser('u-1234', db, perms).catch(function(errorObj) {
                 expect(errorObj).toBeDefined();
                 expect(errorObj.error).toBe("Permissions do not match");
                 expect(errorObj.detail).not.toBeDefined();
@@ -201,7 +199,7 @@ describe('authUtils', function() {
         
         it('should fail if the user is not active', function(done) {
             mockUser.status = 'inactive';
-            authUtils.authUser(req, db, perms).catch(function(errorObj) {
+            authUtils.authUser('u-1234', db, perms).catch(function(errorObj) {
                 expect(errorObj).toBeDefined();
                 expect(errorObj.error).toBe("User is inactive");
                 expect(errorObj.detail).not.toBeDefined();
@@ -215,7 +213,7 @@ describe('authUtils', function() {
                 error: 'Error!',
                 detail: 'NOPE'
             }));
-            authUtils.authUser(req, db, perms).catch(function(errorObj) {
+            authUtils.authUser('u-1234', db, perms).catch(function(errorObj) {
                 expect(errorObj).toBeDefined();
                 expect(errorObj.error).toBe("Error!");
                 expect(errorObj.detail).toBe("NOPE");
@@ -224,18 +222,8 @@ describe('authUtils', function() {
                 done();
             });
         });
-        
-        it('should fail if there is no user id in the session', function(done) {
-            req.session = { foo: 'bar' };
-            authUtils.authUser(req, db, perms).catch(function(errorObj) {
-                expect(errorObj).toBeDefined();
-                expect(errorObj.error).toBe("No user is logged in");
-                expect(errorObj.detail).not.toBeDefined();
-                expect(authUtils.getUser).not.toHaveBeenCalled();
-                done();
-            });
-        });
     });
+    
     describe('middlewarify: ', function() {
         
         it('should return a function', function() {
@@ -256,6 +244,8 @@ describe('authUtils', function() {
                     fatal : jasmine.createSpy('log_fatal'),
                     log   : jasmine.createSpy('log_log')
                 };
+                logger = require('../../lib/logger');
+                uuid = require('../../lib/uuid');
                 spyOn(logger, 'getLog').andReturn(mockLog);
                 spyOn(uuid, 'createUuid').andReturn('1234567890abcd');
                 req = {

@@ -172,7 +172,8 @@ auth.signup = function(req, users) {
         newUser = {
             id: 'u-' + uuid.createUuid().substr(0,14),
             created: new Date(),
-            username: req.body.username
+            username: req.body.username,
+            status: 'active'
         };
         return q.npost(bcrypt, 'hash', [req.body.password, bcrypt.genSaltSync()])
         .then(function(hashed) {
@@ -304,7 +305,7 @@ function main(done) {
     var db, sessions;
     mongoUtils.connect(config.mongo.host, config.mongo.port).then(function(mongoClient) {
         db = mongoClient.db(config.mongo.db);
-        sessions = mongoClient.db(config.mongo.db);
+        sessions = mongoClient.db(config.session.db);
         return q.npost(db, 'authenticate', 
                        [secrets.mongoCredentials.user, secrets.mongoCredentials.password]);
     }).done(function() {
