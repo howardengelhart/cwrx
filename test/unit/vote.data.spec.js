@@ -1,11 +1,10 @@
-describe('vote.data (UT)',function(){
+var flush = true;
+describe('vote.data',function(){
     
     var VoteData, mockLog, resolveSpy, rejectSpy, q, logger, mockDb, mockCursor;
     
     beforeEach(function() {
-        for (var mod in require.cache){
-            delete require.cache[mod];
-        }
+        if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         
         q           = require('q');
         logger      = require('../../lib/logger');
@@ -21,7 +20,7 @@ describe('vote.data (UT)',function(){
         };
 
         mockDb      = {
-            find    : jasmine.createSpy('mockDb.find').andReturn(mockCursor)
+            findOne     : jasmine.createSpy('mockDb.findOne')
         };
 
         mockLog     = {
@@ -47,19 +46,9 @@ describe('vote.data (UT)',function(){
                 .toThrow('VoteData syncIval cannot be less than 1000 ms.');
         });
 
-        it ('fails if syncTimeout is < 100 ms.',function(){
-            expect(function(){ new VoteData({},5000, 1) })
-                .toThrow('VoteData syncTimeout cannot be less than 100 ms.');
-        });
-
         it('defaults syncIval to 10000 ms.',function(){
             var vd = new VoteData({});
             expect(vd._syncIval).toEqual(10000);
-        });
-
-        it('defaults syncTimeout to 10000 ms.',function(){
-            var vd = new VoteData({});
-            expect(vd._syncTimeout).toEqual(2000);
         });
 
     });
@@ -108,7 +97,7 @@ describe('vote.data (UT)',function(){
                 .finally(function(){
                     expect(resolveSpy).toHaveBeenCalled();
                     expect(rejectSpy).not.toHaveBeenCalled();
-                    expect(mockDb.find).not.toHaveBeenCalled();
+                    expect(mockDb.findOne).not.toHaveBeenCalled();
                     expect(resolveSpy.argsForCall[0][0])
                         .toEqual(mockData);
                 }).done(done);
@@ -123,7 +112,7 @@ describe('vote.data (UT)',function(){
                 data     :  mockData
             }
             
-            mockCursor.nextObject.andCallFake(function(cb){
+            mockDb.findOne.andCallFake(function(query,cb){
                 process.nextTick(function(){
                     cb(null,mockData);
                 });
@@ -134,15 +123,15 @@ describe('vote.data (UT)',function(){
                 .finally(function(){
                     expect(resolveSpy).toHaveBeenCalled();
                     expect(rejectSpy).not.toHaveBeenCalled();
-                    expect(mockDb.find).toHaveBeenCalled();
+                    expect(mockDb.findOne).toHaveBeenCalled();
                     expect(resolveSpy.argsForCall[0][0].foo).toEqual('bar');
                     expect(vd._cache['abc'].lastSync - oldSync).toBeGreaterThan(4999);
-                    expect(vd._defGetElection['abc']).not.toBeDefined();
+                    expect(vd._deferred['abc']).not.toBeDefined();
                 }).done(done);
         });
 
         it('fails if the election is not available',function(done){
-            mockCursor.nextObject.andCallFake(function(cb){
+            mockDb.findOne.andCallFake(function(query,cb){
                 process.nextTick(function(){
                     cb(null,null);
                 });
@@ -155,13 +144,13 @@ describe('vote.data (UT)',function(){
                     expect(rejectSpy).toHaveBeenCalled();
                     expect(rejectSpy.argsForCall[0][0].message)
                         .toEqual('Unable to locate election');
-                    expect(vd._defGetElection['abc']).not.toBeDefined();
+                    expect(vd._deferred['abc']).not.toBeDefined();
                 }).done(done);
         });
 
         it('batches calls while waiting for mongo',function(done){
             var mockData = { _id : 'xyz', electionId : 'abc', foo : 'bar' };
-            mockCursor.nextObject.andCallFake(function(cb){
+            mockDb.findOne.andCallFake(function(query,cb){
                 process.nextTick(function(){
                     cb(null,mockData);
                 });
@@ -174,66 +163,174 @@ describe('vote.data (UT)',function(){
                 .finally(function(){
                     expect(resolveSpy).toHaveBeenCalled();
                     expect(rejectSpy).not.toHaveBeenCalled();
-                    expect(mockDb.find.callCount).toEqual(1);
+                    expect(mockDb.findOne.callCount).toEqual(1);
                     expect(resolveSpy.argsForCall[0][0].length).toEqual(3);
                     expect(resolveSpy.argsForCall[0][0][0].foo).toEqual('bar');
-                    expect(vd._defGetElection['abc']).not.toBeDefined();
+                    expect(vd._deferred['abc']).not.toBeDefined();
                 }).done(done);
         });
     });
-/*
+
     describe('getBallotItem',function(){
-        var vd;
+        var vd, mockData;
 
         beforeEach(function(){
+            mockData = {
+                electionId: 'r-738c2403d83ddc',
+                ballot:   {
+                    'rv-22119a8cf9f755' : {
+                        question : 'Good, bad or ugly?',
+                        returns  : [
+                            { response : 'good and plenty', votes    : 100 },
+                            { response : 'bad and nasty',   votes    : 200 },
+                            { response : 'ugly and fat',    votes    : 300 }
+                        ]
+                    },
+                    'rv-4770a2d7f85ce0' : {
+                        question : 'Smelly or not smelly?',
+                        returns  : [
+                            { response : 'smelly',      votes    : 100 },
+                            { response : 'not smelly',  votes    : 200 }
+                        ]
+                    }
+                }
+            };
             vd = new VoteData(mockDb);
             vd._cache['r-738c2403d83ddc'] = {
                 lastSync : (new Date()).valueOf(),
-                data : {
-                    electionId: 'r-738c2403d83ddc',
-                    ballot:   {
-                        'rv-22119a8cf9f755' : {
-                            question : 'Good, bad or ugly?',
-                            returns  : [
-                                { response : 'good and plenty', votes : 100 },
-                                { response : 'bad and nasty', votes    : 200 },
-                                { response : 'ugly and fat', votes    : 300 }
-                            ]
-                        },
-                        'rv-4770a2d7f85ce0' : {
-                            question : 'Smelly or not smelly?',
-                            returns  : [
-                                { response : 'smelly', votes    : 100 },
-                                { response : 'not smelly', votes    : 200 }
-                            ]
-                        }
-                    }
-                }
+                data : mockData
             };
             resolveSpy = jasmine.createSpy('getBallotItem.resolve');
             rejectSpy = jasmine.createSpy('getBallotItem.reject');
         });
 
-        it('will fail if passed an invalid electionId',function(){
-            mockCursor.nextObject.andCallFake(function(cb){
+        it('will fail if getElection fails',function(done){
+            mockDb.findOne.andCallFake(function(query,cb){
+                process.nextTick(function(){
+                    cb(new Error('I have failed.'),null);
+                });
+            });
+
+            vd.getBallotItem('abc','123')
+                .then(resolveSpy,rejectSpy)
+                .finally(function(){
+                    expect(resolveSpy).not.toHaveBeenCalled();
+                    expect(rejectSpy).toHaveBeenCalled();
+                    expect(rejectSpy.argsForCall[0][0].message)
+                        .toEqual('I have failed.');
+                    expect(vd._deferred['abc::123']).not.toBeDefined();
+                })
+                .done(done);
+        });
+
+        it('will fail if passed an invalid electionId',function(done){
+            mockDb.findOne.andCallFake(function(query,cb){
                 process.nextTick(function(){
                     cb(null,null);
                 });
             });
 
-            vd.getElection('abc')
+            vd.getBallotItem('abc','123')
                 .then(resolveSpy,rejectSpy)
                 .finally(function(){
                     expect(resolveSpy).not.toHaveBeenCalled();
                     expect(rejectSpy).toHaveBeenCalled();
                     expect(rejectSpy.argsForCall[0][0].message)
                         .toEqual('Unable to locate election');
-                    expect(vd._defGetElection['abc']).not.toBeDefined();
-                }).done(done);
-
+                    expect(vd._deferred['abc::123']).not.toBeDefined();
+                })
+                .done(done);
         });
-*/
 
+        it('will fail if passed an invalid ballot item Id',function(done){
+            mockDb.findOne.andCallFake(function(query,cb){
+                process.nextTick(function(){
+                    cb(null,null);
+                });
+            });
 
+            vd.getBallotItem('r-738c2403d83ddc','123')
+                .then(resolveSpy,rejectSpy)
+                .finally(function(){
+                    expect(resolveSpy).not.toHaveBeenCalled();
+                    expect(rejectSpy).toHaveBeenCalled();
+                    expect(rejectSpy.argsForCall[0][0].message)
+                        .toEqual('Unable to locate ballot item.');
+                    expect(vd._deferred['r-738c2403d83ddc:::123']).not.toBeDefined();
+                })
+                .done(done);
+        });
+
+        it('will return a ballot item from cache if it exists',function(done){
+            mockDb.findOne.andCallFake(function(query,cb){
+                process.nextTick(function(){
+                    mockData._id = 'xxx';
+                    cb(null,mockData);
+                });
+            });
+
+            vd.getBallotItem('r-738c2403d83ddc','rv-22119a8cf9f755')
+                .then(resolveSpy,rejectSpy)
+                .finally(function(){
+                    expect(resolveSpy).toHaveBeenCalled();
+                    expect(rejectSpy).not.toHaveBeenCalled();
+                    expect(mockDb.findOne).not.toHaveBeenCalled();
+                    expect(resolveSpy.argsForCall[0][0].question)
+                        .toEqual('Good, bad or ugly?');
+                    expect(vd._deferred['r-738c2403d83ddc::rv-22119a8cf9f755'])
+                        .not.toBeDefined();
+                })
+                .done(done);
+        });
+
+        it('will return a ballot item from db if not in the cache',function(done){
+            vd._cache = {};
+            mockDb.findOne.andCallFake(function(query,cb){
+                process.nextTick(function(){
+                    mockData._id = 'xxx';
+                    cb(null,mockData);
+                });
+            });
+
+            vd.getBallotItem('r-738c2403d83ddc','rv-22119a8cf9f755')
+                .then(resolveSpy,rejectSpy)
+                .finally(function(){
+                    expect(resolveSpy).toHaveBeenCalled();
+                    expect(rejectSpy).not.toHaveBeenCalled();
+                    expect(mockDb.findOne).toHaveBeenCalled();
+                    expect(resolveSpy.argsForCall[0][0].question)
+                        .toEqual('Good, bad or ugly?');
+                    expect(vd._deferred['r-738c2403d83ddc::rv-22119a8cf9f755'])
+                        .not.toBeDefined();
+                })
+                .done(done);
+        });
+        
+        it('batches calls while waiting for mongo',function(done){
+            vd._cache = {};
+            mockDb.findOne.andCallFake(function(query,cb){
+                process.nextTick(function(){
+                    mockData._id = 'xxx';
+                    cb(null,mockData);
+                });
+            });
+
+            q.all([
+                    vd.getBallotItem('r-738c2403d83ddc','rv-22119a8cf9f755') ,
+                    vd.getBallotItem('r-738c2403d83ddc','rv-22119a8cf9f755') ,
+                    vd.getBallotItem('r-738c2403d83ddc','rv-22119a8cf9f755') 
+                 ])
+                .then(resolveSpy,rejectSpy)
+                .finally(function(){
+                    expect(resolveSpy).toHaveBeenCalled();
+                    expect(rejectSpy).not.toHaveBeenCalled();
+                    expect(mockDb.findOne.callCount).toEqual(1);
+                    expect(resolveSpy.argsForCall[0][0].length).toEqual(3);
+                    expect(resolveSpy.argsForCall[0][0][0].question)
+                        .toEqual('Good, bad or ugly?');
+                    expect(vd._deferred['r-738c2403d83ddc::rv-22119a8cf9f755'])
+                        .not.toBeDefined();
+                }).done(done);
+        });
     });
 });
