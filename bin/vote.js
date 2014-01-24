@@ -18,6 +18,91 @@ state.defaultConfig = {
     pidDir  : './'
 };
 
+function VoteData(db,syncIval,syncTimeout){
+    this._db            = db;
+    this._syncIval      = syncIval;
+    this._syncTimeout   = syncTimeout;
+    this._cache         = {};
+
+    this._defGetElection = {};
+
+    if (!this._db){
+        throw new Error('A mongo db connection is required.');
+    }
+
+    if (!this._syncIval){
+        this._syncIval = 10000;
+    }
+
+    if (this._syncIval < 1000){
+        throw new Error('VoteData syncIval cannot be less than 1000 ms.');
+    }
+    
+    if (!this._syncTimeout){
+        this._syncTimeout = 2000;
+    }
+
+    if (this._syncTimeout < 100){
+        throw new Error('VoteData syncTimeout cannot be less than 100 ms.');
+    }
+}
+
+VoteData.prototype.shouldSync = function(lastSync){
+    if (!lastSync){
+        return true;
+    }
+
+    return ((new Date()).valueOf() - lastSync) > this._syncIval;
+};
+
+VoteData.prototype.getElection    = function(electionId){
+    if (this._defGetElection[electionId]){
+        return this._defGetElection[electionId].promise;
+    }
+
+    var self = this, election = self._cache[electionId], cursor ;
+
+    if (election && !self.shouldSync(election.lastSync)){
+        return q(election.data);
+    }
+   
+    self._defGetElection[electionId] = q.defer();
+    
+    cursor = self._db.find({'electionId' : electionId});
+
+    cursor.nextObject(function(err,item){
+        var deferred = self._defGetElection[electionId];
+        delete self._defGetElection[electionId];
+        if (err) {
+            deferred.reject(err);
+        }
+        else if (item === null){
+            deferred.reject(new Error('Unable to locate election'));
+        } else {
+            election = {
+                lastSync : (new Date()).valueOf(),
+                data     : item
+            };
+
+            delete election.data._id;
+            self._cache[electionId] = election;
+            deferred.resolve(election.data);
+        }
+    });
+
+    return self._defGetElection[electionId].promise;
+};
+
+VoteData.prototype.getBallotItem  = function(electionId,itemId){
+
+};
+
+VoteData.prototype.recordVote     = function(ballot){
+
+};
+
+
+
 app.main = function(state){
     var log = logger.getLog(), webServer;
     if (state.clusterMaster){
@@ -102,6 +187,7 @@ if (!__ut__){
     });
 } else {
     module.exports = {
-        'app' : app
+        'app'       : app,
+        'VoteData'  : VoteData
     };
 }
