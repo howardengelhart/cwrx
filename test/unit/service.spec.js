@@ -1,12 +1,11 @@
+var flush = true;
 describe('service (UT)',function(){
     
     var vote, state, mockLog, processProperties, resolveSpy, rejectSpy, console_log,
         path, q, cluster, fs, logger, daemon;
     
     beforeEach(function() {
-        for (var mod in require.cache){
-            delete require.cache[mod];
-        }
+        if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         
         path        = require('path');
         q           = require('q');

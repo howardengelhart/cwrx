@@ -1,11 +1,10 @@
+var flush = true;
 describe('dub track job (UT)', function() {
     var dub, mockLog, mockLogger, mockHostname, mockTemplate, job, config,
         fs, path, sanitize, q, uuid, vocalware, cwrxConfig;
     
     beforeEach(function(done) {
-        for (var mod in require.cache){
-            delete require.cache[mod];
-        }
+        if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
 
         fs          = require('fs-extra');
         path        = require('path');

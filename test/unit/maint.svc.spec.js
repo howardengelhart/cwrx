@@ -1,11 +1,10 @@
+var flush = true;
 describe('maint (UT)', function() {
     var maint, traceSpy, errorSpy, warnSpy, infoSpy, fatalSpy, logSpy, mockLogger, mockAws,
         path, fs, q, cwrxConfig, sanitize;
     
     beforeEach(function() {
-        for (var mod in require.cache){
-            delete require.cache[mod];
-        }
+        if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
 
         path        = require('path');
         fs          = require('fs-extra');

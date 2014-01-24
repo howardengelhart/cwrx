@@ -37,7 +37,7 @@ module.exports = function (grunt) {
             },
             test: {
                 options: {
-                    debounceDelay : 30000
+                    debounceDelay : 10000
                 },
                 files: [
                     __dirname + '/bin/**/*.js',

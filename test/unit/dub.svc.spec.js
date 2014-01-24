@@ -1,13 +1,11 @@
+var flush = true;
 describe('dub (UT)',function(){
     var dub, mockLog, mockLogger, mockAws, mockVware, mockAssemble, mockId3, mockHostname,
         path, fs, q, crypto, request, cwrxConfig, uuid, hostname, ffmpeg, sanitize, s3util;
     
     beforeEach(function() {
+        if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         jasmine.getEnv().defaultTimeoutInterval = 3000;
-
-        for (var mod in require.cache){
-            delete require.cache[mod];
-        }
 
         path        = require('path');
         fs          = require('fs-extra');
