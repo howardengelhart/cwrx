@@ -1,17 +1,23 @@
-var path        = require('path'),
-    fs          = require('fs-extra'),
-    q           = require('q'),
-    request     = require('request'),
-    querystring = require('querystring'),
-    cwrxConfig  = require('../../lib/config'),
-    uuid        = require('../../lib/uuid'),
-    sanitize    = require('../sanitize');
-
 describe('share (UT)', function() {
     var share, traceSpy, errorSpy, warnSpy, infoSpy, fatalSpy, logSpy, mockLogger,
-        mockAws, putObjSpy;
+        mockAws, putObjSpy,
+        path, fs, q, request, querystring, cwrxConfig, uuid, sanitize;
 
     beforeEach(function() {
+        
+        for (var mod in require.cache){
+            delete require.cache[mod];
+        }
+
+        path        = require('path');
+        fs          = require('fs-extra');
+        q           = require('q');
+        request     = require('request');
+        querystring = require('querystring');
+        cwrxConfig  = require('../../lib/config');
+        uuid        = require('../../lib/uuid');
+        sanitize    = require('../sanitize');
+
         traceSpy    = jasmine.createSpy('log_trace');
         errorSpy    = jasmine.createSpy('log_error');
         warnSpy     = jasmine.createSpy('log_warn');
