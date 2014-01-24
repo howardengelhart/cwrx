@@ -1,13 +1,18 @@
-var fs          = require('fs-extra'),
-    path        = require('path'),
-    sanitize    = require('../sanitize'),
-    q           = require('q'),
-    cwrxConfig  = require('../../lib/config');
-
 describe('dub job remover (UT)', function() {
-    var dub, mockLog, mockLogger, mockHostname;
+    var dub, mockLog, mockLogger, mockHostname,
+        fs, path, sanitize, q, cwrxConfig;
     
     beforeEach(function() {
+        for (var mod in require.cache){
+            delete require.cache[mod];
+        }
+
+        fs          = require('fs-extra');
+        path        = require('path');
+        sanitize    = require('../sanitize');
+        q           = require('q');
+        cwrxConfig  = require('../../lib/config');
+
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
             error : jasmine.createSpy('log_error'),

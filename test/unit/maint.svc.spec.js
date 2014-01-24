@@ -1,20 +1,34 @@
-var path        = require('path'),
-    fs          = require('fs-extra'),
-    q           = require('q'),
-    cwrxConfig  = require('../../lib/config'),
-    sanitize    = require('../sanitize');
-
 describe('maint (UT)', function() {
-    var maint, mockLog, mockLogger, mockAws;
+    var maint, traceSpy, errorSpy, warnSpy, infoSpy, fatalSpy, logSpy, mockLogger, mockAws,
+        path, fs, q, cwrxConfig, sanitize;
     
     beforeEach(function() {
-        mockLog = {
-            trace : jasmine.createSpy('log_trace'),
-            error : jasmine.createSpy('log_error'),
-            warn  : jasmine.createSpy('log_warn'),
-            info  : jasmine.createSpy('log_info'),
-            fatal : jasmine.createSpy('log_fatal'),
-            log   : jasmine.createSpy('log_log')
+        for (var mod in require.cache){
+            delete require.cache[mod];
+        }
+
+        path        = require('path');
+        fs          = require('fs-extra');
+        q           = require('q');
+        cwrxConfig  = require('../../lib/config');
+        sanitize    = require('../sanitize');
+
+
+        traceSpy    = jasmine.createSpy('log_trace');
+        errorSpy    = jasmine.createSpy('log_error');
+        warnSpy     = jasmine.createSpy('log_warn');
+        infoSpy     = jasmine.createSpy('log_info');
+        fatalSpy    = jasmine.createSpy('log_fatal');
+        logSpy      = jasmine.createSpy('log_log');
+        putObjSpy   = jasmine.createSpy('s3_putObj');
+        
+        var mockLog = {
+            trace : traceSpy,
+            error : errorSpy,
+            warn  : warnSpy,
+            info  : infoSpy,
+            fatal : fatalSpy,
+            log   : logSpy        
         };
         mockLogger = {
             createLog: jasmine.createSpy('create_log').andReturn(mockLog),
