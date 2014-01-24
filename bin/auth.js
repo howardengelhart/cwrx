@@ -267,7 +267,7 @@ function main(done) {
         .option('-d, --daemon','Run as a daemon (requires -s).')
         .option('-g, --gid [GID]','Run as group (id or name).')
         .option('-l, --loglevel [LEVEL]', 'Specify log level (TRACE|INFO|WARN|ERROR|FATAL)' )
-        .option('-p, --port [PORT]','Listent on port (requires -s) [3200].', 3200)
+        .option('-p, --port [PORT]','Listen on port (requires -s) [3200].', 3200)
         .option('-u, --uid [UID]','Run as user (id or name).')
         .option('--show-config','Display configuration and exit.')
         .parse(process.argv);
@@ -307,8 +307,7 @@ function main(done) {
         sessions = mongoClient.db(config.mongo.db);
         return q.npost(db, 'authenticate', 
                        [secrets.mongoCredentials.user, secrets.mongoCredentials.password]);
-    }).done(function(result) {
-        log.info(result);
+    }).done(function() {
         log.info('Successfully connected to mongo at %1:%2', config.mongo.host, config.mongo.port);
         var users = db.collection('users');
         
