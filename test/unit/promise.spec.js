@@ -127,7 +127,7 @@ describe('promise',function(){
                 expect(keeper.getDeferred('abc')).not.toBeDefined();
             });
             
-            it('returns deferred if completed but force param is used',function(){
+            it('returns deferred if completed but includeCompleted param is used',function(){
                 deferred.resolve();
                 expect(keeper.getDeferred('abc',true)).toBe(deferred);
             });
@@ -156,7 +156,7 @@ describe('promise',function(){
                 expect(keeper.getDeferred('abc',true)).not.toBeDefined();
             });
             
-            it('returns deferred if completedd but force param is used',function(){
+            it('returns deferred if completedd but includeCompleted param is used',function(){
                 deferred.resolve();
                 expect(keeper.remove('abc',true)).toBe(deferred);
                 expect(keeper.getDeferred('abc',true)).not.toBeDefined();
