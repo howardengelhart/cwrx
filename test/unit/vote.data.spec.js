@@ -86,7 +86,7 @@ describe('vote.data',function(){
         });
 
         it('returns the cached election if lastSync < syncInterval',function(done){
-            var mockData = { electionId : 'abc' };
+            var mockData = { id : 'abc' };
             vd._cache['abc'] = {
                 lastSync : (new Date()).valueOf(),
                 data     :  mockData
@@ -104,7 +104,7 @@ describe('vote.data',function(){
         });
 
         it('queries the db if the cached election is old',function(done){
-            var mockData = { _id : 'xyz', electionId : 'abc', foo : 'bar' },
+            var mockData = { _id : 'xyz', id : 'abc', foo : 'bar' },
                 oldSync = (new Date()).valueOf() - 5000;
             vd._syncIval = 1000;
             vd._cache['abc'] = {
@@ -149,7 +149,7 @@ describe('vote.data',function(){
         });
 
         it('batches calls while waiting for mongo',function(done){
-            var mockData = { _id : 'xyz', electionId : 'abc', foo : 'bar' };
+            var mockData = { _id : 'xyz', id : 'abc', foo : 'bar' };
             mockDb.findOne.andCallFake(function(query,cb){
                 process.nextTick(function(){
                     cb(null,mockData);
@@ -176,7 +176,7 @@ describe('vote.data',function(){
 
         beforeEach(function(){
             mockData = {
-                electionId: 'r-738c2403d83ddc',
+                id: 'r-738c2403d83ddc',
                 ballot:   {
                     'rv-22119a8cf9f755' : {
                         question : 'Good, bad or ugly?',
@@ -223,7 +223,7 @@ describe('vote.data',function(){
                 .done(done);
         });
 
-        it('will fail if passed an invalid electionId',function(done){
+        it('will fail if passed an invalid id',function(done){
             mockDb.findOne.andCallFake(function(query,cb){
                 process.nextTick(function(){
                     cb(null,null);

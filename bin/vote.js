@@ -18,14 +18,14 @@ state.defaultConfig = {
     pidDir  : './'
 };
 
-function VoteData(db,syncIval){
-    this._db            = db;
+function VoteData(coll,syncIval){
+    this._coll          = coll;
     this._syncIval      = syncIval;
     this._cache         = {};
 
     this._deferred = {};
 
-    if (!this._db){
+    if (!this._coll){
         throw new Error('A mongo db connection is required.');
     }
 
@@ -46,22 +46,22 @@ VoteData.prototype.shouldSync = function(lastSync){
     return ((new Date()).valueOf() - lastSync) > this._syncIval;
 };
 
-VoteData.prototype.getElection    = function(electionId){
-    if (this._deferred[electionId]){
-        return this._deferred[electionId].promise;
+VoteData.prototype.getElection    = function(id){
+    if (this._deferred[id]){
+        return this._deferred[id].promise;
     }
 
-    var self = this, election = self._cache[electionId] ;
+    var self = this, election = self._cache[id] ;
 
     if (election && !self.shouldSync(election.lastSync)){
         return q(election.data);
     }
    
-    self._deferred[electionId] = q.defer();
+    self._deferred[id] = q.defer();
     
-    self._db.findOne({'electionId' : electionId}, function(err,item){
-        var deferred = self._deferred[electionId];
-        delete self._deferred[electionId];
+    self._coll.findOne({'id' : id}, function(err,item){
+        var deferred = self._deferred[id];
+        delete self._deferred[id];
         if (err) {
             deferred.reject(err);
         }
@@ -74,23 +74,23 @@ VoteData.prototype.getElection    = function(electionId){
             };
 
             delete election.data._id;
-            self._cache[electionId] = election;
+            self._cache[id] = election;
             deferred.resolve(election.data);
         }
     });
 
-    return self._deferred[electionId].promise;
+    return self._deferred[id].promise;
 };
 
-VoteData.prototype.getBallotItem  = function(electionId,itemId){
-    var defKey = electionId + '::' + itemId, self = this;
+VoteData.prototype.getBallotItem  = function(id,itemId){
+    var defKey = id + '::' + itemId, self = this;
     if (self._deferred[defKey]){
         return self._deferred[defKey];
     }
 
     self._deferred[defKey] = q.defer();
 
-    self.getElection(electionId)
+    self.getElection(id)
         .then(function(election){
             var deferred = self._deferred[defKey];
             delete self._deferred[defKey];   
@@ -118,6 +118,11 @@ VoteData.prototype.getBallotItem  = function(electionId,itemId){
 };
 
 VoteData.prototype.recordVote     = function(ballot){
+    var defKey = ballot.id + '::' + ballot.itemId + '::' + ballot.itemId.vote, self = this;
+
+    if (self._deferred[defKey]){
+        return self._deferred[defKey];
+    }
 
 };
 

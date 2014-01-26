@@ -2,7 +2,7 @@ var conn = new Mongo('33.33.33.10'),
     db = conn.getDB('voteDb');
 
 db.elections.insert({
-    electionId: 'r-738c2403d83ddc',
+    id: 'r-738c2403d83ddc',
     ballot:   {
         'rv-22119a8cf9f755' : {
             question : 'Good, bad or ugly?',
@@ -38,7 +38,7 @@ db.elections.insert({
 });
 
 db.elections.update( { 
-        'electionId'                                : 'r-738c2403d83ddc', 
+        'id'                                : 'r-738c2403d83ddc', 
         'ballot.rv-22119a8cf9f755.returns.response' : 'bad and nasty'
     }, 
     { 
@@ -49,7 +49,7 @@ db.elections.update( {
 );
 
 db.elections.update( { 
-        'electionId'                                : 'r-738c2403d83ddc', 
+        'id'                                : 'r-738c2403d83ddc', 
         'ballot.rv-4770a2d7f85ce0.returns.response' : 'smelly'
     }, 
     { 
