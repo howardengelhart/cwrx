@@ -1,0 +1,14 @@
+{
+    "log"    : {
+        "logLevel"  : "trace",
+        "logDir"    : "/home/evan/Documents/Cinema6/cwrx_tests/logs",
+        "logName"   : "auth.log",
+        "media"     : [ { "type" : "file" } ]
+    },
+    "caches" : {
+        "run"       : "/home/evan/Documents/Cinema6/cwrx_tests/run/"
+    },
+    "mongo" : {
+        "host": "localhost"
+    }
+}

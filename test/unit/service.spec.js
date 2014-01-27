@@ -2,7 +2,7 @@ var flush = true;
 describe('service (UT)',function(){
     
     var vote, state, mockLog, processProperties, resolveSpy, rejectSpy, console_log,
-        path, q, cluster, fs, logger, daemon;
+        path, q, cluster, fs, logger, daemon, mongoUtils;
     
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -13,6 +13,7 @@ describe('service (UT)',function(){
         fs          = require('fs-extra');
         logger      = require('../../lib/logger');
         daemon      = require('../../lib/daemon');
+        mongoUtils  = require('../../lib/mongoUtils');
         service     = require('../../lib/service');
 
         state       = { cmdl : {}, defaultConfig : {}, config : {}  };
@@ -245,6 +246,22 @@ describe('service (UT)',function(){
                     expect(state.config.pidPath).toEqual('/opt/sixxy/run/somefile.pid');
                 }).done(done);
         });
+        
+        it('loads a secrets file if a path to one is given', function(done) {
+            state.defaultConfig = {
+                secretsPath: '/opt/sixxy/ut.secrets.json'
+            };
+            spyOn(fs, 'readJsonSync').andReturn('sosecret');
+            
+            q.fcall(service.configure, state)
+                .then(resolveSpy, rejectSpy)
+                .finally(function() {
+                    expect(resolveSpy).toHaveBeenCalledWith(state);
+                    expect(rejectSpy).not.toHaveBeenCalled();
+                    expect(state.secrets).toBe('sosecret');
+                    expect(fs.readJsonSync).toHaveBeenCalledWith('/opt/sixxy/ut.secrets.json');
+                }).done(done);
+        });
 
         it('will show configuartion and exit if cmdl.showConfig is true',function(done){
             process.argv[1] = 'test';
@@ -422,6 +439,95 @@ describe('service (UT)',function(){
                     expect(cluster.fork.callCount).toEqual(3);
                     expect(state.clusterMaster).toEqual(true);
                 }).done(done);
+        });
+    });
+    
+    describe('initMongo', function() {
+        var mockClient, mockDb;
+        beforeEach(function(){
+            resolveSpy = jasmine.createSpy('initMongo.resolve');
+            rejectSpy  = jasmine.createSpy('initMongo.reject');
+            
+            state.config.mongo = {host: '1.2.3.4', port: 1234, db: 'ut'};
+            state.secrets = {mongoCredentials: {user: 'ut', password: 'password'}};
+            mockDb = {
+                authenticate: jasmine.createSpy('db.authenticate').andCallFake(function(user, pass, cb) {
+                    cb(null, true);
+                })
+            };
+            mockClient = {
+                db: jasmine.createSpy('mongoClient.db').andReturn(mockDb)
+            };
+            spyOn(mongoUtils, 'connect').andReturn(q(mockClient));
+        });
+        
+        it('will fail if missing mongo config info', function(done) {
+            delete state.config.mongo;
+            service.initMongo(state).then(resolveSpy, rejectSpy)
+            .finally(function() {
+                expect(resolveSpy).not.toHaveBeenCalled();
+                expect(rejectSpy).toHaveBeenCalled();
+                expect(mongoUtils.connect).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('will fail if missing mongo auth credentials', function(done) {
+            delete state.secrets.mongoCredentials;
+            service.initMongo(state).then(resolveSpy, rejectSpy)
+            .finally(function() {
+                expect(resolveSpy).not.toHaveBeenCalled();
+                expect(rejectSpy).toHaveBeenCalled();
+                expect(mongoUtils.connect).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('will connect and auth to the database', function(done) {
+            service.initMongo(state).then(resolveSpy, rejectSpy)
+            .finally(function() {
+                expect(resolveSpy).toHaveBeenCalledWith(state);
+                expect(rejectSpy).not.toHaveBeenCalled();
+                expect(mongoUtils.connect).toHaveBeenCalledWith('1.2.3.4', 1234);
+                expect(state.db).toEqual(mockDb);
+                expect(state.sessionsDb).not.toBeDefined();
+                expect(mockClient.db).toHaveBeenCalledWith('ut');
+                expect(mockDb.authenticate).toHaveBeenCalled();
+                expect(mockDb.authenticate.calls[0].args[0]).toBe('ut');
+                expect(mockDb.authenticate.calls[0].args[1]).toBe('password');
+            }).done(done);
+        });
+        
+        it('will also add the sessions db to the state object if applicable', function(done) {
+            state.config.sessions = {db: 'sessionsDB'};
+            service.initMongo(state).then(resolveSpy, rejectSpy)
+            .finally(function() {
+                expect(resolveSpy).toHaveBeenCalledWith(state);
+                expect(rejectSpy).not.toHaveBeenCalled();
+                expect(state.sessionsDb).toBe(mockDb);
+                expect(mockClient.db).toHaveBeenCalledWith('sessionsDB');
+            }).done(done);
+        });
+        
+        it('will reject with an error if connecting to mongo fails', function(done) {
+            mongoUtils.connect.andReturn(q.reject('Error!'));
+            service.initMongo(state).then(resolveSpy, rejectSpy)
+            .finally(function() {
+                expect(resolveSpy).not.toHaveBeenCalled();
+                expect(rejectSpy).toHaveBeenCalledWith('Error!');
+                expect(mockClient.db).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('will reject with an error if authenticating to mongo fails', function(done) {
+            mockDb.authenticate.andCallFake(function(user, pass, cb) {
+                cb('Error!');
+            });
+            service.initMongo(state).then(resolveSpy, rejectSpy)
+            .finally(function() {
+                expect(resolveSpy).not.toHaveBeenCalled();
+                expect(rejectSpy).toHaveBeenCalledWith('Error!');
+                expect(mockClient.db).toHaveBeenCalled();
+                expect(mockDb.authenticate).toHaveBeenCalled();
+            }).done(done);
         });
     });
 });

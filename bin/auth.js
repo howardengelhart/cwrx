@@ -2,41 +2,27 @@
 
 var __ut__      = (global.jasmine !== undefined) ? true : false;
 
-var include     = require('../lib/inject').require,
-    fs          = include('fs-extra'),
-    path        = include('path'),
-    q           = include('q'),
-    express     = include('express'),
-    MongoStore  = include('connect-mongo')(express),
-    bcrypt      = include('bcrypt'),
-    logger      = include('../lib/logger'),
-    cwrxConfig  = include('../lib/config'),
-    uuid        = include('../lib/uuid'),
-    daemon      = include('../lib/daemon'),
-    mongoUtils  = include('../lib/mongoUtils'),
-    app         = express(),
+var fs          = require('fs-extra'),
+    path        = require('path'),
+    q           = require('q'),
+    bcrypt      = require('bcrypt'),
+    logger      = require('../lib/logger'),
+    cwrxConfig  = require('../lib/config'),
+    uuid        = require('../lib/uuid'),
+    daemon      = require('../lib/daemon'),
+    mongoUtils  = require('../lib/mongoUtils'),
+    service     = require('../lib/service'),
+    
+    state       = {},
+    auth = {}; // for exporting functions to unit tests
 
-    auth = {}, // for exporting functions to unit tests
-
-    // Attempt a graceful exit
-    exitApp  = function(resultCode,msg){
-        var log = logger.getLog();
-        if (msg){
-            if (resultCode){
-                log.error(msg);
-            } else {
-                log.info(msg);
-            }
-        }
-        process.exit(resultCode);
-    };
-
+state.name = 'auth';
 // This is the template for auth's configuration
-auth.defaultConfiguration = {
+state.defaultConfig = {
     caches : {
         run     : path.normalize('/usr/local/share/cwrx/auth/caches/run/'),
     },
-    session: {
+    sessions: {
         key: 'c6Auth',
         maxAge: 14*24*60*60*1000, // 14 days; unit here is milliseconds
         db: 'sessions'
@@ -49,47 +35,6 @@ auth.defaultConfiguration = {
     }
 };
 
-auth.getVersion = function() {
-    var fpath = path.join(__dirname, 'auth.version'),
-        log = logger.getLog();
-        
-    if (fs.existsSync(fpath)) {
-        try {
-            return fs.readFileSync(fpath).toString().trim();
-        } catch(e) {
-            log.error('Error reading version file: ' + e.message);
-        }
-    }
-    log.warn('No version file found');
-    return 'unknown';
-};
-
-auth.createConfiguration = function(cmdLine) {
-    var cfgObject = cwrxConfig.createConfigObject(cmdLine.config, auth.defaultConfiguration),
-        log;
-
-    if (cfgObject.log) {
-        log = logger.createLog(cfgObject.log);
-    }
-
-    cfgObject.ensurePaths = function(){
-        var self = this;
-        Object.keys(self.caches).forEach(function(key){
-            log.trace('Ensure cache[' + key + ']: ' + self.caches[key]);
-            if (!fs.existsSync(self.caches[key])){
-                log.trace('Create cache[' + key + ']: ' + self.caches[key]);
-                fs.mkdirsSync(self.caches[key]);
-            }
-        });
-    };
-
-    cfgObject.cacheAddress = function(fname,cache){
-        return path.join(this.caches[cache],fname);
-    };
-    
-    return cfgObject;
-};
-
 auth.login = function(req, users) {
     if (!req.body || !req.body.username || !req.body.password) {
         return q({
@@ -100,8 +45,6 @@ auth.login = function(req, users) {
     var deferred = q.defer(),
         log = logger.getLog(),
         userAccount;
-    // if (req.session && req.session.user) log.info(req.session.user);
-    // else log.info("no user in session");
     
     log.info('[%1] Starting login for user %2', req.uuid, req.body.username);
     q.npost(users, 'findOne', [{username: req.body.username}])
@@ -248,207 +191,156 @@ auth.deleteAccount = function(req, users) {
     return deferred.promise;
 };
 
-if (!__ut__){
-    try {
-        main(function(rc,msg){
-            exitApp(rc,msg);
-        });
-    } catch(e) {
-        exitApp(1,e.stack);
+auth.main = function(state) {
+    var log = logger.getLog();
+    if (state.clusterMaster){
+        log.info('Cluster master, not a worker');
+        return state;
     }
-}
+    log.info('Running as cluster worker, proceed with setting up web server.');
+        
+    var express     = require('express'),
+        MongoStore  = require('connect-mongo')(express),
+        app         = express();
 
-function main(done) {
-    var program  = include('commander'),
-        config = {},
-        log, userCfg;
-
-    program
-        .option('-c, --config [CFGFILE]','Specify config file')
-        .option('-d, --daemon','Run as a daemon (requires -s).')
-        .option('-g, --gid [GID]','Run as group (id or name).')
-        .option('-l, --loglevel [LEVEL]', 'Specify log level (TRACE|INFO|WARN|ERROR|FATAL)' )
-        .option('-p, --port [PORT]','Listen on port (requires -s) [3200].', 3200)
-        .option('-u, --uid [UID]','Run as user (id or name).')
-        .option('--show-config','Display configuration and exit.')
-        .parse(process.argv);
-
-    if (program.gid){
-        console.log('\nChange process to group: ' + program.gid);
-        process.setgid(program.gid);
-    }
-
-    if (program.uid){
-        console.log('\nChange process to user: ' + program.uid);
-        process.setuid(program.uid);
-    }
-
-    program.enableAws = true;
-
-    config = auth.createConfiguration(program);
-    
-    if (program.showConfig){
-        console.log(JSON.stringify(config,null,3));
-        process.exit(0);
-    }
-
-    config.ensurePaths();
-
-    log = logger.getLog();
-
-    if (program.loglevel){
+    /*if (program.loglevel){  //TODO
         log.setLevel(program.loglevel);
-    }
+    }*/
     
-    var secrets = fs.readJsonSync(config.secretsPath);
-    
-    var db, sessions;
-    mongoUtils.connect(config.mongo.host, config.mongo.port).then(function(mongoClient) {
-        db = mongoClient.db(config.mongo.db);
-        sessions = mongoClient.db(config.session.db);
-        return q.npost(db, 'authenticate', 
-                       [secrets.mongoCredentials.user, secrets.mongoCredentials.password]);
-    }).done(function() {
-        log.info('Successfully connected to mongo at %1:%2', config.mongo.host, config.mongo.port);
-        var users = db.collection('users');
-        
-        process.on('uncaughtException', function(err) {
-            try{
-                log.error('uncaught: ' + err.message + "\n" + err.stack);
-            }catch(e){
-                console.error(e);
-            }
-            return done(2);
-        });
+    var users = state.db.collection('users');
 
-        process.on('SIGINT',function(){
-            log.info('Received SIGINT, exitting app.');
-            return done(1,'Exit');
-        });
-
-        process.on('SIGTERM',function(){
-            log.info('Received TERM, exitting app.');
-            if (program.daemon){
-                daemon.removePidFile(config.cacheAddress('auth.pid', 'run'));
-            }
-            return done(0,'Exit');
-        });
-
-        log.info('Running version ' + auth.getVersion());
-        
-        // Daemonize if so desired
-        if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)) {
-            daemon.daemonize(config.cacheAddress('auth.pid', 'run'), done);
-        }
-        
-        // if connection to mongo is down; immediately reject all requests
-        // otherwise the request will hang trying to get the session from mongo
-        app.use(function(req, res, next) {
-            mongoUtils.checkRunning(config.mongo.host, config.mongo.port)
-            .then(function() {
-                next();
-            }).catch(function(error) {
-                log.error('Connection to mongo is down: %1', error);
-                res.send(500, 'Connection to database is down');
-            });
-        });
-
-        app.use(express.bodyParser());
-        app.use(express.cookieParser(secrets.cookieParser || ''));
-        app.use(express.session({
-            key: config.session.key,
-            cookie: {
-                httpOnly: false,
-                maxAge: config.session.maxAge
-            },
-            store: new MongoStore({
-                username: secrets.mongoCredentials.user,
-                password: secrets.mongoCredentials.password,
-                db: sessions
-            })
-        }));
-
-        app.all('*', function(req, res, next) {
-            res.header("Access-Control-Allow-Origin", "*");
-            res.header("Access-Control-Allow-Headers", 
-                       "Origin, X-Requested-With, Content-Type, Accept");
-            res.header("cache-control", "max-age=0");
-
-            if (req.method.toLowerCase() === "options") {
-                res.send(200);
-            } else {
-                next();
-            }
-        });
-
-        app.all('*', function(req, res, next) {
-            req.uuid = uuid.createUuid().substr(0,10);
-            if (!req.headers['user-agent'] || !req.headers['user-agent'].match(/^ELB-HealthChecker/)) {
-                log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
-                    req.method, req.url, req.httpVersion);
-            } else {
-                log.trace('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
-                    req.method, req.url, req.httpVersion);
-            }
+    // if connection to mongo is down; immediately reject all requests
+    // otherwise the request will hang trying to get the session from mongo
+    app.use(function(req, res, next) {
+        mongoUtils.checkRunning(state.config.mongo.host, state.config.mongo.port)
+        .then(function() {
             next();
+        }).catch(function(error) {
+            log.error('Connection to mongo is down: %1', error);
+            res.send(500, 'Connection to database is down');
         });
-        
-        app.post('/auth/login', function(req, res, next) {
-            auth.login(req, users).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error processing login'
-                });
-            });
-        });
-        
-        app.post('/auth/signup', function(req, res, next) {
-            auth.signup(req, users).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error processing signup'
-                });
-            });
-        });
-        
-        app.delete('/auth/logout', function(req, res, next) {
-            auth.logout(req).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error processing logout'
-                });
-            });
-        });
-        
-        app.delete('/auth/delete_account', function(req, res, next) {
-            auth.deleteAccount(req, users).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error deleting account'
-                });
-            });
-        });
-        
-        app.get('/auth/meta', function(req, res, next){
-            var data = {
-                version: auth.getVersion(),
-                config: {
-                    session: config.session,
-                    mongo: config.mongo
-                }
-            };
-            res.send(200, data);
-        });
-
-        app.listen(program.port);
-        log.info('auth server is listening on port: ' + program.port);
     });
-}
 
-if (__ut__) {
+    app.use(express.bodyParser());
+    app.use(express.cookieParser(state.secrets.cookieParser || ''));
+    app.use(express.session({
+        key: state.config.sessions.key,
+        cookie: {
+            httpOnly: false,
+            maxAge: state.config.sessions.maxAge
+        },
+        store: new MongoStore({
+            username: state.secrets.mongoCredentials.user,
+            password: state.secrets.mongoCredentials.password,
+            db: state.sessionsDb
+        })
+    }));
+
+    app.all('*', function(req, res, next) {
+        res.header("Access-Control-Allow-Origin", "*");
+        res.header("Access-Control-Allow-Headers", 
+                   "Origin, X-Requested-With, Content-Type, Accept");
+        res.header("cache-control", "max-age=0");
+
+        if (req.method.toLowerCase() === "options") {
+            res.send(200);
+        } else {
+            next();
+        }
+    });
+
+    app.all('*', function(req, res, next) {
+        req.uuid = uuid.createUuid().substr(0,10);
+        if (!req.headers['user-agent'] || !req.headers['user-agent'].match(/^ELB-HealthChecker/)) {
+            log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
+                req.method, req.url, req.httpVersion);
+        } else {
+            log.trace('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
+                req.method, req.url, req.httpVersion);
+        }
+        next();
+    });
+    
+    app.post('/auth/login', function(req, res, next) {
+        auth.login(req, users).then(function(resp) {
+            res.send(resp.code, resp.body);
+        }).catch(function(error) {
+            res.send(500, {
+                error: 'Error processing login'
+            });
+        });
+    });
+    
+    app.post('/auth/signup', function(req, res, next) {
+        auth.signup(req, users).then(function(resp) {
+            res.send(resp.code, resp.body);
+        }).catch(function(error) {
+            res.send(500, {
+                error: 'Error processing signup'
+            });
+        });
+    });
+    
+    app.delete('/auth/logout', function(req, res, next) {
+        auth.logout(req).then(function(resp) {
+            res.send(resp.code, resp.body);
+        }).catch(function(error) {
+            res.send(500, {
+                error: 'Error processing logout'
+            });
+        });
+    });
+    
+    app.delete('/auth/delete_account', function(req, res, next) {
+        auth.deleteAccount(req, users).then(function(resp) {
+            res.send(resp.code, resp.body);
+        }).catch(function(error) {
+            res.send(500, {
+                error: 'Error deleting account'
+            });
+        });
+    });
+    
+    app.get('/auth/meta', function(req, res, next){
+        var data = {
+            version: state.config.appVersion,
+            config: {
+                sessions: state.config.sessions,
+                mongo: state.config.mongo
+            }
+        };
+        res.send(200, data);
+    });
+
+    app.listen(state.cmdl.port);
+    log.info('Service is listening on port: ' + state.cmdl.port);
+    
+    // var deferred = q.defer();
+    // return deferred.promise;
+    // return state;
+};
+
+if (!__ut__){
+    service.start(state)
+    .then(service.parseCmdLine)
+    .then(service.configure)
+    .then(service.prepareServer)
+    .then(service.daemonize)
+    .then(service.cluster)
+    .then(service.initMongo)
+    .then(auth.main)
+    .catch(function(err) {
+        var log = logger.getLog();
+        console.log(err.message || err);
+        log.error(err.message || err);
+        if (err.code)   {
+            process.exit(err.code); 
+        }
+        process.exit(1);
+    }).done(function(){
+        var log = logger.getLog();
+        log.info('ready to serve');
+    });
+} else {
     module.exports = auth;
 }

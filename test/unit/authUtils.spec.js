@@ -1,13 +1,14 @@
+var flush = true;
 describe('authUtils', function() {
     var mockUser, q, authUtils, uuid, logger, mongoUtils;
     
     beforeEach(function() {
-        for (var mod in require.cache){
-            delete require.cache[mod];
-        }
-        
-        q = require('q');
-        authUtils = require('../../lib/authUtils')();
+        if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
+        q           = require('q');
+        authUtils   = require('../../lib/authUtils')();
+        mongoUtils  = require('../../lib/mongoUtils');
+        logger      = require('../../lib/logger');
+        uuid        = require('../../lib/uuid');
         
         mockUser = {
             id: 'u-1234',
@@ -36,7 +37,6 @@ describe('authUtils', function() {
             db = {
                 collection: jasmine.createSpy('db_coll').andReturn(collection)
             };
-            mongoUtils = require('../../lib/mongoUtils');
             spyOn(mongoUtils, 'safeUser').andCallThrough();
         });
         
@@ -165,7 +165,6 @@ describe('authUtils', function() {
             };
             db = "mockDB";
             spyOn(authUtils, 'compare').andReturn(true);
-            mongoUtils = require('../../lib/mongoUtils');
             spyOn(authUtils, 'getUser').andCallFake(function() {
                 return q(mongoUtils.safeUser(mockUser));
             });
@@ -244,8 +243,6 @@ describe('authUtils', function() {
                     fatal : jasmine.createSpy('log_fatal'),
                     log   : jasmine.createSpy('log_log')
                 };
-                logger = require('../../lib/logger');
-                uuid = require('../../lib/uuid');
                 spyOn(logger, 'getLog').andReturn(mockLog);
                 spyOn(uuid, 'createUuid').andReturn('1234567890abcd');
                 req = {
