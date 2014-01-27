@@ -3,6 +3,7 @@ var q           = require('q'),
     express     = require('express'),
     service     = require('../lib/service'),
     uuid        = require('../lib/uuid'),
+    promise    = require('../lib/promise'),
     logger      = require('../lib/logger'),
     __ut__      = (global.jasmine !== undefined) ? true : false,
     app         = {},
@@ -18,12 +19,77 @@ state.defaultConfig = {
     pidDir  : './'
 };
 
-function VoteData(coll,syncIval){
+
+function VotingBooth(electionId){
+    var self        = this;
+    self._id        = electionId;
+    self._items     = {};
+    self._lastSync  = new Date();
+
+    if (!electionId){
+        throw new SyntaxError('ElectionId is required.');
+    }
+    
+    Object.defineProperty(self,'electionId', {
+        get : function() {
+            return self._id;
+        }
+    });
+    
+    Object.defineProperty(self,'dirty', {
+        get : function() {
+            return Object.keys(self._items).length > 0;
+        }
+    });
+    
+    Object.defineProperty(self,'lastSync', {
+        get : function() {
+            return self._lastSync;
+        }
+    });
+}
+
+VotingBooth.prototype.markSynced = function(){
+    this._items     = {};
+    this._lastSync  =  new Date();
+};
+
+VotingBooth.prototype.clear = function(){
+    this._items     = {};
+    this._lastSync = null;
+};
+
+VotingBooth.prototype.voteForBallotItem = function(itemId,vote){
+    var ballotItem;
+    if (!this._items[itemId]){
+        this._items[itemId] = { };
+    }
+
+    if (!this._items[itemId][vote]){
+        this._items[itemId][vote] = 0;
+    }
+
+    this._items[itemId][vote] += 1;
+
+    return this;
+};
+
+VotingBooth.prototype.each = function(callback){
+    var self = this;
+    Object.keys(self._items).forEach(function(itemId){
+        Object.keys(self._items[itemId]).forEach(function(vote){
+            callback(itemId, vote, self._items[itemId][vote]);
+        });
+    });
+    return this;
+};
+
+function ElectionDb(coll,syncIval){
     this._coll          = coll;
     this._syncIval      = syncIval;
     this._cache         = {};
-
-    this._deferred = {};
+    this._voteCache     = {};
+    this._keeper        = new promise.Keeper();
 
     if (!this._coll){
         throw new Error('A mongo db connection is required.');
@@ -34,11 +100,11 @@ function VoteData(coll,syncIval){
     }
 
     if (this._syncIval < 1000){
-        throw new Error('VoteData syncIval cannot be less than 1000 ms.');
+        throw new Error('ElectionDb syncIval cannot be less than 1000 ms.');
     }
 }
 
-VoteData.prototype.shouldSync = function(lastSync){
+ElectionDb.prototype.shouldSync = function(lastSync){
     if (!lastSync){
         return true;
     }
@@ -46,54 +112,99 @@ VoteData.prototype.shouldSync = function(lastSync){
     return ((new Date()).valueOf() - lastSync) > this._syncIval;
 };
 
-VoteData.prototype.getElection    = function(id){
-    if (this._deferred[id]){
-        return this._deferred[id].promise;
+ElectionDb.prototype.getElection    = function(id,timeout){
+    var self = this, election, votingBooth, voteCount, deferred = self._keeper.getDeferred(id);
+
+    if (deferred){
+        if (timeout) {
+            return deferred.promise.timeout(timeout);
+        }
+        return deferred.promise;
     }
 
-    var self = this, election = self._cache[id] ;
+    election = self._cache[id] ;
 
     if (election && !self.shouldSync(election.lastSync)){
         return q(election.data);
     }
    
-    self._deferred[id] = q.defer();
-    
-    self._coll.findOne({'id' : id}, function(err,item){
-        var deferred = self._deferred[id];
-        delete self._deferred[id];
-        if (err) {
-            deferred.reject(err);
-        }
-        else if (item === null){
-            deferred.reject(new Error('Unable to locate election'));
-        } else {
-            election = {
-                lastSync : (new Date()).valueOf(),
-                data     : item
-            };
+    deferred    = self._keeper.defer(id);
+    votingBooth = self._voteCache[id];
 
-            delete election.data._id;
-            self._cache[id] = election;
-            deferred.resolve(election.data);
-        }
-    });
-
-    return self._deferred[id].promise;
-};
-
-VoteData.prototype.getBallotItem  = function(id,itemId){
-    var defKey = id + '::' + itemId, self = this;
-    if (self._deferred[defKey]){
-        return self._deferred[defKey];
+    if (votingBooth && votingBooth.dirty){
+        votingBooth.each(function(ballotId,vote,count){
+            if (voteCount === undefined) {
+                voteCount = {};
+            }
+            voteCount['ballot.' + ballotId + '.returns.' + vote] = count;
+        });
     }
 
-    self._deferred[defKey] = q.defer();
+    if (voteCount) {
+        self._coll.findAndModify({ 'id' : id }, null, { $inc : voteCount }, { new : true },
+                function(err, result){
+            var deferred = self._keeper.remove(id);
+
+            if (err){
+                deferred.reject(err);
+            }
+            else if ((result === null) || (result[0] === null)){
+                deferred.reject(new Error('Unable to locate election'));
+            } else {
+                election = {
+                    lastSync : (new Date()).valueOf(),
+                    data     : result[0]
+                };
+                
+                delete election.data._id;
+                self._cache[id] = election;
+                deferred.resolve(election.data);
+            }
+        });
+        votingBooth.markSynced();
+    } else {
+        self._coll.findOne({'id' : id}, function(err,item){
+            var deferred = self._keeper.remove(id);
+            if (err) {
+                deferred.reject(err);
+            }
+            else if (item === null){
+                deferred.reject(new Error('Unable to locate election'));
+            } else {
+                election = {
+                    lastSync : (new Date()).valueOf(),
+                    data     : item
+                };
+
+                delete election.data._id;
+                self._cache[id] = election;
+                deferred.resolve(election.data);
+            }
+        });
+    }
+
+    if (timeout) {
+        return deferred.promise.timeout(timeout);
+    }
+
+    return deferred.promise;
+};
+
+ElectionDb.prototype.getBallotItem  = function(id,itemId,timeout){
+    var defKey = id + '::' + itemId, self = this, deferred = self._keeper.getDeferred(defKey);
+    if (deferred){
+        if (timeout) {
+            return deferred.promise.timeout(timeout);
+        }
+
+        return deferred.promise;
+    }
+
+    deferred = self._keeper.defer(defKey);
 
     self.getElection(id)
         .then(function(election){
-            var deferred = self._deferred[defKey];
-            delete self._deferred[defKey];   
+            var deferred = self._keeper.remove(defKey);
 
             if (!election.ballot){
                 deferred.reject(
@@ -105,25 +216,73 @@ VoteData.prototype.getBallotItem  = function(id,itemId){
                     new Error('Unable to locate ballot item.')
                 );
             } else {
-                deferred.resolve(election.ballot[itemId]);
+                deferred.resolve({
+                    election    : id,
+                    ballotItem  : itemId,
+                    votes       : election.ballot[itemId]
+                });
             }
         })
         .catch(function(err){
-            var deferred = self._deferred[defKey];
-            delete self._deferred[defKey];   
+            var deferred = self._keeper.remove(defKey);
             deferred.reject(err);
         });
 
-    return self._deferred[defKey].promise;
-};
-
-VoteData.prototype.recordVote     = function(ballot){
-    var defKey = ballot.id + '::' + ballot.itemId + '::' + ballot.itemId.vote, self = this;
-
-    if (self._deferred[defKey]){
-        return self._deferred[defKey];
+    if (timeout) {
+        return deferred.promise.timeout(timeout);
     }
 
+    return deferred.promise;
+};
+
+ElectionDb.prototype.recordVote     = function(vote){
+    var self = this, voteCache = self._voteCache, votingBooth, voteCount;
+
+    if (!voteCache[vote.election]){
+        voteCache[vote.election] = new VotingBooth(vote.election);
+    }
+    votingBooth = voteCache[vote.election];
+    votingBooth.voteForBallotItem(vote.ballotItem, vote.vote);
+
+    if (self._cache[vote.election]){
+        if (self._cache[vote.election].data.ballot[vote.ballotItem]) {
+            if (self._cache[vote.election].data.ballot[vote.ballotItem][vote.vote]){
+                self._cache[vote.election].data.ballot[vote.ballotItem][vote.vote] += 1;
+            } else {
+                self._cache[vote.election].data.ballot[vote.ballotItem][vote.vote] = 1;
+            }
+        }
+    }
+
+    if (self.shouldSync(votingBooth.lastSync)){
+        votingBooth.each(function(ballotId,vote,count){
+            if (voteCount === undefined) {
+                voteCount = {};
+            }
+            voteCount['ballot.' + ballotId + '.returns.' + vote] = count;
+        });
+        self._coll.findAndModify({ 'id' : vote.election },
+                    null, { $inc : voteCount }, { new : true }, function(err, result){
+            if (err){
+                //deferred.reject(err);
+            }
+            else if ((result === null) || (result[0] === null)){
+                //deferred.reject(new Error('Unable to locate election'));
+            } else {
+                var election = {
+                    lastSync : (new Date()).valueOf(),
+                    data     : result[0]
+                };
+                
+                delete election.data._id;
+                self._cache[id] = election;
+                //deferred.resolve(election.data);
+            }
+        });
+        votingBooth.markSynced();
+    }
+
+    return self;
 };
 
 
@@ -212,7 +371,7 @@ if (!__ut__){
     });
 } else {
     module.exports = {
-        'app'       : app,
-        'VoteData'  : VoteData
+        'ElectionDb'  : ElectionDb,
+        'VotingBooth' : VotingBooth
     };
 }

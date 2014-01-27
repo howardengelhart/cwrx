@@ -6,58 +6,42 @@ db.elections.insert({
     ballot:   {
         'rv-22119a8cf9f755' : {
             question : 'Good, bad or ugly?',
-            returns  : [
-                {
-                    response : 'good and plenty',
-                    votes : 100
-                },
-                {
-                    response : 'bad and nasty',
-                    votes    : 200
-                },
-                {
-                    response : 'ugly and fat',
-                    votes    : 300
-                }
-            ]
+            returns  : {
+                'good and plenty'   : 100,
+                'bad and nasty'     : 200,
+                'ugly and fat'      : 300
+            }
         },
         'rv-4770a2d7f85ce0' : {
             question : 'Smelly or not smelly?',
-            returns  : [
-                {
-                    response : 'smelly',
-                    votes    : 100
-                },
-                {
-                    response : 'not smelly',
-                    votes    : 200
-                }
-            ]
+            returns  : {
+                'smelly'     : 100,
+                'not smelly' : 200
+            }
         }
     }
 });
-
+/*
 db.elections.update( { 
-        'id'                                : 'r-738c2403d83ddc', 
-        'ballot.rv-22119a8cf9f755.returns.response' : 'bad and nasty'
+        'id' : 'r-738c2403d83ddc'
     }, 
     { 
         $inc : { 
-            'ballot.rv-22119a8cf9f755.returns.$.votes' : 10000 
+         'ballot.rv-22119a8cf9f755.returns.good and plenty' : 10 ,
+         'ballot.rv-22119a8cf9f755.returns.bad and nasty'   : 20 ,
+         'ballot.rv-22119a8cf9f755.returns.ugly and fat'    : 30 ,
+         'ballot.rv-4770a2d7f85ce0.returns.not smelly'      : 40  
         } 
     } 
 );
-
-db.elections.update( { 
-        'id'                                : 'r-738c2403d83ddc', 
-        'ballot.rv-4770a2d7f85ce0.returns.response' : 'smelly'
-    }, 
-    { 
-        $inc : { 
-            'ballot.rv-4770a2d7f85ce0.returns.$.votes' : 1 
-        } 
-    } 
-);
+*/
+//db.elections.update( { 
+//        'id' : 'r-738c2403d83ddc', 
+//    }, 
+//    { 
+//        $inc : { 'ballot.rv-4770a2d7f85ce0.returns.not smelly' : 11 } 
+//    } 
+//);
 
 //db.elections.find().pretty();
 
