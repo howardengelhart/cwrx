@@ -4,5 +4,10 @@
         "logDir"   : "logs",
         "logName"  : "vote.log",
         "media"    : [ { "type" : "file" } ]
+    },
+    "mongo": {
+        "host": "33.33.33.100",
+        "port": 27017,
+        "db": "voteDb"
     }
 }

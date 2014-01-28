@@ -1,11 +1,13 @@
 var flush = true;
 describe('service (UT)',function(){
     
-    var vote, state, mockLog, processProperties, resolveSpy, rejectSpy, console_log,
+    var vote, state, mockLog, processProperties, resolveSpy, rejectSpy,
         path, q, cluster, fs, logger, daemon, mongoUtils;
     
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
+        
+        jasmine.Clock.useMock();
         
         path        = require('path');
         q           = require('q');
@@ -26,7 +28,7 @@ describe('service (UT)',function(){
             log   : jasmine.createSpy('log_log')
         };
 
-        console_log = console.log;
+        console._log = console.log;
         spyOn(console,'log');
 
         processProperties = {};
@@ -58,7 +60,7 @@ describe('service (UT)',function(){
         for (var prop in processProperties){
             process[prop] = processProperties[prop];
         }
-        console.log = console_log;
+        console.log = console._log;
     });
 
     describe('getVersion',function(){
@@ -537,6 +539,27 @@ describe('service (UT)',function(){
             .finally(function() {
                 expect(resolveSpy).not.toHaveBeenCalled();
                 expect(rejectSpy).toHaveBeenCalledWith('Error!');
+                expect(mockClient.db).toHaveBeenCalled();
+                expect(mockDb.authenticate).toHaveBeenCalled();
+            }).done(done);
+        });
+
+        it('will attempt auto reconnects if configured to', function(done){
+            state.config.mongo.retryConnect = true;
+            mongoUtils.connect.andCallFake(function(){
+                if (this.connect.callCount >= 5){
+                    return q(mockClient);
+                }
+                return q.reject('Error!')
+            });
+            service.initMongo(state).then(resolveSpy, rejectSpy)
+            .progress(function(p){
+                jasmine.Clock.tick(1000);
+            })
+            .finally(function() {
+                expect(mongoUtils.connect.callCount).toEqual(5);
+                expect(resolveSpy).toHaveBeenCalled();
+                expect(rejectSpy).not.toHaveBeenCalled();
                 expect(mockClient.db).toHaveBeenCalled();
                 expect(mockDb.authenticate).toHaveBeenCalled();
             }).done(done);
