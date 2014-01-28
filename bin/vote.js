@@ -22,7 +22,8 @@ state.defaultConfig = {
     mongo : {
         host: null,
         port: null,
-        db  : null
+        db  : null,
+        retryConnect : true
     }
 };
 
@@ -349,16 +350,6 @@ app.main = function(state){
     return state;
 };
 
-function errorHandler(err){
-    var log = logger.getLog();
-    console.log(err.message);
-    log.error(err.message);
-    if (err.code)   {
-        process.exit(err.code); 
-    }
-    process.exit(1);
-}
-
 if (!__ut__){
     service.start(state)
     .then(service.parseCmdLine)
@@ -366,30 +357,7 @@ if (!__ut__){
     .then(service.prepareServer)
     .then(service.daemonize)
     .then(service.cluster)
-    .catch(errorHandler)
     .then(service.initMongo)
-    .catch(function(err){
-        var log = logger.getLog();
-        log.error(err.message);
-        var deferred = q.defer();
-
-        var i = setInterval(function(){
-            if (!state.db){
-                service.initMongo(state)
-                    .then(function(){
-                        clearInterval(i);
-                        deferred.resolve(state);
-                    })
-                    .catch(function(err){
-                        log.error(err.message);
-                    });
-            }
-        },1000);
-
-
-
-        return deferred.promise;
-    })
     .then(app.main)
     .catch( function(err){
         var log = logger.getLog();
