@@ -90,29 +90,6 @@ describe('vote.data',function(){
             var vb;
             beforeEach(function(){
                 vb = new VotingBooth('xyz');
-            });
-
-            it('will clear all data',function(){
-                vb._items  = {
-                    'item1' : {
-                        'happy' : 2,
-                        'sad'   : 1
-                    },
-                    'item2' : {
-                        'red'   : 2,
-                        'green' : 2,
-                        'blue'  : 1
-                    }
-                };
-                vb.clear();
-                expect(vb._items).toEqual({});
-            });
-        });
-
-        describe('markSynced',function(){
-            var vb;
-            beforeEach(function(){
-                vb = new VotingBooth('xyz');
                 vb._items  = {
                     'item1' : {
                         'happy' : 2,
@@ -128,15 +105,10 @@ describe('vote.data',function(){
 
             it('will clear all data',function(){
                 expect(vb._items).not.toEqual({});
-                vb.markSynced();
+                vb.clear();
                 expect(vb._items).toEqual({});
             });
 
-            it('will update the lastSync',function(){
-                vb._lastSync = null;
-                vb.markSynced();
-                expect(vb.lastSync).not.toBeNull();
-            });
         });
 
         describe('dirty property',function(){
@@ -231,13 +203,13 @@ describe('vote.data',function(){
             });
 
             it('returns true when syncIval has expired',function(){
-                var lastSync = (new Date()).valueOf() - 2000;
+                var lastSync = new Date((new Date()).valueOf() - 2000);
                 elDb._syncIval = 1000;
                 expect(elDb.shouldSync(lastSync)).toEqual(true);
             });
 
             it('returns false when syncIval has not expired',function(){
-                var lastSync = (new Date()).valueOf() - 200;
+                var lastSync = new Date((new Date()).valueOf() - 200);
                 elDb._syncIval = 1000;
                 expect(elDb.shouldSync(lastSync)).toEqual(false);
             });
@@ -255,7 +227,7 @@ describe('vote.data',function(){
             it('returns the cached election if lastSync < syncInterval',function(done){
                 mockData = { id : 'abc' };
                 elDb._cache['abc'] = {
-                    lastSync : (new Date()).valueOf(),
+                    lastSync : new Date(),
                     data     :  mockData
                 }
                 
@@ -265,18 +237,17 @@ describe('vote.data',function(){
                         expect(resolveSpy).toHaveBeenCalled();
                         expect(rejectSpy).not.toHaveBeenCalled();
                         expect(mockDb.findOne).not.toHaveBeenCalled();
-                        expect(resolveSpy.argsForCall[0][0])
-                            .toEqual(mockData);
+                        expect(resolveSpy.argsForCall[0][0]).toEqual(mockData);
                     }).done(done);
             });
 
             it('queries the db if the cached election is old',function(done){
-                var oldSync = (new Date()).valueOf() - 5000;
+                var oldSync = new Date((new Date()).valueOf() - 5000);
                 mockData = { _id : 'xyz', id : 'abc', foo : 'bar' };
                 elDb._syncIval = 1000;
                 elDb._cache['abc'] = {
                     lastSync : oldSync,
-                    data     :  mockData
+                    data     : mockData
                 }
                 
                 mockDb.findOne.andCallFake(function(query,cb){
@@ -298,20 +269,20 @@ describe('vote.data',function(){
             });
 
             it('updates db with votes and queries for new if election has votes',function(done){
-                var oldSync = (new Date()).valueOf() - 5000,
-                    vb = new VotingBooth('el-abc');
-                elDb._syncIval = 1000;
-                elDb._cache['el-abc'] = {
+                var oldSync = new Date ((new Date()).valueOf() - 5000), election;
+                election = {
                     lastSync : oldSync,
-                    data     :  mockData
-                }
-                elDb._voteCache['el-abc'] = vb;
-                vb._items = {
+                    data     :  mockData,
+                    votingBooth : new VotingBooth('el-abc')
+                };
+                election.votingBooth._items = {
                     'item-1' : {
                         'bad and nasty'    : 20 ,
                         'ugly and fat'     : 30 
                     }
                 };
+                elDb._syncIval = 1000;
+                elDb._cache['el-abc'] = election;
                 
                 mockDb.findAndModify.andCallFake(function(query,sort,update,options,cb){
                     process.nextTick(function(){
@@ -325,8 +296,7 @@ describe('vote.data',function(){
                         expect(resolveSpy).toHaveBeenCalled();
                         expect(rejectSpy).not.toHaveBeenCalled();
                         expect(mockDb.findAndModify).toHaveBeenCalled();
-                        expect(vb.lastSync).not.toBeNull();
-                        expect(vb._items).toEqual({});
+                        expect(election.votingBooth._items).toEqual({});
                     }).done(done);
             });
 
@@ -343,7 +313,7 @@ describe('vote.data',function(){
                         expect(resolveSpy).not.toHaveBeenCalled();
                         expect(rejectSpy).toHaveBeenCalled();
                         expect(rejectSpy.argsForCall[0][0].message)
-                            .toEqual('Unable to locate election');
+                            .toEqual('Unable to locate election.');
                         expect(elDb._keeper.getDeferred('abc',true)).not.toBeDefined();
                     }).done(done);
             });
@@ -391,7 +361,7 @@ describe('vote.data',function(){
             beforeEach(function(){
                 elDb = new ElectionDb(mockDb);
                 elDb._cache['el-abc'] = {
-                    lastSync : (new Date()).valueOf(),
+                    lastSync : new Date(),
                     data : mockData
                 };
                 resolveSpy = jasmine.createSpy('getBallotItem.resolve');
@@ -430,7 +400,7 @@ describe('vote.data',function(){
                         expect(resolveSpy).not.toHaveBeenCalled();
                         expect(rejectSpy).toHaveBeenCalled();
                         expect(rejectSpy.argsForCall[0][0].message)
-                            .toEqual('Unable to locate election');
+                            .toEqual('Unable to locate election.');
                         expect(elDb._keeper.getDeferred('abc::123',true)).not.toBeDefined();
                     })
                     .done(done);
@@ -439,7 +409,7 @@ describe('vote.data',function(){
             it('will fail if passed an invalid ballot item Id',function(done){
                 mockDb.findOne.andCallFake(function(query,cb){
                     process.nextTick(function(){
-                        cb(null,null);
+                        cb(null,mockData);
                     });
                 });
 
@@ -543,20 +513,21 @@ describe('vote.data',function(){
             beforeEach(function(){
                 elDb = new ElectionDb(mockDb);
                 elDb._cache['el-abc'] = {
-                    lastSync : null,
-                    data     : mockData
+                    lastSync    : null,
+                    data        : mockData,
+                    votingBooth : null
                 }
             });
 
             it('will initialize cache if empty when first vote is recorded',function(){
-                expect(elDb._voteCache).toEqual({});
+                expect(elDb._cache['el-abc'].votingBooth).toBeNull();
                 elDb.recordVote({
                     election    : 'el-abc',
                     ballotItem  : 'item-1',
                     vote        : 'bad and nasty'
                 });
-                expect(elDb._voteCache['el-abc']).toBeDefined();
-                expect(elDb._voteCache['el-abc'].dirty).toEqual(true);
+                expect(elDb._cache['el-abc'].votingBooth).toBeDefined();
+                expect(elDb._cache['el-abc'].votingBooth.dirty).toEqual(true);
             });
 
             it('will update cached election data if it exists with vote',function(){
