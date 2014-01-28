@@ -1279,7 +1279,7 @@ if (!__ut__ && !__maint__){
 
 function main(done){
     var program  = include('commander'),
-        job, log, userCfg;
+        job, log;
 
     program
         .option('-c, --config [CFGFILE]','Specify config file')

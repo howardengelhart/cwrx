@@ -216,9 +216,8 @@ function main(done) {
     if (program.loglevel){
         log.setLevel(program.loglevel);
     }
-    
-    var secrets = fs.readJsonSync(config.secretsPath);
 
+    var secrets = fs.readJsonSync(config.secretsPath);
     var db;
     mongoUtils.connect(config.mongo.host, config.mongo.port).then(function(mongoClient) {
         db = mongoClient.db(config.mongo.db);
