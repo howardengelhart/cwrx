@@ -2,14 +2,11 @@
 
 var __ut__      = (global.jasmine !== undefined) ? true : false;
 
-var fs          = require('fs-extra'),
-    path        = require('path'),
+var path        = require('path'),
     q           = require('q'),
     bcrypt      = require('bcrypt'),
     logger      = require('../lib/logger'),
-    cwrxConfig  = require('../lib/config'),
     uuid        = require('../lib/uuid'),
-    daemon      = require('../lib/daemon'),
     mongoUtils  = require('../lib/mongoUtils'),
     service     = require('../lib/service'),
     
