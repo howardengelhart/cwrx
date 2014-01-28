@@ -498,11 +498,23 @@ describe('service (UT)',function(){
         
         it('will also add the sessions db to the state object if applicable', function(done) {
             state.config.sessions = {db: 'sessionsDB'};
+            var mockSessDb = {
+                authenticate: jasmine.createSpy('sessDb.authenticate').andCallFake(function(user, pass, cb) {
+                    cb(null, true);
+                })
+            };
+            mockClient.db.andCallFake(function(dbName) {
+                if (dbName === 'sessionsDB') return mockSessDb;
+                else return mockDb;
+            });
             service.initMongo(state).then(resolveSpy, rejectSpy)
             .finally(function() {
                 expect(resolveSpy).toHaveBeenCalledWith(state);
                 expect(rejectSpy).not.toHaveBeenCalled();
-                expect(state.sessionsDb).toBe(mockDb);
+                expect(state.sessionsDb).toBe(mockSessDb);
+                expect(mockSessDb.authenticate).toHaveBeenCalled();
+                expect(mockSessDb.authenticate.calls[0].args[0]).toBe('ut');
+                expect(mockSessDb.authenticate.calls[0].args[1]).toBe('password');
                 expect(mockClient.db).toHaveBeenCalledWith('sessionsDB');
             }).done(done);
         });

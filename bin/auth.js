@@ -202,10 +202,6 @@ auth.main = function(state) {
     var express     = require('express'),
         MongoStore  = require('connect-mongo')(express),
         app         = express();
-
-    /*if (program.loglevel){  //TODO
-        log.setLevel(program.loglevel);
-    }*/
     
     var users = state.db.collection('users');
 
@@ -230,8 +226,6 @@ auth.main = function(state) {
             maxAge: state.config.sessions.maxAge
         },
         store: new MongoStore({
-            username: state.secrets.mongoCredentials.user,
-            password: state.secrets.mongoCredentials.password,
             db: state.sessionsDb
         })
     }));
@@ -260,7 +254,7 @@ auth.main = function(state) {
         }
         next();
     });
-    
+
     app.post('/auth/login', function(req, res, next) {
         auth.login(req, users).then(function(resp) {
             res.send(resp.code, resp.body);
@@ -315,9 +309,7 @@ auth.main = function(state) {
     app.listen(state.cmdl.port);
     log.info('Service is listening on port: ' + state.cmdl.port);
     
-    // var deferred = q.defer();
-    // return deferred.promise;
-    // return state;
+    return state;
 };
 
 if (!__ut__){

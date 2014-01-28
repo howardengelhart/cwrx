@@ -4,7 +4,6 @@
   "description": "Cinema6 node framework",
   "main": "lib/index.js",
   "scripts": {
-    "postinstall" : "grunt install_hook",
     "test": "jasmine-node --junitreport -m 'core.*' test",
     "test-av": "jasmine-node --junitreport -m 'av.*' test",
     "test-vw": "jasmine-node --junitreport -m 'vocalware.*' test",
