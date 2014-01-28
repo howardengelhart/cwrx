@@ -33,9 +33,9 @@ describe('dub job remover (UT)', function() {
 
     describe('removeJobFiles', function() {
         var maxAge = 10,
-            start = new Date().valueOf(),
-            jobs, config;
+            start, jobs, config;
         beforeEach(function() {
+            start = new Date().valueOf();
             jobs = {
                 'caches/jobs/job-1.json': { createTime: start - (maxAge - 2) * 1000 },
                 'caches/jobs/job-2.json': { createTime: start - (maxAge + 1) * 1000 },

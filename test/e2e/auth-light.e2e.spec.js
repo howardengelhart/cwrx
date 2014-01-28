@@ -144,10 +144,10 @@ describe('auth-light (E2E):', function() {
                 expect(resp.body.version.match(/^.+\.build\d+-\d+-g\w+$/)).toBeTruthy('version match');
                 expect(resp.body.config).toBeDefined();
                 
-                expect(resp.body.config.session).toBeDefined();
-                expect(resp.body.config.session.key).toBeDefined();
-                expect(resp.body.config.session.maxAge).toBeDefined();
-                expect(resp.body.config.session.db).toBeDefined();
+                expect(resp.body.config.sessions).toBeDefined();
+                expect(resp.body.config.sessions.key).toBeDefined();
+                expect(resp.body.config.sessions.maxAge).toBeDefined();
+                expect(resp.body.config.sessions.db).toBeDefined();
                 
                 expect(resp.body.config.mongo).toBeDefined();
                 expect(resp.body.config.mongo.host).toBeDefined();
