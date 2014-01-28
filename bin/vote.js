@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 var q           = require('q'),
     express     = require('express'),
+    path        = require('path'),
     service     = require('../lib/service'),
     uuid        = require('../lib/uuid'),
-    promise    = require('../lib/promise'),
+    promise     = require('../lib/promise'),
     logger      = require('../lib/logger'),
     __ut__      = (global.jasmine !== undefined) ? true : false,
     app         = {},
@@ -16,9 +17,14 @@ state.defaultConfig = {
         media    : [ { type : 'console' } ]
     },
     pidFile : 'vote.pid',
-    pidDir  : './'
+    pidDir  : './',
+    secretsPath: path.join(process.env.HOME,'.auth.secrets.json'),
+    mongo : {
+        host: null,
+        port: null,
+        db  : null
+    }
 };
-
 
 function VotingBooth(electionId){
     var self        = this;
@@ -267,7 +273,8 @@ ElectionDb.prototype.recordVote     = function(vote){
 
 
 app.main = function(state){
-    var log = logger.getLog(), webServer;
+    var log = logger.getLog(), webServer,
+        elDb = new ElectionDb(state.db.collection('elections'));
     if (state.clusterMaster){
         log.info('Cluster master, not a worker');
         return state;
@@ -308,7 +315,22 @@ app.main = function(state){
             res.send(400, 'You must provide the electionId in the request url.\n');
             return;
         }
-        res.send(200,'Election is: ' + req.params.electionId + '\n');
+
+        elDb.getElection(req.params.electionId,2000)
+            .then(function(election){
+                res.send(200,election);
+            })
+            .catch(function(err){
+                if (err.message.match(/Timed out after/)){
+                    err.httpCode = 408;
+                }
+                log.error('getElection Error: %1',err.message);
+                if (err.httpCode){
+                    res.send(err.httpCode,err.message + '\n');
+                } else {
+                    res.send(500,'Internal error.\n' );
+                }
+            });
     });
 
     webServer.get('/election/:electionId/ballot/:itemId', function(req, res, next){
@@ -327,6 +349,16 @@ app.main = function(state){
     return state;
 };
 
+function errorHandler(err){
+    var log = logger.getLog();
+    console.log(err.message);
+    log.error(err.message);
+    if (err.code)   {
+        process.exit(err.code); 
+    }
+    process.exit(1);
+}
+
 if (!__ut__){
     service.start(state)
     .then(service.parseCmdLine)
@@ -334,6 +366,30 @@ if (!__ut__){
     .then(service.prepareServer)
     .then(service.daemonize)
     .then(service.cluster)
+    .catch(errorHandler)
+    .then(service.initMongo)
+    .catch(function(err){
+        var log = logger.getLog();
+        log.error(err.message);
+        var deferred = q.defer();
+
+        var i = setInterval(function(){
+            if (!state.db){
+                service.initMongo(state)
+                    .then(function(){
+                        clearInterval(i);
+                        deferred.resolve(state);
+                    })
+                    .catch(function(err){
+                        log.error(err.message);
+                    });
+            }
+        },1000);
+
+
+
+        return deferred.promise;
+    })
     .then(app.main)
     .catch( function(err){
         var log = logger.getLog();

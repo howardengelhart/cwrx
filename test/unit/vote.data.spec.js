@@ -299,7 +299,7 @@ describe('vote.data',function(){
                         expect(election.votingBooth._items).toEqual({});
                     }).done(done);
             });
-
+            
             it('fails if the election is not available',function(done){
                 mockDb.findOne.andCallFake(function(query,cb){
                     process.nextTick(function(){
