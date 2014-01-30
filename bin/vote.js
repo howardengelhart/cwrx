@@ -108,7 +108,7 @@ ElectionDb.prototype.shouldSync = function(lastSync){
 };
 
 ElectionDb.prototype.getElectionFromCache = function(electionId){
-    return this._cache[electionId]
+    return this._cache[electionId];
 };
 
 ElectionDb.prototype.getCachedElections = function(){
@@ -118,7 +118,7 @@ ElectionDb.prototype.getCachedElections = function(){
     });
 
     return result;
-}
+};
 
 ElectionDb.prototype.getElection = function(electionId, timeout) {
     var self = this, deferred = self._keeper.getDeferred(electionId),
