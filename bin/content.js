@@ -9,6 +9,7 @@ var path        = require('path'),
     mongoUtils  = require('../lib/mongoUtils'),
     authUtils   = require('../lib/authUtils')(),
     service     = require('../lib/service'),
+    promise     = require('../lib/promise'),
     
     state       = {},
     content = {}; // for exporting functions to unit tests
@@ -19,8 +20,12 @@ state.defaultConfig = {
     caches : {
         run     : path.normalize('/usr/local/share/cwrx/content/caches/run/'),
     },
+    cacheTTLs: {  // units here are minutes
+        experiences: 5,
+        auth: 30
+    },
     sessions: {
-        key: 'c6content',
+        key: 'c6Auth',
         maxAge: 14*24*60*60*1000, // 14 days; unit here is milliseconds
         db: 'sessions'
     },
@@ -32,16 +37,95 @@ state.defaultConfig = {
     }
 };
 
-//TODO: rework to use Howard's promise library
-content.getExperiences = function(query, req, experiences) {
-    var sortObj = req.query && (typeof req.query.sort === 'object') && req.query.sort || {},
-        limit = req.query && req.query.limit || 0,
-        skip = req.query && req.query.skip || 0,
-        log = logger.getLog();
+///////////////////////////////
+
+content.QueryCache = function(cacheTTL, coll) {
+    var self = this;
+    if (!cacheTTL || !coll) {
+        throw new Error("Must provide a cacheTTL and mongo collection");
+    }
+    self.cacheTTL = cacheTTL*60*1000;
+    self._coll = coll;
+    self._keeper = new promise.Keeper();
+};
+
+content.QueryCache.sortQuery = function(query) {
+    var self = this,
+        newQuery = {};
+    if (typeof query !== 'object') {
+        return query;
+    }
+    if (query instanceof Array) {
+        newQuery = [];
+    }
+    Object.keys(query).sort().forEach(function(key) {
+        newQuery[key] = content.QueryCache.sortQuery(query[key]);
+    });
+    return newQuery;
+};
+
+content.QueryCache.formatQuery = function(query, userId) {
+    var self = this;
+    Object.keys(query).forEach(function(key) {
+        if (query[key] instanceof Array) {
+            query[key] = {$in: query[key]};
+        }
+    });
+    var log = logger.getLog();
+    if (!userId || (query.user && (query.user !== userId))) {
+        query.status = 'active';
+        query.access = 'public';
+        return content.QueryCache.sortQuery(query);
+    } else if (query.user) {
+        return content.QueryCache.sortQuery(query);
+    }
+    var publicQuery = JSON.parse(JSON.stringify(query)); // copy, since we'll 2 queries for an $or
+    query.user = userId; // the "private" query for experiences owned by the user
+    publicQuery.status = 'active'; // the "public" query for other publicly viewable experiences
+    publicQuery.access = 'public';
+    return content.QueryCache.sortQuery({$or: [query, publicQuery]});
+};
+
+content.QueryCache.prototype.getPromise = function(reqId, query, sort, limit, skip) {
+    var self = this,
+        log = logger.getLog(),
+        key = uuid.hashText(JSON.stringify({query:query,sort:sort,limit:limit,skip:skip})).substr(0,18),
+        deferred = self._keeper.getDeferred(key, true);
+    if (deferred) {
+        log.info("[%1] Query %2 cache hit", reqId, key);
+        return deferred.promise;
+    }
+    log.info("[%1] Query %2 cache miss", reqId, key);
+    deferred = self._keeper.defer(key);
+    q.npost(self._coll.find(query, {sort: sort, limit: limit, skip: skip}), 'toArray')
+        .then(deferred.resolve, deferred.reject);  //TODO: should we be caching errors?
     
-    log.info('[%1] Getting Experiences with %1, sort %2, limit %3, skip %4',
-             req.uuid, JSON.stringify(query), JSON.stringify(sortObj), limit, skip);
-    return q.npost(experiences.find(query, {sort: sortObj, limit: limit, skip: skip}), 'toArray')
+    setTimeout(function() {
+        log.trace("Removing query %1 from the cache", key);
+        self._keeper.remove(key, true);
+    }, self.cacheTTL);
+    
+    return deferred.promise;
+};
+///////////////////////////////
+
+content.getExperiences = function(query, req, cache) {
+    var limit = req.query && req.query.limit || 0,
+        skip = req.query && req.query.skip || 0,
+        log = logger.getLog(),
+        sort;
+    try {
+        sort = req.query && req.query.sort || '{}';
+        sort = JSON.parse(sort);  //TODO: test this!!!
+    } catch(e) {
+        log.info('[%1] Sort %2 does not parse as object, ignoring', req.uuid, sort);
+    }
+        
+    query = content.QueryCache.formatQuery(query, req.session.user || '');
+    
+    log.info('[%1] Getting Experiences with %2, sort %3, limit %4, skip %5',
+             req.uuid, JSON.stringify(query), JSON.stringify(sort), limit, skip);
+    return cache.getPromise(req.uuid, query, sort, limit, skip)
     .then(function(experiences) {
         log.info('[%1] Retrieved %2 experiences', req.uuid, experiences.length);
         return q({code: 200, body: experiences});
@@ -66,6 +150,7 @@ content.createExperience = function(req, experiences) {
     obj.lastUpdated = now;
     obj.user = user.id;
     obj.status = 'active';
+    if (!obj.access) obj.access = 'public';
     return q.npost(experiences, 'insert', [obj, {w: 1, journal: true}])
     .then(function() {
         log.info('[%1] User %2 successfully created experience %3', req.uuid, user.id, obj.id);
@@ -161,6 +246,8 @@ content.main = function(state) {
     var express     = require('express'),
         MongoStore  = require('connect-mongo')(express),
         app         = express();
+    // set auth cacheTTL now that we've loaded config
+    authUtils = require('../lib/authUtils')(state.config.cacheTTLs.auth);
 
     // if connection to mongo is down; immediately reject all requests
     // otherwise the request will hang trying to get the session from mongo
@@ -212,11 +299,12 @@ content.main = function(state) {
         next();
     });
     
-    var experiences = state.collection('experiences');
+    var experiences = state.db.collection('experiences');
+    var expCache = new content.QueryCache(state.config.cacheTTLs.experiences, experiences);
     
     // simple get active experience by id, public
     app.get('/content/experiences/:id', function(req, res, next) {
-        content.getExperiences({id: req.params.id, status: 'active'}, req, experiences)
+        content.getExperiences({id: req.params.id}, req, expCache)
         .then(function(resp) {
             res.send(resp.code, resp.body);
         }).catch(function(error) {
@@ -228,10 +316,17 @@ content.main = function(state) {
 
     // robust get experience by query, require authenticated user; currently no perms required
     var authGetExp = authUtils.middlewarify(state.db, {});
-    app.get('/content/experiences', function(req, res, next) {
-        var query = (req.query && req.query.selector) || {}; //TODO: default query????
-        query.status = 'active';
-        content.getExperiences(query, req, experiences)
+    app.get('/content/experiences', authGetExp, function(req, res, next) {
+        var query;
+        try {
+            query = JSON.parse((req.query && req.query.selector) || '');
+        } catch(e) {
+            log.info('[%1] Selector cannot be parsed as an object, returning 400', req.uuid);
+            return res.send(400, {
+                error: 'Selector param cannot be parsed as an object'
+            });
+        }
+        content.getExperiences(query, req, expCache)
         .then(function(resp) {
             res.send(resp.code, resp.body);
         }).catch(function(error) {
@@ -243,7 +338,7 @@ content.main = function(state) {
     
     var authPostExp = authUtils.middlewarify(state.db, {createExperience: true});
     app.post('/content/experiences', authPostExp, function(req, res, next) {
-        content.createExperience(req.body, req.user, experiences)
+        content.createExperience(req, experiences)
         .then(function(resp) {
             res.send(resp.code, resp.body);
         }).catch(function(error) {
@@ -256,7 +351,7 @@ content.main = function(state) {
     
     var authPutExp = authUtils.middlewarify(state.db, {createExperience: true});
     app.put('/content/experiences/:id', authPutExp, function(req, res, next) {
-        content.updateExperience(req.params.id, req.body, req.user, experiences)
+        content.updateExperience(req, experiences)
         .then(function(resp) {
             res.send(resp.code, resp.body);
         }).catch(function(error) {
@@ -269,7 +364,7 @@ content.main = function(state) {
     
     var authDelExp = authUtils.middlewarify(state.db, {deleteExperience: true});
     app.delete('/content/experiences/:id', authDelExp, function(req, res, next) {
-        content.deleteExperience(req.params.id, req.user, experiences)
+        content.deleteExperience(req, experiences)
         .then(function(resp) {
             res.send(resp.code, resp.body);
         }).catch(function(error) {
