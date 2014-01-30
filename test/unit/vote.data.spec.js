@@ -1,5 +1,5 @@
 describe('vote.data',function(){
-    var ElectionDb, VotingBooth, mockLog, resolveSpy, rejectSpy, q, logger,
+    var ElectionDb, VotingBooth, mockLog, resolveSpy, rejectSpy, q, logger,app,
         mockDb, mockData, mockCursor, flush = true;
     
     beforeEach(function() {
@@ -10,7 +10,8 @@ describe('vote.data',function(){
         q           = require('q');
         logger      = require('../../lib/logger');
         ElectionDb    = require('../../bin/vote').ElectionDb;
-        VotingBooth    = require('../../bin/vote').VotingBooth;
+        VotingBooth   = require('../../bin/vote').VotingBooth;
+        app           = require('../../bin/vote').app;
 
         mockCursor  = {
             limit       : jasmine.createSpy('cursor.limit').andReturn(mockCursor), 
@@ -248,7 +249,7 @@ describe('vote.data',function(){
                 elDb._cache['abc'] = {
                     lastSync : oldSync,
                     data     : mockData
-                }
+                };
                 
                 mockDb.findOne.andCallFake(function(query,cb){
                     process.nextTick(function(){
@@ -264,6 +265,59 @@ describe('vote.data',function(){
                         expect(mockDb.findOne).toHaveBeenCalled();
                         expect(resolveSpy.argsForCall[0][0].foo).toEqual('bar');
                         expect(elDb._cache['abc'].lastSync - oldSync).toBeGreaterThan(4999);
+                        expect(elDb._keeper.getDeferred('abc',true)).not.toBeDefined();
+                    }).done(done);
+            });
+
+            it('queries the db if the election is not in the cache',function(done){
+                mockData = { _id : 'xyz', id : 'abc', foo : 'bar' };
+                elDb._syncIval = 1000;
+                elDb._cache['abc'] = {};
+                
+                mockDb.findOne.andCallFake(function(query,cb){
+                    process.nextTick(function(){
+                        cb(null,mockData);
+                    });
+                });
+                
+                elDb.getElection('abc')
+                    .then(resolveSpy,rejectSpy)
+                    .finally(function(){
+                        expect(resolveSpy).toHaveBeenCalled();
+                        expect(rejectSpy).not.toHaveBeenCalled();
+                        expect(mockDb.findOne).toHaveBeenCalled();
+                        expect(resolveSpy.argsForCall[0][0].foo).toEqual('bar');
+                        expect(elDb._keeper.getDeferred('abc',true)).not.toBeDefined();
+                    }).done(done);
+            });
+
+            it('queries the db if the election is in the cache but has no data',function(done){
+                elDb._syncIval = 1000;
+                elDb._cache['el-abc'] = {
+                    lastSync : new Date(),
+                    data     : null,
+                    votingBooth : new VotingBooth('el-abc')
+                };
+                elDb._cache['el-abc'].votingBooth._items = {
+                    'item-1' : {
+                        'bad and nasty'    : 20 ,
+                        'ugly and fat'     : 30 
+                    }
+                };
+                
+                mockDb.findAndModify.andCallFake(function(query,sort,update,options,cb){
+                    process.nextTick(function(){
+                        cb(null,mockData);
+                    });
+                });
+                
+                elDb.getElection('el-abc')
+                    .then(resolveSpy,rejectSpy)
+                    .finally(function(){
+                        expect(resolveSpy).toHaveBeenCalled();
+                        expect(rejectSpy).not.toHaveBeenCalled();
+                        expect(mockDb.findAndModify).toHaveBeenCalled();
+                        expect(resolveSpy.argsForCall[0]).toEqual([mockData]);
                         expect(elDb._keeper.getDeferred('abc',true)).not.toBeDefined();
                     }).done(done);
             });
@@ -440,12 +494,13 @@ describe('vote.data',function(){
                         expect(rejectSpy).not.toHaveBeenCalled();
                         expect(mockDb.findOne).not.toHaveBeenCalled();
                         expect(resolveSpy.argsForCall[0]).toEqual([{
-                            election    : 'el-abc',
-                            ballotItem  : 'item-1',
-                            votes       : {
-                                'good and plenty' : 100,
-                                'bad and nasty'   : 200,
-                                'ugly and fat'    : 300
+                            id      : 'el-abc' ,
+                            ballot  : {
+                                'item-1' : {
+                                    'good and plenty' : 100,
+                                    'bad and nasty'   : 200,
+                                    'ugly and fat'    : 300
+                                }
                             }
                         }]);
                         expect(elDb._keeper.getDeferred('el-abc::item-1',true)).not.toBeDefined();
@@ -469,15 +524,17 @@ describe('vote.data',function(){
                         expect(rejectSpy).not.toHaveBeenCalled();
                         expect(mockDb.findOne).toHaveBeenCalled();
                         expect(resolveSpy.argsForCall[0]).toEqual([{
-                            election    : 'el-abc',
-                            ballotItem  : 'item-1',
-                            votes       : {
-                                'good and plenty' : 100,
-                                'bad and nasty'   : 200,
-                                'ugly and fat'    : 300
+                            id      : 'el-abc' ,
+                            ballot  : {
+                                'item-1' : {
+                                    'good and plenty' : 100,
+                                    'bad and nasty'   : 200,
+                                    'ugly and fat'    : 300
+                                }
                             }
                         }]);
-                        expect(elDb._keeper.getDeferred('el-abc::item-1',true)).not.toBeDefined();
+                        expect(elDb._keeper.getDeferred('el-abc::item-1',true))
+                            .not.toBeDefined();
                     })
                     .done(done);
             });
@@ -540,6 +597,144 @@ describe('vote.data',function(){
                 });
                 expect(elDb._cache['el-abc'].data.ballot['item-1']['bad and nasty'])
                     .toEqual(201);
+            });
+        });
+
+        describe('getElectionFromCache',function(){
+            var elDb;
+            beforeEach(function(){
+                elDb = new ElectionDb(mockDb);
+                elDb._cache['el-abc'] = {
+                    lastSync    : null,
+                    data        : mockData,
+                    votingBooth : null
+                }
+            });
+
+            it('returns the election if it exists',function(){
+                elDb._cache['abc'] = { 'a' : 1 };
+                expect(elDb.getElectionFromCache('el-abc').data).toEqual(mockData);
+            });
+
+            it('returns undefined if it does not exist',function(){
+                expect(elDb.getElectionFromCache('abc')).not.toBeDefined();
+            });
+        });
+
+        describe('getCachedElections',function(){
+            var elDb;
+            
+            beforeEach(function(){
+                elDb = new ElectionDb(mockDb);
+                elDb._cache['el-abc'] = {
+                    lastSync    : null,
+                    data        : mockData,
+                    votingBooth : null
+                }
+                elDb._cache['el-def'] = {
+                    lastSync    : null,
+                    data        : mockData,
+                    votingBooth : null
+                }
+            });
+
+            it('returns elections if they are cached',function(){
+                expect(elDb.getCachedElections().length).toEqual(2);
+            });
+
+            it('returns an empty array if there are none cached',function(){
+                elDb._cache = {};
+                expect(elDb.getCachedElections().length).toEqual(0);
+            });
+        });
+    });
+
+    describe('app',function(){
+        describe('convertObjectValsToPercents',function(){
+            it('converts numbers to percents',function(){
+                var obj = { 'a' : 25, 'b' : 50, 'c' : 25 };
+                expect(app.convertObjectValsToPercents(obj))
+                    .toEqual({ a : 0.25, b : 0.50, c: 0.25 });
+            });
+
+            it('rounds numbers down to hundredths',function(){
+                var result = app.convertObjectValsToPercents({ a : 34, b : 65 });
+                expect(result.a.toString()).toEqual('0.34');
+                expect(result.b.toString()).toEqual('0.66');
+            });
+
+            it('creates a copy of the objct and does not modify the original',function(){
+                var obj = { 'a' : 25, 'b' : 50, 'c' : 25 },
+                    res = app.convertObjectValsToPercents(obj);
+                
+                expect(obj.a).toEqual(25);
+                expect(res.a).toEqual(0.25);
+            });
+
+            it('handles an empty object',function(){
+                expect(app.convertObjectValsToPercents({})).toEqual({});
+            });
+
+            it('handles zero values',function(){
+                expect(app.convertObjectValsToPercents({ a : 0, b : 30, c : 70}))
+                    .toEqual({ a : 0.0, b : 0.30, c : 0.70});
+            });
+        });
+
+        describe('convertElection',function(){
+            it('converts an election from vals to percents',function(){
+                var election = {
+                        id : 'abc',
+                        ballot : {
+                            'b1' : { 'v1' : 10, 'v2' : 20 },
+                            'b2' : { 'v1' : 5, 'v2' : 20 }
+                        }
+                    },
+                    result = app.convertElection(election);
+
+                expect(result.id).toEqual('abc');
+                expect(result.ballot.b1.v1).toEqual(0.33);
+                expect(result.ballot.b1.v2).toEqual(0.67);
+                expect(result.ballot.b2.v1).toEqual(0.20);
+                expect(result.ballot.b2.v2).toEqual(0.80);
+            });
+        });
+
+        describe('syncElections',function(){
+            var elDb, mockElection;
+            beforeEach(function(){
+                elDb = {
+                    getCachedElections  : jasmine.createSpy('elDb.getCachedElections'),
+                    getElection         : jasmine.createSpy('elDb.getElection'),
+                };
+                mockElection = {
+                    id : 'abc',
+                    lastSync : new Date(),
+                    data : null,
+                    votingBooth : {
+                        dirty : false
+                    }
+                };
+            });
+
+
+            it('will do nothing if there are no elections in the cache',function(){
+                elDb.getCachedElections.andReturn([]);
+                app.syncElections(elDb);
+                expect(elDb.getElection).not.toHaveBeenCalled();
+            });
+
+            it('will not attempt to sync an election that does not need it',function(){
+                elDb.getCachedElections.andReturn([mockElection]); 
+                app.syncElections(elDb);
+                expect(elDb.getElection).not.toHaveBeenCalled();
+            });
+
+            it('will call getElection if there is an election that shouldSync',function(){
+                mockElection.votingBooth.dirty = true;
+                elDb.getCachedElections.andReturn([mockElection]); 
+                app.syncElections(elDb);
+                expect(elDb.getElection).toHaveBeenCalledWith('abc');
             });
         });
     });

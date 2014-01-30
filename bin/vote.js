@@ -18,6 +18,8 @@ state.defaultConfig = {
     },
     pidFile : 'vote.pid',
     pidDir  : './',
+    requestTimeout : 2000,
+    idleSyncTimeout : 60000,
     secretsPath: path.join(process.env.HOME,'.auth.secrets.json'),
     mongo : {
         host: null,
@@ -82,7 +84,6 @@ function ElectionDb(coll,syncIval){
     this._coll          = coll;
     this._syncIval      = syncIval;
     this._cache         = {};
-    this._voteCache     = {};
     this._keeper        = new promise.Keeper();
 
     if (!this._coll){
@@ -106,9 +107,23 @@ ElectionDb.prototype.shouldSync = function(lastSync){
     return ((new Date()).valueOf() - lastSync.valueOf()) > this._syncIval;
 };
 
+ElectionDb.prototype.getElectionFromCache = function(electionId){
+    return this._cache[electionId]
+};
+
+ElectionDb.prototype.getCachedElections = function(){
+    var result = [], self = this;
+    Object.keys(self._cache).forEach(function(key){
+        result.push(self._cache[key]);
+    });
+
+    return result;
+}
+
 ElectionDb.prototype.getElection = function(electionId, timeout) {
     var self = this, deferred = self._keeper.getDeferred(electionId),
-        election = self._cache[electionId], voteCounts;
+        election = self._cache[electionId], voteCounts,
+        log = logger.getLog();
 
     if (deferred) {
         if (timeout) {
@@ -117,7 +132,7 @@ ElectionDb.prototype.getElection = function(electionId, timeout) {
         return deferred.promise;
     }
 
-    if (election && !self.shouldSync(election.lastSync)){
+    if (election && election.data && !self.shouldSync(election.lastSync)){
         return q(election.data);
     }
   
@@ -128,13 +143,19 @@ ElectionDb.prototype.getElection = function(electionId, timeout) {
             if (voteCounts === undefined) {
                 voteCounts = {};
             }
-            voteCounts['ballot.' + ballotId + '.returns.' + vote] = count;
+            voteCounts['ballot.' + ballotId + '.' + vote] = count;
         });
     }
 
     if (voteCounts) {
+        log.trace('voteCounts: %1',JSON.stringify(voteCounts));
         self._coll.findAndModify({ 'id' : electionId }, null,
-            { $inc : voteCounts }, { new : true }, function(err, result){
+            { '$inc' : voteCounts }, { new : true }, function(err, result){
+            if (err) {
+                log.error('getElection::findAndModify - %1:',err.message);
+            } else {
+                log.trace('getElection::findAndModify item: %1',JSON.stringify(result));
+            }
 
             var deferred = self._keeper.remove(electionId);
             if (!deferred){
@@ -151,15 +172,20 @@ ElectionDb.prototype.getElection = function(electionId, timeout) {
                 error.httpCode = 404;
                 deferred.reject(error);
             } else {
-                delete result[0]._id;
+                delete result._id;
                 election.lastSync   = new Date();
-                election.data       = result[0];
+                election.data       = result;
                 election.votingBooth.clear();
                 deferred.resolve(election.data);
             }
         });
     } else {
         self._coll.findOne({'id' : electionId}, function(err,item){
+            if (err) {
+                log.error('getElection::findOne - %1:',err.message);
+            } else {
+                log.trace('getElection::findOne item: %1',JSON.stringify(item));
+            }
             var deferred = self._keeper.remove(electionId);
             if (!deferred){
             // log error here
@@ -176,6 +202,7 @@ ElectionDb.prototype.getElection = function(electionId, timeout) {
             } else {
                 delete item._id;
                 election            = self._cache[electionId] || {};
+                election.id         = electionId;
                 election.lastSync   = new Date();
                 election.data       = item;
                 if (!election.votingBooth) {
@@ -209,7 +236,7 @@ ElectionDb.prototype.getBallotItem  = function(id,itemId,timeout){
 
     self.getElection(id)
         .then(function(election){
-            var deferred = self._keeper.remove(defKey);
+            var deferred = self._keeper.remove(defKey), result;
 
             if (!election.ballot){
                 deferred.reject(
@@ -221,11 +248,9 @@ ElectionDb.prototype.getBallotItem  = function(id,itemId,timeout){
                     new Error('Unable to locate ballot item.')
                 );
             } else {
-                deferred.resolve({
-                    election    : id,
-                    ballotItem  : itemId,
-                    votes       : election.ballot[itemId]
-                });
+                result = { id : election.id , ballot : {} };
+                result.ballot[itemId] = election.ballot[itemId];
+                deferred.resolve(result);
             }
         })
         .catch(function(err){
@@ -245,6 +270,7 @@ ElectionDb.prototype.recordVote     = function(vote){
 
     if (!election){
         election = {
+            id          : vote.election,
             data        : null,
             votingBooth : null,
             lastSync    : new Date()
@@ -272,6 +298,45 @@ ElectionDb.prototype.recordVote     = function(vote){
 };
 
 
+app.convertObjectValsToPercents = function(object){
+    var sum = 0, result = {};
+
+    Object.keys(object).forEach(function(key){
+        result[key] = 0;
+        sum += object[key];
+    });
+
+    if (sum > 0){
+        Object.keys(object).forEach(function(key){
+            result[key] = Math.round( (object[key] / sum) * 100) / 100;
+        });
+    }
+
+    return result;
+};
+
+app.convertElection = function(election){
+    var result = {};
+    result.id = election.id;
+    result.ballot = {};
+    Object.keys(election.ballot).forEach(function(ballotId){
+        result.ballot[ballotId] = app.convertObjectValsToPercents(election.ballot[ballotId]);
+    });
+
+    return result;
+};
+
+app.syncElections = function(elDb){
+    var log = logger.getLog();
+    log.trace('Idle Sync timeout.');
+    elDb.getCachedElections().forEach(function(election){
+        if (election.votingBooth.dirty){
+            log.trace('Election %1 will be syncd.',election.id);
+            elDb.getElection(election.id);
+        }
+    });
+    return this;
+};
 
 app.main = function(state){
     var log = logger.getLog(), webServer,
@@ -310,6 +375,17 @@ app.main = function(state){
         }
         next();
     });
+    
+    webServer.post('/vote', function(req, res, next){
+        if ((!req.body.election) || (!req.body.ballotItem) ||  (!req.body.vote)) {
+            res.send(400, 'Invalid request.\n');
+            return;
+        }
+
+        elDb.recordVote(req.body);
+        res.send(200);
+    });
+
 
     webServer.get('/election/:electionId', function(req, res, next){
         if (!req.params || !req.params.electionId ) {
@@ -317,9 +393,9 @@ app.main = function(state){
             return;
         }
 
-        elDb.getElection(req.params.electionId,2000)
+        elDb.getElection(req.params.electionId,state.config.requestTimeout)
             .then(function(election){
-                res.send(200,election);
+                res.send(200,app.convertElection(election));
             })
             .catch(function(err){
                 if (err.message.match(/Timed out after/)){
@@ -339,13 +415,31 @@ app.main = function(state){
             res.send(400, 'You must provide the electionId and itemId in the request url.\n');
             return;
         }
-        res.send(200,
-            'Election is: ' + req.params.electionId + '\n' + 
-            'Item id is: ' + req.params.itemId + '\n');
+        elDb.getBallotItem(req.params.electionId, req.params.itemId, state.config.requestTimeout)
+            .then(function(election){
+                res.send(200,app.convertElection(election)); 
+            })
+            .catch(function(err){
+                if (err.message.match(/Timed out after/)){
+                    err.httpCode = 408;
+                }
+                log.error('getElection Error: %1',err.message);
+                if (err.httpCode){
+                    res.send(err.httpCode,err.message + '\n');
+                } else {
+                    res.send(500,'Internal error.\n' );
+                }
+            });
     });
 
     webServer.listen(state.cmdl.port);
     log.info('Service is listening on port: ' + state.cmdl.port);
+
+    if(state.config.idleSyncTimeout > 0){
+        setInterval(function(){
+            app.syncElections(elDb);
+        }, state.config.idleSyncTimeout);
+    }
 
     return state;
 };
@@ -374,6 +468,7 @@ if (!__ut__){
     });
 } else {
     module.exports = {
+        'app'         : app,
         'ElectionDb'  : ElectionDb,
         'VotingBooth' : VotingBooth
     };
