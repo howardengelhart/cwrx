@@ -368,8 +368,8 @@ app.syncElections = function(elDb){
     var log = logger.getLog(),
         cached = elDb.getCachedElections();
     return q.allSettled(cached.map(function(election){
-        log.trace('Election %1, dirty=%2', election.id, election.votingBooth.dirty);
         if (election.votingBooth.dirty){
+            log.trace('sync Election %1', election.id);
             return elDb.getElection(election.id);
         } 
         return q(true);
