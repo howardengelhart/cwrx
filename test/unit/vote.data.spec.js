@@ -647,6 +647,46 @@ describe('vote.data',function(){
                 expect(elDb.getCachedElections().length).toEqual(0);
             });
         });
+
+
+        describe('updateVoteCounts',function(){
+            var elDb ;
+            beforeEach(function(){
+                elDb = new ElectionDb(mockDb);
+                resolveSpy = jasmine.createSpy('updateVoteCounts.resolve');
+                rejectSpy = jasmine.createSpy('updateVoteCounts.reject');
+            });
+
+            it ('will send mongo an update for each item with pending votes', function(done){
+                var clearSpy = jasmine.createSpy('vb.clear');
+                elDb._cache = {
+                    'abc' : { id : 'abc', votingBooth : new VotingBooth('abc') },
+                    'def' : { id : 'def', votingBooth : new VotingBooth('def') },
+                    'ghi' : { id : 'ghi', votingBooth : new VotingBooth('ghi') }
+                };
+
+                elDb._cache['abc'].votingBooth._items = { 'a' : { 'a1' : 2, 'a2' : 3 } };
+                elDb._cache['abc'].votingBooth.clear = clearSpy;
+                elDb._cache['def'].votingBooth._items = { 'd' : { 'd1' : 2, 'd2' : 3 } };
+                elDb._cache['def'].votingBooth.clear = clearSpy;
+
+                spyOn(q,'allSettled').andCallFake(function(){
+                    return q.resolve(true);
+                });
+                
+                spyOn(q,'ninvoke').andReturn(q.resolve(true));;
+               
+                elDb.updateVoteCounts()
+                    .then(resolveSpy,rejectSpy)
+                    .finally(function(){
+                        expect(resolveSpy).toHaveBeenCalled();
+                        expect(rejectSpy).not.toHaveBeenCalled();
+                        expect(q.allSettled).toHaveBeenCalled();
+                        expect(q.ninvoke.callCount).toEqual(2);
+                        expect(clearSpy.callCount).toEqual(2);
+                    }).done(done);
+            });
+        });
     });
 
     describe('app',function(){

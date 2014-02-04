@@ -1,8 +1,8 @@
 describe('vote (E2E)', function(){
-    var flush, testUtils, makeUrl;
+    var testUtils, q, makeUrl, restart = true;
     beforeEach(function(){
         var urlBase;
-        if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
+        q           = require('q');
         testUtils   = require('./testUtils');
         
         urlBase = 'http://' + (process.env['E2EHOST'] ? process.env['E2EHOST'] : '33.33.33.10');
@@ -18,7 +18,7 @@ describe('vote (E2E)', function(){
                 id: 'e1',
                 ballot:   {
                     'b1' : { 'red apple'      : 10, 'yellow banana'  : 20, 'orange carrot'  : 30 },
-                    'b2' : { 'one chicken'    : 10, 'two ducks'      : 20 }
+                    'b2' : { 'one chicken'    : 0, 'two ducks'      : 2 }
                 }
             },
             {
@@ -37,9 +37,23 @@ describe('vote (E2E)', function(){
                 data: mockData
             }
         };
-        testUtils.qRequest('post', options).done(function(resp) {
-            done();
-        });
+        testUtils.qRequest('post', options)
+            .then(function(resp){
+                if (restart){
+                    options.url = makeUrl('/maint/service/restart');
+                    options.json = { service : 'vote' };
+                    return testUtils.qRequest('post',options);
+                }
+                return resp;
+            })
+            .done(function(resp) {
+                if (restart){
+                    restart = false;
+                    setTimeout(function(){ done(); },2000);
+                } else {
+                    done();
+                }
+            });
     });
 
     describe('GET /election/:id',function(){
@@ -52,8 +66,8 @@ describe('vote (E2E)', function(){
                     expect(resp.body.ballot.b1['red apple']).toEqual(0.17);
                     expect(resp.body.ballot.b1['yellow banana']).toEqual(0.33);
                     expect(resp.body.ballot.b1['orange carrot']).toEqual(0.50);
-                    expect(resp.body.ballot.b2['one chicken']).toEqual(0.33);
-                    expect(resp.body.ballot.b2['two ducks']).toEqual(0.67);
+                    expect(resp.body.ballot.b2['one chicken']).toEqual(0.0);
+                    expect(resp.body.ballot.b2['two ducks']).toEqual(1.0);
                 })
                 .catch(function(err){
                     expect(err).not.toBeDefined();
@@ -164,12 +178,12 @@ describe('vote (E2E)', function(){
                 })
                 .finally(done);
         });
-
-        it('returns success if request is valid',function(done){
+        
+        it('returns success if request is valid, but has bad election',function(done){
             options.json = {
-                election : 'e1',
-                ballotItem: 'b2',
-                vote:       'one chicken'
+                election : 'e9999',
+                ballotItem: 'b99',
+                vote:       '99 chicken'
             };
             
             testUtils.qRequest('post', options)
@@ -184,6 +198,66 @@ describe('vote (E2E)', function(){
 
         });
 
+        it('returns success if request is valid',function(done){
+            options.json = {
+                election : 'e1',
+                ballotItem: 'b2',
+                vote:       'one chicken'
+            };
+            
+            testUtils.qRequest('post', options)
+                .then(function(resp){
+                    expect(resp.response.statusCode).toEqual(200);
+                    expect(resp.body).toEqual('OK');
+                })
+                .then(function(){
+                    return testUtils.qRequest('get', { url : makeUrl('/election/e1/ballot/b2')});
+                })
+                .then(function(resp){
+                    expect(resp.body.ballot.b2['one chicken']).toEqual(0.33);
+                })
+                .catch(function(err){
+                    expect(err).not.toBeDefined();
+                })
+                .finally(done);
+
+        });
+
+        it('persists votes if terminated', function(done){
+            options.json = {
+                election : 'e1',
+                ballotItem: 'b2',
+                vote:       'one chicken'
+            };
+            
+            testUtils.qRequest('post', options)
+                .then(function(resp){
+                    expect(resp.response.statusCode).toEqual(200);
+                    expect(resp.body).toEqual('OK');
+                })
+                .then(function(){
+                    var deferred = q.defer();
+                    testUtils.qRequest('post',{ 
+                            url : makeUrl('/maint/service/restart'),
+                            json : { service : 'vote' } })
+                        .finally(function(){
+                            setTimeout(function(){
+                                deferred.resolve(true);
+                            },2000);
+                        });
+                    return deferred.promise;
+                })
+                .then(function(){
+                    return testUtils.qRequest('get', { url : makeUrl('/election/e1/ballot/b2')});
+                })
+                .then(function(resp){
+                    expect(resp.body.ballot.b2['one chicken']).toEqual(0.50);
+                })
+                .catch(function(err){
+                    expect(err).not.toBeDefined();
+                })
+                .finally(done);
+        });
 
     });
 });
