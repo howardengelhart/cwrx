@@ -136,7 +136,7 @@ ElectionDb.prototype.updateVoteCounts = function(){
         }
     });
 
-    log.trace('check updates: %1',JSON.stringify(updates));
+    log.trace('updates to save: %1',updates.length);
     return q.allSettled(updates.map(function(update){
         var deferred = q.defer();
         q.ninvoke(self._coll,'update',
@@ -363,7 +363,6 @@ app.convertElection = function(election){
 app.syncElections = function(elDb){
     var log = logger.getLog(),
         cached = elDb.getCachedElections();
-    log.trace('CACHED: %1', JSON.stringify(cached));
     return q.allSettled(cached.map(function(election){
         log.trace('Election %1, dirty=%2', election.id, election.votingBooth.dirty);
         if (election.votingBooth.dirty){
@@ -371,9 +370,6 @@ app.syncElections = function(elDb){
         } 
         return q(true);
     }))
-    .then(function(results){
-        log.trace('sync succeded: %1',JSON.stringify(results));
-    })
     .catch(function(error){
         log.trace('Failed with: %1',error.message);
     });
@@ -389,7 +385,9 @@ app.main = function(state){
 
     state.onSIGTERM = function(){
         log.info('Received sigterm, sync and exit.');
-        return elDb.updateVoteCounts();
+        return elDb.updateVoteCounts().then(function(results){
+            log.trace('results: %1',JSON.stringify(results));   
+        });
     };
 
     log.info('Running as cluster worker, proceed with setting up web server.');
