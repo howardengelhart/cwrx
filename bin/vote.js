@@ -327,10 +327,12 @@ app.convertElection = function(election){
 };
 
 app.syncElections = function(elDb){
-    var log = logger.getLog();
-    return q.allSettled(elDb.getCachedElections().map(function(election){
+    var log = logger.getLog(),
+        cached = elDb.getCachedElections();
+    log.trace('CACHED: %1', JSON.stringify(cached));
+    return q.allSettled(cached.map(function(election){
+        log.trace('Election %1, dirty=%2', election.id, election.votingBooth.dirty);
         if (election.votingBooth.dirty){
-            log.trace('Election %1 will be syncd.',election.id);
             return elDb.getElection(election.id);
         } 
         return q(true);
