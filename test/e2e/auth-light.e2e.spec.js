@@ -38,7 +38,7 @@ describe('auth-light (E2E):', function() {
     
     describe('auth process', function() {
         var user = {
-            username: 'johnnyTestmonkey',
+            username: 'auth-lightE2EUser',
             password: 'password'
         };
         var cookieJar = require('request').jar();
@@ -54,7 +54,7 @@ describe('auth-light (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.user).toBeDefined();
                 expect(resp.body.user.id).toBeDefined();
-                expect(resp.body.user.username).toBe("johnnyTestmonkey");
+                expect(resp.body.user.username).toBe("auth-lightE2EUser");
                 expect(resp.body.user.password).not.toBeDefined();
                 expect(resp.body.user.created).toBeDefined();
                 expect(resp.response.headers['set-cookie'].length).toBe(1);
@@ -94,7 +94,7 @@ describe('auth-light (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.user).toBeDefined();
                 expect(resp.body.user.id).toBeDefined();
-                expect(resp.body.user.username).toBe("johnnyTestmonkey");
+                expect(resp.body.user.username).toBe("auth-lightE2EUser");
                 expect(resp.body.user.password).not.toBeDefined();
                 expect(resp.body.user.created).toBeDefined();
                 expect(resp.response.headers['set-cookie'].length).toBe(1);

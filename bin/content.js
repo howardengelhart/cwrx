@@ -112,21 +112,27 @@ content.QueryCache.prototype.getPromise = function(reqId, query, sort, limit, sk
 content.getExperiences = function(query, req, cache) {
     var limit = req.query && req.query.limit || 0,
         skip = req.query && req.query.skip || 0,
+        noCache = req.query && req.query.noCache || false,
         log = logger.getLog(),
-        sort;
+        sort, promise;
     try {
         sort = req.query && req.query.sort || '{}';
         sort = JSON.parse(sort);  //TODO: test this!!!
     } catch(e) {
         log.info('[%1] Sort %2 does not parse as object, ignoring', req.uuid, sort);
+        sort = {};
     }
         
     query = content.QueryCache.formatQuery(query, req.session.user || '');
     
     log.info('[%1] Getting Experiences with %2, sort %3, limit %4, skip %5',
              req.uuid, JSON.stringify(query), JSON.stringify(sort), limit, skip);
-    return cache.getPromise(req.uuid, query, sort, limit, skip)
-    .then(function(experiences) {
+    if (noCache) {
+        promise = q.npost(cache._coll.find(query, {sort: sort, limit: limit, skip: skip}), 'toArray');
+    } else {
+        promise = cache.getPromise(req.uuid, query, sort, limit, skip);
+    }
+    return promise.then(function(experiences) {
         log.info('[%1] Retrieved %2 experiences', req.uuid, experiences.length);
         return q({code: 200, body: experiences});
     }).catch(function(error) {
@@ -181,16 +187,19 @@ content.updateExperience = function(req, experiences) {
                 log.info('[%1] User %2 is not authorized to edit %3', req.uuid, user.id, id);
                 return deferred.resolve({code: 401, body: "Not authorized to edit this experience"});
             }
+            obj._id = orig._id;
         } else {
             log.info('[%1] Experience %2 does not exist; creating it', req.uuid, id);
             obj.created = now;
             obj.status = 'active';
         }
         obj.lastUpdated = now;
-        return q.npost(experiences, 'update', [{id: id}, obj, {w: 1, journal: true, upsert: true}])
-        .then(function(old) {
-            log.info('[%1] User %2 successfully updated experience %3', req.uuid, user.id, old  .id);
-            deferred.resolve({code: 201, body: obj});
+        return q.npost(experiences, 'findAndModify', 
+                       [{id: id}, {id: 1}, obj, {w: 1, journal: true, upsert: true, new: true}])
+        .then(function(results) {
+            var updated = results[0];
+            log.info('[%1] User %2 successfully updated experience %3', req.uuid, user.id, updated.id);
+            deferred.resolve({code: 201, body: updated});
         });
     }).catch(function(error) {
         log.error('[%1] Error updating experience %2 for user %3: %4', req.uuid, id, user.id, error);
@@ -205,7 +214,7 @@ content.deleteExperience = function(req, experiences) {
         log = logger.getLog(),
         deferred = q.defer(),
         now;
-    log.info('[%1] User %2 is attempting to update experience %3', req.uuid, user.id, id);
+    log.info('[%1] User %2 is attempting to delete experience %3', req.uuid, user.id, id);
     q.npost(experiences, 'findOne', [{id: id}])
     .then(function(orig) {
         now = new Date();
@@ -224,8 +233,8 @@ content.deleteExperience = function(req, experiences) {
         }
         return q.npost(experiences, 'update', [{id: id},
                        {$set: {lastUpdated: now, status: 'deleted'}}, {w: 1, journal: true}])
-        .then(function(updated) {
-            log.info('[%1] User %2 successfully deleted experience %3', req.uuid, user.id, updated.id);
+        .then(function() {
+            log.info('[%1] User %2 successfully deleted experience %3', req.uuid, user.id, id);
             deferred.resolve({code: 200, body: "Successfully deleted experience"});
         });
     }).catch(function(error) {
@@ -319,7 +328,7 @@ content.main = function(state) {
     app.get('/content/experiences', authGetExp, function(req, res, next) {
         var query;
         try {
-            query = JSON.parse((req.query && req.query.selector) || '');
+            query = JSON.parse((req.query && req.query.selector) || '{}');
         } catch(e) {
             log.info('[%1] Selector cannot be parsed as an object, returning 400', req.uuid);
             return res.send(400, {

@@ -207,7 +207,7 @@ describe('content (UT)', function() {
             req = {
                 uuid: '1234',
                 query: {
-                    sort: {id: 1},
+                    sort: JSON.stringify({id: 1}),
                     limit: 20,
                     skip: 10
                 },
@@ -259,6 +259,46 @@ describe('content (UT)', function() {
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(content.QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery', 'fakeUser');
                 expect(cache.getPromise).toHaveBeenCalledWith('1234', 'formatted', {id: 1}, 20, 10);
+                done();
+            });
+        });
+        
+        it('should just ignore the sort param if not an object', function(done) {
+            req.query.sort = 'foo';
+            content.getExperiences(query, req, cache).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual(['fake1', 'fake2']);
+                expect(content.QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery', 'fakeUser');
+                expect(cache.getPromise).toHaveBeenCalledWith('1234', 'formatted', {}, 20, 10);
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should access mongo directly if the query contains noCache', function(done) {
+            req.query.noCache = true;
+            var fakeCursor = {
+                toArray: jasmine.createSpy('cursor.toArray').andCallFake(function(cb) {
+                    cb(null, ['fake1', 'fake2'])
+                })
+            };
+            cache._coll = {
+                find: jasmine.createSpy('coll.find').andReturn(fakeCursor)
+            };
+            content.getExperiences(query, req, cache).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual(['fake1', 'fake2']);
+                expect(content.QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery', 'fakeUser');
+                expect(cache.getPromise).not.toHaveBeenCalled();
+                var opts = {sort: { id: 1}, limit: 20, skip: 10};
+                expect(cache._coll.find).toHaveBeenCalledWith('formatted', opts);
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
@@ -330,8 +370,8 @@ describe('content (UT)', function() {
             req.user = {id: 'u-1234'};
             experiences.findOne = jasmine.createSpy('experiences.findOne')
                 .andCallFake(function(query, cb) { cb(null, oldExp); });
-            experiences.update = jasmine.createSpy('experiences.update')
-                .andCallFake(function(query, obj, opts, cb) { cb(null, 1); });
+            experiences.findAndModify = jasmine.createSpy('experiences.findAndModify')
+                .andCallFake(function(query, sort, obj, opts, cb) { cb(null, obj, 'lastErrorObj'); });
         });
         
         it('should fail with a 400 if no experience is provided', function(done) {
@@ -359,11 +399,12 @@ describe('content (UT)', function() {
                 
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findOne.calls[0].args[0]).toEqual({id: 'e-1234'});
-                expect(experiences.update).toHaveBeenCalled();
-                expect(experiences.update.calls[0].args[0]).toEqual({id: 'e-1234'});
-                expect(experiences.update.calls[0].args[1]).toBe(resp.body);
-                expect(experiences.update.calls[0].args[2])
-                    .toEqual({w: 1, journal: true, upsert: true});
+                expect(experiences.findAndModify).toHaveBeenCalled();
+                expect(experiences.findAndModify.calls[0].args[0]).toEqual({id: 'e-1234'});
+                expect(experiences.findAndModify.calls[0].args[1]).toEqual({id: 1});
+                expect(experiences.findAndModify.calls[0].args[2]).toBe(resp.body);
+                expect(experiences.findAndModify.calls[0].args[3])
+                    .toEqual({w: 1, journal: true, upsert: true, new: true});
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -377,7 +418,7 @@ describe('content (UT)', function() {
                 expect(resp.code).toBe(401);
                 expect(resp.body).toBe("Not authorized to edit this experience");
                 expect(experiences.findOne).toHaveBeenCalled();
-                expect(experiences.update).not.toHaveBeenCalled();
+                expect(experiences.findAndModify).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -397,7 +438,7 @@ describe('content (UT)', function() {
                 expect(resp.body.user).toBe('u-1234');
                 
                 expect(experiences.findOne).toHaveBeenCalled();
-                expect(experiences.update).toHaveBeenCalled();
+                expect(experiences.findAndModify).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -406,13 +447,13 @@ describe('content (UT)', function() {
         });
         
         it('should fail with an error if modifying the record fails', function(done) {
-            experiences.update.andCallFake(function(query, obj, opts, cb) { cb('Error!'); });
+            experiences.findAndModify.andCallFake(function(query, sort, obj, opts, cb) { cb('Error!'); });
             content.updateExperience(req, experiences).then(function(resp) {
                 expect(resp).not.toBeDefined();
                 done();
             }).catch(function(error) {
                 expect(error).toBe('Error!');
-                expect(experiences.update).toHaveBeenCalled();
+                expect(experiences.findAndModify).toHaveBeenCalled();
                 done();
             });
         });
@@ -425,7 +466,7 @@ describe('content (UT)', function() {
             }).catch(function(error) {
                 expect(error).toBe('Error!');
                 expect(experiences.findOne).toHaveBeenCalled();
-                expect(experiences.update).not.toHaveBeenCalled();
+                expect(experiences.findAndModify).not.toHaveBeenCalled();
                 done();
             });
         });
