@@ -125,20 +125,31 @@ ElectionDb.prototype.updateVoteCounts = function(){
     Object.keys(self._cache).forEach(function(key){
         var election = self._cache[key], u = {};
         if ((election.votingBooth) && (election.votingBooth.dirty)){
-            u.electionId = key;
+            u.election = election;
             election.votingBooth.each(function(ballotId,vote,count){
                 if (u.voteCounts === undefined) {
                     u.voteCounts = {};
                 }
                 u.voteCounts['ballot.' + ballotId + '.' + vote] = count;
             });
+            updates.push(u);
         }
     });
 
     log.trace('check updates: %1',JSON.stringify(updates));
     return q.allSettled(updates.map(function(update){
-        return q.ninvoke(self._coll,'update',
-            { 'id' : update.electionId }, { $inc : u.voteCounts }, { w : 1 });
+        var deferred = q.defer();
+        q.ninvoke(self._coll,'update',
+            { 'id' : update.election.id }, { $inc : update.voteCounts }, { w : 1 })
+            .then(function(){
+                update.election.votingBooth.clear();
+                deferred.resolve(update);
+            })
+            .catch(function(err){
+                err.update = update;
+                deferred.reject(err);
+            });
+        return deferred.promise;
     }));
 };
 
