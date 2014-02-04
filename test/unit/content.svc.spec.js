@@ -193,8 +193,9 @@ describe('content (UT)', function() {
                     expect(fakeColl.find).toHaveBeenCalled();
                     expect(fakeCursor.toArray).toHaveBeenCalled();
                     expect(uuid.hashText).toHaveBeenCalled();
-                    expect(cache._keeper._deferreds.fakeHash).toBeDefined();
-                    expect(cache._keeper.rejectedCount).toBe(1);
+                    // should not cache errors from mongo
+                    expect(cache._keeper._deferreds.fakeHash).not.toBeDefined();
+                    expect(cache._keeper.rejectedCount).toBe(0);
                     done();
                 });
             });

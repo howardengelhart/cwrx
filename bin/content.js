@@ -98,7 +98,11 @@ content.QueryCache.prototype.getPromise = function(reqId, query, sort, limit, sk
     log.info("[%1] Query %2 cache miss", reqId, key);
     deferred = self._keeper.defer(key);
     q.npost(self._coll.find(query, {sort: sort, limit: limit, skip: skip}), 'toArray')
-        .then(deferred.resolve, deferred.reject);  //TODO: should we be caching errors?
+        .then(deferred.resolve)
+        .catch(function(error) { // don't cache mongo errors; may change depending on what mongo errors we could expect
+            self._keeper.remove(key, true);
+            deferred.reject(error);
+        });
     
     setTimeout(function() {
         log.trace("Removing query %1 from the cache", key);
