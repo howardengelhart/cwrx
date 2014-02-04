@@ -245,7 +245,7 @@ describe('maint (UT)', function() {
             var resolveSpy = jasmine.createSpy('restartService.resolve'),
                 rejectSpy = jasmine.createSpy('restartService.reject');
             spyOn(child_process,'exec').andCallFake(function(cmd,cb){
-                cb({ message : 'failed' }),null,null);
+                cb({ message : 'failed' },null,null);
             });
 
             maint.restartService('abc')
