@@ -328,7 +328,7 @@ app.convertElection = function(election){
 
 app.syncElections = function(elDb){
     var log = logger.getLog();
-    q.allSettled(elDb.getCachedElections().map(function(election){
+    return q.allSettled(elDb.getCachedElections().map(function(election){
         if (election.votingBooth.dirty){
             log.trace('Election %1 will be syncd.',election.id);
             return elDb.getElection(election.id);
@@ -341,8 +341,6 @@ app.syncElections = function(elDb){
     .catch(function(error){
         log.trace('Failed with:',error.message);
     });
-
-    return this;
 };
 
 app.main = function(state){
