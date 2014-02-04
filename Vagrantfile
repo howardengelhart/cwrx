@@ -51,18 +51,29 @@ Vagrant.configure("2") do |config|
     
     if ENV['CWRX_APP'] == 'vote'
         chef.json = {
-          :vote => {
-           :source => {
-               :branch => "#{ENV['CWRX_DEV_BRANCH']}",
-           },
-           :cfg => {
-               :loglevel => "trace"
-           }
-         }
+            :vote => {
+                :source => {
+                    :branch => "#{ENV['CWRX_DEV_BRANCH']}",
+                },
+                :cfg => {
+                    :loglevel => "trace"
+                }
+            },
+            :maint => {
+                :source => {
+                    :branch => "#{ENV['CWRX_DEV_BRANCH']}",
+                },
+                :mongo => {
+                    :host => "33.33.33.100",
+                    :port => "27017",
+                    :db   => "voteDb"
+                }
+            }
         }
     
         chef.run_list = [
-            "recipe[vote::default]"
+            "recipe[vote]",
+            "recipe[maint]"
         ]
     end
   end

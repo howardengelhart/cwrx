@@ -1,25 +1,51 @@
 describe('vote (E2E)', function(){
-    var host, port, testUrl, flush, testUtils;
+    var flush, testUtils, makeUrl;
     beforeEach(function(){
+        var urlBase;
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
-        host        = process.env['E2EHOST'] ? process.env['E2EHOST'] : '33.33.33.10';
-        port        = process.env['E2EPORT'] ? process.env['E2EPORT'] : 80;
         testUtils   = require('./testUtils');
-      
-        if (port === 443){
-            testUrl = 'https://' + host;
-        } else {
-            testUrl = 'http://' + host;
-            if (port !== 80){
-                testUrl += ':' + port;
-            }
+        
+        urlBase = 'http://' + (process.env['E2EHOST'] ? process.env['E2EHOST'] : '33.33.33.10');
+        makeUrl = function(fragment){
+            return urlBase + fragment;
         }
+        
+    });
+
+    beforeEach(function(done) {
+        var mockData = [
+            {
+                id: 'e1',
+                ballot:   {
+                    'b1' : { 'red apple'      : 10, 'yellow banana'  : 20, 'orange carrot'  : 30 },
+                    'b2' : { 'one chicken'    : 10, 'two ducks'      : 20 }
+                }
+            },
+            {
+                id: 'e2',
+                ballot:   {
+                    'b1' : { 'one fish'   : 10, 'two fish'   : 20, },
+                    'b2' : { 'red fish'   : 30, 'blue fish'  : 40 }
+                }
+            }
+        ];
+        
+        var options = {
+            url: makeUrl('/maint/reset_collection'),
+            json: {
+                collection: "elections",
+                data: mockData
+            }
+        };
+        testUtils.qRequest('post', options).done(function(resp) {
+            done();
+        });
     });
 
     describe('GET /election/:id',function(){
 
         it('gets an election if it exists',function(done){
-            testUtils.qRequest('get', { url : testUrl + '/election/e1'})
+            testUtils.qRequest('get', { url : makeUrl('/election/e1')})
                 .then(function(resp){
                     expect(resp.response.statusCode).toEqual(200);
                     expect(resp.body.id).toEqual('e1');
@@ -38,7 +64,7 @@ describe('vote (E2E)', function(){
         });
 
         it('returns with a 404 if the election does not exist',function(done){
-            testUtils.qRequest('get', { url : testUrl + '/election/e1x'})
+            testUtils.qRequest('get', { url : makeUrl('/election/e1x')})
                 .then(function(resp){
                     expect(resp.response.statusCode).toEqual(404);
                 })
@@ -52,7 +78,7 @@ describe('vote (E2E)', function(){
         });
 
         it('returns with 404 if the electionId is not passed',function(done){
-            testUtils.qRequest('get', { url : testUrl + '/election'})
+            testUtils.qRequest('get', { url : makeUrl('/election')})
                 .then(function(resp){
                     expect(resp.response.statusCode).toEqual(404);
                     expect(resp.body).toEqual('Cannot GET /election');
@@ -72,7 +98,7 @@ describe('vote (E2E)', function(){
     describe('GET /election/:id/ballot:id',function(){
 
         it('gets a ballot if it and the election exist',function(done){
-            testUtils.qRequest('get', { url : testUrl + '/election/e2/ballot/b2'})
+            testUtils.qRequest('get', { url : makeUrl('/election/e2/ballot/b2')})
                 .then(function(resp){
                     expect(resp.response.statusCode).toEqual(200);
                     expect(resp.body.id).toEqual('e2');
@@ -89,7 +115,7 @@ describe('vote (E2E)', function(){
         });
         
         it('returns with a 404 if the election does not exist',function(done){
-            testUtils.qRequest('get', { url : testUrl + '/election/e2x/ballot/b2'})
+            testUtils.qRequest('get', { url : makeUrl('/election/e2x/ballot/b2')})
                 .then(function(resp){
                     expect(resp.response.statusCode).toEqual(404);
                 })
@@ -103,7 +129,7 @@ describe('vote (E2E)', function(){
         });
 
         it('returns with a 404 if the ballot does not exist',function(done){
-            testUtils.qRequest('get', { url : testUrl + '/election/e2/ballot/b3'})
+            testUtils.qRequest('get', { url : makeUrl('/election/e2/ballot/b3')})
                 .then(function(resp){
                     expect(resp.response.statusCode).toEqual(404);
                 })

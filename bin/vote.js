@@ -244,9 +244,9 @@ ElectionDb.prototype.getBallotItem  = function(id,itemId,timeout){
                 );
             }
             else if (!election.ballot[itemId]){
-                deferred.reject(
-                    new Error('Unable to locate ballot item.')
-                );
+                var error = new Error('Unable to locate ballot item.');
+                error.httpCode = 404;
+                deferred.reject( error );
             } else {
                 result = { id : election.id , ballot : {} };
                 result.ballot[itemId] = election.ballot[itemId];
