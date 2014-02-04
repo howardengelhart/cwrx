@@ -200,10 +200,12 @@ ElectionDb.prototype.getElection = function(electionId, timeout) {
                 err.httpCode = 400;
                 deferred.reject(err);
             }
-            else if ((result === null) || (result[0] === null)){
+            else if (result === null) {
                 var error = new Error('Unable to locate election.');
                 error.httpCode = 404;
                 deferred.reject(error);
+                log.info('Remove invalid election [%1] from cache',electionId);
+                delete self._cache[electionId];
             } else {
                 delete result._id;
                 election.lastSync   = new Date();
@@ -233,6 +235,8 @@ ElectionDb.prototype.getElection = function(electionId, timeout) {
                 var error = new Error('Unable to locate election.');
                 error.httpCode = 404;
                 deferred.reject(error);
+                log.info('Remove invalid election [%1] from cache',electionId);
+                delete self._cache[electionId];
             } else {
                 delete item._id;
                 election            = self._cache[electionId] || {};

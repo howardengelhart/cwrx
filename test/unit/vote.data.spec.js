@@ -319,6 +319,37 @@ describe('vote.data',function(){
                         expect(mockDb.findAndModify).toHaveBeenCalled();
                         expect(resolveSpy.argsForCall[0]).toEqual([mockData]);
                         expect(elDb._keeper.getDeferred('abc',true)).not.toBeDefined();
+                        expect(elDb._cache['el-abc']).toBeDefined();
+                    }).done(done);
+            });
+
+            it('clears the election from cache if has votes, but cannot find the election',function(done){
+                elDb._syncIval = 1000;
+                elDb._cache['el-abc'] = {
+                    lastSync : new Date(),
+                    data     : null,
+                    votingBooth : new VotingBooth('el-abc')
+                };
+                elDb._cache['el-abc'].votingBooth._items = {
+                    'item-1' : {
+                        'bad and nasty'    : 20 ,
+                        'ugly and fat'     : 30 
+                    }
+                };
+                
+                mockDb.findAndModify.andCallFake(function(query,sort,update,options,cb){
+                    process.nextTick(function(){
+                        cb(null,null);
+                    });
+                });
+                
+                elDb.getElection('el-abc')
+                    .then(resolveSpy,rejectSpy)
+                    .finally(function(){
+                        expect(resolveSpy).not.toHaveBeenCalled();
+                        expect(rejectSpy).toHaveBeenCalled();
+                        expect(mockDb.findAndModify).toHaveBeenCalled();
+                        expect(elDb._cache['el-abc'].not.toBeDefined();
                     }).done(done);
             });
 
