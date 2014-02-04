@@ -120,6 +120,28 @@ ElectionDb.prototype.getCachedElections = function(){
     return result;
 };
 
+ElectionDb.prototype.updateVoteCounts = function(){
+    var self = this, updates = [], log = logger.getLog();
+    Object.keys(self._cache).forEach(function(key){
+        var election = self._cache[key], u = {};
+        if ((election.votingBooth) && (election.votingBooth.dirty)){
+            u.electionId = key;
+            election.votingBooth.each(function(ballotId,vote,count){
+                if (u.voteCounts === undefined) {
+                    u.voteCounts = {};
+                }
+                u.voteCounts['ballot.' + ballotId + '.' + vote] = count;
+            });
+        }
+    });
+
+    log.trace('check updates: %1',JSON.stringify(updates));
+    return q.allSettled(updates.map(function(update){
+        return q.ninvoke(self._coll,'update',
+            { 'id' : update.electionId }, { $inc : u.voteCounts }, { w : 1 });
+    }));
+};
+
 ElectionDb.prototype.getElection = function(electionId, timeout) {
     var self = this, deferred = self._keeper.getDeferred(electionId),
         election = self._cache[electionId], voteCounts,
@@ -356,7 +378,7 @@ app.main = function(state){
 
     state.onSIGTERM = function(){
         log.info('Received sigterm, sync and exit.');
-        return app.syncElections(elDb);
+        return elDb.updateVoteCounts();
     };
 
     log.info('Running as cluster worker, proceed with setting up web server.');
