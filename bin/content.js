@@ -117,7 +117,7 @@ content.getExperiences = function(query, req, cache) {
         sort, promise;
     try {
         sort = req.query && req.query.sort || '{}';
-        sort = JSON.parse(sort);  //TODO: test this!!!
+        sort = JSON.parse(sort);
     } catch(e) {
         log.info('[%1] Sort %2 does not parse as object, ignoring', req.uuid, sort);
         sort = {};
@@ -155,7 +155,7 @@ content.createExperience = function(req, experiences) {
     obj.created = now;
     obj.lastUpdated = now;
     obj.user = user.id;
-    obj.status = 'active';
+    if (!obj.status) obj.status = 'active';
     if (!obj.access) obj.access = 'public';
     return q.npost(experiences, 'insert', [obj, {w: 1, journal: true}])
     .then(function() {
@@ -388,7 +388,9 @@ content.main = function(state) {
         var data = {
             version: state.config.appVersion,
             config: {
-                mongo: state.config.mongo
+                mongo: state.config.mongo,
+                sessions: state.config.sessions,
+                cacheTTLs: state.config.cacheTTLs
             }
         };
         res.send(200, data);

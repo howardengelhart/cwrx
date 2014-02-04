@@ -114,7 +114,7 @@ describe('auth-light (E2E):', function() {
             
             testUtils.qRequest('del', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe("Successfully deleted account");;
+                expect(resp.body).toBe("Successfully deleted account");
                 expect(resp.response.headers['set-cookie']).not.toBeDefined();
                 var loginOpts = {
                     url: config.authUrl + '/login',

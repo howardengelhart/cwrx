@@ -606,7 +606,5 @@ describe('content (E2E):', function() {
                 done();
             });
         });
-        
-        //TODO more
     });
 });
