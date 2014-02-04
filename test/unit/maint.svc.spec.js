@@ -1,14 +1,15 @@
 var flush = true;
 describe('maint (UT)', function() {
     var maint, traceSpy, errorSpy, warnSpy, infoSpy, fatalSpy, logSpy, mockLogger, mockAws,
-        path, fs, q, cwrxConfig, sanitize;
+        path, fs, q, cwrxConfig, sanitize, child_process;
     
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
 
-        path        = require('path');
-        fs          = require('fs-extra');
-        q           = require('q');
+        path            = require('path');
+        fs              = require('fs-extra');
+        q               = require('q');
+        child_process   = require('child_process');
         cwrxConfig  = require('../../lib/config');
         sanitize    = require('../sanitize');
 
@@ -38,7 +39,7 @@ describe('maint (UT)', function() {
                 loadFromPath: jasmine.createSpy('aws_config_loadFromPath')
             }
         };
-    
+
         maint = sanitize(['../bin/maint'])
                 .andConfigure([['../lib/logger', mockLogger], ['aws-sdk', mockAws]])
                 .andRequire();
@@ -221,7 +222,43 @@ describe('maint (UT)', function() {
             waitsFor(function() { return doneFlag; }, 3000);
         });
     });
-    
+   
+    describe('restartService', function(){
+        it('will resolve a promise if succeds',function(done){
+            var resolveSpy = jasmine.createSpy('restartService.resolve'),
+                rejectSpy = jasmine.createSpy('restartService.reject');
+            spyOn(child_process,'exec').andCallFake(function(cmd,cb){
+                cb(null,'OK',null);
+            });
+
+            maint.restartService('abc')
+                .then(resolveSpy,rejectSpy)
+                .finally(function(){
+                    expect(child_process.exec).toHaveBeenCalled();
+                    expect(resolveSpy).toHaveBeenCalledWith('abc'); 
+                    expect(rejectSpy).not.toHaveBeenCalled(); 
+                    done();
+                });
+        });
+
+        it('will reject if exec fails',function(done){
+            var resolveSpy = jasmine.createSpy('restartService.resolve'),
+                rejectSpy = jasmine.createSpy('restartService.reject');
+            spyOn(child_process,'exec').andCallFake(function(cmd,cb){
+                cb({ message : 'failed' }),null,null);
+            });
+
+            maint.restartService('abc')
+                .then(resolveSpy,rejectSpy)
+                .finally(function(){
+                    expect(child_process.exec).toHaveBeenCalled();
+                    expect(resolveSpy).not.toHaveBeenCalled(); 
+                    expect(rejectSpy).toHaveBeenCalledWith({ message : 'failed' }); 
+                    done();
+                });
+        });
+    });
+
     describe('resetCollection', function() {
         var db, collection, config;
         

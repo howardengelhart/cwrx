@@ -134,6 +134,25 @@ function removeFiles(remList) {
     return deferred.promise;
 }
 
+function restartService(serviceName) {
+    var log = logger.getLog(), exec = require('child_process').exec, child, deferred;
+    log.info('Will attempt to restart service: %1', serviceName);
+    deferred = q.defer(); 
+
+    child = exec('service ' + serviceName + ' restart', function (error, stdout, stderr) {
+        log.info('stdout: %1' , stdout);
+        log.info('stderr: %2' , stderr);
+        if (error !== null) {
+            log.error('exec error: %3' , error.message);
+            return deferred.reject(error);
+        }
+
+        deferred.resolve(serviceName);
+    });
+
+    return deferred.promise;
+}
+
 function resetCollection(db, collName, data, config) {
     var log = logger.getLog();
     log.info("Attempting to reset collection %1 in database %2 at %3:%4",
@@ -500,6 +519,25 @@ function main(done) {
                 });
             });
         });
+
+        app.post('/maint/service/restart', function(req, res, next){
+            if (!req.body || !req.body.service) {
+                res.send(400, {
+                    error: "Bad request",
+                    detail: "You must include service parameter"
+                });
+                return;
+            }
+            restartService(req.body.service)
+                .then(function(svcName){
+                    log.info('Successfully restarted %1',svcName);
+                    res.send(200);
+                })
+                .catch(function(error){
+                    log.error('Failed to restart %1: %2',req.body.service,error.message);
+                    res.send(500);
+                });
+        });
         
         app.get('/maint/meta', function(req, res, next){
             var data = {
@@ -523,9 +561,10 @@ function main(done) {
 if (__ut__) {
     module.exports = {
         getVersion: getVersion,
-        createConfiguration: createConfiguration,
+        createConfiguration : createConfiguration,
         defaultConfiguration: defaultConfiguration,
-        resetCollection: resetCollection,
-        removeFiles: removeFiles
+        resetCollection     : resetCollection,
+        restartService      : restartService,
+        removeFiles         : removeFiles
     };
 }

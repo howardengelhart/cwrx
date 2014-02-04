@@ -118,6 +118,7 @@ describe('vote (E2E)', function(){
             testUtils.qRequest('get', { url : makeUrl('/election/e2x/ballot/b2')})
                 .then(function(resp){
                     expect(resp.response.statusCode).toEqual(404);
+                    expect(resp.body).toEqual('Unable to locate election.\n');
                 })
                 .catch(function(err){
                     expect(err).not.toBeDefined();
@@ -132,6 +133,7 @@ describe('vote (E2E)', function(){
             testUtils.qRequest('get', { url : makeUrl('/election/e2/ballot/b3')})
                 .then(function(resp){
                     expect(resp.response.statusCode).toEqual(404);
+                    expect(resp.body).toEqual('Unable to locate ballot item.\n');
                 })
                 .catch(function(err){
                     expect(err).not.toBeDefined();
@@ -141,9 +143,47 @@ describe('vote (E2E)', function(){
                 });
 
         });
+    });
+
+    describe('POST /vote/',function(){
+        var options;
+        beforeEach(function(){
+            options = {
+                url: makeUrl('/vote'),
+                json: { }
+            };
+        });
+        it('fails with invalid request if body is invalid',function(done){
+            testUtils.qRequest('post', options)
+                .then(function(resp){
+                    expect(resp.response.statusCode).toEqual(400);
+                    expect(resp.body).toEqual('Invalid request.\n');
+                })
+                .catch(function(err){
+                    expect(err).not.toBeDefined();
+                })
+                .finally(done);
+        });
+
+        it('returns success if request is valid',function(done){
+            options.json = {
+                election : 'e1',
+                ballotItem: 'b2',
+                vote:       'one chicken'
+            };
+            
+            testUtils.qRequest('post', options)
+                .then(function(resp){
+                    expect(resp.response.statusCode).toEqual(200);
+                    expect(resp.body).toEqual('OK');
+                })
+                .catch(function(err){
+                    expect(err).not.toBeDefined();
+                })
+                .finally(done);
+
+        });
 
 
     });
-
-
 });
