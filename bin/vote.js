@@ -338,7 +338,7 @@ app.syncElections = function(elDb){
         return q(true);
     }))
     .then(function(results){
-        log.trace('sync succeded.');
+        log.trace('sync succeded:',JSON.stringify(results));
     })
     .catch(function(error){
         log.trace('Failed with:',error.message);
