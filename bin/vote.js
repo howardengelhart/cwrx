@@ -328,13 +328,20 @@ app.convertElection = function(election){
 
 app.syncElections = function(elDb){
     var log = logger.getLog();
-    log.trace('Idle Sync timeout.');
-    elDb.getCachedElections().forEach(function(election){
+    q.allSettled(elDb.getCachedElections().map(function(election){
         if (election.votingBooth.dirty){
             log.trace('Election %1 will be syncd.',election.id);
-            elDb.getElection(election.id);
-        }
+            return elDb.getElection(election.id);
+        } 
+        return q(true);
+    }))
+    .then(function(results){
+        log.trace('sync succeded.');
+    })
+    .catch(function(error){
+        log.trace('Failed with:',error.message);
     });
+
     return this;
 };
 
@@ -345,6 +352,11 @@ app.main = function(state){
         log.info('Cluster master, not a worker');
         return state;
     }
+
+    state.onSIGTERM = function(){
+        log.info('Received sigterm, sync and exit.');
+        return app.syncElections(elDb);
+    };
 
     log.info('Running as cluster worker, proceed with setting up web server.');
     webServer = express();
@@ -437,6 +449,7 @@ app.main = function(state){
 
     if(state.config.idleSyncTimeout > 0){
         setInterval(function(){
+            log.trace('Idle Sync timeout.');
             app.syncElections(elDb);
         }, state.config.idleSyncTimeout);
     }
