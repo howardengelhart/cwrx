@@ -338,10 +338,10 @@ app.syncElections = function(elDb){
         return q(true);
     }))
     .then(function(results){
-        log.trace('sync succeded:',JSON.stringify(results));
+        log.trace('sync succeded: %1',JSON.stringify(results));
     })
     .catch(function(error){
-        log.trace('Failed with:',error.message);
+        log.trace('Failed with: %1',error.message);
     });
 };
 
