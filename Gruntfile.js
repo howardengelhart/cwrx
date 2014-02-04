@@ -26,15 +26,6 @@ module.exports = function (grunt) {
             ]
         },
         watch: {
-            lint: {
-                files: [
-                    __filename,
-                    __dirname + '/bin/**/*.js',
-                    __dirname + '/lib/**/*.js',
-                    __dirname + '/test/**/*.js' 
-                ],
-                tasks: ['jshint']
-            },
             test: {
                 options: {
                     debounceDelay : 10000
@@ -44,7 +35,7 @@ module.exports = function (grunt) {
                     __dirname + '/lib/**/*.js',
                     __dirname + '/test/**/*.js' 
                 ],
-                tasks: ['unit_tests']
+                tasks: ['jshint', 'unit_tests']
             }
         },
         stop_instances: {
