@@ -148,7 +148,7 @@ ElectionDb.prototype.getElection = function(electionId, timeout) {
     }
 
     if (voteCounts) {
-        log.trace('voteCounts: %1',JSON.stringify(voteCounts));
+        log.trace('findAndModify: [%1] %2',electionId, JSON.stringify(voteCounts));
         self._coll.findAndModify({ 'id' : electionId }, null,
             { '$inc' : voteCounts }, { new : true }, function(err, result){
             if (err) {
@@ -180,6 +180,7 @@ ElectionDb.prototype.getElection = function(electionId, timeout) {
             }
         });
     } else {
+        log.trace('findOne: [%1]',electionId);
         self._coll.findOne({'id' : electionId}, function(err,item){
             if (err) {
                 log.error('getElection::findOne - %1:',err.message);
