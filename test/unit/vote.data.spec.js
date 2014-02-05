@@ -349,7 +349,7 @@ describe('vote.data',function(){
                         expect(resolveSpy).not.toHaveBeenCalled();
                         expect(rejectSpy).toHaveBeenCalled();
                         expect(mockDb.findAndModify).toHaveBeenCalled();
-                        expect(elDb._cache['el-abc'].not.toBeDefined();
+                        expect(elDb._cache['el-abc']).not.toBeDefined();
                     }).done(done);
             });
 
