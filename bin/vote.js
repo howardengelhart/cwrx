@@ -6,12 +6,14 @@ var q           = require('q'),
     uuid        = require('../lib/uuid'),
     promise     = require('../lib/promise'),
     logger      = require('../lib/logger'),
+    mongoUtils  = require('../lib/mongoUtils'),
     __ut__      = (global.jasmine !== undefined) ? true : false,
     app         = {},
     state       = {};
 
-state.name = 'vote';
 state.defaultConfig = {
+    appName : 'vote',
+    appDir  : __dirname,
     log    : {
         logLevel : 'info',
         media    : [ { type : 'console' } ]
@@ -381,7 +383,8 @@ app.syncElections = function(elDb){
 
 app.main = function(state){
     var log = logger.getLog(), webServer,
-        elDb = new ElectionDb(state.db.collection('elections'));
+        elDb = new ElectionDb(state.db.collection('elections')),
+        started = new Date();
     if (state.clusterMaster){
         log.info('Cluster master, not a worker');
         return state;
@@ -477,6 +480,25 @@ app.main = function(state){
                 } else {
                     res.send(500,'Internal error.\n' );
                 }
+            });
+    });
+
+    webServer.get('/meta',function(req, res, next){
+        mongoUtils.checkRunning(state.config.mongo.host, state.config.mongo.port)
+            .then(function(){
+                res.send(200, {
+                    version : state.config.appVersion,
+                    started : started.toISOString(),
+                    status  : 'OK'
+                });
+            })
+            .catch(function(err){
+                log.error('Db Error: %1',err.message);
+                res.send(400, {
+                    version : state.config.appVersion,
+                    started : started.toISOString(),
+                    status  : 'OFFLINE'
+                });
             });
     });
 
