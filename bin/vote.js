@@ -483,7 +483,7 @@ app.main = function(state){
             });
     });
 
-    webServer.get('vote/meta',function(req, res, next){
+    webServer.get('/vote/meta',function(req, res, next){
         mongoUtils.checkRunning(state.config.mongo.host, state.config.mongo.port)
             .then(function(){
                 res.send(200, {
