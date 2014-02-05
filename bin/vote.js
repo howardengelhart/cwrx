@@ -6,7 +6,6 @@ var q           = require('q'),
     uuid        = require('../lib/uuid'),
     promise     = require('../lib/promise'),
     logger      = require('../lib/logger'),
-    mongoUtils  = require('../lib/mongoUtils'),
     __ut__      = (global.jasmine !== undefined) ? true : false,
     app         = {},
     state       = {};
@@ -484,22 +483,11 @@ app.main = function(state){
     });
 
     webServer.get('/vote/meta',function(req, res, next){
-        mongoUtils.checkRunning(state.config.mongo.host, state.config.mongo.port)
-            .then(function(){
-                res.send(200, {
-                    version : state.config.appVersion,
-                    started : started.toISOString(),
-                    status  : 'OK'
-                });
-            })
-            .catch(function(err){
-                log.error('Db Error: %1',err.message);
-                res.send(400, {
-                    version : state.config.appVersion,
-                    started : started.toISOString(),
-                    status  : 'OFFLINE'
-                });
-            });
+        res.send(200, {
+            version : state.config.appVersion,
+            started : started.toISOString(),
+            status  : 'OK'
+        });
     });
 
     webServer.listen(state.cmdl.port);
