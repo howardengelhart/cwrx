@@ -57,6 +57,13 @@ Vagrant.configure("2") do |config|
                 },
                 :cfg => {
                     :loglevel => "trace"
+                },
+                :secrets => {
+                    :cookieParser => "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" ,
+                    :mongoCredentials => {
+                        :user => "vote",
+                        :password => "password"
+                    }
                 }
             },
             :maint => {
@@ -67,6 +74,13 @@ Vagrant.configure("2") do |config|
                     :host => "33.33.33.100",
                     :port => "27017",
                     :db   => "voteDb"
+                },
+                :secrets => {
+                    :cookieParser =>  "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" ,
+                    :mongoCredentials => {
+                        :user => "maint",
+                        :password => "password"
+                    }
                 }
             }
         }
