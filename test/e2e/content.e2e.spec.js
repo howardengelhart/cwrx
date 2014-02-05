@@ -390,7 +390,8 @@ describe('content (E2E):', function() {
     describe('PUT /content/experience/:id', function() {
         var mockExps, now;
         beforeEach(function(done) {
-            now = new Date();
+            // created = yesterday to allow for clock differences b/t server and test runner
+            now = new Date(new Date() - 24*60*60*1000);
             mockExps = [
                 {
                     id: "e2e-put1",
