@@ -75,10 +75,10 @@ describe('content (E2E):', function() {
         });
     });
     
-    describe('public GET /content/experiences/:id', function() {
+    describe('public GET /content/experience/:id', function() {
         beforeEach(function(done) {
             var mockExp = {
-                id: "e2e-1",
+                id: "e2e-pubget1",
                 title: "test experience",
                 access: "public",
                 status: "active",
@@ -98,13 +98,13 @@ describe('content (E2E):', function() {
         
         it('should get an experience by id', function(done) {
             var options = {
-                url: config.contentUrl + '/experiences/e2e-1?noCache=true'
+                url: config.contentUrl + '/experience/e2e-pubget1'
             };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body instanceof Array).toBeTruthy('body is array');
                 expect(resp.body.length).toBe(1);
-                expect(resp.body[0].id).toBe("e2e-1");
+                expect(resp.body[0].id).toBe("e2e-pubget1");
                 expect(resp.body[0].title).toBe("test experience");
                 done();
             }).catch(function(error) {
@@ -116,12 +116,12 @@ describe('content (E2E):', function() {
         it('should not get an experience that is private or inactive', function(done) {
             var mockExps = [
                 {
-                    id: "e2e-1",
+                    id: "e2e-pubget2",
                     status: "inactive",
                     access: "public"
                 },
                 {
-                    id: "e2e-2",
+                    id: "e2e-pubget3",
                     status: "active",
                     access: "private"
                 }
@@ -136,13 +136,13 @@ describe('content (E2E):', function() {
 
             testUtils.qRequest('post', resetOpts).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                var options = {url: config.contentUrl + '/experiences/e2e-1?noCache=true'};
+                var options = {url: config.contentUrl + '/experience/e2e-pubget2'};
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body instanceof Array).toBeTruthy('body is array');
                 expect(resp.body.length).toBe(0);
-                var options = {url: config.contentUrl + '/experiences/e2e-2?noCache=true'};
+                var options = {url: config.contentUrl + '/experience/e2e-pubget3'};
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -157,7 +157,7 @@ describe('content (E2E):', function() {
         
         it('should not return an error if nothing is found', function(done) {
             var options = {
-                url: config.contentUrl + '/experiences/e2e-5678?noCache=true'
+                url: config.contentUrl + '/experience/e2e-pubget5678'
             };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -171,30 +171,30 @@ describe('content (E2E):', function() {
         });
     });
     
-    describe('authenticated GET /content/experiences', function() {
+    describe('authenticated GET /content/experience', function() {
         beforeEach(function(done) {
             var mockExps = [
                 {
-                    id: "e2e-1",
+                    id: "e2e-privget1",
                     status: "active",
                     access: "public",
                     user: "e2e-user",
                     tag: "foo"
                 },
                 {
-                    id: "e2e-2",
+                    id: "e2e-privget2",
                     status: "inactive",
                     access: "private",
                     user: "e2e-user"
                 },
                 {
-                    id: "e2e-3",
+                    id: "e2e-privget3",
                     status: "active",
                     access: "public",
                     user: "not-e2e-user"
                 },
                 {
-                    id: "e2e-4",
+                    id: "e2e-privget4",
                     status: "inactive",
                     access: "private",
                     user: "not-e2e-user"
@@ -211,38 +211,18 @@ describe('content (E2E):', function() {
                 done();
             });
         });
-    
-        it('should find experiences using a query', function(done) {
-            var options = {
-                url: config.contentUrl + '/experiences?noCache=true&selector=' +
-                         encodeURIComponent(JSON.stringify({tag: 'foo'})),
-                jar: cookieJar
-            };
-            testUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body instanceof Array).toBeTruthy('body is array');
-                expect(resp.body.length).toBe(1);
-                expect(resp.body[0].id).toBe("e2e-1");
-                done();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-                done();
-            });
-        });
         
-        it('should be able to find multiple experiences using an array of options', function(done) {
+        it('should get multiple experiences by id', function(done) {
             var options = {
-                url: config.contentUrl + '/experiences?noCache=true&selector=' +
-                         encodeURIComponent(JSON.stringify({id: ["e2e-1", "e2e-3"]})) +
-                         '&sort=' + encodeURIComponent(JSON.stringify({id: 1})),
+                url: config.contentUrl + '/experiences?ids=e2e-privget1,e2e-privget3',
                 jar: cookieJar
             };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body instanceof Array).toBeTruthy('body is array');
                 expect(resp.body.length).toBe(2);
-                expect(resp.body[0].id).toBe("e2e-1");
-                expect(resp.body[1].id).toBe("e2e-3");
+                expect(resp.body[0].id).toBe("e2e-privget1");
+                expect(resp.body[1].id).toBe("e2e-privget3");
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -250,17 +230,35 @@ describe('content (E2E):', function() {
             });
         });
         
+        it('should get experiences by user', function(done) {
+            var options = {
+                url: config.contentUrl + '/experiences?user=e2e-user',
+                jar: cookieJar
+            };
+            testUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body instanceof Array).toBeTruthy('body is array');
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0].id).toBe("e2e-privget1");
+                expect(resp.body[1].id).toBe("e2e-privget2");
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+
+        
         it('should only get private or inactive experiences the user owns', function(done) {
             var options = {
-                url: config.contentUrl + '/experiences?noCache=true&selector=' +
-                        encodeURIComponent(JSON.stringify({id: ["e2e-2", "e2e-4"]})),
+                url: config.contentUrl + '/experiences?ids=e2e-privget2,e2e-privget4',
                 jar: cookieJar
             };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body instanceof Array).toBeTruthy('body is array');
                 expect(resp.body.length).toBe(1);
-                expect(resp.body[0].id).toBe("e2e-2");
+                expect(resp.body[0].id).toBe("e2e-privget2");
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -270,8 +268,7 @@ describe('content (E2E):', function() {
         
         it('should throw a 401 error if the user is not authorized', function(done) {
             var options = {
-                url: config.contentUrl + '/experiences?noCache=true&selector=' +
-                         encodeURIComponent(JSON.stringify({id: "e2e-1"}))
+                url: config.contentUrl + '/experiences?user=e2e-user'
             };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
@@ -286,22 +283,22 @@ describe('content (E2E):', function() {
         it('should be able to sort and paginate the results', function(done) {
             var options = {
                 jar: cookieJar,
-                url: config.contentUrl + '/experiences?noCache=true&limit=2&sort=' +
-                         encodeURIComponent(JSON.stringify({id: -1}))
+                url: config.contentUrl + '/experiences?ids=e2e-privget1,e2e-privget2,e2e-privget3' +
+                                         '&limit=2&sort=id,-1'
             };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body instanceof Array).toBeTruthy('body is array');
                 expect(resp.body.length).toBe(2);
-                expect(resp.body[0].id).toBe("e2e-3");
-                expect(resp.body[1].id).toBe("e2e-2");
+                expect(resp.body[0].id).toBe("e2e-privget3");
+                expect(resp.body[1].id).toBe("e2e-privget2");
                 options.url += '&skip=2';
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body instanceof Array).toBeTruthy('body is array');
                 expect(resp.body.length).toBe(1);
-                expect(resp.body[0].id).toBe("e2e-1");
+                expect(resp.body[0].id).toBe("e2e-privget1");
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -310,7 +307,7 @@ describe('content (E2E):', function() {
         });
     });
     
-    describe('POST /content/experiences', function() {
+    describe('POST /content/experience', function() {
         var mockExp;
         beforeEach(function(done) {
             mockExp = {
@@ -329,7 +326,7 @@ describe('content (E2E):', function() {
         
         it('should be able to create an experience', function(done) {
             var options = {
-                url: config.contentUrl + '/experiences',
+                url: config.contentUrl + '/experience',
                 jar: cookieJar,
                 json: mockExp
             };
@@ -354,7 +351,7 @@ describe('content (E2E):', function() {
         it('should be able to create a private experience', function(done) {
             mockExp.access = 'private';
             var options = {
-                url: config.contentUrl + '/experiences',
+                url: config.contentUrl + '/experience',
                 jar: cookieJar,
                 json: mockExp
             };
@@ -374,7 +371,7 @@ describe('content (E2E):', function() {
         
         it('should throw a 401 error if the user is not authorized', function(done) {
             var options = {
-                url: config.contentUrl + '/experiences',
+                url: config.contentUrl + '/experience',
                 json: mockExp
             };
             testUtils.qRequest('post', options)
@@ -390,13 +387,13 @@ describe('content (E2E):', function() {
         
     });
     
-    describe('PUT /content/experiences/:id', function() {
+    describe('PUT /content/experience/:id', function() {
         var mockExps, now;
         beforeEach(function(done) {
             now = new Date();
             mockExps = [
                 {
-                    id: "e2e-1",
+                    id: "e2e-put1",
                     title: "origTitle",
                     tag: "foo",
                     status: "active",
@@ -406,7 +403,7 @@ describe('content (E2E):', function() {
                     user: "e2e-user"
                 },
                 {
-                    id: "e2e-2",
+                    id: "e2e-put2",
                     status: "active",
                     access: "public",
                     user: "not-e2e-user"
@@ -428,7 +425,7 @@ describe('content (E2E):', function() {
             mockExps[0].title = "newTitle";
             delete mockExps[0].tag;
             var options = {
-                url: config.contentUrl + '/experiences/e2e-1',
+                url: config.contentUrl + '/experience/e2e-put1',
                 jar: cookieJar,
                 json: mockExps[0]
             }, updatedExp;
@@ -436,15 +433,11 @@ describe('content (E2E):', function() {
                 expect(resp.response.statusCode).toBe(201);
                 updatedExp = resp.body;
                 expect(updatedExp).toBeDefined();
-                expect(updatedExp.id).toBe('e2e-1');
+                expect(updatedExp.id).toBe('e2e-put1');
                 expect(updatedExp.title).toBe("newTitle");
                 expect(updatedExp.tag).not.toBeDefined();
                 expect(new Date(updatedExp.created)).toEqual(now);
                 expect(new Date(updatedExp.lastUpdated)).toBeGreaterThan(now);
-                return testUtils.qRequest('get', {url: options.url += '?noCache=true'});
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body[0]).toEqual(updatedExp);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -452,24 +445,16 @@ describe('content (E2E):', function() {
             });
         });
         
-        it('should create an experience if it does not exist', function(done) {
-            mockExps[0].id = "e2e-3";
+        it('should not create an experience if it does not exist', function(done) {
+            mockExps[0].id = "e2e-putfake";
             var options = {
-                url: config.contentUrl + '/experiences/e2e-3',
+                url: config.contentUrl + '/experience/e2e-putfake',
                 jar: cookieJar,
                 json: mockExps[0]
             }, updatedExp;
             testUtils.qRequest('put', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(201);
-                updatedExp = resp.body;
-                expect(updatedExp).toBeDefined();
-                expect(updatedExp.id).toBe('e2e-3');
-                expect(new Date(updatedExp.created)).not.toEqual(now);
-                expect(new Date(updatedExp.lastUpdated)).toBeGreaterThan(now);
-                return testUtils.qRequest('get', {url: options.url += '?noCache=true'});
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body[0]).toEqual(updatedExp);
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toBe("That experience does not exist");
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -479,12 +464,12 @@ describe('content (E2E):', function() {
         
         it('should not update an experience the user does not own', function(done) {
             var options = {
-                url: config.contentUrl + '/experiences/e2e-2',
+                url: config.contentUrl + '/experience/e2e-put2',
                 jar: cookieJar,
                 json: mockExps[1]
             }, updatedExp;
             testUtils.qRequest('put', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(401);
+                expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe("Not authorized to edit this experience");
                 done();
             }).catch(function(error) {
@@ -495,7 +480,7 @@ describe('content (E2E):', function() {
         
         it('should throw a 401 error if the user is not authorized', function(done) {
             var options = {
-                url: config.contentUrl + '/experiences/e2e-1',
+                url: config.contentUrl + '/experience/e2e-put1',
                 json: mockExps[0]
             };
             testUtils.qRequest('put', options).then(function(resp) {
@@ -509,17 +494,17 @@ describe('content (E2E):', function() {
         });
     });
     
-    describe('DELETE /content/experiences/:id', function() {
+    describe('DELETE /content/experience/:id', function() {
         beforeEach(function(done) {
             var mockExps = [
                 {
-                    id: "e2e-1",
+                    id: "e2e-del1",
                     status: "active",
                     access: "public",
                     user: "e2e-user"
                 },
                 {
-                    id: "e2e-2",
+                    id: "e2e-del2",
                     status: "active",
                     access: "public",
                     user: "not-e2e-user"
@@ -538,11 +523,11 @@ describe('content (E2E):', function() {
         });
         
         it('should set the status of an experience to deleted', function(done) {
-            var options = {jar: cookieJar, url: config.contentUrl + '/experiences/e2e-1'};
+            var options = {jar: cookieJar, url: config.contentUrl + '/experience/e2e-del1'};
             testUtils.qRequest('del', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe("Successfully deleted experience");
-                options = {url: config.contentUrl + '/experiences/e2e-1?noCache=true'};
+                expect(resp.body).toBe("Success");
+                options = {url: config.contentUrl + '/experience/e2e-del1'};
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -556,9 +541,9 @@ describe('content (E2E):', function() {
         });
         
         it('should not delete an experience the user does not own', function(done) {
-            var options = {jar: cookieJar, url: config.contentUrl + '/experiences/e2e-2'};
+            var options = {jar: cookieJar, url: config.contentUrl + '/experience/e2e-del2'};
             testUtils.qRequest('del', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(401);
+                expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe("Not authorized to delete this experience");
                 done();
             }).catch(function(error) {
@@ -568,14 +553,14 @@ describe('content (E2E):', function() {
         });
         
         it('should still return a 200 if the experience was already deleted', function(done) {
-            var options = {jar: cookieJar, url: config.contentUrl + '/experiences/e2e-1'};
+            var options = {jar: cookieJar, url: config.contentUrl + '/experience/e2e-del1'};
             testUtils.qRequest('del', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe("Successfully deleted experience");
+                expect(resp.body).toBe("Success");
                 return testUtils.qRequest('del', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe("That experience has already been deleted");
+                expect(resp.body).toBe("Success");
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -584,10 +569,10 @@ describe('content (E2E):', function() {
         });
         
         it('should still return a 200 if the experience does not exist', function(done) {
-            var options = {jar: cookieJar, url: config.contentUrl + '/experiences/fake'};
+            var options = {jar: cookieJar, url: config.contentUrl + '/experience/fake'};
             testUtils.qRequest('del', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe("That experience does not exist");
+                expect(resp.body).toBe("Success");
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -596,7 +581,7 @@ describe('content (E2E):', function() {
         });
         
         it('should throw a 401 error if the user is not authorized', function(done) {
-            testUtils.qRequest('del', {url: config.contentUrl + '/experiences/e2e-1'})
+            testUtils.qRequest('del', {url: config.contentUrl + '/experience/e2e-del1'})
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe("Unauthorized");

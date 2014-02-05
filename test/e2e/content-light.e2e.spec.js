@@ -68,7 +68,7 @@ describe('content-light (E2E):', function() {
         
         it('create an experience', function(done) {
             var options = {
-                url: config.contentUrl + '/experiences',
+                url: config.contentUrl + '/experience',
                 jar: cookieJar,
                 json: origExp
             };
@@ -92,7 +92,7 @@ describe('content-light (E2E):', function() {
         
         it('retrieve an experience', function(done) {
             var options = {
-                url: config.contentUrl + '/experiences/' + currExp.id,
+                url: config.contentUrl + '/experience/' + currExp.id,
                 jar: cookieJar,
                 json: origExp
             };
@@ -114,7 +114,7 @@ describe('content-light (E2E):', function() {
             });
             currExp.title = "newTitle";
             var options = {
-                url: config.contentUrl + '/experiences/' + currExp.id,
+                url: config.contentUrl + '/experience/' + currExp.id,
                 jar: cookieJar,
                 json: currExp
             };
@@ -136,25 +136,12 @@ describe('content-light (E2E):', function() {
         
         it('delete an experience', function(done) {
             var options = {
-                url: config.contentUrl + '/experiences/' + currExp.id,
+                url: config.contentUrl + '/experience/' + currExp.id,
                 jar: cookieJar
             };
             testUtils.qRequest('del', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe("Successfully deleted experience");
-                options = {
-                    url: config.contentUrl + '/experiences/' + currExp.id + '?noCache=true',
-                    jar: cookieJar
-                };
-                return testUtils.qRequest('get', options);
-            }).then(function(resp) {
-                expect(resp.body instanceof Array).toBeTruthy("body is Array");
-                expect(resp.body.length).toBe(1);
-                expect(resp.body[0]).not.toEqual(currExp);
-                expect(resp.body[0].status).toBe("deleted");
-                expect(resp.body[0].id).toBe(currExp.id);
-                expect(resp.body[0].created).toBe(currExp.created);
-                expect(new Date(resp.body[0].lastUpdated)).toBeGreaterThan(new Date(currExp.lastUpdated));
+                expect(resp.body).toBe("Success");
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -187,21 +174,6 @@ describe('content-light (E2E):', function() {
             .then(function(resp) {
                 expect(resp.body.version).toBeDefined();
                 expect(resp.body.version.match(/^.+\.build\d+-\d+-g\w+$/)).toBeTruthy('version match');
-                expect(resp.body.config).toBeDefined();
-                
-                expect(resp.body.config.sessions).toBeDefined();
-                expect(resp.body.config.sessions.key).toBeDefined();
-                expect(resp.body.config.sessions.maxAge).toBeDefined();
-                expect(resp.body.config.sessions.db).toBeDefined();
-                
-                expect(resp.body.config.mongo).toBeDefined();
-                expect(resp.body.config.mongo.host).toBeDefined();
-                expect(resp.body.config.mongo.port).toBeDefined();
-                expect(resp.body.config.mongo.db).toBeDefined();
-                
-                expect(resp.body.config.cacheTTLs).toBeDefined();
-                expect(resp.body.config.cacheTTLs.experiences).toBeDefined();
-                expect(resp.body.config.cacheTTLs.auth).toBeDefined();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

@@ -298,11 +298,7 @@ auth.main = function(state) {
     
     app.get('/auth/meta', function(req, res, next){
         var data = {
-            version: state.config.appVersion,
-            config: {
-                sessions: state.config.sessions,
-                mongo: state.config.mongo
-            }
+            version: state.config.appVersion
         };
         res.send(200, data);
     });

@@ -116,26 +116,24 @@ content.QueryCache.prototype.getPromise = function(reqId, query, sort, limit, sk
 content.getExperiences = function(query, req, cache) {
     var limit = req.query && req.query.limit || 0,
         skip = req.query && req.query.skip || 0,
-        noCache = req.query && req.query.noCache || false,
+        sort = req.query && req.query.sort,
+        sortObj = {},
         log = logger.getLog(),
-        sort, promise;
-    try {
-        sort = req.query && req.query.sort || '{}';
-        sort = JSON.parse(sort);
-    } catch(e) {
-        log.info('[%1] Sort %2 does not parse as object, ignoring', req.uuid, sort);
-        sort = {};
+        promise;
+    if (sort) {
+        var sortParts = sort.split(',');
+        if (sortParts.length !== 2 || (sortParts[1] !== '-1' && sortParts[1] !== '1' )) {
+            log.info('[%1] Sort %2 is invalid, ignoring', req.uuid, sort);
+        } else {
+            sortObj[sortParts[0]] = Number(sortParts[1]);
+        }
     }
         
     query = content.QueryCache.formatQuery(query, req.session.user || '');
     
     log.info('[%1] Getting Experiences with %2, sort %3, limit %4, skip %5',
-             req.uuid, JSON.stringify(query), JSON.stringify(sort), limit, skip);
-    if (noCache) {
-        promise = q.npost(cache._coll.find(query, {sort: sort, limit: limit, skip: skip}), 'toArray');
-    } else {
-        promise = cache.getPromise(req.uuid, query, sort, limit, skip);
-    }
+             req.uuid, JSON.stringify(query), JSON.stringify(sortObj), limit, skip);
+    promise = cache.getPromise(req.uuid, query, sortObj, limit, skip);
     return promise.then(function(experiences) {
         log.info('[%1] Retrieved %2 experiences', req.uuid, experiences.length);
         return q({code: 200, body: experiences});
@@ -181,25 +179,26 @@ content.updateExperience = function(req, experiences) {
     if (!obj || typeof obj !== 'object') {
         return q({code: 400, body: "You must provide an object in the body"});
     }
+    if (obj.id !== id) {
+        return q({code: 400, body: "Cannot change the id of an experience"});
+    }
     
     log.info('[%1] User %2 is attempting to update experience %3', req.uuid, user.id, obj.id);
     q.npost(experiences, 'findOne', [{id: id}])
     .then(function(orig) {
-        now = new Date();
-        if (orig) {
-            if (orig.user !== user.id) {
-                log.info('[%1] User %2 is not authorized to edit %3', req.uuid, user.id, id);
-                return deferred.resolve({code: 401, body: "Not authorized to edit this experience"});
-            }
-            obj._id = orig._id;
-        } else {
-            log.info('[%1] Experience %2 does not exist; creating it', req.uuid, id);
-            obj.created = now;
-            obj.status = 'active';
+        if (!orig) {
+            log.info('[%1] Experience %2 does not exist; not creating it', req.uuid, id);
+            return deferred.resolve({code: 404, body: "That experience does not exist"});
         }
+        if (orig.user !== user.id) {
+            log.info('[%1] User %2 is not authorized to edit %3', req.uuid, user.id, id);
+            return deferred.resolve({code: 403, body: "Not authorized to edit this experience"});
+        }
+        obj._id = orig._id;
+        now = new Date();
         obj.lastUpdated = now;
         return q.npost(experiences, 'findAndModify', 
-                       [{id: id}, {id: 1}, obj, {w: 1, journal: true, upsert: true, new: true}])
+                       [{id: id}, {id: 1}, obj, {w: 1, journal: true, new: true}])
         .then(function(results) {
             var updated = results[0];
             log.info('[%1] User %2 successfully updated experience %3', req.uuid, user.id, updated.id);
@@ -224,22 +223,22 @@ content.deleteExperience = function(req, experiences) {
         now = new Date();
         if (!orig) {
             log.info('[%1] Experience %2 does not exist', req.uuid, id);
-            return deferred.resolve({code: 200, body: "That experience does not exist"});
+            return deferred.resolve({code: 200, body: "Success"});
         } else {
             if (orig.user !== user.id) {
                 log.info('[%1] User %2 is not authorized to delete %3', req.uuid, user.id, id);
-                return deferred.resolve({code: 401, body: "Not authorized to delete this experience"});
+                return deferred.resolve({code: 403, body: "Not authorized to delete this experience"});
             }
             if (orig.status === 'deleted') {
                 log.info('[%1] Experience %2 has already been deleted', req.uuid, id);
-                return deferred.resolve({code: 200, body: "That experience has already been deleted"});
+                return deferred.resolve({code: 200, body: "Success"});
             }
         }
         return q.npost(experiences, 'update', [{id: id},
                        {$set: {lastUpdated: now, status: 'deleted'}}, {w: 1, journal: true}])
         .then(function() {
             log.info('[%1] User %2 successfully deleted experience %3', req.uuid, user.id, id);
-            deferred.resolve({code: 200, body: "Successfully deleted experience"});
+            deferred.resolve({code: 200, body: "Success"});
         });
     }).catch(function(error) {
         log.error('[%1] Error deleting experience %2 for user %3: %4', req.uuid, id, user.id, error);
@@ -316,7 +315,7 @@ content.main = function(state) {
     var expCache = new content.QueryCache(state.config.cacheTTLs.experiences, experiences);
     
     // simple get active experience by id, public
-    app.get('/content/experiences/:id', function(req, res, next) {
+    app.get('/content/experience/:id', function(req, res, next) {
         content.getExperiences({id: req.params.id}, req, expCache)
         .then(function(resp) {
             res.send(resp.code, resp.body);
@@ -330,14 +329,17 @@ content.main = function(state) {
     // robust get experience by query, require authenticated user; currently no perms required
     var authGetExp = authUtils.middlewarify(state.db, {});
     app.get('/content/experiences', authGetExp, function(req, res, next) {
-        var query;
-        try {
-            query = JSON.parse((req.query && req.query.selector) || '{}');
-        } catch(e) {
-            log.info('[%1] Selector cannot be parsed as an object, returning 400', req.uuid);
-            return res.send(400, {
-                error: 'Selector param cannot be parsed as an object'
-            });
+        log.info(JSON.stringify(req.query));
+        if (!req.query || (!req.query.ids && !req.query.user)) {
+            log.info('[%1] Cannot GET /content/experiences without ids or user specified', req.uuid);
+            return res.send(400, "Must specify ids or user param");
+        }
+        var query = {};
+        if (req.query.ids) {
+            query.id = req.query.ids.split(',');
+        }
+        if (req.query.user) {
+            query.user = req.query.user;
         }
         content.getExperiences(query, req, expCache)
         .then(function(resp) {
@@ -350,7 +352,7 @@ content.main = function(state) {
     });
     
     var authPostExp = authUtils.middlewarify(state.db, {createExperience: true});
-    app.post('/content/experiences', authPostExp, function(req, res, next) {
+    app.post('/content/experience', authPostExp, function(req, res, next) {
         content.createExperience(req, experiences)
         .then(function(resp) {
             res.send(resp.code, resp.body);
@@ -363,7 +365,7 @@ content.main = function(state) {
     });
     
     var authPutExp = authUtils.middlewarify(state.db, {createExperience: true});
-    app.put('/content/experiences/:id', authPutExp, function(req, res, next) {
+    app.put('/content/experience/:id', authPutExp, function(req, res, next) {
         content.updateExperience(req, experiences)
         .then(function(resp) {
             res.send(resp.code, resp.body);
@@ -376,7 +378,7 @@ content.main = function(state) {
     });
     
     var authDelExp = authUtils.middlewarify(state.db, {deleteExperience: true});
-    app.delete('/content/experiences/:id', authDelExp, function(req, res, next) {
+    app.delete('/content/experience/:id', authDelExp, function(req, res, next) {
         content.deleteExperience(req, experiences)
         .then(function(resp) {
             res.send(resp.code, resp.body);
@@ -390,12 +392,7 @@ content.main = function(state) {
     
     app.get('/content/meta', function(req, res, next){
         var data = {
-            version: state.config.appVersion,
-            config: {
-                mongo: state.config.mongo,
-                sessions: state.config.sessions,
-                cacheTTLs: state.config.cacheTTLs
-            }
+            version: state.config.appVersion
         };
         res.send(200, data);
     });

@@ -208,7 +208,7 @@ describe('content (UT)', function() {
             req = {
                 uuid: '1234',
                 query: {
-                    sort: JSON.stringify({id: 1}),
+                    sort: 'id,1',
                     limit: 20,
                     skip: 10
                 },
@@ -264,7 +264,7 @@ describe('content (UT)', function() {
             });
         });
         
-        it('should just ignore the sort param if not an object', function(done) {
+        it('should just ignore the sort param if invalid', function(done) {
             req.query.sort = 'foo';
             content.getExperiences(query, req, cache).then(function(resp) {
                 expect(resp).toBeDefined();
@@ -272,31 +272,6 @@ describe('content (UT)', function() {
                 expect(resp.body).toEqual(['fake1', 'fake2']);
                 expect(content.QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery', 'fakeUser');
                 expect(cache.getPromise).toHaveBeenCalledWith('1234', 'formatted', {}, 20, 10);
-                done();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-                done();
-            });
-        });
-        
-        it('should access mongo directly if the query contains noCache', function(done) {
-            req.query.noCache = true;
-            var fakeCursor = {
-                toArray: jasmine.createSpy('cursor.toArray').andCallFake(function(cb) {
-                    cb(null, ['fake1', 'fake2'])
-                })
-            };
-            cache._coll = {
-                find: jasmine.createSpy('coll.find').andReturn(fakeCursor)
-            };
-            content.getExperiences(query, req, cache).then(function(resp) {
-                expect(resp).toBeDefined();
-                expect(resp.code).toBe(200);
-                expect(resp.body).toEqual(['fake1', 'fake2']);
-                expect(content.QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery', 'fakeUser');
-                expect(cache.getPromise).not.toHaveBeenCalled();
-                var opts = {sort: { id: 1}, limit: 20, skip: 10};
-                expect(cache._coll.find).toHaveBeenCalledWith('formatted', opts);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -388,6 +363,19 @@ describe('content (UT)', function() {
             });
         });
         
+        it('should not allow a user to change an experience id', function(done) {
+            req.body.id = 'e-4567';
+            content.updateExperience(req, experiences).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(400);
+                expect(experiences.findOne).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
         it('should successfully update an experience', function(done) {
             content.updateExperience(req, experiences).then(function(resp) {
                 expect(resp.code).toBe(201);
@@ -405,7 +393,7 @@ describe('content (UT)', function() {
                 expect(experiences.findAndModify.calls[0].args[1]).toEqual({id: 1});
                 expect(experiences.findAndModify.calls[0].args[2]).toBe(resp.body);
                 expect(experiences.findAndModify.calls[0].args[3])
-                    .toEqual({w: 1, journal: true, upsert: true, new: true});
+                    .toEqual({w: 1, journal: true, new: true});
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -416,7 +404,7 @@ describe('content (UT)', function() {
         it('should not allow a user to update an experience they do not own', function(done) {
             req.user = {id: 'u-4567'};
             content.updateExperience(req, experiences).then(function(resp) {
-                expect(resp.code).toBe(401);
+                expect(resp.code).toBe(403);
                 expect(resp.body).toBe("Not authorized to edit this experience");
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findAndModify).not.toHaveBeenCalled();
@@ -427,19 +415,13 @@ describe('content (UT)', function() {
             });
         });
         
-        it('should create an experience if it does not already exist', function(done) {
+        it('should not create an experience if it does not already exist', function(done) {
             experiences.findOne.andCallFake(function(query, cb) { cb(); });
             content.updateExperience(req, experiences).then(function(resp) {
-                expect(resp.code).toBe(201);
-                expect(resp.body.id).toBe('e-1234');
-                expect(resp.body.title).toBe('newExp');
-                expect(resp.body.created instanceof Date).toBeTruthy('created is a Date');
-                expect(resp.body.created).toBeGreaterThan(start);
-                expect(resp.body.lastUpdated).toEqual(resp.body.created);
-                expect(resp.body.user).toBe('u-1234');
-                
+                expect(resp.code).toBe(404);
+                expect(resp.body).toBe('That experience does not exist');
                 expect(experiences.findOne).toHaveBeenCalled();
-                expect(experiences.findAndModify).toHaveBeenCalled();
+                expect(experiences.findAndModify).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -490,7 +472,7 @@ describe('content (UT)', function() {
             content.deleteExperience(req, experiences).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
-                expect(resp.body).toBe("Successfully deleted experience");
+                expect(resp.body).toBe("Success");
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findOne.calls[0].args[0]).toEqual({id: 'e-1234'});
                 expect(experiences.update).toHaveBeenCalled();
@@ -512,7 +494,7 @@ describe('content (UT)', function() {
             content.deleteExperience(req, experiences).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
-                expect(resp.body).toBe("That experience does not exist");
+                expect(resp.body).toBe("Success");
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.update).not.toHaveBeenCalled();
                 done();
@@ -527,7 +509,7 @@ describe('content (UT)', function() {
             content.deleteExperience(req, experiences).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
-                expect(resp.body).toBe("That experience has already been deleted");
+                expect(resp.body).toBe("Success");
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.update).not.toHaveBeenCalled();
                 done();
@@ -541,7 +523,7 @@ describe('content (UT)', function() {
             req.user = {id: 'u-4567'};
             content.deleteExperience(req, experiences).then(function(resp) {
                 expect(resp).toBeDefined();
-                expect(resp.code).toBe(401);
+                expect(resp.code).toBe(403);
                 expect(resp.body).toBe("Not authorized to delete this experience");
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.update).not.toHaveBeenCalled();
