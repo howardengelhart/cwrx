@@ -44,7 +44,7 @@ describe('auth (E2E):', function() {
             mockUser = {
                 id : "u-1234567890abcd",
                 created : now,
-                username : "johnnyTestmonkey",
+                username : "authE2EUser",
                 password : "$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq" // hash of 'password'
             };
             
@@ -64,7 +64,7 @@ describe('auth (E2E):', function() {
             var options = {
                 url: config.authUrl + '/login',
                 json: {
-                    username: 'johnnyTestmonkey',
+                    username: 'authE2EUser',
                     password: 'password'
                 }
             };
@@ -72,7 +72,7 @@ describe('auth (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.user).toBeDefined();
                 expect(resp.body.user.id).toBe("u-1234567890abcd");
-                expect(resp.body.user.username).toBe("johnnyTestmonkey");
+                expect(resp.body.user.username).toBe("authE2EUser");
                 expect(resp.body.user.password).not.toBeDefined();
                 expect(new Date(resp.body.user.created)).toEqual(now);
                 expect(resp.response.headers['set-cookie'].length).toBe(1);
@@ -106,7 +106,7 @@ describe('auth (E2E):', function() {
             var options = {
                 url: config.authUrl + '/login',
                 json: {
-                    username: 'johnnyTestmonkey',
+                    username: 'authE2EUser',
                     password: 'notpassword'
                 }
             };
@@ -124,7 +124,7 @@ describe('auth (E2E):', function() {
             var options = {
                 url: config.authUrl + '/login',
                 json: {
-                    username: 'johnnyTestmonkey'
+                    username: 'authE2EUser'
                 }
             };
             testUtils.qRequest('post', options).then(function(resp) {
@@ -148,7 +148,7 @@ describe('auth (E2E):', function() {
         var mockUser;
         beforeEach(function() {
             mockUser = {
-                username: 'johnnyTestmonkey',
+                username: 'authE2EUser',
                 password: 'password'
             };
         });
@@ -170,7 +170,7 @@ describe('auth (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.user).toBeDefined();
                 expect(resp.body.user.id).toBeDefined();
-                expect(resp.body.user.username).toBe("johnnyTestmonkey");
+                expect(resp.body.user.username).toBe("authE2EUser");
                 expect(resp.body.user.password).not.toBeDefined();
                 expect(resp.body.user.created).toBeDefined();
                 expect(resp.response.headers['set-cookie'].length).toBe(1);
@@ -210,7 +210,7 @@ describe('auth (E2E):', function() {
             var options = {
                 url: config.authUrl + '/signup',
                 json: {
-                    username: 'johnnyTestmonkey'
+                    username: 'authE2EUser'
                 }
             };
             testUtils.qRequest('post', options).then(function(resp) {
@@ -243,7 +243,7 @@ describe('auth (E2E):', function() {
                     url: config.authUrl + '/signup',
                     jar: true,
                     json: {
-                        username: 'johnnyTestmonkey',
+                        username: 'authE2EUser',
                         password: 'password'
                     }
                 };
@@ -288,7 +288,7 @@ describe('auth (E2E):', function() {
                 url: config.authUrl + '/signup',
                 jar: true,
                 json: {
-                    username: 'johnnyTestmonkey',
+                    username: 'authE2EUser',
                     password: 'password'
                 }
             };

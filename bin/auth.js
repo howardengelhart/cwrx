@@ -16,6 +16,7 @@ var path        = require('path'),
 state.name = 'auth';
 // This is the template for auth's configuration
 state.defaultConfig = {
+    appDir: path.join(__dirname, '..'),
     caches : {
         run     : path.normalize('/usr/local/share/cwrx/auth/caches/run/'),
     },
@@ -113,7 +114,11 @@ auth.signup = function(req, users) {
             id: 'u-' + uuid.createUuid().substr(0,14),
             created: new Date(),
             username: req.body.username,
-            status: 'active'
+            status: 'active',
+            permissions: {  // temporary, at least until we decide how to set perms
+                'createExperience': true,
+                'deleteExperience': true
+            }
         };
         return q.npost(bcrypt, 'hash', [req.body.password, bcrypt.genSaltSync()])
         .then(function(hashed) {
@@ -294,11 +299,7 @@ auth.main = function(state) {
     
     app.get('/auth/meta', function(req, res, next){
         var data = {
-            version: state.config.appVersion,
-            config: {
-                sessions: state.config.sessions,
-                mongo: state.config.mongo
-            }
+            version: state.config.appVersion
         };
         res.send(200, data);
     });
