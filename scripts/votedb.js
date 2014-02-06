@@ -2,19 +2,37 @@ var conn = new Mongo('33.33.33.100'),
     db = conn.getDB('voteDb');
 
 db.elections.insert({
-    id: 'r-738c2403d83ddc',
+    id: 'e1',
     ballot:   {
-        'rv-22119a8cf9f755' : {
-            'good and plenty'   : 100,
-            'bad and nasty'     : 200,
-            'ugly and fat'      : 300
+        'b1' : {
+            'red apple'      : 10,
+            'yellow banana'  : 20,
+            'orange carrot'  : 30
         },
-        'rv-4770a2d7f85ce0' : {
-            'smelly'     : 100,
-            'not smelly' : 200
+        'b2' : {
+            'one chicken'    : 10,
+            'two ducks'      : 20
         }
     }
 });
+
+
+db.elections.insert({
+    id: 'e2',
+    ballot:   {
+        'b1' : {
+            'one fish'   : 10,
+            'two fish'   : 20,
+        },
+        'b2' : {
+            'red fish'   : 30,
+            'blue fish'  : 40
+        }
+    }
+});
+
+
+
 /*
 db.elections.update( { 
         'id' : 'r-738c2403d83ddc'

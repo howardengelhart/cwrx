@@ -10,8 +10,9 @@ var q           = require('q'),
     app         = {},
     state       = {};
 
-state.name = 'vote';
 state.defaultConfig = {
+    appName : 'vote',
+    appDir  : __dirname,
     log    : {
         logLevel : 'info',
         media    : [ { type : 'console' } ]
@@ -120,6 +121,39 @@ ElectionDb.prototype.getCachedElections = function(){
     return result;
 };
 
+ElectionDb.prototype.updateVoteCounts = function(){
+    var self = this, updates = [], log = logger.getLog();
+    Object.keys(self._cache).forEach(function(key){
+        var election = self._cache[key], u = {};
+        if ((election.votingBooth) && (election.votingBooth.dirty)){
+            u.election = election;
+            election.votingBooth.each(function(ballotId,vote,count){
+                if (u.voteCounts === undefined) {
+                    u.voteCounts = {};
+                }
+                u.voteCounts['ballot.' + ballotId + '.' + vote] = count;
+            });
+            updates.push(u);
+        }
+    });
+
+    log.trace('updates to save: %1',updates.length);
+    return q.allSettled(updates.map(function(update){
+        var deferred = q.defer();
+        q.ninvoke(self._coll,'update',
+            { 'id' : update.election.id }, { $inc : update.voteCounts }, { w : 1 })
+            .then(function(){
+                update.election.votingBooth.clear();
+                deferred.resolve(update);
+            })
+            .catch(function(err){
+                err.update = update;
+                deferred.reject(err);
+            });
+        return deferred.promise;
+    }));
+};
+
 ElectionDb.prototype.getElection = function(electionId, timeout) {
     var self = this, deferred = self._keeper.getDeferred(electionId),
         election = self._cache[electionId], voteCounts,
@@ -148,7 +182,7 @@ ElectionDb.prototype.getElection = function(electionId, timeout) {
     }
 
     if (voteCounts) {
-        log.trace('voteCounts: %1',JSON.stringify(voteCounts));
+        log.trace('findAndModify: [%1] %2',electionId, JSON.stringify(voteCounts));
         self._coll.findAndModify({ 'id' : electionId }, null,
             { '$inc' : voteCounts }, { new : true }, function(err, result){
             if (err) {
@@ -167,10 +201,12 @@ ElectionDb.prototype.getElection = function(electionId, timeout) {
                 err.httpCode = 400;
                 deferred.reject(err);
             }
-            else if ((result === null) || (result[0] === null)){
+            else if (result === null) {
                 var error = new Error('Unable to locate election.');
                 error.httpCode = 404;
                 deferred.reject(error);
+                log.info('Remove invalid election [%1] from cache',electionId);
+                delete self._cache[electionId];
             } else {
                 delete result._id;
                 election.lastSync   = new Date();
@@ -180,6 +216,7 @@ ElectionDb.prototype.getElection = function(electionId, timeout) {
             }
         });
     } else {
+        log.trace('findOne: [%1]',electionId);
         self._coll.findOne({'id' : electionId}, function(err,item){
             if (err) {
                 log.error('getElection::findOne - %1:',err.message);
@@ -199,6 +236,8 @@ ElectionDb.prototype.getElection = function(electionId, timeout) {
                 var error = new Error('Unable to locate election.');
                 error.httpCode = 404;
                 deferred.reject(error);
+                log.info('Remove invalid election [%1] from cache',electionId);
+                delete self._cache[electionId];
             } else {
                 delete item._id;
                 election            = self._cache[electionId] || {};
@@ -244,9 +283,9 @@ ElectionDb.prototype.getBallotItem  = function(id,itemId,timeout){
                 );
             }
             else if (!election.ballot[itemId]){
-                deferred.reject(
-                    new Error('Unable to locate ballot item.')
-                );
+                var error = new Error('Unable to locate ballot item.');
+                error.httpCode = 404;
+                deferred.reject( error );
             } else {
                 result = { id : election.id , ballot : {} };
                 result.ballot[itemId] = election.ballot[itemId];
@@ -327,24 +366,35 @@ app.convertElection = function(election){
 };
 
 app.syncElections = function(elDb){
-    var log = logger.getLog();
-    log.trace('Idle Sync timeout.');
-    elDb.getCachedElections().forEach(function(election){
+    var log = logger.getLog(),
+        cached = elDb.getCachedElections();
+    return q.allSettled(cached.map(function(election){
         if (election.votingBooth.dirty){
-            log.trace('Election %1 will be syncd.',election.id);
-            elDb.getElection(election.id);
-        }
+            log.trace('sync Election %1', election.id);
+            return elDb.getElection(election.id);
+        } 
+        return q(true);
+    }))
+    .catch(function(error){
+        log.trace('Failed with: %1',error.message);
     });
-    return this;
 };
 
 app.main = function(state){
     var log = logger.getLog(), webServer,
-        elDb = new ElectionDb(state.db.collection('elections'));
+        elDb = new ElectionDb(state.db.collection('elections')),
+        started = new Date();
     if (state.clusterMaster){
         log.info('Cluster master, not a worker');
         return state;
     }
+
+    state.onSIGTERM = function(){
+        log.info('Received sigterm, sync and exit.');
+        return elDb.updateVoteCounts().then(function(results){
+            log.trace('results: %1',JSON.stringify(results));   
+        });
+    };
 
     log.info('Running as cluster worker, proceed with setting up web server.');
     webServer = express();
@@ -432,11 +482,20 @@ app.main = function(state){
             });
     });
 
+    webServer.get('/vote/meta',function(req, res, next){
+        res.send(200, {
+            version : state.config.appVersion,
+            started : started.toISOString(),
+            status  : 'OK'
+        });
+    });
+
     webServer.listen(state.cmdl.port);
     log.info('Service is listening on port: ' + state.cmdl.port);
 
     if(state.config.idleSyncTimeout > 0){
         setInterval(function(){
+            log.trace('Idle Sync timeout.');
             app.syncElections(elDb);
         }, state.config.idleSyncTimeout);
     }

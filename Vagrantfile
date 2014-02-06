@@ -6,7 +6,7 @@ Vagrant.configure("2") do |config|
   # options are documented and commented below. For a complete reference,
   # please see the online documentation at vagrantup.com.
 
-  config.vm.hostname = "dub-development"
+  config.vm.hostname = "cwrx-development"
 
   # Every Vagrant virtual environment requires a box to build off of.
   if ENV['USER'] == 'evan'
@@ -23,78 +23,72 @@ Vagrant.configure("2") do |config|
     config.vm.box_url = "https://dl.dropbox.com/u/31081437/Berkshelf-CentOS-6.3-x86_64-minimal.box"
   end
 
-  # Assign this VM to a host-only network IP, allowing you to access it
-  # via the IP. Host-only networks can talk to the host machine as well as
-  # any other machines on the same network, but cannot be accessed (through this
-  # network interface) by any external networks.
   config.vm.network :private_network, ip: "33.33.33.10"
-
-  # Create a public network, which generally matched to bridged network.
-  # Bridged networks make the machine appear as another physical device on
-  # your network.
-
-  # config.vm.network :public_network
-
-  # Create a forwarded port mapping which allows access to a specific port
-  # within the machine from a port on the host machine. In the example below,
-  # accessing "localhost:8080" will access port 80 on the guest machine.
-
-  # Share an additional folder to the guest VM. The first argument is
-  # the path on the host to the actual folder. The second argument is
-  # the path on the guest to mount the folder. And the optional third
-  # argument is a set of non-required options.
-  # config.vm.synced_folder "../data", "/vagrant_data"
-
-  # Provider-specific configuration so you can fine-tune various
-  # backing providers for Vagrant. These expose provider-specific options.
-  # Example for VirtualBox:
-  #
-  # config.vm.provider :virtualbox do |vb|
-  #   # Don't boot with headless mode
-  #   vb.gui = true
-  #
-  #   # Use VBoxManage to customize the VM. For example to change memory:
-  #   vb.customize ["modifyvm", :id, "--memory", "1024"]
-  # end
-  #
-  # View the documentation for the provider you're using for more
-  # information on available options.
 
   config.vm.boot_timeout = 120
   config.omnibus.chef_version = :latest
-
-  # The path to the Berksfile to use with Vagrant Berkshelf
-  # config.berkshelf.berksfile_path = "./Berksfile"
-
-  # Enabling the Berkshelf plugin. To enable this globally, add this configuration
-  # option to your ~/.vagrant.d/Vagrantfile file
   config.berkshelf.enabled = true
-
-  # An array of symbols representing groups of cookbook described in the Vagrantfile
-  # to exclusively install and copy to Vagrant's shelf.
-  # config.berkshelf.only = []
-
-  # An array of symbols representing groups of cookbook described in the Vagrantfile
-  # to skip installing and copying to Vagrant's shelf.
-  # config.berkshelf.except = []
 
   config.vm.provision :chef_solo do |chef|
     chef.data_bags_path = "#{ENV['CHEF_REPO']}/data_bags"
     chef.encrypted_data_bag_secret_key_path = "#{ENV['HOME']}/.chef/c6data.pem"
-    chef.json = {
-      :dub => {
-       :source => {
-           :branch => "#{ENV['DUB_DEV_BRANCH']}",
-       },
-       :cfg => {
-           :loglevel => "trace",
-       }
-     }
-    }
-
-    chef.run_list = [
-        "recipe[c6users::default]",
-        "recipe[dub::default]"
-    ]
+    if ENV['CWRX_APP'] == 'dub'
+        chef.json = {
+            :dub => {
+                 :source => {
+                     :branch => "#{ENV['CWRX_DEV_BRANCH']}",
+                 },
+                 :cfg => {
+                     :loglevel => "trace"
+                 }
+            }
+        }
+        
+        chef.run_list = [
+            "recipe[dub::default]"
+        ]
+    end
+    
+    if ENV['CWRX_APP'] == 'vote'
+        chef.json = {
+            :vote => {
+                :source => {
+                    :branch => "#{ENV['CWRX_DEV_BRANCH']}",
+                },
+                :cfg => {
+                    :loglevel => "trace"
+                },
+                :secrets => {
+                    :cookieParser => "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" ,
+                    :mongoCredentials => {
+                        :user => "vote",
+                        :password => "password"
+                    }
+                }
+            },
+            :maint => {
+                :source => {
+                    :branch => "#{ENV['CWRX_DEV_BRANCH']}",
+                },
+                :mongo => {
+                    :host => "33.33.33.100",
+                    :port => "27017",
+                    :db   => "voteDb"
+                },
+                :secrets => {
+                    :cookieParser =>  "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" ,
+                    :mongoCredentials => {
+                        :user => "maint",
+                        :password => "password"
+                    }
+                }
+            }
+        }
+    
+        chef.run_list = [
+            "recipe[vote]",
+            "recipe[maint]"
+        ]
+    end
   end
 end
