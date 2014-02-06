@@ -1,15 +1,31 @@
 describe('vote (E2E)', function(){
-    var testUtils, q, makeUrl, restart = true;
+    var testUtils, q, makeUrl, restart = true, testNum = 0;
     beforeEach(function(){
         var urlBase;
         q           = require('q');
         testUtils   = require('./testUtils');
         
-        urlBase = 'http://' + (process.env['E2EHOST'] ? process.env['E2EHOST'] : '33.33.33.10');
+        urlBase = 'http://' + (process.env['host'] ? process.env['host'] : '33.33.33.10');
         makeUrl = function(fragment){
             return urlBase + fragment;
         }
         
+    });
+    
+    beforeEach(function(done) {
+        if (!process.env['getLogs']) return done();
+        var options = {
+            url: makeUrl('/maint/clear_log'),
+            json: {
+                logFile: 'vote.log'
+            }
+        };
+        testUtils.qRequest('post', [options])
+        .catch(function(error) {
+            console.log("Error clearing vote log: " + JSON.stringify(error));
+        }).finally(function() {
+            done();
+        });
     });
 
     beforeEach(function(done) {
@@ -54,6 +70,16 @@ describe('vote (E2E)', function(){
                     done();
                 }
             });
+    });
+    
+    afterEach(function(done) {
+        if (!process.env['getLogs']) return done();
+        testUtils.getLog('vote.log', makeUrl('/maint'), jasmine.getEnv().currentSpec, 'vote', ++testNum)
+        .catch(function(error) {
+            console.log("Error getting log file for test " + testNum + ": " + JSON.stringify(error));
+        }).finally(function() {
+            done();
+        });
     });
 
     describe('GET /election/:id',function(){
