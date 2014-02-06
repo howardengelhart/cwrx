@@ -2,9 +2,6 @@ var flush = true;
 describe('auth (UT)', function() {
     if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
     var auth, mockLog, mockLogger, req, users,
-        path        = require('path'),
-        fs          = require('fs-extra'),
-        cwrxConfig  = require('../../lib/config'),
         uuid        = require('../../lib/uuid'),
         logger      = require('../../lib/logger'),
         mongoUtils  = require('../../lib/mongoUtils'),

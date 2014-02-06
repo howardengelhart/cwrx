@@ -38,7 +38,7 @@ describe('auth-light (E2E):', function() {
     
     describe('auth process', function() {
         var user = {
-            username: 'johnnyTestmonkey',
+            username: 'auth-lightE2EUser',
             password: 'password'
         };
         var cookieJar = require('request').jar();
@@ -54,7 +54,7 @@ describe('auth-light (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.user).toBeDefined();
                 expect(resp.body.user.id).toBeDefined();
-                expect(resp.body.user.username).toBe("johnnyTestmonkey");
+                expect(resp.body.user.username).toBe("auth-lightE2EUser");
                 expect(resp.body.user.password).not.toBeDefined();
                 expect(resp.body.user.created).toBeDefined();
                 expect(resp.response.headers['set-cookie'].length).toBe(1);
@@ -94,7 +94,7 @@ describe('auth-light (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.user).toBeDefined();
                 expect(resp.body.user.id).toBeDefined();
-                expect(resp.body.user.username).toBe("johnnyTestmonkey");
+                expect(resp.body.user.username).toBe("auth-lightE2EUser");
                 expect(resp.body.user.password).not.toBeDefined();
                 expect(resp.body.user.created).toBeDefined();
                 expect(resp.response.headers['set-cookie'].length).toBe(1);
@@ -114,7 +114,7 @@ describe('auth-light (E2E):', function() {
             
             testUtils.qRequest('del', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe("Successfully deleted account");;
+                expect(resp.body).toBe("Successfully deleted account");
                 expect(resp.response.headers['set-cookie']).not.toBeDefined();
                 var loginOpts = {
                     url: config.authUrl + '/login',
@@ -142,17 +142,6 @@ describe('auth-light (E2E):', function() {
             .then(function(resp) {
                 expect(resp.body.version).toBeDefined();
                 expect(resp.body.version.match(/^.+\.build\d+-\d+-g\w+$/)).toBeTruthy('version match');
-                expect(resp.body.config).toBeDefined();
-                
-                expect(resp.body.config.sessions).toBeDefined();
-                expect(resp.body.config.sessions.key).toBeDefined();
-                expect(resp.body.config.sessions.maxAge).toBeDefined();
-                expect(resp.body.config.sessions.db).toBeDefined();
-                
-                expect(resp.body.config.mongo).toBeDefined();
-                expect(resp.body.config.mongo.host).toBeDefined();
-                expect(resp.body.config.mongo.port).toBeDefined();
-                expect(resp.body.config.mongo.db).toBeDefined();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

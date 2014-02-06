@@ -310,12 +310,12 @@ describe('authUtils', function() {
                 });
             });
             
-            it('should fail with a 401 if the user is unauthorized', function(done) {
+            it('should fail with a 403 if the user is unauthorized', function(done) {
                 authUtils.authUser.andReturn(q.reject({error: 'Error!'}));
                 var midWare = authUtils.middlewarify(db, perms);
                 res.send = function(code, data) {
-                    expect(code).toBe(401);
-                    expect(data).toBe("Unauthorized");
+                    expect(code).toBe(403);
+                    expect(data).toBe("Forbidden");
                     expect(mockLog.info).toHaveBeenCalled();
                     expect(mockLog.error).not.toHaveBeenCalled();
                     expect(authUtils.authUser).toHaveBeenCalled();
