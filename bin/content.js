@@ -17,7 +17,7 @@ var path        = require('path'),
 state.name = 'content';
 // This is the template for content's configuration
 state.defaultConfig = {
-    appDir: path.join(__dirname, '..'),
+    appDir: __dirname,
     caches : {
         run     : path.normalize('/usr/local/share/cwrx/content/caches/run/'),
     },

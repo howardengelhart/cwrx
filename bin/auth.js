@@ -16,7 +16,7 @@ var path        = require('path'),
 state.name = 'auth';
 // This is the template for auth's configuration
 state.defaultConfig = {
-    appDir: path.join(__dirname, '..'),
+    appDir: __dirname,
     caches : {
         run     : path.normalize('/usr/local/share/cwrx/auth/caches/run/'),
     },
