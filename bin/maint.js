@@ -15,7 +15,6 @@ var include     = require('../lib/inject').require,
     daemon      = include('../lib/daemon'),
     uuid        = include('../lib/uuid'),
     cwrxConfig  = include('../lib/config'),
-    mongoUtils  = include('../lib/mongoUtils'),
     dub         = include(path.join(__dirname,'dub')),
     app         = express(),
 
@@ -46,12 +45,6 @@ var include     = require('../lib/inject').require,
             bitrate     : '48k',
             frequency   : 22050,
             workspace   : __dirname
-        },
-        secretsPath: path.join(process.env.HOME,'.maint.secrets.json'),
-        mongo: {
-            host: 'localhost',
-            port: 27017,
-            db: 'c6Db'
         }
     },
 
@@ -153,37 +146,6 @@ function restartService(serviceName) {
     return deferred.promise;
 }
 
-function resetCollection(db, collName, data, config) {
-    var log = logger.getLog();
-    log.info("Attempting to reset collection %1 in database %2 at %3:%4",
-             collName, config.mongo.db, config.mongo.host, config.mongo.port);
-    var collection = db.collection(collName);
-    
-    return q.npost(db, 'collectionNames', [collName]).then(function(names) {
-        if (names.length === 0) {
-            log.info("Collection %1 does not exist in db %2", collName, config.mongo.db);
-            return q();
-        } else {
-            return q.npost(collection, 'drop');
-        }
-    }).then(function() {
-        if (!data) {
-            log.info("No data provided; not re-creating collection");
-            return q();
-        } else {
-            if (data instanceof Array) {
-                log.info("Filling collection with multiple records");
-                return q.all(data.map(function(obj) {
-                    return q.npost(collection, 'insert', [obj, {w: 1, journal: true}]);
-                }));
-            } else {
-                log.info("Filling collection with provided record");
-                return q.npost(collection, 'insert', [data, {w: 1, journal: true}]);
-            }
-        }
-    });
-}
-
 if (!__ut__){
     try {
         main(function(rc,msg){
@@ -230,332 +192,303 @@ function main(done) {
         process.exit(0);
     }
 
+    config.ensurePaths();
+
     log = logger.getLog();
 
     if (program.loglevel){
         log.setLevel(program.loglevel);
     }
 
-    var secrets = fs.readJsonSync(config.secretsPath);
-    var db;
-    mongoUtils.connect(config.mongo.host, config.mongo.port).then(function(mongoClient) {
-        db = mongoClient.db(config.mongo.db);
-        return q.npost(db, 'authenticate', 
-                       [secrets.mongoCredentials.user, secrets.mongoCredentials.password]);
-    }).done(function(result) {
-        log.info('Successfully connected to mongo at %1:%2', config.mongo.host, config.mongo.port);
-        
-        process.on('uncaughtException', function(err) {
-            try{
-                log.error('uncaught: ' + err.message + "\n" + err.stack);
-            }catch(e){
-                console.error('uncaught: ' + err.message + "\n" + err.stack);
-            }
-            return done(2);
-        });
-
-        process.on('SIGINT',function(){
-            log.info('Received SIGINT, exitting app.');
-            return done(1,'Exit');
-        });
-
-        process.on('SIGTERM',function(){
-            log.info('Received TERM, exitting app.');
-            if (program.daemon){
-                daemon.removePidFile(config.cacheAddress('maint.pid', 'run'));
-            }
-            return done(0,'Exit');
-        });
-
-        log.info('Running version ' + getVersion());
-        
-        // Daemonize if so desired
-        if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)) {
-            daemon.daemonize(config.cacheAddress('maint.pid', 'run'), done);
+    process.on('uncaughtException', function(err) {
+        try{
+            log.error('uncaught: ' + err.message + "\n" + err.stack);
+        }catch(e){
+            console.error('uncaught: ' + err.message + "\n" + err.stack);
         }
+        return done(2);
+    });
 
-        app.use(express.bodyParser());
-        
-        app.all('*', function(req, res, next) {
-            res.header("Access-Control-Allow-Origin", "*");
-            res.header("Access-Control-Allow-Headers", 
-                       "Origin, X-Requested-With, Content-Type, Accept");
-            res.header("cache-control", "max-age=0");
+    process.on('SIGINT',function(){
+        log.info('Received SIGINT, exitting app.');
+        return done(1,'Exit');
+    });
 
-            if (req.method.toLowerCase() === "options") {
-                res.send(200);
-            } else {
-                next();
-            }
-        });
+    process.on('SIGTERM',function(){
+        log.info('Received TERM, exitting app.');
+        if (program.daemon){
+            daemon.removePidFile(config.cacheAddress('maint.pid', 'run'));
+        }
+        return done(0,'Exit');
+    });
 
-        app.all('*', function(req, res, next) {
-            req.uuid = uuid.createUuid().substr(0,10);
-            if (!req.headers['user-agent'] || !req.headers['user-agent'].match(/^ELB-HealthChecker/)) {
-                log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
-                    req.method, req.url, req.httpVersion);
-            } else {
-                log.trace('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
-                    req.method, req.url, req.httpVersion);
-            }
+    log.info('Running version ' + getVersion());
+    
+    // Daemonize if so desired
+    if ((program.daemon) && (process.env.RUNNING_AS_DAEMON === undefined)) {
+        daemon.daemonize(config.cacheAddress('maint.pid', 'run'), done);
+    }
+
+    app.use(express.bodyParser());
+    
+    app.all('*', function(req, res, next) {
+        res.header("Access-Control-Allow-Origin", "*");
+        res.header("Access-Control-Allow-Headers", 
+                   "Origin, X-Requested-With, Content-Type, Accept");
+        res.header("cache-control", "max-age=0");
+
+        if (req.method.toLowerCase() === "options") {
+            res.send(200);
+        } else {
             next();
-        });
+        }
+    });
 
-        app.post("/maint/remove_S3_script", function(req, res, next) {
-            log.info("Starting remove S3 script");
-            log.trace(JSON.stringify(req.body));
-            var fname = req.body.fname;
-            if (!fname) {
-                log.error("Incomplete params in request");
-                res.send(400, {
-                    error   : "Bad request",
-                    detail  : "Need filename in request"
-                });
-                return;
-            }
-            var s3 = new aws.S3(),
-                params = {
-                Bucket: config.s3.share.bucket,
-                Key: path.join(config.s3.share.path, fname)
-            };
-            log.info("Removing script: Bucket = " + params.Bucket + ", Key = " + params.Key);
-            s3.deleteObject(params, function(err, data) {
-                if (err) {
-                    log.error("Delete object error: " + err);
-                    res.send(500, {
-                        error   : "Unable to process request",
-                        detail  : err
-                    });
-                } else {
-                    log.info("Successfully removed script");
-                    res.send(200, { msg: "Successfully removed script" });
-                }
+    app.all('*', function(req, res, next) {
+        req.uuid = uuid.createUuid().substr(0,10);
+        if (!req.headers['user-agent'] || !req.headers['user-agent'].match(/^ELB-HealthChecker/)) {
+            log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
+                req.method, req.url, req.httpVersion);
+        } else {
+            log.trace('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
+                req.method, req.url, req.httpVersion);
+        }
+        next();
+    });
+
+    app.post("/maint/remove_S3_script", function(req, res, next) {
+        log.info("Starting remove S3 script");
+        log.trace(JSON.stringify(req.body));
+        var fname = req.body.fname;
+        if (!fname) {
+            log.error("Incomplete params in request");
+            res.send(400, {
+                error   : "Bad request",
+                detail  : "Need filename in request"
             });
+            return;
+        }
+        var s3 = new aws.S3(),
+            params = {
+            Bucket: config.s3.share.bucket,
+            Key: path.join(config.s3.share.path, fname)
+        };
+        log.info("Removing script: Bucket = " + params.Bucket + ", Key = " + params.Key);
+        s3.deleteObject(params, function(err, data) {
+            if (err) {
+                log.error("Delete object error: " + err);
+                res.send(500, {
+                    error   : "Unable to process request",
+                    detail  : err
+                });
+            } else {
+                log.info("Successfully removed script");
+                res.send(200, { msg: "Successfully removed script" });
+            }
+        });
+    });
+    
+    app.post("/maint/cache_file", function(req, res, next) {
+        log.info("Starting cache file");
+        if (!req.body || !req.body.fname || !req.body.data || !req.body.cache) {
+            log.error("Incomplete params in request");
+            res.send(400, {
+                error   : "Bad request",
+                detail  : "Need filename, cache name, and data in request"
+            });
+            return;
+        }
+        fs.writeFile(config.cacheAddress(req.body.fname, req.body.cache),
+                     JSON.stringify(req.body.data), function(error) {
+            if (error) {
+                log.error("Error writing to file: " + error);
+                res.send(500, {
+                    error   : "Unable to process request",
+                    detail  : error
+                });
+            } else {
+                log.info("Successfully wrote file " + req.body.fname);
+                res.send(200, {msg: "Successfully wrote file " + req.body.fname});
+            }
+        });
+    });
+
+    app.post("/maint/clean_cache", function(req, res, next) {
+        var job;
+        log.info("Starting clean cache");
+        try {
+            job = dub.createDubJob(uuid.createUuid().substr(0,10), req.body, config);
+        } catch (e){
+            log.error("Create job error: " + e.message);
+            res.send(500,{
+                error  : 'Unable to process request.',
+                detail : e.message
+            });
+            return;
+        }
+        log.info("Removing cached files for " + job.videoPath.match(/[^\/]*\..*$/)[0]);
+        var remList = [job.videoPath, job.scriptPath, job.outputPath, job.videoMetadataPath];
+        job.tracks.forEach(function(track) { 
+            remList.push(track.fpath);
+            remList.push(track.metapath);
         });
         
-        app.post("/maint/cache_file", function(req, res, next) {
-            log.info("Starting cache file");
-            if (!req.body || !req.body.fname || !req.body.data || !req.body.cache) {
-                log.error("Incomplete params in request");
-                res.send(400, {
-                    error   : "Bad request",
-                    detail  : "Need filename, cache name, and data in request"
-                });
-                return;
-            }
-            fs.writeFile(config.cacheAddress(req.body.fname, req.body.cache),
-                         JSON.stringify(req.body.data), function(error) {
-                if (error) {
-                    log.error("Error writing to file: " + error);
-                    res.send(500, {
-                        error   : "Unable to process request",
-                        detail  : error
-                    });
-                } else {
-                    log.info("Successfully wrote file " + req.body.fname);
-                    res.send(200, {msg: "Successfully wrote file " + req.body.fname});
-                }
-            });
-        });
-
-        app.post("/maint/clean_cache", function(req, res, next) {
-            var job;
-            log.info("Starting clean cache");
-            try {
-                job = dub.createDubJob(uuid.createUuid().substr(0,10), req.body, config);
-            } catch (e){
-                log.error("Create job error: " + e.message);
-                res.send(500,{
-                    error  : 'Unable to process request.',
-                    detail : e.message
-                });
-                return;
-            }
-            log.info("Removing cached files for " + job.videoPath.match(/[^\/]*\..*$/)[0]);
-            var remList = [job.videoPath, job.scriptPath, job.outputPath, job.videoMetadataPath];
-            job.tracks.forEach(function(track) { 
-                remList.push(track.fpath);
-                remList.push(track.metapath);
-            });
-            
-            removeFiles(remList).then(
-                function(val) { 
-                    log.info("Successfully removed " + val + " objects");
-                    res.send(200, {msg: "Successfully removed " + val + " objects"}) ;
-                }, function(error) {
-                    log.error("Remove files error: " + e);
-                    res.send(500,{
-                        error  : 'Unable to process request.',
-                        detail : error
-                    });
-                }
-            );
-        });
-        
-        app.post("/maint/clean_track", function(req, res, next) {
-            var job;
-            log.info("Starting clean track");
-            try {
-                job = dub.createTrackJob(uuid.createUuid().substr(0,10), req.body, config);
-            } catch (e){
-                log.error("Create job error: " + e.message);
-                res.send(500,{
-                    error  : 'Unable to process request.',
-                    detail : e.message
-                });
-                return;
-            }
-            var remList = [job.outputPath],
-                s3 = new aws.S3(),            
-                outParams = job.getS3OutParams(),
-                params = {
-                    Bucket: outParams.Bucket,
-                    Key: outParams.Key
-                };
-            
-            log.info("Removing cached file " + job.outputFname);
-            removeFiles(remList)
-            .then(function(val) {
-                log.info("Successfully removed local file " + job.outputPath);
-                log.info("Removing track on S3: Bucket = " + params.Bucket + ", Key = " + params.Key);
-                return q.npost(s3, 'deleteObject', [params]);
-            }).then(function() {
-                log.info("Successfully removed track on S3");
-                res.send(200, "Successfully removed track");
-            }).catch(function(error) {
-                log.error("Error removing track: " + error);
+        removeFiles(remList).then(
+            function(val) { 
+                log.info("Successfully removed " + val + " objects");
+                res.send(200, {msg: "Successfully removed " + val + " objects"}) ;
+            }, function(error) {
+                log.error("Remove files error: " + e);
                 res.send(500,{
                     error  : 'Unable to process request.',
                     detail : error
                 });
+            }
+        );
+    });
+    
+    app.post("/maint/clean_track", function(req, res, next) {
+        var job;
+        log.info("Starting clean track");
+        try {
+            job = dub.createTrackJob(uuid.createUuid().substr(0,10), req.body, config);
+        } catch (e){
+            log.error("Create job error: " + e.message);
+            res.send(500,{
+                error  : 'Unable to process request.',
+                detail : e.message
+            });
+            return;
+        }
+        var remList = [job.outputPath],
+            s3 = new aws.S3(),            
+            outParams = job.getS3OutParams(),
+            params = {
+                Bucket: outParams.Bucket,
+                Key: outParams.Key
+            };
+        
+        log.info("Removing cached file " + job.outputFname);
+        removeFiles(remList)
+        .then(function(val) {
+            log.info("Successfully removed local file " + job.outputPath);
+            log.info("Removing track on S3: Bucket = " + params.Bucket + ", Key = " + params.Key);
+            return q.npost(s3, 'deleteObject', [params]);
+        }).then(function() {
+            log.info("Successfully removed track on S3");
+            res.send(200, "Successfully removed track");
+        }).catch(function(error) {
+            log.error("Error removing track: " + error);
+            res.send(500,{
+                error  : 'Unable to process request.',
+                detail : error
             });
         });
+    });
 
-        app.post("/maint/clean_all_caches", function(req, res, next) {
-            var remList = [];
-            log.info("Starting clean all caches");
-            for (var key in config.caches) {
-                remList.push(config.caches[key]);
-            }
-            removeFiles(remList).finally(function() { config.ensurePaths(); }).then(
-                function(val) { 
-                    log.info("Successfully removed " + val + " objects");
-                    res.send(200, {msg: "Successfully removed " + val + " objects"});
-                }, function(error) {
-                    log.error("Remove files error: " + e);
-                    res.send(500,{
-                        error  : 'Unable to process request.',
-                        detail : error
-                    });
-                }
-            );
-        });
-        
-        app.post('/maint/clear_log', function(req, res, next) {
-            if (!req.body || (!req.body.logFile && !req.body.logPath)) {
-                res.send(400, {
-                    error: "Bad request",
-                    detail: "You must include the log filename or full path in the request"
+    app.post("/maint/clean_all_caches", function(req, res, next) {
+        var remList = [];
+        log.info("Starting clean all caches");
+        for (var key in config.caches) {
+            remList.push(config.caches[key]);
+        }
+        removeFiles(remList).finally(function() { config.ensurePaths(); }).then(
+            function(val) { 
+                log.info("Successfully removed " + val + " objects");
+                res.send(200, {msg: "Successfully removed " + val + " objects"});
+            }, function(error) {
+                log.error("Remove files error: " + e);
+                res.send(500,{
+                    error  : 'Unable to process request.',
+                    detail : error
                 });
-                return;
             }
-            var logFile = req.body.logPath || path.join(config.log.logDir, req.body.logFile);
-            log.info("Clearing log %1", logFile);
-            fs.writeFile(logFile, '', function(error) {
-                if (error) {
-                    log.error("Error clearing log %1: %2", logFile, error);
-                    res.send(500, {
-                        error: "Unable to process request",
-                        detail: error
-                    });
-                } else {
-                    log.info("Successfully cleared log %1", logFile);
-                    res.send(200, {msg: "Successfully cleared log %1" + logFile});
-                }
+        );
+    });
+    
+    app.post('/maint/clear_log', function(req, res, next) {
+        if (!req.body || (!req.body.logFile && !req.body.logPath)) {
+            res.send(400, {
+                error: "Bad request",
+                detail: "You must include the log filename or full path in the request"
             });
-        });
-        
-        app.get('/maint/get_log', function(req, res, next) {
-            if (!req.query || (!req.query.logFile && !req.query.logPath)) {
-                res.send(400, {
-                    error: "Bad request",
-                    detail: "You must include the log filename or full path in the request"
-                });
-                return;
-            }
-            var logFile = req.query.logPath || path.join(config.log.logDir, req.query.logFile);
-            log.info("Reading log %1", logFile);
-            fs.readFile(logFile, function(error, contents) {
-                if (error) {
-                    log.error("Error reading log %1: %2", logFile, error);
-                    res.send(500, {
-                        error: "Unable to process request",
-                        detail: error
-                    });
-                } else {
-                    log.info("Successfully read log %1", logFile);
-                    res.send(200, contents);
-                }
-            });
-        });
-        
-        app.post('/maint/reset_collection', function(req, res, next) {
-            if (!req.body || !req.body.collection) {
-                res.send(400, {
-                    error: "Bad request",
-                    detail: "You must include the name of a collection to clear"
-                });
-                return;
-            }
-            resetCollection(db, req.body.collection, req.body.data,config)
-            .then(function() {
-                log.info("Successfully reset collection");
-                res.send(200, "Successfully reset collection");
-            }).catch(function(error) {
-                log.error("Error resetting collection %1: %2", req.body.collection, error);
+            return;
+        }
+        var logFile = req.body.logPath || path.join(config.log.logDir, req.body.logFile);
+        log.info("Clearing log %1", logFile);
+        fs.writeFile(logFile, '', function(error) {
+            if (error) {
+                log.error("Error clearing log %1: %2", logFile, error);
                 res.send(500, {
                     error: "Unable to process request",
                     detail: error
                 });
-            });
-        });
-
-        app.post('/maint/service/restart', function(req, res, next){
-            if (!req.body || !req.body.service) {
-                res.send(400, {
-                    error: "Bad request",
-                    detail: "You must include service parameter"
-                });
-                return;
+            } else {
+                log.info("Successfully cleared log %1", logFile);
+                res.send(200, {msg: "Successfully cleared log %1" + logFile});
             }
-            restartService(req.body.service)
-                .then(function(svcName){
-                    log.info('Successfully restarted %1',svcName);
-                    res.send(200);
-                })
-                .catch(function(error){
-                    log.error('Failed to restart %1: %2',req.body.service,error.message);
-                    res.send(500);
-                });
         });
-        
-        app.get('/maint/meta', function(req, res, next){
-            var data = {
-                version: getVersion(),
-                config: {
-                    caches: config.caches,
-                    s3: {
-                        share: config.s3.share,
-                        tracks: config.s3.tracks
-                    }
-                }
-            };
-            res.send(200, data);
-        });
-
-        app.listen(program.port);
-        log.info("Maintenance server is listening on port: " + program.port);
     });
+    
+    app.get('/maint/get_log', function(req, res, next) {
+        if (!req.query || (!req.query.logFile && !req.query.logPath)) {
+            res.send(400, {
+                error: "Bad request",
+                detail: "You must include the log filename or full path in the request"
+            });
+            return;
+        }
+        var logFile = req.query.logPath || path.join(config.log.logDir, req.query.logFile);
+        log.info("Reading log %1", logFile);
+        fs.readFile(logFile, function(error, contents) {
+            if (error) {
+                log.error("Error reading log %1: %2", logFile, error);
+                res.send(500, {
+                    error: "Unable to process request",
+                    detail: error
+                });
+            } else {
+                log.info("Successfully read log %1", logFile);
+                res.send(200, contents);
+            }
+        });
+    });
+    
+    app.post('/maint/service/restart', function(req, res, next){
+        if (!req.body || !req.body.service) {
+            res.send(400, {
+                error: "Bad request",
+                detail: "You must include service parameter"
+            });
+            return;
+        }
+        restartService(req.body.service)
+            .then(function(svcName){
+                log.info('Successfully restarted %1',svcName);
+                res.send(200);
+            })
+            .catch(function(error){
+                log.error('Failed to restart %1: %2',req.body.service,error.message);
+                res.send(500);
+            });
+    });
+    
+    app.get('/maint/meta', function(req, res, next){
+        var data = {
+            version: getVersion(),
+            config: {
+                caches: config.caches,
+                s3: {
+                    share: config.s3.share,
+                    tracks: config.s3.tracks
+                }
+            }
+        };
+        res.send(200, data);
+    });
+
+    app.listen(program.port);
+    log.info("Maintenance server is listening on port: " + program.port);
 }
 
 if (__ut__) {
@@ -563,7 +496,6 @@ if (__ut__) {
         getVersion: getVersion,
         createConfiguration : createConfiguration,
         defaultConfiguration: defaultConfiguration,
-        resetCollection     : resetCollection,
         restartService      : restartService,
         removeFiles         : removeFiles
     };
