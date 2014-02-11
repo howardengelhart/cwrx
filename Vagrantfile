@@ -48,7 +48,7 @@ Vagrant.configure("2") do |config|
     end
 
     if ENV['CWRX_APP'] == 'dub'
-        chef.json.dub = {
+        chef.json[:dub] = {
             :source => {
                 :branch => "#{ENV['CWRX_DEV_BRANCH']}",
             },
@@ -63,7 +63,7 @@ Vagrant.configure("2") do |config|
     end
     
     if ENV['CWRX_APP'] == 'vote'
-        chef.json.vote = {
+        chef.json[:vote] = {
             :source => {
                 :branch => "#{ENV['CWRX_DEV_BRANCH']}",
             },
