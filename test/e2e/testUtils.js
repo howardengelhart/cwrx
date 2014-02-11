@@ -8,7 +8,7 @@ var request     = require('request'),
 function resetCollection(collection,data,dbConfig){
     var dbEnv, cli, db, coll;
     if (!dbConfig){
-        dbEnv = process.env['db'] ? JSON.parse(process.env['db']) : {};
+        dbEnv = process.env['mongo'] ? JSON.parse(process.env['mongo']) : {};
         dbConfig = {
             host : dbEnv.host ? dbEnv.host : 'localhost',
             port : dbEnv.port ? dbEnv.port : 27017,
@@ -18,12 +18,11 @@ function resetCollection(collection,data,dbConfig){
         };
     }
 
-
     return mongoUtils.connect(dbConfig.host,dbConfig.port)
         .then(function(mongoClient){
             cli     = mongoClient;
             db      = cli.db(dbConfig.db);
-            coll    = db.collection('elections');
+            coll    = db.collection(collection);
             if  (dbConfig.user){
                 return q.npost(db, 'authenticate', [ dbConfig.user, dbConfig.pass]);
             }

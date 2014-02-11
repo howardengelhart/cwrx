@@ -21,7 +21,7 @@ state.defaultConfig = {
     pidDir  : './',
     requestTimeout : 2000,
     idleSyncTimeout : 60000,
-    secretsPath: path.join(process.env.HOME,'.auth.secrets.json'),
+    secretsPath: path.join(process.env.HOME,'.vote.secrets.json'),
     mongo : {
         host: null,
         port: null,
