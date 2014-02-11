@@ -6,7 +6,7 @@ var request     = require('request'),
 
 
 function resetCollection(collection,data,dbConfig){
-    var dbEnv, cli, db, coll;
+    var dbEnv, db, coll;
     if (!dbConfig){
         dbEnv = process.env['mongo'] ? JSON.parse(process.env['mongo']) : {};
         dbConfig = {
@@ -18,10 +18,9 @@ function resetCollection(collection,data,dbConfig){
         };
     }
 
-    return mongoUtils.connect(dbConfig.host,dbConfig.port)
-        .then(function(mongoClient){
-            cli     = mongoClient;
-            db      = cli.db(dbConfig.db);
+    return mongoUtils.connect(dbConfig.host,dbConfig.port,dbConfig.db,dbConfig.user,dbConfig.pass)
+        .then(function(database){
+            db      = database;
             coll    = db.collection(collection);
             if  (dbConfig.user){
                 return q.npost(db, 'authenticate', [ dbConfig.user, dbConfig.pass]);
@@ -51,7 +50,7 @@ function resetCollection(collection,data,dbConfig){
             return q.npost(coll,'insert',[data, { w: 1, journal: true }]);
         })
         .then(function(){
-            cli.close();
+            db.close();
         });
 }
 
