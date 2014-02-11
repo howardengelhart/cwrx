@@ -1,11 +1,11 @@
 describe('vote (E2E)', function(){
     var testUtils, q, makeUrl, restart = true, testNum = 0;
     beforeEach(function(){
-        var urlBase;
+        var urlBase; 
         q           = require('q');
         testUtils   = require('./testUtils');
-        
-        urlBase = 'http://' + (process.env['host'] ? process.env['host'] : '33.33.33.10');
+
+        urlBase = 'http://' + (process.env['host'] ? process.env['host'] : 'localhost');
         makeUrl = function(fragment){
             return urlBase + fragment;
         }
@@ -33,8 +33,8 @@ describe('vote (E2E)', function(){
             {
                 id: 'e1',
                 ballot:   {
-                    'b1' : { 'red apple'      : 10, 'yellow banana'  : 20, 'orange carrot'  : 30 },
-                    'b2' : { 'one chicken'    : 0, 'two ducks'      : 2 }
+                    'b1' : { 'red apple'  : 10, 'yellow banana'  : 20, 'orange carrot'  : 30 },
+                    'b2' : { 'one chicken': 0, 'two ducks'      : 2 }
                 }
             },
             {
@@ -44,25 +44,20 @@ describe('vote (E2E)', function(){
                     'b2' : { 'red fish'   : 30, 'blue fish'  : 40 }
                 }
             }
-        ];
-        
-        var options = {
-            url: makeUrl('/maint/reset_collection'),
-            json: {
-                collection: "elections",
-                data: mockData
-            }
-        };
-        testUtils.qRequest('post', options)
-            .then(function(resp){
+        ], cli, coll;
+
+        testUtils.resetCollection('elections',mockData)
+            .then(function(){
                 if (restart){
-                    options.url = makeUrl('/maint/service/restart');
-                    options.json = { service : 'vote' };
+                    var options = {
+                        url : makeUrl('/maint/service/restart'),
+                        json : { service : 'vote' }
+                    };
                     return testUtils.qRequest('post',options);
                 }
-                return resp;
+                return q(true);
             })
-            .done(function(resp) {
+            .done(function() {
                 if (restart){
                     restart = false;
                     setTimeout(function(){ done(); },2000);

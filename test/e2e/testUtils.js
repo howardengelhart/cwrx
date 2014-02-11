@@ -1,7 +1,60 @@
 var request     = require('request'),
     q           = require('q'),
     path        = require('path'),
-    fs          = require('fs-extra');
+    fs          = require('fs-extra'),
+    mongoUtils  = require('../../lib/mongoUtils');
+
+
+function resetCollection(collection,data,dbConfig){
+    var dbEnv, cli, db, coll;
+    if (!dbConfig){
+        dbEnv = process.env['db'] ? JSON.parse(process.env['db']) : {};
+        dbConfig = {
+            host : dbEnv.host ? dbEnv.host : 'localhost',
+            port : dbEnv.port ? dbEnv.port : 27017,
+            db   : dbEnv.db   ? dbEnv.db   : 'c6Db',
+            user : dbEnv.user ? dbEnv.user : 'e2eTests',
+            pass : dbEnv.pass ? dbEnv.pass : 'password'
+        };
+    }
+
+
+    return mongoUtils.connect(dbConfig.host,dbConfig.port)
+        .then(function(mongoClient){
+            cli     = mongoClient;
+            db      = cli.db(dbConfig.db);
+            coll    = db.collection('elections');
+            if  (dbConfig.user){
+                return q.npost(db, 'authenticate', [ dbConfig.user, dbConfig.pass]);
+            }
+            return q();
+        })
+        .then(function(){
+            return q.npost(db, 'collectionNames', [collection]);
+        })
+        .then(function(names){
+            if (names.length === 0 ) {
+                return q();
+            }
+            return q.npost(coll, 'drop');
+        })
+        .then(function(){
+            if (!data) {
+                return q();
+            }
+
+            if (data instanceof Array) {
+                return q.all(data.map(function(obj) {
+                    return q.npost(coll,'insert',[obj, { w: 1, journal: true }]);
+                }));
+            }
+            
+            return q.npost(coll,'insert',[data, { w: 1, journal: true }]);
+        })
+        .then(function(){
+            cli.close();
+        });
+}
 
 function qRequest(method, opts) {
     var deferred = q.defer();
@@ -80,5 +133,6 @@ function checkStatus(jobId, host, statusUrl, statusTimeout, pollInterval) {
 module.exports = {
     qRequest: qRequest,
     getLog: getLog,
-    checkStatus: checkStatus
+    checkStatus: checkStatus,
+    resetCollection : resetCollection
 };
