@@ -47,17 +47,7 @@ describe('auth (E2E):', function() {
                 username : "authE2EUser",
                 password : "$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq" // hash of 'password'
             };
-            
-            var options = {
-                url: config.maintUrl + '/reset_collection',
-                json: {
-                    collection: "users",
-                    data: mockUser
-                }
-            };
-            testUtils.qRequest('post', options).done(function(resp) {
-                done();
-            });
+            testUtils.resetCollection('users', mockUser).done(done);
         });
         
         it('should succeed given valid credentials', function(done) {
@@ -154,13 +144,7 @@ describe('auth (E2E):', function() {
         });
         
         it('should succeed given valid credentials', function(done) {
-            var resetOpts = {
-                url: config.maintUrl + '/reset_collection',
-                json: {
-                    collection: "users"
-                }
-            };
-            testUtils.qRequest('post', resetOpts).then(function(resp) {
+            testUtils.resetCollection('users').then(function() {
                 var options = {
                     url: config.authUrl + '/signup',
                     json: mockUser
@@ -183,14 +167,7 @@ describe('auth (E2E):', function() {
         });
         
         it('should fail if given a username already tied to an account', function(done) {
-            var resetOpts = {
-                url: config.maintUrl + '/reset_collection',
-                json: {
-                    collection: "users",
-                    data: mockUser
-                }
-            };
-            testUtils.qRequest('post', resetOpts).then(function(resp) {
+            testUtils.resetCollection('users', mockUser).then(function() {
                 var options = {
                     url: config.authUrl + '/signup',
                     json: mockUser
@@ -232,13 +209,7 @@ describe('auth (E2E):', function() {
     
     describe('/auth/logout', function() {
         it('should successfully log a user out', function(done) {
-            var resetOpts = {
-                url: config.maintUrl + '/reset_collection',
-                json: {
-                    collection: 'users'
-                }
-            };
-            testUtils.qRequest('post', resetOpts).then(function(resp) {
+            testUtils.resetCollection('users').then(function() {
                 var signupOpts = {
                     url: config.authUrl + '/signup',
                     jar: true,
@@ -292,13 +263,7 @@ describe('auth (E2E):', function() {
                     password: 'password'
                 }
             };
-            var resetOpts = {
-                url: config.maintUrl + '/reset_collection',
-                json: {
-                    collection: 'users'
-                }
-            };
-            testUtils.qRequest('post', resetOpts).then(function(resp) {
+            testUtils.resetCollection('users').then(function() {
                 return testUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);

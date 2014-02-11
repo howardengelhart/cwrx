@@ -28,13 +28,6 @@ describe('content (E2E):', function() {
                 deleteExperience: true
             }
         };
-        var resetOpts = {
-            url: config.maintUrl + '/reset_collection',
-            json: {
-                collection: 'users',
-                data: mockUser
-            }
-        };
         var loginOpts = {
             url: config.authUrl + '/login',
             jar: cookieJar,
@@ -43,7 +36,7 @@ describe('content (E2E):', function() {
                 password: 'password'
             }
         };
-        testUtils.qRequest('post', resetOpts).then(function(resp) {
+        testUtils.resetCollection('users', mockUser).then(function(resp) {
             return testUtils.qRequest('post', loginOpts);
         }).done(function(resp) {
             done();
@@ -84,16 +77,7 @@ describe('content (E2E):', function() {
                 status: "active",
                 e2e: true
             };
-            var options = {
-                url: config.maintUrl + '/reset_collection',
-                json: {
-                    collection: "experiences",
-                    data: mockExp
-                }
-            };
-            testUtils.qRequest('post', options).done(function() {
-                done();
-            });
+            testUtils.resetCollection('experiences', mockExp).done(done);
         });
         
         it('should get an experience by id', function(done) {
@@ -126,16 +110,8 @@ describe('content (E2E):', function() {
                     access: "private"
                 }
             ];
-            var resetOpts = {
-                url: config.maintUrl + '/reset_collection',
-                json: {
-                    collection: 'experiences',
-                    data: mockExps
-                }
-            };
 
-            testUtils.qRequest('post', resetOpts).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
+            testUtils.resetCollection('experiences', mockExps).then(function() {
                 var options = {url: config.contentUrl + '/experience/e2e-pubget2'};
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
@@ -200,21 +176,12 @@ describe('content (E2E):', function() {
                     user: "not-e2e-user"
                 }
             ];
-            var resetExpsOpts = {
-                url: config.maintUrl + '/reset_collection',
-                json: {
-                    collection: "experiences",
-                    data: mockExps
-                }
-            };
-            testUtils.qRequest('post', resetExpsOpts).done(function() {
-                done();
-            });
+            testUtils.resetCollection('experiences', mockExps).done(done);
         });
         
         it('should get multiple experiences by id', function(done) {
             var options = {
-                url: config.contentUrl + '/experiences?ids=e2e-privget1,e2e-privget3',
+                url: config.contentUrl + '/experiences?ids=e2e-privget1,e2e-privget3&sort=id,1',
                 jar: cookieJar
             };
             testUtils.qRequest('get', options).then(function(resp) {
@@ -313,15 +280,7 @@ describe('content (E2E):', function() {
             mockExp = {
                 title: "testExp"
             };
-            var resetOpts = {
-                url: config.maintUrl + '/reset_collection',
-                json: {
-                    collection: 'experiences'
-                }
-            };
-            testUtils.qRequest('post', resetOpts).done(function() {
-                done();
-            });
+            testUtils.resetCollection('experiences').done(done);
         });
         
         it('should be able to create an experience', function(done) {
@@ -410,16 +369,7 @@ describe('content (E2E):', function() {
                     user: "not-e2e-user"
                 }
             ];
-            var resetExpsOpts = {
-                url: config.maintUrl + '/reset_collection',
-                json: {
-                    collection: "experiences",
-                    data: mockExps
-                }
-            };
-            testUtils.qRequest('post', resetExpsOpts).done(function() {
-                done();
-            });
+            testUtils.resetCollection('experiences', mockExps).done(done);
         });
         
         it('should fully update an experience', function(done) {
@@ -511,16 +461,7 @@ describe('content (E2E):', function() {
                     user: "not-e2e-user"
                 }
             ];
-            var resetExpsOpts = {
-                url: config.maintUrl + '/reset_collection',
-                json: {
-                    collection: "experiences",
-                    data: mockExps
-                }
-            };
-            testUtils.qRequest('post', resetExpsOpts).done(function() {
-                done();
-            });
+            testUtils.resetCollection('experiences', mockExps).done(done);
         });
         
         it('should set the status of an experience to deleted', function(done) {

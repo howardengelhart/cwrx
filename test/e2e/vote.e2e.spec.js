@@ -1,5 +1,11 @@
 describe('vote (E2E)', function(){
-    var testUtils, q, makeUrl, restart = true, testNum = 0;
+    var testUtils, q, makeUrl, restart = true, testNum = 0,
+        dbEnv = JSON.parse(process.env['mongo']);
+    if (dbEnv && !dbEnv.db) {
+        dbEnv.db = "voteDb";
+    }
+    process.env['mongo'] = JSON.stringify(dbEnv);
+    
     beforeEach(function(){
         var urlBase; 
         q           = require('q');
