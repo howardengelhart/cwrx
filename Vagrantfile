@@ -32,15 +32,28 @@ Vagrant.configure("2") do |config|
   config.vm.provision :chef_solo do |chef|
     chef.data_bags_path = "#{ENV['CHEF_REPO']}/data_bags"
     chef.encrypted_data_bag_secret_key_path = "#{ENV['HOME']}/.chef/c6data.pem"
+    chef.json = {
+        :maint => {
+            :source => {
+                :branch => "#{ENV['CWRX_DEV_BRANCH']}"
+            },
+            :cfg => {
+                :loglevel => "trace"
+            }
+        }
+    }
+
+    if ENV['CWRX_APP'] == 'maint'
+        chef.run_list = [ "recipe[maint]" ]
+    end
+
     if ENV['CWRX_APP'] == 'dub'
-        chef.json = {
-            :dub => {
-                 :source => {
-                     :branch => "#{ENV['CWRX_DEV_BRANCH']}",
-                 },
-                 :cfg => {
-                     :loglevel => "trace"
-                 }
+        chef.json.dub = {
+            :source => {
+                :branch => "#{ENV['CWRX_DEV_BRANCH']}",
+            },
+            :cfg => {
+                :loglevel => "trace"
             }
         }
         
@@ -50,37 +63,18 @@ Vagrant.configure("2") do |config|
     end
     
     if ENV['CWRX_APP'] == 'vote'
-        chef.json = {
-            :vote => {
-                :source => {
-                    :branch => "#{ENV['CWRX_DEV_BRANCH']}",
-                },
-                :cfg => {
-                    :loglevel => "trace"
-                },
-                :secrets => {
-                    :cookieParser => "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" ,
-                    :mongoCredentials => {
-                        :user => "vote",
-                        :password => "password"
-                    }
-                }
+        chef.json.vote = {
+            :source => {
+                :branch => "#{ENV['CWRX_DEV_BRANCH']}",
             },
-            :maint => {
-                :source => {
-                    :branch => "#{ENV['CWRX_DEV_BRANCH']}",
-                },
-                :mongo => {
-                    :host => "33.33.33.100",
-                    :port => "27017",
-                    :db   => "voteDb"
-                },
-                :secrets => {
-                    :cookieParser =>  "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" ,
-                    :mongoCredentials => {
-                        :user => "maint",
-                        :password => "password"
-                    }
+            :cfg => {
+                :loglevel => "trace"
+            },
+            :secrets => {
+                :cookieParser => "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" ,
+                :mongoCredentials => {
+                    :user => "vote",
+                    :password => "password"
                 }
             }
         }
@@ -90,5 +84,6 @@ Vagrant.configure("2") do |config|
             "recipe[maint]"
         ]
     end
+
   end
 end
