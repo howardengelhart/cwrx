@@ -2,7 +2,7 @@ var q           = require('q'),
     testUtils   = require('./testUtils'),
     host        = process.env['host'] ? process.env['host'] : 'localhost',
     config      = {
-        contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/content',
+        contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api/content',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/auth',
         maintUrl    : 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint'
     };
@@ -165,7 +165,7 @@ describe('content-light (E2E):', function() {
         });
     });
 
-    describe('/content/meta', function() {
+    describe('/api/content/meta', function() {
         it('should print out appropriate metadata about the content service', function(done) {
             var options = {
                 url: config.contentUrl + '/meta'
@@ -180,5 +180,5 @@ describe('content-light (E2E):', function() {
                 done();
             });
         });
-    });  // end -- describe /content/meta
+    });  // end -- describe /api/content/meta
 });  // end -- describe content (E2E)

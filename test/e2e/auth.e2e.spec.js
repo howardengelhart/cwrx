@@ -2,7 +2,7 @@ var q           = require('q'),
     testUtils   = require('./testUtils'),
     host        = process.env['host'] ? process.env['host'] : 'localhost',
     config      = {
-        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/auth',
+        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth',
         maintUrl    : 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint'
     };
 
@@ -36,7 +36,7 @@ describe('auth (E2E):', function() {
         });
     });
     
-    describe('/auth/login', function() {
+    describe('/api/auth/login', function() {
         var mockUser,
             now = new Date();
         
@@ -134,7 +134,7 @@ describe('auth (E2E):', function() {
         });
     });
     
-    describe('/auth/signup', function() {
+    describe('/api/auth/signup', function() {
         var mockUser;
         beforeEach(function() {
             mockUser = {
@@ -207,7 +207,7 @@ describe('auth (E2E):', function() {
         });
     });
     
-    describe('/auth/logout', function() {
+    describe('/api/auth/logout', function() {
         it('should successfully log a user out', function(done) {
             testUtils.resetCollection('users').then(function() {
                 var signupOpts = {
@@ -253,7 +253,7 @@ describe('auth (E2E):', function() {
         });
     });
     
-    describe('/auth/delete_account', function() {
+    describe('/api/auth/delete_account', function() {
         it('should successfully delete a user account', function(done) {
             var options = {
                 url: config.authUrl + '/signup',
@@ -302,5 +302,5 @@ describe('auth (E2E):', function() {
                 done();
             });
         });
-    });  // end describe /auth/delete_account
+    });  // end describe /api/auth/delete_account
 });  // end describe auth (E2E)

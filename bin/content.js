@@ -316,7 +316,7 @@ content.main = function(state) {
     var expCache = new content.QueryCache(state.config.cacheTTLs.experiences, experiences);
     
     // simple get active experience by id, public
-    app.get('/content/experience/:id', function(req, res, next) {
+    app.get('/api/content/experience/:id', function(req, res, next) {
         content.getExperiences({id: req.params.id}, req, expCache)
         .then(function(resp) {
             res.send(resp.code, resp.body);
@@ -329,7 +329,7 @@ content.main = function(state) {
 
     // robust get experience by query, require authenticated user; currently no perms required
     var authGetExp = authUtils.middlewarify(state.db, {});
-    app.get('/content/experiences', authGetExp, function(req, res, next) {
+    app.get('/api/content/experiences', authGetExp, function(req, res, next) {
         log.info(JSON.stringify(req.query));
         if (!req.query || (!req.query.ids && !req.query.user)) {
             log.info('[%1] Cannot GET /content/experiences without ids or user specified', req.uuid);
@@ -353,7 +353,7 @@ content.main = function(state) {
     });
     
     var authPostExp = authUtils.middlewarify(state.db, {createExperience: true});
-    app.post('/content/experience', authPostExp, function(req, res, next) {
+    app.post('/api/content/experience', authPostExp, function(req, res, next) {
         content.createExperience(req, experiences)
         .then(function(resp) {
             res.send(resp.code, resp.body);
@@ -366,7 +366,7 @@ content.main = function(state) {
     });
     
     var authPutExp = authUtils.middlewarify(state.db, {createExperience: true});
-    app.put('/content/experience/:id', authPutExp, function(req, res, next) {
+    app.put('/api/content/experience/:id', authPutExp, function(req, res, next) {
         content.updateExperience(req, experiences)
         .then(function(resp) {
             res.send(resp.code, resp.body);
@@ -379,7 +379,7 @@ content.main = function(state) {
     });
     
     var authDelExp = authUtils.middlewarify(state.db, {deleteExperience: true});
-    app.delete('/content/experience/:id', authDelExp, function(req, res, next) {
+    app.delete('/api/content/experience/:id', authDelExp, function(req, res, next) {
         content.deleteExperience(req, experiences)
         .then(function(resp) {
             res.send(resp.code, resp.body);
@@ -391,7 +391,7 @@ content.main = function(state) {
         });
     });
     
-    app.get('/content/meta', function(req, res, next){
+    app.get('/api/content/meta', function(req, res, next){
         var data = {
             version: state.config.appVersion
         };

@@ -2,7 +2,7 @@ var q           = require('q'),
     testUtils   = require('./testUtils'),
     host        = process.env['host'] ? process.env['host'] : 'localhost',
     config      = {
-        contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/content',
+        contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api/content',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/auth',
         maintUrl    : 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint'
     };
@@ -68,7 +68,7 @@ describe('content (E2E):', function() {
         });
     });
     
-    describe('public GET /content/experience/:id', function() {
+    describe('public GET /api/content/experience/:id', function() {
         beforeEach(function(done) {
             var mockExp = {
                 id: "e2e-pubget1",
@@ -147,7 +147,7 @@ describe('content (E2E):', function() {
         });
     });
     
-    describe('authenticated GET /content/experience', function() {
+    describe('authenticated GET /api/content/experience', function() {
         beforeEach(function(done) {
             var mockExps = [
                 {
@@ -274,7 +274,7 @@ describe('content (E2E):', function() {
         });
     });
     
-    describe('POST /content/experience', function() {
+    describe('POST /api/content/experience', function() {
         var mockExp;
         beforeEach(function(done) {
             mockExp = {
@@ -346,7 +346,7 @@ describe('content (E2E):', function() {
         
     });
     
-    describe('PUT /content/experience/:id', function() {
+    describe('PUT /api/content/experience/:id', function() {
         var mockExps, now;
         beforeEach(function(done) {
             // created = yesterday to allow for clock differences b/t server and test runner
@@ -445,7 +445,7 @@ describe('content (E2E):', function() {
         });
     });
     
-    describe('DELETE /content/experience/:id', function() {
+    describe('DELETE /api/content/experience/:id', function() {
         beforeEach(function(done) {
             var mockExps = [
                 {

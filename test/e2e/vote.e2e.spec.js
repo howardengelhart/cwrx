@@ -83,10 +83,10 @@ describe('vote (E2E)', function(){
         });
     });
 
-    describe('GET /election/:id',function(){
+    describe('GET /api/election/:id',function(){
 
         it('gets an election if it exists',function(done){
-            testUtils.qRequest('get', { url : makeUrl('/election/e1')})
+            testUtils.qRequest('get', { url : makeUrl('/api/election/e1')})
                 .then(function(resp){
                     expect(resp.response.statusCode).toEqual(200);
                     expect(resp.body.id).toEqual('e1');
@@ -105,7 +105,7 @@ describe('vote (E2E)', function(){
         });
 
         it('returns with a 404 if the election does not exist',function(done){
-            testUtils.qRequest('get', { url : makeUrl('/election/e1x')})
+            testUtils.qRequest('get', { url : makeUrl('/api/election/e1x')})
                 .then(function(resp){
                     expect(resp.response.statusCode).toEqual(404);
                 })
@@ -119,10 +119,10 @@ describe('vote (E2E)', function(){
         });
 
         it('returns with 404 if the electionId is not passed',function(done){
-            testUtils.qRequest('get', { url : makeUrl('/election')})
+            testUtils.qRequest('get', { url : makeUrl('/api/election')})
                 .then(function(resp){
                     expect(resp.response.statusCode).toEqual(404);
-                    expect(resp.body).toEqual('Cannot GET /election');
+                    expect(resp.body).toEqual('Cannot GET /api/election');
                 })
                 .catch(function(err){
                     expect(err).not.toBeDefined();
@@ -136,10 +136,10 @@ describe('vote (E2E)', function(){
     });
 
 
-    describe('GET /election/:id/ballot:id',function(){
+    describe('GET /api/election/:id/ballot:id',function(){
 
         it('gets a ballot if it and the election exist',function(done){
-            testUtils.qRequest('get', { url : makeUrl('/election/e2/ballot/b2')})
+            testUtils.qRequest('get', { url : makeUrl('/api/election/e2/ballot/b2')})
                 .then(function(resp){
                     expect(resp.response.statusCode).toEqual(200);
                     expect(resp.body.id).toEqual('e2');
@@ -156,7 +156,7 @@ describe('vote (E2E)', function(){
         });
         
         it('returns with a 404 if the election does not exist',function(done){
-            testUtils.qRequest('get', { url : makeUrl('/election/e2x/ballot/b2')})
+            testUtils.qRequest('get', { url : makeUrl('/api/election/e2x/ballot/b2')})
                 .then(function(resp){
                     expect(resp.response.statusCode).toEqual(404);
                     expect(resp.body).toEqual('Unable to locate election.\n');
@@ -171,7 +171,7 @@ describe('vote (E2E)', function(){
         });
 
         it('returns with a 404 if the ballot does not exist',function(done){
-            testUtils.qRequest('get', { url : makeUrl('/election/e2/ballot/b3')})
+            testUtils.qRequest('get', { url : makeUrl('/api/election/e2/ballot/b3')})
                 .then(function(resp){
                     expect(resp.response.statusCode).toEqual(404);
                     expect(resp.body).toEqual('Unable to locate ballot item.\n');
@@ -186,11 +186,11 @@ describe('vote (E2E)', function(){
         });
     });
 
-    describe('POST /vote/',function(){
+    describe('POST /api/vote/',function(){
         var options;
         beforeEach(function(){
             options = {
-                url: makeUrl('/vote'),
+                url: makeUrl('/api/vote'),
                 json: { }
             };
         });
@@ -238,7 +238,7 @@ describe('vote (E2E)', function(){
                     expect(resp.body).toEqual('OK');
                 })
                 .then(function(){
-                    return testUtils.qRequest('get', { url : makeUrl('/election/e1/ballot/b2')});
+                    return testUtils.qRequest('get', { url : makeUrl('/api/election/e1/ballot/b2')});
                 })
                 .then(function(resp){
                     expect(resp.body.ballot.b2['one chicken']).toEqual(0.33);

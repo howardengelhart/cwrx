@@ -2,7 +2,7 @@ var q           = require('q'),
     testUtils   = require('./testUtils'),
     host        = process.env['host'] ? process.env['host'] : 'localhost',
     config      = {
-        authUrl   : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/auth',
+        authUrl   : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth',
         maintUrl : 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint'
     };
 
@@ -133,7 +133,7 @@ describe('auth-light (E2E):', function() {
         });
     });
 
-    describe('/auth/meta', function() {
+    describe('/api/auth/meta', function() {
         it('should print out appropriate metadata about the auth service', function(done) {
             var options = {
                 url: config.authUrl + '/meta'
