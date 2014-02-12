@@ -10,28 +10,18 @@ describe('mongoUtils', function() {
     });
     
     describe('connect', function() {
-        var openSpy = jasmine.createSpy('client_open'),
-            fakeClient;
-            
         beforeEach(function() {
-            fakeClient = {
-                name: 'fakeClient',
-                open: openSpy
-            };
-            spyOn(mongodb, 'MongoClient').andReturn(fakeClient);
-            spyOn(mongodb, 'Server').andReturn({ name: 'fakeServer'});
+            spyOn(mongodb.MongoClient, 'connect').andCallFake(function(url, opts, cb) {
+                cb(null, 'fakeDb');
+            });
         });
         
         it('should correctly setup the client and connect', function(done) {
-            openSpy.andCallFake(function(cb) {
-                cb(null, fakeClient);
-            });
-            mongoUtils.connect('10.0.0.1.', '666').then(function(client) {
-                expect(client).toBeDefined();
-                expect(client.name).toBe('fakeClient');
-                expect(mongodb.Server).toHaveBeenCalledWith('10.0.0.1.', '666');
-                expect(mongodb.MongoClient).toHaveBeenCalledWith({name: 'fakeServer'}, {native_parser:true});
-                expect(openSpy).toHaveBeenCalled();
+            mongoUtils.connect('10.0.0.1.', '666', 'fakeDb').then(function(db) {
+                expect(db).toBe('fakeDb');
+                expect(mongodb.MongoClient.connect).toHaveBeenCalled();
+                expect(mongodb.MongoClient.connect.calls[0].args[0]).toBe('mongodb://10.0.0.1.:666/fakeDb');
+                expect(mongodb.MongoClient.connect.calls[0].args[1]).toEqual({native_parser: true});
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -39,15 +29,43 @@ describe('mongoUtils', function() {
             });
         });
         
+        it('should include auth params if passed to the function', function(done) {
+            mongoUtils.connect('10.0.0.1.', '666', 'fakeDb', 'test', 'password')
+            .then(function(db) {
+                expect(db).toBe('fakeDb');
+                expect(mongodb.MongoClient.connect).toHaveBeenCalled();
+                expect(mongodb.MongoClient.connect.calls[0].args[0])
+                    .toBe('mongodb://test:password@10.0.0.1.:666/fakeDb');
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should reject with an error if the required params are not provided', function(done) {
+            mongoUtils.connect('10.0.0.1.', '666', null).catch(function(error) {
+                expect(error).toBe('Must pass host, port, and db as params to mongoUtils.connect');
+                return mongoUtils.connect('10.0.0.1', null, 'fakeDb');
+            }).catch(function(error) {
+                expect(error).toBe('Must pass host, port, and db as params to mongoUtils.connect');
+                return mongoUtils.connect(null, '666', 'fakeDb');
+            }).catch(function(error) {
+                expect(error).toBe('Must pass host, port, and db as params to mongoUtils.connect');
+                done();
+            }).then(function(db) {
+                expect(db).not.toBeDefined();
+                done();
+            });
+        });
+        
         it('should pass along errors from connecting', function(done) {
-            openSpy.andCallFake(function(cb) {
+            mongodb.MongoClient.connect.andCallFake(function(url, opts, cb) {
                 cb('Error!');
             });
-            mongoUtils.connect('10.0.0.1.', '666').catch(function(error) {
+            mongoUtils.connect('10.0.0.1.', '666', 'fakeDb').catch(function(error) {
                 expect(error).toBe('Error!');
-                expect(mongodb.Server).toHaveBeenCalledWith('10.0.0.1.', '666');
-                expect(mongodb.MongoClient).toHaveBeenCalledWith({name: 'fakeServer'}, {native_parser:true});
-                expect(openSpy).toHaveBeenCalled();
+                expect(mongodb.MongoClient.connect.calls[0].args[0]).toBe('mongodb://10.0.0.1.:666/fakeDb');
                 done();
             });
         });
