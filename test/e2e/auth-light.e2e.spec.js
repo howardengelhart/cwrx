@@ -72,9 +72,9 @@ describe('auth-light (E2E):', function() {
                 jar: cookieJar
             };
             
-            testUtils.qRequest('del', options).then(function(resp) {
+            testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe("Successful logout");;
+                expect(resp.body).toBe("Success");;
                 expect(resp.response.headers['set-cookie']).not.toBeDefined();
                 done();
             }).catch(function(error) {
@@ -142,6 +142,9 @@ describe('auth-light (E2E):', function() {
             .then(function(resp) {
                 expect(resp.body.version).toBeDefined();
                 expect(resp.body.version.match(/^.+\.build\d+-\d+-g\w+$/)).toBeTruthy('version match');
+                expect(resp.body.started).toBeDefined();
+                expect(new Date(resp.body.started).toString()).not.toEqual('Invalid Date');
+                expect(resp.body.status).toBe("OK");
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

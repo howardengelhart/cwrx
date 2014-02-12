@@ -157,12 +157,12 @@ auth.logout = function(req) {
     if (!req.session || !req.session.user) {
         log.info("[%1] User with sessionID %2 attempting to logout but is not logged in",
                  req.uuid, req.sessionID);
-        deferred.resolve({code: 400, body: "You are not logged in"});
+        deferred.resolve({code: 200, body: "Success"});
     } else {
         log.info("[%1] Logging out user %2 with sessionID %3",
                  req.uuid, req.session.user, req.sessionID);
         q.npost(req.session, 'destroy').then(function() {
-            deferred.resolve({code: 200, body: "Successful logout"});
+            deferred.resolve({code: 200, body: "Success"});
         }).catch(function(error) {
             log.error('[%1] Error logging out user %2: %3', req.uuid, req.session.user, error);
             deferred.reject(error);
@@ -195,7 +195,8 @@ auth.deleteAccount = function(req, users) {
 };
 
 auth.main = function(state) {
-    var log = logger.getLog();
+    var log = logger.getLog(),
+        started = new Date();
     if (state.clusterMaster){
         log.info('Cluster master, not a worker');
         return state;
@@ -278,7 +279,7 @@ auth.main = function(state) {
         });
     });
     
-    app.delete('/api/auth/logout', function(req, res, next) {
+    app.post('/api/auth/logout', function(req, res, next) {
         auth.logout(req).then(function(resp) {
             res.send(resp.code, resp.body);
         }).catch(function(error) {
@@ -300,7 +301,9 @@ auth.main = function(state) {
     
     app.get('/api/auth/meta', function(req, res, next){
         var data = {
-            version: state.config.appVersion
+            version: state.config.appVersion,
+            started : started.toISOString(),
+            status  : 'OK'
         };
         res.send(200, data);
     });

@@ -250,7 +250,8 @@ content.deleteExperience = function(req, experiences) {
 };
 
 content.main = function(state) {
-    var log = logger.getLog();
+    var log = logger.getLog(),
+        started = new Date();
     if (state.clusterMaster){
         log.info('Cluster master, not a worker');
         return state;
@@ -394,7 +395,9 @@ content.main = function(state) {
     
     app.get('/api/content/meta', function(req, res, next){
         var data = {
-            version: state.config.appVersion
+            version: state.config.appVersion,
+            started : started.toISOString(),
+            status  : 'OK'
         };
         res.send(200, data);
     });
