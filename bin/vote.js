@@ -426,7 +426,7 @@ app.main = function(state){
         next();
     });
     
-    webServer.post('/vote', function(req, res, next){
+    webServer.post('/api/vote', function(req, res, next){
         if ((!req.body.election) || (!req.body.ballotItem) ||  (!req.body.vote)) {
             res.send(400, 'Invalid request.\n');
             return;
@@ -437,7 +437,7 @@ app.main = function(state){
     });
 
 
-    webServer.get('/election/:electionId', function(req, res, next){
+    webServer.get('/api/election/:electionId', function(req, res, next){
         if (!req.params || !req.params.electionId ) {
             res.send(400, 'You must provide the electionId in the request url.\n');
             return;
@@ -460,7 +460,7 @@ app.main = function(state){
             });
     });
 
-    webServer.get('/election/:electionId/ballot/:itemId', function(req, res, next){
+    webServer.get('/api/election/:electionId/ballot/:itemId', function(req, res, next){
         if (!req.params || !req.params.electionId || !req.params.itemId) {
             res.send(400, 'You must provide the electionId and itemId in the request url.\n');
             return;
@@ -482,7 +482,7 @@ app.main = function(state){
             });
     });
 
-    webServer.get('/vote/meta',function(req, res, next){
+    webServer.get('/api/vote/meta',function(req, res, next){
         res.send(200, {
             version : state.config.appVersion,
             started : started.toISOString(),

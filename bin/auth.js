@@ -258,7 +258,7 @@ auth.main = function(state) {
         next();
     });
 
-    app.post('/auth/login', function(req, res, next) {
+    app.post('/api/auth/login', function(req, res, next) {
         auth.login(req, users).then(function(resp) {
             res.send(resp.code, resp.body);
         }).catch(function(error) {
@@ -268,7 +268,7 @@ auth.main = function(state) {
         });
     });
     
-    app.post('/auth/signup', function(req, res, next) {
+    app.post('/api/auth/signup', function(req, res, next) {
         auth.signup(req, users).then(function(resp) {
             res.send(resp.code, resp.body);
         }).catch(function(error) {
@@ -278,7 +278,7 @@ auth.main = function(state) {
         });
     });
     
-    app.delete('/auth/logout', function(req, res, next) {
+    app.delete('/api/auth/logout', function(req, res, next) {
         auth.logout(req).then(function(resp) {
             res.send(resp.code, resp.body);
         }).catch(function(error) {
@@ -288,7 +288,7 @@ auth.main = function(state) {
         });
     });
     
-    app.delete('/auth/delete_account', function(req, res, next) {
+    app.delete('/api/auth/delete_account', function(req, res, next) {
         auth.deleteAccount(req, users).then(function(resp) {
             res.send(resp.code, resp.body);
         }).catch(function(error) {
@@ -298,7 +298,7 @@ auth.main = function(state) {
         });
     });
     
-    app.get('/auth/meta', function(req, res, next){
+    app.get('/api/auth/meta', function(req, res, next){
         var data = {
             version: state.config.appVersion
         };
