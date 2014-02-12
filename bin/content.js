@@ -34,7 +34,8 @@ state.defaultConfig = {
     mongo: {
         host: 'localhost',
         port: 27017,
-        db: 'c6Db'
+        db: 'c6Db',
+        retryConnect : true
     }
 };
 
