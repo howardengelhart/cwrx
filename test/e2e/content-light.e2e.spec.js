@@ -3,7 +3,7 @@ var q           = require('q'),
     host        = process.env['host'] ? process.env['host'] : 'localhost',
     config      = {
         contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api/content',
-        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/auth',
+        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth',
         maintUrl    : 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint'
     };
 

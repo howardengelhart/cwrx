@@ -275,7 +275,7 @@ describe('vote (E2E)', function(){
                     return deferred.promise;
                 })
                 .then(function(){
-                    return testUtils.qRequest('get', { url : makeUrl('/election/e1/ballot/b2')});
+                    return testUtils.qRequest('get', { url : makeUrl('/api/election/e1/ballot/b2')});
                 })
                 .then(function(resp){
                     expect(resp.body.ballot.b2['one chicken']).toEqual(0.50);

@@ -3,7 +3,7 @@ var q           = require('q'),
     host        = process.env['host'] ? process.env['host'] : 'localhost',
     config      = {
         contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api/content',
-        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/auth',
+        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth',
         maintUrl    : 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint'
     };
 
@@ -199,7 +199,7 @@ describe('content (E2E):', function() {
         
         it('should get experiences by user', function(done) {
             var options = {
-                url: config.contentUrl + '/experiences?user=e2e-user',
+                url: config.contentUrl + '/experiences?user=e2e-user&sort=id,1',
                 jar: cookieJar
             };
             testUtils.qRequest('get', options).then(function(resp) {
