@@ -225,10 +225,10 @@ describe('auth (E2E):', function() {
                     url: config.authUrl + '/logout',
                     jar: true
                 };
-                return testUtils.qRequest('del', options);
+                return testUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe("Successful logout");
+                expect(resp.body).toBe("Success");
                 expect(resp.response.headers['set-cookie']).not.toBeDefined();
                 done();
             }).catch(function(error) {
@@ -237,14 +237,14 @@ describe('auth (E2E):', function() {
             });
         });
         
-        it('should fail if the user is not logged in', function(done) {
+        it('should still succeed if the user is not logged in', function(done) {
             var options = {
                 url: config.authUrl + '/logout',
                 jar: true
             };
-            testUtils.qRequest('del', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe("You are not logged in");
+            testUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBe("Success");
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

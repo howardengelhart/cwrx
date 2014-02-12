@@ -343,7 +343,7 @@ describe('auth (UT)', function() {
             auth.logout(req).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
-                expect(resp.body).toBe("Successful logout");
+                expect(resp.body).toBe("Success");
                 expect(req.session.destroy).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
@@ -356,8 +356,8 @@ describe('auth (UT)', function() {
             delete req.session.user;
             auth.logout(req).then(function(resp) {
                 expect(resp).toBeDefined();
-                expect(resp.code).toBe(400);
-                expect(resp.body).toBe("You are not logged in");
+                expect(resp.code).toBe(200);
+                expect(resp.body).toBe("Success");
                 expect(mockLog.error).not.toHaveBeenCalled();
                 expect(req.session.destroy).not.toHaveBeenCalled();
                 done();
