@@ -8,6 +8,7 @@ var path        = require('path'),
     logger      = require('../lib/logger'),
     uuid        = require('../lib/uuid'),
     mongoUtils  = require('../lib/mongoUtils'),
+    authUtils   = require('../lib/authUtils')(),
     service     = require('../lib/service'),
     
     state       = {},
@@ -297,6 +298,11 @@ auth.main = function(state) {
                 error: 'Error deleting account'
             });
         });
+    });
+    
+    var authGetUser = authUtils.middlewarify(state.db, {});
+    app.get('/api/auth/get_user', authGetUser, function(req, res, next) {
+        res.send(200, req.user); // errors handled entirely by authGetUser
     });
     
     app.get('/api/auth/meta', function(req, res, next){
