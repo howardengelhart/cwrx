@@ -236,7 +236,6 @@ auth.main = function(state) {
     }));
 
     app.all('*', function(req, res, next) {
-        res.header("Access-Control-Allow-Origin", "*");
         res.header("Access-Control-Allow-Headers", 
                    "Origin, X-Requested-With, Content-Type, Accept");
         res.header("cache-control", "max-age=0");
@@ -301,7 +300,7 @@ auth.main = function(state) {
     });
     
     var authGetUser = authUtils.middlewarify(state.db, {});
-    app.get('/api/auth/get_user', authGetUser, function(req, res, next) {
+    app.get('/api/auth/status', authGetUser, function(req, res, next) {
         res.send(200, req.user); // errors handled entirely by authGetUser
     });
     

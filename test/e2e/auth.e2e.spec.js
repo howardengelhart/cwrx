@@ -304,7 +304,7 @@ describe('auth (E2E):', function() {
         });
     });
     
-    describe('/api/auth/get_user', function() {
+    describe('/api/auth/status', function() {
         it('should get the user if logged in', function(done) {
             var signupOpts = {
                 url: config.authUrl + '/signup',
@@ -319,7 +319,7 @@ describe('auth (E2E):', function() {
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 var getUserOpts = {
-                    url: config.authUrl + '/get_user',
+                    url: config.authUrl + '/status',
                     jar: true
                 };
                 return testUtils.qRequest('get', getUserOpts);
@@ -336,7 +336,7 @@ describe('auth (E2E):', function() {
         });
         
         it('should fail with a 401 if the user is not logged in', function(done) {
-            testUtils.qRequest('get', {url: config.authUrl + '/get_user'}).then(function(resp) {
+            testUtils.qRequest('get', {url: config.authUrl + '/status'}).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe("Unauthorized");
                 done();
