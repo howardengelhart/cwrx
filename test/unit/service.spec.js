@@ -488,26 +488,6 @@ describe('service (UT)',function(){
             }).done(done);
         });
         
-        it('will also add the sessions db to the state object if applicable', function(done) {
-            state.config.sessions = {db: 'sessionsDB'};
-            mongoUtils.connect.andCallFake(function(host, port, db, user, pass) {
-                if (db === 'sessionsDB') return q('fakeSessDb');
-                else return q('fakeDb');
-            });
-            service.initMongo(state).then(resolveSpy, rejectSpy)
-            .finally(function() {
-                expect(resolveSpy).toHaveBeenCalledWith(state);
-                expect(rejectSpy).not.toHaveBeenCalled();
-                expect(state.db).toBe('fakeDb');
-                expect(state.sessionsDb).toBe('fakeSessDb');
-                expect(mongoUtils.connect.calls.length).toBe(2);
-                expect(mongoUtils.connect.calls[0].args)
-                    .toEqual(['1.2.3.4', 1234, 'fakeDb', 'ut', 'password']);
-                expect(mongoUtils.connect.calls[1].args)
-                    .toEqual(['1.2.3.4', 1234, 'sessionsDB', 'ut', 'password']);
-            }).done(done);
-        });
-        
         it('will reject with an error if connecting/authenticating to mongo fails', function(done) {
             // mongoUtils.connect.andReturn(q.reject('Error!'));
             mongoUtils.connect.andCallFake(function(host, port, db, user, pass) {
