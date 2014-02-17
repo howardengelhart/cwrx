@@ -8,6 +8,7 @@ var path        = require('path'),
     logger      = require('../lib/logger'),
     uuid        = require('../lib/uuid'),
     mongoUtils  = require('../lib/mongoUtils'),
+    authUtils   = require('../lib/authUtils')(),
     service     = require('../lib/service'),
     
     state       = {},
@@ -204,7 +205,7 @@ auth.main = function(state) {
     log.info('Running as cluster worker, proceed with setting up web server.');
         
     var express     = require('express'),
-        MongoStore  = require('connect-mongo')(express),
+        deferred    = q.defer(),
         app         = express();
     
     var users = state.db.collection('users');
@@ -229,13 +230,10 @@ auth.main = function(state) {
             httpOnly: false,
             maxAge: state.config.sessions.maxAge
         },
-        store: new MongoStore({
-            db: state.sessionsDb
-        })
+        store: state.sessionStore
     }));
-
+    
     app.all('*', function(req, res, next) {
-        res.header("Access-Control-Allow-Origin", "*");
         res.header("Access-Control-Allow-Headers", 
                    "Origin, X-Requested-With, Content-Type, Accept");
         res.header("cache-control", "max-age=0");
@@ -268,7 +266,7 @@ auth.main = function(state) {
             });
         });
     });
-    
+
     app.post('/api/auth/signup', function(req, res, next) {
         auth.signup(req, users).then(function(resp) {
             res.send(resp.code, resp.body);
@@ -278,7 +276,7 @@ auth.main = function(state) {
             });
         });
     });
-    
+
     app.post('/api/auth/logout', function(req, res, next) {
         auth.logout(req).then(function(resp) {
             res.send(resp.code, resp.body);
@@ -288,7 +286,7 @@ auth.main = function(state) {
             });
         });
     });
-    
+
     app.delete('/api/auth/delete_account', function(req, res, next) {
         auth.deleteAccount(req, users).then(function(resp) {
             res.send(resp.code, resp.body);
@@ -298,19 +296,24 @@ auth.main = function(state) {
             });
         });
     });
-    
+
+    var authGetUser = authUtils.middlewarify(state.db, {});
+    app.get('/api/auth/status', authGetUser, function(req, res, next) {
+        res.send(200, req.user); // errors handled entirely by authGetUser
+    });
+
     app.get('/api/auth/meta', function(req, res, next){
         var data = {
             version: state.config.appVersion,
             started : started.toISOString(),
-            status  : 'OK'
+            status : 'OK'
         };
         res.send(200, data);
     });
 
     app.listen(state.cmdl.port);
     log.info('Service is listening on port: ' + state.cmdl.port);
-    
+
     return state;
 };
 
@@ -322,6 +325,7 @@ if (!__ut__){
     .then(service.daemonize)
     .then(service.cluster)
     .then(service.initMongo)
+    .then(service.initSessionStore)
     .then(auth.main)
     .catch(function(err) {
         var log = logger.getLog();

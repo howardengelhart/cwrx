@@ -260,6 +260,7 @@ content.main = function(state) {
         
     var express     = require('express'),
         MongoStore  = require('connect-mongo')(express),
+        deferred    = q.defer(),
         app         = express();
     // set auth cacheTTL now that we've loaded config
     authUtils = require('../lib/authUtils')(state.config.cacheTTLs.auth);
@@ -284,13 +285,10 @@ content.main = function(state) {
             httpOnly: false,
             maxAge: state.config.sessions.maxAge
         },
-        store: new MongoStore({
-            db: state.sessionsDb
-        })
+        store: state.sessionStore
     }));
 
     app.all('*', function(req, res, next) {
-        res.header("Access-Control-Allow-Origin", "*");
         res.header("Access-Control-Allow-Headers", 
                    "Origin, X-Requested-With, Content-Type, Accept");
         res.header("cache-control", "max-age=0");
@@ -397,14 +395,14 @@ content.main = function(state) {
         var data = {
             version: state.config.appVersion,
             started : started.toISOString(),
-            status  : 'OK'
+            status : 'OK'
         };
         res.send(200, data);
     });
     
     app.listen(state.cmdl.port);
     log.info('Service is listening on port: ' + state.cmdl.port);
-    
+
     return state;
 };
 
@@ -416,6 +414,7 @@ if (!__ut__){
     .then(service.daemonize)
     .then(service.cluster)
     .then(service.initMongo)
+    .then(service.initSessionStore)
     .then(content.main)
     .catch(function(err) {
         var log = logger.getLog();

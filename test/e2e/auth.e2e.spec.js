@@ -302,5 +302,48 @@ describe('auth (E2E):', function() {
                 done();
             });
         });
-    });  // end describe /api/auth/delete_account
+    });
+    
+    describe('/api/auth/status', function() {
+        it('should get the user if logged in', function(done) {
+            var signupOpts = {
+                url: config.authUrl + '/signup',
+                jar: true,
+                json: {
+                    username: 'authE2EUser',
+                    password: 'password'
+                }
+            };
+            testUtils.resetCollection('users').then(function() {
+                return testUtils.qRequest('post', signupOpts);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                var getUserOpts = {
+                    url: config.authUrl + '/status',
+                    jar: true
+                };
+                return testUtils.qRequest('get', getUserOpts);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBeDefined();
+                expect(resp.body.id).toBeDefined();
+                expect(resp.body.username).toBe('authE2EUser');
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should fail with a 401 if the user is not logged in', function(done) {
+            testUtils.qRequest('get', {url: config.authUrl + '/status'}).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe("Unauthorized");
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+    });  // end describe /api/auth/get_user
 });  // end describe auth (E2E)
