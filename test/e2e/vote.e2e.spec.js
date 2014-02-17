@@ -1,5 +1,8 @@
+var startedTail = false,
+    testUtils = require('./testUtils');
+
 describe('vote (E2E)', function(){
-    var testUtils, q, makeUrl, restart = true, testNum = 0,
+    var q, makeUrl, restart = true, testNum = 0,
         dbEnv = JSON.parse(process.env['mongo']);
     if (dbEnv && !dbEnv.db) {
         dbEnv.db = "voteDb";
@@ -9,7 +12,6 @@ describe('vote (E2E)', function(){
     beforeEach(function(){
         var urlBase; 
         q           = require('q');
-        testUtils   = require('./testUtils');
 
         urlBase = 'http://' + (process.env['host'] ? process.env['host'] : 'localhost');
         makeUrl = function(fragment){
@@ -19,17 +21,15 @@ describe('vote (E2E)', function(){
     });
     
     beforeEach(function(done) {
-        if (!process.env['getLogs']) return done();
-        var options = {
-            url: makeUrl('/maint/clear_log'),
-            json: {
-                logFile: 'vote.log'
-            }
-        };
-        testUtils.qRequest('post', [options])
-        .catch(function(error) {
-            console.log("Error clearing vote log: " + JSON.stringify(error));
-        }).finally(function() {
+        if (startedTail || !process.env['getLogs']) {
+            return done();
+        }
+        testUtils.qRequest('post', {url: makeUrl('/maint/logtail/start/vote.log')})
+        .then(function(resp) {
+            startedTail = true;
+            done();
+        }).catch(function(error) {
+            console.log("Error starting tail on vote.log: " + JSON.stringify(error));
             done();
         });
     });
@@ -74,7 +74,7 @@ describe('vote (E2E)', function(){
     });
     
     afterEach(function(done) {
-        if (!process.env['getLogs']) return done();
+        if (!startedTail || !process.env['getLogs']) return done();
         testUtils.getLog('vote.log', makeUrl('/maint'), jasmine.getEnv().currentSpec, 'vote', ++testNum)
         .catch(function(error) {
             console.log("Error getting log file for test " + testNum + ": " + JSON.stringify(error));
@@ -286,5 +286,21 @@ describe('vote (E2E)', function(){
                 .finally(done);
         });
 
+    });
+});
+
+// putting the cleanup in another describe block ensures it will always be called
+describe('cleanup', function() {
+    it('calls /maint/logtail/stop', function(done) {
+        if (startedTail && process.env['getLogs']) {
+            var options = {
+                url: 'http://' + (process.env['host'] ? process.env['host'] : 'localhost') +
+                     '/maint/logtail/stop/vote.log'
+            };
+            testUtils.qRequest('post', options)
+            .done(function() {
+                done();
+            });
+        }
     });
 });

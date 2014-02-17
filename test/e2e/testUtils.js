@@ -79,9 +79,7 @@ function qRequest(method, opts) {
 }
 
 function getLog(logFile, maintUrl, spec, testName, testNum) {
-    var options = {
-        url: maintUrl + '/get_log?logFile=' + logFile
-    };
+    var options = { url: maintUrl + '/logtail/' + logFile };
     return qRequest('get', [options])
     .then(function(resp) {
         if (spec && spec.results && spec.results().failedCount != 0) {
@@ -93,6 +91,14 @@ function getLog(logFile, maintUrl, spec, testName, testNum) {
         return q.npost(fs, 'outputFile', [fname, resp.body]);
     });
 }
+
+/*function getLog() {
+
+}
+
+function startTail(logPath, host) {
+
+}*/
 
 function checkStatus(jobId, host, statusUrl, statusTimeout, pollInterval) {
     var interval, timeout,

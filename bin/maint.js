@@ -16,6 +16,7 @@ var include     = require('../lib/inject').require,
     uuid        = include('../lib/uuid'),
     cwrxConfig  = include('../lib/config'),
     dub         = include(path.join(__dirname,'dub')),
+    logtailKids = {},
     app         = express(),
 
     // This is the template for maint's configuration
@@ -128,7 +129,7 @@ function removeFiles(remList) {
 }
 
 function restartService(serviceName) {
-    var log = logger.getLog(), exec = require('child_process').exec, child, deferred;
+    var log = logger.getLog(), exec = cp.exec, child, deferred;
     log.info('Will attempt to restart service: %1', serviceName);
     deferred = q.defer(); 
 
@@ -144,6 +145,68 @@ function restartService(serviceName) {
     });
 
     return deferred.promise;
+}
+
+function startLogTail(logfile, config) {
+    var log = logger.getLog();
+    if (logtailKids[logfile]) {
+        log.info("Already tailing %1", logfile);
+        return { code: 200, data: "tail already started" };
+    }
+    var logpath = path.join(config.log.logDir, logfile);
+    log.trace("Starting tail on %1", logpath);
+    logtailKids[logfile] = cp.spawn('tail', ['-n', 0, '-f', logpath]);
+
+    logtailKids[logfile].stderr.on('data', function(data) {
+        log.error("Killing tail on %1 since it wrote to stderr: %2", logfile, data.toString());
+        logtailKids[logfile].attemptedKill = true;
+        logtailKids[logfile].kill();
+        delete logtailKids[logfile];
+    });
+
+    logtailKids[logfile].on('error', function(error) {
+        if (!logtailKids[logfile].attemptedKill) {
+            log.error("Killing tail on %1 since it received an error event: %2", logfile, error);
+            logtailKids[logfile].attemptedKill = true;
+            logtailKids[logfile].kill();
+        } else {
+            log.error("Cannot kill tail on %1 with pid %2: %3",
+                      logfile, logtailKids[logfile].pid, error);
+        }
+        delete logtailKids[logfile];
+    });
+    
+    log.info("Started tail on %1", logpath);
+    return { code: 200, data: "tail started" };
+}
+
+function getLogLines(logfile) {
+    var log = logger.getLog();
+    if (!logtailKids[logfile]) {
+        log.info("Tail has not been started for %1", logfile);
+        return { code: 400, data: { error: "tail not started" } };
+    }
+    var data = logtailKids[logfile].stdout.read();
+    if (data) {
+        log.info("Got log lines from %1", logfile);
+        return { code: 200, data: data.toString() };
+    } else {
+        log.info("Got no data from %1", logfile);
+        return { code: 200, data: '' };
+    }
+}
+
+function stopLogTail(logfile) {
+    var log = logger.getLog();
+    if (!logtailKids[logfile]) {
+        log.info("Tail has not been started for %1", logfile);
+        return { code: 200, data: "tail not started" };
+    } else {
+        logtailKids[logfile].kill();
+        delete logtailKids[logfile];
+        log.info("Stopped tailing %1", logfile);
+        return { code: 200, data: 'stopped tail' };
+    }
 }
 
 if (!__ut__){
@@ -406,52 +469,34 @@ function main(done) {
         );
     });
     
-    app.post('/maint/clear_log', function(req, res, next) {
-        if (!req.body || (!req.body.logFile && !req.body.logPath)) {
-            res.send(400, {
-                error: "Bad request",
-                detail: "You must include the log filename or full path in the request"
-            });
-            return;
+    app.post('/maint/logtail/start/:logfile', function(req, res, next) {
+        try {
+            var resp = startLogTail(req.params.logfile, config);
+            res.send(resp.code, resp.data);
+        } catch(e) {
+            log.error("Error starting tail on %1: %2", req.params.logfile, e.message);
+            res.send(500, "error starting tail: " + e.message);
         }
-        var logFile = req.body.logPath || path.join(config.log.logDir, req.body.logFile);
-        log.info("Clearing log %1", logFile);
-        fs.writeFile(logFile, '', function(error) {
-            if (error) {
-                log.error("Error clearing log %1: %2", logFile, error);
-                res.send(500, {
-                    error: "Unable to process request",
-                    detail: error
-                });
-            } else {
-                log.info("Successfully cleared log %1", logFile);
-                res.send(200, {msg: "Successfully cleared log %1" + logFile});
-            }
-        });
     });
     
-    app.get('/maint/get_log', function(req, res, next) {
-        if (!req.query || (!req.query.logFile && !req.query.logPath)) {
-            res.send(400, {
-                error: "Bad request",
-                detail: "You must include the log filename or full path in the request"
-            });
-            return;
+    app.get('/maint/logtail/:logfile', function(req, res, next) {
+        try {
+            var resp = getLogLines(req.params.logfile);
+            res.send(resp.code, resp.data);
+        } catch(e) {
+            log.error("Error getting log lines for %1: %2", req.params.logfile, e.message);
+            res.send(500, "error getting log: " + e.message);
         }
-        var logFile = req.query.logPath || path.join(config.log.logDir, req.query.logFile);
-        log.info("Reading log %1", logFile);
-        fs.readFile(logFile, function(error, contents) {
-            if (error) {
-                log.error("Error reading log %1: %2", logFile, error);
-                res.send(500, {
-                    error: "Unable to process request",
-                    detail: error
-                });
-            } else {
-                log.info("Successfully read log %1", logFile);
-                res.send(200, contents);
-            }
-        });
+    });
+    
+    app.post('/maint/logtail/stop/:logfile', function(req, res, next) {
+        try {
+            var resp = stopLogTail(req.params.logfile);
+            res.send(resp.code, resp.data);
+        } catch(e) {
+            log.error("Error stopping tail on %1: %2", req.params.logfile, e.message);
+            res.send(500, "error stopping tail: " + e.message);
+        }
     });
     
     app.post('/maint/service/restart', function(req, res, next){
@@ -497,6 +542,10 @@ if (__ut__) {
         createConfiguration : createConfiguration,
         defaultConfiguration: defaultConfiguration,
         restartService      : restartService,
-        removeFiles         : removeFiles
+        removeFiles         : removeFiles,
+        startLogTail        : startLogTail,
+        getLogLines         : getLogLines,
+        stopLogTail         : stopLogTail,
+        logtailKids         : logtailKids
     };
 }

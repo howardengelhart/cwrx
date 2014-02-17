@@ -11,6 +11,7 @@ var q           = require('q'),
         proxyUrl : 'http://' + (statusHost === 'localhost' ? statusHost + ':3000' : statusHost) + '/dub',
         trackStatUrl : 'http://' + (statusHost === 'localhost' ? statusHost + ':3000' : statusHost) + '/dub/track/status/'
     },
+    startedTail = false,
     statusTimeout = 10000;
 
 jasmine.getEnv().defaultTimeoutInterval = 40000;
@@ -20,22 +21,20 @@ describe('dub (E2E)', function() {
         testNum = 0;
     
     beforeEach(function(done) {
-        if (!process.env['getLogs']) return done();
-        var options = {
-            url: config.maintUrl + '/clear_log',
-            json: {
-                logFile: 'dub.log'
-            }
-        };
-        testUtils.qRequest('post', [options])
-        .catch(function(error) {
-            console.log("Error clearing dub log: " + JSON.stringify(error));
-        }).finally(function() {
+        if (startedTail || !process.env['getLogs']) {
+            return done();
+        }
+        testUtils.qRequest('post', {url: config.maintUrl + '/logtail/start/dub.log'})
+        .then(function(resp) {
+            startedTail = true;
+            done();
+        }).catch(function(error) {
+            console.log("Error starting tail on dub.log: " + JSON.stringify(error));
             done();
         });
     });
     afterEach(function(done) {
-        if (!process.env['getLogs']) return done();
+        if (!startedTail || !process.env['getLogs']) return done();
         testUtils.getLog('dub.log', config.maintUrl, jasmine.getEnv().currentSpec, 'dub', ++testNum)
         .catch(function(error) {
             console.log("Error getting log file for test " + testNum + ": " + JSON.stringify(error));
@@ -447,3 +446,15 @@ describe('dub (E2E)', function() {
         });
     });  //  end -- describe /dub/track/create
 });  //  end -- describe dub (E2E)
+
+// putting the cleanup in another describe block ensures it will always be called
+describe('cleanup', function() {
+    it('calls /maint/logtail/stop', function(done) {
+        if (startedTail && process.env['getLogs']) {
+            testUtils.qRequest('post', {url: config.maintUrl + '/logtail/stop/dub.log'})
+            .done(function() {
+                done();
+            });
+        }
+    });
+});

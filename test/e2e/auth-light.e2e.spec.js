@@ -4,7 +4,8 @@ var q           = require('q'),
     config      = {
         authUrl   : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth',
         maintUrl : 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint'
-    };
+    },
+    startedTail = false;
 
 jasmine.getEnv().defaultTimeoutInterval = 10000;
 
@@ -12,22 +13,20 @@ describe('auth-light (E2E):', function() {
     var testNum = 0;
     
     beforeEach(function(done) {
-        if (!process.env['getLogs']) return done();
-        var options = {
-            url: config.maintUrl + '/clear_log',
-            json: {
-                logFile: 'auth.log'
-            }
-        };
-        testUtils.qRequest('post', [options])
-        .catch(function(error) {
-            console.log("Error clearing auth log: " + JSON.stringify(error));
-        }).finally(function() {
+        if (startedTail || !process.env['getLogs']) {
+            return done();
+        }
+        testUtils.qRequest('post', {url: config.maintUrl + '/logtail/start/auth.log'})
+        .then(function(resp) {
+            startedTail = true;
+            done();
+        }).catch(function(error) {
+            console.log("Error starting tail on auth.log: " + JSON.stringify(error));
             done();
         });
     });
     afterEach(function(done) {
-        if (!process.env['getLogs']) return done();
+        if (!startedTail || !process.env['getLogs']) return done();
         testUtils.getLog('auth.log', config.maintUrl, jasmine.getEnv().currentSpec, 'auth-light', ++testNum)
         .catch(function(error) {
             console.log("Error getting log file for test " + testNum + ": " + JSON.stringify(error));
@@ -153,3 +152,15 @@ describe('auth-light (E2E):', function() {
         });
     });  // end -- describe /auth/meta
 });  // end -- describe auth (E2E)
+
+// putting the cleanup in another describe block ensures it will always be called
+describe('cleanup', function() {
+    it('calls /maint/logtail/stop', function(done) {
+        if (startedTail && process.env['getLogs']) {
+            testUtils.qRequest('post', {url: config.maintUrl + '/logtail/stop/auth.log'})
+            .done(function() {
+                done();
+            });
+        }
+    });
+});
