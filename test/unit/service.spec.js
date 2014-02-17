@@ -538,4 +538,75 @@ describe('service (UT)',function(){
             }).done(done);
         });
     });
+    
+    describe('initSessionStore', function() {
+        var fakeExpress, fakeMongoStore, msModule;
+        beforeEach(function() {
+            delete require.cache[require.resolve('../../lib/service')];
+            fakeExpress = 'express';
+            fakeMongoStore = jasmine.createSpy('new_MongoStore').andCallFake(function(opts, cb) {
+                cb();
+            });
+            msModule = jasmine.createSpy('MongoStore_module').andReturn(fakeMongoStore);
+            require.cache[require.resolve('express')] = { exports: fakeExpress};
+            require.cache[require.resolve('connect-mongo')] = { exports: msModule};
+            service = require('../../lib/service');
+            resolveSpy = jasmine.createSpy('initMongo.resolve');
+            rejectSpy  = jasmine.createSpy('initMongo.reject');
+            state.secrets = {
+                mongoCredentials: { user: "fakeUser", password: "fakePass" }
+            };
+            state.config.mongo = { host: "fakeHost", port: 111 };
+            state.config.sessions = { db: "fakeDb" };
+        });
+        
+        it('should initialize the MongoStore and call the callback', function(done) {
+            service.initSessionStore(state).then(resolveSpy, rejectSpy)
+            .finally(function() {
+                expect(resolveSpy).toHaveBeenCalledWith(state);
+                expect(rejectSpy).not.toHaveBeenCalled();
+                expect(msModule).toHaveBeenCalledWith('express');
+                expect(fakeMongoStore).toHaveBeenCalled();
+                expect(fakeMongoStore.calls[0].args[0]).toEqual({
+                    host: "fakeHost",
+                    port: 111,
+                    db: "fakeDb",
+                    username: "fakeUser",
+                    password: "fakePass",
+                    auto_reconnect: true
+                });
+                expect(typeof fakeMongoStore.calls[0].args[1]).toBe('function');
+            }).done(done);
+        });
+        
+        it('should reject if given incomplete params', function(done) {
+            delete state.config.mongo;
+            resolveSpy.andReturn();
+            rejectSpy.andReturn();
+            service.initSessionStore(state).then(resolveSpy, rejectSpy).then(function() {
+                state.config.mongo = { host: "fakeHost", port: 111 };
+                delete state.config.sessions;
+                return service.initSessionStore(state).then(resolveSpy, rejectSpy);
+            }).then(function() {
+                state.config.sessions = { db: "fakeDb" };
+                delete state.secrets;
+                return service.initSessionStore(state).then(resolveSpy, rejectSpy);
+            }).finally(function() {
+                expect(resolveSpy).not.toHaveBeenCalled();
+                expect(rejectSpy.calls.length).toBe(3);
+                expect(fakeMongoStore).not.toHaveBeenCalled();
+            }).done(done);
+        });
+
+        it('should not interrupt thrown errors if MongoStore throws an error', function() {
+            fakeMongoStore.andCallFake(function(opts, cb) {
+                throw new Error("Error!");
+            });
+            expect(function() {
+                service.initSessionStore(state).then(resolveSpy, rejectSpy);
+            }).toThrow("Error!");
+            expect(resolveSpy).not.toHaveBeenCalled();
+            expect(rejectSpy).not.toHaveBeenCalled();
+        });
+    });
 });

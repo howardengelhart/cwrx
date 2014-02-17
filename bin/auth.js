@@ -205,7 +205,6 @@ auth.main = function(state) {
     log.info('Running as cluster worker, proceed with setting up web server.');
         
     var express     = require('express'),
-        MongoStore  = require('connect-mongo')(express),
         deferred    = q.defer(),
         app         = express();
     
@@ -225,7 +224,15 @@ auth.main = function(state) {
 
     app.use(express.bodyParser());
     app.use(express.cookieParser(state.secrets.cookieParser || ''));
-
+    app.use(express.session({
+        key: state.config.sessions.key,
+        cookie: {
+            httpOnly: false,
+            maxAge: state.config.sessions.maxAge
+        },
+        store: state.sessionStore
+    }));
+    
     app.all('*', function(req, res, next) {
         res.header("Access-Control-Allow-Headers", 
                    "Origin, X-Requested-With, Content-Type, Accept");
@@ -259,7 +266,7 @@ auth.main = function(state) {
             });
         });
     });
-    
+
     app.post('/api/auth/signup', function(req, res, next) {
         auth.signup(req, users).then(function(resp) {
             res.send(resp.code, resp.body);
@@ -269,7 +276,7 @@ auth.main = function(state) {
             });
         });
     });
-    
+
     app.post('/api/auth/logout', function(req, res, next) {
         auth.logout(req).then(function(resp) {
             res.send(resp.code, resp.body);
@@ -279,7 +286,7 @@ auth.main = function(state) {
             });
         });
     });
-    
+
     app.delete('/api/auth/delete_account', function(req, res, next) {
         auth.deleteAccount(req, users).then(function(resp) {
             res.send(resp.code, resp.body);
@@ -289,12 +296,12 @@ auth.main = function(state) {
             });
         });
     });
-    
+
     var authGetUser = authUtils.middlewarify(state.db, {});
     app.get('/api/auth/status', authGetUser, function(req, res, next) {
         res.send(200, req.user); // errors handled entirely by authGetUser
     });
-    
+
     app.get('/api/auth/meta', function(req, res, next){
         var data = {
             version: state.config.appVersion,
@@ -303,30 +310,11 @@ auth.main = function(state) {
         };
         res.send(200, data);
     });
-    
-    var finishInit = function() {
-        app.listen(state.cmdl.port);
-        log.info('Service is listening on port: ' + state.cmdl.port);
-        deferred.resolve(state);
-    };
 
-    app.use(express.session({
-        key: state.config.sessions.key,
-        cookie: {
-            httpOnly: false,
-            maxAge: state.config.sessions.maxAge
-        },
-        store: new MongoStore({
-            host: state.config.mongo.host,
-            port: state.config.mongo.port,
-            db: state.config.sessions.db,
-            username: state.secrets.mongoCredentials.user,
-            password: state.secrets.mongoCredentials.password,
-            auto_reconnect: true
-        }, finishInit)
-    }));
+    app.listen(state.cmdl.port);
+    log.info('Service is listening on port: ' + state.cmdl.port);
 
-    return deferred.promise;
+    return state;
 };
 
 if (!__ut__){
@@ -337,6 +325,7 @@ if (!__ut__){
     .then(service.daemonize)
     .then(service.cluster)
     .then(service.initMongo)
+    .then(service.initSessionStore)
     .then(auth.main)
     .catch(function(err) {
         var log = logger.getLog();

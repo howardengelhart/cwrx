@@ -279,6 +279,14 @@ content.main = function(state) {
 
     app.use(express.bodyParser());
     app.use(express.cookieParser(state.secrets.cookieParser || ''));
+    app.use(express.session({
+        key: state.config.sessions.key,
+        cookie: {
+            httpOnly: false,
+            maxAge: state.config.sessions.maxAge
+        },
+        store: state.sessionStore
+    }));
 
     app.all('*', function(req, res, next) {
         res.header("Access-Control-Allow-Headers", 
@@ -392,29 +400,10 @@ content.main = function(state) {
         res.send(200, data);
     });
     
-    var finishInit = function() {
-        app.listen(state.cmdl.port);
-        log.info('Service is listening on port: ' + state.cmdl.port);
-        deferred.resolve(state);
-    };
+    app.listen(state.cmdl.port);
+    log.info('Service is listening on port: ' + state.cmdl.port);
 
-    app.use(express.session({
-        key: state.config.sessions.key,
-        cookie: {
-            httpOnly: false,
-            maxAge: state.config.sessions.maxAge
-        },
-        store: new MongoStore({
-            host: state.config.mongo.host,
-            port: state.config.mongo.port,
-            db: state.config.sessions.db,
-            username: state.secrets.mongoCredentials.user,
-            password: state.secrets.mongoCredentials.password,
-            auto_reconnect: true
-        }, finishInit)
-    }));
-
-    return deferred.promise;
+    return state;
 };
 
 if (!__ut__){
@@ -425,6 +414,7 @@ if (!__ut__){
     .then(service.daemonize)
     .then(service.cluster)
     .then(service.initMongo)
+    .then(service.initSessionStore)
     .then(content.main)
     .catch(function(err) {
         var log = logger.getLog();
