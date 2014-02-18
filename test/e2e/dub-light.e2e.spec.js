@@ -3,8 +3,9 @@ var request     = require('request'),
     path        = require('path'),
     fs          = require('fs-extra'),
     testUtils   = require('./testUtils'),
-    host        = process.env['host'] ? process.env['host'] : 'localhost',
-    statusHost  = process.env['statusHost'] ? process.env['statusHost'] : host,
+    host        = process.env['host'] || 'localhost',
+    statusHost  = process.env['statusHost'] || host,
+    testNum     = process.env['testNum'] || 0,  // usually the Jenkins build number
     config      = {
         dubUrl    : 'http://' + (host === 'localhost' ? host + ':3000' : host) + '/dub',
         maintUrl  : 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint',
@@ -15,33 +16,7 @@ var request     = require('request'),
 jasmine.getEnv().defaultTimeoutInterval = 40000;
 
 describe('dub-light (E2E)', function() {
-    var templateFile, templateJSON, siriTemplate,
-        testNum = 0;
-        
-    beforeEach(function(done) {
-        if (!process.env['getLogs']) return done();
-        var options = {
-            url: config.maintUrl + '/clear_log',
-            json: {
-                logFile: 'dub.log'
-            }
-        };
-        testUtils.qRequest('post', [options])
-        .catch(function(error) {
-            console.log("Error clearing dub log: " + JSON.stringify(error));
-        }).finally(function() {
-            done();
-        });
-    });
-    afterEach(function(done) {
-        if (!process.env['getLogs']) return done();
-        testUtils.getLog('dub.log', config.maintUrl, jasmine.getEnv().currentSpec, 'dub-light', ++testNum)
-        .catch(function(error) {
-            console.log("Error getting log file for test " + testNum + ": " + JSON.stringify(error));
-        }).finally(function() {
-            done();
-        });
-    });
+    var templateFile, templateJSON, siriTemplate;
     
     beforeEach(function() {
         siriTemplate = {
@@ -181,5 +156,30 @@ describe('dub-light (E2E)', function() {
                 done();
             });
         });
-    });  //  end -- describe /dub/meta
+    });
+    
+    
+    // THIS SHOULD ALWAYS GO LAST
+    describe('log cleanup', function() {
+        it('copies the logs locally and then clears the remote log file', function(done) {
+            if (!process.env['getLogs']) return done();
+            testUtils.getLog('dub.log', config.maintUrl, 'dub-light', testNum)
+            .then(function() {
+                var options = {
+                    url: config.maintUrl + '/clear_log',
+                    json: {
+                        logFile: 'dub.log'
+                    }
+                };
+                return testUtils.qRequest('post', [options]);
+            }).then(function(resp) {
+                console.log("Cleared remote log");
+                done();
+            }).catch(function(error) {
+                console.log("Error getting and clearing log:");
+                console.log(error);
+                done();
+            });
+        });
+    });
 });  //  end -- describe dub-light (E2E)

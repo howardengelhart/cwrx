@@ -152,6 +152,9 @@ module.exports = function (grunt) {
         if (grunt.option('dbHost')) {
             args.push('--config', 'mongo', '{"host": "' + grunt.option('dbHost') + '"}');
         }
+        if (grunt.option('testNum')) {
+            args.push('--config', 'testNum', grunt.option('testNum'));
+        }
         if (grunt.option('e2e-config')){
             var cfgObj = JSON.parse(grunt.option('e2e-config'));
             for (var key in cfgObj){

@@ -78,19 +78,15 @@ function qRequest(method, opts) {
     return deferred.promise;
 }
 
-function getLog(logFile, maintUrl, spec, testName, testNum) {
+function getLog(logFile, maintUrl, testName, testNum) {
     var options = {
         url: maintUrl + '/get_log?logFile=' + logFile
     };
     return qRequest('get', [options])
     .then(function(resp) {
-        if (spec && spec.results && spec.results().failedCount != 0) {
-            console.log('\nRemote log for failed spec "' + spec.description + '":\n');
-            console.log(resp.body);
-            console.log('-------------------------------------------------------------------');
-        }
-        var fname = path.join(__dirname, 'logs/' + testName + '.test' + testNum + '.log');
-        return q.npost(fs, 'outputFile', [fname, resp.body]);
+        var fpath = path.join(__dirname, 'logs/' + testName + '.test' + testNum + '.log');
+        console.log("\nRemote log " + logFile + " stored in " + fpath);
+        return q.npost(fs, 'outputFile', [fpath, resp.body]);
     });
 }
 

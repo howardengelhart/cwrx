@@ -3,7 +3,8 @@ var request     = require('request'),
     fs          = require('fs-extra'),
     q           = require('q'),
     testUtils   = require('./testUtils'),
-    host = process.env['host'] ? process.env['host'] : 'localhost',
+    host        = process.env['host'] || 'localhost',
+    testNum     = process.env['testNum'] || 0,  // usually the Jenkins build number
     config = {
         'shareUrl': 'http://' + (host === 'localhost' ? host + ':3100' : host) + '/share',
         'maintUrl': 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint',
@@ -12,33 +13,6 @@ var request     = require('request'),
 jasmine.getEnv().defaultTimeoutInterval = 3000;
 
 describe('share-light (E2E)', function() {
-    var testNum = 0;
-    
-    beforeEach(function(done) {
-        if (!process.env['getLogs']) return done();
-        var options = {
-            url: config.maintUrl + '/clear_log',
-            json: {
-                logFile: 'share.log'
-            }
-        };
-        testUtils.qRequest('post', [options])
-        .catch(function(error) {
-            console.log("Error clearing share log: " + JSON.stringify(error));
-        }).finally(function() {
-            done();
-        });
-    });
-    afterEach(function(done) {
-        if (!process.env['getLogs']) return done();
-        testUtils.getLog('share.log', config.maintUrl, jasmine.getEnv().currentSpec, 'share-light', ++testNum)
-        .catch(function(error) {
-            console.log("Error getting log file for test " + testNum + ": " + JSON.stringify(error));
-        }).finally(function() {
-            done();
-        });
-    });
-    
     describe('/share', function() {
         it('should successfully share a shortened url', function(done) {
             var options = {
@@ -125,5 +99,30 @@ describe('share-light (E2E)', function() {
                 done();
             });
         });
-    });  //  end -- describe /share/meta
+    });
+    
+    
+    // THIS SHOULD ALWAYS GO LAST
+    describe('log cleanup', function() {
+        it('copies the logs locally and then clears the remote log file', function(done) {
+            if (!process.env['getLogs']) return done();
+            testUtils.getLog('share.log', config.maintUrl, 'share-light', testNum)
+            .then(function() {
+                var options = {
+                    url: config.maintUrl + '/clear_log',
+                    json: {
+                        logFile: 'share.log'
+                    }
+                };
+                return testUtils.qRequest('post', [options]);
+            }).then(function(resp) {
+                console.log("Cleared remote log");
+                done();
+            }).catch(function(error) {
+                console.log("Error getting and clearing log:");
+                console.log(error);
+                done();
+            });
+        });
+    });
 });  //  end -- describe share-light (E2E)
