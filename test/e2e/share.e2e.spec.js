@@ -3,7 +3,7 @@ var request     = require('request'),
     path        = require('path'),
     fs          = require('fs-extra'),
     testUtils   = require('./testUtils'),
-    host = process.env['host'] ? process.env['host'] : 'localhost',
+    host        = process.env['host'] || 'localhost',
     config = {
         'shareUrl': 'http://' + (host === 'localhost' ? host + ':3100' : host) + '/share',
         'maintUrl': 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint'
@@ -12,33 +12,7 @@ var request     = require('request'),
 jasmine.getEnv().defaultTimeoutInterval = 30000;
 
 describe('share (E2E)', function() {
-    var shareItem,
-        testNum = 0;
-    
-    beforeEach(function(done) {
-        if (!process.env['getLogs']) return done();
-        var options = {
-            url: config.maintUrl + '/clear_log',
-            json: {
-                logFile: 'share.log'
-            }
-        };
-        testUtils.qRequest('post', [options])
-        .catch(function(error) {
-            console.log("Error clearing share log: " + JSON.stringify(error));
-        }).finally(function() {
-            done();
-        });
-    });
-    afterEach(function(done) {
-        if (!process.env['getLogs']) return done();
-        testUtils.getLog('share.log', config.maintUrl, jasmine.getEnv().currentSpec, 'share', ++testNum)
-        .catch(function(error) {
-            console.log("Error getting log file for test " + testNum + ": " + JSON.stringify(error));
-        }).finally(function() {
-            done();
-        });
-    });
+    var shareItem;
 
     beforeEach(function() {
         shareItem = {
@@ -252,6 +226,5 @@ describe('share (E2E)', function() {
                 done();
             });
         });
-    });  //  end -- describe /share/twitter
+    });
 });  // end -- describe share (E2E)
-

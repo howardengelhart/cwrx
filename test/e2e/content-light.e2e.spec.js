@@ -1,6 +1,6 @@
 var q           = require('q'),
     testUtils   = require('./testUtils'),
-    host        = process.env['host'] ? process.env['host'] : 'localhost',
+    host        = process.env['host'] || 'localhost',
     config      = {
         contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api/content',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth',
@@ -10,33 +10,6 @@ var q           = require('q'),
 jasmine.getEnv().defaultTimeoutInterval = 5000;
 
 describe('content-light (E2E):', function() {
-    var testNum = 0;
-    
-    beforeEach(function(done) {
-        if (!process.env['getLogs']) return done();
-        var options = {
-            url: config.maintUrl + '/clear_log',
-            json: {
-                logFile: 'content.log'
-            }
-        };
-        testUtils.qRequest('post', [options])
-        .catch(function(error) {
-            console.log("Error clearing content log: " + JSON.stringify(error));
-        }).finally(function() {
-            done();
-        });
-    });
-    afterEach(function(done) {
-        if (!process.env['getLogs']) return done();
-        testUtils.getLog('content.log', config.maintUrl, jasmine.getEnv().currentSpec, 'content-light', ++testNum)
-        .catch(function(error) {
-            console.log("Error getting log file for test " + testNum + ": " + JSON.stringify(error));
-        }).finally(function() {
-            done();
-        });
-    });
-    
     describe('content CRUD: ', function() {
         var cookieJar = require('request').jar(),
             origExp = {

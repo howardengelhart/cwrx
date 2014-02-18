@@ -1,6 +1,6 @@
 var q           = require('q'),
     testUtils   = require('./testUtils'),
-    host        = process.env['host'] ? process.env['host'] : 'localhost',
+    host        = process.env['host'] || 'localhost',
     config      = {
         authUrl   : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth',
         maintUrl : 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint'
@@ -9,33 +9,6 @@ var q           = require('q'),
 jasmine.getEnv().defaultTimeoutInterval = 10000;
 
 describe('auth-light (E2E):', function() {
-    var testNum = 0;
-    
-    beforeEach(function(done) {
-        if (!process.env['getLogs']) return done();
-        var options = {
-            url: config.maintUrl + '/clear_log',
-            json: {
-                logFile: 'auth.log'
-            }
-        };
-        testUtils.qRequest('post', [options])
-        .catch(function(error) {
-            console.log("Error clearing auth log: " + JSON.stringify(error));
-        }).finally(function() {
-            done();
-        });
-    });
-    afterEach(function(done) {
-        if (!process.env['getLogs']) return done();
-        testUtils.getLog('auth.log', config.maintUrl, jasmine.getEnv().currentSpec, 'auth-light', ++testNum)
-        .catch(function(error) {
-            console.log("Error getting log file for test " + testNum + ": " + JSON.stringify(error));
-        }).finally(function() {
-            done();
-        });
-    });
-    
     describe('auth process', function() {
         var user = {
             username: 'auth-lightE2EUser',
@@ -151,5 +124,5 @@ describe('auth-light (E2E):', function() {
                 done();
             });
         });
-    });  // end -- describe /auth/meta
+    });
 });  // end -- describe auth (E2E)
