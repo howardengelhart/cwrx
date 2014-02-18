@@ -1,5 +1,17 @@
 {
-    "indent" : 4,
+    "indent"    : 4,
+    "curly"     : true,
+    "eqeqeq"    : true,
+    "freeze"    : true,
+    "immed"     : true,
+    "latedef"   : true,
+    "newcap"    : true,
+    "noarg"     : true,
+    "nonew"     : true,
+    "quotmark"  : "single",
+    "undef"     : true,
+    "unused"    : true,
+    "maxlen"    : 100,
     "globals" : {
         "module"  : false,
         "require" : false,
