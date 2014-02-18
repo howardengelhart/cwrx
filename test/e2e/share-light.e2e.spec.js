@@ -7,7 +7,8 @@ var request     = require('request'),
     config = {
         'shareUrl': 'http://' + (host === 'localhost' ? host + ':3100' : host) + '/share',
         'maintUrl': 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint',
-    };
+    },
+    startedTail = false;
 
 jasmine.getEnv().defaultTimeoutInterval = 3000;
 
@@ -15,22 +16,20 @@ describe('share-light (E2E)', function() {
     var testNum = 0;
     
     beforeEach(function(done) {
-        if (!process.env['getLogs']) return done();
-        var options = {
-            url: config.maintUrl + '/clear_log',
-            json: {
-                logFile: 'share.log'
-            }
-        };
-        testUtils.qRequest('post', [options])
-        .catch(function(error) {
-            console.log("Error clearing share log: " + JSON.stringify(error));
-        }).finally(function() {
+        if (startedTail || !process.env['getLogs']) {
+            return done();
+        }
+        testUtils.qRequest('post', {url: config.maintUrl + '/logtail/start/share.log'})
+        .then(function(resp) {
+            startedTail = true;
+            done();
+        }).catch(function(error) {
+            console.log("Error starting tail on share.log: " + JSON.stringify(error));
             done();
         });
     });
     afterEach(function(done) {
-        if (!process.env['getLogs']) return done();
+        if (!startedTail || !process.env['getLogs']) return done();
         testUtils.getLog('share.log', config.maintUrl, jasmine.getEnv().currentSpec, 'share-light', ++testNum)
         .catch(function(error) {
             console.log("Error getting log file for test " + testNum + ": " + JSON.stringify(error));
@@ -127,3 +126,15 @@ describe('share-light (E2E)', function() {
         });
     });  //  end -- describe /share/meta
 });  //  end -- describe share-light (E2E)
+
+// putting the cleanup in another describe block ensures it will always be called
+describe('cleanup', function() {
+    it('calls /maint/logtail/stop', function(done) {
+        if (startedTail && process.env['getLogs']) {
+            testUtils.qRequest('post', {url: config.maintUrl + '/logtail/stop/share.log'})
+            .done(function() {
+                done();
+            });
+        }
+    });
+});
