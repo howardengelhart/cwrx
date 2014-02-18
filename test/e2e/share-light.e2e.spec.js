@@ -4,7 +4,6 @@ var request     = require('request'),
     q           = require('q'),
     testUtils   = require('./testUtils'),
     host        = process.env['host'] || 'localhost',
-    testNum     = process.env['testNum'] || 0,  // usually the Jenkins build number
     config = {
         'shareUrl': 'http://' + (host === 'localhost' ? host + ':3100' : host) + '/share',
         'maintUrl': 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint',
@@ -96,31 +95,6 @@ describe('share-light (E2E)', function() {
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
-        });
-    });
-    
-    
-    // THIS SHOULD ALWAYS GO LAST
-    describe('log cleanup', function() {
-        it('copies the logs locally and then clears the remote log file', function(done) {
-            if (!process.env['getLogs']) return done();
-            testUtils.getLog('share.log', config.maintUrl, 'share-light', testNum)
-            .then(function() {
-                var options = {
-                    url: config.maintUrl + '/clear_log',
-                    json: {
-                        logFile: 'share.log'
-                    }
-                };
-                return testUtils.qRequest('post', [options]);
-            }).then(function(resp) {
-                console.log("Cleared remote log");
-                done();
-            }).catch(function(error) {
-                console.log("Error getting and clearing log:");
-                console.log(error);
                 done();
             });
         });

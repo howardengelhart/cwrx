@@ -1,7 +1,6 @@
 var q           = require('q'),
     testUtils   = require('./testUtils'),
     host        = process.env['host'] || 'localhost',
-    testNum     = process.env['testNum'] || 0,  // usually the Jenkins build number
     config      = {
         contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api/content',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth',
@@ -158,29 +157,4 @@ describe('content-light (E2E):', function() {
             });
         });
     });  // end -- describe /api/content/meta
-    
-    
-    // THIS SHOULD ALWAYS GO LAST
-    describe('log cleanup', function() {
-        it('copies the logs locally and then clears the remote log file', function(done) {
-            if (!process.env['getLogs']) return done();
-            testUtils.getLog('content.log', config.maintUrl, 'content-light', testNum)
-            .then(function() {
-                var options = {
-                    url: config.maintUrl + '/clear_log',
-                    json: {
-                        logFile: 'content.log'
-                    }
-                };
-                return testUtils.qRequest('post', [options]);
-            }).then(function(resp) {
-                console.log("Cleared remote log");
-                done();
-            }).catch(function(error) {
-                console.log("Error getting and clearing log:");
-                console.log(error);
-                done();
-            });
-        });
-    });
 });  // end -- describe content (E2E)

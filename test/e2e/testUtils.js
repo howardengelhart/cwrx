@@ -63,8 +63,7 @@ function qRequest(method, opts) {
     .then(function(values) {
         if (!values) return q.reject({error: 'Received no data'});
         if (!values[0]) return q.reject({error: 'Missing response'});
-        if (!values[1]) return q.reject({error: 'Missing body'});
-        var body = values[1];
+        var body = values[1] || '';
         try {
             body = JSON.parse(body);
         } catch(e) {
@@ -76,18 +75,6 @@ function qRequest(method, opts) {
     });
     
     return deferred.promise;
-}
-
-function getLog(logFile, maintUrl, testName, testNum) {
-    var options = {
-        url: maintUrl + '/get_log?logFile=' + logFile
-    };
-    return qRequest('get', [options])
-    .then(function(resp) {
-        var fpath = path.join(__dirname, 'logs/' + testName + '.test' + testNum + '.log');
-        console.log("\nRemote log " + logFile + " stored in " + fpath);
-        return q.npost(fs, 'outputFile', [fpath, resp.body]);
-    });
 }
 
 function checkStatus(jobId, host, statusUrl, statusTimeout, pollInterval) {
@@ -126,7 +113,6 @@ function checkStatus(jobId, host, statusUrl, statusTimeout, pollInterval) {
 
 module.exports = {
     qRequest: qRequest,
-    getLog: getLog,
     checkStatus: checkStatus,
     resetCollection : resetCollection
 };

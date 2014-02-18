@@ -5,7 +5,6 @@ var request     = require('request'),
     testUtils   = require('./testUtils'),
     host        = process.env['host'] || 'localhost',
     statusHost  = process.env['statusHost'] || host,
-    testNum     = process.env['testNum'] || 0,  // usually the Jenkins build number
     config      = {
         dubUrl    : 'http://' + (host === 'localhost' ? host + ':3000' : host) + '/dub',
         maintUrl  : 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint',
@@ -153,31 +152,6 @@ describe('dub-light (E2E)', function() {
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
-        });
-    });
-    
-    
-    // THIS SHOULD ALWAYS GO LAST
-    describe('log cleanup', function() {
-        it('copies the logs locally and then clears the remote log file', function(done) {
-            if (!process.env['getLogs']) return done();
-            testUtils.getLog('dub.log', config.maintUrl, 'dub-light', testNum)
-            .then(function() {
-                var options = {
-                    url: config.maintUrl + '/clear_log',
-                    json: {
-                        logFile: 'dub.log'
-                    }
-                };
-                return testUtils.qRequest('post', [options]);
-            }).then(function(resp) {
-                console.log("Cleared remote log");
-                done();
-            }).catch(function(error) {
-                console.log("Error getting and clearing log:");
-                console.log(error);
                 done();
             });
         });
