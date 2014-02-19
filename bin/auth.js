@@ -301,7 +301,7 @@ auth.main = function(state) {
         });
     });
 
-    var authGetUser = authUtils.middlewarify(state.db, {}); // TODO: update perms here
+    var authGetUser = authUtils.middlewarify(state.db, {});
     app.get('/api/auth/status', authGetUser, function(req, res, next) {
         res.send(200, req.user); // errors handled entirely by authGetUser
     });
