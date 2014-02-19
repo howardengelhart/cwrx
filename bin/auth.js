@@ -118,8 +118,12 @@ auth.signup = function(req, users) {
             username: req.body.username,
             status: 'active',
             permissions: {  // temporary, at least until we decide how to set perms
-                'createExperience': true,
-                'deleteExperience': true
+                experiences: {
+                    read: "own",
+                    create: "own",
+                    edit: "own",
+                    delete: "own"
+                }
             }
         };
         return q.npost(bcrypt, 'hash', [req.body.password, bcrypt.genSaltSync()])
@@ -297,7 +301,7 @@ auth.main = function(state) {
         });
     });
 
-    var authGetUser = authUtils.middlewarify(state.db, {});
+    var authGetUser = authUtils.middlewarify(state.db, {}); // TODO: update perms here
     app.get('/api/auth/status', authGetUser, function(req, res, next) {
         res.send(200, req.user); // errors handled entirely by authGetUser
     });

@@ -39,6 +39,15 @@ state.defaultConfig = {
     }
 };
 
+// Check whether the user can operate on the experience according to their scope
+content.checkScope = function(user, experience, object, verb) {
+    return !!(user && user.permissions && user.permissions[object] && user.permissions[object][verb] &&
+         (user.permissions[object][verb] === 'all' ||
+         (user.permissions[object][verb] === 'org' && (user.org === experience.org ||
+                                                       user.id === experience.user)) ||
+         (user.permissions[object][verb] === 'own' && user.id === experience.user) ));
+};
+
 ///////////////////////////////
 
 content.QueryCache = function(cacheTTL, coll) {
@@ -66,45 +75,40 @@ content.QueryCache.sortQuery = function(query) {
     return newQuery;
 };
 
-content.QueryCache.formatQuery = function(query, userId) {
+content.QueryCache.formatQuery = function(query) {
     var self = this;
     Object.keys(query).forEach(function(key) {
         if (query[key] instanceof Array) {
             query[key] = {$in: query[key]};
         }
     });
-    var log = logger.getLog();
-    if (!userId || (query.user && (query.user !== userId))) {
-        query.status = 'active';
-        query.access = 'public';
-        return content.QueryCache.sortQuery(query);
-    } else if (query.user) {
-        return content.QueryCache.sortQuery(query);
-    }
-    var publicQuery = JSON.parse(JSON.stringify(query)); // copy, since we'll 2 queries for an $or
-    query.user = userId; // the "private" query for experiences owned by the user
-    publicQuery.status = 'active'; // the "public" query for other publicly viewable experiences
-    publicQuery.access = 'public';
-    return content.QueryCache.sortQuery({$or: [query, publicQuery]});
+    return content.QueryCache.sortQuery(query);
 };
 
-content.QueryCache.prototype.getPromise = function(reqId, query, sort, limit, skip) {
+content.QueryCache.prototype.getPromise = function(req, query, sort, limit, skip) {
     var self = this,
         log = logger.getLog(),
-        key = uuid.hashText(JSON.stringify({query:query,sort:sort,limit:limit,skip:skip})).substr(0,18),
+        keyObj = {query: query, sort: sort, limit: limit, skip: skip,
+                  user: (req.user && req.user.id) || ''},
+        key = uuid.hashText(JSON.stringify(keyObj)).substr(0,18),
         deferred = self._keeper.getDeferred(key, true);
     if (deferred) {
-        log.info("[%1] Query %2 cache hit", reqId, key);
+        log.info("[%1] Query %2 cache hit", req.uuid, key);
         return deferred.promise;
     }
-    log.info("[%1] Query %2 cache miss", reqId, key);
+    log.info("[%1] Query %2 cache miss", req.uuid, key);
     deferred = self._keeper.defer(key);
     q.npost(self._coll.find(query, {sort: sort, limit: limit, skip: skip}), 'toArray')
-        .then(deferred.resolve)
-        .catch(function(error) { // don't cache mongo errors; may change depending on what mongo errors we could expect
-            self._keeper.remove(key, true);
-            deferred.reject(error);
-        });
+    .then(function(results) {
+        log.info('[%1] Retrieved %2 experiences', req.uuid, results.length);
+        deferred.resolve(results.filter(function(result) {
+            return content.checkScope(req.user, result, 'experiences', 'read') ||
+                  (result.status === 'active' && result.access === 'public');
+        }));
+    }).catch(function(error) { // don't cache mongo errors; may change depending on what mongo errors we could expect
+        self._keeper.remove(key, true);
+        deferred.reject(error);
+    });
     
     setTimeout(function() {
         log.trace("Removing query %1 from the cache", key);
@@ -131,13 +135,17 @@ content.getExperiences = function(query, req, cache) {
         }
     }
         
-    query = content.QueryCache.formatQuery(query, req.session.user || '');
-    
-    log.info('[%1] Getting Experiences with %2, sort %3, limit %4, skip %5',
-             req.uuid, JSON.stringify(query), JSON.stringify(sortObj), limit, skip);
-    promise = cache.getPromise(req.uuid, query, sortObj, limit, skip);
+    query = content.QueryCache.formatQuery(query);
+    if (req.user) {
+        log.info('[%1] User %2 getting experiences with %3, sort %4, limit %5, skip %6',
+                 req.uuid, req.user.id, JSON.stringify(query), JSON.stringify(sortObj), limit, skip);
+    } else {
+        log.info('[%1] Unauthenticated user getting experiences with %2, sort %3, limit %4, skip %5',
+                 req.uuid, JSON.stringify(query), JSON.stringify(sortObj), limit, skip);
+    }
+    promise = cache.getPromise(req, query, sortObj, limit, skip);
     return promise.then(function(experiences) {
-        log.info('[%1] Retrieved %2 experiences', req.uuid, experiences.length);
+        log.info('[%1] Showing the user %2 experiences', req.uuid, experiences.length);
         return q({code: 200, body: experiences});
     }).catch(function(error) {
         log.error('[%1] Error getting experiences: %2', req.uuid, error);
@@ -153,12 +161,13 @@ content.createExperience = function(req, experiences) {
     if (!obj || typeof obj !== 'object') {
         return q({code: 400, body: "You must provide an object in the body"});
     }
-    
+
     obj.id = 'e-' + uuid.createUuid().substr(0,14);
     log.info('[%1] User %2 is creating experience %3', req.uuid, user.id, obj.id);
     obj.created = now;
     obj.lastUpdated = now;
     obj.user = user.id;
+    if (user.org) obj.org = user.org;
     if (!obj.status) obj.status = 'active';
     if (!obj.access) obj.access = 'public';
     return q.npost(experiences, 'insert', [obj, {w: 1, journal: true}])
@@ -192,7 +201,7 @@ content.updateExperience = function(req, experiences) {
             log.info('[%1] Experience %2 does not exist; not creating it', req.uuid, id);
             return deferred.resolve({code: 404, body: "That experience does not exist"});
         }
-        if (orig.user !== user.id) {
+        if (!content.checkScope(user, orig, 'experiences', 'edit')) {
             log.info('[%1] User %2 is not authorized to edit %3', req.uuid, user.id, id);
             return deferred.resolve({code: 403, body: "Not authorized to edit this experience"});
         }
@@ -227,7 +236,7 @@ content.deleteExperience = function(req, experiences) {
             log.info('[%1] Experience %2 does not exist', req.uuid, id);
             return deferred.resolve({code: 200, body: "Success"});
         } else {
-            if (orig.user !== user.id) {
+            if (!content.checkScope(user, orig, 'experiences', 'delete')) {
                 log.info('[%1] User %2 is not authorized to delete %3', req.uuid, user.id, id);
                 return deferred.resolve({code: 403, body: "Not authorized to delete this experience"});
             }
@@ -317,8 +326,28 @@ content.main = function(state) {
     
     // simple get active experience by id, public
     app.get('/api/content/experience/:id', function(req, res, next) {
-        content.getExperiences({id: req.params.id}, req, expCache)
-        .then(function(resp) {
+        var promise;
+        if (req.session.user) {
+            log.trace('[%1] Attempting to look up user %2 for public GET experiences',
+                      req.uuid, req.session.user);
+            promise = authUtils.getUser(req.session.user, state.db)
+            .then(function(user) {
+                log.trace('[%1] Found user %2', req.uuid, user.id);
+                req.user = user;
+            }).catch(function(error) {
+                if (error.detail) {
+                    log.error('[%1] Could not look up user %2: %3',
+                              req.uuid, req.session.user, JSON.stringify(error));
+                } else {
+                    log.info('[%1] User %2 could not be found', req.uuid, req.session.user);
+                }
+            });
+        } else {
+            promise = q();
+        }
+        promise.then(function() {
+            return content.getExperiences({id: req.params.id}, req, expCache);
+        }).then(function(resp) {
             res.send(resp.code, resp.body);
         }).catch(function(error) {
             res.send(500, {
@@ -327,10 +356,9 @@ content.main = function(state) {
         });
     });
 
-    // robust get experience by query, require authenticated user; currently no perms required
-    var authGetExp = authUtils.middlewarify(state.db, {});
+    // robust get experience by query, requires authenticated user with read perms
+    var authGetExp = authUtils.middlewarify(state.db, {experiences: "read"});
     app.get('/api/content/experiences', authGetExp, function(req, res, next) {
-        log.info(JSON.stringify(req.query));
         if (!req.query || (!req.query.ids && !req.query.user)) {
             log.info('[%1] Cannot GET /content/experiences without ids or user specified', req.uuid);
             return res.send(400, "Must specify ids or user param");
@@ -352,7 +380,7 @@ content.main = function(state) {
         });
     });
     
-    var authPostExp = authUtils.middlewarify(state.db, {createExperience: true});
+    var authPostExp = authUtils.middlewarify(state.db, {experiences: "create"});
     app.post('/api/content/experience', authPostExp, function(req, res, next) {
         content.createExperience(req, experiences)
         .then(function(resp) {
@@ -365,7 +393,7 @@ content.main = function(state) {
         });
     });
     
-    var authPutExp = authUtils.middlewarify(state.db, {createExperience: true});
+    var authPutExp = authUtils.middlewarify(state.db, {experiences: "edit"});
     app.put('/api/content/experience/:id', authPutExp, function(req, res, next) {
         content.updateExperience(req, experiences)
         .then(function(resp) {
@@ -378,7 +406,7 @@ content.main = function(state) {
         });
     });
     
-    var authDelExp = authUtils.middlewarify(state.db, {deleteExperience: true});
+    var authDelExp = authUtils.middlewarify(state.db, {experiences: "delete"});
     app.delete('/api/content/experience/:id', authDelExp, function(req, res, next) {
         content.deleteExperience(req, experiences)
         .then(function(resp) {

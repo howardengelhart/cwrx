@@ -26,6 +26,59 @@ describe('content (UT)', function() {
         req = {uuid: '1234'};
     });
     
+    describe('checkScope', function() {
+        it('should correctly handle the scopes', function() {
+            var user = {
+                id: 'u-1234',
+                org: 'o-1234',
+                permissions: {
+                    experiences: {
+                        read: 'all',
+                        edit: 'org',
+                        delete: 'own'
+                    }
+                }
+            };
+            var exps = [{ id: 'e-1', user: 'u-1234', org: 'o-1234'},
+                        { id: 'e-2', user: 'u-4567', org: 'o-1234'},
+                        { id: 'e-3', user: 'u-1234', org: 'o-4567'},
+                        { id: 'e-4', user: 'u-4567', org: 'o-4567'}];
+            
+            expect(exps.filter(function(experience) {
+                return content.checkScope(user, experience, 'experiences', 'read');
+            })).toEqual(exps);
+            
+            expect(exps.filter(function(experience) {
+                return content.checkScope(user, experience, 'experiences', 'edit');
+            })).toEqual([exps[0], exps[1], exps[2]]);
+            
+            expect(exps.filter(function(experience) {
+                return content.checkScope(user, experience, 'experiences', 'delete');
+            })).toEqual([exps[0], exps[2]]);
+        });
+    
+        it('should sanity-check the user permissions object', function() {
+            var experience = { id: 'e-1' };
+            expect(content.checkScope({}, experience, 'experiences', 'read')).toBe(false);
+            
+            var user = { id: 'u-1234', org: 'o-1234' };
+            expect(content.checkScope(user, experience, 'experiences', 'read')).toBe(false);
+            
+            user.permissions = {};
+            expect(content.checkScope(user, experience, 'experiences', 'read')).toBe(false);
+            
+            user.permissions.experiences = {};
+            user.permissions.orgs = { read: 'all' };
+            expect(content.checkScope(user, experience, 'experiences', 'read')).toBe(false);
+            
+            user.permissions.experiences.read = '';
+            expect(content.checkScope(user, experience, 'experiences', 'read')).toBe(false);
+            
+            user.permissions.experiences.read = 'all';
+            expect(content.checkScope(user, experience, 'experiences', 'read')).toBe(true);
+        });
+    });
+    
     describe('QueryCache', function() {
         var fakeColl;
         
@@ -81,64 +134,44 @@ describe('content (UT)', function() {
                 spyOn(content.QueryCache, 'sortQuery').andCallThrough();
             });
             
-            it('should create an $or combining a public and private query', function() {
-                var newQuery = content.QueryCache.formatQuery(query, userId);
-                expect(newQuery).toEqual({ $or: [{user: 'u-1234'}, {status: 'active', access: 'public'}]});
-                expect(content.QueryCache.sortQuery).toHaveBeenCalled();
-            });
-            
-            it('should return a public query if the original query specifies another user id', function() {
-                query.user = 'u-4567';
-                var newQuery = content.QueryCache.formatQuery(query, userId);
-                expect(newQuery).toEqual({user: 'u-4567', status: 'active', access: 'public'});
-                expect(content.QueryCache.sortQuery).toHaveBeenCalled();
-            });
-            
-            it('should return a public query if no user is provided', function() {
-                query.id = 'e-1234';
-                var newQuery = content.QueryCache.formatQuery(query, '');
-                expect(newQuery).toEqual({id: 'e-1234', status: 'active', access: 'public'});
-                expect(content.QueryCache.sortQuery).toHaveBeenCalled();
-            });
-            
-            it('should return a private query if the original query specifies the user\'s id', function() {
-                query.user = 'u-1234';
-                var newQuery = content.QueryCache.formatQuery(query, userId);
-                expect(newQuery).toEqual({user: 'u-1234'});
-                expect(content.QueryCache.sortQuery).toHaveBeenCalled();
-            });
-            
             it('should transform arrays into mongo-style $in objects', function() {
                 query.id = ['e-1', 'e-2', 'e-3'];
                 query.user = 'u-1234';
                 var newQuery = content.QueryCache.formatQuery(query, userId);
-                expect(newQuery).toEqual({user: 'u-1234', id: { $in: ['e-1', 'e-2', 'e-3']}});
+                expect(newQuery).toEqual({id: { $in: ['e-1', 'e-2', 'e-3']}, user: 'u-1234'});
                 expect(content.QueryCache.sortQuery).toHaveBeenCalled();
             });
         });
         
         describe('getPromise', function() {
-            var cache, fakeCursor;
+            var cache, fakeCursor, req;
             beforeEach(function() {
                 cache = new content.QueryCache(1, fakeColl);
                 spyOn(uuid, 'hashText').andReturn('fakeHash');
+                spyOn(content, 'checkScope').andReturn(true);
                 fakeCursor = {
                     toArray: jasmine.createSpy('cursor.toArray').andCallFake(function(cb) {
                         cb(null, [{id: 'e-1234'}])
                     })
                 };
                 fakeColl.find.andReturn(fakeCursor);
+                req = {
+                    uuid: '1234',
+                    user: { id: 'fakeUser' }
+                };
             });
             
             it('should retrieve a promise from the cache if the query matches', function(done) {
                 var deferred = cache._keeper.defer('fakeHash');
                 deferred.resolve([{id: 'e-1234'}]);
-                cache.getPromise('1234', {id: 'e-1234'}, {id: 1}, 0, 0)
+                cache.getPromise(req, {id: 'e-1234'}, {id: 1}, 0, 0)
                 .then(function(exps) {
                     expect(exps).toEqual([{id: 'e-1234'}]);
-                    var key = JSON.stringify({ query:{id:"e-1234"}, sort:{id:1}, limit:0, skip:0 });
+                    var keyObj = { query: {id: 'e-1234'}, sort: {id: 1}, limit:0, skip:0, user:'fakeUser' };
+                    var key = JSON.stringify(keyObj);
                     expect(uuid.hashText).toHaveBeenCalledWith(key);
                     expect(fakeColl.find).not.toHaveBeenCalled();
+                    expect(content.checkScope).not.toHaveBeenCalled();
                     done();
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
@@ -149,11 +182,13 @@ describe('content (UT)', function() {
             it('should make a new promise and search mongo if the query is not cached', function(done) {
                 var query = { id: "e-1234" },
                     opts = {sort: { id: 1 }, limit: 0, skip: 0 };
-                cache.getPromise('1234', query, opts.sort, opts.limit, opts.skip)
+                cache.getPromise(req, query, opts.sort, opts.limit, opts.skip)
                 .then(function(exps) {
                     expect(exps).toEqual([{id: 'e-1234'}]);
                     expect(fakeColl.find).toHaveBeenCalledWith(query, opts);
                     expect(fakeCursor.toArray).toHaveBeenCalled();
+                    expect(content.checkScope).toHaveBeenCalledWith({id: 'fakeUser'}, {id: 'e-1234'}, 
+                                                                    'experiences', 'read');
                     expect(uuid.hashText).toHaveBeenCalled();
                     expect(cache._keeper._deferreds.fakeHash).toBeDefined();
                     expect(cache._keeper.pendingCount).toBe(0);
@@ -169,7 +204,7 @@ describe('content (UT)', function() {
                 spyOn(cache._keeper, 'remove');
                 var query = { id: "e-1234" },
                     opts = {sort: { id: 1 }, limit: 0, skip: 0 };
-                cache.getPromise('1234', query, opts.sort, opts.limit, opts.skip)
+                cache.getPromise(req, query, opts.sort, opts.limit, opts.skip)
                 .then(function(exps) {
                     expect(exps).toEqual([{id: 'e-1234'}]);
                     expect(cache._keeper._deferreds.fakeHash).toBeDefined();
@@ -181,10 +216,36 @@ describe('content (UT)', function() {
                     done();
                 });
             });
+
+            it('should only return experiences the user is allowed to see', function(done) {
+                var exps = [
+                    { id: 'e-1', status: 'active', access: 'private' },
+                    { id: 'e-2', status: 'inactive', access: 'public' },
+                    { id: 'e-3', status: 'active', access: 'public' },
+                    { id: 'e-4', status: 'inactive', access: 'private' }
+                ];
+                fakeCursor.toArray.andCallFake(function(cb) {
+                    cb(null, exps);
+                });
+                content.checkScope.andCallFake(function(user, experience, obj, verb) {
+                    if (experience.id === 'e-4') return true;
+                    else return false;
+                });
+                
+                cache.getPromise(req, {}, {}, 0, 0).then(function(exps) {
+                    expect(exps).toEqual([{ id: 'e-3', status: 'active', access: 'public' },
+                                          { id: 'e-4', status: 'inactive', access: 'private' }]);
+                    expect(content.checkScope.calls.length).toBe(4);
+                    done();
+                }).catch(function(error) {
+                    expect(error).not.toBeDefined();
+                    done();
+                });
+            });
             
             it('should pass along errors from mongo', function(done) {
                 fakeCursor.toArray.andCallFake(function(cb) { cb('Error!'); });
-                cache.getPromise('1234', {id: 'e-1234'}, {id: 1}, 0, 0)
+                cache.getPromise(req, {id: 'e-1234'}, {id: 1}, 0, 0)
                 .then(function(exps) {
                     expect(exps).not.toBeDefined();
                     done();
@@ -226,8 +287,8 @@ describe('content (UT)', function() {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual(['fake1', 'fake2']);
-                expect(content.QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery', 'fakeUser');
-                expect(cache.getPromise).toHaveBeenCalledWith('1234', 'formatted', {id: 1}, 20, 10);
+                expect(content.QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery');
+                expect(cache.getPromise).toHaveBeenCalledWith(req, 'formatted', {id: 1}, 20, 10);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -241,8 +302,8 @@ describe('content (UT)', function() {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual(['fake1', 'fake2']);
-                expect(content.QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery', '');
-                expect(cache.getPromise).toHaveBeenCalledWith('1234', 'formatted', {}, 0, 0);
+                expect(content.QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery');
+                expect(cache.getPromise).toHaveBeenCalledWith(req, 'formatted', {}, 0, 0);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -258,8 +319,8 @@ describe('content (UT)', function() {
             }).catch(function(error) {
                 expect(error).toBe(error);
                 expect(mockLog.error).toHaveBeenCalled();
-                expect(content.QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery', 'fakeUser');
-                expect(cache.getPromise).toHaveBeenCalledWith('1234', 'formatted', {id: 1}, 20, 10);
+                expect(content.QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery');
+                expect(cache.getPromise).toHaveBeenCalledWith(req, 'formatted', {id: 1}, 20, 10);
                 done();
             });
         });
@@ -270,8 +331,8 @@ describe('content (UT)', function() {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual(['fake1', 'fake2']);
-                expect(content.QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery', 'fakeUser');
-                expect(cache.getPromise).toHaveBeenCalledWith('1234', 'formatted', {}, 20, 10);
+                expect(content.QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery');
+                expect(cache.getPromise).toHaveBeenCalledWith(req, 'formatted', {}, 20, 10);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -283,7 +344,7 @@ describe('content (UT)', function() {
     describe('createExperience', function() {
         beforeEach(function() {
             req.body = {title: 'fakeExp'};
-            req.user = {id: 'u-1234'};
+            req.user = {id: 'u-1234', org: 'o-1234'};
             experiences.insert = jasmine.createSpy('experiences.insert')
                 .andCallFake(function(obj, opts, cb) { cb(); });
             spyOn(uuid, 'createUuid').andReturn('1234');
@@ -311,6 +372,7 @@ describe('content (UT)', function() {
                 expect(resp.body.created instanceof Date).toBeTruthy('created is a Date');
                 expect(resp.body.lastUpdated instanceof Date).toBeTruthy('lastUpdated is a Date');
                 expect(resp.body.user).toBe('u-1234');
+                expect(resp.body.org).toBe('o-1234');
                 expect(resp.body.status).toBe('active');
                 expect(experiences.insert).toHaveBeenCalled();
                 expect(experiences.insert.calls[0].args[0]).toBe(resp.body);
@@ -348,6 +410,7 @@ describe('content (UT)', function() {
                 .andCallFake(function(query, cb) { cb(null, oldExp); });
             experiences.findAndModify = jasmine.createSpy('experiences.findAndModify')
                 .andCallFake(function(query, sort, obj, opts, cb) { cb(null, obj, 'lastErrorObj'); });
+            spyOn(content, 'checkScope').andReturn(true);
         });
         
         it('should fail with a 400 if no experience is provided', function(done) {
@@ -388,6 +451,7 @@ describe('content (UT)', function() {
                 
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findOne.calls[0].args[0]).toEqual({id: 'e-1234'});
+
                 expect(experiences.findAndModify).toHaveBeenCalled();
                 expect(experiences.findAndModify.calls[0].args[0]).toEqual({id: 'e-1234'});
                 expect(experiences.findAndModify.calls[0].args[1]).toEqual({id: 1});
@@ -401,13 +465,14 @@ describe('content (UT)', function() {
             });
         });
         
-        it('should not allow a user to update an experience they do not own', function(done) {
-            req.user = {id: 'u-4567'};
+        it('should only let a user edit experiences they are authorized to edit', function(done) {
+            content.checkScope.andReturn(false);
             content.updateExperience(req, experiences).then(function(resp) {
                 expect(resp.code).toBe(403);
                 expect(resp.body).toBe("Not authorized to edit this experience");
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findAndModify).not.toHaveBeenCalled();
+                expect(content.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'edit');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -466,6 +531,7 @@ describe('content (UT)', function() {
                 .andCallFake(function(query, cb) { cb(null, oldExp); });
             experiences.update = jasmine.createSpy('experiences.update')
                 .andCallFake(function(query, obj, opts, cb) { cb(null, 1); });
+            spyOn(content, 'checkScope').andReturn(true);
         });
         
         it('should successfully delete an experience', function(done) {
@@ -475,6 +541,7 @@ describe('content (UT)', function() {
                 expect(resp.body).toBe("Success");
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findOne.calls[0].args[0]).toEqual({id: 'e-1234'});
+                expect(content.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'delete');
                 expect(experiences.update).toHaveBeenCalled();
                 expect(experiences.update.calls[0].args[0]).toEqual({id: 'e-1234'});
                 var setProps = experiences.update.calls[0].args[1];
@@ -519,13 +586,14 @@ describe('content (UT)', function() {
             });
         });
         
-        it('should not let a user delete an experience they do not own', function(done) {
-            req.user = {id: 'u-4567'};
+        it('should only let a user delete experiences they are authorized to delete', function(done) {
+            content.checkScope.andReturn(false);
             content.deleteExperience(req, experiences).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(403);
                 expect(resp.body).toBe("Not authorized to delete this experience");
                 expect(experiences.findOne).toHaveBeenCalled();
+                expect(content.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'delete');
                 expect(experiences.update).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
