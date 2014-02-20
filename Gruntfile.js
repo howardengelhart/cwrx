@@ -21,9 +21,8 @@ module.exports = function (grunt) {
                 jshintrc: 'jshint.json'
             },
             all: [
-                    __dirname + '/lib/assemble.js'
-//                __dirname + '/bin/{,*/}*.js',
-//                __dirname + '/lib/{,*/}*.js'
+                __dirname + '/bin/{,*/}*.js',
+                __dirname + '/lib/{,*/}*.js'
             ]
         },
         watch: {
