@@ -1183,7 +1183,7 @@ describe('dub (UT)',function(){
                     throw {errno: 34};
                 });
                 mockId3.andCallFake(function(path, cb) {
-                    cb(null, {audio_duration: 3.5, foo: 'bar'});
+                    cb(null, {foo: 'bar', duration: 3.5});
                 });
                 writeFileSpy.andReturn();
                 
@@ -1211,7 +1211,7 @@ describe('dub (UT)',function(){
                     throw {errno: 1};
                 });
                 mockId3.andCallFake(function(path, cb) {
-                    cb(null, {audio_duration: 3.5, foo: 'bar'});
+                    cb(null, {duration: 3.5, foo: 'bar'});
                 });
                 writeFileSpy.andReturn();
                 
@@ -1235,7 +1235,7 @@ describe('dub (UT)',function(){
                     throw {errno: 34};
                 });
                 mockId3.andCallFake(function(path, cb) {
-                    cb(null, {audio_duration: 3.5, foo: 'bar'});
+                    cb(null, {duration: 3.5, foo: 'bar'});
                 });
                 writeFileSpy.andCallFake(function(path, data) {
                     throw new Error("Error!");
@@ -1275,7 +1275,7 @@ describe('dub (UT)',function(){
                 waitsFor(function() { return doneFlag; }, 3000);
             });
             
-            it('should reject if there is no audio_duration in the returned data', function() {
+            it('should reject if there is no duration in the returned data', function() {
                 readJsonSpy.andCallFake(function(path, opts) {
                     throw {errno: 1};
                 });

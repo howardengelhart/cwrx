@@ -23,6 +23,8 @@
     "globals" : {
         "Buffer"  : true,
         "console" : true,
+        "__dirname" : true,
+        "global"  : true,
         "module"  : true,
         "process" : true,
         "require" : true

@@ -314,7 +314,7 @@ describe('dub (E2E)', function() {
                 }
             };
             var correctId3 = {
-                audio_duration: 1.446,
+                duration: 1.446,
                 kbps: 48,
                 khz: 22050,
                 lips: 'f0=15&f1=15&f2=15&f3=9&f4=9&f5=15&f6=9&f7=5&f8=6&f9=15&f10=9&f11=9&f12=12&f13=12&f14=12&f15=5&f16=7&f17=0&nofudge=1&lipversion=2&ok=1',

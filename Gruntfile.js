@@ -36,7 +36,7 @@ module.exports = function (grunt) {
                     __dirname + '/lib/**/*.js',
                     __dirname + '/test/**/*.js' 
                 ],
-                tasks: ['jshint' ]
+                tasks: ['jshint', 'unit_tests' ]
             }
         },
         stop_instances: {
