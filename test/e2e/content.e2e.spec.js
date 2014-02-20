@@ -22,9 +22,14 @@ describe('content (E2E):', function() {
             status: "active",
             username : "contentE2EUser",
             password : "$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq", // hash of 'password'
+            org: "o-1234",
             permissions: {
-                createExperience: true,
-                deleteExperience: true
+                experiences: {
+                    read: "own",
+                    create: "own",
+                    edit: "own",
+                    delete: "own"
+                }
             }
         };
         var loginOpts = {
@@ -269,6 +274,7 @@ describe('content (E2E):', function() {
                 expect(resp.body.id).toBeDefined();
                 expect(resp.body.title).toBe("testExp");
                 expect(resp.body.user).toBe("e2e-user");
+                expect(resp.body.org).toBe("o-1234");
                 expect(resp.body.created).toBeDefined();
                 expect(new Date(resp.body.created).toString()).not.toEqual('Invalid Date');
                 expect(resp.body.lastUpdated).toEqual(resp.body.created);

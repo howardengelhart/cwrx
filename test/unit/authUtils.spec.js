@@ -51,6 +51,21 @@ describe('authUtils', function() {
                 done();
             });
         });
+
+        it('should retrieve from a provided cache if the module was called with one', function(done) {
+            var cache = {
+                'u-1234': mockUser
+            };
+            authUtils = require('../../lib/authUtils')(null, cache);
+            authUtils.getUser('u-1234', db).then(function(user) {
+                expect(user).toEqual(mockUser);
+                expect(collection.findOne).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
         
         it('should retrieve a user from mongodb if not in the cache', function(done) {
             authUtils.getUser('u-1234', db).then(function(user) {
@@ -126,32 +141,36 @@ describe('authUtils', function() {
     });
     
     describe('compare', function() {
-        var a, b;
-        
-        it('should do a deep compare of two objects', function() {
-            a = { a: { foo: 'bar' }, b: 1 };
-            b = { a: { foo: 'bar' }, b: 1 };
-            expect(authUtils.compare(a, b)).toBeTruthy();
-            b.a.foo = 'baz';
-            expect(authUtils.compare(a, b)).toBeFalsy();
-            a = {a: 1, b: 2};
-            b = {b: 2, a: 1};
-            expect(authUtils.compare(a, b)).toBeTruthy();
+        var userPerms;
+        beforeEach(function() {
+            userPerms = {
+                experiences: {
+                    read: "org",
+                    edit: "own"
+                },
+                orgs: {
+                    read: "own"
+                }
+            };
         });
         
-        it('should still return true if the user object has additional properties', function() {
-            a = { a: 1 };
-            b = { a: 1, b: 2};
-            expect(authUtils.compare(a, b)).toBeTruthy();
-            b.c = {d: 3};
-            expect(authUtils.compare(a, b)).toBeTruthy();
+        it('should check that each object-verb pair exists in the user\'s permissions', function() {
+            var perms = { experiences: "read" };
+            expect(authUtils.compare(perms, userPerms)).toBe(true);
+            
+            var perms = {experiences: "edit", orgs: "read" };
+            expect(authUtils.compare(perms, userPerms)).toBe(true);
+            
+            var perms = { orgs: "edit" };
+            expect(authUtils.compare(perms, userPerms)).toBe(false);
+            
+            var perms = {users: "read" };
+            expect(authUtils.compare(perms, userPerms)).toBe(false);
         });
         
-        it('should be able to compare two non-objects', function() {
-            a = 'foo', b = 'foob';
-            expect(authUtils.compare(a, b)).toBeFalsy();
-            b = 'foo';
-            expect(authUtils.compare(a, b)).toBeTruthy();
+        it('should work if the required permissions are blank', function() {
+            var perms = {};
+            expect(authUtils.compare(perms, userPerms)).toBe(true);
         });
     });
     

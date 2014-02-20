@@ -118,8 +118,12 @@ auth.signup = function(req, users) {
             username: req.body.username,
             status: 'active',
             permissions: {  // temporary, at least until we decide how to set perms
-                'createExperience': true,
-                'deleteExperience': true
+                experiences: {
+                    read: "own",
+                    create: "own",
+                    edit: "own",
+                    delete: "own"
+                }
             }
         };
         return q.npost(bcrypt, 'hash', [req.body.password, bcrypt.genSaltSync()])
