@@ -7,6 +7,7 @@ var path        = require('path'),
     bcrypt      = require('bcrypt'),
     logger      = require('../lib/logger'),
     uuid        = require('../lib/uuid'),
+    QueryCache  = require('../lib/queryCache'),
     mongoUtils  = require('../lib/mongoUtils'),
     authUtils   = require('../lib/authUtils')(),
     service     = require('../lib/service'),
@@ -48,7 +49,32 @@ userSvc.checkScope = function(parent, user, verb) {
          (parent.permissions.users[verb] === 'own' && parent.id === user.id) ));
 };
 
-// TODO no getUser function here since we just use authUtils.getUser instead
+userSvc.getUser = function(req) {
+    var id = req.params.id,
+        parent = req.user,
+        log = logger.getLog();
+
+    log.info('[%1] User %2 is attempting to get user %3', req.uuid, parent.id, id);
+    authUtils.getUser(id, state.db).then(function(userAccount) {
+        log.trace('[%1] Retrieved document for user %2', req.uuid, id);
+        if (userSvc.checkScope(parent, userAccount, 'read')) {
+            log.info('[%1] Returning user document %2 for user %3', req.uuid, id, parent.id);
+            return q({code: 200, body: userAccount});
+        } else {
+            log.info('[%1] User %2 is not authorized to get %3', req.uuid, parent.id, id);
+            return q({code: 403, body: 'Not authorized to get this user'});
+        }
+        return q({code: 200, body: userAccount});
+    }).catch(function(error) {
+        log.error('[%1] Error retrieving user %2: %3',
+                  req.uuid, id, JSON.stringify(error));
+        return q.reject(error);
+    });
+};
+
+userSvc.getUsersByOrg = function() {
+//TODO
+}
 
 // Setup a new user with reasonable defaults and hash their password
 userSvc.setupUser = function(newUser, parent) {
@@ -64,17 +90,17 @@ userSvc.setupUser = function(newUser, parent) {
     if (!newUser.permissions) newUser.permissions = {};
     var defaultPerms = { // ensure that every user at least has these permissions
         users: {
-            read: "own",
-            create: "own",
-            edit: "own",
-            delete: "own"
+            read: 'own',
+            create: 'own',
+            edit: 'own',
+            delete: 'own'
         },
         users: {
-            read: "own",
-            edit: "own"
+            read: 'own',
+            edit: 'own'
         },
         org: {
-            read: "own"
+            read: 'own'
         }
     };
     Object.keys(defaultPerms).forEach(function(key) {
@@ -119,7 +145,7 @@ userSvc.createUser = function(req, users) {
             log.warn('[%1] User %2 in org %3 cannot create users in org %4',
                      req.uuid, parent.id, parent.org, newUser.org);
             return deferred.resolve({
-                code: 400,
+                code: 403,
                 body: 'Cannot create users outside of your organization'
             });
         }
@@ -303,25 +329,29 @@ userSvc.main = function(state) {
     });
     
     var users = state.db.collection('users');
+    var userCache = new QueryCache(state.config.cacheTTLs.users, users);
     
     var authGetUser = authUtils.middlewarify(state.db, {users: "read"});
     app.get('/api/user/:id', authGetUser, function(req, res, next) {
-        authUtils.getUser(req.params.id, state.db).then(function(userAccount) {
-            log.info('[%1] Retrieved document for user %2', req.uuid, req.params.id);
-            res.send(200, userAccount);
+        userSvc.getUser(req)
+        .then(function(resp) {
+            res.send(resp.code, resp.body);
         }).catch(function(error) {
-            log.error('[%1] Error retrieving user %2: %3',
-                      req.uuid, req.params.id, JSON.stringify(error));
             res.send(500, {
-                error: 'Error retrieving user',
+                error: 'Error retrieving user'
                 detail: error
             });
         });
     });
     
     app.get('/api/users', authGetUser, function(req, res, next) {
-        userSvc.getUsers(req.params.id, state.db).then(function(userAccount) {
-            res.send(200, userAccount); //TODO
+        if (!req.query || !req.query.org) {
+            log.info('[%1] Cannot GET /api/users without org specified',req.uuid);
+            return res.send(400, "Must specify org param");
+        }
+        userSvc.getUsersByOrg(req, userCache)
+        .then(function(resp) {
+            res.send(resp.code, resp.body);
         }).catch(function(error) {
             res.send(500, {
                 error: 'Error retrieving users'

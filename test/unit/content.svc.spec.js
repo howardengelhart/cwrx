@@ -103,7 +103,7 @@ describe('content (UT)', function() {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual(['fake1']);
                 expect(QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery');
-                expect(cache.getPromise).toHaveBeenCalledWith('1234', 'formatted', {id: 1}, 20, 10);
+                expect(cache.getPromise).toHaveBeenCalledWith('formatted', {id: 1}, 20, 10);
                 expect(content.checkScope)
                     .toHaveBeenCalledWith('fakeUser', 'fake1', 'experiences', 'read');
                 done();
@@ -120,7 +120,7 @@ describe('content (UT)', function() {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual(['fake1']);
                 expect(QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery');
-                expect(cache.getPromise).toHaveBeenCalledWith('1234', 'formatted', {}, 0, 0);
+                expect(cache.getPromise).toHaveBeenCalledWith('formatted', {}, 0, 0);
                 expect(content.checkScope)
                     .toHaveBeenCalledWith(undefined, 'fake1', 'experiences', 'read');
                 done();
@@ -166,7 +166,7 @@ describe('content (UT)', function() {
                 expect(error).toBe(error);
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery');
-                expect(cache.getPromise).toHaveBeenCalledWith('1234', 'formatted', {id: 1}, 20, 10);
+                expect(cache.getPromise).toHaveBeenCalledWith('formatted', {id: 1}, 20, 10);
                 done();
             });
         });
@@ -178,7 +178,7 @@ describe('content (UT)', function() {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual(['fake1']);
                 expect(QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery');
-                expect(cache.getPromise).toHaveBeenCalledWith('1234', 'formatted', {}, 20, 10);
+                expect(cache.getPromise).toHaveBeenCalledWith('formatted', {}, 20, 10);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

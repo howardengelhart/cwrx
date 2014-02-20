@@ -68,7 +68,7 @@ describe('QueryCache', function() {
     });
     
     describe('getPromise', function() {
-        var cache, fakeCursor, reqId;
+        var cache, fakeCursor;
         beforeEach(function() {
             cache = new QueryCache(1, fakeColl);
             spyOn(uuid, 'hashText').andReturn('fakeHash');
@@ -78,13 +78,12 @@ describe('QueryCache', function() {
                 })
             };
             fakeColl.find.andReturn(fakeCursor);
-            reqId = '1234';
         });
         
         it('should retrieve a promise from the cache if the query matches', function(done) {
             var deferred = cache._keeper.defer('fakeHash');
             deferred.resolve([{id: 'e-1234'}]);
-            cache.getPromise(reqId, {id: 'e-1234'}, {id: 1}, 0, 0)
+            cache.getPromise({id: 'e-1234'}, {id: 1}, 0, 0)
             .then(function(exps) {
                 expect(exps).toEqual([{id: 'e-1234'}]);
                 var keyObj = { query: {id: 'e-1234'}, sort: {id: 1}, limit:0, skip:0};
@@ -101,7 +100,7 @@ describe('QueryCache', function() {
         it('should make a new promise and search mongo if the query is not cached', function(done) {
             var query = { id: "e-1234" },
                 opts = {sort: { id: 1 }, limit: 0, skip: 0 };
-            cache.getPromise(reqId, query, opts.sort, opts.limit, opts.skip)
+            cache.getPromise(query, opts.sort, opts.limit, opts.skip)
             .then(function(exps) {
                 expect(exps).toEqual([{id: 'e-1234'}]);
                 expect(fakeColl.find).toHaveBeenCalledWith(query, opts);
@@ -121,7 +120,7 @@ describe('QueryCache', function() {
             spyOn(cache._keeper, 'remove');
             var query = { id: "e-1234" },
                 opts = {sort: { id: 1 }, limit: 0, skip: 0 };
-            cache.getPromise(reqId, query, opts.sort, opts.limit, opts.skip)
+            cache.getPromise(query, opts.sort, opts.limit, opts.skip)
             .then(function(exps) {
                 expect(exps).toEqual([{id: 'e-1234'}]);
                 expect(cache._keeper._deferreds.fakeHash).toBeDefined();
@@ -136,7 +135,7 @@ describe('QueryCache', function() {
         
         it('should pass along errors from mongo', function(done) {
             fakeCursor.toArray.andCallFake(function(cb) { cb('Error!'); });
-            cache.getPromise(reqId, {id: 'e-1234'}, {id: 1}, 0, 0)
+            cache.getPromise({id: 'e-1234'}, {id: 1}, 0, 0)
             .then(function(exps) {
                 expect(exps).not.toBeDefined();
                 done();

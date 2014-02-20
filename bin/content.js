@@ -72,8 +72,8 @@ content.getExperiences = function(query, req, cache) {
         log.info('[%1] Unauthenticated user getting experiences with %2, sort %3, limit %4, skip %5',
                  req.uuid, JSON.stringify(query), JSON.stringify(sortObj), limit, skip);
     }
-    return cache.getPromise(req.uuid, query, sortObj, limit, skip).then(function(results) {
-        log.info('[%1] Retrieved %2 experiences', req.uuid, results.length);
+    return cache.getPromise(query, sortObj, limit, skip).then(function(results) {
+        log.trace('[%1] Retrieved %2 experiences', req.uuid, results.length);
         var experiences = results.filter(function(result) {
             return content.checkScope(req.user, result, 'experiences', 'read') ||
                   (result.status === 'active' && result.access === 'public');
@@ -292,7 +292,7 @@ content.main = function(state) {
     var authGetExp = authUtils.middlewarify(state.db, {experiences: "read"});
     app.get('/api/content/experiences', authGetExp, function(req, res, next) {
         if (!req.query || (!req.query.ids && !req.query.user)) {
-            log.info('[%1] Cannot GET /content/experiences without ids or user specified', req.uuid);
+            log.info('[%1] Cannot GET /content/experiences without ids or user specified',req.uuid);
             return res.send(400, "Must specify ids or user param");
         }
         var query = {};
