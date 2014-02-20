@@ -6,10 +6,10 @@ var path        = require('path'),
     q           = require('q'),
     logger      = require('../lib/logger'),
     uuid        = require('../lib/uuid'),
+    QueryCache  = require('../lib/queryCache'),
     mongoUtils  = require('../lib/mongoUtils'),
     authUtils   = require('../lib/authUtils')(),
     service     = require('../lib/service'),
-    promise     = require('../lib/promise'),
     
     state       = {},
     content = {}; // for exporting functions to unit tests
@@ -48,77 +48,6 @@ content.checkScope = function(user, experience, object, verb) {
          (user.permissions[object][verb] === 'own' && user.id === experience.user) ));
 };
 
-///////////////////////////////
-
-content.QueryCache = function(cacheTTL, coll) {
-    var self = this;
-    if (!cacheTTL || !coll) {
-        throw new Error("Must provide a cacheTTL and mongo collection");
-    }
-    self.cacheTTL = cacheTTL*60*1000;
-    self._coll = coll;
-    self._keeper = new promise.Keeper();
-};
-
-content.QueryCache.sortQuery = function(query) {
-    var self = this,
-        newQuery = {};
-    if (typeof query !== 'object') {
-        return query;
-    }
-    if (query instanceof Array) {
-        newQuery = [];
-    }
-    Object.keys(query).sort().forEach(function(key) {
-        newQuery[key] = content.QueryCache.sortQuery(query[key]);
-    });
-    return newQuery;
-};
-
-content.QueryCache.formatQuery = function(query) {
-    var self = this;
-    Object.keys(query).forEach(function(key) {
-        if (query[key] instanceof Array) {
-            query[key] = {$in: query[key]};
-        }
-    });
-    return content.QueryCache.sortQuery(query);
-};
-
-content.QueryCache.prototype.getPromise = function(req, query, sort, limit, skip) {
-    var self = this,
-        log = logger.getLog(),
-        keyObj = {query: query, sort: sort, limit: limit, skip: skip,
-                  user: (req.user && req.user.id) || ''},
-        key = uuid.hashText(JSON.stringify(keyObj)).substr(0,18),
-        deferred = self._keeper.getDeferred(key, true);
-    if (deferred) {
-        log.info("[%1] Query %2 cache hit", req.uuid, key);
-        return deferred.promise;
-    }
-    log.info("[%1] Query %2 cache miss", req.uuid, key);
-    deferred = self._keeper.defer(key);
-    q.npost(self._coll.find(query, {sort: sort, limit: limit, skip: skip}), 'toArray')
-    .then(function(results) {
-        log.info('[%1] Retrieved %2 experiences', req.uuid, results.length);
-        deferred.resolve(results.filter(function(result) {
-            return content.checkScope(req.user, result, 'experiences', 'read') ||
-                  (result.status === 'active' && result.access === 'public');
-        }));
-    }).catch(function(error) { // don't cache mongo errors; may change depending on what mongo errors we could expect
-        self._keeper.remove(key, true);
-        deferred.reject(error);
-    });
-    
-    setTimeout(function() {
-        log.trace("Removing query %1 from the cache", key);
-        self._keeper.remove(key, true);
-    }, self.cacheTTL);
-    
-    return deferred.promise;
-};
-///////////////////////////////
-
 content.getExperiences = function(query, req, cache) {
     var limit = req.query && req.query.limit || 0,
         skip = req.query && req.query.skip || 0,
@@ -135,7 +64,7 @@ content.getExperiences = function(query, req, cache) {
         }
     }
         
-    query = content.QueryCache.formatQuery(query);
+    query = QueryCache.formatQuery(query);
     if (req.user) {
         log.info('[%1] User %2 getting experiences with %3, sort %4, limit %5, skip %6',
                  req.uuid, req.user.id, JSON.stringify(query), JSON.stringify(sortObj), limit, skip);
@@ -143,8 +72,12 @@ content.getExperiences = function(query, req, cache) {
         log.info('[%1] Unauthenticated user getting experiences with %2, sort %3, limit %4, skip %5',
                  req.uuid, JSON.stringify(query), JSON.stringify(sortObj), limit, skip);
     }
-    promise = cache.getPromise(req, query, sortObj, limit, skip);
-    return promise.then(function(experiences) {
+    return cache.getPromise(req.uuid, query, sortObj, limit, skip).then(function(results) {
+        log.info('[%1] Retrieved %2 experiences', req.uuid, results.length);
+        var experiences = results.filter(function(result) {
+            return content.checkScope(req.user, result, 'experiences', 'read') ||
+                  (result.status === 'active' && result.access === 'public');
+        });
         log.info('[%1] Showing the user %2 experiences', req.uuid, experiences.length);
         return q({code: 200, body: experiences});
     }).catch(function(error) {
@@ -163,7 +96,7 @@ content.createExperience = function(req, experiences) {
     }
 
     obj.id = 'e-' + uuid.createUuid().substr(0,14);
-    log.info('[%1] User %2 is creating experience %3', req.uuid, user.id, obj.id);
+    log.trace('[%1] User %2 is creating experience %3', req.uuid, user.id, obj.id);
     obj.created = now;
     obj.lastUpdated = now;
     obj.user = user.id;
@@ -235,15 +168,14 @@ content.deleteExperience = function(req, experiences) {
         if (!orig) {
             log.info('[%1] Experience %2 does not exist', req.uuid, id);
             return deferred.resolve({code: 200, body: "Success"});
-        } else {
-            if (!content.checkScope(user, orig, 'experiences', 'delete')) {
-                log.info('[%1] User %2 is not authorized to delete %3', req.uuid, user.id, id);
-                return deferred.resolve({code: 403, body: "Not authorized to delete this experience"});
-            }
-            if (orig.status === 'deleted') {
-                log.info('[%1] Experience %2 has already been deleted', req.uuid, id);
-                return deferred.resolve({code: 200, body: "Success"});
-            }
+        }
+        if (!content.checkScope(user, orig, 'experiences', 'delete')) {
+            log.info('[%1] User %2 is not authorized to delete %3', req.uuid, user.id, id);
+            return deferred.resolve({code: 403, body: "Not authorized to delete this experience"});
+        }
+        if (orig.status === 'deleted') {
+            log.info('[%1] Experience %2 has already been deleted', req.uuid, id);
+            return deferred.resolve({code: 200, body: "Success"});
         }
         return q.npost(experiences, 'update', [{id: id},
                        {$set: {lastUpdated: now, status: 'deleted'}}, {w: 1, journal: true}])
@@ -322,7 +254,7 @@ content.main = function(state) {
     });
     
     var experiences = state.db.collection('experiences');
-    var expCache = new content.QueryCache(state.config.cacheTTLs.experiences, experiences);
+    var expCache = new QueryCache(state.config.cacheTTLs.experiences, experiences);
     
     // simple get active experience by id, public
     app.get('/api/content/experience/:id', function(req, res, next) {
