@@ -50,7 +50,7 @@ auth.login = function(req, users) {
     q.npost(users, 'findOne', [{username: req.body.username}])
     .then(function(account) {
         if (!account) {
-            log.info('[%1] Failed login for user %2: unknown username', req.uuid, req.body.username);
+            log.info('[%1] Failed login for user %2: unknown username',req.uuid,req.body.username);
             return q.reject();
         }
         userAccount = account;
@@ -70,7 +70,7 @@ auth.login = function(req, users) {
                 return q();
             });
         } else {
-            log.info('[%1] Failed login for user %2: invalid password', req.uuid, req.body.username);
+            log.info('[%1] Failed login for user %2: invalid password',req.uuid,req.body.username);
             return q.reject();
         }
     }).catch(function(error) {
@@ -119,10 +119,10 @@ auth.signup = function(req, users) {
             status: 'active',
             permissions: {  // temporary, at least until we decide how to set perms
                 experiences: {
-                    read: "own",
-                    create: "own",
-                    edit: "own",
-                    delete: "own"
+                    read: 'own',
+                    create: 'own',
+                    edit: 'own',
+                    delete: 'own'
                 }
             }
         };
@@ -158,16 +158,16 @@ auth.signup = function(req, users) {
 auth.logout = function(req) {
     var deferred = q.defer(),
         log = logger.getLog();
-    log.info("[%1] Starting logout for %2", req.uuid, req.sessionID);
+    log.info('[%1] Starting logout for %2', req.uuid, req.sessionID);
     if (!req.session || !req.session.user) {
-        log.info("[%1] User with sessionID %2 attempting to logout but is not logged in",
+        log.info('[%1] User with sessionID %2 attempting to logout but is not logged in',
                  req.uuid, req.sessionID);
-        deferred.resolve({code: 200, body: "Success"});
+        deferred.resolve({code: 200, body: 'Success'});
     } else {
-        log.info("[%1] Logging out user %2 with sessionID %3",
+        log.info('[%1] Logging out user %2 with sessionID %3',
                  req.uuid, req.session.user, req.sessionID);
         q.npost(req.session, 'destroy').then(function() {
-            deferred.resolve({code: 200, body: "Success"});
+            deferred.resolve({code: 200, body: 'Success'});
         }).catch(function(error) {
             log.error('[%1] Error logging out user %2: %3', req.uuid, req.session.user, error);
             deferred.reject(error);
@@ -180,19 +180,19 @@ auth.deleteAccount = function(req, users) {
     var deferred = q.defer(),
         log = logger.getLog();
     if (!req.session || !req.session.user) {
-        log.info("[%1] User with sessionID %2 attempting to delete account but is not logged in",
+        log.info('[%1] User with sessionID %2 attempting to delete account but is not logged in',
                  req.uuid, req.sessionID);
-        deferred.resolve({code: 400, body: "You are not logged in"});
+        deferred.resolve({code: 400, body: 'You are not logged in'});
     } else {
-        log.info("[%1] Deleting account of user %2", req.uuid, req.session.user);
+        log.info('[%1] Deleting account of user %2', req.uuid, req.session.user);
         
         q.npost(users, 'remove', [{id: req.session.user}, {w: 1, journal: true}])
         .then(function() {
             return q.npost(req.session, 'destroy');
         }).then(function() {
-            deferred.resolve({code: 200, body: "Successfully deleted account"});
+            deferred.resolve({code: 200, body: 'Successfully deleted account'});
         }).catch(function(error) {
-            log.error('[%1] Error deleting account of user %2: %3', req.uuid, req.session.user, error);
+            log.error('[%1] Error deleting account of user %2: %3',req.uuid,req.session.user,error);
             deferred.reject(error);
         });
     }
@@ -209,7 +209,6 @@ auth.main = function(state) {
     log.info('Running as cluster worker, proceed with setting up web server.');
         
     var express     = require('express'),
-        deferred    = q.defer(),
         app         = express();
     
     var users = state.db.collection('users');
@@ -238,11 +237,11 @@ auth.main = function(state) {
     }));
     
     app.all('*', function(req, res, next) {
-        res.header("Access-Control-Allow-Headers", 
-                   "Origin, X-Requested-With, Content-Type, Accept");
-        res.header("cache-control", "max-age=0");
+        res.header('Access-Control-Allow-Headers', 
+                   'Origin, X-Requested-With, Content-Type, Accept');
+        res.header('cache-control', 'max-age=0');
 
-        if (req.method.toLowerCase() === "options") {
+        if (req.method.toLowerCase() === 'options') {
             res.send(200);
         } else {
             next();
@@ -261,40 +260,40 @@ auth.main = function(state) {
         next();
     });
 
-    app.post('/api/auth/login', function(req, res, next) {
+    app.post('/api/auth/login', function(req, res/*, next*/) {
         auth.login(req, users).then(function(resp) {
             res.send(resp.code, resp.body);
-        }).catch(function(error) {
+        }).catch(function(/*error*/) {
             res.send(500, {
                 error: 'Error processing login'
             });
         });
     });
 
-    app.post('/api/auth/signup', function(req, res, next) {
+    app.post('/api/auth/signup', function(req, res/*, next*/) {
         auth.signup(req, users).then(function(resp) {
             res.send(resp.code, resp.body);
-        }).catch(function(error) {
+        }).catch(function(/*error*/) {
             res.send(500, {
                 error: 'Error processing signup'
             });
         });
     });
 
-    app.post('/api/auth/logout', function(req, res, next) {
+    app.post('/api/auth/logout', function(req, res/*, next*/) {
         auth.logout(req).then(function(resp) {
             res.send(resp.code, resp.body);
-        }).catch(function(error) {
+        }).catch(function(/*error*/) {
             res.send(500, {
                 error: 'Error processing logout'
             });
         });
     });
 
-    app.delete('/api/auth/delete_account', function(req, res, next) {
+    app.delete('/api/auth/delete_account', function(req, res/*, next*/) {
         auth.deleteAccount(req, users).then(function(resp) {
             res.send(resp.code, resp.body);
-        }).catch(function(error) {
+        }).catch(function(/*error*/) {
             res.send(500, {
                 error: 'Error deleting account'
             });
@@ -302,11 +301,11 @@ auth.main = function(state) {
     });
 
     var authGetUser = authUtils.middlewarify(state.db, {});
-    app.get('/api/auth/status', authGetUser, function(req, res, next) {
+    app.get('/api/auth/status', authGetUser, function(req, res/*, next*/) {
         res.send(200, req.user); // errors handled entirely by authGetUser
     });
 
-    app.get('/api/auth/meta', function(req, res, next){
+    app.get('/api/auth/meta', function(req, res/*, next*/){
         var data = {
             version: state.config.appVersion,
             started : started.toISOString(),
