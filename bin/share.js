@@ -6,11 +6,9 @@ var include     = require('../lib/inject').require,
     fs          = include('fs-extra'),
     path        = include('path'),
     request     = include('request'),
-    cp          = include('child_process'),
     express     = include('express'),
     aws         = include('aws-sdk'),
     q           = include('q'),
-    querystring = include('querystring'),
     logger      = include('../lib/logger'),
     cwrxConfig  = include('../lib/config'),
     uuid        = include('../lib/uuid'),
@@ -157,15 +155,14 @@ share.shortenUrl = function(origUrl, config, params, staticLink) {
 share.shareLink = function(req, config, done) {
     var log = logger.getLog(),
         body = req.body;
-    log.info("[%1] Starting shareLink", req.uuid);
+    log.info('[%1] Starting shareLink', req.uuid);
 
     if (!body || !body.origin) {
-        log.error("[%1] No origin url in request", req.uuid);
-        done("You must include the origin url to generate a shareable url");
+        log.error('[%1] No origin url in request', req.uuid);
+        done('You must include the origin url to generate a shareable url');
         return;
     }
-    var origin = body.origin,
-        item = body.data,
+    var item = body.data,
         prefix = body.origin.split('experiences/')[0];
 
     var generateUrl = function(uri) {
@@ -177,8 +174,9 @@ share.shareLink = function(req, config, done) {
             url += uri;
         }
         
-        share.shortenUrl(url, config, req.body.awesmParams, req.body.staticLink).then(function(shortUrl) {
-            log.info("[%1] Finished shareLink: URL = %2, short = %3", req.uuid, url, shortUrl);
+        share.shortenUrl(url, config, req.body.awesmParams, req.body.staticLink)
+        .then(function(shortUrl) {
+            log.info('[%1] Finished shareLink: URL = %2, short = %3', req.uuid, url, shortUrl);
             done(null, url, shortUrl);
         }).catch(function(error) {
             log.error('[%1] Failed to shorten url: url = %2, error = %3', req.uuid, url, error);
@@ -197,7 +195,6 @@ share.shareLink = function(req, config, done) {
     }
 
     var s3 = new aws.S3(),
-        deferred = q.defer(),
         id = 'e-' + uuid.createUuid().substr(0,14),
         fname = id + '.json',
         params = { Bucket       : config.s3.share.bucket,
@@ -210,7 +207,7 @@ share.shareLink = function(req, config, done) {
     item.uri = 'shared~' + item.uri.split('~')[0] + '~' + id;
     params.Body = (item ? new Buffer(JSON.stringify(item)) : null);
 
-    log.info("[%1] Uploading data: Bucket = %2, Key = %3", req.uuid, params.Bucket, params.Key);
+    log.info('[%1] Uploading data: Bucket = %2, Key = %3', req.uuid, params.Bucket, params.Key);
     s3.putObject(params, function(err, data) {
         if (err) {
             log.error('[%1] Error uploading data: %2', req.uuid, JSON.stringify(err));
@@ -222,20 +219,10 @@ share.shareLink = function(req, config, done) {
     });
 };
 
-if (!__ut__){
-    try {
-        main(function(rc,msg){
-            exitApp(rc,msg);
-        });
-    } catch(e) {
-        exitApp(1,e.stack);
-    }
-}
-
 function main(done) {
     var program  = include('commander'),
         config = {},
-        log, userCfg;
+        log;
 
     program
         .option('-c, --config [CFGFILE]','Specify config file')
@@ -276,7 +263,7 @@ function main(done) {
 
     process.on('uncaughtException', function(err) {
         try{
-            log.error('uncaught: ' + err.message + "\n" + err.stack);
+            log.error('uncaught: ' + err.message + '\n' + err.stack);
         }catch(e){
             console.error(e);
         }
@@ -306,12 +293,12 @@ function main(done) {
     app.use(express.bodyParser());
 
     app.all('*', function(req, res, next) {
-        res.header("Access-Control-Allow-Origin", "*");
-        res.header("Access-Control-Allow-Headers", 
-                   "Origin, X-Requested-With, Content-Type, Accept");
-        res.header("cache-control", "max-age=0");
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Headers', 
+                   'Origin, X-Requested-With, Content-Type, Accept');
+        res.header('cache-control', 'max-age=0');
 
-        if (req.method.toLowerCase() === "options") {
+        if (req.method.toLowerCase() === 'options') {
             res.send(200);
         } else {
             next();
@@ -330,7 +317,7 @@ function main(done) {
         next();
     });
     
-    app.get('/share/facebook', function(req, res, next) {
+    app.get('/share/facebook', function(req, res/*, next*/) {
         log.info('[%1] Starting facebook share', req.uuid);
         if (!req.query || !req.query.origin || !req.query.fbUrl) {
             var msg = 'Need origin and fbUrl to redirect to in query string';
@@ -349,7 +336,7 @@ function main(done) {
         });
     });
     
-    app.get('/share/twitter', function(req, res, next) {
+    app.get('/share/twitter', function(req, res/*, next*/) {
         log.info('[%1] Starting twitter share', req.uuid);
         if (!req.query || !req.query.origin || !req.query.twitUrl) {
             var msg = 'Need origin and twiturl to redirect to in query string';
@@ -368,7 +355,7 @@ function main(done) {
         });
     });
 
-    app.post('/share', function(req, res, next) {
+    app.post('/share', function(req, res/*, next*/) {
         share.shareLink(req, config, function(err, output, shortUrl) {
             if (err) {
                 res.send(400,{
@@ -384,7 +371,7 @@ function main(done) {
         });
     });
     
-    app.get('/share/meta', function(req, res, next){
+    app.get('/share/meta', function(req, res/*, next*/){
         var data = {
             version: share.getVersion(),
             config: {
@@ -399,6 +386,16 @@ function main(done) {
 
     app.listen(program.port);
     log.info('Share server is listening on port: ' + program.port);
+}
+
+if (!__ut__){
+    try {
+        main(function(rc,msg){
+            exitApp(rc,msg);
+        });
+    } catch(e) {
+        exitApp(1,e.stack);
+    }
 }
 
 if (__ut__) {

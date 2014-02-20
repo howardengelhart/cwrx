@@ -9,7 +9,6 @@ var include     = require('../lib/inject').require,
     express     = include('express'),
     path        = include('path'),
     q           = include('q'),
-    cp          = include('child_process'),
     aws         = include('aws-sdk'),
     logger      = include('../lib/logger'),
     daemon      = include('../lib/daemon'),
@@ -115,11 +114,13 @@ function removeFiles(remList) {
         
     q.all(remList.map(function(fpath) {
         if (fs.existsSync(fpath)) {
-            log.info("Removing " + fpath);
+            log.info('Removing ' + fpath);
             delCount++;
-            return q.npost(fs, "remove", [fpath]);
+            return q.npost(fs, 'remove', [fpath]);
         }
-        else return q();
+        else {
+            return q();
+        }
     })).then(
         function() { return deferred.resolve(delCount); },
         function(error) { return deferred.reject(error); }
@@ -146,20 +147,10 @@ function restartService(serviceName) {
     return deferred.promise;
 }
 
-if (!__ut__){
-    try {
-        main(function(rc,msg){
-            exitApp(rc,msg);
-        });
-    } catch(e) {
-        exitApp(1,e.stack);
-    }
-}
-
 function main(done) {
     var program  = include('commander'),
         config = {},
-        log, userCfg;
+        log;
     
     program
         .option('-c, --config [CFGFILE]','Specify a config file')
@@ -182,7 +173,7 @@ function main(done) {
     }
 
     if (!program.config) {
-        throw new Error("Please use the -c option to provide a config file");
+        throw new Error('Please use the -c option to provide a config file');
     }
 
     config = createConfiguration(program);
@@ -202,9 +193,9 @@ function main(done) {
 
     process.on('uncaughtException', function(err) {
         try{
-            log.error('uncaught: ' + err.message + "\n" + err.stack);
+            log.error('uncaught: ' + err.message + '\n' + err.stack);
         }catch(e){
-            console.error('uncaught: ' + err.message + "\n" + err.stack);
+            console.error('uncaught: ' + err.message + '\n' + err.stack);
         }
         return done(2);
     });
@@ -232,12 +223,12 @@ function main(done) {
     app.use(express.bodyParser());
     
     app.all('*', function(req, res, next) {
-        res.header("Access-Control-Allow-Origin", "*");
-        res.header("Access-Control-Allow-Headers", 
-                   "Origin, X-Requested-With, Content-Type, Accept");
-        res.header("cache-control", "max-age=0");
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Headers', 
+                   'Origin, X-Requested-With, Content-Type, Accept');
+        res.header('cache-control', 'max-age=0');
 
-        if (req.method.toLowerCase() === "options") {
+        if (req.method.toLowerCase() === 'options') {
             res.send(200);
         } else {
             next();
@@ -256,15 +247,15 @@ function main(done) {
         next();
     });
 
-    app.post("/maint/remove_S3_script", function(req, res, next) {
-        log.info("Starting remove S3 script");
+    app.post('/maint/remove_S3_script', function(req, res/*, next*/) {
+        log.info('Starting remove S3 script');
         log.trace(JSON.stringify(req.body));
         var fname = req.body.fname;
         if (!fname) {
-            log.error("Incomplete params in request");
+            log.error('Incomplete params in request');
             res.send(400, {
-                error   : "Bad request",
-                detail  : "Need filename in request"
+                error   : 'Bad request',
+                detail  : 'Need filename in request'
             });
             return;
         }
@@ -273,60 +264,60 @@ function main(done) {
             Bucket: config.s3.share.bucket,
             Key: path.join(config.s3.share.path, fname)
         };
-        log.info("Removing script: Bucket = " + params.Bucket + ", Key = " + params.Key);
-        s3.deleteObject(params, function(err, data) {
+        log.info('Removing script: Bucket = ' + params.Bucket + ', Key = ' + params.Key);
+        s3.deleteObject(params, function(err/*, data*/) {
             if (err) {
-                log.error("Delete object error: " + err);
+                log.error('Delete object error: ' + err);
                 res.send(500, {
-                    error   : "Unable to process request",
+                    error   : 'Unable to process request',
                     detail  : err
                 });
             } else {
-                log.info("Successfully removed script");
-                res.send(200, { msg: "Successfully removed script" });
+                log.info('Successfully removed script');
+                res.send(200, { msg: 'Successfully removed script' });
             }
         });
     });
     
-    app.post("/maint/cache_file", function(req, res, next) {
-        log.info("Starting cache file");
+    app.post('/maint/cache_file', function(req, res/*, next*/) {
+        log.info('Starting cache file');
         if (!req.body || !req.body.fname || !req.body.data || !req.body.cache) {
-            log.error("Incomplete params in request");
+            log.error('Incomplete params in request');
             res.send(400, {
-                error   : "Bad request",
-                detail  : "Need filename, cache name, and data in request"
+                error   : 'Bad request',
+                detail  : 'Need filename, cache name, and data in request'
             });
             return;
         }
         fs.writeFile(config.cacheAddress(req.body.fname, req.body.cache),
                      JSON.stringify(req.body.data), function(error) {
             if (error) {
-                log.error("Error writing to file: " + error);
+                log.error('Error writing to file: ' + error);
                 res.send(500, {
-                    error   : "Unable to process request",
+                    error   : 'Unable to process request',
                     detail  : error
                 });
             } else {
-                log.info("Successfully wrote file " + req.body.fname);
-                res.send(200, {msg: "Successfully wrote file " + req.body.fname});
+                log.info('Successfully wrote file ' + req.body.fname);
+                res.send(200, {msg: 'Successfully wrote file ' + req.body.fname});
             }
         });
     });
 
-    app.post("/maint/clean_cache", function(req, res, next) {
+    app.post('/maint/clean_cache', function(req, res/*, next*/) {
         var job;
-        log.info("Starting clean cache");
+        log.info('Starting clean cache');
         try {
             job = dub.createDubJob(uuid.createUuid().substr(0,10), req.body, config);
         } catch (e){
-            log.error("Create job error: " + e.message);
+            log.error('Create job error: ' + e.message);
             res.send(500,{
                 error  : 'Unable to process request.',
                 detail : e.message
             });
             return;
         }
-        log.info("Removing cached files for " + job.videoPath.match(/[^\/]*\..*$/)[0]);
+        log.info('Removing cached files for ' + job.videoPath.match(/[^\/]*\..*$/)[0]);
         var remList = [job.videoPath, job.scriptPath, job.outputPath, job.videoMetadataPath];
         job.tracks.forEach(function(track) { 
             remList.push(track.fpath);
@@ -335,10 +326,10 @@ function main(done) {
         
         removeFiles(remList).then(
             function(val) { 
-                log.info("Successfully removed " + val + " objects");
-                res.send(200, {msg: "Successfully removed " + val + " objects"}) ;
+                log.info('Successfully removed ' + val + ' objects');
+                res.send(200, {msg: 'Successfully removed ' + val + ' objects'}) ;
             }, function(error) {
-                log.error("Remove files error: " + e);
+                log.error('Remove files error: ' + error);
                 res.send(500,{
                     error  : 'Unable to process request.',
                     detail : error
@@ -347,13 +338,13 @@ function main(done) {
         );
     });
     
-    app.post("/maint/clean_track", function(req, res, next) {
+    app.post('/maint/clean_track', function(req, res/*, next*/) {
         var job;
-        log.info("Starting clean track");
+        log.info('Starting clean track');
         try {
             job = dub.createTrackJob(uuid.createUuid().substr(0,10), req.body, config);
         } catch (e){
-            log.error("Create job error: " + e.message);
+            log.error('Create job error: ' + e.message);
             res.send(500,{
                 error  : 'Unable to process request.',
                 detail : e.message
@@ -368,17 +359,17 @@ function main(done) {
                 Key: outParams.Key
             };
         
-        log.info("Removing cached file " + job.outputFname);
+        log.info('Removing cached file ' + job.outputFname);
         removeFiles(remList)
-        .then(function(val) {
-            log.info("Successfully removed local file " + job.outputPath);
-            log.info("Removing track on S3: Bucket = " + params.Bucket + ", Key = " + params.Key);
+        .then(function(/*val*/) {
+            log.info('Successfully removed local file ' + job.outputPath);
+            log.info('Removing track on S3: Bucket = ' + params.Bucket + ', Key = ' + params.Key);
             return q.npost(s3, 'deleteObject', [params]);
         }).then(function() {
-            log.info("Successfully removed track on S3");
-            res.send(200, "Successfully removed track");
+            log.info('Successfully removed track on S3');
+            res.send(200, 'Successfully removed track');
         }).catch(function(error) {
-            log.error("Error removing track: " + error);
+            log.error('Error removing track: ' + error);
             res.send(500,{
                 error  : 'Unable to process request.',
                 detail : error
@@ -386,18 +377,18 @@ function main(done) {
         });
     });
 
-    app.post("/maint/clean_all_caches", function(req, res, next) {
+    app.post('/maint/clean_all_caches', function(req, res/*, next*/) {
         var remList = [];
-        log.info("Starting clean all caches");
+        log.info('Starting clean all caches');
         for (var key in config.caches) {
             remList.push(config.caches[key]);
         }
         removeFiles(remList).finally(function() { config.ensurePaths(); }).then(
             function(val) { 
-                log.info("Successfully removed " + val + " objects");
-                res.send(200, {msg: "Successfully removed " + val + " objects"});
+                log.info('Successfully removed ' + val + ' objects');
+                res.send(200, {msg: 'Successfully removed ' + val + ' objects'});
             }, function(error) {
-                log.error("Remove files error: " + e);
+                log.error('Remove files error: ' + error);
                 res.send(500,{
                     error  : 'Unable to process request.',
                     detail : error
@@ -406,59 +397,59 @@ function main(done) {
         );
     });
     
-    app.post('/maint/clear_log', function(req, res, next) {
+    app.post('/maint/clear_log', function(req, res/*, next*/) {
         if (!req.body || (!req.body.logFile && !req.body.logPath)) {
             res.send(400, {
-                error: "Bad request",
-                detail: "You must include the log filename or full path in the request"
+                error: 'Bad request',
+                detail: 'You must include the log filename or full path in the request'
             });
             return;
         }
         var logFile = req.body.logPath || path.join(config.log.logDir, req.body.logFile);
-        log.info("Clearing log %1", logFile);
+        log.info('Clearing log %1', logFile);
         fs.writeFile(logFile, '', function(error) {
             if (error) {
-                log.error("Error clearing log %1: %2", logFile, error);
+                log.error('Error clearing log %1: %2', logFile, error);
                 res.send(500, {
-                    error: "Unable to process request",
+                    error: 'Unable to process request',
                     detail: error
                 });
             } else {
-                log.info("Successfully cleared log %1", logFile);
-                res.send(200, {msg: "Successfully cleared log %1" + logFile});
+                log.info('Successfully cleared log %1', logFile);
+                res.send(200, {msg: 'Successfully cleared log %1' + logFile});
             }
         });
     });
     
-    app.get('/maint/get_log', function(req, res, next) {
+    app.get('/maint/get_log', function(req, res/*, next*/) {
         if (!req.query || (!req.query.logFile && !req.query.logPath)) {
             res.send(400, {
-                error: "Bad request",
-                detail: "You must include the log filename or full path in the request"
+                error: 'Bad request',
+                detail: 'You must include the log filename or full path in the request'
             });
             return;
         }
         var logFile = req.query.logPath || path.join(config.log.logDir, req.query.logFile);
-        log.info("Reading log %1", logFile);
+        log.info('Reading log %1', logFile);
         fs.readFile(logFile, function(error, contents) {
             if (error) {
-                log.error("Error reading log %1: %2", logFile, error);
+                log.error('Error reading log %1: %2', logFile, error);
                 res.send(500, {
-                    error: "Unable to process request",
+                    error: 'Unable to process request',
                     detail: error
                 });
             } else {
-                log.info("Successfully read log %1", logFile);
+                log.info('Successfully read log %1', logFile);
                 res.send(200, contents);
             }
         });
     });
     
-    app.post('/maint/service/restart', function(req, res, next){
+    app.post('/maint/service/restart', function(req, res/*, next*/){
         if (!req.body || !req.body.service) {
             res.send(400, {
-                error: "Bad request",
-                detail: "You must include service parameter"
+                error: 'Bad request',
+                detail: 'You must include service parameter'
             });
             return;
         }
@@ -473,7 +464,7 @@ function main(done) {
             });
     });
     
-    app.get('/maint/meta', function(req, res, next){
+    app.get('/maint/meta', function(req, res/*, next*/){
         var data = {
             version: getVersion(),
             config: {
@@ -488,7 +479,17 @@ function main(done) {
     });
 
     app.listen(program.port);
-    log.info("Maintenance server is listening on port: " + program.port);
+    log.info('Maintenance server is listening on port: ' + program.port);
+}
+
+if (!__ut__){
+    try {
+        main(function(rc,msg){
+            exitApp(rc,msg);
+        });
+    } catch(e) {
+        exitApp(1,e.stack);
+    }
 }
 
 if (__ut__) {

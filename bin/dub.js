@@ -7,7 +7,6 @@ var __ut__      = (global.jasmine !== undefined) ? true : false,
 var include     = require('../lib/inject').require,
     fs          = include('fs-extra'),
     path        = include('path'),
-    os          = include('os'),
     request     = include('request'),
     cluster     = include('cluster'),
     express     = include('express'),
@@ -39,9 +38,9 @@ dub.defaultConfiguration = {
         jobs    : path.normalize('/usr/local/share/cwrx/dub/caches/jobs/')
     },
     output : {
-        type      : "local",
-        uri       : "/media",
-        trackUri  : "/media"
+        type      : 'local',
+        uri       : '/media',
+        trackUri  : '/media'
     },
     responseTimeout: 1000,
     proxyTimeout: 5000,
@@ -161,7 +160,7 @@ dub.createJobFile = function(job, config) {
         log.info('[%1] Created job file %2', job.id, fpath);
         job.jobFilePath = fpath;
     } catch(e) {
-        log.error("[%1] Failed to create job file: %2", job.id, e);
+        log.error('[%1] Failed to create job file: %2', job.id, e);
     }
 };
 
@@ -176,7 +175,7 @@ dub.updateJobStatus = function(job, code, step, data) {
     try {
         jobFile = fs.readJsonSync(job.jobFilePath);
     } catch(e) {
-        log.error("[%1] Failed to read job file at step %2: %3", job.id, step, e);
+        log.error('[%1] Failed to read job file at step %2: %3', job.id, step, e);
         return;
     }
 
@@ -194,14 +193,14 @@ dub.updateJobStatus = function(job, code, step, data) {
     try {
         fs.writeJsonSync(job.jobFilePath, jobFile);
     } catch(e) {
-        log.error("[%1] Failed to write job file at step %2: %3", job.id, step, e);
+        log.error('[%1] Failed to write job file at step %2: %3', job.id, step, e);
     }
     
     return;
 };
 
 function loadTemplateFromFile(tmplFile){
-    var tmplobj;
+    var tmplObj;
  
     try {
         tmplObj = fs.readJSONSync(tmplFile);
@@ -238,7 +237,7 @@ dub.createTrackJob = function(id, template, config) {
 
     log.trace('[%1] track job tts : %2',obj.id ,JSON.stringify(obj.tts));
     if (!template.line || typeof template.line !== 'string') {
-        throw new Error("Expected line string in template");
+        throw new Error('Expected line string in template');
     }
     
     obj.tracks = [{
@@ -269,12 +268,12 @@ dub.createTrackJob = function(id, template, config) {
     };
     obj.setEndTime = function(fnName) {
         if (!obj.elapsedTimes[fnName] || !obj.elapsedTimes[fnName].start) {
-            log.error("[%1] Error: never set start time for [" + fnName + "]");
+            log.error('[%1] Error: never set start time for [' + fnName + ']');
             return;
         }
         obj.elapsedTimes[fnName].end = new Date();
         var elapsed = obj.getElapsedTime(fnName);
-        log.info("[%1] Finished {%2} in %3", obj.id, fnName, elapsed);
+        log.info('[%1] Finished {%2} in %3', obj.id, fnName, elapsed);
     };
     obj.getElapsedTime = function(fnName) {
         if (obj.elapsedTimes[fnName] && obj.elapsedTimes[fnName].start && 
@@ -318,10 +317,12 @@ dub.createDubJob = function(id, template, config){
 
     log.trace('[%1] job tts : %2',obj.id ,JSON.stringify(obj.tts));
     obj.tracks = [];
-    if (!template.script) throw new Error("Expected script section in template");
+    if (!template.script) {
+        throw new Error('Expected script section in template');
+    }
     template.script.forEach(function(item){
         // remove leading and trailing spaces
-        item.line = item.line.replace(/^\s*(.*?)\s*$/,"$1");
+        item.line = item.line.replace(/^\s*(.*?)\s*$/,'$1');
         var track = {
             ts      : Number(item.ts),
             line    : item.line,
@@ -411,18 +412,18 @@ dub.createDubJob = function(id, template, config){
     };
 
     obj.assembleTemplate = function(){
-        var self = this;
-        result = {
-            id        : self.id,
-            duration  : self.videoMetadata.duration,
-            bitrate   : obj.tts.bitrate,
-            frequency : obj.tts.frequency,
-            workspace : obj.tts.workspace,
-            output    : self.scriptPath,
-            blanks    : self.blanksPath,
-            preserve  : true,
-            useId3Info: true
-        };
+        var self = this,
+            result = {
+                id        : self.id,
+                duration  : self.videoMetadata.duration,
+                bitrate   : obj.tts.bitrate,
+                frequency : obj.tts.frequency,
+                workspace : obj.tts.workspace,
+                output    : self.scriptPath,
+                blanks    : self.blanksPath,
+                preserve  : true,
+                useId3Info: true
+            };
         result.playList = [];
         self.tracks.forEach(function(track){
             result.playList.push({
@@ -448,12 +449,12 @@ dub.createDubJob = function(id, template, config){
     };
     obj.setEndTime = function(fnName) {
         if (!obj.elapsedTimes[fnName] || !obj.elapsedTimes[fnName].start) {
-            log.error("[%1] Error: never set start time for [" + fnName + "]");
+            log.error('[%1] Error: never set start time for [' + fnName + ']');
             return;
         }
         obj.elapsedTimes[fnName].end = new Date();
         var elapsed = obj.getElapsedTime(fnName);
-        log.info("[%1] Finished {%2} in %3", obj.id, fnName, elapsed);
+        log.info('[%1] Finished {%2} in %3', obj.id, fnName, elapsed);
     };
     obj.getElapsedTime = function(fnName) {
         if (obj.elapsedTimes[fnName] && obj.elapsedTimes[fnName].start && 
@@ -474,11 +475,11 @@ dub.getSourceVideo = function(job) {
         fnName = 'getSourceVideo';
     
     if (job.hasOutput() || job.hasVideo()) {
-        log.info("[%1] Skipping %2",job.id, fnName);
+        log.info('[%1] Skipping %2',job.id, fnName);
         return q(job);
     }
 
-    log.info("[%1] Starting %2",job.id, fnName);
+    log.info('[%1] Starting %2',job.id, fnName);
     job.setStartTime(fnName);
     dub.updateJobStatus(job, 202, fnName);
 
@@ -487,16 +488,16 @@ dub.getSourceVideo = function(job) {
             params = job.getS3SrcVideoParams();
         log.trace('[%1] S3 Request: %2',job.id, JSON.stringify(params));
         s3util.getObject(s3, params, job.videoPath).then( 
-            function (data) { 
+            function (/*data*/) { 
                 deferred.resolve(job);
                 job.setEndTime(fnName);
             }, function (error) { 
-                deferred.reject({"fnName": fnName, "msg": error});
+                deferred.reject({'fnName': fnName, 'msg': error});
                 job.setEndTime(fnName); 
             }
         );
     } else {
-        deferred.reject({"fnName": fnName, "msg": "You must enable aws to retrieve video."});
+        deferred.reject({'fnName': fnName, 'msg': 'You must enable aws to retrieve video.'});
         job.setEndTime(fnName);
     }
     
@@ -509,11 +510,11 @@ dub.convertLinesToMP3 = function(job){
         fnName = 'convertLinesToMP3';
 
     if (!job.trackConversion && (job.hasOutput() || job.hasScript() || job.hasLines())) {
-        log.info("[%1] Skipping %2",job.id, fnName);
+        log.info('[%1] Skipping %2',job.id, fnName);
         return q(job);
     }
 
-    log.info("[%1] Starting %2",job.id,fnName);
+    log.info('[%1] Starting %2',job.id,fnName);
     job.setStartTime(fnName);
     dub.updateJobStatus(job, 202, fnName);
 
@@ -534,12 +535,13 @@ dub.convertLinesToMP3 = function(job){
             if (job.tts.level) {
                 rqs.fxLevel = job.tts.level;
             }
-            vocalware.textToSpeech(rqs,track.fpath,function(err,rqs,o){
+            vocalware.textToSpeech(rqs,track.fpath,function(err,rqs/*,o*/){
                 if (err) {
                     log.info('[%1] Failed, rqs = %2', job.id, JSON.stringify(rqs));
                     deferred.reject(err);
                 } else {
-                    log.trace("[%1] Succeeded: name = %2, ts = %3", job.id, track.fname, track.ts || 0);
+                    log.trace('[%1] Succeeded: name = %2, ts = %3',
+                              job.id, track.fname, track.ts || 0);
                     deferred.resolve();
                 }
             });
@@ -554,20 +556,20 @@ dub.convertLinesToMP3 = function(job){
         var deferred2 = q.defer();
         q.fcall(processTrack, track, job)
         .catch(function(error) {
-            log.error("[%1] Failed once for %2 with error = %3",job.id,track.fname,error);
-            log.trace("[%1] Retrying...", job.id);
+            log.error('[%1] Failed once for %2 with error = %3',job.id,track.fname,error);
+            log.trace('[%1] Retrying...', job.id);
             return q.fcall(processTrack, track, job);
         }).then(function() {
             deferred2.resolve();
         }).catch(function(error) { 
-            log.error("[%1] Failed again for %2",job.id, track.fname);
+            log.error('[%1] Failed again for %2',job.id, track.fname);
             deferred2.reject(error); 
         });
         return deferred2.promise;
     })).then(function(results) { 
         for (var i in results) {
-            if (results[i].state == "rejected") {
-                deferred.reject({"fnName": fnName, "msg": results[i].reason});
+            if (results[i].state === 'rejected') {
+                deferred.reject({'fnName': fnName, 'msg': results[i].reason});
                 job.setEndTime(fnName);
                 return;
             }
@@ -635,11 +637,11 @@ dub.collectLinesMetadata = function(job){
         deferred;
 
     if (job.hasOutput() || job.hasScript() ) {
-        log.info("[%1] Skipping %2",job.id, fnName);
+        log.info('[%1] Skipping %2',job.id, fnName);
         return q(job);
     }
 
-    log.info("[%1] Starting %2",job.id,fnName);
+    log.info('[%1] Starting %2',job.id,fnName);
     job.setStartTime(fnName);
     dub.updateJobStatus(job, 202, fnName);
 
@@ -648,13 +650,13 @@ dub.collectLinesMetadata = function(job){
     q.all(job.tracks.map(function(track){
         return dub.getLineMetadata(track);
     }))
-    .then(function(results){
+    .then(function(/*results*/){
         job.setEndTime(fnName);
         deferred.resolve(job);
     })
     .fail(function(err){
         job.setEndTime(fnName);
-        deferred.reject({"fnName": fnName, "msg": err});
+        deferred.reject({'fnName': fnName, 'msg': err});
     });
     return deferred.promise;
 };
@@ -665,11 +667,11 @@ dub.getVideoLength = function(job){
         fnName = 'getVideoLength';
 
     if (job.hasOutput() || job.hasScript() || job.hasVideoLength()) {
-        log.info("[%1] Skipping %2",job.id, fnName);
+        log.info('[%1] Skipping %2',job.id, fnName);
         return q(job);
     }
 
-    log.info("[%1] Starting %2",job.id,fnName);
+    log.info('[%1] Starting %2',job.id,fnName);
     job.setStartTime(fnName);
     dub.updateJobStatus(job, 202, fnName);
 
@@ -678,12 +680,12 @@ dub.getVideoLength = function(job){
             log.warn('[%1] ffmpeg errors: %2', job.id, stderr.replace('\n','; '));
         }
         if (err) {
-            deferred.reject({"fnName": fnName, "msg": err});
+            deferred.reject({'fnName': fnName, 'msg': err});
             job.setEndTime(fnName);
             return deferred.promise;
         }
         if (!info.duration){
-            deferred.reject({"fnName": fnName, "msg": 'Unable to determine video length.'});
+            deferred.reject({'fnName': fnName, 'msg': 'Unable to determine video length.'});
             job.setEndTime(fnName);
             return deferred.promise;
         }
@@ -707,11 +709,11 @@ dub.convertScriptToMP3 = function(job){
         fnName = 'convertScriptToMP3';
 
     if (job.hasOutput() || job.hasScript()) {
-        log.info("[%1] Skipping %2", job.id, fnName);
+        log.info('[%1] Skipping %2', job.id, fnName);
         return q(job);
     }
 
-    log.info("[%1] Starting %2",job.id, fnName);
+    log.info('[%1] Starting %2',job.id, fnName);
     job.setStartTime(fnName);
     dub.updateJobStatus(job, 202, fnName);
 
@@ -723,7 +725,7 @@ dub.convertScriptToMP3 = function(job){
     })
     .fail(function(err){
         job.setEndTime(fnName);
-        deferred.reject({"fnName": fnName, "msg": err});
+        deferred.reject({'fnName': fnName, 'msg': err});
     });
         
     return deferred.promise;
@@ -735,11 +737,11 @@ dub.applyScriptToVideo = function(job){
         fnName = 'applyScriptToVideo';
  
     if (job.hasOutput()) {
-        log.info("[%1] Skipping %2", job.id, fnName);
+        log.info('[%1] Skipping %2', job.id, fnName);
         return q(job);
     }
 
-    log.info("[%1] Starting %2",job.id,fnName);
+    log.info('[%1] Starting %2',job.id,fnName);
     job.setStartTime(fnName);
     dub.updateJobStatus(job, 202, fnName);
 
@@ -749,7 +751,7 @@ dub.applyScriptToVideo = function(job){
                     log.warn('[%1] ffmpeg errors: %2', job.id, stderr.replace('\n','; '));
                 }
                 if (err) {
-                    deferred.reject({"fnName": fnName, "msg": err});
+                    deferred.reject({'fnName': fnName, 'msg': err});
                     job.setEndTime(fnName);
                     return deferred.promise;
                 }
@@ -777,7 +779,7 @@ dub.uploadToStorage = function(job){
         return deferred.promise;
     }
 
-    log.info("[%1] Starting %2",job.id,fnName);
+    log.info('[%1] Starting %2',job.id,fnName);
     job.setStartTime(fnName);
     dub.updateJobStatus(job, 202, fnName);
 
@@ -789,11 +791,11 @@ dub.uploadToStorage = function(job){
 
     hash.update(localFile);
     job.md5 = hash.digest('hex');
-    log.trace("[%1] Local File MD5: %2",job.id, job.md5);
+    log.trace('[%1] Local File MD5: %2',job.id, job.md5);
 
     s3.headObject(headParams, function(err, data) {
-        if (data && data.ETag && data.ETag.replace(/"/g, '') == job.md5) {
-            log.info("[%1] Local video already exists on S3, skipping upload",job.id);
+        if (data && data.ETag && data.ETag.replace(/"/g, '') === job.md5) {
+            log.info('[%1] Local video already exists on S3, skipping upload',job.id);
             job.setEndTime(fnName);
             deferred.resolve(job);
         } else {
@@ -807,7 +809,7 @@ dub.uploadToStorage = function(job){
                 }, function (error) {
                     log.error('[%1] ERROR: %2',job.id, JSON.stringify(error));
                     job.setEndTime(fnName);
-                    deferred.reject({"fnName": fnName, "msg": 'S3 upload error'});
+                    deferred.reject({'fnName': fnName, 'msg': 'S3 upload error'});
                 });
         }
     });
@@ -829,7 +831,7 @@ dub.handleRequest = function(job, done){
     .then(dub.uploadToStorage)
     .then(
         function() {
-            log.trace("[%1] All tasks succeeded!", job.id);
+            log.trace('[%1] All tasks succeeded!', job.id);
             job.setEndTime(fnName);
             dub.updateJobStatus(job, 201, 'Completed', {resultMD5: job.md5});
             done(null, job);
@@ -853,7 +855,7 @@ dub.handleTrackRequest = function(job){
     dub.convertLinesToMP3(job)
     .then(dub.uploadToStorage)
     .then(function() {
-        log.trace("[%1] All tasks succeeded!", job.id);
+        log.trace('[%1] All tasks succeeded!', job.id);
         job.setEndTime(fnName);
         dub.updateJobStatus(job, 201, 'Completed', {resultMD5: job.md5});
         deferred.resolve(job);
@@ -1020,15 +1022,15 @@ dub.removeJobFiles = function(config, maxAge, done) {
                 if (ageDiff > maxAge) {
                     return q.npost(fs, 'remove', [config.cacheAddress(file, 'jobs')]);
                 }
-                return "Spared " + file;
+                return 'Spared ' + file;
             }).then(function(msg) {
                 if (msg && msg.match(/^Spared/)) {
                     deferred.resolve(msg);
                 } else {
-                    deferred.resolve("Deleted " + file);
+                    deferred.resolve('Deleted ' + file);
                 }
             }).catch(function(error) {
-                deferred.reject("Failed for " + file + ": " + error);
+                deferred.reject('Failed for ' + file + ': ' + error);
             });
             
             return deferred.promise;
@@ -1037,27 +1039,27 @@ dub.removeJobFiles = function(config, maxAge, done) {
         var delCount = 0;
         results.forEach(function(result) {
             if (result.state === 'fulfilled') {
-                log.trace("[JobFileRemoval] %1", result.value);
+                log.trace('[JobFileRemoval] %1', result.value);
                 if (result.value.match(/^Deleted/)) {
                     delCount++;
                 }
             } else {
-                log.error("[JobFileRemoval] %1", result.reason);
+                log.error('[JobFileRemoval] %1', result.reason);
             }
         });
-        log.info("[JobFileRemoval] Deleted %1 files", delCount);
+        log.info('[JobFileRemoval] Deleted %1 files', delCount);
         done();
     }).catch(function(error) {
-        log.error("[JobFileRemoval] Unhandled error: " + error);
+        log.error('[JobFileRemoval] Unhandled error: ' + error);
         done(error);
     });
 };
 
-function clusterMain(config,program,done) {
+function clusterMain(config,program/*,done*/) {
     var log = logger.getLog();
     log.info('Running as cluster master');
 
-    cluster.on('exit', function(worker, code, signal) {
+    cluster.on('exit', function(worker/*, code, signal*/) {
         if (worker.suicide === true){
             log.error('Worker ' + worker.process.pid + ' died peacefully');
         } else {
@@ -1081,15 +1083,15 @@ function clusterMain(config,program,done) {
     
     cluster.setupMaster( { silent : true });
     
-    log.info("Will spawn " + program.kids + " kids.");
+    log.info('Will spawn ' + program.kids + ' kids.');
     for (var i = 0; i < program.kids; i++) {
         cluster.fork();
     }
 
-    log.info("Spawning done, hanging around my empty nest.");
+    log.info('Spawning done, hanging around my empty nest.');
 }
 
-function workerMain(config,program,done){
+function workerMain(config,program/*,done*/){
     var app = express(),
         log = logger.getLog();
 
@@ -1097,12 +1099,12 @@ function workerMain(config,program,done){
     app.use(express.bodyParser());
 
     app.all('*', function(req, res, next) {
-        res.header("Access-Control-Allow-Origin", "*");
-        res.header("Access-Control-Allow-Headers", 
-                   "Origin, X-Requested-With, Content-Type, Accept");
-        res.header("cache-control", "max-age=0");
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Headers', 
+                   'Origin, X-Requested-With, Content-Type, Accept');
+        res.header('cache-control', 'max-age=0');
 
-        if (req.method.toLowerCase() === "options") {
+        if (req.method.toLowerCase() === 'options') {
             res.send(200);
         } else {
             next();
@@ -1121,7 +1123,7 @@ function workerMain(config,program,done){
         next();
     });
 
-    app.post('/dub/create', function(req, res, next){
+    app.post('/dub/create', function(req, res/*, next*/){
         var jobId = 'v-' + req.uuid, job;
         try {
             job = dub.createDubJob(jobId, req.body, config);
@@ -1136,7 +1138,7 @@ function workerMain(config,program,done){
         dub.createJobFile(job, config);
         
         if (job.version === 2) {
-            log.info("[%1] Using API version 2", jobId);
+            log.info('[%1] Using API version 2', jobId);
             dub.startCreateJob(job, config)
             .then(function(resp) {
                 res.send(resp.code, resp.data);
@@ -1148,7 +1150,7 @@ function workerMain(config,program,done){
                 });
             });
         } else {
-            log.info("[%1] Using API version 1", jobId);
+            log.info('[%1] Using API version 1', jobId);
             dub.handleRequest(job,function(err){
                 if (err){
                     log.error('[%1] Handle Request Error: %2',jobId,err.message);
@@ -1166,9 +1168,9 @@ function workerMain(config,program,done){
         }
     });
     
-    app.get('/dub/status/:jobId', function(req, res, next){
+    app.get('/dub/status/:jobId', function(req, res/*, next*/){
         if (!req.params || !req.params.jobId || !req.query || !req.query.host) {
-            res.send(400, 'You must provide the jobId in the request url and the host in the query');
+            res.send(400, 'Must provide the jobId in the request url and the host in the query');
             return;
         }
         dub.getStatus(req.params.jobId, req.query.host, config, req.query.proxied)
@@ -1184,7 +1186,7 @@ function workerMain(config,program,done){
         });
     });
     
-    app.post('/dub/track/create', function(req, res, next){
+    app.post('/dub/track/create', function(req, res/*, next*/){
         var jobId = 't-' + req.uuid, job;
         try {
             job = dub.createTrackJob(jobId, req.body, config);
@@ -1210,7 +1212,7 @@ function workerMain(config,program,done){
         });
     });
     
-    app.get('/dub/track/status/:jobId', function(req, res, next){
+    app.get('/dub/track/status/:jobId', function(req, res/*, next*/){
         if (!req.params || !req.params.jobId || !req.query || !req.query.host) {
             res.send(400, {
                 error: 'Bad request',
@@ -1231,7 +1233,7 @@ function workerMain(config,program,done){
         });
     });
     
-    app.get('/dub/meta', function(req, res, next){
+    app.get('/dub/meta', function(req, res/*, next*/){
         var data = {
             version: dub.getVersion(),
             config: {
@@ -1265,17 +1267,6 @@ var exitApp  = function(resultCode,msg){
     }
     process.exit(resultCode);
 };
-
-if (!__ut__ && !__maint__){
-
-    try {
-        main(function(rc,msg){
-            exitApp(rc,msg);
-        });
-    } catch(e) {
-        exitApp(1,e.stack);
-    }
-}
 
 function main(done){
     var program  = include('commander'),
@@ -1336,10 +1327,11 @@ function main(done){
                 throw new SyntaxError('Expected a template file.');
             }
 
-            job = dub.createDubJob('v-' + uuid.createUuid().substr(0,10),loadTemplateFromFile(program.args[0]), config);
+            job = dub.createDubJob('v-' + uuid.createUuid().substr(0,10),
+                                   loadTemplateFromFile(program.args[0]), config);
             dub.createJobFile(job, config);
             
-            dub.handleRequest(job,function(err, finishedJob){
+            dub.handleRequest(job,function(err/*, finishedJob*/){
                 if (err) {
                     return done(1,err.message);
                 } else {
@@ -1353,7 +1345,7 @@ function main(done){
         // Ok, so we're a server, lets do some servery things..
         process.on('uncaughtException', function(err) {
             try{
-                log.error('uncaught: ' + err.message + "\n" + err.stack);
+                log.error('uncaught: ' + err.message + '\n' + err.stack);
             }catch(e){
                 console.error(e);
             }
@@ -1396,6 +1388,17 @@ function main(done){
             workerMain(config,program,done);
         }
     });
+}
+
+if (!__ut__ && !__maint__){
+
+    try {
+        main(function(rc,msg){
+            exitApp(rc,msg);
+        });
+    } catch(e) {
+        exitApp(1,e.stack);
+    }
 }
 
 if (__ut__) {
