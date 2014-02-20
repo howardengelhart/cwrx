@@ -21,8 +21,9 @@ module.exports = function (grunt) {
                 jshintrc: 'jshint.json'
             },
             all: [
-                __dirname + '/bin/{,*/}*.js',
-                __dirname + '/lib/{,*/}*.js'
+                    __dirname + '/lib/assemble.js'
+//                __dirname + '/bin/{,*/}*.js',
+//                __dirname + '/lib/{,*/}*.js'
             ]
         },
         watch: {
@@ -35,7 +36,7 @@ module.exports = function (grunt) {
                     __dirname + '/lib/**/*.js',
                     __dirname + '/test/**/*.js' 
                 ],
-                tasks: ['jshint', 'unit_tests']
+                tasks: ['jshint' ]
             }
         },
         stop_instances: {
