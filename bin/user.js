@@ -41,32 +41,31 @@
         }
     };
 
-    // Check whether the parent user can operate on the target user according to their scope
-    userSvc.checkScope = function(parent, user, verb) {
-        return !!(parent && parent.permissions && parent.permissions.users &&
-                  parent.permissions.users[verb] &&
-             (parent.permissions.users[verb] === 'all' ||
-             (parent.permissions.users[verb] === 'org' && (parent.org === user.org ||
-                                                           parent.id === user.id)) ||
-             (parent.permissions.users[verb] === 'own' && parent.id === user.id) ));
+    // Check whether the requester can operate on the target user according to their scope
+    userSvc.checkScope = function(requester, user, verb) {
+        return !!(requester && requester.permissions && requester.permissions.users &&
+                  requester.permissions.users[verb] &&
+             (requester.permissions.users[verb] === 'all' ||
+             (requester.permissions.users[verb] === 'org' && (requester.org === user.org ||
+                                                              requester.id === user.id)) ||
+             (requester.permissions.users[verb] === 'own' && requester.id === user.id) ));
     };
 
-    userSvc.getUser = function(req) {
+    userSvc.getUser = function(req, state) {
         var id = req.params.id,
-            parent = req.user,
+            requester = req.user,
             log = logger.getLog();
 
-        log.info('[%1] User %2 is attempting to get user %3', req.uuid, parent.id, id);
-        authUtils.getUser(id, state.db).then(function(userAccount) {
+        log.info('[%1] User %2 is attempting to get user %3', req.uuid, requester.id, id);
+        return authUtils.getUser(id, state.db).then(function(userAccount) {
             log.trace('[%1] Retrieved document for user %2', req.uuid, id);
-            if (userSvc.checkScope(parent, userAccount, 'read')) {
-                log.info('[%1] Returning user document %2 for user %3', req.uuid, id, parent.id);
+            if (userSvc.checkScope(requester, userAccount, 'read')) {
+                log.info('[%1] Returning user document %2 for user %3', req.uuid, id, requester.id);
                 return q({code: 200, body: userAccount});
             } else {
-                log.info('[%1] User %2 is not authorized to get %3', req.uuid, parent.id, id);
+                log.info('[%1] User %2 is not authorized to get %3', req.uuid, requester.id, id);
                 return q({code: 403, body: 'Not authorized to get this user'});
             }
-            return q({code: 200, body: userAccount});
         }).catch(function(error) {
             log.error('[%1] Error retrieving user %2: %3',
                       req.uuid, id, JSON.stringify(error));
@@ -74,19 +73,48 @@
         });
     };
 
-    userSvc.getUsersByOrg = function() {
-    //TODO
+    userSvc.getUsersByOrg = function(req, cache) {
+        var org = req.query.org,
+            limit = req.query && req.query.limit || 0,
+            skip = req.query && req.query.skip || 0,
+            sort = req.query && req.query.sort,
+            sortObj = {},
+            log = logger.getLog();
+        if (sort) {
+            var sortParts = sort.split(',');
+            if (sortParts.length !== 2 || (sortParts[1] !== '-1' && sortParts[1] !== '1' )) {
+                log.warn('[%1] Sort %2 is invalid, ignoring', req.uuid, sort);
+            } else {
+                sortObj[sortParts[0]] = Number(sortParts[1]);
+            }
+        }
+        var query = { org: org }; // don't bother formatting the query because it's only one item
+        log.info('[%1] User %2 getting users from org %3 with sort %4, limit %5, skip %6',
+                 req.uuid, req.user.id, org, JSON.stringify(sortObj) ,limit, skip);
+
+        return cache.getPromise(query, sortObj, limit, skip)
+        .then(function(results) {
+            log.trace('[%1] Retrieved %2 users', req.uuid, results.length);
+            var users = results.filter(function(result) {
+                return userSvc.checkScope(req.user, result, 'read');
+            });
+            log.info('[%1] Showing the user %2 user documents', req.uuid, users.length);
+            return q({code: 200, body: users});
+        }).catch(function(error) {
+            log.error('[%1] Error getting users: %2', req.uuid, error);
+            return q.reject(error);
+        });
     };
 
     // Setup a new user with reasonable defaults and hash their password
-    userSvc.setupUser = function(newUser, parent) {
+    userSvc.setupUser = function(newUser, requester) {
         var now = new Date();
 
         newUser.id = 'u-' + uuid.createUuid().substr(0,14);
         newUser.created = now;
         newUser.lastUpdated = now;
-        if (parent.org && !newUser.org) {
-            newUser.org = parent.org;
+        if (requester.org && !newUser.org) {
+            newUser.org = requester.org;
         }
         if (!newUser.status) {
             newUser.status = 'active';
@@ -128,7 +156,7 @@
 
     userSvc.createUser = function(req, users) {
         var newUser = req.body,
-            parent = req.user,
+            requester = req.user,
             log = logger.getLog(),
             deferred = q.defer();
         if (!newUser || typeof newUser !== 'object') {
@@ -147,50 +175,50 @@
                     body: 'A user with that username already exists'
                 });
             }
-            if (parent.org !== newUser.org && parent.permissions.users.create !== 'all') {
+            if (requester.org !== newUser.org && requester.permissions.users.create !== 'all') {
                 log.warn('[%1] User %2 in org %3 cannot create users in org %4',
-                         req.uuid, parent.id, parent.org, newUser.org);
+                         req.uuid, requester.id, requester.org, newUser.org);
                 return deferred.resolve({
                     code: 403,
                     body: 'Cannot create users outside of your organization'
                 });
             }
-            userSvc.setupUser(newUser, parent).then(function() {
-                log.trace('[%1] User %2 is creating user %3', req.uuid, parent.id, newUser.id);
+            userSvc.setupUser(newUser, requester).then(function() {
+                log.trace('[%1] User %2 is creating user %3', req.uuid, requester.id, newUser.id);
                 return q.npost(users, 'insert', [newUser, {w: 1, journal: true}]);
             }).then(function() {
                 log.info('[%1] User %2 successfully created user %3 with id: %4',
-                         req.uuid, parent.id, newUser.username, newUser.id);
+                         req.uuid, requester.id, newUser.username, newUser.id);
                 deferred.resolve({ code: 201, body: mongoUtils.safeUser(newUser) });
             });
         }).catch(function(error) {
             log.error('[%1] Error creating user %2 for user %3: %4',
-                      req.uuid, newUser.id, parent.id, error);
+                      req.uuid, newUser.id, requester.id, error);
             deferred.reject(error);
         });
         return deferred.promise;
     };
 
     // Prune out illegal updates and convert to $set format
-    userSvc.formatUpdates = function(updates, orig, parent, reqId) {
+    userSvc.formatUpdates = function(updates, orig, requester, reqId) {
         var log = logger.getLog();
         if (updates.id && (updates.id !== orig.id)) {
             log.warn('[%1] User %2 is trying to change the id of user %3 to %4',
-                     reqId, parent.id, orig.id, updates.id);
+                     reqId, requester.id, orig.id, updates.id);
             delete updates.id;
         }
         if (updates.org !== orig.org) {
             log.warn('[%1] User %2 is trying to change the org of user %3 to %4',
-                     reqId, parent.id, orig.id, updates.org);
+                     reqId, requester.id, orig.id, updates.org);
             delete updates.org;
         }
-        if (updates.permissions && (orig.id === parent.id)) {
-            log.warn('[%1] User %2 is trying to change their permissions', reqId, parent.id);
+        if (updates.permissions && (orig.id === requester.id)) {
+            log.warn('[%1] User %2 is trying to change their permissions', reqId, requester.id);
             delete updates.permissions;
         }
         if (updates.password) {
             log.warn('[%1] User %2 is trying to change the password of user %3',
-                     reqId, parent.id, orig.id);
+                     reqId, requester.id, orig.id);
             delete updates.password;
         }
         return { $set: updates };
@@ -199,35 +227,36 @@
     userSvc.updateUser = function(req, users) {
         var updates = req.body,
             id = req.params.id,
-            parent = req.user,
+            requester = req.user,
             log = logger.getLog(),
             deferred = q.defer();
         if (!updates || typeof updates !== 'object') {
             return q({code: 400, body: 'You must provide an object in the body'});
         }
         
-        log.info('[%1] User %2 is attempting to update user %3', req.uuid, parent.id, id);
+        log.info('[%1] User %2 is attempting to update user %3', req.uuid, requester.id, id);
         q.npost(users, 'findOne', [{id: id}])
         .then(function(orig) {
             if (!orig) {
                 log.info('[%1] User %2 does not exist; not creating them', req.uuid, id);
                 return deferred.resolve({code: 404, body: 'That user does not exist'});
             }
-            if (!userSvc.checkScope(parent, orig, 'users', 'edit')) {
-                log.info('[%1] User %2 is not authorized to edit %3', req.uuid, parent.id, id);
+            if (!userSvc.checkScope(requester, orig, 'users', 'edit')) {
+                log.info('[%1] User %2 is not authorized to edit %3', req.uuid, requester.id, id);
                 return deferred.resolve({code: 403, body: 'Not authorized to edit this user'});
             }
-            var updateObj = userSvc.formatUpdates(updates, orig, parent, req.uuid);
+            var updateObj = userSvc.formatUpdates(updates, orig, requester, req.uuid);
                 //TODO: check if updates is now blank??
             q.npost(users, 'findAndModify', [{id:id},{id:1},updateObj,{w:1,journal:true,new:true}])
             .then(function(results) {
                 var updated = results[0];
-                log.info('[%1] User %2 successfully updated user %3',req.uuid,parent.id,updated.id);
+                log.info('[%1] User %2 successfully updated user %3',
+                         req.uuid, requester.id, updated.id);
                 delete userCache[id];
                 deferred.resolve({code: 201, body: updated});
             });
         }).catch(function(error) {
-            log.error('[%1] Error updating user %2 for user %3: %4',req.uuid,id,parent.id,error);
+            log.error('[%1] Error updating user %2 for user %3: %4',req.uuid,id,requester.id,error);
             deferred.reject(error);
         });
         return deferred.promise;
@@ -235,15 +264,15 @@
 
     userSvc.deleteUser = function(req, users) {
         var id = req.params.id,
-            parent = req.user,
+            requester = req.user,
             log = logger.getLog(),
             deferred = q.defer(),
             now;
-        if (id === parent.id) {
-            log.warn('[%1] User %2 tried to delete themselves', req.uuid, parent.id);
+        if (id === requester.id) {
+            log.warn('[%1] User %2 tried to delete themselves', req.uuid, requester.id);
             return q({code: 400, body: 'You cannot delete yourself'});
         }
-        log.info('[%1] User %2 is attempting to delete user %3', req.uuid, parent.id, id);
+        log.info('[%1] User %2 is attempting to delete user %3', req.uuid, requester.id, id);
         q.npost(users, 'findOne', [{id: id}])
         .then(function(orig) {
             now = new Date();
@@ -251,8 +280,8 @@
                 log.info('[%1] User %2 does not exist', req.uuid, id);
                 return deferred.resolve({code: 200, body: 'Success'});
             }
-            if (!userSvc.checkScope(parent, orig, 'users', 'delete')) {
-                log.info('[%1] User %2 is not authorized to delete %3', req.uuid, parent.id, id);
+            if (!userSvc.checkScope(requester, orig, 'users', 'delete')) {
+                log.info('[%1] User %2 is not authorized to delete %3', req.uuid, requester.id, id);
                 return deferred.resolve({code: 403, body: 'Not authorized to delete this user'});
             }
             if (orig.status === 'deleted') {
@@ -262,12 +291,12 @@
             q.npost(users, 'update', [{id: id}, {$set: {lastUpdated: now, status: 'deleted'}},
                     {w: 1, journal: true}])
             .then(function() {
-                log.info('[%1] User %2 successfully deleted user %3', req.uuid, parent.id, id);
+                log.info('[%1] User %2 successfully deleted user %3', req.uuid, requester.id, id);
                 delete userCache[id];
                 deferred.resolve({code: 200, body: 'Success'});
             });
         }).catch(function(error) {
-            log.error('[%1] Error deleting user %2 for user %3: %4',req.uuid,id,parent.id,error);
+            log.error('[%1] Error deleting user %2 for user %3: %4',req.uuid,id,requester.id,error);
             deferred.reject(error);
         });
         return deferred.promise;
@@ -339,7 +368,7 @@
         
         var authGetUser = authUtils.middlewarify(state.db, {users: 'read'});
         app.get('/api/user/:id', authGetUser, function(req, res/*, next*/) {
-            userSvc.getUser(req)
+            userSvc.getUser(req, state)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {

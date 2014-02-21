@@ -71,9 +71,7 @@ describe('content-light (E2E):', function() {
             };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body instanceof Array).toBeTruthy("body is Array");
-                expect(resp.body.length).toBe(1);
-                expect(resp.body[0]).toEqual(currExp);
+                expect(resp.body).toEqual(currExp);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

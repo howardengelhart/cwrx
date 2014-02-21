@@ -1,6 +1,6 @@
 var flush = true;
 describe('content (UT)', function() {
-    var auth, mockLog, mockLogger, experiences, req, uuid, logger, content, q, QueryCache;
+    var mockLog, mockLogger, experiences, req, uuid, logger, content, q, QueryCache;
     
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -130,7 +130,6 @@ describe('content (UT)', function() {
             });
         });
         
-        //TODO
         it('should only return experiences the user is allowed to see', function(done) {
             var exps = [
                 { id: 'e-1', status: 'active', access: 'private' },
@@ -163,7 +162,7 @@ describe('content (UT)', function() {
                 expect(resp).not.toBeDefined();
                 done();
             }).catch(function(error) {
-                expect(error).toBe(error);
+                expect(error).toBe('Error!');
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery');
                 expect(cache.getPromise).toHaveBeenCalledWith('formatted', {id: 1}, 20, 10);
@@ -177,6 +176,7 @@ describe('content (UT)', function() {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual(['fake1']);
+                expect(mockLog.warn).toHaveBeenCalled();
                 expect(QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery');
                 expect(cache.getPromise).toHaveBeenCalledWith('formatted', {}, 20, 10);
                 done();
@@ -473,4 +473,4 @@ describe('content (UT)', function() {
             });
         });
     });  // end -- describe deleteExperience
-});  // end -- describe auth
+});  // end -- describe content

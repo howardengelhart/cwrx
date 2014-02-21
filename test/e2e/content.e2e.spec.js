@@ -65,10 +65,9 @@ describe('content (E2E):', function() {
             };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body instanceof Array).toBeTruthy('body is array');
-                expect(resp.body.length).toBe(1);
-                expect(resp.body[0].id).toBe("e2e-pubget1");
-                expect(resp.body[0].title).toBe("test experience");
+                expect(typeof resp.body).toBe('object');
+                expect(resp.body.id).toBe("e2e-pubget1");
+                expect(resp.body.title).toBe("test experience");
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -95,14 +94,14 @@ describe('content (E2E):', function() {
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body instanceof Array).toBeTruthy('body is array');
-                expect(resp.body.length).toBe(0);
+                expect(typeof resp.body).toBe('object');
+                expect(resp.body).toEqual({});
                 var options = {url: config.contentUrl + '/experience/e2e-pubget3'};
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body instanceof Array).toBeTruthy('body is array');
-                expect(resp.body.length).toBe(0);
+                expect(typeof resp.body).toBe('object');
+                expect(resp.body).toEqual({});
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -116,8 +115,8 @@ describe('content (E2E):', function() {
             };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body instanceof Array).toBeTruthy('body is array');
-                expect(resp.body.length).toBe(0);
+                expect(typeof resp.body).toBe('object');
+                expect(resp.body).toEqual({});
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -453,8 +452,7 @@ describe('content (E2E):', function() {
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body instanceof Array).toBeTruthy('body is array');
-                expect(resp.body.length).toBe(0);
+                expect(resp.body).toEqual({});
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

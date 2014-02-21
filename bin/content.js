@@ -59,7 +59,7 @@
         if (sort) {
             var sortParts = sort.split(',');
             if (sortParts.length !== 2 || (sortParts[1] !== '-1' && sortParts[1] !== '1' )) {
-                log.info('[%1] Sort %2 is invalid, ignoring', req.uuid, sort);
+                log.warn('[%1] Sort %2 is invalid, ignoring', req.uuid, sort);
             } else {
                 sortObj[sortParts[0]] = Number(sortParts[1]);
             }
@@ -296,7 +296,15 @@
             promise.then(function() {
                 return content.getExperiences({id: req.params.id}, req, expCache);
             }).then(function(resp) {
-                res.send(resp.code, resp.body);
+                if (resp.body && resp.body instanceof Array) {
+                    if (resp.body.length === 0) {
+                        res.send(resp.code, {});
+                    } else {
+                        res.send(resp.code, resp.body[0]);
+                    }
+                } else {
+                    res.send(resp.code, resp.body);
+                }
             }).catch(function(error) {
                 res.send(500, {
                     error: 'Error retrieving content',
