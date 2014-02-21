@@ -131,7 +131,7 @@ describe('tts_' + testService + '_e2e_', function() {
                 results.forEach(function(result){
                     var o_id3Info = result.voiceCfg.id3Info,
                         r_id3Info = result.resultId3Info;
-                    expect(r_id3Info.audio_duration).toEqual(o_id3Info.audio_duration);
+                    expect(r_id3Info.duration).toEqual(o_id3Info.duration);
                     expect(r_id3Info.kbps).toEqual(o_id3Info.kbps);
                     expect(r_id3Info.khz).toEqual(o_id3Info.khz);
                     expect(r_id3Info.lips).toEqual(o_id3Info.lips);

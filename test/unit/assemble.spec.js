@@ -19,7 +19,7 @@ mockFFmpeg.probe = function(src,cb){
 mockId3Info = function(src,cb){
     if (src === path.join(__dirname,'b0.mp3')){
         cb(null,{
-            audio_duration : 666
+            duration : 666
         });
         return;
     } 
