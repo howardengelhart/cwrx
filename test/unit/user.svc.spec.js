@@ -1,6 +1,6 @@
 var flush = true;
 describe('user (UT)', function() {
-    var mockLog, mockLogger, req, uuid, logger, bcrypt, userSvc, q, QueryCache;
+    var mockLog, mockLogger, req, uuid, logger, bcrypt, userSvc, q, QueryCache, mongoUtils;
     
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -9,6 +9,7 @@ describe('user (UT)', function() {
         bcrypt      = require('bcrypt');
         userSvc     = require('../../bin/user');
         QueryCache  = require('../../lib/queryCache');
+        mongoUtils  = require('../../lib/mongoUtils'),
         q           = require('q');
         
         mockLog = {
@@ -300,15 +301,214 @@ describe('user (UT)', function() {
     });
     
     describe('createUser', function() {
-    
+        var userColl;
+        beforeEach(function() {
+            userColl = {
+                findOne: jasmine.createSpy('users.findOne').andCallFake(function(query, cb) {
+                    cb(null, null);
+                }),
+                insert: jasmine.createSpy('users.insert').andCallFake(function(obj, opts, cb) {
+                    cb();
+                })
+            };
+            req.body = { username: 'test', password: 'pass', org: 'o-1234' };
+            req.user = { id: 'u-1234', org: 'o-1234' };
+            spyOn(userSvc, 'setupUser').andCallFake(function(target, requester) {
+                target.password = 'hashPass';
+                return q();
+            });
+            spyOn(mongoUtils, 'safeUser').andCallThrough();
+        });
+        
+        it('should reject with a 400 if no user object is provided', function(done) {
+            delete req.body;
+            userSvc.createUser(req, userColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(400);
+                expect(resp.body).toEqual('You must provide an object in the body');
+                expect(userColl.findOne).not.toHaveBeenCalled();
+                expect(userColl.insert).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });            
+        });
+        
+        it('should reject with a 400 if the username or password are unspecificied', function(done) {
+            delete req.body.username;
+            userSvc.createUser(req, userColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(400);
+                expect(resp.body).toEqual('New user object must have a username and password');
+                req.body = { username: 'test' };
+                return userSvc.createUser(req, userColl);
+            }).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(400);
+                expect(resp.body).toEqual('New user object must have a username and password');
+                expect(userColl.findOne).not.toHaveBeenCalled();
+                expect(userColl.insert).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should reject with a 400 if the user already exists', function(done) {
+            userColl.findOne.andCallFake(function(query, cb) {
+                cb(null, { id: 'u-4567', username: 'test' });
+            });
+            userSvc.createUser(req, userColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(400);
+                expect(resp.body).toEqual('A user with that username already exists');
+                expect(userColl.findOne).toHaveBeenCalled();
+                expect(userColl.insert).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should successfully create a new user', function(done) {
+            userSvc.createUser(req, userColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(201);
+                expect(resp.body).toEqual({username: 'test', org: 'o-1234'});
+                expect(userColl.findOne).toHaveBeenCalled();
+                expect(userColl.findOne.calls[0].args[0]).toEqual({username: 'test'});
+                expect(userSvc.setupUser).toHaveBeenCalledWith(req.body, req.user);
+                expect(userColl.insert).toHaveBeenCalled();
+                expect(userColl.insert.calls[0].args[0]).toBe(req.body);
+                expect(userColl.insert.calls[0].args[1]).toEqual({w: 1, journal: true});
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should reject with a 403 if the target user is not in the same org', function(done) {
+            req.user.org = 'o-4567';
+            req.user.permissions = { users: { create: 'org' } };
+            userSvc.createUser(req, userColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(403);
+                expect(resp.body).toEqual('Cannot create users outside of your organization');
+                expect(userColl.findOne).toHaveBeenCalled();
+                expect(userColl.insert).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should allow an admin to create users in a different org', function(done) {
+            req.user.org = 'o-4567';
+            req.user.permissions = { users: { create: 'all' } };
+            userSvc.createUser(req, userColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(201);
+                expect(resp.body).toEqual({username: 'test', org: 'o-1234'});
+                expect(userColl.findOne).toHaveBeenCalled();
+                expect(userColl.insert).toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should fail with an error if finding the existing user fails', function(done) {
+            userColl.findOne.andCallFake(function(query, cb) { cb('Error!'); });
+            userSvc.createUser(req, userColl).then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toBe('Error!');
+                expect(userColl.findOne).toHaveBeenCalled();
+                expect(userColl.insert).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should fail with an error if setting up the user fails', function(done) {
+            userSvc.setupUser.andReturn(q.reject('Error!'));
+            userSvc.createUser(req, userColl).then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toBe('Error!');
+                expect(userSvc.setupUser).toHaveBeenCalled();
+                expect(userColl.insert).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should fail with an error if inserting the user fails', function(done) {
+            userColl.insert.andCallFake(function(obj, opts, cb) { cb('Error!'); });
+            userSvc.createUser(req, userColl).then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toBe('Error!');
+                expect(userColl.insert).toHaveBeenCalled();
+                done();
+            });
+        });
     });
     
     describe('formatUpdates', function() {
-    
+        var updates, orig, requester;
+        beforeEach(function() {
+            updates = { id: 'u-1', username: 'foo', org: 'o-1', permissions: 'fakePerms' };
+            orig = { id: 'u-1', org: 'o-1' };
+            requester = { id: 'u-2' };
+        });
+        
+        it('should convert the update object to a $set format', function() {
+            var newUpdates = userSvc.formatUpdates(updates, orig, requester, '1234');
+            expect(newUpdates).toEqual({ $set: updates });
+            expect(updates).toEqual({id:'u-1',username:'foo',org:'o-1',permissions:'fakePerms'});
+            expect(mockLog.warn).not.toHaveBeenCalled();
+        });
+        
+        it('should prune out illegal fields', function() {
+            updates = {id:'u-3',username:'foo',org:'o-2',permissions:'fakePerms',password:'pass'};
+            requester.id = 'u-1';
+            var newUpdates = userSvc.formatUpdates(updates, orig, requester, '1234');
+            expect(newUpdates).toEqual({ $set: updates });
+            expect(updates).toEqual({ username: 'foo' });
+            expect(mockLog.warn).toHaveBeenCalled();
+            expect(mockLog.warn.calls.length).toBe(4);
+        });
     });
     
     describe('updateUser', function() {
-    
+        /*var userColl, oldUser;
+        beforeEach(function() {
+            userColl = {
+                findOne: jasmine.createSpy('users.findOne').andCallFake(function(query, cb) {
+                    cb(null, null);
+                }),
+                findAndModify: jasmine.createSpy('users.insert').andCallFake(function(obj, opts, cb) {
+                    cb(null, 'updated');
+                })
+            };
+            req.body = { username: 'test', password: 'pass', org: 'o-1234' };
+            req.user = { id: 'u-1234', org: 'o-1234' };
+            spyOn(userSvc, 'setupUser').andCallFake(function(target, requester) {
+                target.password = 'hashPass';
+                return q();
+            });
+            spyOn(mongoUtils, 'safeUser').andCallThrough();
+        });*/
+        
+        
     });
     
     describe('deleteUser', function() {

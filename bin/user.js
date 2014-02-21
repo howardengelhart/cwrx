@@ -183,7 +183,7 @@
                     body: 'Cannot create users outside of your organization'
                 });
             }
-            userSvc.setupUser(newUser, requester).then(function() {
+            return userSvc.setupUser(newUser, requester).then(function() {
                 log.trace('[%1] User %2 is creating user %3', req.uuid, requester.id, newUser.id);
                 return q.npost(users, 'insert', [newUser, {w: 1, journal: true}]);
             }).then(function() {
@@ -253,7 +253,7 @@
                 log.info('[%1] User %2 successfully updated user %3',
                          req.uuid, requester.id, updated.id);
                 delete userCache[id];
-                deferred.resolve({code: 201, body: updated});
+                deferred.resolve({code: 201, body: mongoUtils.safeUser(updated)});
             });
         }).catch(function(error) {
             log.error('[%1] Error updating user %2 for user %3: %4',req.uuid,id,requester.id,error);
