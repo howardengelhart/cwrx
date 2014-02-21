@@ -4,7 +4,7 @@
          "voice": "Susan",
          "test": "Hello, my name is Susan.",
          "id3Info": {
-            "audio_duration": 2.181,
+            "duration": 2.181,
             "date": "2011-03-16T12:59:07.150Z",
             "host": "DC3APS119",
             "kbps": 48,
@@ -17,7 +17,7 @@
          "voice": "Dave",
          "test": "Hello, my name is Dave.",
          "id3Info": {
-            "audio_duration": 1.993,
+            "duration": 1.993,
             "date": "2011-04-20T19:12:42.274Z",
             "host": "DC3APS219",
             "kbps": 48,
@@ -30,7 +30,7 @@
          "voice": "Elizabeth",
          "test": "Hello, my name is Elizabeth.",
          "id3Info": {
-            "audio_duration": 2.209,
+            "duration": 2.209,
             "date": "2011-05-13T22:19:24.047Z",
             "host": "DC3APS219",
             "kbps": 48,
@@ -43,7 +43,7 @@
          "voice": "Simon",
          "test": "Hello, my name is Simon.",
          "id3Info": {
-            "audio_duration": 2.118,
+            "duration": 2.118,
             "date": "2011-08-23T00:09:19.296Z",
             "host": "DC3APS122",
             "kbps": 48,
@@ -56,7 +56,7 @@
          "voice": "Catherine",
          "test": "Hello, my name is Catherine.",
          "id3Info": {
-            "audio_duration": 2.484,
+            "duration": 2.484,
             "date": "2011-06-29T16:35:49.218Z",
             "host": "DC3APS121",
             "kbps": 48,
@@ -69,7 +69,7 @@
          "voice": "Allison",
          "test": "Hello, my name is Allison.",
          "id3Info": {
-            "audio_duration": 2.326,
+            "duration": 2.326,
             "date": "2011-03-17T07:56:21.515Z",
             "host": "DC3APS122",
             "kbps": 48,
@@ -82,7 +82,7 @@
          "voice": "Steven",
          "test": "Hello, my name is Steven.",
          "id3Info": {
-            "audio_duration": 1.977,
+            "duration": 1.977,
             "date": "2011-07-21T16:46:42.549Z",
             "host": "DC3APS219",
             "kbps": 48,
@@ -95,7 +95,7 @@
          "voice": "Alan",
          "test": "Hello, my name is Alan.",
          "id3Info": {
-            "audio_duration": 1.884,
+            "duration": 1.884,
             "date": "2011-10-15T16:03:33.392Z",
             "host": "DC3APS122",
             "kbps": 48,
@@ -108,7 +108,7 @@
          "voice": "Grace",
          "test": "Hello, my name is Grace.",
          "id3Info": {
-            "audio_duration": 2.381,
+            "duration": 2.381,
             "date": "2011-08-08T11:54:49.118Z",
             "host": "DC3APS220",
             "kbps": 48,
@@ -121,7 +121,7 @@
          "voice": "Veena",
          "test": "Hello, my name is Veena.",
          "id3Info": {
-            "audio_duration": 2.322,
+            "duration": 2.322,
             "date": "2011-10-18T20:01:06.001Z",
             "host": "DC3APS328",
             "kbps": 48,
@@ -134,7 +134,7 @@
          "voice": "Kate",
          "test": "Hello, my name is Kate.",
          "id3Info": {
-            "audio_duration": 2.039,
+            "duration": 2.039,
             "date": "2011-05-19T14:42:19.929Z",
             "host": "DC3APS220",
             "kbps": 48,
@@ -147,7 +147,7 @@
          "voice": "Paul",
          "test": "Hello, my name is Paul.",
          "id3Info": {
-            "audio_duration": 1.817,
+            "duration": 1.817,
             "date": "2011-03-07T03:46:26.824Z",
             "host": "DC3APS117",
             "kbps": 48,
@@ -162,7 +162,7 @@
          "fxType": "D",
          "fxLevel": 1,
          "id3Info": {
-            "audio_duration": 4.297,
+            "duration": 4.297,
             "date": "2013-12-05T21:27:30.547Z",
             "host": "DC3APX433",
             "kbps": 48,
@@ -177,7 +177,7 @@
          "fxType": "R",
          "fxLevel": 3,
          "id3Info": {
-            "audio_duration": 3.517,
+            "duration": 3.517,
             "date": "2013-12-05T21:22:55.312Z",
             "host": "DC3APS328",
             "kbps": 48,
@@ -190,7 +190,7 @@
          "voice": "Julie",
          "test": "Hello, my name is Julie.",
          "id3Info": {
-            "audio_duration": 1.874,
+            "duration": 1.874,
             "date": "2011-02-18T19:27:23.792Z",
             "host": "DC3APS219",
             "kbps": 48,
@@ -203,7 +203,7 @@
          "voice": "Bridget",
          "test": "Hello, my name is Bridget.",
          "id3Info": {
-            "audio_duration": 1.955,
+            "duration": 1.955,
             "date": "2011-07-28T20:42:39.476Z",
             "host": "DC3APS117",
             "kbps": 48,
@@ -216,7 +216,7 @@
          "voice": "LargeMale",
          "test": "Hello, my name is Large Male.",
          "id3Info": {
-            "audio_duration": 2.229,
+            "duration": 2.229,
             "date": "2013-12-05T22:47:23.594Z",
             "host": "DC3APS119",
             "kbps": 48,
@@ -229,7 +229,7 @@
          "voice": "GiantMale",
          "test": "Hello, my name is Giant Male.",
          "id3Info": {
-            "audio_duration": 2.601,
+            "duration": 2.601,
             "date": "2013-12-05T22:37:18.876Z",
             "host": "DC3APS220",
             "kbps": 48,
@@ -242,7 +242,7 @@
          "voice": "Male",
          "test": "Hello, my name is Male.",
          "id3Info": {
-            "audio_duration": 1.858,
+            "duration": 1.858,
             "date": "2013-11-19T19:32:46.562Z",
             "host": "DC3APS218",
             "kbps": 48,
@@ -255,7 +255,7 @@
          "voice": "Female",
          "test": "Hello, my name is Female.",
          "id3Info": {
-            "audio_duration": 1.858,
+            "duration": 1.858,
             "date": "2013-11-19T19:48:34.671Z",
             "host": "DC3APS218",
             "kbps": 48,
@@ -268,7 +268,7 @@
          "voice": "Child",
          "test": "Hello, my name is Child.",
          "id3Info": {
-            "audio_duration": 2.229,
+            "duration": 2.229,
             "date": "2013-12-05T22:29:09.131Z",
             "host": "DC3APS117",
             "kbps": 48,
@@ -281,7 +281,7 @@
          "voice": "OldWoman",
          "test": "Hello, my name is Old Woman.",
          "id3Info": {
-            "audio_duration": 2.972,
+            "duration": 2.972,
             "date": "2013-11-19T19:50:51.281Z",
             "host": "DC3APS218",
             "kbps": 48,
@@ -294,7 +294,7 @@
          "voice": "Robotoid",
          "test": "Hello, my name is Robotoid.",
          "id3Info": {
-            "audio_duration": 2.229,
+            "duration": 2.229,
             "date": "2013-12-05T23:00:14.953Z",
             "host": "DC3APS122",
             "kbps": 48,
@@ -307,7 +307,7 @@
          "voice": "Martian",
          "test": "Hello, my name is Martian.",
          "id3Info": {
-            "audio_duration": 1.858,
+            "duration": 1.858,
             "date": "2013-12-05T22:36:24.803Z",
             "host": "DC3APS117",
             "kbps": 48,
@@ -320,7 +320,7 @@
          "voice": "Munchkin",
          "test": "Hello, my name is Munchkin.",
          "id3Info": {
-            "audio_duration": 1.858,
+            "duration": 1.858,
             "date": "2013-12-05T22:36:53.649Z",
             "host": "DC3APS120",
             "kbps": 48,
@@ -333,7 +333,7 @@
          "voice": "Colossus",
          "test": "Hello, my name is Colossus.",
          "id3Info": {
-            "audio_duration": 2.229,
+            "duration": 2.229,
             "date": "2013-12-06T14:48:06.162Z",
             "host": "DC3APS219",
             "kbps": 48,
@@ -346,7 +346,7 @@
          "voice": "MellowFemale",
          "test": "Hello, my name is Mellow Female.",
          "id3Info": {
-            "audio_duration": 2.601,
+            "duration": 2.601,
             "date": "2013-12-06T15:43:19.943Z",
             "host": "DC3APS117",
             "kbps": 48,
@@ -359,7 +359,7 @@
          "voice": "MellowMale",
          "test": "Hello, my name is Mellow Male.",
          "id3Info": {
-            "audio_duration": 2.229,
+            "duration": 2.229,
             "date": "2013-12-06T13:41:45.970Z",
             "host": "DC3APS220",
             "kbps": 48,
@@ -372,7 +372,7 @@
          "voice": "CrispMale",
          "test": "Hello, my name is Crisp Male.",
          "id3Info": {
-            "audio_duration": 2.229,
+            "duration": 2.229,
             "date": "2013-12-06T15:00:00.095Z",
             "host": "SIPL-APS-137",
             "kbps": 48,
@@ -385,7 +385,7 @@
          "voice": "FastFred",
          "test": "Hello, my name is Fast Fred.",
          "id3Info": {
-            "audio_duration": 1.115,
+            "duration": 1.115,
             "date": "2013-12-06T15:00:29.969Z",
             "host": "SIPL-APS-137",
             "kbps": 48,
@@ -398,7 +398,7 @@
          "voice": "Troll",
          "test": "Hello, my name is Troll.",
          "id3Info": {
-            "audio_duration": 1.858,
+            "duration": 1.858,
             "date": "2013-12-06T14:48:55.114Z",
             "host": "SIPL-APS-137",
             "kbps": 48,
@@ -411,7 +411,7 @@
          "voice": "Nerd",
          "test": "Hello, my name is Nerd.",
          "id3Info": {
-            "audio_duration": 1.486,
+            "duration": 1.486,
             "date": "2013-12-06T15:00:30.031Z",
             "host": "SIPL-APS-137",
             "kbps": 48,
@@ -424,7 +424,7 @@
          "voice": "MilkToast",
          "test": "Hello, my name is Milk Toast.",
          "id3Info": {
-            "audio_duration": 2.229,
+            "duration": 2.229,
             "date": "2013-12-05T22:25:30.674Z",
             "host": "SIPL-APS-137",
             "kbps": 48,
@@ -437,7 +437,7 @@
          "voice": "Tipsy",
          "test": "Hello, my name is Tipsy.",
          "id3Info": {
-            "audio_duration": 4.087,
+            "duration": 4.087,
             "date": "2013-12-05T22:29:35.172Z",
             "host": "DC3APS119",
             "kbps": 48,
@@ -450,7 +450,7 @@
          "voice": "Choirboy",
          "test": "Hello, my name is Choirboy.",
          "id3Info": {
-            "audio_duration": 5.573,
+            "duration": 5.573,
             "date": "2013-12-05T22:37:02.125Z",
             "host": "DC3APS122",
             "kbps": 48,

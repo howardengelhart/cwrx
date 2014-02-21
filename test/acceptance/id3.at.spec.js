@@ -14,7 +14,7 @@ describe('id3 test suite',function(){
             expect(err).toBeNull();
             expect(data).toBeDefined();
             expect(data).not.toBeNull();
-            expect(data.audio_duration).toBe(2.936);
+            expect(data.duration).toBe(2.936);
             expect(data.date).toEqual(new Date('2013-05-22 09:14:19.194'));
             expect(data.host).toBe('DC3APS322');
             expect(data.kbps).toBe(48);
