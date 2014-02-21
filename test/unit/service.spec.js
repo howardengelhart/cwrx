@@ -315,10 +315,11 @@ describe('service (UT)',function(){
                 .finally(function(){
                     expect(resolveSpy).toHaveBeenCalledWith(state);
                     expect(rejectSpy).not.toHaveBeenCalled();
-                    expect(process.on.callCount).toEqual(3);
+                    expect(process.on.callCount).toEqual(4);
                     expect(process.on.argsForCall[0][0]).toEqual('uncaughtException');
                     expect(process.on.argsForCall[1][0]).toEqual('SIGINT');
-                    expect(process.on.argsForCall[2][0]).toEqual('SIGTERM');
+                    expect(process.on.argsForCall[2][0]).toEqual('SIGHUP');
+                    expect(process.on.argsForCall[3][0]).toEqual('SIGTERM');
                 }).done(done);
         });
         
