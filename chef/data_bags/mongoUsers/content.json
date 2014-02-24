@@ -1,0 +1,9 @@
+{
+  "id": "content",
+  "data": {
+    "encrypted_data": "wrfMjpmvqayAPBgDYgHLm1eeZOqZBbdRr6ERlhFsEpGDk2lbH186Gt8u1QIj\nM6DaNH68QtiE5wyzqtbo9TS3RitIyw5oFCqsOkMnuMVyiAgunHyEeDUs50LT\nnsiyUsO1ofzM893tLe6dLB6/a1wL3g==\n",
+    "iv": "zqUB6cNNK+zIVjQq5ugg6g==\n",
+    "version": 1,
+    "cipher": "aes-256-cbc"
+  }
+}
