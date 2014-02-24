@@ -1,0 +1,9 @@
+{
+  "id": "chef",
+  "data": {
+    "encrypted_data": "qvfofV2waK0E0eKvNp5B8U5poRaF6/OxwTgOVcRXT+dyivnWysxIEsqlngIu\nKQp9bNXBcw52k48R4/uU1DIjBs8krFkT9EcR0INA5y6PY8Ar8Xih/YUgfs4W\nkZLRA78WREW/moGU4Haa4ZLdWM1n0g==\n",
+    "iv": "mryqQ/RO35B7EuxUpWpLzg==\n",
+    "version": 1,
+    "cipher": "aes-256-cbc"
+  }
+}

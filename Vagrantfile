@@ -30,9 +30,20 @@ Vagrant.configure("2") do |config|
   config.berkshelf.enabled = true
 
   config.vm.provision :chef_solo do |chef|
-    chef.data_bags_path = "#{ENV['CHEF_REPO']}/data_bags"
+    #chef.data_bags_path = "#{ENV['CHEF_REPO']}/data_bags"
+    chef.data_bags_path = "./chef/data_bags"
     chef.encrypted_data_bag_secret_key_path = "#{ENV['HOME']}/.chef/c6data.pem"
+    chef.environments_path = "./chef/environments"
+    chef.environment = "Development"
     chef.json = {
+        :c6mongo => {
+            :users => {
+                :ids => ["evan","howard","content","auth","vote"]
+            },
+            :cfg => {
+                :auth => true
+            }
+        },
         :maint => {
             :source => {
                 :branch => "#{ENV['CWRX_DEV_BRANCH']}"
@@ -70,6 +81,9 @@ Vagrant.configure("2") do |config|
             :cfg => {
                 :loglevel => "trace"
             },
+            :mongo => {
+                :host => 'localhost'
+            },
             :secrets => {
                 :cookieParser => "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" ,
                 :mongoCredentials => {
@@ -80,10 +94,10 @@ Vagrant.configure("2") do |config|
         }
     
         chef.run_list = [
+            "recipe[c6mongo]",
             "recipe[vote]",
             "recipe[maint]"
         ]
     end
-
   end
 end
