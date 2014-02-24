@@ -25,7 +25,8 @@ describe('service (UT)',function(){
             warn  : jasmine.createSpy('log_warn'),
             info  : jasmine.createSpy('log_info'),
             fatal : jasmine.createSpy('log_fatal'),
-            log   : jasmine.createSpy('log_log')
+            log   : jasmine.createSpy('log_log'),
+            hup   : jasmine.createSpy('log_hup')
         };
 
         console._log = console.log;
@@ -348,6 +349,35 @@ describe('service (UT)',function(){
         });
         
     });
+
+    describe('signals',function(){
+        var mockKid;
+        beforeEach(function(done){
+            mockKid = {
+                send : jasmine.createSpy('kid.send')
+            };
+            state.config.uid = 'test';
+            state.config.server = true;
+            state.kids = [mockKid, mockKid ];
+            resolveSpy = jasmine.createSpy('prepareServer.resolve');
+            rejectSpy  = jasmine.createSpy('prepareServer.reject');
+            q.fcall(service.prepareServer,state)
+                .then(resolveSpy,rejectSpy)
+                .finally(done);
+        });
+
+        describe('SIGHUP',function(){
+            it('on master will call hup on logger and send hup to kids ',function(){
+                state.onSIGHUP      = undefined;
+                state.clusterMaster = true;
+                var cb = process.on.argsForCall[2][1];
+                cb();
+                expect(mockKid.send.callCount).toEqual(2);
+                expect(mockLog.hup.callCount).toEqual(1);
+            });
+        });
+    });
+    
 
     describe('daemonize',function(){
         beforeEach(function(){
