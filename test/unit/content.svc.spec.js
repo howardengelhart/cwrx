@@ -249,31 +249,20 @@ describe('content (UT)', function() {
             oldExp;
         beforeEach(function() {
             req.params = {id: 'e-1234'};
-            req.body = {id: 'e-1234', title: 'newExp', user: 'u-1234', created: start};
+            req.body = {title: 'newExp'};
             oldExp = {id:'e-1234', title:'oldExp', user:'u-1234', created:start, lastUpdated:start};
             req.user = {id: 'u-1234'};
             experiences.findOne = jasmine.createSpy('experiences.findOne')
                 .andCallFake(function(query, cb) { cb(null, oldExp); });
-            experiences.findAndModify = jasmine.createSpy('experiences.findAndModify')
-                .andCallFake(function(query, sort, obj, opts, cb) { cb(null, obj, 'lastErrorObj'); });
+            experiences.findAndModify = jasmine.createSpy('experiences.findAndModify').andCallFake(
+                function(query, sort, obj, opts, cb) {
+                    cb(null, [{ id: 'e-1234', updated: true }]);
+                });
             spyOn(content, 'checkScope').andReturn(true);
         });
-        
-        it('should fail with a 400 if no experience is provided', function(done) {
+
+        it('should fail with a 400 if no update object is provided', function(done) {
             delete req.body;
-            content.updateExperience(req, experiences).then(function(resp) {
-                expect(resp).toBeDefined();
-                expect(resp.code).toBe(400);
-                expect(experiences.findOne).not.toHaveBeenCalled();
-                done();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-                done();
-            });
-        });
-        
-        it('should not allow a user to change an experience id', function(done) {
-            req.body.id = 'e-4567';
             content.updateExperience(req, experiences).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(400);
@@ -288,22 +277,37 @@ describe('content (UT)', function() {
         it('should successfully update an experience', function(done) {
             content.updateExperience(req, experiences).then(function(resp) {
                 expect(resp.code).toBe(201);
-                expect(resp.body.id).toBe('e-1234');
-                expect(resp.body.title).toBe('newExp');
-                expect(resp.body.created).toEqual(start);
-                expect(resp.body.lastUpdated instanceof Date).toBeTruthy('lastUpdated is a Date');
-                expect(resp.body.lastUpdated).toBeGreaterThan(oldExp.lastUpdated);
-                expect(resp.body.user).toBe('u-1234');
-                
+                expect(resp.body).toEqual({id: 'e-1234', updated: true});
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findOne.calls[0].args[0]).toEqual({id: 'e-1234'});
-
                 expect(experiences.findAndModify).toHaveBeenCalled();
                 expect(experiences.findAndModify.calls[0].args[0]).toEqual({id: 'e-1234'});
                 expect(experiences.findAndModify.calls[0].args[1]).toEqual({id: 1});
-                expect(experiences.findAndModify.calls[0].args[2]).toBe(resp.body);
+                var updates = experiences.findAndModify.calls[0].args[2];
+                expect(Object.keys(updates)).toEqual(['$set']);
+                expect(updates.$set.title).toBe('newExp');
+                expect(updates.$set.lastUpdated instanceof Date).toBeTruthy('lastUpdated is Date');
                 expect(experiences.findAndModify.calls[0].args[3])
                     .toEqual({w: 1, journal: true, new: true});
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should not allow a user to change an experience id', function(done) {
+            req.body.id = 'e-4567';
+            content.updateExperience(req, experiences).then(function(resp) {
+                expect(resp.code).toBe(201);
+                expect(resp.body).toEqual({id: 'e-1234', updated: true});
+                expect(mockLog.warn).toHaveBeenCalled();
+                expect(experiences.findAndModify).toHaveBeenCalled();
+                var updates = experiences.findAndModify.calls[0].args[2];
+                expect(Object.keys(updates)).toEqual(['$set']);
+                expect(updates.$set.title).toBe('newExp');
+                expect(updates.$set.id).not.toBeDefined();
+                expect(updates.$set.lastUpdated instanceof Date).toBeTruthy('lastUpdated is Date');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

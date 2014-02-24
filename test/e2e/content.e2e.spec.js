@@ -334,7 +334,6 @@ describe('content (E2E):', function() {
                 {
                     id: "e2e-put1",
                     title: "origTitle",
-                    tag: "foo",
                     status: "active",
                     access: "public",
                     created: now,
@@ -351,21 +350,21 @@ describe('content (E2E):', function() {
             testUtils.resetCollection('experiences', mockExps).done(done);
         });
         
-        it('should fully update an experience', function(done) {
+        it('should successfully update an experience', function(done) {
             mockExps[0].title = "newTitle";
-            delete mockExps[0].tag;
             var options = {
                 url: config.contentUrl + '/experience/e2e-put1',
                 jar: cookieJar,
-                json: mockExps[0]
+                json: { title: 'newTitle' }
             }, updatedExp;
             testUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 updatedExp = resp.body;
+                expect(updatedExp).not.toEqual(mockExps);
                 expect(updatedExp).toBeDefined();
                 expect(updatedExp.id).toBe('e2e-put1');
-                expect(updatedExp.title).toBe("newTitle");
-                expect(updatedExp.tag).not.toBeDefined();
+                expect(updatedExp.title).toBe('newTitle');
+                expect(updatedExp.user).toBe('e2e-user');
                 expect(new Date(updatedExp.created)).toEqual(now);
                 expect(new Date(updatedExp.lastUpdated)).toBeGreaterThan(now);
                 done();
@@ -376,11 +375,10 @@ describe('content (E2E):', function() {
         });
         
         it('should not create an experience if it does not exist', function(done) {
-            mockExps[0].id = "e2e-putfake";
             var options = {
                 url: config.contentUrl + '/experience/e2e-putfake',
                 jar: cookieJar,
-                json: mockExps[0]
+                json: { title: 'fakeTitle' }
             }, updatedExp;
             testUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
@@ -396,7 +394,7 @@ describe('content (E2E):', function() {
             var options = {
                 url: config.contentUrl + '/experience/e2e-put2',
                 jar: cookieJar,
-                json: mockExps[1]
+                json: { title: 'newTitle' }
             }, updatedExp;
             testUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
@@ -411,7 +409,7 @@ describe('content (E2E):', function() {
         it('should throw a 401 error if the user is not authorized', function(done) {
             var options = {
                 url: config.contentUrl + '/experience/e2e-put1',
-                json: mockExps[0]
+                json: { title: 'newTitle' }
             };
             testUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);

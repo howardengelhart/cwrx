@@ -83,17 +83,16 @@ describe('content-light (E2E):', function() {
             Object.keys(currExp).forEach(function(key) {
                 origExp[key] = currExp[key];
             });
-            currExp.title = "newTitle";
             var options = {
                 url: config.contentUrl + '/experience/' + currExp.id,
                 jar: cookieJar,
-                json: currExp
+                json: { title: 'newTitle' }
             };
             testUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toBeDefined();
                 expect(resp.body).not.toEqual(origExp);
-                expect(resp.body.title).toBe("newTitle");
+                expect(resp.body.title).toBe('newTitle');
                 expect(resp.body.id).toBe(origExp.id);
                 expect(resp.body.created).toBe(origExp.created);
                 expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(origExp.lastUpdated));

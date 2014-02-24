@@ -122,21 +122,22 @@
         });
     };
 
-    content.updateExperience = function(req, experiences) {//TODO: update to user $set
-        var obj = req.body,
+    content.updateExperience = function(req, experiences) {
+        var updates = req.body,
             id = req.params.id,
             user = req.user,
             log = logger.getLog(),
-            deferred = q.defer(),
-            now;
-        if (!obj || typeof obj !== 'object') {
+            deferred = q.defer();
+        if (!updates || typeof updates !== 'object') {
             return q({code: 400, body: 'You must provide an object in the body'});
         }
-        if (obj.id !== id) {
-            return q({code: 400, body: 'Cannot change the id of an experience'});
+        if (updates.id && (updates.id !== id)) {
+            log.warn('[%1] User %2 is trying to change the id of experience %3 to %4',
+                     req.uuid, user.id, id, updates.id);
+            delete updates.id;
         }
         
-        log.info('[%1] User %2 is attempting to update experience %3', req.uuid, user.id, obj.id);
+        log.info('[%1] User %2 is attempting to update experience %3',req.uuid,user.id,updates.id);
         q.npost(experiences, 'findOne', [{id: id}])
         .then(function(orig) {
             if (!orig) {
@@ -150,11 +151,9 @@
                     body: 'Not authorized to edit this experience'
                 });
             }
-            obj._id = orig._id;
-            now = new Date();
-            obj.lastUpdated = now;
+            updates.lastUpdated = new Date();
             return q.npost(experiences, 'findAndModify',
-                           [{id: id}, {id: 1}, obj, {w: 1, journal: true, new: true}])
+                           [{id: id}, {id: 1}, {$set: updates}, {w: 1, journal: true, new: true}])
             .then(function(results) {
                 var updated = results[0];
                 log.info('[%1] User %2 successfully updated experience %3',
