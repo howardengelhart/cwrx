@@ -26,7 +26,7 @@ describe('service (UT)',function(){
             info  : jasmine.createSpy('log_info'),
             fatal : jasmine.createSpy('log_fatal'),
             log   : jasmine.createSpy('log_log'),
-            hup   : jasmine.createSpy('log_hup')
+            refresh  : jasmine.createSpy('log_refresh')
         };
 
         console._log = console.log;
@@ -373,7 +373,7 @@ describe('service (UT)',function(){
                 var cb = process.on.argsForCall[2][1];
                 cb();
                 expect(mockKid.send.callCount).toEqual(2);
-                expect(mockLog.hup.callCount).toEqual(1);
+                expect(mockLog.refresh.callCount).toEqual(1);
             });
         });
     });
