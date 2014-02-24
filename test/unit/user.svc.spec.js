@@ -199,7 +199,7 @@ describe('user (UT)', function() {
             });
         });
         
-        it('should fail if the promise was reject', function(done) {
+        it('should fail if the promise was rejected', function(done) {
             cache.getPromise.andReturn(q.reject('Error!'));
             userSvc.getUsersByOrg(req, cache).then(function(resp) {
                 expect(resp).not.toBeDefined();
@@ -432,6 +432,7 @@ describe('user (UT)', function() {
                 expect(error).toBe('Error!');
                 expect(userColl.findOne).toHaveBeenCalled();
                 expect(userColl.insert).not.toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
                 done();
             });
         });
@@ -445,6 +446,7 @@ describe('user (UT)', function() {
                 expect(error).toBe('Error!');
                 expect(userSvc.setupUser).toHaveBeenCalled();
                 expect(userColl.insert).not.toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
                 done();
             });
         });
@@ -457,6 +459,7 @@ describe('user (UT)', function() {
             }).catch(function(error) {
                 expect(error).toBe('Error!');
                 expect(userColl.insert).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
                 done();
             });
         });
@@ -489,29 +492,284 @@ describe('user (UT)', function() {
     });
     
     describe('updateUser', function() {
-        /*var userColl, oldUser;
+        var userColl;
         beforeEach(function() {
             userColl = {
                 findOne: jasmine.createSpy('users.findOne').andCallFake(function(query, cb) {
-                    cb(null, null);
+                    cb(null, 'original');
                 }),
-                findAndModify: jasmine.createSpy('users.insert').andCallFake(function(obj, opts, cb) {
-                    cb(null, 'updated');
-                })
+                findAndModify: jasmine.createSpy('users.findAndModify').andCallFake(
+                    function(query, sort, obj, opts, cb) {
+                        cb(null, [{ id: 'u-4567', updated: true }]);
+                    })
             };
-            req.body = { username: 'test', password: 'pass', org: 'o-1234' };
-            req.user = { id: 'u-1234', org: 'o-1234' };
-            spyOn(userSvc, 'setupUser').andCallFake(function(target, requester) {
-                target.password = 'hashPass';
-                return q();
-            });
+            req.body = { foo: 'bar' };
+            req.params = { id: 'u-4567' };
+            req.user = { id: 'u-1234' };
+            spyOn(userSvc, 'checkScope').andReturn(true);
+            spyOn(userSvc, 'formatUpdates').andCallThrough();
             spyOn(mongoUtils, 'safeUser').andCallThrough();
-        });*/
+        });
         
+        it('should fail immediately if no update object is provided', function(done) {
+            delete req.body;
+            userSvc.updateUser(req, userColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(400);
+                expect(resp.body).toBe('You must provide an object in the body');
+                req.body = 'foo';
+                return userSvc.updateUser(req, userColl);
+            }).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBeDefined(400);
+                expect(resp.body).toBe('You must provide an object in the body');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
         
+        it('should successfully update a user', function(done) {
+            userSvc.updateUser(req, userColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(201);
+                expect(resp.body).toEqual({ id: 'u-4567', updated: true });
+                expect(userColl.findOne).toHaveBeenCalled();
+                expect(userColl.findOne.calls[0].args[0]).toEqual({id: 'u-4567'});
+                expect(userSvc.checkScope).toHaveBeenCalledWith({id: 'u-1234'}, 'original', 'edit');
+                expect(userSvc.formatUpdates)
+                    .toHaveBeenCalledWith(req.body, 'original', {id: 'u-1234'}, '1234');
+                expect(userColl.findAndModify).toHaveBeenCalled();
+                expect(userColl.findAndModify.calls[0].args[0]).toEqual({id: 'u-4567'});
+                expect(userColl.findAndModify.calls[0].args[1]).toEqual({id: 1});
+                var updates = userColl.findAndModify.calls[0].args[2];
+                expect(Object.keys(updates)).toEqual(['$set']);
+                expect(updates.$set.foo).toBe('bar');
+                expect(updates.$set.lastUpdated instanceof Date).toBeTruthy('lastUpdated is Date');
+                expect(userColl.findAndModify.calls[0].args[3]).toEqual({w:1,journal:true,new:true});
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should not create a user if they do not exist', function(done) {
+            userColl.findOne.andCallFake(function(query, cb) { cb(null, null); });
+            userSvc.updateUser(req, userColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(404);
+                expect(resp.body).toBe('That user does not exist');
+                expect(userColl.findOne).toHaveBeenCalled();
+                expect(userSvc.checkScope).not.toHaveBeenCalled();
+                expect(userColl.findAndModify).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should not edit a user the requester is not authorized to edit', function(done) {
+            userSvc.checkScope.andReturn(false);
+            userSvc.updateUser(req, userColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(403);
+                expect(resp.body).toBe('Not authorized to edit this user');
+                expect(userColl.findOne).toHaveBeenCalled();
+                expect(userSvc.checkScope).toHaveBeenCalled();
+                expect(userColl.findAndModify).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should not edit the user if all the update fields are illegal', function(done) {
+            userSvc.formatUpdates.andCallFake(function(updates, orig, requester, reqId) {
+                delete updates.foo;
+                return {$set: updates};
+            });
+            userSvc.updateUser(req, userColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(400);
+                expect(resp.body).toBe('All those updates were illegal');
+                expect(userColl.findOne).toHaveBeenCalled();
+                expect(userSvc.formatUpdates).toHaveBeenCalled();
+                expect(userColl.findAndModify).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should fail with an error if findOne fails', function(done) {
+            userColl.findOne.andCallFake(function(query, cb) { cb('Error!'); });
+            userSvc.updateUser(req, userColl).then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toBe('Error!');
+                expect(userColl.findOne).toHaveBeenCalled();
+                expect(userColl.findAndModify).not.toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should fail with an error if findAndModify fails', function(done) {
+            userColl.findAndModify.andCallFake(function(query, sort, obj, opts, cb) {
+                cb('Error!', null);
+            });
+            userSvc.updateUser(req, userColl).then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toBe('Error!');
+                expect(userColl.findOne).toHaveBeenCalled();
+                expect(userColl.findAndModify).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+                done();
+            });
+        });
     });
     
     describe('deleteUser', function() {
-    
+        var userColl;
+        beforeEach(function() {
+            userColl = {
+                findOne: jasmine.createSpy('users.findOne').andCallFake(function(query, cb) {
+                    cb(null, 'original');
+                }),
+                update: jasmine.createSpy('users.update').andCallFake(function(query,obj,opts,cb) {
+                    cb(null, 1);
+                })
+            };
+            req.params = { id: 'u-4567' };
+            req.user = { id: 'u-1234' };
+            spyOn(userSvc, 'checkScope').andReturn(true);
+            spyOn(userSvc, 'formatUpdates').andCallThrough();
+            spyOn(mongoUtils, 'safeUser').andCallThrough();
+        });
+        
+        it('should fail if the user is trying to delete themselves', function(done) {
+            req.params.id = 'u-1234';
+            userSvc.deleteUser(req, userColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(400);
+                expect(resp.body).toBe('You cannot delete yourself');
+                expect(userColl.findOne).not.toHaveBeenCalled();
+                expect(userColl.update).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should successfully mark a user as deleted', function(done) {
+            userSvc.deleteUser(req, userColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(200);
+                expect(resp.body).toBe('Success');
+                expect(userColl.findOne).toHaveBeenCalled();
+                expect(userColl.findOne.calls[0].args[0]).toEqual({id: 'u-4567'});
+                expect(userSvc.checkScope).toHaveBeenCalledWith({id: 'u-1234'}, 'original', 'delete');
+                expect(userColl.update).toHaveBeenCalled();
+                expect(userColl.update.calls[0].args[0]).toEqual({id: 'u-4567'});
+                var updates = userColl.update.calls[0].args[1];
+                expect(Object.keys(updates)).toEqual(['$set']);
+                expect(updates.$set.status).toBe('deleted');
+                expect(updates.$set.lastUpdated instanceof Date).toBeTruthy('lastUpdated is Date');
+                expect(userColl.update.calls[0].args[2]).toEqual({w: 1, journal: true});
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should not delete a nonexistent user', function(done) {
+            userColl.findOne.andCallFake(function(query, cb) { cb(null, null); });
+            userSvc.deleteUser(req, userColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(200);
+                expect(resp.body).toBe('Success');
+                expect(userColl.findOne).toHaveBeenCalled();
+                expect(userColl.update).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should not delete a user the requester is not authorized to delete', function(done) {
+            userSvc.checkScope.andReturn(false);
+            userSvc.deleteUser(req, userColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(403);
+                expect(resp.body).toBe('Not authorized to delete this user');
+                expect(userColl.findOne).toHaveBeenCalled();
+                expect(userSvc.checkScope).toHaveBeenCalled();
+                expect(userColl.update).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should not edit the user if they have already been deleted', function(done) {
+            userColl.findOne.andCallFake(function(query, cb) {
+                cb(null, {id: 'u-4567', status: 'deleted'});
+            });
+            userSvc.deleteUser(req, userColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(200);
+                expect(resp.body).toBe('Success');
+                expect(userColl.findOne).toHaveBeenCalled();
+                expect(userColl.update).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should fail with an error if findOne fails', function(done) {
+            userColl.findOne.andCallFake(function(query, cb) {
+                cb('Error!', null);
+            });
+            userSvc.deleteUser(req, userColl).then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toBe('Error!');
+                expect(userColl.findOne).toHaveBeenCalled();
+                expect(userColl.update).not.toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should fail with an error if findAndModify fails', function(done) {
+            userColl.update.andCallFake(function(query, obj, ops, cb) {
+                cb('Error!', null);
+            });
+            userSvc.deleteUser(req, userColl).then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toBe('Error!');
+                expect(userColl.findOne).toHaveBeenCalled();
+                expect(userColl.update).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+                done();
+            });
+        });
     });
 });

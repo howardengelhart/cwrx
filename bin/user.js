@@ -241,13 +241,18 @@
                 log.info('[%1] User %2 does not exist; not creating them', req.uuid, id);
                 return deferred.resolve({code: 404, body: 'That user does not exist'});
             }
-            if (!userSvc.checkScope(requester, orig, 'users', 'edit')) {
+            if (!userSvc.checkScope(requester, orig, 'edit')) {
                 log.info('[%1] User %2 is not authorized to edit %3', req.uuid, requester.id, id);
                 return deferred.resolve({code: 403, body: 'Not authorized to edit this user'});
             }
             var updateObj = userSvc.formatUpdates(updates, orig, requester, req.uuid);
-                //TODO: check if updates is now blank??
-            q.npost(users, 'findAndModify', [{id:id},{id:1},updateObj,{w:1,journal:true,new:true}])
+            if (JSON.stringify(updateObj) === JSON.stringify({$set: {}})) {
+                log.info('[%1] Update object was blank', req.uuid);
+                return deferred.resolve({code: 400, body: 'All those updates were illegal'});
+            }
+            updateObj.$set.lastUpdated = new Date();
+            var opts = {w: 1, journal: true, new: true};
+            return q.npost(users, 'findAndModify', [{id: id}, {id: 1}, updateObj, opts])
             .then(function(results) {
                 var updated = results[0];
                 log.info('[%1] User %2 successfully updated user %3',
@@ -280,7 +285,7 @@
                 log.info('[%1] User %2 does not exist', req.uuid, id);
                 return deferred.resolve({code: 200, body: 'Success'});
             }
-            if (!userSvc.checkScope(requester, orig, 'users', 'delete')) {
+            if (!userSvc.checkScope(requester, orig, 'delete')) {
                 log.info('[%1] User %2 is not authorized to delete %3', req.uuid, requester.id, id);
                 return deferred.resolve({code: 403, body: 'Not authorized to delete this user'});
             }
@@ -288,8 +293,8 @@
                 log.info('[%1] User %2 has already been deleted', req.uuid, id);
                 return deferred.resolve({code: 200, body: 'Success'});
             }
-            q.npost(users, 'update', [{id: id}, {$set: {lastUpdated: now, status: 'deleted'}},
-                    {w: 1, journal: true}])
+            var updates = {$set: {lastUpdated: now, status: 'deleted'}};
+            return q.npost(users, 'update', [{id:id}, updates, {w: 1, journal: true}])
             .then(function() {
                 log.info('[%1] User %2 successfully deleted user %3', req.uuid, requester.id, id);
                 delete userCache[id];

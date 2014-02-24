@@ -122,7 +122,7 @@
         });
     };
 
-    content.updateExperience = function(req, experiences) {
+    content.updateExperience = function(req, experiences) {//TODO: update to user $set
         var obj = req.body,
             id = req.params.id,
             user = req.user,
