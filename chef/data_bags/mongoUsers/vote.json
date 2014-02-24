@@ -1,0 +1,9 @@
+{
+  "id": "vote",
+  "data": {
+    "encrypted_data": "5Atke2u4qYutGzdvgZRi+pr9VPJ+AsJi/Z9Zjigs1R3oq89+UhvKN9m+Pn6q\nqRSnHhQtAOsjoEN8d4M897GGmT+KYp+wMjBX8JgGTzXja0U=\n",
+    "iv": "pgrNjeA2OWkFXLmZ2Ox6Gw==\n",
+    "version": 1,
+    "cipher": "aes-256-cbc"
+  }
+}
