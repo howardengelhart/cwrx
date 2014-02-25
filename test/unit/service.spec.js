@@ -207,6 +207,29 @@ describe('service (UT)',function(){
                     expect(state.config.daemon).toEqual(true);
                 }).done(done);
         });
+        
+        it('sets uid if uid commandline arg is set',function(done){
+            state.cmdl = { uid : 'test' };
+            q.fcall(service.configure,state)
+                .then(resolveSpy,rejectSpy)
+                .finally(function(){
+                    expect(resolveSpy).toHaveBeenCalledWith(state);
+                    expect(rejectSpy).not.toHaveBeenCalled();
+                    expect(process.setuid).toHaveBeenCalledWith('test');
+                }).done(done);
+        });
+        
+        it('sets gid if gid commandline arg is set',function(done){
+            state.cmdl = { gid : 'test' };
+            q.fcall(service.configure,state)
+                .then(resolveSpy,rejectSpy)
+                .finally(function(){
+                    expect(resolveSpy).toHaveBeenCalledWith(state);
+                    expect(rejectSpy).not.toHaveBeenCalled();
+                    expect(process.setgid).toHaveBeenCalledWith('test');
+                }).done(done);
+        });
+        
 
         it('creates cache dirs if caches are configured',function(done){
             state.defaultConfig = {
@@ -321,30 +344,6 @@ describe('service (UT)',function(){
                     expect(process.on.argsForCall[1][0]).toEqual('SIGINT');
                     expect(process.on.argsForCall[2][0]).toEqual('SIGHUP');
                     expect(process.on.argsForCall[3][0]).toEqual('SIGTERM');
-                }).done(done);
-        });
-        
-        it('sets uid if uid commandline arg is set',function(done){
-            state.config.uid = 'test';
-            state.config.server = true;
-            q.fcall(service.prepareServer,state)
-                .then(resolveSpy,rejectSpy)
-                .finally(function(){
-                    expect(resolveSpy).toHaveBeenCalledWith(state);
-                    expect(rejectSpy).not.toHaveBeenCalled();
-                    expect(process.setuid).toHaveBeenCalledWith('test');
-                }).done(done);
-        });
-        
-        it('sets gid if gid commandline arg is set',function(done){
-            state.config.gid = 'test';
-            state.config.server = true;
-            q.fcall(service.prepareServer,state)
-                .then(resolveSpy,rejectSpy)
-                .finally(function(){
-                    expect(resolveSpy).toHaveBeenCalledWith(state);
-                    expect(rejectSpy).not.toHaveBeenCalled();
-                    expect(process.setgid).toHaveBeenCalledWith('test');
                 }).done(done);
         });
         
