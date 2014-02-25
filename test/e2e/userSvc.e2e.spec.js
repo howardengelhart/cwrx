@@ -23,12 +23,7 @@ describe('user (E2E):', function() {
             password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
             org: 'o-1234',
             permissions: {
-                users: {
-                    read: 'org',
-                    create: 'org',
-                    edit: 'org',
-                    delete: 'org'
-                }
+                users: { read: 'org', create: 'org', edit: 'org', delete: 'org' }
             }
         };
         var loginOpts = {
@@ -121,24 +116,9 @@ describe('user (E2E):', function() {
         var mockUsers;
         beforeEach(function(done) {
             mockUsers = [
-                {
-                    id: 'e2e-getOrg1',
-                    username: 'defg',
-                    password: 'thisisasecret',
-                    org: 'o-1234'
-                },
-                {
-                    id: 'e2e-getOrg2',
-                    username: 'abcd',
-                    password: 'thisisasecret',
-                    org: 'o-1234'
-                },
-                {
-                    id: 'e2e-getOrg3',
-                    username: 'hijk',
-                    password: 'thisisasecret',
-                    org: 'o-4567'
-                }
+                { id: 'e2e-getOrg1', username: 'defg', password: 'thisisasecret', org: 'o-1234' },
+                { id: 'e2e-getOrg2', username: 'abcd', password: 'thisisasecret', org: 'o-1234' },
+                { id: 'e2e-getOrg3', username: 'hijk', password: 'thisisasecret', org: 'o-4567' }
             ];
             testUtils.resetCollection('users', mockUsers).done(done);
         });
@@ -228,12 +208,106 @@ describe('user (E2E):', function() {
             testUtils.resetCollection('users').done(done);
         });
         
-        xit('should be able to create a user', function(done) {
-        
+        it('should be able to create a user', function(done) {
+            var options = { url: config.userSvcUrl + '/user', json: mockUser, jar: cookieJar };
+            testUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                var newUser = resp.body;
+                expect(newUser).toBeDefined();
+                expect(newUser.id).toBeDefined();
+                expect(newUser.username).toBe('testPostUser');
+                expect(newUser.password).not.toBeDefined();
+                expect(new Date(newUser.created).toString()).not.toEqual('Invalid Date');
+                expect(newUser.lastUpdated).toEqual(newUser.created);
+                expect(newUser.org).toBe('o-1234');
+                expect(newUser.status).toBe('active');
+                expect(newUser.permissions).toEqual({
+                    experiences: { read: 'own', create: 'own', edit: 'own', delete: 'own' },
+                    users: { read: 'own', edit: 'own' },
+                    orgs: { read: 'own' }
+                });
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
         });
         
-        xit('should be able to override default properties', function(done) {
+        it('should be able to override default properties', function(done) {
+            mockUser.status = 'pending';
+            mockUser.permissions = {
+                experiences: { read: 'org' },
+                users: { edit: 'org' },
+                orgs: { edit: 'org' }
+            };
+            var options = { url: config.userSvcUrl + '/user', json: mockUser, jar: cookieJar };
+            testUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                var newUser = resp.body;
+                expect(newUser).toBeDefined();
+                expect(newUser.password).not.toBeDefined();
+                expect(newUser.status).toBe('pending');
+                expect(newUser.permissions).toEqual({
+                    experiences: { read: 'org', create: 'own', edit: 'own', delete: 'own' },
+                    users: { read: 'own', edit: 'org' },
+                    orgs: { read: 'own', edit: 'org' }
+                });
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should throw a 400 error if the body is missing or incomplete', function(done) {
+            var options = { url: config.userSvcUrl + '/user', json: {}, jar: cookieJar };
+            testUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('New user object must have a username and password');
+                options.json = { username: 'testPostUser' };
+                return testUtils.qRequest('post', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('New user object must have a username and password');
+                options.json = { password: 'password' };
+                return testUtils.qRequest('post', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('New user object must have a username and password');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
         
+        it('should throw a 400 error if a user with that username exists', function(done) {
+            var options = { url: config.userSvcUrl + '/user', json: mockUser, jar: cookieJar };
+            testUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toBeDefined();
+                return testUtils.qRequest('post', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('A user with that username already exists');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should throw a 403 if the new user is not in the requester\'s org', function(done) {
+            mockUser.org = 'o-4567';
+            var options = { url: config.userSvcUrl + '/user', json: mockUser, jar: cookieJar };
+            testUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(403);
+                expect(resp.body).toBe('Cannot create users outside of your organization');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
         });
         
         it('should throw a 401 error if the user is not authenticated', function(done) {
@@ -250,13 +324,127 @@ describe('user (E2E):', function() {
     });
     
     describe('PUT /api/user/:id', function() {
-    
+        var start = new Date(),
+            mockUsers, updates;
+        beforeEach(function(done) {
+            mockUsers = [
+                {
+                    id: 'e2e-put1',
+                    username: 'abcd',
+                    password: 'secret',
+                    org: 'o-1234',
+                    tag: 'foo',
+                    created: start
+                },
+                {
+                    id: 'e2e-put2',
+                    username: 'defg',
+                    password: 'secret',
+                    org: 'o-4567',
+                    tag: 'baz',
+                    created: start
+                }
+            ];
+            testUtils.resetCollection('users', mockUsers).done(done);
+            updates = { tag: 'bar' };
+        });
+        
+        it('should successfully update a user', function(done) {
+            var options = {
+                url: config.userSvcUrl + '/user/e2e-put1',
+                json: updates,
+                jar: cookieJar
+            };
+            testUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                var user = resp.body;
+                expect(user.id).toBe('e2e-put1');
+                expect(user.username).toBe('abcd');
+                expect(user.password).not.toBeDefined();
+                expect(user.tag).toBe('bar');
+                expect(new Date(user.lastUpdated)).toBeGreaterThan(new Date(user.created));
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should throw a 404 if the user does not exist', function(done) {
+            var options = {
+                url: config.userSvcUrl + '/user/e2e-fake',
+                json: updates,
+                jar: cookieJar
+            };
+            testUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toBe('That user does not exist');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should throw a 403 if the requester is not authorized to edit the user', function(done) {
+            var options = {
+                url: config.userSvcUrl + '/user/e2e-put2',
+                json: updates,
+                jar: cookieJar
+            };
+            testUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(403);
+                expect(resp.body).toBe('Not authorized to edit this user');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should prune out illegal fields from the update object', function(done) {
+            updates.id = 'e2e-different';
+            updates.org = 'o-4567';
+            var options = {
+                url: config.userSvcUrl + '/user/e2e-put1',
+                json: updates,
+                jar: cookieJar
+            };
+            testUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                var user = resp.body;
+                expect(user.id).toBe('e2e-put1');
+                expect(user.password).not.toBeDefined();
+                expect(user.org).toBe('o-1234');
+                expect(new Date(user.lastUpdated)).toBeGreaterThan(new Date(user.created));
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should throw a 400 if all the updates were illegal', function(done) {
+            var options = {
+                url: config.userSvcUrl + '/user/e2e-put1',
+                json: { password: 'newpass' },
+                jar: cookieJar
+            };
+            testUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('All those updates were illegal');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
     
         it('should throw a 401 error if the user is not authenticated', function(done) {
             var options = { url: config.userSvcUrl + '/user/e2e-fake' };
             testUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
-                expect(resp.body).toBe("Unauthorized");
+                expect(resp.body).toBe('Unauthorized');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -266,8 +454,90 @@ describe('user (E2E):', function() {
     });
     
     describe('DELETE /api/user/:id', function() {
-   
-   
+        var mockUsers;
+        beforeEach(function(done) {
+            mockUsers = [
+                { id: 'e2e-delete1', username: 'abcd', password: 'thisisasecret', org: 'o-1234' },
+                { id: 'e2e-delete2', username: 'defg', password: 'thisisasecret', org: 'o-4567' }
+            ];
+            testUtils.resetCollection('users', mockUsers).done(done);
+        });
+        
+        it('should successfully mark a user as deleted', function(done) {
+            var options = { url: config.userSvcUrl + '/user/e2e-delete1', jar: cookieJar };
+            testUtils.qRequest('del', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBe('Success');
+                options = { url: config.userSvcUrl + '/user/e2e-delete1', jar: cookieJar };
+                return testUtils.qRequest('get', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.status).toBe('deleted');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should still succeed if the user does not exist', function(done) {
+            var options = { url: config.userSvcUrl + '/user/e2e-fake', jar: cookieJar };
+            testUtils.qRequest('del', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBe('Success');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should still succeed if the user has already been deleted', function(done) {
+            var options = { url: config.userSvcUrl + '/user/e2e-delete1', jar: cookieJar };
+            testUtils.qRequest('del', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBe('Success');
+                options = { url: config.userSvcUrl + '/user/e2e-delete1', jar: cookieJar };
+                return testUtils.qRequest('del', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBe('Success');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should not allow a user to delete themselves', function(done) {
+            var options = { url: config.userSvcUrl + '/user/e2e-user', jar: cookieJar };
+            testUtils.qRequest('del', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('You cannot delete yourself');
+                options = { url: config.userSvcUrl + '/user/e2e-user', jar: cookieJar };
+                return testUtils.qRequest('get', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.status).toBe('active');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should throw a 403 if the requester is not authorized to delete the user', function(done) {
+            var options = { url: config.userSvcUrl + '/user/e2e-delete2', jar: cookieJar };
+            testUtils.qRequest('del', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(403);
+                expect(resp.body).toBe('Not authorized to delete this user');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+    
         it('should throw a 401 error if the user is not authenticated', function(done) {
             var options = { url: config.userSvcUrl + '/user/e2e-fake' };
             testUtils.qRequest('del', options).then(function(resp) {

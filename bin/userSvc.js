@@ -138,7 +138,7 @@
                 read: 'own',
                 edit: 'own'
             },
-            org: {
+            orgs: {
                 read: 'own'
             }
         };
@@ -180,7 +180,8 @@
                     body: 'A user with that username already exists'
                 });
             }
-            if (requester.org !== newUser.org && requester.permissions.users.create !== 'all') {
+            if (newUser.org && (requester.org !== newUser.org) &&
+                requester.permissions.users.create !== 'all') {
                 log.warn('[%1] User %2 in org %3 cannot create users in org %4',
                          req.uuid, requester.id, requester.org, newUser.org);
                 return deferred.resolve({

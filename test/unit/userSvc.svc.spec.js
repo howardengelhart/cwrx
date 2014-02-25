@@ -262,7 +262,7 @@ describe('userSvc (UT)', function() {
                 expect(newUser.permissions).toEqual({
                     experiences: { read: 'own', create: 'own', edit: 'own', delete: 'own' },
                     users: { read: 'own', edit: 'own' },
-                    org: { read: 'own' }
+                    orgs: { read: 'own' }
                 });
                 expect(newUser.password).toBe('fakeHash');
                 done();
@@ -289,7 +289,7 @@ describe('userSvc (UT)', function() {
                 expect(newUser.permissions).toEqual({
                     experiences: { read: 'all', create: 'own', edit: 'own', delete: 'own' },
                     users: { read: 'org', edit: 'own', delete: 'own' },
-                    org: { read: 'own' }
+                    orgs: { read: 'own' }
                 });
                 expect(newUser.password).toBe('fakeHash');
                 done();
@@ -322,10 +322,11 @@ describe('userSvc (UT)', function() {
                     cb();
                 })
             };
-            req.body = { username: 'test', password: 'pass', org: 'o-1234' };
+            req.body = { username: 'test', password: 'pass'};
             req.user = { id: 'u-1234', org: 'o-1234' };
             spyOn(userSvc, 'setupUser').andCallFake(function(target, requester) {
                 target.password = 'hashPass';
+                if (!target.org) target.org = requester.org;
                 return q();
             });
             spyOn(mongoUtils, 'safeUser').andCallThrough();
@@ -405,7 +406,7 @@ describe('userSvc (UT)', function() {
         });
         
         it('should reject with a 403 if the target user is not in the same org', function(done) {
-            req.user.org = 'o-4567';
+            req.body.org = 'o-4567';
             req.user.permissions = { users: { create: 'org' } };
             userSvc.createUser(req, userColl).then(function(resp) {
                 expect(resp).toBeDefined();
@@ -421,16 +422,16 @@ describe('userSvc (UT)', function() {
         });
         
         it('should allow an admin to create users in a different org', function(done) {
-            req.user.org = 'o-4567';
+            req.body.org = 'o-4567';
             req.user.permissions = { users: { create: 'all' } };
             userSvc.createUser(req, userColl).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(201);
-                expect(resp.body).toEqual({username: 'test', org: 'o-1234'});
+                expect(resp.body).toEqual({username: 'test', org: 'o-4567'});
                 expect(userColl.findOne).toHaveBeenCalled();
                 expect(userColl.insert).toHaveBeenCalled();
                 expect(mongoUtils.safeUser)
-                    .toHaveBeenCalledWith({username: 'test', org: 'o-1234', password: 'hashPass'});
+                    .toHaveBeenCalledWith({username: 'test', org: 'o-4567', password: 'hashPass'});
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
