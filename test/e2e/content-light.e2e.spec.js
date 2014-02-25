@@ -3,8 +3,7 @@ var q           = require('q'),
     host        = process.env['host'] || 'localhost',
     config      = {
         contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api/content',
-        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth',
-        maintUrl    : 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint'
+        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
 
 jasmine.getEnv().defaultTimeoutInterval = 5000;
@@ -19,7 +18,8 @@ describe('content-light (E2E):', function() {
             },
             testUser = {
                 username: "content-lightE2EUser",
-                password: "password"
+                password: "password",
+                e2e: true
             },
             currExp;
         

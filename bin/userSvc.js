@@ -22,7 +22,7 @@
     state.defaultConfig = {
         appDir: __dirname,
         caches : {
-            run     : path.normalize('/usr/local/share/cwrx/user/caches/run/'),
+            run     : path.normalize('/usr/local/share/cwrx/userSvc/caches/run/'),
         },
         cacheTTLs: {  // units here are minutes
             users: 30 // authUtils + service use same cache
@@ -32,7 +32,7 @@
             maxAge: 14*24*60*60*1000, // 14 days; unit here is milliseconds
             db: 'sessions'
         },
-        secretsPath: path.join(process.env.HOME,'.user.secrets.json'),
+        secretsPath: path.join(process.env.HOME,'.userSvc.secrets.json'),
         mongo: {
             host: 'localhost',
             port: 27017,
@@ -58,6 +58,10 @@
 
         log.info('[%1] User %2 is attempting to get user %3', req.uuid, requester.id, id);
         return authUtils.getUser(id, state.db).then(function(userAccount) {
+            if (!userAccount) {
+                log.info('[%1] No user with id %2 found', req.uuid, id);
+                return q({code: 200, body: {}});
+            }
             log.trace('[%1] Retrieved document for user %2', req.uuid, id);
             if (userSvc.checkScope(requester, userAccount, 'read')) {
                 log.info('[%1] Returning user document %2 for user %3', req.uuid, id, requester.id);
@@ -98,7 +102,8 @@
             var users = results.filter(function(result) {
                 return userSvc.checkScope(req.user, result, 'read');
             });
-            log.info('[%1] Showing the user %2 user documents', req.uuid, users.length);
+            users = users.map(mongoUtils.safeUser);
+            log.info('[%1] Showing the requester %2 user documents', req.uuid, users.length);
             return q({code: 200, body: users});
         }).catch(function(error) {
             log.error('[%1] Error getting users: %2', req.uuid, error);
@@ -372,7 +377,7 @@
         var queryCache = new QueryCache(state.config.cacheTTLs.users, users);
         
         var authGetUser = authUtils.middlewarify(state.db, {users: 'read'});
-        app.get('/api/user/:id', authGetUser, function(req, res/*, next*/) {
+        app.get('/api/userSvc/user/:id', authGetUser, function(req, res/*, next*/) {
             userSvc.getUser(req, state)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -384,7 +389,7 @@
             });
         });
         
-        app.get('/api/users', authGetUser, function(req, res/*, next*/) {
+        app.get('/api/userSvc/users', authGetUser, function(req, res/*, next*/) {
             if (!req.query || !req.query.org) {
                 log.info('[%1] Cannot GET /api/users without org specified',req.uuid);
                 return res.send(400, 'Must specify org param');
@@ -401,7 +406,7 @@
         });
         
         var authPostUser = authUtils.middlewarify(state.db, {users: 'create'});
-        app.post('/api/user', authPostUser, function(req, res/*, next*/) {
+        app.post('/api/userSvc/user', authPostUser, function(req, res/*, next*/) {
             userSvc.createUser(req, users)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -414,7 +419,7 @@
         });
         
         var authPutUser = authUtils.middlewarify(state.db, {users: 'edit'});
-        app.put('/api/user/:id', authPutUser, function(req, res/*, next*/) {
+        app.put('/api/userSvc/user/:id', authPutUser, function(req, res/*, next*/) {
             userSvc.updateUser(req, users)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -427,7 +432,7 @@
         });
         
         var authDelUser = authUtils.middlewarify(state.db, {users: 'delete'});
-        app.delete('/api/user/:id', authDelUser, function(req, res/*, next*/) {
+        app.delete('/api/userSvc/user/:id', authDelUser, function(req, res/*, next*/) {
             userSvc.deleteUser(req, users)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -439,7 +444,7 @@
             });
         });
         
-        app.get('/api/user/meta', function(req, res/*, next*/){
+        app.get('/api/userSvc/meta', function(req, res/*, next*/){
             var data = {
                 version: state.config.appVersion,
                 started : started.toISOString(),

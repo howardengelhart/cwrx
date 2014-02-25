@@ -1,5 +1,5 @@
 var flush = true;
-describe('user (UT)', function() {
+describe('userSvc (UT)', function() {
     var mockLog, mockLogger, req, uuid, logger, bcrypt, userSvc, q, QueryCache, mongoUtils;
     
     beforeEach(function() {
@@ -7,7 +7,7 @@ describe('user (UT)', function() {
         uuid        = require('../../lib/uuid');
         logger      = require('../../lib/logger');
         bcrypt      = require('bcrypt');
-        userSvc     = require('../../bin/user');
+        userSvc     = require('../../bin/userSvc');
         QueryCache  = require('../../lib/queryCache');
         mongoUtils  = require('../../lib/mongoUtils'),
         q           = require('q');
@@ -84,12 +84,12 @@ describe('user (UT)', function() {
             req.params = { id: 'u-4567' };
             req.user = { id: 'u-1234' };
             state = { db: 'fakeDb' };
-            delete require.cache[require.resolve('../../bin/user')];
+            delete require.cache[require.resolve('../../bin/userSvc')];
             authGetUser = jasmine.createSpy('authUtils.getUser').andReturn(q('fakeUser'));
             require.cache[require.resolve('../../lib/authUtils')] = { exports: function() {
                 return { getUser: authGetUser };
             } }
-            userSvc = require('../../bin/user');
+            userSvc = require('../../bin/userSvc');
             spyOn(userSvc, 'checkScope').andReturn(true);
         });
         
@@ -146,17 +146,25 @@ describe('user (UT)', function() {
                 limit: 20,
                 skip: 10
             };
-            cache = { getPromise: jasmine.createSpy('cache.getPromise').andReturn(q(['fakeUser']))};
+            cache = {
+                getPromise: jasmine.createSpy('cache.getPromise').andReturn(q([{id:'1'}, {id:'2'}]))
+            };
             spyOn(userSvc, 'checkScope').andReturn(true);
+            spyOn(mongoUtils, 'safeUser').andCallThrough();
         });
         
         it('should call cache.getPromise to get users', function(done) {
             userSvc.getUsersByOrg(req, cache).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
-                expect(resp.body).toEqual(['fakeUser']);
+                expect(resp.body).toEqual([{id:'1'}, {id:'2'}]);
                 expect(cache.getPromise).toHaveBeenCalledWith({org: 'o-1234'}, {id: 1}, 20, 10);
-                expect(userSvc.checkScope).toHaveBeenCalledWith({id: 'u-1234'}, 'fakeUser', 'read');
+                expect(userSvc.checkScope.calls.length).toBe(2);
+                expect(userSvc.checkScope.calls[0].args).toEqual([{id: 'u-1234'}, {id:'1'}, 'read']);
+                expect(userSvc.checkScope.calls[1].args).toEqual([{id: 'u-1234'}, {id:'2'}, 'read']);
+                expect(mongoUtils.safeUser.calls.length).toBe(2);
+                expect(mongoUtils.safeUser.calls[0].args[0]).toEqual({id:'1'});
+                expect(mongoUtils.safeUser.calls[1].args[0]).toEqual({id:'2'});
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -169,8 +177,9 @@ describe('user (UT)', function() {
             userSvc.getUsersByOrg(req, cache).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
-                expect(resp.body).toEqual(['fakeUser']);
+                expect(resp.body).toEqual([{id:'1'}, {id:'2'}]);
                 expect(cache.getPromise).toHaveBeenCalledWith({org: 'o-1234'}, {}, 0, 0);
+                expect(mongoUtils.safeUser.calls.length).toBe(2);
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -179,19 +188,20 @@ describe('user (UT)', function() {
         });
         
         it('should only show users the requester is allowed to see', function(done) {
-            cache.getPromise.andReturn(q(['fake1', 'fake2']));
             userSvc.checkScope.andCallFake(function(requester, target, verb) {
-                if (target === 'fake1') return false;
+                if (target.id === '1') return false;
                 else return true;
             });
             userSvc.getUsersByOrg(req, cache).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
-                expect(resp.body).toEqual(['fake2']);
+                expect(resp.body).toEqual([{id:'2'}]);
                 expect(cache.getPromise).toHaveBeenCalled();
                 expect(userSvc.checkScope.calls.length).toBe(2);
-                expect(userSvc.checkScope.calls[0].args).toEqual([{id: 'u-1234'}, 'fake1', 'read']);
-                expect(userSvc.checkScope.calls[1].args).toEqual([{id: 'u-1234'}, 'fake2', 'read']);
+                expect(userSvc.checkScope.calls[0].args).toEqual([{id: 'u-1234'}, {id:'1'}, 'read']);
+                expect(userSvc.checkScope.calls[1].args).toEqual([{id: 'u-1234'}, {id:'2'}, 'read']);
+                expect(mongoUtils.safeUser.calls.length).toBe(1);
+                expect(mongoUtils.safeUser.calls[0].args[0]).toEqual({id:'2'});
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -218,9 +228,10 @@ describe('user (UT)', function() {
             userSvc.getUsersByOrg(req, cache).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
-                expect(resp.body).toEqual(['fakeUser']);
+                expect(resp.body).toEqual([{id:'1'}, {id:'2'}]);
                 expect(mockLog.warn).toHaveBeenCalled();
                 expect(cache.getPromise).toHaveBeenCalledWith({org: 'o-1234'}, {}, 20, 10);
+                expect(mongoUtils.safeUser.calls.length).toBe(2);
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -384,6 +395,8 @@ describe('user (UT)', function() {
                 expect(userColl.insert).toHaveBeenCalled();
                 expect(userColl.insert.calls[0].args[0]).toBe(req.body);
                 expect(userColl.insert.calls[0].args[1]).toEqual({w: 1, journal: true});
+                expect(mongoUtils.safeUser)
+                    .toHaveBeenCalledWith({username: 'test', org: 'o-1234', password: 'hashPass'});
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -416,6 +429,8 @@ describe('user (UT)', function() {
                 expect(resp.body).toEqual({username: 'test', org: 'o-1234'});
                 expect(userColl.findOne).toHaveBeenCalled();
                 expect(userColl.insert).toHaveBeenCalled();
+                expect(mongoUtils.safeUser)
+                    .toHaveBeenCalledWith({username: 'test', org: 'o-1234', password: 'hashPass'});
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -548,6 +563,7 @@ describe('user (UT)', function() {
                 expect(updates.$set.foo).toBe('bar');
                 expect(updates.$set.lastUpdated instanceof Date).toBeTruthy('lastUpdated is Date');
                 expect(userColl.findAndModify.calls[0].args[3]).toEqual({w:1,journal:true,new:true});
+                expect(mongoUtils.safeUser).toHaveBeenCalledWith({ id: 'u-4567', updated: true });
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -652,7 +668,6 @@ describe('user (UT)', function() {
             req.user = { id: 'u-1234' };
             spyOn(userSvc, 'checkScope').andReturn(true);
             spyOn(userSvc, 'formatUpdates').andCallThrough();
-            spyOn(mongoUtils, 'safeUser').andCallThrough();
         });
         
         it('should fail if the user is trying to delete themselves', function(done) {

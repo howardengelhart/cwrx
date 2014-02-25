@@ -2,8 +2,7 @@ var q           = require('q'),
     testUtils   = require('./testUtils'),
     host        = process.env['host'] || 'localhost',
     config      = {
-        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth',
-        maintUrl    : 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint'
+        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
 
 jasmine.getEnv().defaultTimeoutInterval = 5000;

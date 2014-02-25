@@ -3,8 +3,7 @@ var q           = require('q'),
     host        = process.env['host'] || 'localhost',
     config      = {
         contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api/content',
-        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth',
-        maintUrl    : 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint'
+        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
 
 jasmine.getEnv().defaultTimeoutInterval = 5000;
@@ -53,8 +52,7 @@ describe('content (E2E):', function() {
                 id: "e2e-pubget1",
                 title: "test experience",
                 access: "public",
-                status: "active",
-                e2e: true
+                status: "active"
             };
             testUtils.resetCollection('experiences', mockExp).done(done);
         });
@@ -115,7 +113,6 @@ describe('content (E2E):', function() {
             };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(typeof resp.body).toBe('object');
                 expect(resp.body).toEqual({});
                 done();
             }).catch(function(error) {
@@ -211,7 +208,7 @@ describe('content (E2E):', function() {
             });
         });
         
-        it('should throw a 401 error if the user is not authorized', function(done) {
+        it('should throw a 401 error if the user is not authenticated', function(done) {
             var options = {
                 url: config.contentUrl + '/experiences?user=e2e-user'
             };
@@ -307,7 +304,7 @@ describe('content (E2E):', function() {
             }); 
         });
         
-        it('should throw a 401 error if the user is not authorized', function(done) {
+        it('should throw a 401 error if the user is not authenticated', function(done) {
             var options = {
                 url: config.contentUrl + '/experience',
                 json: mockExp
@@ -406,7 +403,7 @@ describe('content (E2E):', function() {
             });
         });
         
-        it('should throw a 401 error if the user is not authorized', function(done) {
+        it('should throw a 401 error if the user is not authenticated', function(done) {
             var options = {
                 url: config.contentUrl + '/experience/e2e-put1',
                 json: { title: 'newTitle' }
@@ -498,7 +495,7 @@ describe('content (E2E):', function() {
             });
         });
         
-        it('should throw a 401 error if the user is not authorized', function(done) {
+        it('should throw a 401 error if the user is not authenticated', function(done) {
             testUtils.qRequest('del', {url: config.contentUrl + '/experience/e2e-del1'})
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
