@@ -1,6 +1,6 @@
 (function(){
     'use strict';
-    
+
     var q           = require('q'),
         fs          = require('fs-extra'),
         express     = require('express'),
@@ -63,7 +63,7 @@
                 opts.port = 80;
             }
         }
-        
+
         req = server.request(opts,function(res){
             var data = '';
             res.setEncoding('utf8');
@@ -106,14 +106,14 @@
         .then(function(params){
             if (params.checkProcess){
                 params.checks++;
-                return app.checkProcess(params.checkProcess); 
+                return app.checkProcess(params.checkProcess);
             }
             return params;
         })
         .then(function(params){
             if (params.checkHttp){
                 params.checks++;
-                return app.checkHttp(params.checkHttp); 
+                return app.checkHttp(params.checkHttp);
             }
             return params;
         })
@@ -139,12 +139,12 @@
 
     app.main = function(state){
         var log = logger.getLog(), webServer;
-        
+
         if (state.clusterMaster){
             log.info('Cluster master, not a worker');
             return state;
         }
-        
+
         webServer = express();
         webServer.use(express.bodyParser());
 
