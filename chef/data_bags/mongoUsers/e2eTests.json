@@ -1,0 +1,9 @@
+{
+  "id": "e2eTests",
+  "data": {
+    "encrypted_data": "E5K6rT0EthFzTaZw6kz6xgtnhzrVVGzrQgJ9LqyP/SqcOdmShXkyNDxRL9ON\n13WLRHGxLCbBJ7ZfqhZBZsJ6ZWoUSScXcF8ZomyR6kITQ02mQ2vByF7gRQqs\npFuqTapg\n",
+    "iv": "71AEq5MQgX6x5fcsJuAurg==\n",
+    "version": 1,
+    "cipher": "aes-256-cbc"
+  }
+}
