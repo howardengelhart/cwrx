@@ -28,24 +28,33 @@
     };
 
     app.checkProcess = function(params){
+        var log = logger.getLog();
+        log.trace('checkProcess - check pidPath %1 for %2',
+                params.checkProcess.pidPath, params.name);
         if (!fs.existsSync(params.checkProcess.pidPath)){
-            return q.reject(new Error('Unable to locate pid.'));
+            log.error('Unable to locate pidPath %1 for %2',
+                    params.checkProcess.pidPath, params.name);
+            var err = new Error('Process unavailable.');
+            err.httpCode = 503;
+            return q.reject(err);
         }
 
         var pid = parseInt(fs.readFileSync(params.checkProcess.pidPath));
+        log.trace('checkProcess - check pid %1 for %2', pid, params.name);
 
         try {
             process.kill(pid,0);
         } catch (e){
-            return q.reject(new Error('Unable to locate process.'));
+            var err = new Error('Process unavailable.');
+            err.httpCode = 503;
+            return q.reject(err);
         }
 
         return q(params);
-
     };
 
     app.checkHttp = function(params) {
-        var deferred = q.defer(), opts, req, server = http;
+        var log = logger.getLog(), deferred = q.defer(), server = http, opts, req;
         opts = {
             hostname : params.checkHttp.host || 'localhost',
             port     : params.checkHttp.port,
@@ -64,6 +73,7 @@
             }
         }
 
+        log.trace('checkHttp - check for %1: %2', params.name, JSON.stringify(opts));
         req = server.request(opts,function(res){
             var data = '';
             res.setEncoding('utf8');
@@ -71,9 +81,10 @@
                 data += chunk;
             });
             res.on('end',function(){
+                log.trace('checkHttp - %1 responds: %2', params.name, res.statusCode);
                 if ((res.statusCode < 200) || (res.statusCode >= 300)){
                     var err = new Error(data);
-                    err.httpCode = res.statusCode;
+                    err.httpCode = 502;
                     deferred.reject(err);
                     return;
                 }
@@ -91,6 +102,7 @@
         });
 
         req.on('error',function(e){
+            log.error('checkHttp - %1 error: %2', params.name, e.message);
             e.httpCode = 500;
             deferred.reject(e);
         });
@@ -106,14 +118,14 @@
         .then(function(params){
             if (params.checkProcess){
                 params.checks++;
-                return app.checkProcess(params.checkProcess);
+                return app.checkProcess(params);
             }
             return params;
         })
         .then(function(params){
             if (params.checkHttp){
                 params.checks++;
-                return app.checkHttp(params.checkHttp);
+                return app.checkHttp(params);
             }
             return params;
         })
@@ -137,6 +149,59 @@
         }));
     };
 
+    app.handleGetStatus = function(state, req,res){
+        var log = logger.getLog();
+
+        return app.checkServices(state.services).timeout(state.requestTimeout,'ETIMEOUT')
+            .then(function(){
+                res.send(200,'OK');
+            })
+            .catch(function(e){
+                if (e.message === 'ETIMEOUT'){
+                    e.httpCode = 504;
+                    e.message = 'Request timed out.';
+                }
+                log.info('[%1] - caught error: (%2) %3', req.uuid, e.httpCode, e.message);
+                res.send(e.httpCode || 500, e.message);
+            });
+    };
+
+    app.verifyConfiguration = function(state){
+        if (!state.services || !state.services.length){
+            return q.reject(new Error('monitor needs at least one service to monitor.'));
+        }
+
+        var reason;
+
+        if (!state.services.every(function(service,index){
+            if (!service.name){
+                reason = 'Service at index ' + index + ' requires a name.';
+                return false;
+            }
+
+            if (!service.checkProcess && !service.checkHttp){
+                reason = 'Service ' + service.name + ' requires checkProcess or checkHttp.';
+                return false;
+            }
+
+            if (service.checkProcess && !service.checkProcess.pidPath){
+                reason = 'Service ' + service.name + ' requires pidPath for checkProcess.';
+                return false;
+            }
+
+            if (service.checkHttp && !service.checkHttp.path){
+                reason = 'Service ' + service.name + ' requires path for checkHttp.';
+                return false;
+            }
+
+            return true;
+        })) {
+            return q.reject(new Error(reason));
+        }
+
+        return q(state);
+    };
+
     app.main = function(state){
         var log = logger.getLog(), webServer;
 
@@ -149,40 +214,30 @@
         webServer.use(express.bodyParser());
 
         webServer.all('*', function(req, res, next) {
-            res.header('Access-Control-Allow-Origin', '*');
             res.header('Access-Control-Allow-Headers',
                        'Origin, X-Requested-With, Content-Type, Accept');
             res.header('cache-control', 'max-age=0');
-
-            if (req.method.toLowerCase() === 'options') {
-                res.send(200);
-            } else {
-                next();
-            }
+            next();
         });
 
         webServer.all('*',function(req, res, next){
             req.uuid = uuid.createUuid().substr(0,10);
-            if (!req.headers['user-agent'] ||
-                    !req.headers['user-agent'].match(/^ELB-HealthChecker/)) {
-                log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
-                    req.method,req.url,req.httpVersion);
-            } else {
-                log.trace('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
-                    req.method,req.url,req.httpVersion);
-            }
+            log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
+                req.method,req.url,req.httpVersion);
             next();
         });
 
-        setInterval(function(){
-            log.info('I am logging');
-        },1000);
+        webServer.get('/api/status',function(req, res){
+            app.handleGetStatus(state, req, res);
+        });
+
     };
 
     if (!__ut__){
         service.start(state)
         .then(service.parseCmdLine)
         .then(service.configure)
+        .then(app.verifyConfiguration)
         .then(service.prepareServer)
         .then(service.daemonize)
         .then(service.cluster)

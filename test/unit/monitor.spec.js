@@ -33,6 +33,7 @@ describe('monitor',function(){
         mockHttpRes = {
             _on     : {},
             on          : jasmine.createSpy('httpRes.on'),
+            send        : jasmine.createSpy('httpRes.send'),
             setEncoding : jasmine.createSpy('httpRes.setEncoding')
         };
 
@@ -105,7 +106,7 @@ describe('monitor',function(){
             .finally(function(){
                 expect(resolveSpy).not.toHaveBeenCalled();
                 expect(rejectSpy).toHaveBeenCalled();
-                expect(rejectSpy.mostRecentCall.args[0].httpCode).toEqual(400);
+                expect(rejectSpy.mostRecentCall.args[0].httpCode).toEqual(502);
                 expect(rejectSpy.mostRecentCall.args[0].message).toEqual('This is an error.');
             })
             .done(done);
@@ -186,7 +187,7 @@ describe('monitor',function(){
                 expect(resolveSpy).not.toHaveBeenCalled();
                 expect(rejectSpy).toHaveBeenCalled();
                 expect(rejectSpy.mostRecentCall.args[0].message)
-                    .toEqual('Unable to locate pid.');
+                    .toEqual('Process unavailable.');
             })
             .done(done);
         });
@@ -199,7 +200,7 @@ describe('monitor',function(){
                 expect(resolveSpy).not.toHaveBeenCalled();
                 expect(rejectSpy).toHaveBeenCalled();
                 expect(rejectSpy.mostRecentCall.args[0].message)
-                    .toEqual('Unable to locate pid.');
+                    .toEqual('Process unavailable.');
             })
             .done(done);
         });
@@ -217,7 +218,7 @@ describe('monitor',function(){
                 expect(resolveSpy).not.toHaveBeenCalled();
                 expect(rejectSpy).toHaveBeenCalled();
                 expect(rejectSpy.mostRecentCall.args[0].message)
-                    .toEqual('Unable to locate process.');
+                    .toEqual('Process unavailable.');
             })
             .done(done);
         });
@@ -390,7 +391,7 @@ describe('monitor',function(){
 
         it('will reject if any of the service checks fail',function(done){
             app.checkProcess.andCallFake(function(p){ 
-                if (p.pidPath === 'pidPath_serviceB'){
+                if (p.checkProcess.pidPath === 'pidPath_serviceB'){
                     return q.reject({ message : 'FAIL!', httpCode : 500});
                 }
                 return q(p); 
@@ -407,6 +408,219 @@ describe('monitor',function(){
         });
     });
     /* checkServices -- end */
+    
+    /* handleGetStatus -- begin */
+    describe('handleGetStatus',function(){
+        var state;
+        beforeEach(function(){
+            resolveSpy = jasmine.createSpy('handleGetStatus.resolve');
+            rejectSpy  = jasmine.createSpy('handleGetStatus.reject');
+            
+            spyOn(app,'checkProcess');
+            spyOn(app,'checkHttp');
+            
+            state = {
+                services : [
+                    {
+                        name         : 'serviceA',
+                        checkHttp    : { host : 'host', port : 'port', path : 'path' },
+                        checkProcess : { pidPath : 'pidPath' }
+                    },
+                    {
+                        name         : 'serviceB',
+                        checkProcess : { pidPath : 'pidPath_serviceB' }
+                    },
+                    {
+                        name         : 'serviceC',
+                        checkHttp    : { host : 'host', port : 'port', path : 'path' },
+                    }
+                ]
+            };
+
+        });
+
+        it('will generate a 200 response if the check succeeds',function(done){
+            app.checkProcess.andCallFake(function(p){ return q(p); });
+            app.checkHttp.andCallFake(function(p){ return q(p); });
+            app.handleGetStatus(state,mockHttpReq,mockHttpRes)
+            .then(resolveSpy,rejectSpy)
+            .finally(function(){
+                expect(resolveSpy).toHaveBeenCalled();
+                expect(rejectSpy).not.toHaveBeenCalled();
+                expect(mockHttpRes.send).toHaveBeenCalledWith(200,'OK');
+            })
+            .done(done);
+        });
+        
+        it('will generate a 502 response if an http check fails', function(done){
+            app.checkProcess.andCallFake(function(p){ return q(p); });
+            app.checkHttp.andCallFake(function(p){ 
+                if (p.name === 'serviceC'){
+                    return q.reject({ httpCode : 502, message : 'Failed' });
+                }
+                return q(p); 
+            });
+            app.handleGetStatus(state,mockHttpReq,mockHttpRes)
+            .then(resolveSpy,rejectSpy)
+            .finally(function(){
+                expect(resolveSpy).toHaveBeenCalled();
+                expect(rejectSpy).not.toHaveBeenCalled();
+                expect(mockHttpRes.send).toHaveBeenCalledWith(502,'Failed');
+            })
+            .done(done);
+        });
+
+        it('will generate a 503 response if a checkProcess call fails', function(done){
+            app.checkProcess.andCallFake(function(p){
+                if (p.name === 'serviceB'){
+                    return q.reject({ httpCode : 503, message : 'Process unavailable' });
+                }
+                return q(p); 
+            });
+            app.checkHttp.andCallFake(function(p){ return q(p); });
+            app.handleGetStatus(state,mockHttpReq,mockHttpRes)
+            .then(resolveSpy,rejectSpy)
+            .finally(function(){
+                expect(resolveSpy).toHaveBeenCalled();
+                expect(rejectSpy).not.toHaveBeenCalled();
+                expect(mockHttpRes.send).toHaveBeenCalledWith(503,'Process unavailable');
+            })
+            .done(done);
+        });
+        
+        it('will generate a 504 response if a check times out', function(done){
+            app.checkProcess.andCallFake(function(p){ return q(p); });
+            app.checkHttp.andCallFake(function(p){ 
+                setTimeout(function(){
+                    return q(p); 
+                },2000);
+            });
+            state.requestTimeout = 1000;
+            app.handleGetStatus(state,mockHttpReq,mockHttpRes)
+            .then(resolveSpy,rejectSpy)
+            .finally(function(){
+                expect(resolveSpy).toHaveBeenCalled();
+                expect(rejectSpy).not.toHaveBeenCalled();
+                expect(mockHttpRes.send).toHaveBeenCalledWith(504,'Request timed out.');
+            })
+            .done(done);
+            jasmine.Clock.tick(1200);
+        });
+    });
+    /* handleGetStatus -- end */
+    
+    /* verifyConfiguration -- begin */
+    describe('verifyConfiguration',function(){
+        var state;
+        beforeEach(function(){
+            state = {};
+            resolveSpy = jasmine.createSpy('verifyConfiguration.resolve');
+            rejectSpy  = jasmine.createSpy('verifyConfiguration.reject');
+        });
+
+        it('will reject if there are no services',function(done){
+            app.verifyConfiguration({})
+            .then(resolveSpy,rejectSpy)
+            .finally(function(){
+                expect(resolveSpy).not.toHaveBeenCalled();
+                expect(rejectSpy).toHaveBeenCalled();
+                expect(rejectSpy.mostRecentCall.args[0].message)
+                    .toEqual('monitor needs at least one service to monitor.');
+            })
+            .done(done);
+        });
+
+        it('will reject if the services configs are empty',function(done){
+            app.verifyConfiguration({ services : [] })
+            .then(resolveSpy,rejectSpy)
+            .finally(function(){
+                expect(resolveSpy).not.toHaveBeenCalled();
+                expect(rejectSpy).toHaveBeenCalled();
+                expect(rejectSpy.mostRecentCall.args[0].message)
+                    .toEqual('monitor needs at least one service to monitor.');
+            })
+            .done(done);
+        });
+        
+        it('will reject if there is a service missing its name', function(done){
+            state.services = [
+                { name: 'serviceA', checkProcess : { pidPath : 'pidA' } },
+                { xame: 'serviceB', checkProcess : { pidPAth : 'pidB' } }
+            ];
+            app.verifyConfiguration(state)
+            .then(resolveSpy,rejectSpy)
+            .finally(function(){
+                expect(resolveSpy).not.toHaveBeenCalled();
+                expect(rejectSpy).toHaveBeenCalled();
+                expect(rejectSpy.mostRecentCall.args[0].message)
+                    .toEqual('Service at index 1 requires a name.');
+            })
+            .done(done);
+        });
+
+        it('will reject if there is an invalid service::checkProcess config', function(done){
+            state.services = [
+                { name: 'serviceA', checkProcess : { pidPath : 'pidA' } },
+                { name: 'serviceB', checkProcess : { pidPxxx : 'pidB' } }
+            ];
+            app.verifyConfiguration(state)
+            .then(resolveSpy,rejectSpy)
+            .finally(function(){
+                expect(resolveSpy).not.toHaveBeenCalled();
+                expect(rejectSpy).toHaveBeenCalled();
+                expect(rejectSpy.mostRecentCall.args[0].message)
+                    .toEqual('Service serviceB requires pidPath for checkProcess.');
+            })
+            .done(done);
+        });
+
+        it('will reject if there is an invalid service::checkHttp config', function(done){
+            state.services = [
+                { name: 'serviceA', checkHttp : { path : 'pidA' } },
+                { name: 'serviceB', checkHttp : {  } }
+            ];
+            app.verifyConfiguration(state)
+            .then(resolveSpy,rejectSpy)
+            .finally(function(){
+                expect(resolveSpy).not.toHaveBeenCalled();
+                expect(rejectSpy).toHaveBeenCalled();
+                expect(rejectSpy.mostRecentCall.args[0].message)
+                    .toEqual('Service serviceB requires path for checkHttp.');
+            })
+            .done(done);
+        });
+
+        it('will reject if there no valid service checks configured', function(done){
+            state.services = [
+                { name: 'serviceA', xxxckHttp : { path : 'pidA' } },
+                { name: 'serviceB', xxxckProcess : { pidPath : 'pidB' } }
+            ];
+            app.verifyConfiguration(state)
+            .then(resolveSpy,rejectSpy)
+            .finally(function(){
+                expect(resolveSpy).not.toHaveBeenCalled();
+                expect(rejectSpy).toHaveBeenCalled();
+                expect(rejectSpy.mostRecentCall.args[0].message)
+                    .toEqual('Service serviceA requires checkProcess or checkHttp.');
+            })
+            .done(done);
+        });
+
+        it('will resolve if there are valid service checks configured', function(done){
+            state.services = [
+                { name: 'serviceA', checkHttp : { path : 'pidA' } },
+                { name: 'serviceB', checkProcess : { pidPath : 'pidB' } }
+            ];
+            app.verifyConfiguration(state)
+            .then(resolveSpy,rejectSpy)
+            .finally(function(){
+                expect(resolveSpy).toHaveBeenCalled();
+                expect(rejectSpy).not.toHaveBeenCalled();
+            })
+            .done(done);
+        });
+    });
+    /* verifyConfiguration -- end */
 
 
 });
