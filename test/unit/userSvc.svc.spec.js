@@ -107,12 +107,26 @@ describe('userSvc (UT)', function() {
             });
         });
         
+        it('should return a 404 if the user is not found', function(done) {
+            authGetUser.andReturn(q());
+            userSvc.getUser(req, state).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(404);
+                expect(resp.body).toEqual({});
+                expect(authGetUser).toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
         it('should not return a user doc the requester cannot see', function(done) {
             userSvc.checkScope.andReturn(false);
             userSvc.getUser(req, state).then(function(resp) {
                 expect(resp).toBeDefined();
-                expect(resp.code).toBe(403);
-                expect(resp.body).toBe('Not authorized to get this user');
+                expect(resp.code).toBe(404);
+                expect(resp.body).toEqual({});
                 expect(userSvc.checkScope).toHaveBeenCalledWith({id: 'u-1234'}, 'fakeUser', 'read');
                 done();
             }).catch(function(error) {
@@ -368,13 +382,13 @@ describe('userSvc (UT)', function() {
             });
         });
         
-        it('should reject with a 400 if the user already exists', function(done) {
+        it('should reject with a 409 if the user already exists', function(done) {
             userColl.findOne.andCallFake(function(query, cb) {
                 cb(null, { id: 'u-4567', username: 'test' });
             });
             userSvc.createUser(req, userColl).then(function(resp) {
                 expect(resp).toBeDefined();
-                expect(resp.code).toBe(400);
+                expect(resp.code).toBe(409);
                 expect(resp.body).toEqual('A user with that username already exists');
                 expect(userColl.findOne).toHaveBeenCalled();
                 expect(userColl.insert).not.toHaveBeenCalled();

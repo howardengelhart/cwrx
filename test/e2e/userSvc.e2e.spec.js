@@ -281,14 +281,14 @@ describe('user (E2E):', function() {
             });
         });
         
-        it('should throw a 400 error if a user with that username exists', function(done) {
+        it('should throw a 409 error if a user with that username exists', function(done) {
             var options = { url: config.userSvcUrl + '/user', json: mockUser, jar: cookieJar };
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toBeDefined();
                 return testUtils.qRequest('post', options);
             }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
+                expect(resp.response.statusCode).toBe(409);
                 expect(resp.body).toBe('A user with that username already exists');
                 done();
             }).catch(function(error) {

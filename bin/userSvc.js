@@ -60,7 +60,7 @@
         return authUtils.getUser(id, state.db).then(function(userAccount) {
             if (!userAccount) {
                 log.info('[%1] No user with id %2 found', req.uuid, id);
-                return q({code: 200, body: {}});
+                return q({code: 404, body: {}});
             }
             log.trace('[%1] Retrieved document for user %2', req.uuid, id);
             if (userSvc.checkScope(requester, userAccount, 'read')) {
@@ -68,7 +68,7 @@
                 return q({code: 200, body: userAccount});
             } else {
                 log.info('[%1] User %2 is not authorized to get %3', req.uuid, requester.id, id);
-                return q({code: 403, body: 'Not authorized to get this user'});
+                return q({code: 404, body: {}});
             }
         }).catch(function(error) {
             log.error('[%1] Error retrieving user %2: %3',
@@ -176,7 +176,7 @@
             if (userAccount) {
                 log.info('[%1] User %2 already exists', req.uuid, req.body.username);
                 return deferred.resolve({
-                    code: 400,
+                    code: 409,
                     body: 'A user with that username already exists'
                 });
             }
