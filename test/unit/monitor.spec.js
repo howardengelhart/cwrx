@@ -1,5 +1,5 @@
 describe('monitor',function(){
-    var mockLogger, mockLog, mockHttp, mockHttps, mockHttpReq, mockHttpRes, mockFs,
+    var mockLogger, mockLog, mockHttp, mockHttps, mockHttpReq, mockHttpRes, mockFs, mockGlob,
         resolveSpy, rejectSpy, flush = true, app, q;
     
     beforeEach(function() {
@@ -8,6 +8,7 @@ describe('monitor',function(){
         jasmine.Clock.useMock();
         
         q           = require('q');
+        mockGlob    = require('glob');
         mockFs      = require('fs-extra');
         mockHttp    = require('http'),
         mockHttps   = require('https'),
@@ -46,11 +47,14 @@ describe('monitor',function(){
             mockHttpRes._on[eventName] = handler;
         });
 
+        spyOn(mockGlob,'Glob');
+
         spyOn(mockLogger,'createLog').andReturn(mockLog);
         spyOn(mockLogger,'getLog').andReturn(mockLog);
         
         spyOn(mockFs,'existsSync');
         spyOn(mockFs,'readFileSync');
+        spyOn(mockFs,'readJsonSync');
 
         spyOn(mockHttp,  'request').andReturn(mockHttpReq);
         spyOn(mockHttps, 'request').andReturn(mockHttpReq);
@@ -508,6 +512,56 @@ describe('monitor',function(){
         });
     });
     /* handleGetStatus -- end */
+    
+    /* loadMonitorProfiles  -- begin */
+    describe('loadMonitorProfiles', function(){
+        var state;
+        beforeEach(function(){
+            state = {};
+            resolveSpy = jasmine.createSpy('loadMonitorProfiles.resolve');
+            rejectSpy  = jasmine.createSpy('loadMonitorProfiles.reject');
+        });
+
+         it('uses the state.monitorInc setting to find files',function(done){
+            var globPattern;
+            mockGlob.Glob.andCallFake(function(pattern,callback){
+                callback([]);      
+            });
+            state.monitorInc = '/opt/sixxy/conf/*.mon';
+            app.loadMonitorProfiles(state)
+            .then(resolveSpy,rejectSpy)
+            .finally(function(){
+                expect(resolveSpy).toHaveBeenCalled();
+                expect(rejectSpy).not.toHaveBeenCalled();
+                expect(pattern).toEqual('/opt/sixxy/conf/*.mon');
+            })
+            .done(done);
+        });
+
+        it('adds the contents of the monitor files to the state.services array',function(done){
+            var globPattern;
+            mockGlob.Glob.andCallFake(function(pattern,callback){
+                callback(['fileA.json','fileB.json']);      
+            });
+            mockFs.readJsonSync.andCallFake(function(fpath){
+                if (fpath === 'fileA.json'){
+                    return { name : 'serviceA', checkProgress : {} };
+                }
+                return { name : 'serviceB', checkProgress : {} };
+            });
+            state.monitorInc = '/opt/sixxy/conf/*.mon';
+            app.loadMonitorProfiles(state)
+            .then(resolveSpy,rejectSpy)
+            .finally(function(){
+                expect(resolveSpy).toHaveBeenCalled();
+                expect(rejectSpy).not.toHaveBeenCalled();
+                expect(state.services.length).toEqual(2);
+            })
+            .done(done);
+        });
+
+    });
+    /* loadMonitorProfiles  -- end */
     
     /* verifyConfiguration -- begin */
     describe('verifyConfiguration',function(){

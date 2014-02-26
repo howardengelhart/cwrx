@@ -5,6 +5,7 @@
     var q           = require('q'),
         fs          = require('fs-extra'),
         express     = require('express'),
+        glob        = require('glob'),
         http        = require('http'),
         https       = require('https'),
         service     = require('../lib/service'),
@@ -25,7 +26,8 @@
         },
         pidFile : 'monitor.pid',
         pidDir  : './',
-        requestTimeout  : 2000
+        requestTimeout  : 2000,
+        monitorInc : './monitor.*.json'
     };
 
     app.checkProcess = function(params){
@@ -165,6 +167,30 @@
                 log.info('[%1] - caught error: (%2) %3', req.uuid, e.httpCode, e.message);
                 res.send(e.httpCode || 500, e.message);
             });
+    };
+
+    app.loadMonitorProfiles = function(state) {
+        var log = logger.getLog() deferred = q.defer(), g;
+        log.trace('Search %1 for monitor profiles',state.monitorInc);
+        g = new glob.Glob(state.monitorInc, function(err, files){
+            if (err) {
+                deferred.reject(err);
+                return;
+            }
+
+            if (!files){
+                deferred.resolve(state);
+                return;
+            }
+
+            state.services = [];
+            files.every(function(file){
+
+            });
+
+        });
+
+        return deferred.promise;
     };
 
     app.verifyConfiguration = function(state){
