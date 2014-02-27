@@ -1,6 +1,7 @@
 var flush = true;
 describe('userSvc (UT)', function() {
-    var mockLog, mockLogger, req, uuid, logger, bcrypt, userSvc, q, QueryCache, mongoUtils;
+    var mockLog, mockLogger, req, uuid, logger, bcrypt, userSvc, q, QueryCache, mongoUtils, enums,
+        Status, Scope;
     
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -9,8 +10,12 @@ describe('userSvc (UT)', function() {
         bcrypt      = require('bcrypt');
         userSvc     = require('../../bin/userSvc');
         QueryCache  = require('../../lib/queryCache');
+        Checker     = require('../../lib/checker');
         mongoUtils  = require('../../lib/mongoUtils'),
         q           = require('q');
+        enums       = require('../../lib/enums');
+        Status      = enums.Status;
+        Scope       = enums.Scope;
         
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -32,9 +37,9 @@ describe('userSvc (UT)', function() {
                 org: 'o-1234',
                 permissions: {
                     users: {
-                        read: 'all',
-                        edit: 'org',
-                        delete: 'own'
+                        read: Scope.All,
+                        edit: Scope.Org,
+                        delete: Scope.Own
                     }
                 }
             };
@@ -46,11 +51,9 @@ describe('userSvc (UT)', function() {
             expect(users.filter(function(target) {
                 return userSvc.checkScope(requester, target, 'read');
             })).toEqual(users);
-            
             expect(users.filter(function(target) {
                 return userSvc.checkScope(requester, target, 'edit');
             })).toEqual([users[0], users[1], users[2]]);
-            
             expect(users.filter(function(target) {
                 return userSvc.checkScope(requester, target, 'delete');
             })).toEqual([users[0], users[2]]);
@@ -59,22 +62,86 @@ describe('userSvc (UT)', function() {
         it('should sanity-check the user permissions object', function() {
             var target = { id: 'u-1' };
             expect(userSvc.checkScope({}, target, 'read')).toBe(false);
-            
             var requester = { id: 'u-1234', org: 'o-1234' };
             expect(userSvc.checkScope(requester, target, 'read')).toBe(false);
-            
             requester.permissions = {};
             expect(userSvc.checkScope(requester, target, 'read')).toBe(false);
-            
             requester.permissions.users = {};
-            requester.permissions.orgs = { read: 'all' };
+            requester.permissions.orgs = { read: Scope.All };
             expect(userSvc.checkScope(requester, target, 'read')).toBe(false);
-            
             requester.permissions.users.read = '';
             expect(userSvc.checkScope(requester, target, 'read')).toBe(false);
-            
-            requester.permissions.users.read = 'all';
+            requester.permissions.users.read = Scope.All;
             expect(userSvc.checkScope(requester, target, 'read')).toBe(true);
+        });
+    });
+    
+    describe('permsCheck', function() {
+        var updates, orig, requester;
+        beforeEach(function() {
+            updates = { permissions: { users: {} } };
+            orig = { id: 'u-2' };
+            requester = {
+                id: 'u-1',
+                permissions: {
+                    users: {
+                        read: Scope.Own,
+                        create: Scope.Org,
+                        edit: Scope.All
+                    }
+                }
+            };
+        });
+        
+        it('should return false if the requester has no perms', function() {
+            expect(userSvc.permsCheck(updates, orig, requester)).toBe(true);
+            delete requester.permissions;
+            expect(userSvc.permsCheck(updates, orig, requester)).toBe(false);
+        });
+        
+        it('should return false if the requester is trying to change their own perms', function() {
+            orig.id = 'u-1';
+            expect(userSvc.permsCheck(updates, orig, requester)).toBe(false);
+        });
+        
+        it('should return false if the updates\' perms exceed the requester\'s', function() {
+            spyOn(Scope, 'getVal').andCallThrough();
+            updates.permissions.users = { read: Scope.Org };
+            expect(userSvc.permsCheck(updates, orig, requester)).toBe(false);
+            updates.permissions.users = { read: Scope.All };
+            expect(userSvc.permsCheck(updates, orig, requester)).toBe(false);
+            updates.permissions.users = { create: Scope.All };
+            expect(userSvc.permsCheck(updates, orig, requester)).toBe(false);
+            updates.permissions.users = { edit: Scope.All };
+            expect(userSvc.permsCheck(updates, orig, requester)).toBe(true);
+            updates.permissions.users = { delete: Scope.Own };
+            expect(userSvc.permsCheck(updates, orig, requester)).toBe(false);
+            updates.permissions.users = { read: Scope.Own, create: Scope.Own, edit: Scope.Own };
+            expect(userSvc.permsCheck(updates, orig, requester)).toBe(true);
+            updates.permissions = { experiences: { read: Scope.Own } };
+            expect(userSvc.permsCheck(updates, orig, requester)).toBe(false);
+        });
+    });
+    
+    describe('createChecker', function() {
+        it('should have initialized correctly', function() {
+            spyOn(Checker, 'eqFieldFunc').andCallThrough();
+            spyOn(Checker, 'scopeFunc').andCallThrough();
+            delete require.cache[require.resolve('../../bin/userSvc')];
+            userSvc = require('../../bin/userSvc');
+
+            expect(userSvc.createChecker._forbidden).toEqual(['id', 'created']);
+            expect(userSvc.createChecker._condForbidden.org instanceof Array).toBeTruthy();
+            expect(userSvc.createChecker._condForbidden.org.length).toBe(2);
+            expect(Checker.eqFieldFunc).toHaveBeenCalledWith('org');
+            expect(Checker.scopeFunc).toHaveBeenCalledWith('users', 'create', Scope.All);
+        });
+    });
+    
+    describe('updateChecker', function() {
+        it('should have initalized correctly', function() {
+            expect(userSvc.updateChecker._forbidden).toEqual(['id', 'org', 'password', 'created']);
+            expect(userSvc.updateChecker._condForbidden.permissions).toBe(userSvc.permsCheck);
         });
     });
     
@@ -272,11 +339,11 @@ describe('userSvc (UT)', function() {
                 expect(newUser.created instanceof Date).toBeTruthy('created is a Date');
                 expect(newUser.lastUpdated).toEqual(newUser.created);
                 expect(newUser.org).toBe('o-1234');
-                expect(newUser.status).toBe('active');
+                expect(newUser.status).toBe(Status.Active);
                 expect(newUser.permissions).toEqual({
-                    experiences: { read: 'own', create: 'own', edit: 'own', delete: 'own' },
-                    users: { read: 'own', edit: 'own' },
-                    orgs: { read: 'own' }
+                    experiences: { read: Scope.Own, create: Scope.Own, edit: Scope.Own, delete: Scope.Own },
+                    users: { read: Scope.Own, edit: Scope.Own },
+                    orgs: { read: Scope.Own }
                 });
                 expect(newUser.password).toBe('fakeHash');
                 done();
@@ -288,10 +355,10 @@ describe('userSvc (UT)', function() {
         
         it('should intelligently merge the newUser fields with defaults', function(done) {
             newUser.org = 'o-4567';
-            newUser.status = 'pending';
+            newUser.status = Status.Pending;
             newUser.permissions = {
-                experiences: { read: 'all', create: 'own' },
-                users: { read: 'org', delete: 'own' }
+                experiences: { read: Scope.All, create: Scope.Own },
+                users: { read: Scope.Org, delete: Scope.Own }
             };
             userSvc.setupUser(newUser, requester).then(function() {
                 expect(newUser.id).toBe('u-1234567890abcd');
@@ -299,11 +366,11 @@ describe('userSvc (UT)', function() {
                 expect(newUser.created instanceof Date).toBeTruthy('created is a Date');
                 expect(newUser.lastUpdated).toEqual(newUser.created);
                 expect(newUser.org).toBe('o-4567');
-                expect(newUser.status).toBe('pending');
+                expect(newUser.status).toBe(Status.Pending);
                 expect(newUser.permissions).toEqual({
-                    experiences: { read: 'all', create: 'own', edit: 'own', delete: 'own' },
-                    users: { read: 'org', edit: 'own', delete: 'own' },
-                    orgs: { read: 'own' }
+                    experiences: { read: Scope.All, create: Scope.Own, edit: Scope.Own, delete: Scope.Own },
+                    users: { read: Scope.Org, edit: Scope.Own, delete: Scope.Own },
+                    orgs: { read: Scope.Own }
                 });
                 expect(newUser.password).toBe('fakeHash');
                 done();
@@ -344,6 +411,7 @@ describe('userSvc (UT)', function() {
                 return q();
             });
             spyOn(mongoUtils, 'safeUser').andCallThrough();
+            spyOn(userSvc.createChecker, 'check').andReturn(true);
         });
         
         it('should reject with a 400 if no user object is provided', function(done) {
@@ -406,6 +474,7 @@ describe('userSvc (UT)', function() {
                 expect(resp.body).toEqual({username: 'test', org: 'o-1234'});
                 expect(userColl.findOne).toHaveBeenCalled();
                 expect(userColl.findOne.calls[0].args[0]).toEqual({username: 'test'});
+                expect(userSvc.createChecker.check).toHaveBeenCalledWith(req.body, {}, req.user);
                 expect(userSvc.setupUser).toHaveBeenCalledWith(req.body, req.user);
                 expect(userColl.insert).toHaveBeenCalled();
                 expect(userColl.insert.calls[0].args[0]).toBe(req.body);
@@ -419,14 +488,14 @@ describe('userSvc (UT)', function() {
             });
         });
         
-        it('should reject with a 403 if the target user is not in the same org', function(done) {
-            req.body.org = 'o-4567';
-            req.user.permissions = { users: { create: 'org' } };
+        it('should reject with a 400 if the new user contains illegal fields', function(done) {
+            userSvc.createChecker.check.andReturn(false);
             userSvc.createUser(req, userColl).then(function(resp) {
                 expect(resp).toBeDefined();
-                expect(resp.code).toBe(403);
-                expect(resp.body).toEqual('Cannot create users outside of your organization');
+                expect(resp.code).toBe(400);
+                expect(resp.body).toEqual('Illegal fields');
                 expect(userColl.findOne).toHaveBeenCalled();
+                expect(userSvc.createChecker.check).toHaveBeenCalled();
                 expect(userColl.insert).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
@@ -437,7 +506,7 @@ describe('userSvc (UT)', function() {
         
         it('should allow an admin to create users in a different org', function(done) {
             req.body.org = 'o-4567';
-            req.user.permissions = { users: { create: 'all' } };
+            req.user.permissions = { users: { create: Scope.All } };
             userSvc.createUser(req, userColl).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(201);
@@ -495,38 +564,12 @@ describe('userSvc (UT)', function() {
         });
     });
     
-    describe('formatUpdates', function() {
-        var updates, orig, requester;
-        beforeEach(function() {
-            updates = { id: 'u-1', username: 'foo', org: 'o-1', permissions: 'fakePerms' };
-            orig = { id: 'u-1', org: 'o-1' };
-            requester = { id: 'u-2' };
-        });
-        
-        it('should convert the update object to a $set format', function() {
-            var newUpdates = userSvc.formatUpdates(updates, orig, requester, '1234');
-            expect(newUpdates).toEqual({ $set: updates });
-            expect(updates).toEqual({id:'u-1',username:'foo',org:'o-1',permissions:'fakePerms'});
-            expect(mockLog.warn).not.toHaveBeenCalled();
-        });
-        
-        it('should prune out illegal fields', function() {
-            updates = {id:'u-3',username:'foo',org:'o-2',permissions:'fakePerms',password:'pass'};
-            requester.id = 'u-1';
-            var newUpdates = userSvc.formatUpdates(updates, orig, requester, '1234');
-            expect(newUpdates).toEqual({ $set: updates });
-            expect(updates).toEqual({ username: 'foo' });
-            expect(mockLog.warn).toHaveBeenCalled();
-            expect(mockLog.warn.calls.length).toBe(4);
-        });
-    });
-    
     describe('updateUser', function() {
         var userColl;
         beforeEach(function() {
             userColl = {
                 findOne: jasmine.createSpy('users.findOne').andCallFake(function(query, cb) {
-                    cb(null, 'original');
+                    cb(null, {orig: 'yes'});
                 }),
                 findAndModify: jasmine.createSpy('users.findAndModify').andCallFake(
                     function(query, sort, obj, opts, cb) {
@@ -537,8 +580,8 @@ describe('userSvc (UT)', function() {
             req.params = { id: 'u-4567' };
             req.user = { id: 'u-1234' };
             spyOn(userSvc, 'checkScope').andReturn(true);
-            spyOn(userSvc, 'formatUpdates').andCallThrough();
             spyOn(mongoUtils, 'safeUser').andCallThrough();
+            spyOn(userSvc.updateChecker, 'check').andReturn(true);
         });
         
         it('should fail immediately if no update object is provided', function(done) {
@@ -567,9 +610,9 @@ describe('userSvc (UT)', function() {
                 expect(resp.body).toEqual({ id: 'u-4567', updated: true });
                 expect(userColl.findOne).toHaveBeenCalled();
                 expect(userColl.findOne.calls[0].args[0]).toEqual({id: 'u-4567'});
-                expect(userSvc.checkScope).toHaveBeenCalledWith({id: 'u-1234'}, 'original', 'edit');
-                expect(userSvc.formatUpdates)
-                    .toHaveBeenCalledWith(req.body, 'original', {id: 'u-1234'}, '1234');
+                expect(userSvc.checkScope).toHaveBeenCalledWith({id: 'u-1234'}, {orig: 'yes'}, 'edit');
+                expect(userSvc.updateChecker.check)
+                    .toHaveBeenCalledWith(req.body, {orig: 'yes'}, {id: 'u-1234'});
                 expect(userColl.findAndModify).toHaveBeenCalled();
                 expect(userColl.findAndModify.calls[0].args[0]).toEqual({id: 'u-4567'});
                 expect(userColl.findAndModify.calls[0].args[1]).toEqual({id: 1});
@@ -618,17 +661,14 @@ describe('userSvc (UT)', function() {
             });
         });
         
-        it('should not edit the user if all the update fields are illegal', function(done) {
-            userSvc.formatUpdates.andCallFake(function(updates, orig, requester, reqId) {
-                delete updates.foo;
-                return {$set: updates};
-            });
+        it('should not edit the user if the updates contain illegal fields', function(done) {
+            userSvc.updateChecker.check.andReturn(false);
             userSvc.updateUser(req, userColl).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(400);
-                expect(resp.body).toBe('All those updates were illegal');
+                expect(resp.body).toBe('Illegal update fields');
                 expect(userColl.findOne).toHaveBeenCalled();
-                expect(userSvc.formatUpdates).toHaveBeenCalled();
+                expect(userSvc.updateChecker.check).toHaveBeenCalled();
                 expect(userColl.findAndModify).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
@@ -682,7 +722,6 @@ describe('userSvc (UT)', function() {
             req.params = { id: 'u-4567' };
             req.user = { id: 'u-1234' };
             spyOn(userSvc, 'checkScope').andReturn(true);
-            spyOn(userSvc, 'formatUpdates').andCallThrough();
         });
         
         it('should fail if the user is trying to delete themselves', function(done) {
@@ -712,7 +751,7 @@ describe('userSvc (UT)', function() {
                 expect(userColl.update.calls[0].args[0]).toEqual({id: 'u-4567'});
                 var updates = userColl.update.calls[0].args[1];
                 expect(Object.keys(updates)).toEqual(['$set']);
-                expect(updates.$set.status).toBe('deleted');
+                expect(updates.$set.status).toBe(Status.Deleted);
                 expect(updates.$set.lastUpdated instanceof Date).toBeTruthy('lastUpdated is Date');
                 expect(userColl.update.calls[0].args[2]).toEqual({w: 1, journal: true});
                 done();
@@ -755,7 +794,7 @@ describe('userSvc (UT)', function() {
         
         it('should not edit the user if they have already been deleted', function(done) {
             userColl.findOne.andCallFake(function(query, cb) {
-                cb(null, {id: 'u-4567', status: 'deleted'});
+                cb(null, {id: 'u-4567', status: Status.Deleted});
             });
             userSvc.deleteUser(req, userColl).then(function(resp) {
                 expect(resp).toBeDefined();

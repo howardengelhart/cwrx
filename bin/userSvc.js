@@ -9,9 +9,13 @@
         logger      = require('../lib/logger'),
         uuid        = require('../lib/uuid'),
         QueryCache  = require('../lib/queryCache'),
+        Checker     = require('../lib/checker'),
         mongoUtils  = require('../lib/mongoUtils'),
         authUtils   = require('../lib/authUtils')(),
         service     = require('../lib/service'),
+        enums       = require('../lib/enums'),
+        Status      = enums.Status,
+        Scope       = enums.Scope,
         
         userCache   = {},
         state       = {},
@@ -45,11 +49,48 @@
     userSvc.checkScope = function(requester, user, verb) {
         return !!(requester && requester.permissions && requester.permissions.users &&
                   requester.permissions.users[verb] &&
-             (requester.permissions.users[verb] === 'all' ||
-             (requester.permissions.users[verb] === 'org' && (requester.org === user.org ||
-                                                              requester.id === user.id)) ||
-             (requester.permissions.users[verb] === 'own' && requester.id === user.id) ));
+             (requester.permissions.users[verb] === Scope.All ||
+             (requester.permissions.users[verb] === Scope.Org && (requester.org === user.org ||
+                                                                  requester.id === user.id)) ||
+             (requester.permissions.users[verb] === Scope.Own && requester.id === user.id) ));
     };
+    
+    // make sure requester can't edit own perms or set perms that are greater than their own
+    userSvc.permsCheck = function(updates, orig, requester) {
+        var log = logger.getLog();
+        if (!requester.permissions) {
+            log.trace('Requester has no permissions');
+            return false;
+        }
+        if (orig.id && (orig.id === requester.id)) {
+            log.trace('Requester trying to change own permissions');
+            return false;
+        }
+        return Object.keys(updates.permissions).every(function(key) {
+            if (!requester.permissions[key]) {
+                log.trace('Can\'t set perms for %1 since requester has no perms for %1', key);
+                return false;
+            }
+            var updateObj = updates.permissions[key];
+            var requesterObj = requester.permissions[key];
+            return Object.keys(updates.permissions[key]).every(function(verb) {
+                if (Scope.getVal(updateObj[verb]) > Scope.getVal(requesterObj[verb])) {
+                    log.trace('Can\'t set perm %1: %2: %3 when requester has %1: %2: %4',
+                              key, verb, updateObj[verb], requesterObj[verb]);
+                    return false;
+                }
+                return true;
+            });
+        });
+    };
+    
+    userSvc.createChecker = new Checker(['id', 'created'], {
+        permissions: userSvc.permsCheck,
+        org: [ Checker.eqFieldFunc('org'), Checker.scopeFunc('users', 'create', Scope.All) ]
+    });
+    userSvc.updateChecker = new Checker(['id', 'org', 'password', 'created'], {
+        permissions: userSvc.permsCheck
+    });
 
     userSvc.getUser = function(req, state) {
         var id = req.params.id,
@@ -110,7 +151,7 @@
             return q.reject(error);
         });
     };
-
+    
     // Setup a new user with reasonable defaults and hash their password
     userSvc.setupUser = function(newUser, requester) {
         var now = new Date();
@@ -122,24 +163,24 @@
             newUser.org = requester.org;
         }
         if (!newUser.status) {
-            newUser.status = 'active';
+            newUser.status = Status.Active;
         }
         if (!newUser.permissions) {
             newUser.permissions = {};
         }
         var defaultPerms = { // ensure that every user at least has these permissions
             experiences: {
-                read: 'own',
-                create: 'own',
-                edit: 'own',
-                delete: 'own'
+                read: Scope.Own,
+                create: Scope.Own,
+                edit: Scope.Own,
+                delete: Scope.Own
             },
             users: {
-                read: 'own',
-                edit: 'own'
+                read: Scope.Own,
+                edit: Scope.Own
             },
             orgs: {
-                read: 'own'
+                read: Scope.Own
             }
         };
         Object.keys(defaultPerms).forEach(function(key) {
@@ -180,14 +221,11 @@
                     body: 'A user with that username already exists'
                 });
             }
-            if (newUser.org && (requester.org !== newUser.org) &&
-                requester.permissions.users.create !== 'all') {
-                log.warn('[%1] User %2 in org %3 cannot create users in org %4',
-                         req.uuid, requester.id, requester.org, newUser.org);
-                return deferred.resolve({
-                    code: 403,
-                    body: 'Cannot create users outside of your organization'
-                });
+            if (!userSvc.createChecker.check(newUser, {}, requester)) {
+                log.warn('[%1] newUser contains illegal fields', req.uuid);
+                log.trace('newUser: %1  |  requester: %2',
+                          JSON.stringify(newUser), JSON.stringify(requester));
+                return deferred.resolve({code: 400, body: 'Illegal fields'});
             }
             return userSvc.setupUser(newUser, requester).then(function() {
                 log.trace('[%1] User %2 is creating user %3', req.uuid, requester.id, newUser.id);
@@ -203,31 +241,6 @@
             deferred.reject(error);
         });
         return deferred.promise;
-    };
-
-    // Prune out illegal updates and convert to $set format
-    userSvc.formatUpdates = function(updates, orig, requester, reqId) {
-        var log = logger.getLog();
-        if (updates.id && (updates.id !== orig.id)) {
-            log.warn('[%1] User %2 is trying to change the id of user %3 to %4',
-                     reqId, requester.id, orig.id, updates.id);
-            delete updates.id;
-        }
-        if (updates.org !== orig.org) {
-            log.warn('[%1] User %2 is trying to change the org of user %3 to %4',
-                     reqId, requester.id, orig.id, updates.org);
-            delete updates.org;
-        }
-        if (updates.permissions && (orig.id === requester.id)) {
-            log.warn('[%1] User %2 is trying to change their permissions', reqId, requester.id);
-            delete updates.permissions;
-        }
-        if (updates.password) {
-            log.warn('[%1] User %2 is trying to change the password of user %3',
-                     reqId, requester.id, orig.id);
-            delete updates.password;
-        }
-        return { $set: updates };
     };
 
     userSvc.updateUser = function(req, users) {
@@ -251,7 +264,13 @@
                 log.info('[%1] User %2 is not authorized to edit %3', req.uuid, requester.id, id);
                 return deferred.resolve({code: 403, body: 'Not authorized to edit this user'});
             }
-            var updateObj = userSvc.formatUpdates(updates, orig, requester, req.uuid);
+            if (!userSvc.updateChecker.check(updates, orig, requester)) {
+                log.warn('[%1] Updates contain illegal fields', req.uuid);
+                log.trace('updates: %1  |  orig: %2  |  requester: %3', JSON.stringify(updates),
+                          JSON.stringify(orig), JSON.stringify(requester));
+                return deferred.resolve({code: 400, body: 'Illegal update fields'});
+            }
+            var updateObj = { $set: updates };
             if (JSON.stringify(updateObj) === JSON.stringify({$set: {}})) {
                 log.info('[%1] Update object was blank', req.uuid);
                 return deferred.resolve({code: 400, body: 'All those updates were illegal'});
@@ -295,11 +314,11 @@
                 log.info('[%1] User %2 is not authorized to delete %3', req.uuid, requester.id, id);
                 return deferred.resolve({code: 403, body: 'Not authorized to delete this user'});
             }
-            if (orig.status === 'deleted') {
+            if (orig.status === Status.Deleted) {
                 log.info('[%1] User %2 has already been deleted', req.uuid, id);
                 return deferred.resolve({code: 200, body: 'Success'});
             }
-            var updates = {$set: {lastUpdated: now, status: 'deleted'}};
+            var updates = {$set: {lastUpdated: now, status: Status.Deleted}};
             return q.npost(users, 'update', [{id:id}, updates, {w: 1, journal: true}])
             .then(function() {
                 log.info('[%1] User %2 successfully deleted user %3', req.uuid, requester.id, id);

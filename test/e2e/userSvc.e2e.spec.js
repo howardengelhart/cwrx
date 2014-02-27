@@ -236,9 +236,7 @@ describe('user (E2E):', function() {
         it('should be able to override default properties', function(done) {
             mockUser.status = 'pending';
             mockUser.permissions = {
-                experiences: { read: 'org' },
-                users: { edit: 'org' },
-                orgs: { edit: 'org' }
+                users: { read: 'org', edit: 'org' }
             };
             var options = { url: config.userSvcUrl + '/user', json: mockUser, jar: cookieJar };
             testUtils.qRequest('post', options).then(function(resp) {
@@ -248,9 +246,9 @@ describe('user (E2E):', function() {
                 expect(newUser.password).not.toBeDefined();
                 expect(newUser.status).toBe('pending');
                 expect(newUser.permissions).toEqual({
-                    experiences: { read: 'org', create: 'own', edit: 'own', delete: 'own' },
-                    users: { read: 'own', edit: 'org' },
-                    orgs: { read: 'own', edit: 'org' }
+                    experiences: { read: 'own', create: 'own', edit: 'own', delete: 'own' },
+                    users: { read: 'org', edit: 'org' },
+                    orgs: { read: 'own' }
                 });
                 done();
             }).catch(function(error) {
@@ -297,12 +295,12 @@ describe('user (E2E):', function() {
             });
         });
         
-        it('should throw a 403 if the new user is not in the requester\'s org', function(done) {
+        it('should throw a 400 if the new user is not in the requester\'s org', function(done) {
             mockUser.org = 'o-4567';
             var options = { url: config.userSvcUrl + '/user', json: mockUser, jar: cookieJar };
             testUtils.qRequest('post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(403);
-                expect(resp.body).toBe('Cannot create users outside of your organization');
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Illegal fields');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -401,30 +399,8 @@ describe('user (E2E):', function() {
                 done();
             });
         });
-        
-        it('should prune out illegal fields from the update object', function(done) {
-            updates.id = 'e2e-different';
-            updates.org = 'o-4567';
-            var options = {
-                url: config.userSvcUrl + '/user/e2e-put1',
-                json: updates,
-                jar: cookieJar
-            };
-            testUtils.qRequest('put', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(201);
-                var user = resp.body;
-                expect(user.id).toBe('e2e-put1');
-                expect(user.password).not.toBeDefined();
-                expect(user.org).toBe('o-1234');
-                expect(new Date(user.lastUpdated)).toBeGreaterThan(new Date(user.created));
-                done();
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
-        });
-        
-        it('should throw a 400 if all the updates were illegal', function(done) {
+
+        it('should throw a 400 if any of the update fields are illegal', function(done) {
             var options = {
                 url: config.userSvcUrl + '/user/e2e-put1',
                 json: { password: 'newpass' },
@@ -432,7 +408,7 @@ describe('user (E2E):', function() {
             };
             testUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('All those updates were illegal');
+                expect(resp.body).toBe('Illegal update fields');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
