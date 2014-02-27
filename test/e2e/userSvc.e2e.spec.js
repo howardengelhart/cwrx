@@ -69,15 +69,15 @@ describe('user (E2E):', function() {
             });
         });
         
-        it('should not get a user the requester cannot see', function(done) {
+        it('should return a 404 if the requester cannot see the user', function(done) {
             var options = { url: config.userSvcUrl + '/user/e2e-getId2', jar: cookieJar };
             mockUser.org = 'o-4567';
             mockUser.id = 'e2e-getId2';
             testUtils.resetCollection('users', [mockUser, mockRequester]).then(function() {
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(403);
-                expect(resp.body).toEqual('Not authorized to get this user');
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toEqual({});
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -85,12 +85,12 @@ describe('user (E2E):', function() {
             });
         });
         
-        it('should not return an error if nothing is found', function(done) {
+        it('should return a 404 if nothing is found', function(done) {
             var options = { url: config.userSvcUrl + '/user/e2e-fake1', jar: cookieJar };
             testUtils.resetCollection('users', [mockUser, mockRequester]).then(function() {
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
+                expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual({});
                 done();
             }).catch(function(error) {
