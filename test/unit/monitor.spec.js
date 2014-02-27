@@ -395,6 +395,19 @@ describe('monitor',function(){
             .done(done);
         });
 
+        it('will reject if there are no services ',function(done){
+            app.checkProcess.andCallFake(function(p){ return q(p); });
+            app.checkHttp.andCallFake(function(p){ return q(p); });
+            
+            app.checkServices([])
+            .then(resolveSpy,rejectSpy)
+            .finally(function(){
+                expect(resolveSpy).not.toHaveBeenCalled();
+                expect(rejectSpy).toHaveBeenCalledWith({ httpCode : 500, message : 'No services monitored.' });
+            })
+            .done(done);
+        });
+
         it('will reject if any of the service checks fail',function(done){
             app.checkProcess.andCallFake(function(p){ 
                 if (p.checkProcess.pidPath === 'pidPath_serviceB'){
@@ -422,8 +435,8 @@ describe('monitor',function(){
             resolveSpy = jasmine.createSpy('handleGetStatus.resolve');
             rejectSpy  = jasmine.createSpy('handleGetStatus.reject');
             
-            spyOn(app,'checkProcess');
-            spyOn(app,'checkHttp');
+            spyOn(app,'checkProcess').andCallFake(function(p){ return q(p); });
+            spyOn(app,'checkHttp').andCallFake(function(p){ return q(p); });
             
             state = {
                 config   : {},
@@ -447,8 +460,6 @@ describe('monitor',function(){
         });
 
         it('will generate a 200 response if the check succeeds',function(done){
-            app.checkProcess.andCallFake(function(p){ return q(p); });
-            app.checkHttp.andCallFake(function(p){ return q(p); });
             app.handleGetStatus(state,mockHttpReq,mockHttpRes)
             .then(resolveSpy,rejectSpy)
             .finally(function(){
@@ -461,8 +472,20 @@ describe('monitor',function(){
             .done(done);
         });
         
+        it('will generate a 500 response if there are no services configured', function(done){
+            state.services = [];
+            app.handleGetStatus(state,mockHttpReq,mockHttpRes)
+            .then(resolveSpy,rejectSpy)
+            .finally(function(){
+                expect(resolveSpy).toHaveBeenCalled();
+                expect(rejectSpy).not.toHaveBeenCalled();
+                expect(mockHttpRes.send).toHaveBeenCalledWith(500, 'No services monitored.');
+            })
+            .done(done);
+        });
+
+
         it('will generate a 502 response if an http check fails', function(done){
-            app.checkProcess.andCallFake(function(p){ return q(p); });
             app.checkHttp.andCallFake(function(p){ 
                 if (p.name === 'serviceC'){
                     return q.reject({ httpCode : 502, message : 'Failed' });
@@ -507,7 +530,6 @@ describe('monitor',function(){
         });
         
         it('will generate a 504 response if a check times out', function(done){
-            app.checkProcess.andCallFake(function(p){ return q(p); });
             app.checkHttp.andCallFake(function(p){ 
                 setTimeout(function(){
                     return q(p); 
@@ -610,26 +632,22 @@ describe('monitor',function(){
             rejectSpy  = jasmine.createSpy('verifyConfiguration.reject');
         });
 
-        it('will reject if there are no services',function(done){
+        it('will not reject if there are no services',function(done){
             app.verifyConfiguration({})
             .then(resolveSpy,rejectSpy)
             .finally(function(){
-                expect(resolveSpy).not.toHaveBeenCalled();
-                expect(rejectSpy).toHaveBeenCalled();
-                expect(rejectSpy.mostRecentCall.args[0].message)
-                    .toEqual('monitor needs at least one service to monitor.');
+                expect(resolveSpy).toHaveBeenCalled();
+                expect(rejectSpy).not.toHaveBeenCalled();
             })
             .done(done);
         });
 
-        it('will reject if the services configs are empty',function(done){
+        it('will not reject if the services configs are empty',function(done){
             app.verifyConfiguration({ services : [] })
             .then(resolveSpy,rejectSpy)
             .finally(function(){
-                expect(resolveSpy).not.toHaveBeenCalled();
-                expect(rejectSpy).toHaveBeenCalled();
-                expect(rejectSpy.mostRecentCall.args[0].message)
-                    .toEqual('monitor needs at least one service to monitor.');
+                expect(resolveSpy).toHaveBeenCalled();
+                expect(rejectSpy).not.toHaveBeenCalled();
             })
             .done(done);
         });

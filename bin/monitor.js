@@ -15,6 +15,7 @@
         app         = {},
         state       = {};
 
+    state.services = [];
     state.defaultConfig = {
         appName : 'monitor',
         appDir  : __dirname,
@@ -157,6 +158,10 @@
     };
 
     app.checkServices = function(services){
+        if (!services || services.length < 1){
+            return q.reject({ httpCode : 500, message : 'No services monitored.' });
+        }
+
         return q.allSettled(services.map(function(serviceConfig){
             return app.checkService(serviceConfig);
         }))
@@ -222,6 +227,7 @@
                     state.services.push(fs.readJsonSync(file));
                 }
                 catch(e){
+                    state.services = [];
                     deferred.reject(new Error('Failed to read ' + file + ' with ' + e.message));
                     return false;
                 }
@@ -236,8 +242,10 @@
 
 
     app.verifyConfiguration = function(state){
+        var log = logger.getLog();
         if (!state.services || !state.services.length){
-            return q.reject(new Error('monitor needs at least one service to monitor.'));
+            log.warn('monitor is not configured to monitor any services.');
+            return q(state);
         }
 
         var reason;
@@ -283,6 +291,10 @@
             log.info('Cluster master, not a worker');
             return state;
         }
+
+        state.onSIGHUP = function(){
+            return app.loadMonitorProfiles(state).then(app.verifyConfiguration);
+        };
 
         webServer = express();
         webServer.use(express.bodyParser());
