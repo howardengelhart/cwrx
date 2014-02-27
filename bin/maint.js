@@ -290,7 +290,7 @@
                 });
                 return;
             }
-            fs.createFile(req.body.fpath, req.body.data, function(error) {
+            fs.outputFile(req.body.fpath, req.body.data, function(error) {
                 if (error) {
                     log.error('Error writing to file: ' + error);
                     res.send(500, {
