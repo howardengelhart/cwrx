@@ -408,7 +408,7 @@ describe('user (E2E):', function() {
             };
             testUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('Illegal update fields');
+                expect(resp.body).toBe('Illegal fields');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
