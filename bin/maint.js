@@ -281,6 +281,52 @@
             });
         });
 
+        app.post('/maint/create_file',function(req, res){
+            if (!req.body || !req.body.fpath || !req.body.data ) {
+                log.error('Incomplete params in request');
+                res.send(400, {
+                    error   : 'Bad request',
+                    detail  : 'Need fpath, and data in request'
+                });
+                return;
+            }
+            fs.createFile(req.body.fpath, req.body.data, function(error) {
+                if (error) {
+                    log.error('Error writing to file: ' + error);
+                    res.send(500, {
+                        error   : 'Unable to process request',
+                        detail  : error
+                    });
+                } else {
+                    log.info('Successfully wrote file ' + req.body.fpath);
+                    res.send(200, {msg: 'Successfully wrote file ' + req.body.fpath});
+                }
+            });
+        });
+
+        app.post('/maint/delete_file',function(req, res){
+            if (!req.body || !req.body.fpath  ) {
+                log.error('Incomplete params in request');
+                res.send(400, {
+                    error   : 'Bad request',
+                    detail  : 'Need fpath in request'
+                });
+                return;
+            }
+            fs.remove(req.body.fpath, function(error) {
+                if (error) {
+                    log.error('Error removing file: ' + error);
+                    res.send(500, {
+                        error   : 'Unable to process request',
+                        detail  : error
+                    });
+                } else {
+                    log.info('Successfully removed file ' + req.body.fpath);
+                    res.send(200, {msg: 'Successfully removed file ' + req.body.fpath});
+                }
+            });
+        });
+
         app.post('/maint/cache_file', function(req, res/*, next*/) {
             log.info('Starting cache file');
             if (!req.body || !req.body.fname || !req.body.data || !req.body.cache) {
