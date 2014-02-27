@@ -20,13 +20,15 @@
         appDir  : __dirname,
         log    : {
             logLevel : 'info',
-            media    : [ { type : 'file' } ],
+            media    : [ { type : 'console' } ],
             logDir   : './',
             logName  : 'monitor.log'
         },
         pidFile : 'monitor.pid',
         pidDir  : './',
-        requestTimeout  : 2000,
+        port    : 3333,
+        checkHttpTimeout : 2000,
+        requestTimeout  : 3000,
         monitorInc : './monitor.*.json'
     };
 
@@ -35,7 +37,7 @@
         log.trace('checkProcess - check pidPath %1 for %2',
                 params.checkProcess.pidPath, params.name);
         if (!fs.existsSync(params.checkProcess.pidPath)){
-            log.error('Unable to locate pidPath %1 for %2',
+            log.warn('Unable to locate pidPath %1 for %2',
                     params.checkProcess.pidPath, params.name);
             var err = new Error('Process unavailable.');
             err.httpCode = 503;
@@ -86,6 +88,7 @@
             res.on('end',function(){
                 log.trace('checkHttp - %1 responds: %2', params.name, res.statusCode);
                 if ((res.statusCode < 200) || (res.statusCode >= 300)){
+                    log.warn('checkHttp - %1 received: %2', params.name, res.statusCode);
                     var err = new Error(data);
                     err.httpCode = 502;
                     deferred.reject(err);
@@ -105,7 +108,7 @@
         });
 
         req.on('error',function(e){
-            log.error('checkHttp - %1 error: %2', params.name, e.message);
+            log.warn('checkHttp - %1 error: %2', params.name, e.message);
             e.httpCode = 500;
             deferred.reject(e);
         });
@@ -128,6 +131,9 @@
         .then(function(params){
             if (params.checkHttp){
                 params.checks++;
+                if (params.checkHttp.timeout) {
+                    return app.checkHttp(params).timeout(params.checkHttp.timeout,'ETIMEOUT');
+                }
                 return app.checkHttp(params);
             }
             return params;
@@ -141,38 +147,65 @@
             return serviceConfig;
         })
         .catch(function(err){
+            if (err.message === 'ETIMEOUT'){
+                err.httpCode = 504;
+                err.message = 'Request timed out.';
+            }
             err.service = serviceConfig;
             return q.reject(err);
         });
     };
 
     app.checkServices = function(services){
-        return q.all(services.map(function(serviceConfig){
+        return q.allSettled(services.map(function(serviceConfig){
             return app.checkService(serviceConfig);
-        }));
+        }))
+        .then(function(results){
+            var output = {}, errors = 0, code = 0;
+            results.forEach(function(result, index){
+                if (result.state === 'fulfilled'){
+                    output[result.value.name] = '200';
+                } else {
+                    errors++;
+                    code = (result.reason.httpCode || 500);
+                    if (result.reason.service){
+                        output[result.reason.service.name] = code.toString();
+                    } else {
+                        output['PROCESS' + index] = code.toString();
+                    }
+                }
+            });
+
+            if (errors) {
+                return q.reject({ httpCode : code, message : output });
+            }
+            return q.resolve(output);
+        });
     };
 
     app.handleGetStatus = function(state, req,res){
         var log = logger.getLog();
 
-        return app.checkServices(state.services).timeout(state.requestTimeout,'ETIMEOUT')
-            .then(function(){
-                res.send(200,'OK');
+        return app.checkServices(state.services).timeout(state.config.requestTimeout,'ETIMEOUT')
+            .then(function(result){
+                res.send(200,result);
             })
             .catch(function(e){
                 if (e.message === 'ETIMEOUT'){
                     e.httpCode = 504;
                     e.message = 'Request timed out.';
+                    log.warn('[%1] - Request timed out.',req.uuid);
+                } else {
+                    log.warn('[%1] - One or more checks failed', req.uuid);
                 }
-                log.info('[%1] - caught error: (%2) %3', req.uuid, e.httpCode, e.message);
                 res.send(e.httpCode || 500, e.message);
             });
     };
 
     app.loadMonitorProfiles = function(state) {
-        var log = logger.getLog() deferred = q.defer(), g;
-        log.trace('Search %1 for monitor profiles',state.monitorInc);
-        g = new glob.Glob(state.monitorInc, function(err, files){
+        var log = logger.getLog(),deferred = q.defer(), g;
+        log.trace('Search %1 for monitor profiles',state.config.monitorInc);
+        g = new glob.Glob(state.config.monitorInc, function(err, files){
             if (err) {
                 deferred.reject(err);
                 return;
@@ -185,13 +218,22 @@
 
             state.services = [];
             files.every(function(file){
-
+                try {
+                    state.services.push(fs.readJsonSync(file));
+                }
+                catch(e){
+                    deferred.reject(new Error('Failed to read ' + file + ' with ' + e.message));
+                    return false;
+                }
+                return true;
             });
 
+            deferred.resolve(state);
         });
 
         return deferred.promise;
     };
+
 
     app.verifyConfiguration = function(state){
         if (!state.services || !state.services.length){
@@ -219,6 +261,11 @@
             if (service.checkHttp && !service.checkHttp.path){
                 reason = 'Service ' + service.name + ' requires path for checkHttp.';
                 return false;
+            }
+
+            if (service.checkHttp) {
+                service.checkHttp.timeout =
+                    (service.checkHttp.timeout || state.config.checkHttpTimeout);
             }
 
             return true;
@@ -258,12 +305,15 @@
             app.handleGetStatus(state, req, res);
         });
 
+        webServer.listen(state.config.port);
+        log.info('Service is listening on port: ' + state.config.port);
     };
 
     if (!__ut__){
         service.start(state)
         .then(service.parseCmdLine)
         .then(service.configure)
+        .then(app.loadMonitorProfiles)
         .then(app.verifyConfiguration)
         .then(service.prepareServer)
         .then(service.daemonize)

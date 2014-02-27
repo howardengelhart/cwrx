@@ -387,7 +387,9 @@ describe('monitor',function(){
             app.checkServices(params)
             .then(resolveSpy,rejectSpy)
             .finally(function(){
-                expect(resolveSpy).toHaveBeenCalledWith(params);
+                expect(resolveSpy).toHaveBeenCalledWith({
+                    serviceA : '200', serviceB : '200', serviceC : '200'
+                });
                 expect(rejectSpy).not.toHaveBeenCalled();
             })
             .done(done);
@@ -424,6 +426,7 @@ describe('monitor',function(){
             spyOn(app,'checkHttp');
             
             state = {
+                config   : {},
                 services : [
                     {
                         name         : 'serviceA',
@@ -451,7 +454,9 @@ describe('monitor',function(){
             .finally(function(){
                 expect(resolveSpy).toHaveBeenCalled();
                 expect(rejectSpy).not.toHaveBeenCalled();
-                expect(mockHttpRes.send).toHaveBeenCalledWith(200,'OK');
+                expect(mockHttpRes.send).toHaveBeenCalledWith(200, {
+                    serviceA : '200', serviceB : '200', serviceC : '200'
+                });
             })
             .done(done);
         });
@@ -469,7 +474,9 @@ describe('monitor',function(){
             .finally(function(){
                 expect(resolveSpy).toHaveBeenCalled();
                 expect(rejectSpy).not.toHaveBeenCalled();
-                expect(mockHttpRes.send).toHaveBeenCalledWith(502,'Failed');
+                expect(mockHttpRes.send).toHaveBeenCalledWith(502, {
+                    serviceA : '200', serviceB : '200', serviceC : '502'
+                });
             })
             .done(done);
         });
@@ -481,13 +488,20 @@ describe('monitor',function(){
                 }
                 return q(p); 
             });
-            app.checkHttp.andCallFake(function(p){ return q(p); });
+            app.checkHttp.andCallFake(function(p){ 
+                if (p.name === 'serviceC'){
+                    return q.reject({ httpCode : 502, message : 'Failed' });
+                }
+                return q(p); 
+            });
             app.handleGetStatus(state,mockHttpReq,mockHttpRes)
             .then(resolveSpy,rejectSpy)
             .finally(function(){
                 expect(resolveSpy).toHaveBeenCalled();
                 expect(rejectSpy).not.toHaveBeenCalled();
-                expect(mockHttpRes.send).toHaveBeenCalledWith(503,'Process unavailable');
+                expect(mockHttpRes.send).toHaveBeenCalledWith(502, {
+                    serviceA : '200', serviceB : '503', serviceC : '502'
+                });
             })
             .done(done);
         });
@@ -499,7 +513,7 @@ describe('monitor',function(){
                     return q(p); 
                 },2000);
             });
-            state.requestTimeout = 1000;
+            state.config.requestTimeout = 1000;
             app.handleGetStatus(state,mockHttpReq,mockHttpRes)
             .then(resolveSpy,rejectSpy)
             .finally(function(){
@@ -517,7 +531,9 @@ describe('monitor',function(){
     describe('loadMonitorProfiles', function(){
         var state;
         beforeEach(function(){
-            state = {};
+            state = {
+                config : {}
+            };
             resolveSpy = jasmine.createSpy('loadMonitorProfiles.resolve');
             rejectSpy  = jasmine.createSpy('loadMonitorProfiles.reject');
         });
@@ -525,23 +541,23 @@ describe('monitor',function(){
          it('uses the state.monitorInc setting to find files',function(done){
             var globPattern;
             mockGlob.Glob.andCallFake(function(pattern,callback){
-                callback([]);      
+                globPattern = pattern;
+                callback(null,[]);
             });
-            state.monitorInc = '/opt/sixxy/conf/*.mon';
+            state.config.monitorInc = '/opt/sixxy/conf/*.mon';
             app.loadMonitorProfiles(state)
             .then(resolveSpy,rejectSpy)
             .finally(function(){
                 expect(resolveSpy).toHaveBeenCalled();
                 expect(rejectSpy).not.toHaveBeenCalled();
-                expect(pattern).toEqual('/opt/sixxy/conf/*.mon');
+                expect(globPattern).toEqual('/opt/sixxy/conf/*.mon');
             })
             .done(done);
         });
 
         it('adds the contents of the monitor files to the state.services array',function(done){
-            var globPattern;
             mockGlob.Glob.andCallFake(function(pattern,callback){
-                callback(['fileA.json','fileB.json']);      
+                callback(null,['fileA.json','fileB.json']);      
             });
             mockFs.readJsonSync.andCallFake(function(fpath){
                 if (fpath === 'fileA.json'){
@@ -549,17 +565,39 @@ describe('monitor',function(){
                 }
                 return { name : 'serviceB', checkProgress : {} };
             });
-            state.monitorInc = '/opt/sixxy/conf/*.mon';
+            state.config.monitorInc = '/opt/sixxy/conf/*.mon';
             app.loadMonitorProfiles(state)
             .then(resolveSpy,rejectSpy)
             .finally(function(){
                 expect(resolveSpy).toHaveBeenCalled();
                 expect(rejectSpy).not.toHaveBeenCalled();
+                expect(mockFs.readJsonSync.callCount).toEqual(2);
                 expect(state.services.length).toEqual(2);
             })
             .done(done);
         });
-
+        
+        it('rejects if there is an error reading a config file',function(done){
+            mockGlob.Glob.andCallFake(function(pattern,callback){
+                callback(null,['fileA.json','fileB.json']);      
+            });
+            mockFs.readJsonSync.andCallFake(function(fpath){
+                if (fpath === 'fileA.json'){
+                    return { name : 'serviceA', checkProgress : {} };
+                }
+                throw new Error('NOT JSON');
+            });
+            state.config.monitorInc = '/opt/sixxy/conf/*.mon';
+            app.loadMonitorProfiles(state)
+            .then(resolveSpy,rejectSpy)
+            .finally(function(){
+                expect(resolveSpy).not.toHaveBeenCalled();
+                expect(rejectSpy).toHaveBeenCalled();
+                expect(rejectSpy.mostRecentCall.args[0].message)
+                    .toEqual('Failed to read fileB.json with NOT JSON');
+            })
+            .done(done);
+        });
     });
     /* loadMonitorProfiles  -- end */
     
@@ -567,7 +605,7 @@ describe('monitor',function(){
     describe('verifyConfiguration',function(){
         var state;
         beforeEach(function(){
-            state = {};
+            state = { config : {} };
             resolveSpy = jasmine.createSpy('verifyConfiguration.resolve');
             rejectSpy  = jasmine.createSpy('verifyConfiguration.reject');
         });
@@ -670,6 +708,36 @@ describe('monitor',function(){
             .finally(function(){
                 expect(resolveSpy).toHaveBeenCalled();
                 expect(rejectSpy).not.toHaveBeenCalled();
+            })
+            .done(done);
+        });
+
+        it('will set checkHttp.timeout with state.config.checkHttpTime if unset',function(done){
+            state.config.checkHttpTimeout = 1000;
+            state.services = [
+                { name: 'serviceA', checkHttp : { path : 'pidA' } }
+            ];
+            app.verifyConfiguration(state)
+            .then(resolveSpy,rejectSpy)
+            .finally(function(){
+                expect(resolveSpy).toHaveBeenCalled();
+                expect(rejectSpy).not.toHaveBeenCalled();
+                expect(state.services[0].checkHttp.timeout).toEqual(1000);
+            })
+            .done(done);
+        });
+        
+        it('will leave checkHttp.timeout if set',function(done){
+            state.config.checkHttpTimeout = 1000;
+            state.services = [
+                { name: 'serviceA', checkHttp : { path : 'pidA', timeout : 200 } }
+            ];
+            app.verifyConfiguration(state)
+            .then(resolveSpy,rejectSpy)
+            .finally(function(){
+                expect(resolveSpy).toHaveBeenCalled();
+                expect(rejectSpy).not.toHaveBeenCalled();
+                expect(state.services[0].checkHttp.timeout).toEqual(200);
             })
             .done(done);
         });
