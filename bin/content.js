@@ -8,9 +8,14 @@
         logger      = require('../lib/logger'),
         uuid        = require('../lib/uuid'),
         QueryCache  = require('../lib/queryCache'),
+        Checker     = require('../lib/checker'),
         mongoUtils  = require('../lib/mongoUtils'),
         authUtils   = require('../lib/authUtils')(),
         service     = require('../lib/service'),
+        enums       = require('../lib/enums'),
+        Status      = enums.Status,
+        Access      = enums.Access,
+        Scope       = enums.Scope,
         
         state       = {},
         content = {}; // for exporting functions to unit tests
@@ -44,11 +49,16 @@
     content.checkScope = function(user, experience, object, verb) {
         return !!(user && user.permissions && user.permissions[object] &&
                   user.permissions[object][verb] &&
-             (user.permissions[object][verb] === 'all' ||
-             (user.permissions[object][verb] === 'org' && (user.org === experience.org ||
-                                                           user.id === experience.user)) ||
-             (user.permissions[object][verb] === 'own' && user.id === experience.user) ));
+             (user.permissions[object][verb] === Scope.All ||
+             (user.permissions[object][verb] === Scope.Org && (user.org === experience.org ||
+                                                               user.id === experience.user)) ||
+             (user.permissions[object][verb] === Scope.Own && user.id === experience.user) ));
     };
+    
+    content.createChecker = new Checker(['id', 'created'], {
+        org: [ Checker.eqFieldFunc('org'), Checker.scopeFunc('experiences', 'create', Scope.All) ]
+    });
+    content.updateChecker = new Checker(['id', 'org', 'created'], {});
 
     content.getExperiences = function(query, req, cache) {
         var limit = req.query && req.query.limit || 0,
@@ -78,7 +88,7 @@
             log.trace('[%1] Retrieved %2 experiences', req.uuid, results.length);
             var experiences = results.filter(function(result) {
                 return content.checkScope(req.user, result, 'experiences', 'read') ||
-                      (result.status === 'active' && result.access === 'public');
+                      (result.status === Status.Active && result.access === Access.Public);
             });
             log.info('[%1] Showing the user %2 experiences', req.uuid, experiences.length);
             return q({code: 200, body: experiences});
@@ -96,7 +106,11 @@
         if (!obj || typeof obj !== 'object') {
             return q({code: 400, body: 'You must provide an object in the body'});
         }
-
+        if (!content.createChecker.check(obj, {}, user)) {
+            log.warn('[%1] experience contains illegal fields', req.uuid);
+            log.trace('exp: %1  |  requester: %2', JSON.stringify(obj), JSON.stringify(user));
+            return q({code: 400, body: 'Illegal fields'});
+        }
         obj.id = 'e-' + uuid.createUuid().substr(0,14);
         log.trace('[%1] User %2 is creating experience %3', req.uuid, user.id, obj.id);
         obj.created = now;
@@ -106,10 +120,10 @@
             obj.org = user.org;
         }
         if (!obj.status) {
-            obj.status = 'active';
+            obj.status = Status.Active;
         }
         if (!obj.access) {
-            obj.access = 'public';
+            obj.access = Access.Public;
         }
         return q.npost(experiences, 'insert', [obj, {w: 1, journal: true}])
         .then(function() {
@@ -131,11 +145,6 @@
         if (!updates || typeof updates !== 'object') {
             return q({code: 400, body: 'You must provide an object in the body'});
         }
-        if (updates.id && (updates.id !== id)) {
-            log.warn('[%1] User %2 is trying to change the id of experience %3 to %4',
-                     req.uuid, user.id, id, updates.id);
-            delete updates.id;
-        }
         
         log.info('[%1] User %2 is attempting to update experience %3',req.uuid,user.id,updates.id);
         q.npost(experiences, 'findOne', [{id: id}])
@@ -143,6 +152,12 @@
             if (!orig) {
                 log.info('[%1] Experience %2 does not exist; not creating it', req.uuid, id);
                 return deferred.resolve({code: 404, body: 'That experience does not exist'});
+            }
+            if (!content.updateChecker.check(updates, orig, user)) {
+                log.warn('[%1] updates contain illegal fields', req.uuid);
+                log.trace('exp: %1  |  orig: %2  |  requester: %3',
+                          JSON.stringify(updates), JSON.stringify(orig), JSON.stringify(user));
+                return deferred.resolve({code: 400, body: 'Illegal fields'});
             }
             if (!content.checkScope(user, orig, 'experiences', 'edit')) {
                 log.info('[%1] User %2 is not authorized to edit %3', req.uuid, user.id, id);
@@ -189,12 +204,12 @@
                     body: 'Not authorized to delete this experience'
                 });
             }
-            if (orig.status === 'deleted') {
+            if (orig.status === Status.Deleted) {
                 log.info('[%1] Experience %2 has already been deleted', req.uuid, id);
                 return deferred.resolve({code: 200, body: 'Success'});
             }
             return q.npost(experiences, 'update', [{id: id},
-                           {$set: {lastUpdated: now, status: 'deleted'}}, {w: 1, journal: true}])
+                           {$set: {lastUpdated:now, status:Status.Deleted}}, {w:1, journal:true}])
             .then(function() {
                 log.info('[%1] User %2 successfully deleted experience %3', req.uuid, user.id, id);
                 deferred.resolve({code: 200, body: 'Success'});

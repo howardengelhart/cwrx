@@ -1,7 +1,7 @@
 var flush = true;
 describe('userSvc (UT)', function() {
-    var mockLog, mockLogger, req, uuid, logger, bcrypt, userSvc, q, QueryCache, mongoUtils, enums,
-        Status, Scope;
+    var mockLog, mockLogger, req, uuid, logger, bcrypt, userSvc, q, QueryCache, mongoUtils, Checker,
+        enums, Status, Scope;
     
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -666,7 +666,7 @@ describe('userSvc (UT)', function() {
             userSvc.updateUser(req, userColl).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(400);
-                expect(resp.body).toBe('Illegal update fields');
+                expect(resp.body).toBe('Illegal fields');
                 expect(userColl.findOne).toHaveBeenCalled();
                 expect(userSvc.updateChecker.check).toHaveBeenCalled();
                 expect(userColl.findAndModify).not.toHaveBeenCalled();

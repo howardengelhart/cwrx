@@ -1,6 +1,7 @@
 var flush = true;
 describe('content (UT)', function() {
-    var mockLog, mockLogger, experiences, req, uuid, logger, content, q, QueryCache;
+    var mockLog, mockLogger, experiences, req, uuid, logger, content, q, QueryCache, Checker, enums,
+        Status, Scope, Access;
     
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -8,7 +9,12 @@ describe('content (UT)', function() {
         logger      = require('../../lib/logger');
         content     = require('../../bin/content');
         QueryCache  = require('../../lib/queryCache');
+        Checker     = require('../../lib/checker');
         q           = require('q');
+        enums       = require('../../lib/enums');
+        Status      = enums.Status;
+        Access      = enums.Access;
+        Scope       = enums.Scope;
         
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -31,9 +37,9 @@ describe('content (UT)', function() {
                 org: 'o-1234',
                 permissions: {
                     experiences: {
-                        read: 'all',
-                        edit: 'org',
-                        delete: 'own'
+                        read: Scope.All,
+                        edit: Scope.Org,
+                        delete: Scope.Own
                     }
                 }
             };
@@ -58,22 +64,38 @@ describe('content (UT)', function() {
         it('should sanity-check the user permissions object', function() {
             var experience = { id: 'e-1' };
             expect(content.checkScope({}, experience, 'experiences', 'read')).toBe(false);
-            
             var user = { id: 'u-1234', org: 'o-1234' };
             expect(content.checkScope(user, experience, 'experiences', 'read')).toBe(false);
-            
             user.permissions = {};
             expect(content.checkScope(user, experience, 'experiences', 'read')).toBe(false);
-            
             user.permissions.experiences = {};
-            user.permissions.orgs = { read: 'all' };
+            user.permissions.orgs = { read: Scope.All };
             expect(content.checkScope(user, experience, 'experiences', 'read')).toBe(false);
-            
             user.permissions.experiences.read = '';
             expect(content.checkScope(user, experience, 'experiences', 'read')).toBe(false);
-            
-            user.permissions.experiences.read = 'all';
+            user.permissions.experiences.read = Scope.All;
             expect(content.checkScope(user, experience, 'experiences', 'read')).toBe(true);
+        });
+    });
+    
+    describe('createChecker', function() {
+        it('should have initialized correctly', function() {
+            spyOn(Checker, 'eqFieldFunc').andCallThrough();
+            spyOn(Checker, 'scopeFunc').andCallThrough();
+            delete require.cache[require.resolve('../../bin/content')];
+            content = require('../../bin/content');
+
+            expect(content.createChecker._forbidden).toEqual(['id', 'created']);
+            expect(content.createChecker._condForbidden.org instanceof Array).toBeTruthy();
+            expect(content.createChecker._condForbidden.org.length).toBe(2);
+            expect(Checker.eqFieldFunc).toHaveBeenCalledWith('org');
+            expect(Checker.scopeFunc).toHaveBeenCalledWith('experiences', 'create', Scope.All);
+        });
+    });
+    
+    describe('updateChecker', function() {
+        it('should have initalized correctly', function() {
+            expect(content.updateChecker._forbidden).toEqual(['id', 'org', 'created']);
         });
     });
     
@@ -132,10 +154,10 @@ describe('content (UT)', function() {
         
         it('should only return experiences the user is allowed to see', function(done) {
             var exps = [
-                { id: 'e-1', status: 'active', access: 'private' },
-                { id: 'e-2', status: 'inactive', access: 'public' },
-                { id: 'e-3', status: 'active', access: 'public' },
-                { id: 'e-4', status: 'inactive', access: 'private' }
+                { id: 'e-1', status: Status.Active, access: Access.Private },
+                { id: 'e-2', status: Status.Inactive, access: Access.Public },
+                { id: 'e-3', status: Status.Active, access: Access.Public },
+                { id: 'e-4', status: Status.Inactive, access: Access.Private }
             ];
             cache.getPromise.andReturn(q(exps));
             content.checkScope.andCallFake(function(user, experience, obj, verb) {
@@ -146,8 +168,8 @@ describe('content (UT)', function() {
             content.getExperiences(query, req, cache).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
-                expect(resp.body).toEqual([{ id: 'e-3', status: 'active', access: 'public' },
-                                           { id: 'e-4', status: 'inactive', access: 'private' }]);
+                expect(resp.body).toEqual([{ id: 'e-3', status: Status.Active, access: Access.Public },
+                                           { id: 'e-4', status: Status.Inactive, access: Access.Private }]);
                 expect(content.checkScope.calls.length).toBe(4);
                 done();
             }).catch(function(error) {
@@ -194,6 +216,7 @@ describe('content (UT)', function() {
             experiences.insert = jasmine.createSpy('experiences.insert')
                 .andCallFake(function(obj, opts, cb) { cb(); });
             spyOn(uuid, 'createUuid').andReturn('1234');
+            spyOn(content.createChecker, 'check').andReturn(true);
         });
         
         it('should fail with a 400 if no experience is provided', function(done) {
@@ -219,10 +242,25 @@ describe('content (UT)', function() {
                 expect(resp.body.lastUpdated instanceof Date).toBeTruthy('lastUpdated is a Date');
                 expect(resp.body.user).toBe('u-1234');
                 expect(resp.body.org).toBe('o-1234');
-                expect(resp.body.status).toBe('active');
+                expect(resp.body.status).toBe(Status.Active);
+                expect(content.createChecker.check).toHaveBeenCalledWith(req.body, {}, req.user);
                 expect(experiences.insert).toHaveBeenCalled();
                 expect(experiences.insert.calls[0].args[0]).toBe(resp.body);
                 expect(experiences.insert.calls[0].args[1]).toEqual({w: 1, journal: true});
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should fail with a 400 if the request body contains illegal fields', function(done) {
+            content.createChecker.check.andReturn(false);
+            content.createExperience(req, experiences).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(400);
+                expect(content.createChecker.check).toHaveBeenCalled();
+                expect(experiences.insert).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -259,6 +297,7 @@ describe('content (UT)', function() {
                     cb(null, [{ id: 'e-1234', updated: true }]);
                 });
             spyOn(content, 'checkScope').andReturn(true);
+            spyOn(content.updateChecker, 'check').andReturn(true);
         });
 
         it('should fail with a 400 if no update object is provided', function(done) {
@@ -280,6 +319,7 @@ describe('content (UT)', function() {
                 expect(resp.body).toEqual({id: 'e-1234', updated: true});
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findOne.calls[0].args[0]).toEqual({id: 'e-1234'});
+                expect(content.updateChecker.check).toHaveBeenCalledWith(req.body, oldExp, req.user);
                 expect(experiences.findAndModify).toHaveBeenCalled();
                 expect(experiences.findAndModify.calls[0].args[0]).toEqual({id: 'e-1234'});
                 expect(experiences.findAndModify.calls[0].args[1]).toEqual({id: 1});
@@ -296,18 +336,13 @@ describe('content (UT)', function() {
             });
         });
 
-        it('should not allow a user to change an experience id', function(done) {
-            req.body.id = 'e-4567';
+        it('should not edit the experience if the updates contain illegal fields', function(done) {
+            content.updateChecker.check.andReturn(false);
             content.updateExperience(req, experiences).then(function(resp) {
-                expect(resp.code).toBe(201);
-                expect(resp.body).toEqual({id: 'e-1234', updated: true});
-                expect(mockLog.warn).toHaveBeenCalled();
-                expect(experiences.findAndModify).toHaveBeenCalled();
-                var updates = experiences.findAndModify.calls[0].args[2];
-                expect(Object.keys(updates)).toEqual(['$set']);
-                expect(updates.$set.title).toBe('newExp');
-                expect(updates.$set.id).not.toBeDefined();
-                expect(updates.$set.lastUpdated instanceof Date).toBeTruthy('lastUpdated is Date');
+                expect(resp.code).toBe(400);
+                expect(resp.body).toBe('Illegal fields');
+                expect(content.updateChecker.check).toHaveBeenCalled();
+                expect(experiences.findAndModify).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -375,7 +410,7 @@ describe('content (UT)', function() {
             oldExp;
         beforeEach(function() {
             req.params = {id: 'e-1234'};
-            oldExp = {id:'e-1234', status: 'active', user:'u-1234', lastUpdated:start};
+            oldExp = {id:'e-1234', status: Status.Active, user:'u-1234', lastUpdated:start};
             req.user = {id: 'u-1234'};
             experiences.findOne = jasmine.createSpy('experiences.findOne')
                 .andCallFake(function(query, cb) { cb(null, oldExp); });
@@ -395,7 +430,7 @@ describe('content (UT)', function() {
                 expect(experiences.update).toHaveBeenCalled();
                 expect(experiences.update.calls[0].args[0]).toEqual({id: 'e-1234'});
                 var setProps = experiences.update.calls[0].args[1];
-                expect(setProps.$set.status).toBe('deleted');
+                expect(setProps.$set.status).toBe(Status.Deleted);
                 expect(setProps.$set.lastUpdated instanceof Date).toBeTruthy('lastUpdated is a Date');
                 expect(setProps.$set.lastUpdated).toBeGreaterThan(start);
                 expect(experiences.update.calls[0].args[2]).toEqual({w: 1, journal: true});
@@ -422,7 +457,7 @@ describe('content (UT)', function() {
         });
         
         it('should not do anything if the experience has been deleted', function(done) {
-            oldExp.status = 'deleted';
+            oldExp.status = Status.Deleted;
             content.deleteExperience(req, experiences).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);

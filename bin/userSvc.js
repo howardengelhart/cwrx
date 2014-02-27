@@ -268,7 +268,7 @@
                 log.warn('[%1] Updates contain illegal fields', req.uuid);
                 log.trace('updates: %1  |  orig: %2  |  requester: %3', JSON.stringify(updates),
                           JSON.stringify(orig), JSON.stringify(requester));
-                return deferred.resolve({code: 400, body: 'Illegal update fields'});
+                return deferred.resolve({code: 400, body: 'Illegal fields'});
             }
             var updateObj = { $set: updates };
             if (JSON.stringify(updateObj) === JSON.stringify({$set: {}})) {
