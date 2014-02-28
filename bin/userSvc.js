@@ -275,12 +275,8 @@
                           JSON.stringify(orig), JSON.stringify(requester));
                 return deferred.resolve({code: 400, body: 'Illegal fields'});
             }
+            updates.lastUpdated = new Date();
             var updateObj = { $set: updates };
-            if (JSON.stringify(updateObj) === JSON.stringify({$set: {}})) {
-                log.info('[%1] Update object was blank', req.uuid);
-                return deferred.resolve({code: 400, body: 'All those updates were illegal'});
-            }
-            updateObj.$set.lastUpdated = new Date();
             var opts = {w: 1, journal: true, new: true};
             return q.npost(users, 'findAndModify', [{id: id}, {id: 1}, updateObj, opts])
             .then(function(results) {
