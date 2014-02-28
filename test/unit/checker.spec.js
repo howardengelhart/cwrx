@@ -11,33 +11,33 @@ describe('Checker', function() {
 
     describe('initialization', function() {
         it('should correctly initialize a checker', function() {
-            var condForbidden = { c: function() {} };
-            var checker = new Checker(['a', 'b'], condForbidden);
+            var cF = { c: function() {} };
+            var checker = new Checker({forbidden: ['a', 'b'], condForbidden: cF});
             expect(checker._forbidden).toEqual(['a', 'b']);
-            expect(checker._condForbidden).toBe(condForbidden);
+            expect(checker._condForbidden).toBe(cF);
         });
         
         it('should initialize a checker with only forbidden or condForbidden', function() {
-            var condForbidden = { c: function() {} },
+            var cF = { c: function() {} },
                 checker;
-            expect(function() { checker = new Checker(['a', 'b']); }).not.toThrow();
+            expect(function() { checker = new Checker({forbidden: ['a', 'b']}); }).not.toThrow();
             expect(checker._forbidden).toEqual(['a', 'b']);
             expect(checker._condForbidden).toEqual({});
-            expect(function() { checker = new Checker(null, condForbidden); }).not.toThrow();
+            expect(function() { checker = new Checker({condForbidden: cF}); }).not.toThrow();
             expect(checker._forbidden).toEqual([]);
-            expect(checker._condForbidden).toEqual(condForbidden);
+            expect(checker._condForbidden).toEqual(cF);
         });
         
         it('should throw an error if neither forbidden nor condForbidden are defined', function() {
             var msg = 'Cannot create a checker with no fields to check for';
+            expect(function() { new Checker({}); }).toThrow(msg);
             expect(function() { new Checker(); }).toThrow(msg);
-            expect(function() { new Checker(null, null); }).toThrow(msg);
         });
     });
     
     describe('check', function() {
         it('should return false if any of the params are undefined or not objects', function() {
-            var c = new Checker([], {});
+            var c = new Checker({forbidden: [], condForbidden: {}});
             expect(c.check()).toBe(false);
             expect(c.check({}, {}, null)).toBe(false);
             expect(c.check({}, null, {})).toBe(false);
@@ -49,7 +49,7 @@ describe('Checker', function() {
         });
         
         it('should return false if the update object contains forbidden fields', function() {
-            var c = new Checker(['a', 'b']);
+            var c = new Checker({forbidden: ['a', 'b']});
             expect(c.check({a: 1, c: 2}, {}, {})).toBe(false);
             expect(c.check({b: 1, c: 2}, {}, {})).toBe(false);
             expect(c.check({d: 1, c: 2}, {}, {})).toBe(true);
@@ -58,7 +58,7 @@ describe('Checker', function() {
         it('should return false if the update object contains conditonally forbidden fields', function() {
             var fooSpy = jasmine.createSpy('foo').andReturn(true);
             var barSpy = jasmine.createSpy('bar').andReturn(false);
-            var c = new Checker(null, { foo: fooSpy, bar: barSpy });
+            var c = new Checker({ condForbidden: { foo: fooSpy, bar: barSpy } });
             expect(c.check({foo: 1, bar: 2}, { a: 1}, { b: 2})).toBe(false);
             expect(fooSpy).toHaveBeenCalledWith({foo: 1, bar: 2}, { a: 1}, { b: 2});
             expect(barSpy).toHaveBeenCalledWith({foo: 1, bar: 2}, { a: 1}, { b: 2});

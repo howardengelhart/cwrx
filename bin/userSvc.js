@@ -83,13 +83,17 @@
             });
         });
     };
-    
-    userSvc.createChecker = new Checker(['id', 'created'], {
-        permissions: userSvc.permsCheck,
-        org: [ Checker.eqFieldFunc('org'), Checker.scopeFunc('users', 'create', Scope.All) ]
+
+    userSvc.createChecker = new Checker({
+        forbidden: ['id', 'created'],
+        condForbidden: {
+            permissions: userSvc.permsCheck,
+            org: [ Checker.eqFieldFunc('org'), Checker.scopeFunc('users', 'create', Scope.All) ]
+        }
     });
-    userSvc.updateChecker = new Checker(['id', 'org', 'password', 'created'], {
-        permissions: userSvc.permsCheck
+    userSvc.updateChecker = new Checker({
+        forbidden: ['id', 'org', 'password', 'created'],
+        condForbidden: { permissions: userSvc.permsCheck }
     });
 
     userSvc.getUser = function(req, state) {

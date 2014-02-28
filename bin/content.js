@@ -55,10 +55,13 @@
              (user.permissions[object][verb] === Scope.Own && user.id === experience.user) ));
     };
     
-    content.createChecker = new Checker(['id', 'created'], {
-        org: [ Checker.eqFieldFunc('org'), Checker.scopeFunc('experiences', 'create', Scope.All) ]
+    content.createChecker = new Checker({
+        forbidden: ['id', 'created'],
+        condForbidden: {
+            org: [Checker.eqFieldFunc('org'), Checker.scopeFunc('experiences', 'create', Scope.All)]
+        }
     });
-    content.updateChecker = new Checker(['id', 'org', 'created'], {});
+    content.updateChecker = new Checker({ forbidden: ['id', 'org', 'created'] });
 
     content.getExperiences = function(query, req, cache) {
         var limit = req.query && req.query.limit || 0,
