@@ -55,20 +55,13 @@ describe('monitor (E2E)', function(){
     });
 
     beforeEach(function(done){
-        deleteMonitorProfile()
-        .then(restartService(restart))
-        .done(function() {
-            if (restart){
-                restart = false;
-                setTimeout(function(){ done(); },2000);
-            } else {
-                done();
-            }
-        });
+        deleteMonitorProfile().finally(done);
     });
 
     it('returns 500 if nothing to monitor',function(done){
-        getStatus()
+        restartService(true)
+        .delay(1500)
+        .then(getStatus)
             .then(function(resp){
                 expect(resp.response.statusCode).toEqual(500);
                 expect(resp.body).toEqual('No services monitored.');
@@ -86,11 +79,133 @@ describe('monitor (E2E)', function(){
             }
         })
         .then(restartService(true))
-        .then(q.delay(1000))
+        .delay(1500)
         .then(getStatus)
         .then(function(resp){
             expect(resp.response.statusCode).toEqual(200);
-            expect(resp.body).toEqual('No services monitored.');
+            expect(resp.body).toEqual({ maint : '200' });
+        })
+        .catch(function(err){
+            expect(err).not.toBeDefined();
+        })
+        .finally(done);
+    });
+
+    it('returns 200 if checkHttp succeeds',function(done){
+        createMonitorProfile('maint', {
+            checkHttp : {
+                path : '/maint/meta' 
+            }
+        })
+        .then(restartService(true))
+        .delay(1500)
+        .then(getStatus)
+        .then(function(resp){
+            expect(resp.response.statusCode).toEqual(200);
+            expect(resp.body).toEqual({ maint : '200' });
+        })
+        .catch(function(err){
+            expect(err).not.toBeDefined();
+        })
+        .finally(done);
+    });
+
+    it('returns 200 if checkHttp && checkProcess succeeds on same service',function(done){
+        createMonitorProfile('maint', {
+            checkProcess : {
+                pidPath : '/opt/sixxy/run/maint.pid' 
+            },
+            checkHttp : {
+                path : '/maint/meta' 
+            }
+        })
+        .then(restartService(true))
+        .delay(1500)
+        .then(getStatus)
+        .then(function(resp){
+            expect(resp.response.statusCode).toEqual(200);
+            expect(resp.body).toEqual({ maint : '200' });
+        })
+        .catch(function(err){
+            expect(err).not.toBeDefined();
+        })
+        .finally(done);
+    });
+
+    it('returns 503 if one service good one fails checkProcess',function(done){
+        createMonitorProfile('maint', {
+            checkProcess : {
+                pidPath : '/opt/sixxy/run/maint.pid' 
+            },
+            checkHttp : {
+                path : '/maint/meta' 
+            }
+        })
+        .then(createMonitorProfile('phony', {
+            checkProcess : {
+                pidPath : '/opt/sixxy/run/phony.pid' 
+            }
+        }))
+        .then(restartService(true))
+        .delay(1500)
+        .then(getStatus)
+        .then(function(resp){
+            expect(resp.response.statusCode).toEqual(503);
+            expect(resp.body).toEqual({ maint : '200', phony : '503' });
+        })
+        .catch(function(err){
+            expect(err).not.toBeDefined();
+        })
+        .finally(done);
+    });
+
+    it('returns 502 if one service good one fails checkHttp',function(done){
+        createMonitorProfile('maint', {
+            checkProcess : {
+                pidPath : '/opt/sixxy/run/maint.pid' 
+            },
+            checkHttp : {
+                path : '/maint/meta' 
+            }
+        })
+        .then(createMonitorProfile('phony', {
+            checkHttp : {
+                path : '/phoney/path' 
+            }
+        }))
+        .then(restartService(true))
+        .delay(1500)
+        .then(getStatus)
+        .then(function(resp){
+            expect(resp.response.statusCode).toEqual(502);
+            expect(resp.body).toEqual({ maint : '200', phony : '502' });
+        })
+        .catch(function(err){
+            expect(err).not.toBeDefined();
+        })
+        .finally(done);
+    });
+
+    it('returns 200 if two services pass',function(done){
+        createMonitorProfile('maint', {
+            checkProcess : {
+                pidPath : '/opt/sixxy/run/maint.pid' 
+            },
+            checkHttp : {
+                path : '/maint/meta' 
+            }
+        })
+        .then(createMonitorProfile('monitor', {
+            checkProcess : {
+                pidPath : '/opt/sixxy/run/monitor.pid' 
+            }
+        }))
+        .then(restartService(true))
+        .delay(1500)
+        .then(getStatus)
+        .then(function(resp){
+            expect(resp.response.statusCode).toEqual(200);
+            expect(resp.body).toEqual({ maint : '200', monitor : '200' });
         })
         .catch(function(err){
             expect(err).not.toBeDefined();
