@@ -401,8 +401,17 @@
         var users = state.db.collection('users');
         var queryCache = new QueryCache(state.config.cacheTTLs.users, users);
         
+        app.get('/api/account/user/meta', function(req, res/*, next*/){
+            var data = {
+                version: state.config.appVersion,
+                started : started.toISOString(),
+                status : 'OK'
+            };
+            res.send(200, data);
+        });
+        
         var authGetUser = authUtils.middlewarify(state.db, {users: 'read'});
-        app.get('/api/userSvc/user/:id', authGetUser, function(req, res/*, next*/) {
+        app.get('/api/account/user/:id', authGetUser, function(req, res/*, next*/) {
             userSvc.getUser(req, state)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -414,7 +423,7 @@
             });
         });
         
-        app.get('/api/userSvc/users', authGetUser, function(req, res/*, next*/) {
+        app.get('/api/account/users', authGetUser, function(req, res/*, next*/) {
             if (!req.query || !req.query.org) {
                 log.info('[%1] Cannot GET /api/users without org specified',req.uuid);
                 return res.send(400, 'Must specify org param');
@@ -431,7 +440,7 @@
         });
         
         var authPostUser = authUtils.middlewarify(state.db, {users: 'create'});
-        app.post('/api/userSvc/user', authPostUser, function(req, res/*, next*/) {
+        app.post('/api/account/user', authPostUser, function(req, res/*, next*/) {
             userSvc.createUser(req, users)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -444,7 +453,7 @@
         });
         
         var authPutUser = authUtils.middlewarify(state.db, {users: 'edit'});
-        app.put('/api/userSvc/user/:id', authPutUser, function(req, res/*, next*/) {
+        app.put('/api/account/user/:id', authPutUser, function(req, res/*, next*/) {
             userSvc.updateUser(req, users)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -457,7 +466,7 @@
         });
         
         var authDelUser = authUtils.middlewarify(state.db, {users: 'delete'});
-        app.delete('/api/userSvc/user/:id', authDelUser, function(req, res/*, next*/) {
+        app.delete('/api/account/user/:id', authDelUser, function(req, res/*, next*/) {
             userSvc.deleteUser(req, users)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -467,15 +476,6 @@
                     detail: error
                 });
             });
-        });
-        
-        app.get('/api/userSvc/meta', function(req, res/*, next*/){
-            var data = {
-                version: state.config.appVersion,
-                started : started.toISOString(),
-                status : 'OK'
-            };
-            res.send(200, data);
         });
         
         app.listen(state.cmdl.port);

@@ -2,7 +2,7 @@ var q           = require('q'),
     testUtils   = require('./testUtils'),
     host        = process.env['host'] || 'localhost',
     config      = {
-        userSvcUrl  : 'http://' + (host === 'localhost' ? host + ':3500' : host) + '/api/userSvc',
+        userSvcUrl  : 'http://' + (host === 'localhost' ? host + ':3500' : host) + '/api/account',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
 
@@ -41,7 +41,7 @@ describe('user (E2E):', function() {
         });
     });
     
-    describe('GET /api/user/:id', function() {
+    describe('GET /api/account/user/:id', function() {
         var mockUser;
         beforeEach(function() {
             mockUser = {
@@ -112,7 +112,7 @@ describe('user (E2E):', function() {
         });
     });
     
-    describe('GET /api/users', function() {
+    describe('GET /api/account/users', function() {
         var mockUsers;
         beforeEach(function(done) {
             mockUsers = [
@@ -198,7 +198,7 @@ describe('user (E2E):', function() {
         });
     });
     
-    describe('POST /api/user', function() {
+    describe('POST /api/account/user', function() {
         var mockUser;
         beforeEach(function(done) {
             mockUser = {
@@ -321,7 +321,7 @@ describe('user (E2E):', function() {
         });
     });
     
-    describe('PUT /api/user/:id', function() {
+    describe('PUT /api/account/user/:id', function() {
         var start = new Date(),
             mockUsers, updates;
         beforeEach(function(done) {
@@ -429,7 +429,7 @@ describe('user (E2E):', function() {
         });
     });
     
-    describe('DELETE /api/user/:id', function() {
+    describe('DELETE /api/account/user/:id', function() {
         var mockUsers;
         beforeEach(function(done) {
             mockUsers = [
