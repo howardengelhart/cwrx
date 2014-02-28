@@ -3,19 +3,19 @@
     'use strict';
     var __ut__      = (global.jasmine !== undefined) ? true : false;
 
-    var path        = require('path'),
-        q           = require('q'),
-        logger      = require('../lib/logger'),
-        uuid        = require('../lib/uuid'),
-        QueryCache  = require('../lib/queryCache'),
-        Checker     = require('../lib/checker'),
-        mongoUtils  = require('../lib/mongoUtils'),
-        authUtils   = require('../lib/authUtils')(),
-        service     = require('../lib/service'),
-        enums       = require('../lib/enums'),
-        Status      = enums.Status,
-        Access      = enums.Access,
-        Scope       = enums.Scope,
+    var path            = require('path'),
+        q               = require('q'),
+        logger          = require('../lib/logger'),
+        uuid            = require('../lib/uuid'),
+        QueryCache      = require('../lib/queryCache'),
+        FieldValidator  = require('../lib/fieldValidator'),
+        mongoUtils      = require('../lib/mongoUtils'),
+        authUtils       = require('../lib/authUtils')(),
+        service         = require('../lib/service'),
+        enums           = require('../lib/enums'),
+        Status          = enums.Status,
+        Access          = enums.Access,
+        Scope           = enums.Scope,
         
         state       = {},
         content = {}; // for exporting functions to unit tests
@@ -55,13 +55,14 @@
              (user.permissions[object][verb] === Scope.Own && user.id === experience.user) ));
     };
     
-    content.createChecker = new Checker({
+    content.createValidator = new FieldValidator({
         forbidden: ['id', 'created'],
         condForbidden: {
-            org: [Checker.eqFieldFunc('org'), Checker.scopeFunc('experiences', 'create', Scope.All)]
+            org: [FieldValidator.eqFieldFunc('org'),
+                  FieldValidator.scopeFunc('experiences', 'create', Scope.All)]
         }
     });
-    content.updateChecker = new Checker({ forbidden: ['id', 'org', 'created'] });
+    content.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created'] });
 
     content.getExperiences = function(query, req, cache) {
         var limit = req.query && req.query.limit || 0,
@@ -109,7 +110,7 @@
         if (!obj || typeof obj !== 'object') {
             return q({code: 400, body: 'You must provide an object in the body'});
         }
-        if (!content.createChecker.check(obj, {}, user)) {
+        if (!content.createValidator.validate(obj, {}, user)) {
             log.warn('[%1] experience contains illegal fields', req.uuid);
             log.trace('exp: %1  |  requester: %2', JSON.stringify(obj), JSON.stringify(user));
             return q({code: 400, body: 'Illegal fields'});
@@ -156,7 +157,7 @@
                 log.info('[%1] Experience %2 does not exist; not creating it', req.uuid, id);
                 return deferred.resolve({code: 404, body: 'That experience does not exist'});
             }
-            if (!content.updateChecker.check(updates, orig, user)) {
+            if (!content.updateValidator.validate(updates, orig, user)) {
                 log.warn('[%1] updates contain illegal fields', req.uuid);
                 log.trace('exp: %1  |  orig: %2  |  requester: %3',
                           JSON.stringify(updates), JSON.stringify(orig), JSON.stringify(user));

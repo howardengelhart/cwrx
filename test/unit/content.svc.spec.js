@@ -1,20 +1,20 @@
 var flush = true;
 describe('content (UT)', function() {
-    var mockLog, mockLogger, experiences, req, uuid, logger, content, q, QueryCache, Checker, enums,
-        Status, Scope, Access;
+    var mockLog, mockLogger, experiences, req, uuid, logger, content, q, QueryCache, FieldValidator,
+        enums, Status, Scope, Access;
     
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
-        uuid        = require('../../lib/uuid');
-        logger      = require('../../lib/logger');
-        content     = require('../../bin/content');
-        QueryCache  = require('../../lib/queryCache');
-        Checker     = require('../../lib/checker');
-        q           = require('q');
-        enums       = require('../../lib/enums');
-        Status      = enums.Status;
-        Access      = enums.Access;
-        Scope       = enums.Scope;
+        uuid            = require('../../lib/uuid');
+        logger          = require('../../lib/logger');
+        content         = require('../../bin/content');
+        QueryCache      = require('../../lib/queryCache');
+        FieldValidator  = require('../../lib/fieldValidator');
+        q               = require('q');
+        enums           = require('../../lib/enums');
+        Status          = enums.Status;
+        Access          = enums.Access;
+        Scope           = enums.Scope;
         
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -78,24 +78,24 @@ describe('content (UT)', function() {
         });
     });
     
-    describe('createChecker', function() {
+    describe('createValidator', function() {
         it('should have initialized correctly', function() {
-            spyOn(Checker, 'eqFieldFunc').andCallThrough();
-            spyOn(Checker, 'scopeFunc').andCallThrough();
+            spyOn(FieldValidator, 'eqFieldFunc').andCallThrough();
+            spyOn(FieldValidator, 'scopeFunc').andCallThrough();
             delete require.cache[require.resolve('../../bin/content')];
             content = require('../../bin/content');
 
-            expect(content.createChecker._forbidden).toEqual(['id', 'created']);
-            expect(content.createChecker._condForbidden.org instanceof Array).toBeTruthy();
-            expect(content.createChecker._condForbidden.org.length).toBe(2);
-            expect(Checker.eqFieldFunc).toHaveBeenCalledWith('org');
-            expect(Checker.scopeFunc).toHaveBeenCalledWith('experiences', 'create', Scope.All);
+            expect(content.createValidator._forbidden).toEqual(['id', 'created']);
+            expect(content.createValidator._condForbidden.org instanceof Array).toBeTruthy();
+            expect(content.createValidator._condForbidden.org.length).toBe(2);
+            expect(FieldValidator.eqFieldFunc).toHaveBeenCalledWith('org');
+            expect(FieldValidator.scopeFunc).toHaveBeenCalledWith('experiences', 'create', Scope.All);
         });
     });
     
-    describe('updateChecker', function() {
+    describe('updateValidator', function() {
         it('should have initalized correctly', function() {
-            expect(content.updateChecker._forbidden).toEqual(['id', 'org', 'created']);
+            expect(content.updateValidator._forbidden).toEqual(['id', 'org', 'created']);
         });
     });
     
@@ -216,7 +216,7 @@ describe('content (UT)', function() {
             experiences.insert = jasmine.createSpy('experiences.insert')
                 .andCallFake(function(obj, opts, cb) { cb(); });
             spyOn(uuid, 'createUuid').andReturn('1234');
-            spyOn(content.createChecker, 'check').andReturn(true);
+            spyOn(content.createValidator, 'validate').andReturn(true);
         });
         
         it('should fail with a 400 if no experience is provided', function(done) {
@@ -243,7 +243,7 @@ describe('content (UT)', function() {
                 expect(resp.body.user).toBe('u-1234');
                 expect(resp.body.org).toBe('o-1234');
                 expect(resp.body.status).toBe(Status.Active);
-                expect(content.createChecker.check).toHaveBeenCalledWith(req.body, {}, req.user);
+                expect(content.createValidator.validate).toHaveBeenCalledWith(req.body, {}, req.user);
                 expect(experiences.insert).toHaveBeenCalled();
                 expect(experiences.insert.calls[0].args[0]).toBe(resp.body);
                 expect(experiences.insert.calls[0].args[1]).toEqual({w: 1, journal: true});
@@ -255,11 +255,11 @@ describe('content (UT)', function() {
         });
         
         it('should fail with a 400 if the request body contains illegal fields', function(done) {
-            content.createChecker.check.andReturn(false);
+            content.createValidator.validate.andReturn(false);
             content.createExperience(req, experiences).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(400);
-                expect(content.createChecker.check).toHaveBeenCalled();
+                expect(content.createValidator.validate).toHaveBeenCalled();
                 expect(experiences.insert).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
@@ -297,7 +297,7 @@ describe('content (UT)', function() {
                     cb(null, [{ id: 'e-1234', updated: true }]);
                 });
             spyOn(content, 'checkScope').andReturn(true);
-            spyOn(content.updateChecker, 'check').andReturn(true);
+            spyOn(content.updateValidator, 'validate').andReturn(true);
         });
 
         it('should fail with a 400 if no update object is provided', function(done) {
@@ -319,7 +319,7 @@ describe('content (UT)', function() {
                 expect(resp.body).toEqual({id: 'e-1234', updated: true});
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findOne.calls[0].args[0]).toEqual({id: 'e-1234'});
-                expect(content.updateChecker.check).toHaveBeenCalledWith(req.body, oldExp, req.user);
+                expect(content.updateValidator.validate).toHaveBeenCalledWith(req.body, oldExp, req.user);
                 expect(experiences.findAndModify).toHaveBeenCalled();
                 expect(experiences.findAndModify.calls[0].args[0]).toEqual({id: 'e-1234'});
                 expect(experiences.findAndModify.calls[0].args[1]).toEqual({id: 1});
@@ -337,11 +337,11 @@ describe('content (UT)', function() {
         });
 
         it('should not edit the experience if the updates contain illegal fields', function(done) {
-            content.updateChecker.check.andReturn(false);
+            content.updateValidator.validate.andReturn(false);
             content.updateExperience(req, experiences).then(function(resp) {
                 expect(resp.code).toBe(400);
                 expect(resp.body).toBe('Illegal fields');
-                expect(content.updateChecker.check).toHaveBeenCalled();
+                expect(content.updateValidator.validate).toHaveBeenCalled();
                 expect(experiences.findAndModify).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {

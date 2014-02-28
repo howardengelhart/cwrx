@@ -3,19 +3,19 @@
     'use strict';
     var __ut__      = (global.jasmine !== undefined) ? true : false;
 
-    var path        = require('path'),
-        q           = require('q'),
-        bcrypt      = require('bcrypt'),
-        logger      = require('../lib/logger'),
-        uuid        = require('../lib/uuid'),
-        QueryCache  = require('../lib/queryCache'),
-        Checker     = require('../lib/checker'),
-        mongoUtils  = require('../lib/mongoUtils'),
-        authUtils   = require('../lib/authUtils')(),
-        service     = require('../lib/service'),
-        enums       = require('../lib/enums'),
-        Status      = enums.Status,
-        Scope       = enums.Scope,
+    var path            = require('path'),
+        q               = require('q'),
+        bcrypt          = require('bcrypt'),
+        logger          = require('../lib/logger'),
+        uuid            = require('../lib/uuid'),
+        QueryCache      = require('../lib/queryCache'),
+        FieldValidator  = require('../lib/fieldValidator'),
+        mongoUtils      = require('../lib/mongoUtils'),
+        authUtils       = require('../lib/authUtils')(),
+        service         = require('../lib/service'),
+        enums           = require('../lib/enums'),
+        Status          = enums.Status,
+        Scope           = enums.Scope,
         
         userCache   = {},
         state       = {},
@@ -84,14 +84,15 @@
         });
     };
 
-    userSvc.createChecker = new Checker({
+    userSvc.createValidator = new FieldValidator({
         forbidden: ['id', 'created'],
         condForbidden: {
             permissions: userSvc.permsCheck,
-            org: [ Checker.eqFieldFunc('org'), Checker.scopeFunc('users', 'create', Scope.All) ]
+            org: [ FieldValidator.eqFieldFunc('org'),
+                   FieldValidator.scopeFunc('users', 'create', Scope.All) ]
         }
     });
-    userSvc.updateChecker = new Checker({
+    userSvc.updateValidator = new FieldValidator({
         forbidden: ['id', 'org', 'password', 'created'],
         condForbidden: { permissions: userSvc.permsCheck }
     });
@@ -225,7 +226,7 @@
                     body: 'A user with that username already exists'
                 });
             }
-            if (!userSvc.createChecker.check(newUser, {}, requester)) {
+            if (!userSvc.createValidator.validate(newUser, {}, requester)) {
                 log.warn('[%1] newUser contains illegal fields', req.uuid);
                 log.trace('newUser: %1  |  requester: %2',
                           JSON.stringify(newUser), JSON.stringify(requester));
@@ -268,7 +269,7 @@
                 log.info('[%1] User %2 is not authorized to edit %3', req.uuid, requester.id, id);
                 return deferred.resolve({code: 403, body: 'Not authorized to edit this user'});
             }
-            if (!userSvc.updateChecker.check(updates, orig, requester)) {
+            if (!userSvc.updateValidator.validate(updates, orig, requester)) {
                 log.warn('[%1] Updates contain illegal fields', req.uuid);
                 log.trace('updates: %1  |  orig: %2  |  requester: %3', JSON.stringify(updates),
                           JSON.stringify(orig), JSON.stringify(requester));

@@ -1,21 +1,21 @@
 var flush = true;
 describe('userSvc (UT)', function() {
-    var mockLog, mockLogger, req, uuid, logger, bcrypt, userSvc, q, QueryCache, mongoUtils, Checker,
-        enums, Status, Scope;
+    var mockLog, mockLogger, req, uuid, logger, bcrypt, userSvc, q, QueryCache, mongoUtils,
+        FieldValidator, enums, Status, Scope;
     
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
-        uuid        = require('../../lib/uuid');
-        logger      = require('../../lib/logger');
-        bcrypt      = require('bcrypt');
-        userSvc     = require('../../bin/userSvc');
-        QueryCache  = require('../../lib/queryCache');
-        Checker     = require('../../lib/checker');
-        mongoUtils  = require('../../lib/mongoUtils'),
-        q           = require('q');
-        enums       = require('../../lib/enums');
-        Status      = enums.Status;
-        Scope       = enums.Scope;
+        uuid            = require('../../lib/uuid');
+        logger          = require('../../lib/logger');
+        bcrypt          = require('bcrypt');
+        userSvc         = require('../../bin/userSvc');
+        QueryCache      = require('../../lib/queryCache');
+        FieldValidator  = require('../../lib/fieldValidator');
+        mongoUtils      = require('../../lib/mongoUtils'),
+        q               = require('q');
+        enums           = require('../../lib/enums');
+        Status          = enums.Status;
+        Scope           = enums.Scope;
         
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -123,25 +123,25 @@ describe('userSvc (UT)', function() {
         });
     });
     
-    describe('createChecker', function() {
+    describe('createValidator', function() {
         it('should have initialized correctly', function() {
-            spyOn(Checker, 'eqFieldFunc').andCallThrough();
-            spyOn(Checker, 'scopeFunc').andCallThrough();
+            spyOn(FieldValidator, 'eqFieldFunc').andCallThrough();
+            spyOn(FieldValidator, 'scopeFunc').andCallThrough();
             delete require.cache[require.resolve('../../bin/userSvc')];
             userSvc = require('../../bin/userSvc');
 
-            expect(userSvc.createChecker._forbidden).toEqual(['id', 'created']);
-            expect(userSvc.createChecker._condForbidden.org instanceof Array).toBeTruthy();
-            expect(userSvc.createChecker._condForbidden.org.length).toBe(2);
-            expect(Checker.eqFieldFunc).toHaveBeenCalledWith('org');
-            expect(Checker.scopeFunc).toHaveBeenCalledWith('users', 'create', Scope.All);
+            expect(userSvc.createValidator._forbidden).toEqual(['id', 'created']);
+            expect(userSvc.createValidator._condForbidden.org instanceof Array).toBeTruthy();
+            expect(userSvc.createValidator._condForbidden.org.length).toBe(2);
+            expect(FieldValidator.eqFieldFunc).toHaveBeenCalledWith('org');
+            expect(FieldValidator.scopeFunc).toHaveBeenCalledWith('users', 'create', Scope.All);
         });
     });
     
-    describe('updateChecker', function() {
+    describe('updateValidator', function() {
         it('should have initalized correctly', function() {
-            expect(userSvc.updateChecker._forbidden).toEqual(['id', 'org', 'password', 'created']);
-            expect(userSvc.updateChecker._condForbidden.permissions).toBe(userSvc.permsCheck);
+            expect(userSvc.updateValidator._forbidden).toEqual(['id', 'org', 'password', 'created']);
+            expect(userSvc.updateValidator._condForbidden.permissions).toBe(userSvc.permsCheck);
         });
     });
     
@@ -411,7 +411,7 @@ describe('userSvc (UT)', function() {
                 return q();
             });
             spyOn(mongoUtils, 'safeUser').andCallThrough();
-            spyOn(userSvc.createChecker, 'check').andReturn(true);
+            spyOn(userSvc.createValidator, 'validate').andReturn(true);
         });
         
         it('should reject with a 400 if no user object is provided', function(done) {
@@ -474,7 +474,7 @@ describe('userSvc (UT)', function() {
                 expect(resp.body).toEqual({username: 'test', org: 'o-1234'});
                 expect(userColl.findOne).toHaveBeenCalled();
                 expect(userColl.findOne.calls[0].args[0]).toEqual({username: 'test'});
-                expect(userSvc.createChecker.check).toHaveBeenCalledWith(req.body, {}, req.user);
+                expect(userSvc.createValidator.validate).toHaveBeenCalledWith(req.body, {}, req.user);
                 expect(userSvc.setupUser).toHaveBeenCalledWith(req.body, req.user);
                 expect(userColl.insert).toHaveBeenCalled();
                 expect(userColl.insert.calls[0].args[0]).toBe(req.body);
@@ -483,19 +483,19 @@ describe('userSvc (UT)', function() {
                     .toHaveBeenCalledWith({username: 'test', org: 'o-1234', password: 'hashPass'});
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
         
         it('should reject with a 400 if the new user contains illegal fields', function(done) {
-            userSvc.createChecker.check.andReturn(false);
+            userSvc.createValidator.validate.andReturn(false);
             userSvc.createUser(req, userColl).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(400);
                 expect(resp.body).toEqual('Illegal fields');
                 expect(userColl.findOne).toHaveBeenCalled();
-                expect(userSvc.createChecker.check).toHaveBeenCalled();
+                expect(userSvc.createValidator.validate).toHaveBeenCalled();
                 expect(userColl.insert).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
@@ -581,7 +581,7 @@ describe('userSvc (UT)', function() {
             req.user = { id: 'u-1234' };
             spyOn(userSvc, 'checkScope').andReturn(true);
             spyOn(mongoUtils, 'safeUser').andCallThrough();
-            spyOn(userSvc.updateChecker, 'check').andReturn(true);
+            spyOn(userSvc.updateValidator, 'validate').andReturn(true);
         });
         
         it('should fail immediately if no update object is provided', function(done) {
@@ -611,7 +611,7 @@ describe('userSvc (UT)', function() {
                 expect(userColl.findOne).toHaveBeenCalled();
                 expect(userColl.findOne.calls[0].args[0]).toEqual({id: 'u-4567'});
                 expect(userSvc.checkScope).toHaveBeenCalledWith({id: 'u-1234'}, {orig: 'yes'}, 'edit');
-                expect(userSvc.updateChecker.check)
+                expect(userSvc.updateValidator.validate)
                     .toHaveBeenCalledWith(req.body, {orig: 'yes'}, {id: 'u-1234'});
                 expect(userColl.findAndModify).toHaveBeenCalled();
                 expect(userColl.findAndModify.calls[0].args[0]).toEqual({id: 'u-4567'});
@@ -662,13 +662,13 @@ describe('userSvc (UT)', function() {
         });
         
         it('should not edit the user if the updates contain illegal fields', function(done) {
-            userSvc.updateChecker.check.andReturn(false);
+            userSvc.updateValidator.validate.andReturn(false);
             userSvc.updateUser(req, userColl).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(400);
                 expect(resp.body).toBe('Illegal fields');
                 expect(userColl.findOne).toHaveBeenCalled();
-                expect(userSvc.updateChecker.check).toHaveBeenCalled();
+                expect(userSvc.updateValidator.validate).toHaveBeenCalled();
                 expect(userColl.findAndModify).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
