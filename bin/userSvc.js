@@ -88,7 +88,7 @@
         forbidden: ['id', 'created'],
         condForbidden: {
             permissions: userSvc.permsCheck,
-            org: [ FieldValidator.eqFieldFunc('org'),
+            org: [ FieldValidator.eqReqFieldFunc('org'),
                    FieldValidator.scopeFunc('users', 'create', Scope.All) ]
         }
     });

@@ -125,7 +125,7 @@ describe('userSvc (UT)', function() {
     
     describe('createValidator', function() {
         it('should have initialized correctly', function() {
-            spyOn(FieldValidator, 'eqFieldFunc').andCallThrough();
+            spyOn(FieldValidator, 'eqReqFieldFunc').andCallThrough();
             spyOn(FieldValidator, 'scopeFunc').andCallThrough();
             delete require.cache[require.resolve('../../bin/userSvc')];
             userSvc = require('../../bin/userSvc');
@@ -133,7 +133,7 @@ describe('userSvc (UT)', function() {
             expect(userSvc.createValidator._forbidden).toEqual(['id', 'created']);
             expect(userSvc.createValidator._condForbidden.org instanceof Array).toBeTruthy();
             expect(userSvc.createValidator._condForbidden.org.length).toBe(2);
-            expect(FieldValidator.eqFieldFunc).toHaveBeenCalledWith('org');
+            expect(FieldValidator.eqReqFieldFunc).toHaveBeenCalledWith('org');
             expect(FieldValidator.scopeFunc).toHaveBeenCalledWith('users', 'create', Scope.All);
         });
     });

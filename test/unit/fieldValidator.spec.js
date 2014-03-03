@@ -68,9 +68,9 @@ describe('FieldValidator', function() {
         });
     });
     
-    describe('eqFieldFunc', function() {
+    describe('eqReqFieldFunc', function() {
         it('should return a funciton that checks updates[field] === requester[field', function() {
-            var func = FieldValidator.eqFieldFunc('id');
+            var func = FieldValidator.eqReqFieldFunc('id');
             expect(func({id: 'u-1'}, {}, {id: 'u-1', foo: 'bar'})).toBe(true);
             expect(func({id: 'u-2'}, {}, {id: 'u-1', foo: 'bar'})).toBe(false);
         });

@@ -58,7 +58,7 @@
     content.createValidator = new FieldValidator({
         forbidden: ['id', 'created'],
         condForbidden: {
-            org: [FieldValidator.eqFieldFunc('org'),
+            org: [FieldValidator.eqReqFieldFunc('org'),
                   FieldValidator.scopeFunc('experiences', 'create', Scope.All)]
         }
     });

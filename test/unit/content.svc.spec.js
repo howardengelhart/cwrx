@@ -80,7 +80,7 @@ describe('content (UT)', function() {
     
     describe('createValidator', function() {
         it('should have initialized correctly', function() {
-            spyOn(FieldValidator, 'eqFieldFunc').andCallThrough();
+            spyOn(FieldValidator, 'eqReqFieldFunc').andCallThrough();
             spyOn(FieldValidator, 'scopeFunc').andCallThrough();
             delete require.cache[require.resolve('../../bin/content')];
             content = require('../../bin/content');
@@ -88,7 +88,7 @@ describe('content (UT)', function() {
             expect(content.createValidator._forbidden).toEqual(['id', 'created']);
             expect(content.createValidator._condForbidden.org instanceof Array).toBeTruthy();
             expect(content.createValidator._condForbidden.org.length).toBe(2);
-            expect(FieldValidator.eqFieldFunc).toHaveBeenCalledWith('org');
+            expect(FieldValidator.eqReqFieldFunc).toHaveBeenCalledWith('org');
             expect(FieldValidator.scopeFunc).toHaveBeenCalledWith('experiences', 'create', Scope.All);
         });
     });
