@@ -74,7 +74,7 @@
             var updateObj = updates.permissions[key];
             var requesterObj = requester.permissions[key];
             return Object.keys(updates.permissions[key]).every(function(verb) {
-                if (Scope.getVal(updateObj[verb]) > Scope.getVal(requesterObj[verb])) {
+                if (Scope.compare(updateObj[verb], requesterObj[verb]) > 0) {
                     log.trace('Can\'t set perm %1: %2: %3 when requester has %1: %2: %4',
                               key, verb, updateObj[verb], requesterObj[verb]);
                     return false;

@@ -105,7 +105,6 @@ describe('userSvc (UT)', function() {
         });
         
         it('should return false if the updates\' perms exceed the requester\'s', function() {
-            spyOn(Scope, 'getVal').andCallThrough();
             updates.permissions.users = { read: Scope.Org };
             expect(userSvc.permsCheck(updates, orig, requester)).toBe(false);
             updates.permissions.users = { read: Scope.All };
