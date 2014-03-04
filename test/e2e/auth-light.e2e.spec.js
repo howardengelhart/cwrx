@@ -2,8 +2,7 @@ var q           = require('q'),
     testUtils   = require('./testUtils'),
     host        = process.env['host'] || 'localhost',
     config      = {
-        authUrl   : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth',
-        maintUrl : 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint'
+        authUrl   : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
 
 jasmine.getEnv().defaultTimeoutInterval = 10000;
@@ -12,7 +11,8 @@ describe('auth-light (E2E):', function() {
     describe('auth process', function() {
         var user = {
             username: 'auth-lightE2EUser',
-            password: 'password'
+            password: 'password',
+            e2e: true
         };
         var cookieJar = require('request').jar();
         

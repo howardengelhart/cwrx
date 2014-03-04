@@ -41,12 +41,6 @@ function resetCollection(collection,data,dbConfig){
                 return q();
             }
 
-            if (data instanceof Array) {
-                return q.all(data.map(function(obj) {
-                    return q.npost(coll,'insert',[obj, { w: 1, journal: true }]);
-                }));
-            }
-            
             return q.npost(coll,'insert',[data, { w: 1, journal: true }]);
         })
         .then(function(){

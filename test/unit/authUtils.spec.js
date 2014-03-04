@@ -82,15 +82,18 @@ describe('authUtils', function() {
             });
         });
         
-        it('should reject if the user cannot be found', function(done) {
+        it('should resolve with null if the user cannot be found', function(done) {
             collection.findOne.andCallFake(function(query, cb) {
-                cb();
+                cb(null, null);
             });
-            authUtils.getUser('u-1234', db).catch(function(errorObj) {
-                expect(errorObj).toBeDefined();
-                expect(errorObj.error).toBe("User not found");
-                expect(errorObj.detail).not.toBeDefined();
+            authUtils.getUser('u-1234', db).then(function(user) {
+                expect(user).toBeNull();
+                expect(authUtils._cache['u-1234']).not.toBeDefined();
                 expect(collection.findOne).toHaveBeenCalled();
+                expect(mongoUtils.safeUser).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
                 done();
             });
         });
