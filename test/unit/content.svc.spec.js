@@ -183,7 +183,7 @@ describe('content (UT)', function() {
             content.getExperiences(query, req, cache).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(404);
-                expect(resp.body).not.toBeDefined();
+                expect(resp.body).toBe('No experiences found');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();

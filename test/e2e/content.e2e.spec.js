@@ -92,12 +92,12 @@ describe('content (E2E):', function() {
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('');
+                expect(resp.body).toBe('No experiences found');
                 var options = {url: config.contentUrl + '/experience/e2e-pubget3'};
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('');
+                expect(resp.body).toBe('No experiences found');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -111,7 +111,7 @@ describe('content (E2E):', function() {
             };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toEqual('');
+                expect(resp.body).toEqual('No experiences found');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -445,7 +445,7 @@ describe('content (E2E):', function() {
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('');
+                expect(resp.body).toBe('No experiences found');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

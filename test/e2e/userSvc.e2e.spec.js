@@ -69,7 +69,7 @@ describe('user (E2E):', function() {
             });
         });
         
-        it('should return a 404 if the requester cannot see the user', function(done) {
+        it('should return a 403 if the requester cannot see the user', function(done) {
             var options = { url: config.userSvcUrl + '/user/e2e-getId2', jar: cookieJar };
             mockUser.org = 'o-4567';
             mockUser.id = 'e2e-getId2';
@@ -91,7 +91,7 @@ describe('user (E2E):', function() {
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('');
+                expect(resp.body).toBe('No user found');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -177,7 +177,7 @@ describe('user (E2E):', function() {
             var options = { url: config.userSvcUrl + '/users?org=o-4567', jar: cookieJar };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('');
+                expect(resp.body).toBe('No users found');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();

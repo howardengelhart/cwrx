@@ -106,7 +106,7 @@
         return authUtils.getUser(id, state.db).then(function(userAccount) {
             if (!userAccount) {
                 log.info('[%1] No user with id %2 found', req.uuid, id);
-                return q({code: 404});
+                return q({code: 404, body: 'No user found'});
             }
             log.trace('[%1] Retrieved document for user %2', req.uuid, id);
             if (userSvc.checkScope(requester, userAccount, 'read')) {
@@ -151,7 +151,7 @@
             users = users.map(mongoUtils.safeUser);
             log.info('[%1] Showing the requester %2 user documents', req.uuid, users.length);
             if (users.length === 0) {
-                return q({code: 404});
+                return q({code: 404, body: 'No users found'});
             } else {
                 return q({code: 200, body: users});
             }

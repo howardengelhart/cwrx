@@ -178,7 +178,7 @@ describe('userSvc (UT)', function() {
             userSvc.getUser(req, state).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(404);
-                expect(resp.body).not.toBeDefined();
+                expect(resp.body).toBe('No user found');
                 expect(authGetUser).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
@@ -294,7 +294,7 @@ describe('userSvc (UT)', function() {
             userSvc.getUsersByOrg(req, cache).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(404);
-                expect(resp.body).not.toBeDefined();
+                expect(resp.body).toBe('No users found');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();

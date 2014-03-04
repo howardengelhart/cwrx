@@ -96,7 +96,7 @@
             });
             log.info('[%1] Showing the user %2 experiences', req.uuid, experiences.length);
             if (experiences.length === 0) {
-                return q({code: 404});
+                return q({code: 404, body: 'No experiences found'});
             } else {
                 return q({code: 200, body: experiences});
             }
