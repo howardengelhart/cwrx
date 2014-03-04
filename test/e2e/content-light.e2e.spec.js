@@ -3,8 +3,7 @@ var q           = require('q'),
     host        = process.env['host'] || 'localhost',
     config      = {
         contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api/content',
-        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth',
-        maintUrl    : 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint'
+        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
 
 jasmine.getEnv().defaultTimeoutInterval = 5000;
@@ -19,7 +18,8 @@ describe('content-light (E2E):', function() {
             },
             testUser = {
                 username: "content-lightE2EUser",
-                password: "password"
+                password: "password",
+                e2e: true
             },
             currExp;
         
@@ -71,9 +71,7 @@ describe('content-light (E2E):', function() {
             };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body instanceof Array).toBeTruthy("body is Array");
-                expect(resp.body.length).toBe(1);
-                expect(resp.body[0]).toEqual(currExp);
+                expect(resp.body).toEqual(currExp);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -85,17 +83,16 @@ describe('content-light (E2E):', function() {
             Object.keys(currExp).forEach(function(key) {
                 origExp[key] = currExp[key];
             });
-            currExp.title = "newTitle";
             var options = {
                 url: config.contentUrl + '/experience/' + currExp.id,
                 jar: cookieJar,
-                json: currExp
+                json: { title: 'newTitle' }
             };
             testUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toBeDefined();
                 expect(resp.body).not.toEqual(origExp);
-                expect(resp.body.title).toBe("newTitle");
+                expect(resp.body.title).toBe('newTitle');
                 expect(resp.body.id).toBe(origExp.id);
                 expect(resp.body.created).toBe(origExp.created);
                 expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(origExp.lastUpdated));
