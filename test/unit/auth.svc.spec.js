@@ -342,8 +342,8 @@ describe('auth (UT)', function() {
             });
             auth.logout(req).then(function(resp) {
                 expect(resp).toBeDefined();
-                expect(resp.code).toBe(200);
-                expect(resp.body).toBe("Success");
+                expect(resp.code).toBe(204);
+                expect(resp.body).not.toBeDefined();
                 expect(req.session.destroy).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
@@ -352,12 +352,12 @@ describe('auth (UT)', function() {
             });
         });
         
-        it('should respond with a 400 if the user is not logged in', function(done) {
+        it('should still respond with a 204 if the user is not logged in', function(done) {
             delete req.session.user;
             auth.logout(req).then(function(resp) {
                 expect(resp).toBeDefined();
-                expect(resp.code).toBe(200);
-                expect(resp.body).toBe("Success");
+                expect(resp.code).toBe(204);
+                expect(resp.body).not.toBeDefined();
                 expect(mockLog.error).not.toHaveBeenCalled();
                 expect(req.session.destroy).not.toHaveBeenCalled();
                 done();

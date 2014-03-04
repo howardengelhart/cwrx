@@ -76,8 +76,8 @@ describe('user (E2E):', function() {
             testUtils.resetCollection('users', [mockUser, mockRequester]).then(function() {
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toEqual({});
+                expect(resp.response.statusCode).toBe(403);
+                expect(resp.body).toEqual('Not authorized to get this user');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -91,7 +91,7 @@ describe('user (E2E):', function() {
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toEqual({});
+                expect(resp.body).toBe('');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -176,8 +176,8 @@ describe('user (E2E):', function() {
         it('should not show users the requester cannot see', function(done) {
             var options = { url: config.userSvcUrl + '/users?org=o-4567', jar: cookieJar };
             testUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toEqual([]);
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toBe('');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -354,7 +354,7 @@ describe('user (E2E):', function() {
                 jar: cookieJar
             };
             testUtils.qRequest('put', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(201);
+                expect(resp.response.statusCode).toBe(200);
                 var user = resp.body;
                 expect(user.id).toBe('e2e-put1');
                 expect(user.username).toBe('abcd');
@@ -442,8 +442,8 @@ describe('user (E2E):', function() {
         it('should successfully mark a user as deleted', function(done) {
             var options = { url: config.userSvcUrl + '/user/e2e-delete1', jar: cookieJar };
             testUtils.qRequest('del', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe('Success');
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
                 options = { url: config.userSvcUrl + '/user/e2e-delete1', jar: cookieJar };
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
@@ -459,8 +459,8 @@ describe('user (E2E):', function() {
         it('should still succeed if the user does not exist', function(done) {
             var options = { url: config.userSvcUrl + '/user/e2e-fake', jar: cookieJar };
             testUtils.qRequest('del', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe('Success');
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -471,13 +471,13 @@ describe('user (E2E):', function() {
         it('should still succeed if the user has already been deleted', function(done) {
             var options = { url: config.userSvcUrl + '/user/e2e-delete1', jar: cookieJar };
             testUtils.qRequest('del', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe('Success');
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
                 options = { url: config.userSvcUrl + '/user/e2e-delete1', jar: cookieJar };
                 return testUtils.qRequest('del', options);
             }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe('Success');
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();

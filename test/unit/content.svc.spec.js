@@ -178,6 +178,19 @@ describe('content (UT)', function() {
             });
         });
         
+        it('should return a 404 if nothing was found', function(done) {
+            cache.getPromise.andReturn(q([]));
+            content.getExperiences(query, req, cache).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(404);
+                expect(resp.body).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
         it('should fail if the promise was rejected', function(done) {
             cache.getPromise.andReturn(q.reject('Error!'));
             content.getExperiences(query, req, cache).then(function(resp) {
@@ -315,7 +328,7 @@ describe('content (UT)', function() {
         
         it('should successfully update an experience', function(done) {
             content.updateExperience(req, experiences).then(function(resp) {
-                expect(resp.code).toBe(201);
+                expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({id: 'e-1234', updated: true});
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findOne.calls[0].args[0]).toEqual({id: 'e-1234'});
@@ -422,8 +435,8 @@ describe('content (UT)', function() {
         it('should successfully delete an experience', function(done) {
             content.deleteExperience(req, experiences).then(function(resp) {
                 expect(resp).toBeDefined();
-                expect(resp.code).toBe(200);
-                expect(resp.body).toBe("Success");
+                expect(resp.code).toBe(204);
+                expect(resp.body).not.toBeDefined();
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findOne.calls[0].args[0]).toEqual({id: 'e-1234'});
                 expect(content.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'delete');
@@ -445,8 +458,8 @@ describe('content (UT)', function() {
             experiences.findOne.andCallFake(function(query, cb) { cb(); });
             content.deleteExperience(req, experiences).then(function(resp) {
                 expect(resp).toBeDefined();
-                expect(resp.code).toBe(200);
-                expect(resp.body).toBe("Success");
+                expect(resp.code).toBe(204);
+                expect(resp.body).not.toBeDefined();
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.update).not.toHaveBeenCalled();
                 done();
@@ -460,8 +473,8 @@ describe('content (UT)', function() {
             oldExp.status = Status.Deleted;
             content.deleteExperience(req, experiences).then(function(resp) {
                 expect(resp).toBeDefined();
-                expect(resp.code).toBe(200);
-                expect(resp.body).toBe("Success");
+                expect(resp.code).toBe(204);
+                expect(resp.body).not.toBeDefined();
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.update).not.toHaveBeenCalled();
                 done();
