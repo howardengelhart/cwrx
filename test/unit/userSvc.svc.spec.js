@@ -178,7 +178,7 @@ describe('userSvc (UT)', function() {
             userSvc.getUser(req, state).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(404);
-                expect(resp.body).toEqual({});
+                expect(resp.body).toBe('No user found');
                 expect(authGetUser).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
@@ -191,8 +191,8 @@ describe('userSvc (UT)', function() {
             userSvc.checkScope.andReturn(false);
             userSvc.getUser(req, state).then(function(resp) {
                 expect(resp).toBeDefined();
-                expect(resp.code).toBe(404);
-                expect(resp.body).toEqual({});
+                expect(resp.code).toBe(403);
+                expect(resp.body).toEqual('Not authorized to get this user');
                 expect(userSvc.checkScope).toHaveBeenCalledWith({id: 'u-1234'}, 'fakeUser', 'read');
                 done();
             }).catch(function(error) {
@@ -282,6 +282,19 @@ describe('userSvc (UT)', function() {
                 expect(userSvc.checkScope.calls[1].args).toEqual([{id: 'u-1234'}, {id:'2'}, 'read']);
                 expect(mongoUtils.safeUser.calls.length).toBe(1);
                 expect(mongoUtils.safeUser.calls[0].args[0]).toEqual({id:'2'});
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should return a 404 if nothing was found', function(done) {
+            cache.getPromise.andReturn(q([]));
+            userSvc.getUsersByOrg(req, cache).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(404);
+                expect(resp.body).toBe('No users found');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -605,7 +618,7 @@ describe('userSvc (UT)', function() {
         it('should successfully update a user', function(done) {
             userSvc.updateUser(req, userColl).then(function(resp) {
                 expect(resp).toBeDefined();
-                expect(resp.code).toBe(201);
+                expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({ id: 'u-4567', updated: true });
                 expect(userColl.findOne).toHaveBeenCalled();
                 expect(userColl.findOne.calls[0].args[0]).toEqual({id: 'u-4567'});
@@ -741,8 +754,8 @@ describe('userSvc (UT)', function() {
         it('should successfully mark a user as deleted', function(done) {
             userSvc.deleteUser(req, userColl).then(function(resp) {
                 expect(resp).toBeDefined();
-                expect(resp.code).toBe(200);
-                expect(resp.body).toBe('Success');
+                expect(resp.code).toBe(204);
+                expect(resp.body).not.toBeDefined();
                 expect(userColl.findOne).toHaveBeenCalled();
                 expect(userColl.findOne.calls[0].args[0]).toEqual({id: 'u-4567'});
                 expect(userSvc.checkScope).toHaveBeenCalledWith({id: 'u-1234'}, 'original', 'delete');
@@ -764,8 +777,8 @@ describe('userSvc (UT)', function() {
             userColl.findOne.andCallFake(function(query, cb) { cb(null, null); });
             userSvc.deleteUser(req, userColl).then(function(resp) {
                 expect(resp).toBeDefined();
-                expect(resp.code).toBe(200);
-                expect(resp.body).toBe('Success');
+                expect(resp.code).toBe(204);
+                expect(resp.body).not.toBeDefined();
                 expect(userColl.findOne).toHaveBeenCalled();
                 expect(userColl.update).not.toHaveBeenCalled();
                 done();
@@ -797,8 +810,8 @@ describe('userSvc (UT)', function() {
             });
             userSvc.deleteUser(req, userColl).then(function(resp) {
                 expect(resp).toBeDefined();
-                expect(resp.code).toBe(200);
-                expect(resp.body).toBe('Success');
+                expect(resp.code).toBe(204);
+                expect(resp.body).not.toBeDefined();
                 expect(userColl.findOne).toHaveBeenCalled();
                 expect(userColl.update).not.toHaveBeenCalled();
                 done();

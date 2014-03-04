@@ -91,15 +91,13 @@ describe('content (E2E):', function() {
                 var options = {url: config.contentUrl + '/experience/e2e-pubget2'};
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(typeof resp.body).toBe('object');
-                expect(resp.body).toEqual({});
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toBe('No experiences found');
                 var options = {url: config.contentUrl + '/experience/e2e-pubget3'};
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(typeof resp.body).toBe('object');
-                expect(resp.body).toEqual({});
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toBe('No experiences found');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -107,13 +105,13 @@ describe('content (E2E):', function() {
             });
         });
         
-        it('should not return an error if nothing is found', function(done) {
+        it('should return a 404 if nothing is found', function(done) {
             var options = {
                 url: config.contentUrl + '/experience/e2e-pubget5678'
             };
             testUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toEqual({});
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toEqual('No experiences found');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -355,7 +353,7 @@ describe('content (E2E):', function() {
                 json: { title: 'newTitle' }
             }, updatedExp;
             testUtils.qRequest('put', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(201);
+                expect(resp.response.statusCode).toBe(200);
                 updatedExp = resp.body;
                 expect(updatedExp).not.toEqual(mockExps);
                 expect(updatedExp).toBeDefined();
@@ -441,13 +439,13 @@ describe('content (E2E):', function() {
         it('should set the status of an experience to deleted', function(done) {
             var options = {jar: cookieJar, url: config.contentUrl + '/experience/e2e-del1'};
             testUtils.qRequest('del', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe("Success");
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
                 options = {url: config.contentUrl + '/experience/e2e-del1'};
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toEqual({});
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toBe('No experiences found');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -470,12 +468,12 @@ describe('content (E2E):', function() {
         it('should still return a 200 if the experience was already deleted', function(done) {
             var options = {jar: cookieJar, url: config.contentUrl + '/experience/e2e-del1'};
             testUtils.qRequest('del', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe("Success");
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
                 return testUtils.qRequest('del', options);
             }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe("Success");
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -486,8 +484,8 @@ describe('content (E2E):', function() {
         it('should still return a 200 if the experience does not exist', function(done) {
             var options = {jar: cookieJar, url: config.contentUrl + '/experience/fake'};
             testUtils.qRequest('del', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe("Success");
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

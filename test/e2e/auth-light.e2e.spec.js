@@ -46,8 +46,8 @@ describe('auth-light (E2E):', function() {
             };
             
             testUtils.qRequest('post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe("Success");
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
                 expect(resp.response.headers['set-cookie']).not.toBeDefined();
                 done();
             }).catch(function(error) {

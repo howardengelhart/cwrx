@@ -167,12 +167,12 @@
         if (!req.session || !req.session.user) {
             log.info('[%1] User with sessionID %2 attempting to logout but is not logged in',
                      req.uuid, req.sessionID);
-            deferred.resolve({code: 200, body: 'Success'});
+            deferred.resolve({code: 204});
         } else {
             log.info('[%1] Logging out user %2 with sessionID %3',
                      req.uuid, req.session.user, req.sessionID);
             q.npost(req.session, 'destroy').then(function() {
-                deferred.resolve({code: 200, body: 'Success'});
+                deferred.resolve({code: 204});
             }).catch(function(error) {
                 log.error('[%1] Error logging out user %2: %3',
                     req.uuid, req.session.user, error);
