@@ -89,7 +89,7 @@ describe('content-light (E2E):', function() {
                 json: { title: 'newTitle' }
             };
             testUtils.qRequest('put', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(201);
+                expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
                 expect(resp.body).not.toEqual(origExp);
                 expect(resp.body.title).toBe('newTitle');
@@ -110,8 +110,8 @@ describe('content-light (E2E):', function() {
                 jar: cookieJar
             };
             testUtils.qRequest('del', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe("Success");
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

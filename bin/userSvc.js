@@ -106,7 +106,7 @@
         return authUtils.getUser(id, state.db).then(function(userAccount) {
             if (!userAccount) {
                 log.info('[%1] No user with id %2 found', req.uuid, id);
-                return q({code: 404, body: {}});
+                return q({code: 404, body: 'No user found'});
             }
             log.trace('[%1] Retrieved document for user %2', req.uuid, id);
             if (userSvc.checkScope(requester, userAccount, 'read')) {
@@ -114,7 +114,7 @@
                 return q({code: 200, body: userAccount});
             } else {
                 log.info('[%1] User %2 is not authorized to get %3', req.uuid, requester.id, id);
-                return q({code: 404, body: {}});
+                return q({code: 403, body: 'Not authorized to get this user'});
             }
         }).catch(function(error) {
             log.error('[%1] Error retrieving user %2: %3',
@@ -150,7 +150,11 @@
             });
             users = users.map(mongoUtils.safeUser);
             log.info('[%1] Showing the requester %2 user documents', req.uuid, users.length);
-            return q({code: 200, body: users});
+            if (users.length === 0) {
+                return q({code: 404, body: 'No users found'});
+            } else {
+                return q({code: 200, body: users});
+            }
         }).catch(function(error) {
             log.error('[%1] Error getting users: %2', req.uuid, error);
             return q.reject(error);
@@ -284,7 +288,7 @@
                 log.info('[%1] User %2 successfully updated user %3',
                          req.uuid, requester.id, updated.id);
                 delete userCache[id];
-                deferred.resolve({code: 201, body: mongoUtils.safeUser(updated)});
+                deferred.resolve({code: 200, body: mongoUtils.safeUser(updated)});
             });
         }).catch(function(error) {
             log.error('[%1] Error updating user %2 for user %3: %4',req.uuid,id,requester.id,error);
@@ -309,7 +313,7 @@
             now = new Date();
             if (!orig) {
                 log.info('[%1] User %2 does not exist', req.uuid, id);
-                return deferred.resolve({code: 200, body: 'Success'});
+                return deferred.resolve({code: 204});
             }
             if (!userSvc.checkScope(requester, orig, 'delete')) {
                 log.info('[%1] User %2 is not authorized to delete %3', req.uuid, requester.id, id);
@@ -317,14 +321,14 @@
             }
             if (orig.status === Status.Deleted) {
                 log.info('[%1] User %2 has already been deleted', req.uuid, id);
-                return deferred.resolve({code: 200, body: 'Success'});
+                return deferred.resolve({code: 204});
             }
             var updates = {$set: {lastUpdated: now, status: Status.Deleted}};
             return q.npost(users, 'update', [{id:id}, updates, {w: 1, journal: true}])
             .then(function() {
                 log.info('[%1] User %2 successfully deleted user %3', req.uuid, requester.id, id);
                 delete userCache[id];
-                deferred.resolve({code: 200, body: 'Success'});
+                deferred.resolve({code: 204});
             });
         }).catch(function(error) {
             log.error('[%1] Error deleting user %2 for user %3: %4',req.uuid,id,requester.id,error);

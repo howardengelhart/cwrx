@@ -95,7 +95,11 @@
                       (result.status === Status.Active && result.access === Access.Public);
             });
             log.info('[%1] Showing the user %2 experiences', req.uuid, experiences.length);
-            return q({code: 200, body: experiences});
+            if (experiences.length === 0) {
+                return q({code: 404, body: 'No experiences found'});
+            } else {
+                return q({code: 200, body: experiences});
+            }
         }).catch(function(error) {
             log.error('[%1] Error getting experiences: %2', req.uuid, error);
             return q.reject(error);
@@ -177,7 +181,7 @@
                 var updated = results[0];
                 log.info('[%1] User %2 successfully updated experience %3',
                          req.uuid, user.id, updated.id);
-                deferred.resolve({code: 201, body: updated});
+                deferred.resolve({code: 200, body: updated});
             });
         }).catch(function(error) {
             log.error('[%1] Error updating experience %2 for user %3: %4',
@@ -199,7 +203,7 @@
             now = new Date();
             if (!orig) {
                 log.info('[%1] Experience %2 does not exist', req.uuid, id);
-                return deferred.resolve({code: 200, body: 'Success'});
+                return deferred.resolve({code: 204});
             }
             if (!content.checkScope(user, orig, 'experiences', 'delete')) {
                 log.info('[%1] User %2 is not authorized to delete %3', req.uuid, user.id, id);
@@ -210,13 +214,13 @@
             }
             if (orig.status === Status.Deleted) {
                 log.info('[%1] Experience %2 has already been deleted', req.uuid, id);
-                return deferred.resolve({code: 200, body: 'Success'});
+                return deferred.resolve({code: 204});
             }
             return q.npost(experiences, 'update', [{id: id},
                            {$set: {lastUpdated:now, status:Status.Deleted}}, {w:1, journal:true}])
             .then(function() {
                 log.info('[%1] User %2 successfully deleted experience %3', req.uuid, user.id, id);
-                deferred.resolve({code: 200, body: 'Success'});
+                deferred.resolve({code: 204});
             });
         }).catch(function(error) {
             log.error('[%1] Error deleting experience %2 for user %3: %4',
@@ -315,11 +319,7 @@
                 return content.getExperiences({id: req.params.id}, req, expCache);
             }).then(function(resp) {
                 if (resp.body && resp.body instanceof Array) {
-                    if (resp.body.length === 0) {
-                        res.send(resp.code, {});
-                    } else {
-                        res.send(resp.code, resp.body[0]);
-                    }
+                    res.send(resp.code, resp.body[0]);
                 } else {
                     res.send(resp.code, resp.body);
                 }
