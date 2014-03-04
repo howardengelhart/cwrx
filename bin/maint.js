@@ -148,6 +148,25 @@
         return deferred.promise;
     }
 
+    function hupService(serviceName) {
+        var log = logger.getLog(), exec = require('child_process').exec, child, deferred;
+        log.info('Will attempt to hup service: %1', serviceName);
+        deferred = q.defer();
+
+        child = exec('service ' + serviceName + ' hup', function (error, stdout, stderr) {
+            log.info('stdout: %1' , stdout);
+            log.info('stderr: %2' , stderr);
+            if (error !== null) {
+                log.error('exec error: %3' , error.message);
+                return deferred.reject(error);
+            }
+
+            deferred.resolve(serviceName);
+        });
+
+        return deferred.promise;
+    }
+
     function main(done) {
         var program  = include('commander'),
             config = {},
@@ -513,6 +532,25 @@
                 });
         });
 
+        app.post('/maint/service/hup', function(req, res/*, next*/){
+            if (!req.body || !req.body.service) {
+                res.send(400, {
+                    error: 'Bad request',
+                    detail: 'You must include service parameter'
+                });
+                return;
+            }
+            hupService(req.body.service)
+                .then(function(svcName){
+                    log.info('Successfully huped %1',svcName);
+                    res.send(200);
+                })
+                .catch(function(error){
+                    log.error('Failed to hup %1: %2',req.body.service,error.message);
+                    res.send(500);
+                });
+        });
+
         app.get('/maint/meta', function(req, res/*, next*/){
             var data = {
                 version: getVersion(),
@@ -547,6 +585,7 @@
             createConfiguration : createConfiguration,
             defaultConfiguration: defaultConfiguration,
             restartService      : restartService,
+            hupService          : hupService,
             removeFiles         : removeFiles
         };
     }
