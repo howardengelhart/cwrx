@@ -30,7 +30,6 @@ Vagrant.configure("2") do |config|
   config.berkshelf.enabled = true
 
   config.vm.provision :chef_solo do |chef|
-    #chef.data_bags_path = "#{ENV['CHEF_REPO']}/data_bags"
     chef.data_bags_path = "./chef/data_bags"
     chef.encrypted_data_bag_secret_key_path = "#{ENV['HOME']}/.chef/c6data.pem"
     chef.environments_path = "./chef/environments"
@@ -73,6 +72,22 @@ Vagrant.configure("2") do |config|
         ]
     end
     
+    if ENV['CWRX_APP'] == 'monitor'
+        chef.json[:monitor] = {
+            :source => {
+                :branch => "#{ENV['CWRX_DEV_BRANCH']}",
+            },
+            :cfg => {
+                :loglevel => "trace"
+            }
+        }
+    
+        chef.run_list = [
+            "recipe[monitor]",
+            "recipe[maint]"
+        ]
+    end
+
     if ENV['CWRX_APP'] == 'vote'
         chef.json[:vote] = {
             :source => {

@@ -148,6 +148,25 @@
         return deferred.promise;
     }
 
+    function hupService(serviceName) {
+        var log = logger.getLog(), exec = require('child_process').exec, child, deferred;
+        log.info('Will attempt to hup service: %1', serviceName);
+        deferred = q.defer();
+
+        child = exec('service ' + serviceName + ' hup', function (error, stdout, stderr) {
+            log.info('stdout: %1' , stdout);
+            log.info('stderr: %2' , stderr);
+            if (error !== null) {
+                log.error('exec error: %3' , error.message);
+                return deferred.reject(error);
+            }
+
+            deferred.resolve(serviceName);
+        });
+
+        return deferred.promise;
+    }
+
     function main(done) {
         var program  = include('commander'),
             config = {},
@@ -277,6 +296,52 @@
                 } else {
                     log.info('Successfully removed script');
                     res.send(200, { msg: 'Successfully removed script' });
+                }
+            });
+        });
+
+        app.post('/maint/create_file',function(req, res){
+            if (!req.body || !req.body.fpath || !req.body.data ) {
+                log.error('Incomplete params in request');
+                res.send(400, {
+                    error   : 'Bad request',
+                    detail  : 'Need fpath, and data in request'
+                });
+                return;
+            }
+            fs.outputFile(req.body.fpath, req.body.data, function(error) {
+                if (error) {
+                    log.error('Error writing to file: ' + error);
+                    res.send(500, {
+                        error   : 'Unable to process request',
+                        detail  : error
+                    });
+                } else {
+                    log.info('Successfully wrote file ' + req.body.fpath);
+                    res.send(200, {msg: 'Successfully wrote file ' + req.body.fpath});
+                }
+            });
+        });
+
+        app.post('/maint/delete_file',function(req, res){
+            if (!req.body || !req.body.fpath  ) {
+                log.error('Incomplete params in request');
+                res.send(400, {
+                    error   : 'Bad request',
+                    detail  : 'Need fpath in request'
+                });
+                return;
+            }
+            fs.remove(req.body.fpath, function(error) {
+                if (error) {
+                    log.error('Error removing file: ' + error);
+                    res.send(500, {
+                        error   : 'Unable to process request',
+                        detail  : error
+                    });
+                } else {
+                    log.info('Successfully removed file ' + req.body.fpath);
+                    res.send(200, {msg: 'Successfully removed file ' + req.body.fpath});
                 }
             });
         });
@@ -467,6 +532,25 @@
                 });
         });
 
+        app.post('/maint/service/hup', function(req, res/*, next*/){
+            if (!req.body || !req.body.service) {
+                res.send(400, {
+                    error: 'Bad request',
+                    detail: 'You must include service parameter'
+                });
+                return;
+            }
+            hupService(req.body.service)
+                .then(function(svcName){
+                    log.info('Successfully huped %1',svcName);
+                    res.send(200);
+                })
+                .catch(function(error){
+                    log.error('Failed to hup %1: %2',req.body.service,error.message);
+                    res.send(500);
+                });
+        });
+
         app.get('/maint/meta', function(req, res/*, next*/){
             var data = {
                 version: getVersion(),
@@ -501,6 +585,7 @@
             createConfiguration : createConfiguration,
             defaultConfiguration: defaultConfiguration,
             restartService      : restartService,
+            hupService          : hupService,
             removeFiles         : removeFiles
         };
     }
