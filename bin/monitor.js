@@ -293,7 +293,11 @@
         }
 
         state.onSIGHUP = function(){
-            return app.loadMonitorProfiles(state).then(app.verifyConfiguration);
+            return app.loadMonitorProfiles(state)
+                .then(app.verifyConfiguration)
+                .catch(function(err){
+                    log.error('Caught HUP error: %1', err.message);
+                });
         };
 
         webServer = express();
