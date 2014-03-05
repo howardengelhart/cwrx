@@ -27,5 +27,6 @@ module.exports = function (grunt) {
         grunt.task.run('jshint');
         grunt.task.run('unit_tests');
     });
+    
 };
 
