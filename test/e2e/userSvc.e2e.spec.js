@@ -6,8 +6,6 @@ var q           = require('q'),
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
 
-jasmine.getEnv().defaultTimeoutInterval = 5000;
-
 describe('user (E2E):', function() {
     var cookieJar, mockRequester;
         

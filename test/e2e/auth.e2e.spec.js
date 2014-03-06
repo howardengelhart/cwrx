@@ -5,8 +5,6 @@ var q           = require('q'),
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
 
-jasmine.getEnv().defaultTimeoutInterval = 5000;
-
 describe('auth (E2E):', function() {
     describe('/api/auth/login', function() {
         var mockUser,
