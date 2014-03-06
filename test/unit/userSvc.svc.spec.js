@@ -156,7 +156,7 @@ describe('userSvc (UT)', function() {
             query = { org: 'o-1234' };
             fakeCursor = {
                 toArray: jasmine.createSpy('cursor.toArray').andCallFake(function(cb) {
-                    cb(null, q([{id:'1'}, {id:'2'}]));
+                    cb(null, q([ {id: '1'}, {id: '2'} ]));
                 })
             };
             userColl = {

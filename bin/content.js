@@ -28,8 +28,9 @@
             run     : path.normalize('/usr/local/share/cwrx/content/caches/run/'),
         },
         cacheTTLs: {  // units here are minutes
-            experiences: 5,
-            auth: 30
+            experiences: 1,
+            cloudFront: 5,
+            auth: 10
         },
         sessions: {
             key: 'c6Auth',
@@ -69,7 +70,8 @@
             skip = req.query && req.query.skip || 0,
             sort = req.query && req.query.sort,
             sortObj = {},
-            log = logger.getLog();
+            log = logger.getLog(),
+            promise;
         if (sort) {
             var sortParts = sort.split(',');
             if (sortParts.length !== 2 || (sortParts[1] !== '-1' && sortParts[1] !== '1' )) {
@@ -78,17 +80,19 @@
                 sortObj[sortParts[0]] = Number(sortParts[1]);
             }
         }
-            
         query = QueryCache.formatQuery(query);
-        if (req.user) {
+        
+        if (req.user) { // don't use cache, access mongo collection directly
             log.info('[%1] User %2 getting experiences with %3, sort %4, limit %5, skip %6',
                      req.uuid,req.user.id,JSON.stringify(query),JSON.stringify(sortObj),limit,skip);
-        } else {
+            var opts = {sort: sortObj, limit: limit, skip: skip};
+            promise = q.npost(cache._coll.find(query, opts), 'toArray');
+        } else { // use cached promise
             log.info('[%1] Guest user getting experiences with %2, sort %3, limit %4, skip %5',
                      req.uuid, JSON.stringify(query), JSON.stringify(sortObj), limit, skip);
+            promise = cache.getPromise(query, sortObj, limit, skip);
         }
-        return cache.getPromise(query, sortObj, limit, skip)
-        .then(function(results) {
+        return promise.then(function(results) {
             log.trace('[%1] Retrieved %2 experiences', req.uuid, results.length);
             var experiences = results.filter(function(result) {
                 return content.checkScope(req.user, result, 'experiences', 'read') ||
@@ -302,15 +306,15 @@
                           req.uuid, req.session.user);
                 promise = authUtils.getUser(req.session.user, state.db)
                 .then(function(user) {
-                    log.trace('[%1] Found user %2', req.uuid, user.id);
-                    req.user = user;
-                }).catch(function(error) {
-                    if (error.detail) {
-                        log.error('[%1] Could not look up user %2: %3',
-                                  req.uuid, req.session.user, JSON.stringify(error));
+                    if (!user) {
+                        log.warn('[%1] User %2 could not be found', req.uuid, req.session.user);
                     } else {
-                        log.info('[%1] User %2 could not be found', req.uuid, req.session.user);
+                        log.trace('[%1] Found user %2', req.uuid, user.id);
+                        req.user = user;
                     }
+                }).catch(function(error) {
+                    log.error('[%1] Could not look up user %2: %3',
+                              req.uuid, req.session.user, JSON.stringify(error));
                 });
             } else {
                 promise = q();
@@ -318,12 +322,19 @@
             promise.then(function() {
                 return content.getExperiences({id: req.params.id}, req, expCache);
             }).then(function(resp) {
+                if (!req.user) {
+                    res.header('cache-control', 'max-age=' +
+                               state.config.cacheTTLs.cloudFront*60*1000);
+                }
                 if (resp.body && resp.body instanceof Array) {
                     res.send(resp.code, resp.body[0]);
                 } else {
                     res.send(resp.code, resp.body);
                 }
             }).catch(function(error) {
+                if (!req.user) {   // cache errors for shorter time
+                    res.header('cache-control', 'max-age=' + 1*60*1000);
+                }
                 res.send(500, {
                     error: 'Error retrieving content',
                     detail: error

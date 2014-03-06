@@ -16,7 +16,6 @@
         Status          = enums.Status,
         Scope           = enums.Scope,
         
-        userCache   = {},
         state       = {},
         userSvc     = {}; // for exporting functions to unit tests
 
@@ -260,7 +259,6 @@
                 var updated = results[0];
                 log.info('[%1] User %2 successfully updated user %3',
                          req.uuid, requester.id, updated.id);
-                delete userCache[id];
                 deferred.resolve({code: 200, body: mongoUtils.safeUser(updated)});
             });
         }).catch(function(error) {
@@ -300,7 +298,6 @@
             return q.npost(users, 'update', [{id:id}, updates, {w: 1, journal: true}])
             .then(function() {
                 log.info('[%1] User %2 successfully deleted user %3', req.uuid, requester.id, id);
-                delete userCache[id];
                 deferred.resolve({code: 204});
             });
         }).catch(function(error) {
@@ -322,7 +319,7 @@
         var express     = require('express'),
             app         = express();
         // set auth cacheTTL now that we've loaded config
-        authUtils = require('../lib/authUtils')(state.config.cacheTTLs.auth, userCache);
+        authUtils = require('../lib/authUtils')(state.config.cacheTTLs.auth);
 
         // if connection to mongo is down; immediately reject all requests
         // otherwise the request will hang trying to get the session from mongo
