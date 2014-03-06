@@ -323,8 +323,7 @@
                 return content.getExperiences({id: req.params.id}, req, expCache);
             }).then(function(resp) {
                 if (!req.user) {
-                    res.header('cache-control', 'max-age=' +
-                               state.config.cacheTTLs.cloudFront*60*1000);
+                    res.header('cache-control', 'max-age=' + state.config.cacheTTLs.cloudFront*60);
                 }
                 if (resp.body && resp.body instanceof Array) {
                     res.send(resp.code, resp.body[0]);
@@ -333,7 +332,7 @@
                 }
             }).catch(function(error) {
                 if (!req.user) {   // cache errors for shorter time
-                    res.header('cache-control', 'max-age=' + 1*60*1000);
+                    res.header('cache-control', 'max-age=60');
                 }
                 res.send(500, {
                     error: 'Error retrieving content',
