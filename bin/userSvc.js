@@ -27,7 +27,7 @@
             run     : path.normalize('/usr/local/share/cwrx/userSvc/caches/run/'),
         },
         cacheTTLs: {  // units here are minutes
-            auth: 10 // authUtils + service use same cache
+            auth: 10  // just for authUtils
         },
         sessions: {
             key: 'c6Auth',
