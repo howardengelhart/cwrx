@@ -71,6 +71,23 @@ describe('content (E2E):', function() {
             });
         });
         
+        it('should also get an experience if a user is logged in', function(done) {
+            var options = {
+                url: config.contentUrl + '/experience/e2e-pubget1',
+                jar: cookieJar
+            };
+            testUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(typeof resp.body).toBe('object');
+                expect(resp.body.id).toBe("e2e-pubget1");
+                expect(resp.body.title).toBe("test experience");
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
         it('should not get an experience that is private or inactive', function(done) {
             var mockExps = [
                 {

@@ -8,7 +8,6 @@
         bcrypt          = require('bcrypt'),
         logger          = require('../lib/logger'),
         uuid            = require('../lib/uuid'),
-        QueryCache      = require('../lib/queryCache'),
         FieldValidator  = require('../lib/fieldValidator'),
         mongoUtils      = require('../lib/mongoUtils'),
         authUtils       = require('../lib/authUtils')(),
@@ -17,7 +16,6 @@
         Status          = enums.Status,
         Scope           = enums.Scope,
         
-        userCache   = {},
         state       = {},
         userSvc     = {}; // for exporting functions to unit tests
 
@@ -29,7 +27,7 @@
             run     : path.normalize('/usr/local/share/cwrx/userSvc/caches/run/'),
         },
         cacheTTLs: {  // units here are minutes
-            users: 30 // authUtils + service use same cache
+            auth: 10  // just for authUtils
         },
         sessions: {
             key: 'c6Auth',
@@ -97,35 +95,8 @@
         condForbidden: { permissions: userSvc.permsCheck }
     });
 
-    userSvc.getUser = function(req, state) {
-        var id = req.params.id,
-            requester = req.user,
-            log = logger.getLog();
-
-        log.info('[%1] User %2 is attempting to get user %3', req.uuid, requester.id, id);
-        return authUtils.getUser(id, state.db).then(function(userAccount) {
-            if (!userAccount) {
-                log.info('[%1] No user with id %2 found', req.uuid, id);
-                return q({code: 404, body: 'No user found'});
-            }
-            log.trace('[%1] Retrieved document for user %2', req.uuid, id);
-            if (userSvc.checkScope(requester, userAccount, 'read')) {
-                log.info('[%1] Returning user document %2 for user %3', req.uuid, id, requester.id);
-                return q({code: 200, body: userAccount});
-            } else {
-                log.info('[%1] User %2 is not authorized to get %3', req.uuid, requester.id, id);
-                return q({code: 403, body: 'Not authorized to get this user'});
-            }
-        }).catch(function(error) {
-            log.error('[%1] Error retrieving user %2: %3',
-                      req.uuid, id, JSON.stringify(error));
-            return q.reject(error);
-        });
-    };
-
-    userSvc.getUsersByOrg = function(req, cache) {
-        var org = req.query.org,
-            limit = req.query && req.query.limit || 0,
+    userSvc.getUsers = function(query, req, users) {
+        var limit = req.query && req.query.limit || 0,
             skip = req.query && req.query.skip || 0,
             sort = req.query && req.query.sort,
             sortObj = {},
@@ -138,11 +109,9 @@
                 sortObj[sortParts[0]] = Number(sortParts[1]);
             }
         }
-        var query = { org: org }; // don't bother formatting the query because it's only one item
-        log.info('[%1] User %2 getting users from org %3 with sort %4, limit %5, skip %6',
-                 req.uuid, req.user.id, org, JSON.stringify(sortObj) ,limit, skip);
-
-        return cache.getPromise(query, sortObj, limit, skip)
+        log.info('[%1] User %2 getting users with query %3, sort %4, limit %5, skip %6', req.uuid,
+                 req.user.id, JSON.stringify(query), JSON.stringify(sortObj), limit, skip);
+        return q.npost(users.find(query, {sort: sortObj, limit: limit, skip: skip}), 'toArray')
         .then(function(results) {
             log.trace('[%1] Retrieved %2 users', req.uuid, results.length);
             var users = results.filter(function(result) {
@@ -151,6 +120,9 @@
             users = users.map(mongoUtils.safeUser);
             log.info('[%1] Showing the requester %2 user documents', req.uuid, users.length);
             if (users.length === 0) {
+                if (results.length !== 0) {
+                    return q({code: 403, body: 'Not authorized to get those users'});
+                }
                 return q({code: 404, body: 'No users found'});
             } else {
                 return q({code: 200, body: users});
@@ -287,7 +259,6 @@
                 var updated = results[0];
                 log.info('[%1] User %2 successfully updated user %3',
                          req.uuid, requester.id, updated.id);
-                delete userCache[id];
                 deferred.resolve({code: 200, body: mongoUtils.safeUser(updated)});
             });
         }).catch(function(error) {
@@ -327,7 +298,6 @@
             return q.npost(users, 'update', [{id:id}, updates, {w: 1, journal: true}])
             .then(function() {
                 log.info('[%1] User %2 successfully deleted user %3', req.uuid, requester.id, id);
-                delete userCache[id];
                 deferred.resolve({code: 204});
             });
         }).catch(function(error) {
@@ -349,7 +319,7 @@
         var express     = require('express'),
             app         = express();
         // set auth cacheTTL now that we've loaded config
-        authUtils = require('../lib/authUtils')(state.config.cacheTTLs.users, userCache);
+        authUtils = require('../lib/authUtils')(state.config.cacheTTLs.auth);
 
         // if connection to mongo is down; immediately reject all requests
         // otherwise the request will hang trying to get the session from mongo
@@ -399,7 +369,6 @@
         });
         
         var users = state.db.collection('users');
-        var queryCache = new QueryCache(state.config.cacheTTLs.users, users);
         
         app.get('/api/account/user/meta', function(req, res/*, next*/){
             var data = {
@@ -412,9 +381,13 @@
         
         var authGetUser = authUtils.middlewarify(state.db, {users: 'read'});
         app.get('/api/account/user/:id', authGetUser, function(req, res/*, next*/) {
-            userSvc.getUser(req, state)
+            userSvc.getUsers({ id: req.params.id }, req, users)
             .then(function(resp) {
-                res.send(resp.code, resp.body);
+                if (resp.body && resp.body instanceof Array) {
+                    res.send(resp.code, resp.body[0]);
+                } else {
+                    res.send(resp.code, resp.body);
+                }
             }).catch(function(error) {
                 res.send(500, {
                     error: 'Error retrieving user',
@@ -428,7 +401,7 @@
                 log.info('[%1] Cannot GET /api/users without org specified',req.uuid);
                 return res.send(400, 'Must specify org param');
             }
-            userSvc.getUsersByOrg(req, queryCache)
+            userSvc.getUsers({ org: req.query.org }, req, users)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {

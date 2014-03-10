@@ -75,7 +75,7 @@ describe('user (E2E):', function() {
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
-                expect(resp.body).toEqual('Not authorized to get this user');
+                expect(resp.body).toEqual('Not authorized to get those users');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -89,7 +89,7 @@ describe('user (E2E):', function() {
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('No user found');
+                expect(resp.body).toBe('No users found');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -118,7 +118,7 @@ describe('user (E2E):', function() {
                 { id: 'e2e-getOrg2', username: 'abcd', password: 'thisisasecret', org: 'o-1234' },
                 { id: 'e2e-getOrg3', username: 'hijk', password: 'thisisasecret', org: 'o-4567' }
             ];
-            testUtils.resetCollection('users', mockUsers).done(done);
+            testUtils.resetCollection('users', mockUsers.concat([mockRequester])).done(done);
         });
         
         it('should get users by org', function(done) {
@@ -127,13 +127,16 @@ describe('user (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
                 expect(resp.body instanceof Array).toBeTruthy('body is array');
-                expect(resp.body.length).toBe(2);
+                expect(resp.body.length).toBe(3);
                 expect(resp.body[0].id).toBe('e2e-getOrg1');
                 expect(resp.body[0].username).toBe('defg');
                 expect(resp.body[0].password).not.toBeDefined();
                 expect(resp.body[1].id).toBe('e2e-getOrg2');
                 expect(resp.body[1].username).toBe('abcd');
                 expect(resp.body[1].password).not.toBeDefined();
+                expect(resp.body[2].id).toBe('e2e-user');
+                expect(resp.body[2].username).toBe('userSvcE2EUser');
+                expect(resp.body[2].password).not.toBeDefined();
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -174,8 +177,8 @@ describe('user (E2E):', function() {
         it('should not show users the requester cannot see', function(done) {
             var options = { url: config.userSvcUrl + '/users?org=o-4567', jar: cookieJar };
             testUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('No users found');
+                expect(resp.response.statusCode).toBe(403);
+                expect(resp.body).toBe('Not authorized to get those users');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -203,7 +206,7 @@ describe('user (E2E):', function() {
                 username: 'testPostUser',
                 password: 'password'
             };
-            testUtils.resetCollection('users').done(done);
+            testUtils.resetCollection('users', mockRequester).done(done);
         });
         
         it('should be able to create a user', function(done) {
@@ -341,7 +344,7 @@ describe('user (E2E):', function() {
                     created: start
                 }
             ];
-            testUtils.resetCollection('users', mockUsers).done(done);
+            testUtils.resetCollection('users', mockUsers.concat([mockRequester])).done(done);
             updates = { tag: 'bar' };
         });
         
@@ -434,7 +437,7 @@ describe('user (E2E):', function() {
                 { id: 'e2e-delete1', username: 'abcd', password: 'thisisasecret', org: 'o-1234' },
                 { id: 'e2e-delete2', username: 'defg', password: 'thisisasecret', org: 'o-4567' }
             ];
-            testUtils.resetCollection('users', mockUsers).done(done);
+            testUtils.resetCollection('users', mockUsers.concat([mockRequester])).done(done);
         });
         
         it('should successfully mark a user as deleted', function(done) {
@@ -484,6 +487,8 @@ describe('user (E2E):', function() {
         });
         
         it('should not allow a user to delete themselves', function(done) {
+            // var options = { url: config.userSvcUrl + '/user/e2e-user', jar: cookieJar };
+            // testUtils.qRequest('get', options).then(function(resp) {
             var options = { url: config.userSvcUrl + '/user/e2e-user', jar: cookieJar };
             testUtils.qRequest('del', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);

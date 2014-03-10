@@ -27,6 +27,9 @@
             maxAge: 14*24*60*60*1000, // 14 days; unit here is milliseconds
             db: 'sessions'
         },
+        cacheTTLs: {  // units here are minutes
+            auth: 10
+        },
         secretsPath: path.join(process.env.HOME,'.auth.secrets.json'),
         mongo: {
             host: 'localhost',
@@ -220,6 +223,8 @@
             app         = express();
 
         var users = state.db.collection('users');
+        // set auth cacheTTL now that we've loaded config
+        authUtils = require('../lib/authUtils')(state.config.cacheTTLs.auth);
 
         // if connection to mongo is down; immediately reject all requests
         // otherwise the request will hang trying to get the session from mongo
