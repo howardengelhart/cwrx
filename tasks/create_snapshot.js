@@ -7,6 +7,7 @@ module.exports = function(grunt) {
             auth     = settings.awsAuth,
             interval = grunt.config.get('create_snapshot.pollingInterval') * 1000,
             maxIters = grunt.config.get('create_snapshot.maxIters'),
+            nameTag  = grunt.option('name') || 'db-backup',
             desc     = grunt.option('description') ||
                            'Created from ' + volumeId + ' on ' + new Date().toString();
         
@@ -40,7 +41,7 @@ module.exports = function(grunt) {
             helpers.checkSnapshot(checkOpts, ec2, 0)
             .then(function(snapshot) {
                 grunt.log.writelns('Snapshot ' + snapshot.SnapshotId + ' is completed');
-                var tags = [{Key: 'Name', Value: 'db-backup'}];
+                var tags = [{Key: 'Name', Value: nameTag}];
                 return helpers.tagSnapshot(snapshot.SnapshotId, tags, ec2);
             }).then(function() {
                 done(true);

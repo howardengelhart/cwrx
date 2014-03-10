@@ -8,7 +8,8 @@ module.exports = function(grunt) {
             auth        = settings.awsAuth,
             maxAge      = grunt.config.get('clear_snapshots.maxAge')*24*60*60*1000,
             done        = this.async(),
-            opts        = { Filters: [{ Name: 'tag-value', Values: ['db-backup'] }] },
+            nameTag     = grunt.option('name') || 'db-backup',
+            opts        = { Filters: [{ Name: 'tag-value', Values: [nameTag] }] },
             now         = new Date();
 
         aws.config.loadFromPath(auth);
@@ -16,10 +17,10 @@ module.exports = function(grunt) {
         
         q.npost(ec2, 'describeSnapshots', [opts]).then(function(result) {
             if (!result || !result.Snapshots || result.Snapshots.length === 0) {
-                grunt.log.writelns('No db-backup snapshots found');
+                grunt.log.writelns('No snapshots with name ' + nameTag + ' found');
                 return q([]);
             }
-            grunt.log.writelns('Found ' + result.Snapshots.length + ' db-backup snapshots');
+            grunt.log.writelns('Found ' + result.Snapshots.length + ' snapshots with name ' + nameTag);
             var oldSnaps = result.Snapshots.filter(function(snapshot) {
                 return now - snapshot.StartTime > maxAge;
             });
