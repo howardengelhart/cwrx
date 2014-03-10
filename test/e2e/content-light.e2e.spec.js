@@ -15,24 +15,27 @@ describe('content-light (E2E):', function() {
                 e2e: true
             },
             testUser = {
-                username: "content-lightE2EUser",
-                password: "password",
-                e2e: true
+                username: 'johnnyTestmonkey',
+                password: 'bananas4bananas'
             },
             currExp;
         
-        it('create a test user', function(done) {
+        it('login the e2e test user', function(done) {
             var options = {
-                url: config.authUrl + '/signup',
+                url: config.authUrl + '/login',
                 jar: cookieJar,
                 json: testUser
             };
             testUtils.qRequest('post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.response.body.user).toBeDefined();
+                if (resp.response.statusCode !== 200) {
+                    return q.reject('Received response: code = ' + resp.response.statusCode +
+                                    ', body = ' + resp.body);
+                }
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                console.log('Could not log in the test user: ' + error);
+                console.log('Double check that the user johnnyTestmonkey exists in the database');
+                throw new Error('Could not log in test user; failing');
                 done();
             });
         });
@@ -117,17 +120,17 @@ describe('content-light (E2E):', function() {
             });
         });
         
-        it('delete the test user', function(done) {
+        it('logout the e2e test user', function(done) {
             var options = {
-                url: config.authUrl + '/delete_account',
+                url: config.authUrl + '/logout',
                 jar: cookieJar
             };
-            testUtils.qRequest('del', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe("Successfully deleted account");
+            testUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).not.toBeDefined();
                 done();
             });
         });

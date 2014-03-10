@@ -7,15 +7,15 @@ var q           = require('q'),
     };
 
 describe('user-light (E2E):', function() {
-    xdescribe('user CRUD: ', function() {
-        var currUser, origUser,
+    describe('user CRUD: ', function() {
+        var currUser, origUser = {},
             cookieJar = require('request').jar(),
             testUser = {
                 username: 'johnnyTestmonkey',
                 password: 'bananas4bananas'
             },
             newUser = {
-                username: 'content-lightE2EUser',
+                username: 'userSvc-lightE2EUser#' + Math.round(Math.random() * 1000000000000),
                 password: 'password',
                 e2e: true
             };
@@ -51,7 +51,7 @@ describe('user-light (E2E):', function() {
                 currUser = resp.body;
                 expect(currUser).toBeDefined();
                 expect(currUser.id).toBeDefined();
-                expect(currUser.username).toBe('userSvc-lightE2EUser');
+                expect(currUser.username).toBe(newUser.username);
                 expect(currUser.password).not.toBeDefined();
                 expect(currUser.status).toBe('active');
                 expect(currUser.e2e).toBe(true);
@@ -125,7 +125,7 @@ describe('user-light (E2E):', function() {
                 url: config.authUrl + '/logout',
                 jar: cookieJar
             };
-            testUtils.qRequest('del', options).then(function(resp) {
+            testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 done();
