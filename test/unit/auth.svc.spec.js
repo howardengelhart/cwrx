@@ -148,12 +148,12 @@ describe('auth (UT)', function() {
             origUser.status = 'deleted';
             auth.login(req, users).then(function(resp) {
                 expect(resp).toBeDefined();
-                expect(resp.code).toBe(401);
-                expect(resp.body).toBe('Invalid username or password');
+                expect(resp.code).toBe(403);
+                expect(resp.body).toBe('Account not active');
                 expect(req.session.user).not.toBeDefined();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
                 expect(users.findOne).toHaveBeenCalled();
-                expect(bcrypt.compare).not.toHaveBeenCalled();
+                expect(bcrypt.compare).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();

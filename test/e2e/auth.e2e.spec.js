@@ -97,8 +97,8 @@ describe('auth (E2E):', function() {
             testUtils.resetCollection('users', mockUser).then(function() {
                 return testUtils.qRequest('post', options);
             }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(401);
-                expect(resp.response.body).toBe("Invalid username or password");
+                expect(resp.response.statusCode).toBe(403);
+                expect(resp.response.body).toBe("Account not active");
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

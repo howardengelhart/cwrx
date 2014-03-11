@@ -60,15 +60,15 @@
                          req.uuid,req.body.username);
                 return deferred.resolve({code: 401, body: 'Invalid username or password'});
             }
-            if (account.status !== Status.Active) {
-                log.info('[%1] Failed login for user %2: account status is %3',
-                         req.uuid, req.body.username, account.status);
-                return deferred.resolve({code: 401, body: 'Invalid username or password'});
-            }
             userAccount = account;
             return q.npost(bcrypt, 'compare', [req.body.password, userAccount.password])
             .then(function(matching) {
                 if (matching) {
+                    if (account.status !== Status.Active) {
+                        log.info('[%1] Failed login for user %2: account status is %3',
+                                 req.uuid, req.body.username, account.status);
+                        return deferred.resolve({code: 403, body: 'Account not active'});
+                    }
                     log.info('[%1] Successful login for user %2', req.uuid, req.body.username);
                     var user = mongoUtils.safeUser(userAccount);
                     return q.npost(req.session, 'regenerate').then(function() {
