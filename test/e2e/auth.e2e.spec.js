@@ -6,17 +6,17 @@ var q           = require('q'),
     };
 
 describe('auth (E2E):', function() {
+    var now = new Date(),
+        mockUser = {
+            id : "u-1234567890abcd",
+            status: 'active',
+            created : now,
+            username : "authE2EUser",
+            password : "$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq" // hash of 'password'
+        };
+    
     describe('/api/auth/login', function() {
-        var mockUser,
-            now = new Date();
-        
         beforeEach(function(done) {
-            mockUser = {
-                id : "u-1234567890abcd",
-                created : now,
-                username : "authE2EUser",
-                password : "$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq" // hash of 'password'
-            };
             testUtils.resetCollection('users', mockUser).done(done);
         });
         
@@ -30,11 +30,11 @@ describe('auth (E2E):', function() {
             };
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.user).toBeDefined();
-                expect(resp.body.user.id).toBe("u-1234567890abcd");
-                expect(resp.body.user.username).toBe("authE2EUser");
-                expect(resp.body.user.password).not.toBeDefined();
-                expect(new Date(resp.body.user.created)).toEqual(now);
+                expect(resp.body).toBeDefined();
+                expect(resp.body.id).toBe("u-1234567890abcd");
+                expect(resp.body.username).toBe("authE2EUser");
+                expect(resp.body.password).not.toBeDefined();
+                expect(new Date(resp.body.created)).toEqual(now);
                 expect(resp.response.headers['set-cookie'].length).toBe(1);
                 expect(resp.response.headers['set-cookie'][0].match(/^c6Auth=.+/)).toBeTruthy('cookie match');
                 done();
@@ -104,93 +104,21 @@ describe('auth (E2E):', function() {
         });
     });
     
-    describe('/api/auth/signup', function() {
-        var mockUser;
-        beforeEach(function() {
-            mockUser = {
-                username: 'authE2EUser',
-                password: 'password'
-            };
-        });
-        
-        it('should succeed given valid credentials', function(done) {
-            testUtils.resetCollection('users').then(function() {
-                var options = {
-                    url: config.authUrl + '/signup',
-                    json: mockUser
-                };
-                return testUtils.qRequest('post', options);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.user).toBeDefined();
-                expect(resp.body.user.id).toBeDefined();
-                expect(resp.body.user.username).toBe("authE2EUser");
-                expect(resp.body.user.password).not.toBeDefined();
-                expect(resp.body.user.created).toBeDefined();
-                expect(resp.response.headers['set-cookie'].length).toBe(1);
-                expect(resp.response.headers['set-cookie'][0].match(/^c6Auth=.+/)).toBeTruthy('cookie match');
-                done();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-                done();
-            });
-        });
-        
-        it('should fail if given a username already tied to an account', function(done) {
-            testUtils.resetCollection('users', mockUser).then(function() {
-                var options = {
-                    url: config.authUrl + '/signup',
-                    json: mockUser
-                };
-                return testUtils.qRequest('post', options);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('A user with that username already exists');
-                done();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-                done();
-            });
-        });
-        
-        it('should fail if not given both a username and password', function(done) {
-            var options = {
-                url: config.authUrl + '/signup',
-                json: {
-                    username: 'authE2EUser'
-                }
-            };
-            testUtils.qRequest('post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
-                expect(resp.response.body).toBe('You need to provide a username and password in the body');
-                delete options.json.username;
-                options.json.password = 'password';
-                return testUtils.qRequest('post', options);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
-                expect(resp.response.body).toBe('You need to provide a username and password in the body');
-                done();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-                done();
-            });
-        });
-    });
-    
     describe('/api/auth/logout', function() {
         it('should successfully log a user out', function(done) {
-            testUtils.resetCollection('users').then(function() {
-                var signupOpts = {
-                    url: config.authUrl + '/signup',
+            testUtils.resetCollection('users', mockUser).then(function() {
+                var loginOpts = {
+                    url: config.authUrl + '/login',
                     jar: true,
                     json: {
                         username: 'authE2EUser',
                         password: 'password'
                     }
                 };
-                return testUtils.qRequest('post', signupOpts);
+                return testUtils.qRequest('post', loginOpts);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
+                expect(resp.response.headers['set-cookie'].length).toBe(1);
                 var options = {
                     url: config.authUrl + '/logout',
                     jar: true
@@ -223,71 +151,21 @@ describe('auth (E2E):', function() {
         });
     });
     
-    describe('/api/auth/delete_account', function() {
-        it('should successfully delete a user account', function(done) {
-            var options = {
-                url: config.authUrl + '/signup',
-                jar: true,
-                json: {
-                    username: 'authE2EUser',
-                    password: 'password'
-                }
-            };
-            testUtils.resetCollection('users').then(function() {
-                return testUtils.qRequest('post', options);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                var deleteOpts = {
-                    url: config.authUrl + '/delete_account',
-                    jar: true
-                };
-                return testUtils.qRequest('del', deleteOpts);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe("Successfully deleted account");
-                expect(resp.response.headers['set-cookie']).not.toBeDefined();
-                options.url = config.authUrl + '/login';
-                return testUtils.qRequest('post', options);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(401);
-                expect(resp.body).toBe("Invalid username or password");
-                done();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-                done();
-            });
-        });
-        
-        it('should fail if the user is not logged in', function(done) {
-            var options = {
-                url: config.authUrl + '/delete_account',
-                jar: true
-            };
-            testUtils.qRequest('del', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe("You are not logged in");
-                done();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-                done();
-            });
-        });
-    });
-    
     describe('/api/auth/status', function() {
         it('should get the user if logged in', function(done) {
-            var signupOpts = {
-                url: config.authUrl + '/signup',
-                jar: true,
-                json: {
-                    username: 'authE2EUser',
-                    password: 'password'
-                }
-            };
-            testUtils.resetCollection('users').then(function() {
-                return testUtils.qRequest('post', signupOpts);
+            testUtils.resetCollection('users', mockUser).then(function() {
+                var loginOpts = {
+                    url: config.authUrl + '/login',
+                    jar: true,
+                    json: {
+                        username: 'authE2EUser',
+                        password: 'password'
+                    }
+                };
+                return testUtils.qRequest('post', loginOpts);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
+                expect(resp.response.headers['set-cookie'].length).toBe(1);
                 var getUserOpts = {
                     url: config.authUrl + '/status',
                     jar: true

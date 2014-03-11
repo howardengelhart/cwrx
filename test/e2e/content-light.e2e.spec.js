@@ -26,16 +26,17 @@ describe('content-light (E2E):', function() {
                 jar: cookieJar,
                 json: testUser
             };
-            testUtils.qRequest('post', options).then(function(resp) {
+            testUtils.qRequest('post', options).done(function(resp) {
                 if (resp.response.statusCode !== 200) {
+                    console.log('Could not log in the test user');
+                    console.log('Double check that the user johnnyTestmonkey exists in the database');
                     return q.reject('Received response: code = ' + resp.response.statusCode +
                                     ', body = ' + resp.body);
                 }
                 done();
-            }).catch(function(error) {
+            }, function(error) {
                 console.log('Could not log in the test user: ' + error);
-                console.log('Double check that the user johnnyTestmonkey exists in the database');
-                throw new Error('Could not log in test user; failing');
+                throw new Error('Error logging in the test user; failing');
                 done();
             });
         });
