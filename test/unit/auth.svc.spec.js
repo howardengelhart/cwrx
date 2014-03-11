@@ -6,6 +6,8 @@ describe('auth (UT)', function() {
         logger      = require('../../lib/logger'),
         mongoUtils  = require('../../lib/mongoUtils'),
         auth        = require('../../bin/auth'),
+        enums       = require('../../lib/enums'),
+        Status      = enums.Status,
         bcrypt      = require('bcrypt');
     
     beforeEach(function() {
@@ -42,6 +44,7 @@ describe('auth (UT)', function() {
         beforeEach(function() {
             origUser = {
                 id: 'u-123',
+                status: Status.Active,
                 username: 'user',
                 password: 'hashpass'
             };
@@ -83,10 +86,11 @@ describe('auth (UT)', function() {
                 expect(resp.body).toBeDefined();
                 var safeUser = {
                     id: 'u-123',
-                    username: 'user'
+                    username: 'user',
+                    status: Status.Active
                 };
                 expect(resp.body).toEqual(safeUser);
-                expect(req.session.user).toEqual(safeUser.id);
+                expect(req.session.user).toEqual('u-123');
                 expect(origUser.password).toBe('hashpass'); // shouldn't accidentally delete this
                 
                 expect(users.findOne).toHaveBeenCalled();
@@ -125,6 +129,23 @@ describe('auth (UT)', function() {
             users.findOne.andCallFake(function(query, cb) {
                 cb(null, null);
             });
+            auth.login(req, users).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(401);
+                expect(resp.body).toBe('Invalid username or password');
+                expect(req.session.user).not.toBeDefined();
+                expect(req.session.regenerate).not.toHaveBeenCalled();
+                expect(users.findOne).toHaveBeenCalled();
+                expect(bcrypt.compare).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should resolve with a 401 code if the user is inactive', function(done) {
+            origUser.status = 'deleted';
             auth.login(req, users).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(401);

@@ -1,19 +1,24 @@
 var q           = require('q'),
     testUtils   = require('./testUtils'),
+    enums       = require('../../lib/enums'),
+    Status      = enums.Status,
     host        = process.env['host'] || 'localhost',
     config      = {
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
 
 describe('auth (E2E):', function() {
-    var now = new Date(),
+    var now, mockUser;
+    beforeEach(function() {
+        now = new Date();
         mockUser = {
             id : "u-1234567890abcd",
-            status: 'active',
+            status: Status.Active,
             created : now,
             username : "authE2EUser",
             password : "$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq" // hash of 'password'
         };
+    });
     
     describe('/api/auth/login', function() {
         beforeEach(function(done) {
@@ -71,6 +76,27 @@ describe('auth (E2E):', function() {
                 }
             };
             testUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.response.body).toBe("Invalid username or password");
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should fail if the user account is not active', function(done) {
+            var options = {
+                url: config.authUrl + '/login',
+                json: {
+                    username: 'authE2EUser',
+                    password: 'password'
+                }
+            };
+            mockUser.status = Status.Inactive;
+            testUtils.resetCollection('users', mockUser).then(function() {
+                return testUtils.qRequest('post', options);
+            }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.response.body).toBe("Invalid username or password");
                 done();

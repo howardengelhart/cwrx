@@ -11,6 +11,8 @@
         mongoUtils  = require('../lib/mongoUtils'),
         authUtils   = require('../lib/authUtils')(),
         service     = require('../lib/service'),
+        enums       = require('../lib/enums'),
+        Status      = enums.Status,
 
         state       = {},
         auth = {}; // for exporting functions to unit tests
@@ -55,39 +57,36 @@
         .then(function(account) {
             if (!account) {
                 log.info('[%1] Failed login for user %2: unknown username',
-                    req.uuid,req.body.username);
-                return q.reject();
+                         req.uuid,req.body.username);
+                return deferred.resolve({code: 401, body: 'Invalid username or password'});
+            }
+            if (account.status !== Status.Active) {
+                log.info('[%1] Failed login for user %2: account status is %3',
+                         req.uuid, req.body.username, account.status);
+                return deferred.resolve({code: 401, body: 'Invalid username or password'});
             }
             userAccount = account;
-            return q.npost(bcrypt, 'compare', [req.body.password, userAccount.password]);
-        }).then(function(matching) {
-            if (matching) {
-                log.info('[%1] Successful login for user %2', req.uuid, req.body.username);
-                var user = mongoUtils.safeUser(userAccount);
-                return q.npost(req.session, 'regenerate').then(function() {
-                    req.session.user = user.id;
-                    deferred.resolve({
-                        code: 200,
-                        body: user
+            return q.npost(bcrypt, 'compare', [req.body.password, userAccount.password])
+            .then(function(matching) {
+                if (matching) {
+                    log.info('[%1] Successful login for user %2', req.uuid, req.body.username);
+                    var user = mongoUtils.safeUser(userAccount);
+                    return q.npost(req.session, 'regenerate').then(function() {
+                        req.session.user = user.id;
+                        return deferred.resolve({
+                            code: 200,
+                            body: user
+                        });
                     });
-                    return q();
-                });
-            } else {
-                log.info('[%1] Failed login for user %2: invalid password',
-                    req.uuid,req.body.username);
-                return q.reject();
-            }
+                } else {
+                    log.info('[%1] Failed login for user %2: invalid password',
+                             req.uuid, req.body.username);
+                    return deferred.resolve({code: 401, body: 'Invalid username or password'});
+                }
+            });
         }).catch(function(error) {
-            if (error) { // actual server error, reject the promise
-                log.error('[%1] Error logging in user %2: %3',
-                    req.uuid, req.body.username, error);
-                deferred.reject(error);
-            } else { // failed authentication b/c of bad credentials, resolve with 401
-                deferred.resolve({
-                    code: 401,
-                    body: 'Invalid username or password'
-                });
-            }
+            log.error('[%1] Error logging in user %2: %3', req.uuid, req.body.username, error);
+            deferred.reject(error);
         });
 
         return deferred.promise;
