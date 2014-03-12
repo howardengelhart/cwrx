@@ -2,24 +2,24 @@ var q           = require('q'),
     testUtils   = require('./testUtils'),
     host        = process.env['host'] || 'localhost',
     config      = {
-        contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api/content',
+        userSvcUrl  : 'http://' + (host === 'localhost' ? host + ':3500' : host) + '/api/account',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
 
-describe('content-light (E2E):', function() {
-    describe('content CRUD: ', function() {
-        var cookieJar = require('request').jar(),
-            origExp = {
-                title: "origTitle",
-                status: "inactive",
-                e2e: true
-            },
+describe('user-light (E2E):', function() {
+    describe('user CRUD: ', function() {
+        var currUser, origUser = {},
+            cookieJar = require('request').jar(),
             testUser = {
                 username: 'johnnyTestmonkey',
                 password: 'bananas4bananas'
             },
-            currExp;
-        
+            newUser = {
+                username: 'userSvc-lightE2EUser#' + Math.round(Math.random() * 1000000000000),
+                password: 'password',
+                e2e: true
+            };
+            
         it('login the e2e test user', function(done) {
             var options = {
                 url: config.authUrl + '/login',
@@ -41,74 +41,74 @@ describe('content-light (E2E):', function() {
             });
         });
         
-        it('create an experience', function(done) {
+        it('create a user', function(done) {
             var options = {
-                url: config.contentUrl + '/experience',
+                url: config.userSvcUrl + '/user',
                 jar: cookieJar,
-                json: origExp
+                json: newUser
             };
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
-                currExp = resp.body;
-                expect(currExp).toBeDefined();
-                expect(currExp.id).toBeDefined();
-                expect(currExp.title).toBe("origTitle");
-                expect(currExp.status).toBe("inactive");
-                expect(currExp.e2e).toBe(true);
-                expect(currExp.created).toBeDefined();
-                expect(currExp.lastUpdated).toBeDefined();
-                expect(currExp.user).toBeDefined();
+                currUser = resp.body;
+                expect(currUser).toBeDefined();
+                expect(currUser.id).toBeDefined();
+                expect(currUser.username).toBe(newUser.username);
+                expect(currUser.password).not.toBeDefined();
+                expect(currUser.status).toBe('active');
+                expect(currUser.e2e).toBe(true);
+                expect(currUser.created).toBeDefined();
+                expect(currUser.lastUpdated).toEqual(currUser.created);
+                expect(currUser.org).toBeDefined();
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).not.toBeDefined();
                 done();
             });
         });
         
-        it('retrieve an experience', function(done) {
+        it('retrieve a user', function(done) {
             var options = {
-                url: config.contentUrl + '/experience/' + currExp.id,
-                jar: cookieJar,
-                json: origExp
+                url: config.userSvcUrl + '/user/' + currUser.id,
+                jar: cookieJar
             };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toEqual(currExp);
+                expect(resp.body).toEqual(currUser);
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).not.toBeDefined();
                 done();
             });
         });
         
-        it('update an experience', function(done) {
-            Object.keys(currExp).forEach(function(key) {
-                origExp[key] = currExp[key];
+        it('update a user', function(done) {
+            Object.keys(currUser).forEach(function(key) {
+                origUser[key] = currUser[key];
             });
             var options = {
-                url: config.contentUrl + '/experience/' + currExp.id,
+                url: config.userSvcUrl + '/user/' + currUser.id,
                 jar: cookieJar,
-                json: { title: 'newTitle' }
+                json: { status: 'inactive' }
             };
             testUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
-                expect(resp.body).not.toEqual(origExp);
-                expect(resp.body.title).toBe('newTitle');
-                expect(resp.body.id).toBe(origExp.id);
-                expect(resp.body.created).toBe(origExp.created);
-                expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(origExp.lastUpdated));
-                currExp = resp.body;
+                expect(resp.body).not.toEqual(origUser);
+                expect(resp.body.status).toBe('inactive');
+                expect(resp.body.id).toBe(origUser.id);
+                expect(resp.body.created).toBe(origUser.created);
+                expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(origUser.lastUpdated));
+                currUser = resp.body;
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).not.toBeDefined();
                 done();
             });
         });
         
-        it('delete an experience', function(done) {
+        it('delete a user', function(done) {
             var options = {
-                url: config.contentUrl + '/experience/' + currExp.id,
+                url: config.userSvcUrl + '/user/' + currUser.id,
                 jar: cookieJar
             };
             testUtils.qRequest('del', options).then(function(resp) {
@@ -116,7 +116,7 @@ describe('content-light (E2E):', function() {
                 expect(resp.body).toBe('');
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).not.toBeDefined();
                 done();
             });
         });
@@ -137,10 +137,10 @@ describe('content-light (E2E):', function() {
         });
     });
 
-    describe('/api/content/meta', function() {
-        it('should print out appropriate metadata about the content service', function(done) {
+    describe('/api/account/user/meta', function() {
+        it('should print out appropriate metadata about the user service', function(done) {
             var options = {
-                url: config.contentUrl + '/meta'
+                url: config.userSvcUrl + '/user/meta'
             };
             testUtils.qRequest('get', [options])
             .then(function(resp) {
@@ -155,5 +155,5 @@ describe('content-light (E2E):', function() {
                 done();
             });
         });
-    });  // end -- describe /api/content/meta
-});  // end -- describe content (E2E)
+    });
+});

@@ -11,6 +11,8 @@
         mongoUtils  = require('../lib/mongoUtils'),
         authUtils   = require('../lib/authUtils')(),
         service     = require('../lib/service'),
+        enums       = require('../lib/enums'),
+        Status      = enums.Status,
 
         state       = {},
         auth = {}; // for exporting functions to unit tests
@@ -55,108 +57,35 @@
         .then(function(account) {
             if (!account) {
                 log.info('[%1] Failed login for user %2: unknown username',
-                    req.uuid,req.body.username);
-                return q.reject();
+                         req.uuid,req.body.username);
+                return deferred.resolve({code: 401, body: 'Invalid username or password'});
             }
             userAccount = account;
-            return q.npost(bcrypt, 'compare', [req.body.password, userAccount.password]);
-        }).then(function(matching) {
-            if (matching) {
-                log.info('[%1] Successful login for user %2', req.uuid, req.body.username);
-                var user = mongoUtils.safeUser(userAccount);
-                return q.npost(req.session, 'regenerate').then(function() {
-                    req.session.user = user.id;
-                    deferred.resolve({
-                        code: 200,
-                        body: {
-                            user: user
-                        }
-                    });
-                    return q();
-                });
-            } else {
-                log.info('[%1] Failed login for user %2: invalid password',
-                    req.uuid,req.body.username);
-                return q.reject();
-            }
-        }).catch(function(error) {
-            if (error) { // actual server error, reject the promise
-                log.error('[%1] Error logging in user %2: %3',
-                    req.uuid, req.body.username, error);
-                deferred.reject(error);
-            } else { // failed authentication b/c of bad credentials, resolve with 401
-                deferred.resolve({
-                    code: 401,
-                    body: 'Invalid username or password'
-                });
-            }
-        });
-
-        return deferred.promise;
-    };
-
-    // This may be subject to significant change later, but should act as a basic start/example
-    auth.signup = function(req, users) {
-        if (!req.body || !req.body.username || !req.body.password) {
-            return q({
-                code: 400,
-                body: 'You need to provide a username and password in the body'
-            });
-        }
-        var deferred = q.defer(),
-            log = logger.getLog(),
-            newUser;
-
-        log.info('[%1] Starting signup of user %2', req.uuid, req.body.username);
-        // check if a user already exists with that username
-        q.npost(users, 'findOne', [{username: req.body.username}])
-        .then(function(userAccount) {
-            if (userAccount) {
-                log.info('[%1] User %2 already exists', req.uuid, req.body.username);
-                deferred.resolve({
-                    code: 400,
-                    body: 'A user with that username already exists'
-                });
-                return q();
-            }
-            newUser = {
-                id: 'u-' + uuid.createUuid().substr(0,14),
-                created: new Date(),
-                username: req.body.username,
-                status: 'active',
-                permissions: {  // temporary, at least until we decide how to set perms
-                    experiences: {
-                        read: 'own',
-                        create: 'own',
-                        edit: 'own',
-                        delete: 'own'
+            return q.npost(bcrypt, 'compare', [req.body.password, userAccount.password])
+            .then(function(matching) {
+                if (matching) {
+                    if (account.status !== Status.Active) {
+                        log.info('[%1] Failed login for user %2: account status is %3',
+                                 req.uuid, req.body.username, account.status);
+                        return deferred.resolve({code: 403, body: 'Account not active'});
                     }
-                }
-            };
-            return q.npost(bcrypt, 'hash', [req.body.password, bcrypt.genSaltSync()])
-            .then(function(hashed) {
-                newUser.password = hashed;
-                // save to users with normal + journal write concern; guarantees write goes through
-                return q.npost(users, 'insert', [newUser, {w: 1, journal: true}]);
-            }).then(function() {
-                // Log the user in
-                log.info('[%1] Successfully created an account for user %2, id: %3',
-                         req.uuid, req.body.username, newUser.id);
-                var user = mongoUtils.safeUser(newUser);
-                return q.npost(req.session, 'regenerate').then(function() {
-                    req.session.user = user.id;
-                    deferred.resolve({
-                        code: 200,
-                        body: {
-                            user: user
-                        }
+                    log.info('[%1] Successful login for user %2', req.uuid, req.body.username);
+                    var user = mongoUtils.safeUser(userAccount);
+                    return q.npost(req.session, 'regenerate').then(function() {
+                        req.session.user = user.id;
+                        return deferred.resolve({
+                            code: 200,
+                            body: user
+                        });
                     });
-                    return q();
-                });
+                } else {
+                    log.info('[%1] Failed login for user %2: invalid password',
+                             req.uuid, req.body.username);
+                    return deferred.resolve({code: 401, body: 'Invalid username or password'});
+                }
             });
         }).catch(function(error) {
-            log.error('[%1] Error creating user account %2: %3',
-                req.uuid, req.body.username, error);
+            log.error('[%1] Error logging in user %2: %3', req.uuid, req.body.username, error);
             deferred.reject(error);
         });
 
@@ -179,31 +108,6 @@
             }).catch(function(error) {
                 log.error('[%1] Error logging out user %2: %3',
                     req.uuid, req.session.user, error);
-                deferred.reject(error);
-            });
-        }
-        return deferred.promise;
-    };
-
-    auth.deleteAccount = function(req, users) {
-        var deferred = q.defer(),
-            log = logger.getLog();
-        if (!req.session || !req.session.user) {
-            log.info(
-                '[%1] User with sessionID %2 attempting to delete account but is not logged in',
-                req.uuid, req.sessionID);
-            deferred.resolve({code: 400, body: 'You are not logged in'});
-        } else {
-            log.info('[%1] Deleting account of user %2', req.uuid, req.session.user);
-
-            q.npost(users, 'remove', [{id: req.session.user}, {w: 1, journal: true}])
-            .then(function() {
-                return q.npost(req.session, 'destroy');
-            }).then(function() {
-                deferred.resolve({code: 200, body: 'Successfully deleted account'});
-            }).catch(function(error) {
-                log.error('[%1] Error deleting account of user %2: %3',
-                    req.uuid,req.session.user,error);
                 deferred.reject(error);
             });
         }
@@ -284,32 +188,12 @@
             });
         });
 
-        app.post('/api/auth/signup', function(req, res/*, next*/) {
-            auth.signup(req, users).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(/*error*/) {
-                res.send(500, {
-                    error: 'Error processing signup'
-                });
-            });
-        });
-
         app.post('/api/auth/logout', function(req, res/*, next*/) {
             auth.logout(req).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
                 res.send(500, {
                     error: 'Error processing logout'
-                });
-            });
-        });
-
-        app.delete('/api/auth/delete_account', function(req, res/*, next*/) {
-            auth.deleteAccount(req, users).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(/*error*/) {
-                res.send(500, {
-                    error: 'Error deleting account'
                 });
             });
         });
