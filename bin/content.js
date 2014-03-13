@@ -351,7 +351,7 @@
             }
             if (!req.query || !(Object.keys(req.query).some(isKeyInFields))) {
                 log.info('[%1] Cannot GET /content/experiences with no query params',req.uuid);
-                return res.send(400, 'Must specify at least one query param');
+                return res.send(400, 'Must specify at least one supported query param');
             }
             var query = {};
             if (req.query.ids) {

@@ -227,6 +227,21 @@ describe('content (E2E):', function() {
             });
         });
         
+        it('should not get experiences by some other query param', function(done) {
+            var options = {
+                url: config.contentUrl + '/experiences?status=active&sort=id,1',
+                jar: cookieJar
+            };
+            testUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Must specify at least one supported query param');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
         it('should get experiences by org', function(done) {
             var options = {
                 url: config.contentUrl + '/experiences?org=e2e-org&sort=id,1',
