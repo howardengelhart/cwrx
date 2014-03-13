@@ -272,6 +272,7 @@
         }));
 
         app.all('*', function(req, res, next) {
+            res.header('Access-Control-Allow-Origin', '*');
             res.header('Access-Control-Allow-Headers',
                        'Origin, X-Requested-With, Content-Type, Accept');
             res.header('cache-control', 'max-age=0');
@@ -344,9 +345,13 @@
         // robust get experience by query, requires authenticated user with read perms
         var authGetExp = authUtils.middlewarify(state.db, {experiences: 'read'});
         app.get('/api/content/experiences', authGetExp, function(req, res/*, next*/) {
-            if (!req.query || (!req.query.ids && !req.query.user)) {
-                log.info('[%1] Cannot GET /content/experiences w/o ids or user specified',req.uuid);
-                return res.send(400, 'Must specify ids or user param');
+            var queryFields = ['ids', 'user', 'org', 'type'];
+            function isKeyInFields(key) {
+                return queryFields.indexOf(key) >= 0;
+            }
+            if (!req.query || !(Object.keys(req.query).some(isKeyInFields))) {
+                log.info('[%1] Cannot GET /content/experiences with no query params',req.uuid);
+                return res.send(400, 'Must specify at least one query param');
             }
             var query = {};
             if (req.query.ids) {
@@ -354,6 +359,12 @@
             }
             if (req.query.user) {
                 query.user = req.query.user;
+            }
+            if (req.query.org) {
+                query.org = req.query.org;
+            }
+            if (req.query.type) {
+                query.type = req.query.type;
             }
             content.getExperiences(query, req, expCache)
             .then(function(resp) {

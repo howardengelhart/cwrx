@@ -22,7 +22,7 @@ describe('content (E2E):', function() {
             org: "o-1234",
             permissions: {
                 experiences: {
-                    read: "own",
+                    read: "org",
                     create: "own",
                     edit: "own",
                     delete: "own"
@@ -115,7 +115,7 @@ describe('content (E2E):', function() {
                 expect(resp.body).toBe('No experiences found');
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).not.toBeDefined();
                 done();
             });
         });
@@ -143,25 +143,31 @@ describe('content (E2E):', function() {
                     status: "active",
                     access: "public",
                     user: "e2e-user",
-                    tag: "foo"
+                    org: "e2e-org",
+                    type: "foo"
                 },
                 {
                     id: "e2e-privget2",
                     status: "inactive",
                     access: "private",
-                    user: "e2e-user"
+                    user: "e2e-user",
+                    org: "not-e2e-org",
+                    type: "foo"
                 },
                 {
                     id: "e2e-privget3",
                     status: "active",
                     access: "public",
-                    user: "not-e2e-user"
+                    user: "not-e2e-user",
+                    org: "e2e-org",
+                    type: "bar"
                 },
                 {
                     id: "e2e-privget4",
                     status: "inactive",
                     access: "private",
-                    user: "not-e2e-user"
+                    user: "not-e2e-user",
+                    org: "not-e2e-org",
                 }
             ];
             testUtils.resetCollection('experiences', mockExps).done(done);
@@ -180,7 +186,7 @@ describe('content (E2E):', function() {
                 expect(resp.body[1].id).toBe("e2e-privget3");
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).not.toBeDefined();
                 done();
             });
         });
@@ -198,11 +204,46 @@ describe('content (E2E):', function() {
                 expect(resp.body[1].id).toBe("e2e-privget2");
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).not.toBeDefined();
                 done();
             });
         });
 
+        it('should get experiences by type', function(done) {
+            var options = {
+                url: config.contentUrl + '/experiences?type=foo&sort=id,1',
+                jar: cookieJar
+            };
+            testUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body instanceof Array).toBeTruthy('body is array');
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0].id).toBe("e2e-privget1");
+                expect(resp.body[1].id).toBe("e2e-privget2");
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should get experiences by org', function(done) {
+            var options = {
+                url: config.contentUrl + '/experiences?org=e2e-org&sort=id,1',
+                jar: cookieJar
+            };
+            testUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body instanceof Array).toBeTruthy('body is array');
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0].id).toBe("e2e-privget1");
+                expect(resp.body[1].id).toBe("e2e-privget3");
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
         
         it('should only get private or inactive experiences the user owns', function(done) {
             var options = {
@@ -216,7 +257,7 @@ describe('content (E2E):', function() {
                 expect(resp.body[0].id).toBe("e2e-privget2");
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).not.toBeDefined();
                 done();
             });
         });
@@ -230,7 +271,7 @@ describe('content (E2E):', function() {
                 expect(resp.body).toBe("Unauthorized");
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).not.toBeDefined();
                 done();
             });
         });
@@ -256,7 +297,7 @@ describe('content (E2E):', function() {
                 expect(resp.body[0].id).toBe("e2e-privget1");
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).not.toBeDefined();
                 done();
             });
         });
@@ -291,7 +332,7 @@ describe('content (E2E):', function() {
                 expect(resp.body.access).toBe('public');
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).not.toBeDefined();
                 done();
             }); 
         });
@@ -312,7 +353,7 @@ describe('content (E2E):', function() {
                 expect(resp.body.status).toBe('active');
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).not.toBeDefined();
                 done();
             }); 
         });
@@ -328,7 +369,7 @@ describe('content (E2E):', function() {
                 expect(resp.body).toBe("Unauthorized");
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).not.toBeDefined();
                 done();
             });
         });
@@ -379,7 +420,7 @@ describe('content (E2E):', function() {
                 expect(new Date(updatedExp.lastUpdated)).toBeGreaterThan(now);
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).not.toBeDefined();
                 done();
             });
         });
@@ -395,7 +436,7 @@ describe('content (E2E):', function() {
                 expect(resp.body).toBe("That experience does not exist");
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).not.toBeDefined();
                 done();
             });
         });
@@ -411,7 +452,7 @@ describe('content (E2E):', function() {
                 expect(resp.body).toBe("Not authorized to edit this experience");
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).not.toBeDefined();
                 done();
             });
         });
@@ -426,7 +467,7 @@ describe('content (E2E):', function() {
                 expect(resp.body).toBe("Unauthorized");
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).not.toBeDefined();
                 done();
             });
         });
@@ -463,7 +504,7 @@ describe('content (E2E):', function() {
                 expect(resp.body).toBe('No experiences found');
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).not.toBeDefined();
                 done();
             });
         });
@@ -475,7 +516,7 @@ describe('content (E2E):', function() {
                 expect(resp.body).toBe("Not authorized to delete this experience");
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).not.toBeDefined();
                 done();
             });
         });
@@ -491,7 +532,7 @@ describe('content (E2E):', function() {
                 expect(resp.body).toBe('');
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).not.toBeDefined();
                 done();
             });
         });
@@ -503,7 +544,7 @@ describe('content (E2E):', function() {
                 expect(resp.body).toBe('');
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).not.toBeDefined();
                 done();
             });
         });
@@ -515,7 +556,7 @@ describe('content (E2E):', function() {
                 expect(resp.body).toBe("Unauthorized");
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).not.toBeDefined();
                 done();
             });
         });
