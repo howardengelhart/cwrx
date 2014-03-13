@@ -17,7 +17,8 @@
         appName : 'vote',
         appDir  : __dirname,
         cacheControl : {
-            getElection : 'max-age=300'
+            getElection     : 'max-age=300',
+            getBallotItem   : 'max-age=300'
         },
         log    : {
             logLevel : 'info',
@@ -475,13 +476,14 @@
             elDb.getBallotItem(
                 req.params.electionId, req.params.itemId, state.config.requestTimeout)
                 .then(function(election){
+                    res.header('cache-control', state.config.cacheControl.getBallotItem);
                     res.send(200,app.convertElection(election));
                 })
                 .catch(function(err){
                     if (err.message.match(/Timed out after/)){
                         err.httpCode = 408;
                     }
-                    log.error('getElection Error: %1',err.message);
+                    log.error('getBallotItem Error: %1',err.message);
                     if (err.httpCode){
                         res.send(err.httpCode,err.message + '\n');
                     } else {
