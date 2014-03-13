@@ -37,7 +37,7 @@ Vagrant.configure("2") do |config|
     chef.json = {
         :c6mongo => {
             :users => {
-                :ids => ["evan","howard","content","auth","vote"]
+                :ids => ["evan","howard","content","auth","vote","e2eTests"]
             },
             :cfg => {
                 :auth => true
