@@ -16,6 +16,10 @@
     state.defaultConfig = {
         appName : 'vote',
         appDir  : __dirname,
+        cacheControl : {
+            getElection     : 'max-age=300',
+            getBallotItem   : 'max-age=300'
+        },
         log    : {
             logLevel : 'info',
             media    : [ { type : 'console' } ]
@@ -107,7 +111,7 @@
             return true;
         }
 
-        return ((new Date()).valueOf() - lastSync.valueOf()) > this._syncIval;
+        return ((new Date()).valueOf() - lastSync.valueOf()) >= this._syncIval;
     };
 
     ElectionDb.prototype.getElectionFromCache = function(electionId){
@@ -384,7 +388,8 @@
 
     app.main = function(state){
         var log = logger.getLog(), webServer,
-            elDb = new ElectionDb(state.db.collection('elections')),
+            elDb = new ElectionDb(state.db.collection('elections'),
+                state.config.idleSyncTimeout),
             started = new Date();
         if (state.clusterMaster){
             log.info('Cluster master, not a worker');
@@ -447,6 +452,7 @@
 
             elDb.getElection(req.params.electionId,state.config.requestTimeout)
                 .then(function(election){
+                    res.header('cache-control', state.config.cacheControl.getElection);
                     res.send(200,app.convertElection(election));
                 })
                 .catch(function(err){
@@ -470,13 +476,14 @@
             elDb.getBallotItem(
                 req.params.electionId, req.params.itemId, state.config.requestTimeout)
                 .then(function(election){
+                    res.header('cache-control', state.config.cacheControl.getBallotItem);
                     res.send(200,app.convertElection(election));
                 })
                 .catch(function(err){
                     if (err.message.match(/Timed out after/)){
                         err.httpCode = 408;
                     }
-                    log.error('getElection Error: %1',err.message);
+                    log.error('getBallotItem Error: %1',err.message);
                     if (err.httpCode){
                         res.send(err.httpCode,err.message + '\n');
                     } else {
