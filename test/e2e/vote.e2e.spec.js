@@ -62,6 +62,7 @@ describe('vote (E2E)', function(){
         it('gets an election if it exists',function(done){
             testUtils.qRequest('get', { url : makeUrl('/api/election/e1')})
                 .then(function(resp){
+                    expect(resp.response.headers['cache-control']).toEqual('max-age=300');
                     expect(resp.response.statusCode).toEqual(200);
                     expect(resp.body.id).toEqual('e1');
                     expect(resp.body.ballot.b1['red apple']).toEqual(0.17);
@@ -81,6 +82,7 @@ describe('vote (E2E)', function(){
         it('returns with a 404 if the election does not exist',function(done){
             testUtils.qRequest('get', { url : makeUrl('/api/election/e1x')})
                 .then(function(resp){
+                    expect(resp.response.headers['cache-control']).not.toBeDefined();
                     expect(resp.response.statusCode).toEqual(404);
                 })
                 .catch(function(err){
@@ -95,6 +97,7 @@ describe('vote (E2E)', function(){
         it('returns with 404 if the electionId is not passed',function(done){
             testUtils.qRequest('get', { url : makeUrl('/api/election')})
                 .then(function(resp){
+                    expect(resp.response.headers['cache-control']).not.toBeDefined();
                     expect(resp.response.statusCode).toEqual(404);
                     expect(resp.body).toEqual('Cannot GET /api/election');
                 })
@@ -115,6 +118,7 @@ describe('vote (E2E)', function(){
         it('gets a ballot if it and the election exist',function(done){
             testUtils.qRequest('get', { url : makeUrl('/api/election/e2/ballot/b2')})
                 .then(function(resp){
+                    expect(resp.response.headers['cache-control']).toEqual('max-age=300');
                     expect(resp.response.statusCode).toEqual(200);
                     expect(resp.body.id).toEqual('e2');
                     expect(resp.body.ballot.b2['red fish']).toEqual(0.43);
@@ -132,6 +136,7 @@ describe('vote (E2E)', function(){
         it('returns with a 404 if the election does not exist',function(done){
             testUtils.qRequest('get', { url : makeUrl('/api/election/e2x/ballot/b2')})
                 .then(function(resp){
+                    expect(resp.response.headers['cache-control']).not.toBeDefined();
                     expect(resp.response.statusCode).toEqual(404);
                     expect(resp.body).toEqual('Unable to locate election.\n');
                 })
@@ -147,6 +152,7 @@ describe('vote (E2E)', function(){
         it('returns with a 404 if the ballot does not exist',function(done){
             testUtils.qRequest('get', { url : makeUrl('/api/election/e2/ballot/b3')})
                 .then(function(resp){
+                    expect(resp.response.headers['cache-control']).not.toBeDefined();
                     expect(resp.response.statusCode).toEqual(404);
                     expect(resp.body).toEqual('Unable to locate ballot item.\n');
                 })
