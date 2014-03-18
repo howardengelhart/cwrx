@@ -400,6 +400,15 @@
             };
             res.send(200, data);
         });
+
+        app.use(function(err, req, res, next) {
+            if (err) {
+                log.error('Error: %1', err);
+                res.send(500, 'Internal error');
+            } else {
+                next();
+            }
+        });
         
         app.listen(state.cmdl.port);
         log.info('Service is listening on port: ' + state.cmdl.port);
