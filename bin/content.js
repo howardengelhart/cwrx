@@ -9,7 +9,6 @@
         uuid            = require('../lib/uuid'),
         QueryCache      = require('../lib/queryCache'),
         FieldValidator  = require('../lib/fieldValidator'),
-        mongoUtils      = require('../lib/mongoUtils'),
         authUtils       = require('../lib/authUtils')(),
         service         = require('../lib/service'),
         enums           = require('../lib/enums'),
@@ -247,18 +246,6 @@
             app         = express();
         // set auth cacheTTL now that we've loaded config
         authUtils = require('../lib/authUtils')(state.config.cacheTTLs.auth);
-
-        // if connection to mongo is down; immediately reject all requests
-        // otherwise the request will hang trying to get the session from mongo
-        app.use(function(req, res, next) {
-            mongoUtils.checkRunning(state.config.mongo.host, state.config.mongo.port)
-            .then(function() {
-                next();
-            }).catch(function(error) {
-                log.error('Connection to mongo is down: %1', error);
-                res.send(500, 'Connection to database is down');
-            });
-        });
 
         app.use(express.bodyParser());
         app.use(express.cookieParser(state.secrets.cookieParser || ''));
