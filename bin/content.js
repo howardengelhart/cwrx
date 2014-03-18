@@ -285,8 +285,29 @@
         var experiences = state.db.collection('experiences');
         var expCache = new QueryCache(state.config.cacheTTLs.experiences, experiences);
         
-        // simple get active experience by id, public
-        app.get('/api/content/experience/:id', function(req, res/*, next*/) {
+        // public get experience by id
+        app.get('/api/content/public/experience/:id', function(req, res/*, next*/) {
+            content.getExperiences({id: req.params.id}, req, expCache)
+            .then(function(resp) {
+                res.header('cache-control', 'max-age=' + state.config.cacheTTLs.cloudFront*60);
+                if (resp.body && resp.body instanceof Array) {
+                    res.send(resp.code, resp.body[0]);
+                } else {
+                    res.send(resp.code, resp.body);
+                }
+            }).catch(function(error) {
+                res.header('cache-control', 'max-age=60');
+                res.send(500, {
+                    error: 'Error retrieving content',
+                    detail: error
+                });
+            });
+        });
+        
+        var authGetExp = authUtils.middlewarify(state.db, {experiences: 'read'});
+        
+        // private get experience by id //TODO: remove stuff here, now private
+        app.get('/api/content/experience/:id', authGetExp, function(req, res/*, next*/) {
             var promise;
             if (req.session.user) {
                 log.trace('[%1] Attempting to look up user %2 for public GET experiences',
@@ -328,8 +349,7 @@
             });
         });
 
-        // robust get experience by query, requires authenticated user with read perms
-        var authGetExp = authUtils.middlewarify(state.db, {experiences: 'read'});
+        // private get experience by query
         app.get('/api/content/experiences', authGetExp, function(req, res/*, next*/) {
             if (!req.query || (!req.query.ids && !req.query.user)) {
                 log.info('[%1] Cannot GET /content/experiences w/o ids or user specified',req.uuid);
