@@ -94,6 +94,30 @@ var helpers = {
             }
         });
         return deferred.promise;
+    },
+
+    getEc2InstanceIds : function (opts){
+        return q.ninvoke(opts.ec2,'describeInstances',opts.params)
+        .then(function(data){
+            var instMap = {};
+            data.Reservations.forEach(function(res){
+                res.Instances.forEach(function(inst){
+                    var instName;
+                    inst.Tags.some(function(tag){
+                        if (tag.Key === 'Name'){
+                            instName = tag.Value;
+                            return true;
+                        }
+                    });
+                    instMap[instName || inst.InstanceId] =  inst.InstanceId;
+                });
+            });
+            return instMap;
+        })
+        .catch(function(err){
+            err.message = 'getEc2InstanceIds: ' + err.message;
+            return q.reject(err);
+        });
     }
 }
 
