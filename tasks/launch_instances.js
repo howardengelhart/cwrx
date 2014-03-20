@@ -90,8 +90,7 @@ module.exports = function(grunt) {
                 ec2  : null
             };
             
-            aws.config.update({accessKeyId: 'AKIAJ2JIPDHVK4U7IWNA', secretAccessKey: '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', region : 'us-east-1'});
-            //aws.config.loadFromPath(auth);
+            aws.config.loadFromPath(auth);
             
             config.ec2 = new aws.EC2();
             convertInstanceIds(config)
