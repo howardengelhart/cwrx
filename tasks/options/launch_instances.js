@@ -12,7 +12,7 @@ module.exports = {
         ],
         runInstances : [
             {
-                userDataFile : 'init.sh',
+                userDataFile : 'staging.sh',
                 tags : [
                     {
                         Key: 'Name',

@@ -1,4 +1,5 @@
 var aws     = require('aws-sdk'),
+    fs      = require('fs'),
     q       = require('q'),
     helpers = require('./resources/helpers');
 
@@ -54,7 +55,12 @@ module.exports = function(grunt) {
     
     function launchInstances(config){
         return q.all(config.data.runInstances.map(function(rInst){
-            var instId;
+            var instId, buff;
+            if (rInst.userDataFile){
+                buff = new Buffer(fs.readFileSync(rInst.userDataFile),'utf8');
+                rInst.params.UserData = buff.toString('base64');
+            }
+
             return q.ninvoke(config.ec2,'runInstances',rInst.params).delay(3000)
             .then(function(data){
                 instId = data.Instances[0].InstanceId;
@@ -117,8 +123,19 @@ module.exports = function(grunt) {
                 grunt.log.writelns('CHECK INSTANCES');
                 return helpers.checkInstance(stateOpts, config.ec2, 0);
             })
-            .then(function(){
-                grunt.log.writelns('Everything is running');
+            .then(function(ips) {
+                grunt.log.writelns('All instances are in the running state');
+                return q.all(ips.map(function(ip) {
+                    var sshOpts = {
+                        ip: ip,
+                        interval: config.opts.sshInterval * 1000,
+                        maxIters: config.opts.sshIters
+                    };
+                    return helpers.checkSSH(sshOpts, 0);
+                }));
+            })
+            .then(function() {
+                grunt.log.writelns('All instances are ready to go!');
                 done(true);
             })
             .catch(function(err){
