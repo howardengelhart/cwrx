@@ -13,6 +13,7 @@ module.exports = {
         ],
         runInstances : [
             {
+                name : 'jenkins1',
 //                userDataFile : 'staging.sh',
                 tags : [
                     {

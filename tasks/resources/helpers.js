@@ -112,6 +112,13 @@ var helpers = {
                 });
             });
 
+            result.lookup = function(x){
+                if (x.substr(0,2) === 'i-'){
+                    return this.byId(x);
+                }
+                return this.byName(x);
+            };
+
             result.byName = function(name){
                 var r;
                 this._instances.some(function(inst){

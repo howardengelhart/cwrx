@@ -5,7 +5,6 @@ var aws     = require('aws-sdk'),
 
 module.exports = function(grunt) {
 
-    /* converts instance names into ids */
     function loadInstanceData(config){
         var deferred;
     
@@ -69,10 +68,7 @@ module.exports = function(grunt) {
 
         if (!config.data.runInstances.every(function(rInst,index){
             if (!rInst.name){
-                rInst.name = config.target;
-                if (config.data.runInstances.length > 1){
-                    rinst.name += '-' + index.toString();
-                }
+                err = new Error('Instance ' + index + ' needs a name!'); 
             }
           
             var inst = config.instanceData.byName(rInst.name);
@@ -143,13 +139,6 @@ module.exports = function(grunt) {
 
             return q.ninvoke(config.ec2,'runInstances',rInst.params).delay(3000)
             .then(function(data){
-                var instName = rInst.name;
-                if (!instName){
-                    instName = config.target;
-                }
-                if (config.data.runInstances.length > 1){
-                    instName += '-' + index.toString();
-                }
                 instId = data.Instances[0].InstanceId;
                 var tags = [
                     {
@@ -158,7 +147,7 @@ module.exports = function(grunt) {
                     },
                     {
                         Key: 'Name',
-                        Value: instName
+                        Value: rInst.name
                     },
                     {
                         Key: 'Owner',
