@@ -140,6 +140,7 @@ module.exports = function(grunt) {
             return q.ninvoke(config.ec2,'runInstances',rInst.params).delay(3000)
             .then(function(data){
                 instId = data.Instances[0].InstanceId;
+//                console.log(JSON.stringify(data.Instances[0],null,3));
                 var tags = [
                     {
                         Key: 'Lock',
