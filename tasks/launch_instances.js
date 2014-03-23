@@ -6,28 +6,18 @@ var aws     = require('aws-sdk'),
 module.exports = function(grunt) {
 
     /* converts instance names into ids */
-    function convertInstanceIds(config){
+    function loadInstanceData(config){
         var deferred;
     
-        if ((!config.data.startInstances) || (!config.data.startInstances.length)){
-            return q(config);
-        }
-    
-        if (config.data.startInstances.every(function(inst){
-            return (inst.substr(0,2) === 'i-');
-        })){
-            return q(config);
-        }
-       
         deferred = q.defer();
-        helpers.getEc2InstanceIds({ ec2 : config.ec2, params : {}})
-        .then(function(idMap){
-            config.data.startInstances.forEach(function(name,idx){
-                if (idMap[name]){
-                    config.data.startInstances[idx] = idMap[name];
-                }
-            });
-            grunt.log.writelns('Converted: ' + config.data.startInstances);
+        helpers.getEc2InstanceData({ ec2 : config.ec2, params : {
+            Filters : [ {
+                Name   : 'tag:Owner' ,
+                Values : [config.opts.owner]
+            } ]
+        }})
+        .then(function(results){
+            config.instanceData = results;
             deferred.resolve(config);
         })
         .catch(function(err){
@@ -36,16 +26,103 @@ module.exports = function(grunt) {
     
         return deferred.promise;
     }
+
+    function checkStartInstances(config){
+        var err;
+        if ((!config.data.startInstances) || (!config.data.startInstances.length)){
+            return q(config);
+        }
+
+        if (!config.data.startInstances.every(function(n){
+            var inst;
+            if (n.substr(0,2) === 'i-'){
+                inst = config.instanceData.byId(n);
+            } else {
+                inst = config.instanceData.byName(n);
+            }
+
+            if (!inst){
+                err = new Error('Unable to locate instance: ' + n); 
+                return false;
+            }
+
+            if (inst._tagMap.Lock){
+                err = new Error('Instance ' + n + ' is locked: ' + inst._tagMap.Lock); 
+                return false;
+            }
+
+            return true;
+        })){
+            if (err){
+                return q.reject(err);
+            }
+        }
+
+        return q(config);
+    }
+    
+    function checkRunInstances(config){
+        var err;
+        if ((!config.data.runInstances) || (!config.data.runInstances.length)){
+            return q(config);
+        }
+
+        if (!config.data.runInstances.every(function(rInst,index){
+            if (!rInst.name){
+                rInst.name = config.target;
+                if (config.data.runInstances.length > 1){
+                    rinst.name += '-' + index.toString();
+                }
+            }
+          
+            var inst = config.instanceData.byName(rInst.name);
+
+            if (inst && inst._tagMap.Lock){
+                err = new Error('Instance ' + rInst.name + ' is locked: ' + inst._tagMap.Lock); 
+                return false;
+            }
+
+            return true;
+        })){
+            if (err){
+                return q.reject(err);
+            }
+        }
+
+        return q(config);
+    }
     
     function startInstances(config){
         if ((!config.data.startInstances) || (!config.data.startInstances.length)){
             return q(config);
         }
-    
-        return q.ninvoke(config.ec2,'startInstances',{InstanceIds: config.data.startInstances})
+
+        var tags = [
+            {
+                Key: 'Lock',
+                Value: config.tag
+            },
+        ], instanceIds = [];
+
+        config.data.startInstances.forEach(function(n){
+            var inst;
+            if (n.substr(0,2) === 'i-'){
+                inst = config.instanceData.byId(n);
+            } else {
+                inst = config.instanceData.byName(n);
+            }
+
+            if (!inst){
+                throw new Error('Invalid instance: ' + n);
+            }
+
+            instanceIds.push(inst.InstanceId);
+        });
+
+        return q.ninvoke(config.ec2,'createTags',{ Resources : instanceIds, Tags : tags })
+        .then(q.ninvoke(config.ec2,'startInstances',{InstanceIds: instanceIds}))
         .then(function(data){
-            grunt.log.writelns('Started: ' + config.data.startInstances.join(','));
-            return config.data.startInstances; 
+            return instanceIds; 
         })
         .catch(function(err){
             err.message = 'startInstances: ' + err.message;
@@ -54,7 +131,10 @@ module.exports = function(grunt) {
     }
     
     function launchInstances(config){
-        return q.all(config.data.runInstances.map(function(rInst){
+        if (!config.data.runInstances || config.data.runInstances.length === 0){
+            return q([]);
+        }
+        return q.all(config.data.runInstances.map(function(rInst,index){
             var instId, buff;
             if (rInst.userDataFile){
                 buff = new Buffer(fs.readFileSync(rInst.userDataFile),'utf8');
@@ -63,13 +143,44 @@ module.exports = function(grunt) {
 
             return q.ninvoke(config.ec2,'runInstances',rInst.params).delay(3000)
             .then(function(data){
-                instId = data.Instances[0].InstanceId;
-                if (rInst.tags){
-                    return q.ninvoke(config.ec2,'createTags',{
-                        Resources : [ instId ],
-                        Tags : rInst.tags
-                    });
+                var instName = rInst.name;
+                if (!instName){
+                    instName = config.target;
                 }
+                if (config.data.runInstances.length > 1){
+                    instName += '-' + index.toString();
+                }
+                instId = data.Instances[0].InstanceId;
+                var tags = [
+                    {
+                        Key: 'Lock',
+                        Value: config.tag
+                    },
+                    {
+                        Key: 'Name',
+                        Value: instName
+                    },
+                    {
+                        Key: 'Owner',
+                        Value: config.opts.owner
+                    }
+                ];
+
+                if (rInst.tags){
+                    tags = tags.concat(rInst.tags);
+                }
+
+                data.Instances[0]._tagMap = {};
+                tags.forEach(function(tag){
+                    data.Instances[0]._tagMap[tag.Key] = tag.Value;
+                });
+                config.instanceData._instances.push(data.Instances[0]);
+
+                return q.ninvoke(config.ec2,'createTags',{
+                    Resources : [ instId ],
+                    Tags : tags
+                });
+                
                 return {};
             })
             .then(function(data){
@@ -77,7 +188,6 @@ module.exports = function(grunt) {
             });
         }))
         .then(function(results){
-            grunt.log.writelns('Launched: ' + results);
             return results;
         })
         .catch(function(err){
@@ -91,25 +201,43 @@ module.exports = function(grunt) {
             auth     = settings.awsAuth,
             done     = this.async(),
             config   = {
-                data : this.data,
-                opts : this.options(),
-                ec2  : null
+                data    : this.data,
+                opts    : this.options(),
+                ec2     : null,
+                tag     : grunt.option('tag'),
+                target  : this.target
             };
-            
+
+            if (!config.opts.owner){
+                grunt.log.errorlns('Onwer is required.');
+                return done(false);
+            }
+
+            if (!config.tag){
+                grunt.log.errorlns('Tag is required, use --tag.');
+                return done(false);
+            }
+
             aws.config.loadFromPath(auth);
             
             config.ec2 = new aws.EC2();
-            convertInstanceIds(config)
+            loadInstanceData(config)
+            .then(function(){
+                return q.all([checkStartInstances(config),checkRunInstances(config)]);
+            })
             .then(function(){
                 return q.all([startInstances(config),launchInstances(config)]);
             })
             .then(function(results){
                 var ids = [];
+                grunt.log.writelns('Started or Launched:');
                 results.forEach(function(r){
                     ids = ids.concat(r);
                 });
-                grunt.log.writelns('ALL STARTED AND LAUNCHED:' +
-                    JSON.stringify(ids,null,3));
+                ids.forEach(function(id){
+                    var inst = config.instanceData.byId(id);
+                    grunt.log.writelns(inst._tagMap.Name + '('  + id + ')');
+                });
                 return ids;
             })
             .then(function(ids){
@@ -120,7 +248,6 @@ module.exports = function(grunt) {
                     maxIters: config.opts.stateIters
                 };
                
-                grunt.log.writelns('CHECK INSTANCES');
                 return helpers.checkInstance(stateOpts, config.ec2, 0);
             })
             .then(function(ips) {

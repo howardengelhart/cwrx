@@ -3,7 +3,8 @@ module.exports = {
         stateInterval:   5,
         stateIters:     24,
         sshInterval:     5,
-        sshIters:       24
+        sshIters:       24,
+        owner:          'jenkins'
     },
     jenkins1 : {
         startInstances : [
@@ -12,15 +13,11 @@ module.exports = {
         ],
         runInstances : [
             {
-                userDataFile : 'staging.sh',
+//                userDataFile : 'staging.sh',
                 tags : [
                     {
-                        Key: 'Name',
-                        Value: 'jenkins1-apiServer'
-                    },
-                    {
-                        Key: 'Owner',
-                        Value: 'jenkins'
+                        Key: 'Foo',
+                        Value: 'Bar'
                     }
                 ],
                 params : {

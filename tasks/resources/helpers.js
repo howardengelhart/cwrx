@@ -96,26 +96,48 @@ var helpers = {
         return deferred.promise;
     },
 
-    getEc2InstanceIds : function (opts){
+    getEc2InstanceData : function (opts){
         return q.ninvoke(opts.ec2,'describeInstances',opts.params)
         .then(function(data){
-            var instMap = {};
+            var result = {
+                _instances : []
+            };
             data.Reservations.forEach(function(res){
                 res.Instances.forEach(function(inst){
-                    var instName;
-                    inst.Tags.some(function(tag){
-                        if (tag.Key === 'Name'){
-                            instName = tag.Value;
-                            return true;
-                        }
+                    inst._tagMap = {};
+                    inst.Tags.forEach(function(tag){
+                        inst._tagMap[tag.Key] = tag.Value;
                     });
-                    instMap[instName || inst.InstanceId] =  inst.InstanceId;
+                    result._instances.push(inst);
                 });
             });
-            return instMap;
+
+            result.byName = function(name){
+                var r;
+                this._instances.some(function(inst){
+                    if (inst._tagMap.Name === name){
+                        r = inst;
+                        return true;
+                    }
+                });
+                return r;
+            };
+
+            result.byId = function(id){
+                var r;
+                this._instances.some(function(inst){
+                    if (inst.InstanceId === id){
+                        r = inst;
+                        return true;
+                    }
+                });
+                return r;
+            };
+
+            return result;
         })
         .catch(function(err){
-            err.message = 'getEc2InstanceIds: ' + err.message;
+            err.message = 'getEc2InstanceData: ' + err.message;
             return q.reject(err);
         });
     }
