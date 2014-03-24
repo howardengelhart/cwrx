@@ -14,7 +14,7 @@ module.exports = {
         runInstances : [
             {
                 name : 'jenkins1',
-//                userDataFile : 'staging.sh',
+                userDataFile: 'userdata_vote.sh',
                 tags : [
                     {
                         Key: 'Foo',

@@ -1,9 +1,31 @@
 var aws     = require('aws-sdk'),
-    fs      = require('fs'),
+    path    = require('path'),
     q       = require('q'),
     helpers = require('./resources/helpers');
 
 module.exports = function(grunt) {
+
+    function writeInstanceData(config){
+        return helpers.getEc2InstanceData({ ec2 : config.ec2, params : {
+            Filters : [ {
+                Name   : 'tag:Lock' ,
+                Values : [config.tag]
+            } ]
+        }})
+        .then(function(results){
+            return q.all(results._instances.map(function(inst){
+                var fpath = path.join(config.workSpace,inst._tagMap.Name + '.json');
+                grunt.log.writelns('WRITE: ' + fpath);
+                grunt.file.write(fpath,JSON.stringify(inst,null,3));
+            }));
+        })
+        .catch(function(err){
+            err.message = 'writeInstanceData: ' + err.message;
+            deferred.reject(err);
+        });
+    
+        return deferred.promise;
+    }
 
     function loadInstanceData(config){
         var deferred;
@@ -20,6 +42,7 @@ module.exports = function(grunt) {
             deferred.resolve(config);
         })
         .catch(function(err){
+            err.message = 'loadInstanceData: ' + err.message;
             deferred.reject(err);
         });
     
@@ -132,15 +155,19 @@ module.exports = function(grunt) {
         }
         return q.all(config.data.runInstances.map(function(rInst,index){
             var instId, buff;
+
             if (rInst.userDataFile){
-                buff = new Buffer(fs.readFileSync(rInst.userDataFile),'utf8');
-                rInst.params.UserData = buff.toString('base64');
+                rInst.userDataPath = path.join(config.userDataDir,rInst.userDataFile);
             }
+            
+            if (rInst.userDataPath){
+                buff = new Buffer(grunt.file.read(rInst.userDataPath),'utf8');
+                rInst.params.UserData = buff.toString('base64');
+            } 
 
             return q.ninvoke(config.ec2,'runInstances',rInst.params).delay(3000)
             .then(function(data){
                 instId = data.Instances[0].InstanceId;
-//                console.log(JSON.stringify(data.Instances[0],null,3));
                 var tags = [
                     {
                         Key: 'Lock',
@@ -191,11 +218,13 @@ module.exports = function(grunt) {
             auth     = settings.awsAuth,
             done     = this.async(),
             config   = {
-                data    : this.data,
-                opts    : this.options(),
-                ec2     : null,
-                tag     : grunt.option('tag'),
-                target  : this.target
+                data        : this.data,
+                opts        : this.options(),
+                ec2         : null,
+                tag         : grunt.option('tag'),
+                userDataDir : grunt.option('user-data-dir') || '.',
+                workSpace   : path.join(grunt.option('workspace') || '.', grunt.option('tag')),
+                target      : this.target
             };
 
             if (!config.opts.owner){
@@ -251,6 +280,9 @@ module.exports = function(grunt) {
                     return helpers.checkSSH(sshOpts, 0);
                 }));
             })
+//            .then(function(){
+//                return writeInstanceData(config);
+//            })
             .then(function() {
                 grunt.log.writelns('All instances are ready to go!');
                 done(true);
