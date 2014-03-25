@@ -5,50 +5,6 @@ var aws     = require('aws-sdk'),
 
 module.exports = function(grunt) {
 
-    function writeInstanceData(config){
-        return helpers.getEc2InstanceData({ ec2 : config.ec2, params : {
-            Filters : [ {
-                Name   : 'tag:Lock' ,
-                Values : [config.tag]
-            } ]
-        }})
-        .then(function(results){
-            return q.all(results._instances.map(function(inst){
-                var fpath = path.join(config.workSpace,inst._tagMap.Name + '.json');
-                grunt.log.writelns('WRITE: ' + fpath);
-                grunt.file.write(fpath,JSON.stringify(inst,null,3));
-            }));
-        })
-        .catch(function(err){
-            err.message = 'writeInstanceData: ' + err.message;
-            deferred.reject(err);
-        });
-    
-        return deferred.promise;
-    }
-
-    function loadInstanceData(config){
-        var deferred;
-    
-        deferred = q.defer();
-        helpers.getEc2InstanceData({ ec2 : config.ec2, params : {
-            Filters : [ {
-                Name   : 'tag:Owner' ,
-                Values : [config.opts.owner]
-            } ]
-        }})
-        .then(function(results){
-            config.instanceData = results;
-            deferred.resolve(config);
-        })
-        .catch(function(err){
-            err.message = 'loadInstanceData: ' + err.message;
-            deferred.reject(err);
-        });
-    
-        return deferred.promise;
-    }
-
     function checkStartInstances(config){
         var err;
         if ((!config.data.startInstances) || (!config.data.startInstances.length)){
@@ -149,7 +105,7 @@ module.exports = function(grunt) {
         });
     }
     
-    function launchInstances(config){
+    function runInstances(config){
         if (!config.data.runInstances || config.data.runInstances.length === 0){
             return q([]);
         }
@@ -208,7 +164,126 @@ module.exports = function(grunt) {
             return results;
         })
         .catch(function(err){
-            err.message = 'launchInstances: ' + err.message;
+            err.message = 'runInstances: ' + err.message;
+            return q.reject(err);
+        });
+    }
+
+    function checkInstanceHttp(config){
+        grunt.log.writelns('checkInstanceHttp');
+        return q.all(config.data.checkHttp.map(function(check){
+            var inst = config.instanceData.byName(check.host),
+                opts = {
+                    path  : check.path,
+                    https : check.https 
+                };
+
+            if (check.port) {
+                opts.port = check.port;
+            }
+
+            if (!check.expect){
+                check.expect = {
+                    statusCode : 200
+                }
+            }
+
+            opts.host = (check.iface === 'private') ?  inst.PrivateIpAddress : inst.PublicIpAddress;
+
+            return helpers.promiseUntil(helpers.checkHttp, [ opts ])
+                .then(function(result){
+                    if (parseInt(result.statusCode,10) !== check.expect.statusCode){
+                        return q.reject(new Error(check.host + ' returned unexpected status code: ' +
+                                result.statusCode));
+                    }
+                    return result;
+                })
+                .progress(function(err){
+                    grunt.log.writelns(check.host);
+                });
+        }))
+        .then(function(results){
+            return config;
+        });
+    }
+
+    function checkInstanceStatus(config) {
+        grunt.log.writelns('checkInstanceStatus');
+        var stateOpts = {
+            ids     : config.launchedIds,
+            state   : 'running',
+            interval: config.opts.stateInterval * 1000,
+            maxIters: config.opts.stateIters
+        };
+           
+        return helpers.checkInstance(stateOpts, config.ec2, 0)
+            .then(function(){
+                return config;
+            })
+            .catch(function(err){
+                err.message = 'checkInstanceStatus: ' + err.message;
+                return q.reject(err);
+            })
+    }
+
+    function launchInstances(config){
+        grunt.log.writelns('launchInstances');
+        return q.all([startInstances(config),runInstances(config)])
+            .then(function(results){
+                var ids = [];
+                grunt.log.writelns('Started or Launched:');
+                results.forEach(function(r){
+                    ids = ids.concat(r);
+                });
+                ids.forEach(function(id){
+                    var inst = config.instanceData.byId(id);
+                    grunt.log.writelns(inst._tagMap.Name + '('  + id + ')');
+                });
+                config.launchedIds = ids; 
+                return config;
+            });
+    }
+
+    function verifyInstancesAreFree(config){
+        grunt.log.writelns('verifyInstancesAreFree');
+        return q.all([checkStartInstances(config),checkRunInstances(config)])
+            .then(function(){
+                return config;
+            });
+    }
+
+    function refreshInstanceData(config){
+        grunt.log.writelns('refreshInstanceData');
+        return helpers.getEc2InstanceData({ ec2 : config.ec2, params : {
+            Filters : [ {
+                Name   : 'tag:Lock' ,
+                Values : [config.tag]
+            } ]
+        }})
+        .then(function(data){
+            config.instanceData = data;
+            return config;
+        })
+        .catch(function(err){
+            err.message = 'refreshInstanceData: ' + err.message;
+            return q.reject(err);
+        });
+    }
+
+    function getInstanceDataByOwner(config){
+        grunt.log.writelns('getInstanceDataByOwner');
+        return helpers.getEc2InstanceData({ ec2 : config.ec2, params : {
+            Filters : [ {
+                Name   : 'tag:Owner' ,
+                Values : [config.opts.owner]
+            } ]
+        }})
+        .then(function(data){
+            config.instanceData = data;
+            return config;
+        })
+        .catch(function(err){
+            err.message = 'getInstanceDataByOwner: ' + err.message;
             return q.reject(err);
         });
     }
@@ -240,35 +315,14 @@ module.exports = function(grunt) {
             aws.config.loadFromPath(auth);
             
             config.ec2 = new aws.EC2();
-            loadInstanceData(config)
-            .then(function(){
-                return q.all([checkStartInstances(config),checkRunInstances(config)]);
-            })
-            .then(function(){
-                return q.all([startInstances(config),launchInstances(config)]);
-            })
-            .then(function(results){
-                var ids = [];
-                grunt.log.writelns('Started or Launched:');
-                results.forEach(function(r){
-                    ids = ids.concat(r);
-                });
-                ids.forEach(function(id){
-                    var inst = config.instanceData.byId(id);
-                    grunt.log.writelns(inst._tagMap.Name + '('  + id + ')');
-                });
-                return ids;
-            })
-            .then(function(ids){
-                var stateOpts = {
-                    ids     : ids,
-                    state   : 'running',
-                    interval: config.opts.stateInterval * 1000,
-                    maxIters: config.opts.stateIters
-                };
-               
-                return helpers.checkInstance(stateOpts, config.ec2, 0);
-            })
+    
+            getInstanceDataByOwner(config)
+            .then(verifyInstancesAreFree)
+            .then(launchInstances)
+            .then(checkInstanceStatus)
+            .then(refreshInstanceData)
+            .then(checkInstanceHttp)
+            /*
             .then(function(ips) {
                 grunt.log.writelns('All instances are in the running state');
                 return q.all(ips.map(function(ip) {
@@ -280,9 +334,7 @@ module.exports = function(grunt) {
                     return helpers.checkSSH(sshOpts, 0);
                 }));
             })
-//            .then(function(){
-//                return writeInstanceData(config);
-//            })
+            */
             .then(function() {
                 grunt.log.writelns('All instances are ready to go!');
                 done(true);

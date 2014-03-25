@@ -4,6 +4,8 @@ module.exports = {
         stateIters:     24,
         sshInterval:     5,
         sshIters:       24,
+        httpInterval:    5,
+        httpIters:      24,
         owner:          'jenkins'
     },
     jenkins1 : {
@@ -15,12 +17,6 @@ module.exports = {
             {
                 name : 'jenkins1',
                 userDataFile: 'userdata_vote.sh',
-                tags : [
-                    {
-                        Key: 'Foo',
-                        Value: 'Bar'
-                    }
-                ],
                 params : {
                     ImageId             : 'ami-1d9d9474',
                     IamInstanceProfile  : {
@@ -40,6 +36,13 @@ module.exports = {
                         }
                     ]
                 }
+            }
+        ],
+        checkHttp : [
+            {
+                host    : 'jenkins1',
+                iface   : 'public',
+                path    : '/api/vote/meta'
             }
         ]
     }

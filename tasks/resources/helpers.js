@@ -2,6 +2,53 @@ var grunt   = require('grunt'),
     q       = require('q');
 
 var helpers = {
+    promiseUntil : function (func, args, repeatCount, minInterval) {
+        var deferred = q.defer(),
+            callCount   = 0,
+            repeatCount = repeatCount || 9999,
+            minInterval = minInterval || 1000,
+            lastCall;
+
+        (function callAsync(){
+            lastCall = new Date();
+            if (callCount++ >= repeatCount){
+                return deferred.reject(new Error('Call count exceeded repeat count'));
+            }
+
+            func.apply(null,args)
+            .then(
+                function(result){
+                    return deferred.resolve(result); 
+                },
+                function(err){
+                    if (!deferred.promise.isPending()){
+                        return;
+                    }
+
+                    deferred.notify(err.message);
+
+                    var now  = new Date(),
+                        wait = Math.max(Math.min(minInterval - (now.valueOf() - lastCall.valueOf()),
+                                minInterval),0);
+                    setTimeout(function(){
+                        callAsync();    
+                    }, wait);
+                }
+            );
+        }());
+
+        deferred.promise.__timeout = deferred.promise.timeout;
+        deferred.promise.timeout = function(n){
+            return this.__timeout.apply(this,arguments)
+                .catch(function(err){
+                    deferred.reject(err);
+                    return q.reject(err);
+                });
+        };
+
+        return deferred.promise;
+    },
+
     checkSnapshot: function(opts, ec2, iters, promise) {
         var deferred = promise || q.defer();
         grunt.log.writelns('Polling snapshot ' + opts.id + ' for its state');
@@ -93,6 +140,63 @@ var helpers = {
                 return deferred.resolve();
             }
         });
+        return deferred.promise;
+    },
+    
+    checkHttp: function(params) {
+        var deferred = q.defer(), server, opts, req;
+        opts = {
+            hostname : params.host || 'localhost',
+            port     : params.port,
+            path     : params.path,
+            method   : 'GET'
+        };
+
+        if ((params.https) || (opts.port === 443)){
+            server = require('https');
+            if (!opts.port){
+                opts.port = 443;
+            }
+        } else {
+            server = require('http');
+            if (!opts.port){
+                opts.port = 80;
+            }
+        }
+
+        req = server.request(opts,function(res){
+            var data = '';
+            res.setEncoding('utf8');
+            res.on('data',function(chunk){
+                data += chunk;
+            });
+            res.on('end',function(){
+                if ((res.statusCode < 200) || (res.statusCode >= 300)){
+                    var err = new Error(data);
+                    err.httpCode = res.statusCode;
+                    deferred.reject(err);
+                    return;
+                }
+
+                if ((res.headers['content-type'] && 
+                    res.headers['content-type'].match('application\/json'))){
+                    data = JSON.parse(data);
+                }
+
+                deferred.resolve({
+                    statusCode : res.statusCode,
+                    data       : data
+                });
+            });
+        });
+
+        req.on('error',function(e){
+            e.httpCode = 500;
+            deferred.reject(e);
+        });
+
+        req.end();
+
         return deferred.promise;
     },
 

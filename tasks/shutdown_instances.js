@@ -113,6 +113,9 @@ module.exports = function(grunt) {
         }
 
         var ids  = config.data.runInstances.map(getInstanceId);
+        if (!ids || !ids.length){
+            return q(config);
+        }
         return q.all(config.data.runInstances.map(function(rInst){
             var instId = getInstanceId(rInst),
                 tags = [
@@ -134,7 +137,7 @@ module.exports = function(grunt) {
             return config;
         })
         .catch(function(err){
-            err.message = 'stopInstances: ' + err.message;
+            err.message = 'terminateInstances: ' + err.message;
             return q.reject(err);
         });
     }
