@@ -1,16 +1,15 @@
 module.exports = {
     options : {
-        stateInterval:   5,
-        stateIters:     24,
-        sshInterval:     5,
-        sshIters:       24,
-        httpInterval:    5,
-        httpIters:      24,
-        owner:          'jenkins'
+        stateInterval :  15,
+        stateTimeout  : 180,
+        sshInterval   :  15,
+        sshTimeout    : 120,
+        httpInterval  :  30,
+        httpTimeout   : 300,
+        owner         : 'jenkins'
     },
     jenkins1 : {
         startInstances : [
-            'api-dev-1',
             'mongo-dev-1'
         ],
         runInstances : [
@@ -43,6 +42,11 @@ module.exports = {
                 host    : 'jenkins1',
                 iface   : 'public',
                 path    : '/api/vote/meta'
+            }
+        ],
+        checkSsh : [
+            {
+                host    : 'mongo-dev-1'
             }
         ]
     }

@@ -69,7 +69,7 @@ module.exports = function(grunt) {
     
     function startInstances(config){
         if ((!config.data.startInstances) || (!config.data.startInstances.length)){
-            return q(config);
+            return q([]);
         }
 
         var tags = [
@@ -170,6 +170,10 @@ module.exports = function(grunt) {
     }
 
     function checkInstanceHttp(config){
+        if (!config.data.checkHttp || config.data.checkHttp.length === 0){
+            grunt.log.writelns('checkInstanceHttp -- skipped');
+            return q(config);
+        }
         grunt.log.writelns('checkInstanceHttp');
         return q.all(config.data.checkHttp.map(function(check){
             var inst = config.instanceData.byName(check.host),
@@ -188,18 +192,50 @@ module.exports = function(grunt) {
                 }
             }
 
-            opts.host = (check.iface === 'private') ?  inst.PrivateIpAddress : inst.PublicIpAddress;
+            opts.host = (check.iface === 'private') ?
+                inst.PrivateIpAddress : inst.PublicIpAddress;
 
-            return helpers.promiseUntil(helpers.checkHttp, [ opts ])
+            return helpers.promiseUntil(helpers.checkHttp, [ opts ],
+                config.opts.httpInterval * 1000).timeout(config.opts.httpTimeout * 1000)
                 .then(function(result){
                     if (parseInt(result.statusCode,10) !== check.expect.statusCode){
-                        return q.reject(new Error(check.host + ' returned unexpected status code: ' +
-                                result.statusCode));
+                        return q.reject(new Error(check.host +
+                            ' returned unexpected status code: ' + result.statusCode));
                     }
+                    grunt.log.writelns(check.host + ' http check passed.');
                     return result;
                 })
                 .progress(function(err){
-                    grunt.log.writelns(check.host);
+                    grunt.log.writelns('httpCheck - ' + check.host);
+                    grunt.log.debug('httpCheck - ' + check.host + ': ' + err );
+                });
+        }))
+        .then(function(results){
+            return config;
+        });
+    }
+
+    function checkInstanceSsh(config){
+        if (!config.data.checkSsh || config.data.checkSsh.length === 0){
+            grunt.log.writelns('checkInstanceSsh -- skipped');
+            return q(config);
+        }
+        grunt.log.writelns('checkInstanceSsh');
+        return q.all(config.data.checkSsh.map(function(check){
+            var inst = config.instanceData.byName(check.host),
+                ip =  (check.iface === 'public') ?
+                        inst.PublicIpAddress : inst.PrivateIpAddress;
+
+            grunt.log.writelns('checkSsh - ' + check.host);
+            return helpers.promiseUntil(helpers.checkSSH, [ ip ],
+                config.opts.sshInterval * 1000).timeout(config.opts.sshTimeout * 1000)
+                .then(function(result){
+                    grunt.log.writelns(check.host + ' can ssh to ip: ' + ip);
+                    return result;
+                })
+                .progress(function(err){
+                    grunt.log.writelns('sshCheck: ' + check.host);
+                    grunt.log.debug('sshCheck - ' + check.host + ': ' + err );
                 });
         }))
         .then(function(results){
@@ -208,29 +244,29 @@ module.exports = function(grunt) {
     }
 
     function checkInstanceStatus(config) {
-        grunt.log.writelns('checkInstanceStatus');
-        var stateOpts = {
-            ids     : config.launchedIds,
-            state   : 'running',
-            interval: config.opts.stateInterval * 1000,
-            maxIters: config.opts.stateIters
-        };
-           
-        return helpers.checkInstance(stateOpts, config.ec2, 0)
-            .then(function(){
+        grunt.log.writelns('checkInstanceStates for: ' + config.launchedNames.toString());
+        
+        return helpers.promiseUntil(helpers.checkInstanceState,
+            [ config.ec2, config.launchedIds, 'running'],
+            config.opts.stateInterval * 1000).timeout(config.opts.stateTimeout * 1000)
+            .then(function(result){
+                grunt.log.writelns('Instnces are all running!');
                 return config;
+            })
+            .progress(function(err){
+                grunt.log.writelns('stateCheck: ' + config.launchedNames.toString());
             })
             .catch(function(err){
                 err.message = 'checkInstanceStatus: ' + err.message;
                 return q.reject(err);
-            })
+            });
     }
 
     function launchInstances(config){
         grunt.log.writelns('launchInstances');
         return q.all([startInstances(config),runInstances(config)])
             .then(function(results){
-                var ids = [];
+                var ids = [], names = [];
                 grunt.log.writelns('Started or Launched:');
                 results.forEach(function(r){
                     ids = ids.concat(r);
@@ -238,8 +274,10 @@ module.exports = function(grunt) {
                 ids.forEach(function(id){
                     var inst = config.instanceData.byId(id);
                     grunt.log.writelns(inst._tagMap.Name + '('  + id + ')');
+                    names.push(inst._tagMap.Name);
                 });
-                config.launchedIds = ids; 
+                config.launchedIds   = ids; 
+                config.launchedNames = names; 
                 return config;
             });
     }
@@ -321,20 +359,8 @@ module.exports = function(grunt) {
             .then(launchInstances)
             .then(checkInstanceStatus)
             .then(refreshInstanceData)
+            .then(checkInstanceSsh)
             .then(checkInstanceHttp)
-            /*
-            .then(function(ips) {
-                grunt.log.writelns('All instances are in the running state');
-                return q.all(ips.map(function(ip) {
-                    var sshOpts = {
-                        ip: ip,
-                        interval: config.opts.sshInterval * 1000,
-                        maxIters: config.opts.sshIters
-                    };
-                    return helpers.checkSSH(sshOpts, 0);
-                }));
-            })
-            */
             .then(function() {
                 grunt.log.writelns('All instances are ready to go!');
                 done(true);

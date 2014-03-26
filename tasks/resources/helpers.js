@@ -2,7 +2,7 @@ var grunt   = require('grunt'),
     q       = require('q');
 
 var helpers = {
-    promiseUntil : function (func, args, repeatCount, minInterval) {
+    promiseUntil : function (func, args, minInterval, repeatCount) {
         var deferred = q.defer(),
             callCount   = 0,
             repeatCount = repeatCount || 9999,
@@ -25,7 +25,7 @@ var helpers = {
                         return;
                     }
 
-                    deferred.notify(err.message);
+                    deferred.notify(err);
 
                     var now  = new Date(),
                         wait = Math.max(Math.min(minInterval - (now.valueOf() - lastCall.valueOf()),
@@ -121,28 +121,37 @@ var helpers = {
         });
         return deferred.promise;
     },
-    
-    checkSSH: function(opts, iters, promise) {
-        var deferred = promise || q.defer();
-            
-        grunt.log.writelns('Checking if instance ' + opts.ip + ' is accessible by SSH');
-        grunt.util.spawn({cmd: 'nc', args: ['-zv', opts.ip, 22]}, function(error,result,code) {
-            if (error) {
-                iters++;
-                if (iters >= opts.maxiters) {
-                    return deferred.reject('Timed out after ' + iters + ' iterations');
-                    return;
+
+    checkInstanceState: function(ec2, instanceIds, desiredState) {
+        return q.ninvoke(ec2,'describeInstances',{InstanceIds: instanceIds})
+            .then(function(data){
+                var instances = [], ready = data.Reservations.every(function(reserv) {
+                    return reserv.Instances.every(function(instance) {
+                        instances.push(instance);
+                        return (instance.State.Name === desiredState);
+                    });
+                });
+                if (!ready){
+                    return q.reject(new Error('Desired state not reached for all instances.'));
                 }
-                setTimeout(helpers.checkSSH, opts.interval, opts, iters, deferred);
-                return;
+
+                return instances;
+            });
+    },
+
+    checkSSH: function(ip) {
+        var deferred = q.defer();
+            
+        grunt.util.spawn({cmd: 'nc', args: ['-zv', ip, 22]}, function(error,result,code) {
+            if (error) {
+                return deferred.reject(error);
             } else {
-                grunt.log.writelns('Can ssh into instance ' + opts.ip);
-                return deferred.resolve();
+                return deferred.resolve(ip);
             }
         });
         return deferred.promise;
     },
-    
+   
     checkHttp: function(params) {
         var deferred = q.defer(), server, opts, req;
         opts = {

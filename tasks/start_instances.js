@@ -38,12 +38,13 @@ module.exports = function(grunt) {
             .then(function(ips) {
                 grunt.log.writelns('All instances are in the running state');
                 return q.all(ips.map(function(ip) {
-                    var sshOpts = {
-                        ip: ip,
-                        interval: sshInterval,
-                        maxIters: sshIters
-                    };
-                    return helpers.checkSSH(sshOpts, 0);
+                    grunt.log.writelns('Check SSH for: ' + ip);
+                    return helpers.promiseUntil(helpers.checkSSH, [ ip ], sshInterval)
+                        .timeout(sshInterval * sshIters)
+                        .then(function(result){
+                            grunt.log.writelns('Can ssh to ip: ' + ip);
+                            return result;
+                        });
                 }));
             }).then(function() {
                 grunt.log.writelns('All instances are ready to go!');

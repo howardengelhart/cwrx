@@ -92,8 +92,12 @@ module.exports = function(grunt) {
             return inst.InstanceId;
         }
 
-        var ids  = config.data.startInstances.map(getInstanceId);
-        return q.ninvoke(config.ec2,'stopInstances',{InstanceIds: ids})
+        config.stopIds  = config.data.startInstances.map(getInstanceId);
+        if (!config.stopIds || !config.stopIds.length){
+            return q(config);
+        }
+        grunt.log.writelns('Stopping instances: ' + config.stopIds.toString());
+        return q.ninvoke(config.ec2,'stopInstances',{InstanceIds: config.stopIds})
             .then(function(){
                 return config;
             })
@@ -112,10 +116,11 @@ module.exports = function(grunt) {
             return inst.InstanceId;
         }
 
-        var ids  = config.data.runInstances.map(getInstanceId);
-        if (!ids || !ids.length){
+        config.termIds  = config.data.runInstances.map(getInstanceId);
+        if (!config.termIds || !config.termIds.length){
             return q(config);
         }
+        grunt.log.writelns('Terminating instances: ' + config.termIds.toString());
         return q.all(config.data.runInstances.map(function(rInst){
             var instId = getInstanceId(rInst),
                 tags = [
@@ -131,7 +136,7 @@ module.exports = function(grunt) {
             });
         }))
         .then(function(){
-            return q.ninvoke(config.ec2,'terminateInstances',{InstanceIds: ids})
+            return q.ninvoke(config.ec2,'terminateInstances',{InstanceIds: config.termIds})
         })
         .then(function(data){
             return config;
@@ -140,6 +145,47 @@ module.exports = function(grunt) {
             err.message = 'terminateInstances: ' + err.message;
             return q.reject(err);
         });
+    }
+
+    function checkStopped(config){
+        if (!config.stopIds || !config.stopIds.length){
+            return q(config);
+        }
+
+        return helpers.promiseUntil(helpers.checkInstanceState,
+            [ config.ec2, config.stopIds, 'stopped'], 1000).timeout(60000)
+            .then(function(result){
+                grunt.log.writelns('Stopped: ' + config.stopIds.toString());
+                return config;
+            })
+            .catch(function(err){
+                grunt.log.errorlns('checkStopped: ' + err.message);
+                return config;
+            });
+    }
+
+    function checkTerminated(config){
+        if (!config.termIds || !config.termIds.length){
+            return q(config);
+        }
+
+        return helpers.promiseUntil(helpers.checkInstanceState,
+            [ config.ec2, config.termIds, 'terminated'], 1000).timeout(120000)
+            .then(function(result){
+                grunt.log.writelns('Terminated: ' + config.termIds.toString());
+                return config;
+            })
+            .catch(function(err){
+                grunt.log.errorlns('checkTerminated: ' + err.message);
+                return config;
+            });
+    }
+
+    function checkShutdown(config){
+        return q.all([checkStopped(config),checkTerminated(config)])
+            .then(function(results){
+                return config;
+            });
     }
 
     grunt.registerTask('shutdown_instances', 'shuts down ec2 instances', function(profile) {
@@ -177,6 +223,7 @@ module.exports = function(grunt) {
         .then(deleteLocks)
         .then(stopInstances)
         .then(terminateInstances)
+        .then(checkShutdown)
         .then(function(){
             grunt.log.writelns('shutdown complete');
             done(true);
