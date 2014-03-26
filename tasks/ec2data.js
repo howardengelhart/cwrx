@@ -4,8 +4,9 @@ var aws     = require('aws-sdk'),
 
 module.exports = function(grunt) {
 
-    grunt.registerMultiTask('ec2data', 'launches ec2 instances', function() {
-        var auth     = settings.awsAuth,
+    grunt.registerTask('ec2data', 'launches ec2 instances', function() {
+        var settings = grunt.config.get('settings'),
+            auth     = settings.awsAuth,
             done     = this.async(),
             ec2      = null,
             tag      = grunt.option('tag');
@@ -17,7 +18,7 @@ module.exports = function(grunt) {
 
         aws.config.loadFromPath(auth);
         
-        config.ec2 = new aws.EC2();
+        ec2 = new aws.EC2();
         
         helpers.getEc2InstanceData({ ec2 : ec2, params : {
             Filters : [ {
