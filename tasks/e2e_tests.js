@@ -11,7 +11,7 @@ module.exports = function(grunt) {
             return host;
         }
 
-        return (iface === 'private') ? inst.PrivateIpAddress : inst.PublicIpAddress;
+        return (iface === 'public') ? inst.PublicIpAddress : inst.PrivateIpAddress;
     }
 
     grunt.registerTask('e2e_tests', 'Run jasmine end-to-end tests', function(svc) {

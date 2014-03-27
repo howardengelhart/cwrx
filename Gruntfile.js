@@ -37,5 +37,14 @@ module.exports = function (grunt) {
         }
     });
     
+    grunt.registerTask('ec2_get_logs', function(logs){
+        grunt.task.run('ec2data');
+        if (logs){
+            grunt.task.run('get_logs:' + logs);
+        } else {
+            grunt.task.run('get_logs');
+        }
+    });
+    
 };
 
