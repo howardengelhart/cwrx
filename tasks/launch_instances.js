@@ -112,15 +112,6 @@ module.exports = function(grunt) {
         return q.all(config.data.runInstances.map(function(rInst,index){
             var instId, buff;
 
-            if (rInst.userDataFile){
-                rInst.userDataPath = path.join(config.userDataDir,rInst.userDataFile);
-            }
-            
-            if (rInst.userDataPath){
-                buff = new Buffer(grunt.file.read(rInst.userDataPath),'utf8');
-                rInst.params.UserData = buff.toString('base64');
-            } 
-
             return q.ninvoke(config.ec2,'runInstances',rInst.params).delay(3000)
             .then(function(data){
                 instId = data.Instances[0].InstanceId;
@@ -174,7 +165,8 @@ module.exports = function(grunt) {
             grunt.log.writelns('checkInstanceHttp -- skipped');
             return q(config);
         }
-        grunt.log.writelns('checkInstanceHttp');
+        grunt.log.writelns('checkInstanceHttp - wait up to ' +
+                config.opts.httpTimeout + ' seconds.');
         return q.all(config.data.checkHttp.map(function(check){
             var inst = config.instanceData.byName(check.host),
                 opts = {
@@ -220,7 +212,8 @@ module.exports = function(grunt) {
             grunt.log.writelns('checkInstanceSsh -- skipped');
             return q(config);
         }
-        grunt.log.writelns('checkInstanceSsh');
+        grunt.log.writelns('checkInstanceSsh - wait up to ' +
+                config.opts.sshTimeout + ' seconds.');
         return q.all(config.data.checkSsh.map(function(check){
             var inst = config.instanceData.byName(check.host),
                 ip =  (check.iface === 'public') ?
@@ -244,7 +237,8 @@ module.exports = function(grunt) {
     }
 
     function checkInstanceStatus(config) {
-        grunt.log.writelns('checkInstanceStates for: ' + config.launchedNames.toString());
+        grunt.log.writelns('checkInstanceStates for: ' + config.launchedNames.toString() +
+            ' wait up to ' + config.opts.stateTimeout + ' seconds.');
         
         return helpers.promiseUntil(helpers.checkInstanceState,
             [ config.ec2, config.launchedIds, 'running'],
@@ -338,7 +332,8 @@ module.exports = function(grunt) {
                 userDataDir : grunt.option('user-data-dir') || '.',
                 workSpace   : path.join(grunt.option('workspace') || '.', grunt.option('tag')),
                 target      : this.target
-            };
+            },
+            buff, userData;
 
             if (!config.opts.owner){
                 grunt.log.errorlns('Onwer is required.');
@@ -349,6 +344,43 @@ module.exports = function(grunt) {
                 grunt.log.errorlns('Tag is required, use --tag.');
                 return done(false);
             }
+
+            if (grunt.option('user-data-file')){
+                buff = new Buffer(grunt.file.read(grunt.option('user-data-file')),'utf8');
+                userData = buff.toString('base64');
+            }
+
+            config.data.runInstances.forEach(function(instance,index){
+                if (grunt.util.kindOf(instance.params) === 'string'){
+                    // Hacky way to copy the template vs adding a ref to the template
+                    instance.params = 
+                        JSON.parse(JSON.stringify(config.opts.ec2_templates[instance.params]));
+                }
+
+                if (instance.params.UserData){
+                    grunt.log.writeln('Run instance ' + index + ' already has user data');
+                } else
+                if (instance.userDataFile){
+                    grunt.log.writeln('Run instance ' + index + ' will use userDataFile: ' +
+                        instance.userDataFile);
+                    buff = new Buffer(grunt.file.read(instance.userDataFile),'utf8');
+                    instance.params.UserData = buff.toString('base64');
+                } else
+                if (grunt.option('user-data-file' + index.toString())){
+                    grunt.log.writeln('Run instance ' + index + ' will use user-data-file#:'
+                        + grunt.option('user-data-file' + index.toString()));
+                    buff = new Buffer(grunt.file.read(
+                        grunt.option('user-data-file' + index.toString())),'utf8');
+                    instance.params.UserData = buff.toString('base64');
+                } else
+                if (userData){
+                    grunt.log.writeln('Run instance ' + index + ' will use user-data-file:' +
+                        grunt.option('user-data-file' ));
+                    instance.params.UserData = userData;
+                } else {
+                    grunt.log.writeln('Run instance ' + index + ' has no user data');
+                }
+            });
 
             aws.config.loadFromPath(auth);
             
