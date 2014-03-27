@@ -1,6 +1,22 @@
 module.exports = function(grunt) {
+    function lookupIp(ec2Data, host,iface){
+        var inst;
+        if (!ec2Data){
+            return host;
+        }
+
+        inst = ec2Data.byName(host);
+
+        if (!inst){
+            return host;
+        }
+
+        return (iface === 'public') ? inst.PublicIpAddress : inst.PrivateIpAddress;
+    }
+
     grunt.registerTask('e2e_tests', 'Run jasmine end-to-end tests', function(svc) {
         var done = this.async(),
+            ec2Data = grunt.config.get('ec2Data'),
             args = ['--test-dir', 'test/e2e/', '--captureExceptions', '--junitreport', '--output',
                     'reports/e2e/'];
         if (svc) {
@@ -8,10 +24,11 @@ module.exports = function(grunt) {
             args.push('--match', regexp);
         }
         if (grunt.option('testHost')) {
-            args.push('--config', 'host', grunt.option('testHost'));
+            args.push('--config', 'host', lookupIp(ec2Data,grunt.option('testHost'),'public'));
         }
         if (grunt.option('statusHost')) {
-            args.push('--config', 'statusHost', grunt.option('statusHost'));
+            args.push('--config', 'statusHost',
+                lookupIp(ec2Data,grunt.option('statusHost'),'public'));
         }
         if (grunt.option('bucket')) {
             args.push('--config', 'bucket', grunt.option('bucket'));
@@ -20,7 +37,8 @@ module.exports = function(grunt) {
             args.push('--config', 'getLogs', grunt.option('getLogs'));
         }
         if (grunt.option('dbHost')) {
-            args.push('--config', 'mongo', '{"host": "' + grunt.option('dbHost') + '"}');
+            args.push('--config', 'mongo', '{"host": "' +
+                lookupIp(ec2Data,grunt.option('dbHost'),'private') + '"}');
         }
         if (grunt.option('e2e-config')){
             var cfgObj = JSON.parse(grunt.option('e2e-config'));
@@ -28,7 +46,7 @@ module.exports = function(grunt) {
                 args.push('--config',key,cfgObj[key]);
             }
         }
-        
+
         grunt.log.writeln('Running e2e tests' + (svc ? ' for ' + svc : '') + ':');
         grunt.util.spawn({
             cmd : 'jasmine-node',

@@ -4,8 +4,24 @@ var path        = require('path'),
     testUtils   = require('../test/e2e/testUtils');
 
 module.exports = function(grunt) {
+    function lookupIp(ec2Data, host,iface){
+        var inst;
+        if (!ec2Data){
+            return host;
+        }
+
+        inst = ec2Data.byName(host);
+
+        if (!inst){
+            return host;
+        }
+
+        return (iface === 'public') ? inst.PublicIpAddress : inst.PrivateIpAddress;
+    }
+
     grunt.registerTask('get_logs', 'Get and clear remote service logs', function(logfiles) {
-        var host        = grunt.option('testHost') || 'localhost',
+        var ec2Data     = grunt.config.get('ec2Data'),
+            host        = lookupIp(ec2Data,grunt.option('testHost')) || 'localhost',
             testNum     = grunt.option('testNum') || 1, // usually the Jenkins build number
             maintUrl    = 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint',
             done = this.async();

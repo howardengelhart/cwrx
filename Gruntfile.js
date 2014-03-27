@@ -27,6 +27,24 @@ module.exports = function (grunt) {
         grunt.task.run('jshint');
         grunt.task.run('unit_tests');
     });
+
+    grunt.registerTask('ec2_tests', function(svc){
+        grunt.task.run('ec2data');
+        if (svc){
+            grunt.task.run('e2e_tests:' + svc);
+        } else {
+            grunt.task.run('e2e_tests');
+        }
+    });
+    
+    grunt.registerTask('ec2_get_logs', function(logs){
+        grunt.task.run('ec2data');
+        if (logs){
+            grunt.task.run('get_logs:' + logs);
+        } else {
+            grunt.task.run('get_logs');
+        }
+    });
     
 };
 

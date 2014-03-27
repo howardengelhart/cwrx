@@ -2,6 +2,53 @@ var grunt   = require('grunt'),
     q       = require('q');
 
 var helpers = {
+    promiseUntil : function (func, args, minInterval, repeatCount) {
+        var deferred = q.defer(),
+            callCount   = 0,
+            repeatCount = repeatCount || 9999,
+            minInterval = minInterval || 1000,
+            lastCall;
+
+        (function callAsync(){
+            lastCall = new Date();
+            if (callCount++ >= repeatCount){
+                return deferred.reject(new Error('Call count exceeded repeat count'));
+            }
+
+            func.apply(null,args)
+            .then(
+                function(result){
+                    return deferred.resolve(result); 
+                },
+                function(err){
+                    if (!deferred.promise.isPending()){
+                        return;
+                    }
+
+                    deferred.notify(err);
+
+                    var now  = new Date(),
+                        wait = Math.max(Math.min(minInterval - (now.valueOf() - lastCall.valueOf()),
+                                minInterval),0);
+                    setTimeout(function(){
+                        callAsync();    
+                    }, wait);
+                }
+            );
+        }());
+
+        deferred.promise.__timeout = deferred.promise.timeout;
+        deferred.promise.timeout = function(n){
+            return this.__timeout.apply(this,arguments)
+                .catch(function(err){
+                    deferred.reject(err);
+                    return q.reject(err);
+                });
+        };
+
+        return deferred.promise;
+    },
+
     checkSnapshot: function(opts, ec2, iters, promise) {
         var deferred = promise || q.defer();
         grunt.log.writelns('Polling snapshot ' + opts.id + ' for its state');
@@ -74,26 +121,145 @@ var helpers = {
         });
         return deferred.promise;
     },
-    
-    checkSSH: function(opts, iters, promise) {
-        var deferred = promise || q.defer();
-            
-        grunt.log.writelns('Checking if instance ' + opts.ip + ' is accessible by SSH');
-        grunt.util.spawn({cmd: 'nc', args: ['-zv', opts.ip, 22]}, function(error,result,code) {
-            if (error) {
-                iters++;
-                if (iters >= opts.maxiters) {
-                    return deferred.reject('Timed out after ' + iters + ' iterations');
-                    return;
+
+    checkInstanceState: function(ec2, instanceIds, desiredState) {
+        return q.ninvoke(ec2,'describeInstances',{InstanceIds: instanceIds})
+            .then(function(data){
+                var instances = [], ready = data.Reservations.every(function(reserv) {
+                    return reserv.Instances.every(function(instance) {
+                        instances.push(instance);
+                        return (instance.State.Name === desiredState);
+                    });
+                });
+                if (!ready){
+                    return q.reject(new Error('Desired state not reached for all instances.'));
                 }
-                setTimeout(helpers.checkSSH, opts.interval, opts, iters, deferred);
-                return;
+
+                return instances;
+            });
+    },
+
+    checkSSH: function(ip) {
+        var deferred = q.defer();
+            
+        grunt.util.spawn({cmd: 'nc', args: ['-zv', ip, 22]}, function(error,result,code) {
+            if (error) {
+                return deferred.reject(error);
             } else {
-                grunt.log.writelns('Can ssh into instance ' + opts.ip);
-                return deferred.resolve();
+                return deferred.resolve(ip);
             }
         });
         return deferred.promise;
+    },
+   
+    checkHttp: function(params) {
+        var deferred = q.defer(), server, opts, req;
+        opts = {
+            hostname : params.host || 'localhost',
+            port     : params.port,
+            path     : params.path,
+            method   : 'GET'
+        };
+
+        if ((params.https) || (opts.port === 443)){
+            server = require('https');
+            if (!opts.port){
+                opts.port = 443;
+            }
+        } else {
+            server = require('http');
+            if (!opts.port){
+                opts.port = 80;
+            }
+        }
+
+        req = server.request(opts,function(res){
+            var data = '';
+            res.setEncoding('utf8');
+            res.on('data',function(chunk){
+                data += chunk;
+            });
+            res.on('end',function(){
+                if ((res.statusCode < 200) || (res.statusCode >= 300)){
+                    var err = new Error(data);
+                    err.httpCode = res.statusCode;
+                    deferred.reject(err);
+                    return;
+                }
+
+                if ((res.headers['content-type'] && 
+                    res.headers['content-type'].match('application\/json'))){
+                    data = JSON.parse(data);
+                }
+
+                deferred.resolve({
+                    statusCode : res.statusCode,
+                    data       : data
+                });
+            });
+        });
+
+        req.on('error',function(e){
+            e.httpCode = 500;
+            deferred.reject(e);
+        });
+
+        req.end();
+
+        return deferred.promise;
+    },
+
+    getEc2InstanceData : function (opts){
+        return q.ninvoke(opts.ec2,'describeInstances',opts.params)
+        .then(function(data){
+            var result = {
+                _instances : []
+            };
+            data.Reservations.forEach(function(res){
+                res.Instances.forEach(function(inst){
+                    inst._tagMap = {};
+                    inst.Tags.forEach(function(tag){
+                        inst._tagMap[tag.Key] = tag.Value;
+                    });
+                    result._instances.push(inst);
+                });
+            });
+
+            result.lookup = function(x){
+                if (x.substr(0,2) === 'i-'){
+                    return this.byId(x);
+                }
+                return this.byName(x);
+            };
+
+            result.byName = function(name){
+                var r;
+                this._instances.some(function(inst){
+                    if (inst._tagMap.Name === name){
+                        r = inst;
+                        return true;
+                    }
+                });
+                return r;
+            };
+
+            result.byId = function(id){
+                var r;
+                this._instances.some(function(inst){
+                    if (inst.InstanceId === id){
+                        r = inst;
+                        return true;
+                    }
+                });
+                return r;
+            };
+
+            return result;
+        })
+        .catch(function(err){
+            err.message = 'getEc2InstanceData: ' + err.message;
+            return q.reject(err);
+        });
     }
 }
 
