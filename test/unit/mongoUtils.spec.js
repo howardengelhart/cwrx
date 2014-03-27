@@ -1,12 +1,11 @@
 var flush = true;    
 describe('mongoUtils', function() {
-    var mongodb, mongoUtils, cp;
+    var mongodb, mongoUtils;
     
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         mongodb     = require('mongodb');
         mongoUtils  = require('../../lib/mongoUtils');
-        cp  = require('child_process');
     });
     
     describe('connect', function() {
@@ -21,7 +20,8 @@ describe('mongoUtils', function() {
                 expect(db).toBe('fakeDb');
                 expect(mongodb.MongoClient.connect).toHaveBeenCalled();
                 expect(mongodb.MongoClient.connect.calls[0].args[0]).toBe('mongodb://10.0.0.1.:666/fakeDb');
-                expect(mongodb.MongoClient.connect.calls[0].args[1]).toEqual({native_parser: true});
+                expect(mongodb.MongoClient.connect.calls[0].args[1])
+                    .toEqual({ db: { native_parser: true, bufferMaxEntries: 0 } });
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -83,42 +83,6 @@ describe('mongoUtils', function() {
             // shouldn't edit existing user object
             expect(user.username).toBe('johnnyTestmonkey');
             expect(user.password).toBe('hashofasecret');
-        });
-    });
-    
-    describe('checkRunning', function() {
-        beforeEach(function() {
-            spyOn(cp, 'exec');
-        });
-        
-        it('should call nc to check if mongo is running', function(done) {
-            cp.exec.andCallFake(function(cmd, cb) {
-                cb(null, null, 'Mongo is runnin yo');
-            });
-            mongoUtils.checkRunning('1.2.3.4', 1234).then(function(msg) {
-                expect(msg).toBe('Mongo is runnin yo');
-                expect(cp.exec).toHaveBeenCalled();
-                expect(cp.exec.calls[0].args[0]).toBe('nc -zv 1.2.3.4 1234');
-                done();
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
-        });
-        
-        it('should handle errors from nc', function(done) {
-            cp.exec.andCallFake(function(cmd, cb) {
-                cb('Nope not running', null, null);
-            });
-            mongoUtils.checkRunning('1.2.3.4', 1234).then(function(msg) {
-                expect(msg).not.toBeDefined();
-                done();
-            }).catch(function(error) {
-                expect(error).toBe('Nope not running');
-                expect(cp.exec).toHaveBeenCalled();
-                expect(cp.exec.calls[0].args[0]).toBe('nc -zv 1.2.3.4 1234');
-                done();
-            });
         });
     });
 });

@@ -9,7 +9,6 @@
         uuid            = require('../lib/uuid'),
         QueryCache      = require('../lib/queryCache'),
         FieldValidator  = require('../lib/fieldValidator'),
-        mongoUtils      = require('../lib/mongoUtils'),
         authUtils       = require('../lib/authUtils')(),
         service         = require('../lib/service'),
         enums           = require('../lib/enums'),
@@ -248,28 +247,17 @@
         // set auth cacheTTL now that we've loaded config
         authUtils = require('../lib/authUtils')(state.config.cacheTTLs.auth);
 
-        // if connection to mongo is down; immediately reject all requests
-        // otherwise the request will hang trying to get the session from mongo
-        app.use(function(req, res, next) {
-            mongoUtils.checkRunning(state.config.mongo.host, state.config.mongo.port)
-            .then(function() {
-                next();
-            }).catch(function(error) {
-                log.error('Connection to mongo is down: %1', error);
-                res.send(500, 'Connection to database is down');
-            });
-        });
-
         app.use(express.bodyParser());
         app.use(express.cookieParser(state.secrets.cookieParser || ''));
-        app.use(express.session({
+        
+        var sessions = express.session({
             key: state.config.sessions.key,
             cookie: {
                 httpOnly: false,
                 maxAge: state.config.sessions.maxAge
             },
             store: state.sessionStore
-        }));
+        });
 
         app.all('*', function(req, res, next) {
             res.header('Access-Control-Allow-Origin', '*');
@@ -299,42 +287,37 @@
         var experiences = state.db.collection('experiences');
         var expCache = new QueryCache(state.config.cacheTTLs.experiences, experiences);
         
-        // simple get active experience by id, public
-        app.get('/api/content/experience/:id', function(req, res/*, next*/) {
-            var promise;
-            if (req.session.user) {
-                log.trace('[%1] Attempting to look up user %2 for public GET experiences',
-                          req.uuid, req.session.user);
-                promise = authUtils.getUser(req.session.user, state.db)
-                .then(function(user) {
-                    if (!user) {
-                        log.warn('[%1] User %2 could not be found', req.uuid, req.session.user);
-                    } else {
-                        log.trace('[%1] Found user %2', req.uuid, user.id);
-                        req.user = user;
-                    }
-                }).catch(function(error) {
-                    log.error('[%1] Could not look up user %2: %3',
-                              req.uuid, req.session.user, JSON.stringify(error));
-                });
-            } else {
-                promise = q();
-            }
-            promise.then(function() {
-                return content.getExperiences({id: req.params.id}, req, expCache);
-            }).then(function(resp) {
-                if (!req.user) {
-                    res.header('cache-control', 'max-age=' + state.config.cacheTTLs.cloudFront*60);
-                }
+        // public get experience by id
+        app.get('/api/content/public/experience/:id', function(req, res) {
+            content.getExperiences({id: req.params.id}, req, expCache)
+            .then(function(resp) {
+                res.header('cache-control', 'max-age=' + state.config.cacheTTLs.cloudFront*60);
                 if (resp.body && resp.body instanceof Array) {
                     res.send(resp.code, resp.body[0]);
                 } else {
                     res.send(resp.code, resp.body);
                 }
             }).catch(function(error) {
-                if (!req.user) {   // cache errors for shorter time
-                    res.header('cache-control', 'max-age=60');
+                res.header('cache-control', 'max-age=60');
+                res.send(500, {
+                    error: 'Error retrieving content',
+                    detail: error
+                });
+            });
+        });
+        
+        var authGetExp = authUtils.middlewarify(state.db, {experiences: 'read'});
+        
+        // private get experience by id
+        app.get('/api/content/experience/:id', sessions, authGetExp, function(req, res) {
+            content.getExperiences({id: req.params.id}, req, expCache)
+            .then(function(resp) {
+                if (resp.body && resp.body instanceof Array) {
+                    res.send(resp.code, resp.body[0]);
+                } else {
+                    res.send(resp.code, resp.body);
                 }
+            }).catch(function(error) {
                 res.send(500, {
                     error: 'Error retrieving content',
                     detail: error
@@ -342,9 +325,8 @@
             });
         });
 
-        // robust get experience by query, requires authenticated user with read perms
-        var authGetExp = authUtils.middlewarify(state.db, {experiences: 'read'});
-        app.get('/api/content/experiences', authGetExp, function(req, res/*, next*/) {
+        // private get experience by query
+        app.get('/api/content/experiences', sessions, authGetExp, function(req, res) {
             var queryFields = ['ids', 'user', 'org', 'type'];
             function isKeyInFields(key) {
                 return queryFields.indexOf(key) >= 0;
@@ -378,7 +360,7 @@
         });
         
         var authPostExp = authUtils.middlewarify(state.db, {experiences: 'create'});
-        app.post('/api/content/experience', authPostExp, function(req, res/*, next*/) {
+        app.post('/api/content/experience', sessions, authPostExp, function(req, res) {
             content.createExperience(req, experiences)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -391,7 +373,7 @@
         });
         
         var authPutExp = authUtils.middlewarify(state.db, {experiences: 'edit'});
-        app.put('/api/content/experience/:id', authPutExp, function(req, res/*, next*/) {
+        app.put('/api/content/experience/:id', sessions, authPutExp, function(req, res) {
             content.updateExperience(req, experiences)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -404,7 +386,7 @@
         });
         
         var authDelExp = authUtils.middlewarify(state.db, {experiences: 'delete'});
-        app.delete('/api/content/experience/:id', authDelExp, function(req, res/*, next*/) {
+        app.delete('/api/content/experience/:id', sessions, authDelExp, function(req, res) {
             content.deleteExperience(req, experiences)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -416,13 +398,22 @@
             });
         });
         
-        app.get('/api/content/meta', function(req, res/*, next*/){
+        app.get('/api/content/meta', function(req, res){
             var data = {
                 version: state.config.appVersion,
                 started : started.toISOString(),
                 status : 'OK'
             };
             res.send(200, data);
+        });
+
+        app.use(function(err, req, res, next) {
+            if (err) {
+                log.error('Error: %1', err);
+                res.send(500, 'Internal error');
+            } else {
+                next();
+            }
         });
         
         app.listen(state.cmdl.port);
