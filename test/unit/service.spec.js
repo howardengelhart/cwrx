@@ -568,7 +568,7 @@ describe('service (UT)',function(){
             }).done(done);
         });
     });
-    
+
     describe('initSessionStore', function() {
         var fakeExpress, fakeMongoStore, msModule;
         beforeEach(function() {
@@ -576,6 +576,7 @@ describe('service (UT)',function(){
             fakeExpress = 'express';
             fakeMongoStore = jasmine.createSpy('new_MongoStore').andCallFake(function(opts, cb) {
                 cb();
+                return { db: {} };
             });
             msModule = jasmine.createSpy('MongoStore_module').andReturn(fakeMongoStore);
             require.cache[require.resolve('express')] = { exports: fakeExpress};
@@ -606,6 +607,9 @@ describe('service (UT)',function(){
                     auto_reconnect: true
                 });
                 expect(typeof fakeMongoStore.calls[0].args[1]).toBe('function');
+                expect(state.sessionStore).toBeDefined();
+                expect(state.sessionStore.db).toBeDefined();
+                expect(state.sessionStore.db.bufferMaxEntries).toBe(0);
             }).done(done);
         });
         

@@ -68,8 +68,7 @@ describe('content-light (E2E):', function() {
         it('retrieve an experience', function(done) {
             var options = {
                 url: config.contentUrl + '/experience/' + currExp.id,
-                jar: cookieJar,
-                json: origExp
+                jar: cookieJar
             };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -88,7 +87,7 @@ describe('content-light (E2E):', function() {
             var options = {
                 url: config.contentUrl + '/experience/' + currExp.id,
                 jar: cookieJar,
-                json: { title: 'newTitle' }
+                json: { title: 'newTitle', status: 'active' }
             };
             testUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -99,6 +98,20 @@ describe('content-light (E2E):', function() {
                 expect(resp.body.created).toBe(origExp.created);
                 expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(origExp.lastUpdated));
                 currExp = resp.body;
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('retrieve a public experience', function(done) {
+            var options = {
+                url: config.contentUrl + '/public/experience/' + currExp.id
+            };
+            testUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual(currExp);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
