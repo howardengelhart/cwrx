@@ -27,9 +27,16 @@
             run     : path.normalize('/usr/local/share/cwrx/content/caches/run/'),
         },
         cacheTTLs: {  // units here are minutes
-            experiences: 1,
+            experiences: {
+                freshTTL: 1,
+                maxTTL: 10
+            },
             cloudFront: 5,
             auth: 10
+            /*auth: { TODO
+                freshTTL: 5,
+                maxTTL: 10
+            }*/
         },
         sessions: {
             key: 'c6Auth',
@@ -285,7 +292,8 @@
         });
         
         var experiences = state.db.collection('experiences');
-        var expCache = new QueryCache(state.config.cacheTTLs.experiences, experiences);
+        var expTTLs = state.config.cacheTTLs.experiences;
+        var expCache = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences);
         
         // public get experience by id
         app.get('/api/content/public/experience/:id', function(req, res) {
