@@ -28,7 +28,7 @@
         },
         cacheTTLs: {  // units here are minutes
             auth: {
-                freshTTL: 5,
+                freshTTL: 1,
                 maxTTL: 10
             }
         },

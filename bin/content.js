@@ -33,7 +33,7 @@
             },
             cloudFront: 5,
             auth: {
-                freshTTL: 5,
+                freshTTL: 1,
                 maxTTL: 10
             }
         },
