@@ -27,7 +27,10 @@
             run     : path.normalize('/usr/local/share/cwrx/userSvc/caches/run/'),
         },
         cacheTTLs: {  // units here are minutes
-            auth: 10  // just for authUtils
+            auth: {
+                freshTTL: 1,
+                maxTTL: 10
+            }
         },
         sessions: {
             key: 'c6Auth',
@@ -317,9 +320,10 @@
         log.info('Running as cluster worker, proceed with setting up web server.');
             
         var express     = require('express'),
-            app         = express();
-        // set auth cacheTTL now that we've loaded config
-        authUtils = require('../lib/authUtils')(state.config.cacheTTLs.auth);
+            app         = express(),
+            users       = state.db.collection('users'),
+            authTTLs    = state.config.cacheTTLs.auth;
+        authUtils = require('../lib/authUtils')(authTTLs.freshTTL, authTTLs.maxTTL, users);
 
         app.use(express.bodyParser());
         app.use(express.cookieParser(state.secrets.cookieParser || ''));
@@ -356,8 +360,6 @@
             next();
         });
         
-        var users = state.db.collection('users');
-        
         app.get('/api/account/user/meta', function(req, res/*, next*/){
             var data = {
                 version: state.config.appVersion,
@@ -367,7 +369,7 @@
             res.send(200, data);
         });
         
-        var authGetUser = authUtils.middlewarify(state.db, {users: 'read'});
+        var authGetUser = authUtils.middlewarify({users: 'read'});
         app.get('/api/account/user/:id', authGetUser, function(req, res/*, next*/) {
             userSvc.getUsers({ id: req.params.id }, req, users)
             .then(function(resp) {
@@ -400,7 +402,7 @@
             });
         });
         
-        var authPostUser = authUtils.middlewarify(state.db, {users: 'create'});
+        var authPostUser = authUtils.middlewarify({users: 'create'});
         app.post('/api/account/user', authPostUser, function(req, res/*, next*/) {
             userSvc.createUser(req, users)
             .then(function(resp) {
@@ -413,7 +415,7 @@
             });
         });
         
-        var authPutUser = authUtils.middlewarify(state.db, {users: 'edit'});
+        var authPutUser = authUtils.middlewarify({users: 'edit'});
         app.put('/api/account/user/:id', authPutUser, function(req, res/*, next*/) {
             userSvc.updateUser(req, users)
             .then(function(resp) {
@@ -426,7 +428,7 @@
             });
         });
         
-        var authDelUser = authUtils.middlewarify(state.db, {users: 'delete'});
+        var authDelUser = authUtils.middlewarify({users: 'delete'});
         app.delete('/api/account/user/:id', authDelUser, function(req, res/*, next*/) {
             userSvc.deleteUser(req, users)
             .then(function(resp) {

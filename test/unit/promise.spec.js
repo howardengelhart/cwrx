@@ -32,6 +32,7 @@ describe('promise',function(){
                 expect(p.resolve).toBeDefined('p.resolve');
                 expect(p.reject).toBeDefined('p.reject');
                 expect(p.keeperId).toEqual('abc');
+                expect(p.keeperCreateTime instanceof Date).toBeTruthy('keeperCreateTime is Date');
             });
 
             it('returns existing promise if one with id already exists',function(){

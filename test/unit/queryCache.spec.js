@@ -15,17 +15,19 @@ describe('QueryCache', function() {
     });
    
     describe('initialization', function() {
-        it('should throw an error if not provided with a cacheTTL or collection', function() {
-            var msg = "Must provide a cacheTTL and mongo collection";
+        it('should throw an error if not provided with the right params', function() {
+            var msg = "Must provide a freshTTL, maxTTL, and mongo collection";
             expect(function() { new QueryCache() }).toThrow(msg);
             expect(function() { new QueryCache(5) }).toThrow(msg);
-            expect(function() { new QueryCache(null, fakeColl) }).toThrow(msg);
-            expect(function() { new QueryCache(5, fakeColl) }).not.toThrow();
+            expect(function() { new QueryCache(5, 10) }).toThrow(msg);
+            expect(function() { new QueryCache(null, null, fakeColl) }).toThrow(msg);
+            expect(function() { new QueryCache(5, 10, fakeColl) }).not.toThrow();
         });
         
         it('should set or initialize any required properties', function() {
-            var cache = new QueryCache(5, fakeColl);
-            expect(cache.cacheTTL).toBe(5*60*1000);
+            var cache = new QueryCache(5, 10, fakeColl);
+            expect(cache.freshTTL).toBe(5*60*1000);
+            expect(cache.maxTTL).toBe(10*60*1000);
             expect(cache._coll).toBe(fakeColl);
             expect(cache._keeper instanceof promise.Keeper).toBeTruthy('cache._keeper is Keeper');
         });
@@ -68,9 +70,11 @@ describe('QueryCache', function() {
     });
     
     describe('getPromise', function() {
-        var cache, fakeCursor;
+        var cache, fakeCursor, query, opts;
         beforeEach(function() {
-            cache = new QueryCache(1, fakeColl);
+            query = { id: "e-1234" };
+            opts = { sort: { id: 1 }, limit: 0, skip: 0 };
+            cache = new QueryCache(1, 2, fakeColl);
             spyOn(uuid, 'hashText').andReturn('fakeHash');
             fakeCursor = {
                 toArray: jasmine.createSpy('cursor.toArray').andCallFake(function(cb) {
@@ -98,8 +102,6 @@ describe('QueryCache', function() {
         });
         
         it('should make a new promise and search mongo if the query is not cached', function(done) {
-            var query = { id: "e-1234" },
-                opts = {sort: { id: 1 }, limit: 0, skip: 0 };
             cache.getPromise(query, opts.sort, opts.limit, opts.skip)
             .then(function(exps) {
                 expect(exps).toEqual([{id: 'e-1234'}]);
@@ -115,17 +117,68 @@ describe('QueryCache', function() {
                 done();
             });
         });
-        
-        it('should delete the cached query after the cacheTTL', function(done) {
-            spyOn(cache._keeper, 'remove');
-            var query = { id: "e-1234" },
-                opts = {sort: { id: 1 }, limit: 0, skip: 0 };
+                
+        it('should refresh a query after freshTTL', function(done) {
+            var deferred = cache._keeper.defer('fakeHash');
+            var start = new Date(new Date() - (cache.freshTTL + 1));
+            deferred.keeperCreateTime = start;
+            deferred.resolve([{id: 'e-1234'}]);
+            fakeCursor.toArray.andCallFake(function(cb) {
+                cb(null, [{id: 'e-4567'}])
+            });
             cache.getPromise(query, opts.sort, opts.limit, opts.skip)
             .then(function(exps) {
                 expect(exps).toEqual([{id: 'e-1234'}]);
-                expect(cache._keeper._deferreds.fakeHash).toBeDefined();
-                jasmine.Clock.tick(1*60*1000);
-                expect(cache._keeper.remove).toHaveBeenCalledWith('fakeHash', true);
+                expect(fakeColl.find).toHaveBeenCalledWith(query, opts);
+                return;
+            }).then(function() {
+                var newDeferred = cache._keeper._deferreds.fakeHash;
+                expect(newDeferred).toBeDefined();
+                expect(newDeferred.keeperCreateTime - start).toBeGreaterThan(cache.freshTTL);
+                expect(newDeferred.promise.inspect()).toEqual({state: 'fulfilled', value: [{id: 'e-4567'}]});
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should not attempt to refresh a query multiple times', function(done) {
+            var deferred = cache._keeper.defer('fakeHash');
+            var start = new Date(new Date() - (cache.freshTTL + 1));
+            deferred.keeperCreateTime = start;
+            deferred.resolve([{id: 'e-1234'}]);
+            fakeCursor.toArray.andCallFake(function(cb) {
+                cb(null, [{id: 'e-4567'}])
+            });
+            q.all([cache.getPromise(query, opts.sort, opts.limit, opts.skip),
+                   cache.getPromise(query, opts.sort, opts.limit, opts.skip)])
+            .spread(function(exps1, exps2) {
+                expect(exps1).toEqual([{id: 'e-1234'}]);
+                expect(exps2).toEqual([{id: 'e-1234'}]);
+                expect(fakeColl.find).toHaveBeenCalledWith(query, opts);
+                expect(fakeColl.find.calls.length).toBe(1);
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should delete the cached query after maxTTL', function(done) {
+            var deferred = cache._keeper.defer('fakeHash');
+            var start = new Date(new Date() - (cache.maxTTL + 1));
+            deferred.keeperCreateTime = start;
+            deferred.resolve([{id: 'e-1234'}]);
+            fakeCursor.toArray.andCallFake(function(cb) {
+                cb(null, [{id: 'e-4567'}])
+            });
+            cache.getPromise(query, opts.sort, opts.limit, opts.skip)
+            .then(function(exps) {
+                expect(exps).toEqual([{id: 'e-4567'}]);
+                expect(fakeColl.find).toHaveBeenCalledWith(query, opts);
+                var newDeferred = cache._keeper._deferreds.fakeHash;
+                expect(newDeferred.keeperCreateTime - start).toBeGreaterThan(cache.maxTTL);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -134,8 +187,9 @@ describe('QueryCache', function() {
         });
         
         it('should pass along errors from mongo', function(done) {
+            spyOn(cache._keeper, 'remove');
             fakeCursor.toArray.andCallFake(function(cb) { cb('Error!'); });
-            cache.getPromise({id: 'e-1234'}, {id: 1}, 0, 0)
+            cache.getPromise(query, opts.sort, opts.limit, opts.skip)
             .then(function(exps) {
                 expect(exps).not.toBeDefined();
                 done();
@@ -144,9 +198,10 @@ describe('QueryCache', function() {
                 expect(fakeColl.find).toHaveBeenCalled();
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(uuid.hashText).toHaveBeenCalled();
-                // should not cache errors from mongo
-                expect(cache._keeper._deferreds.fakeHash).not.toBeDefined();
-                expect(cache._keeper.rejectedCount).toBe(0);
+                expect(cache._keeper._deferreds.fakeHash).toBeDefined();
+                expect(cache._keeper.rejectedCount).toBe(1);
+                jasmine.Clock.tick(10*1000);
+                expect(cache._keeper.remove).toHaveBeenCalledWith('fakeHash', true);
                 done();
             });
         });

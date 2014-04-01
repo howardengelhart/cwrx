@@ -30,7 +30,10 @@
             db: 'sessions'
         },
         cacheTTLs: {  // units here are minutes
-            auth: 10
+            auth: {
+                freshTTL: 1,
+                maxTTL: 10
+            }
         },
         secretsPath: path.join(process.env.HOME,'.auth.secrets.json'),
         mongo: {
@@ -124,11 +127,10 @@
         log.info('Running as cluster worker, proceed with setting up web server.');
 
         var express     = require('express'),
-            app         = express();
-
-        var users = state.db.collection('users');
-        // set auth cacheTTL now that we've loaded config
-        authUtils = require('../lib/authUtils')(state.config.cacheTTLs.auth);
+            app         = express(),
+            users       = state.db.collection('users'),
+            authTTLs    = state.config.cacheTTLs.auth;
+        authUtils = require('../lib/authUtils')(authTTLs.freshTTL, authTTLs.maxTTL, users);
 
         app.use(express.bodyParser());
         app.use(express.cookieParser(state.secrets.cookieParser || ''));
@@ -186,7 +188,7 @@
             });
         });
 
-        var authGetUser = authUtils.middlewarify(state.db, {});
+        var authGetUser = authUtils.middlewarify({});
         app.get('/api/auth/status', authGetUser, function(req, res/*, next*/) {
             res.send(200, req.user); // errors handled entirely by authGetUser
         });

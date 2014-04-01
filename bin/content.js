@@ -27,9 +27,15 @@
             run     : path.normalize('/usr/local/share/cwrx/content/caches/run/'),
         },
         cacheTTLs: {  // units here are minutes
-            experiences: 1,
+            experiences: {
+                freshTTL: 1,
+                maxTTL: 10
+            },
             cloudFront: 5,
-            auth: 10
+            auth: {
+                freshTTL: 1,
+                maxTTL: 10
+            }
         },
         sessions: {
             key: 'c6Auth',
@@ -84,19 +90,24 @@
         if (req.user) { // don't use cache, access mongo collection directly
             log.info('[%1] User %2 getting experiences with %3, sort %4, limit %5, skip %6',
                      req.uuid,req.user.id,JSON.stringify(query),JSON.stringify(sortObj),limit,skip);
+                     
             var opts = {sort: sortObj, limit: limit, skip: skip};
             promise = q.npost(cache._coll.find(query, opts), 'toArray');
+            
         } else { // use cached promise
             log.info('[%1] Guest user getting experiences with %2, sort %3, limit %4, skip %5',
                      req.uuid, JSON.stringify(query), JSON.stringify(sortObj), limit, skip);
+                     
             promise = cache.getPromise(query, sortObj, limit, skip);
         }
         return promise.then(function(results) {
             log.trace('[%1] Retrieved %2 experiences', req.uuid, results.length);
+            
             var experiences = results.filter(function(result) {
                 return content.checkScope(req.user, result, 'experiences', 'read') ||
                       (result.status === Status.Active && result.access === Access.Public);
             });
+            
             log.info('[%1] Showing the user %2 experiences', req.uuid, experiences.length);
             if (experiences.length === 0) {
                 return q({code: 404, body: 'No experiences found'});
@@ -243,9 +254,10 @@
         log.info('Running as cluster worker, proceed with setting up web server.');
             
         var express     = require('express'),
-            app         = express();
-        // set auth cacheTTL now that we've loaded config
-        authUtils = require('../lib/authUtils')(state.config.cacheTTLs.auth);
+            app         = express(),
+            users       = state.db.collection('users'),
+            authTTLs    = state.config.cacheTTLs.auth;
+        authUtils = require('../lib/authUtils')(authTTLs.freshTTL, authTTLs.maxTTL, users);
 
         app.use(express.bodyParser());
         app.use(express.cookieParser(state.secrets.cookieParser || ''));
@@ -285,7 +297,8 @@
         });
         
         var experiences = state.db.collection('experiences');
-        var expCache = new QueryCache(state.config.cacheTTLs.experiences, experiences);
+        var expTTLs = state.config.cacheTTLs.experiences;
+        var expCache = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences);
         
         // public get experience by id
         app.get('/api/content/public/experience/:id', function(req, res) {
@@ -306,7 +319,7 @@
             });
         });
         
-        var authGetExp = authUtils.middlewarify(state.db, {experiences: 'read'});
+        var authGetExp = authUtils.middlewarify({experiences: 'read'});
         
         // private get experience by id
         app.get('/api/content/experience/:id', sessions, authGetExp, function(req, res) {
@@ -359,7 +372,7 @@
             });
         });
         
-        var authPostExp = authUtils.middlewarify(state.db, {experiences: 'create'});
+        var authPostExp = authUtils.middlewarify({experiences: 'create'});
         app.post('/api/content/experience', sessions, authPostExp, function(req, res) {
             content.createExperience(req, experiences)
             .then(function(resp) {
@@ -372,7 +385,7 @@
             });
         });
         
-        var authPutExp = authUtils.middlewarify(state.db, {experiences: 'edit'});
+        var authPutExp = authUtils.middlewarify({experiences: 'edit'});
         app.put('/api/content/experience/:id', sessions, authPutExp, function(req, res) {
             content.updateExperience(req, experiences)
             .then(function(resp) {
@@ -385,7 +398,7 @@
             });
         });
         
-        var authDelExp = authUtils.middlewarify(state.db, {experiences: 'delete'});
+        var authDelExp = authUtils.middlewarify({experiences: 'delete'});
         app.delete('/api/content/experience/:id', sessions, authDelExp, function(req, res) {
             content.deleteExperience(req, experiences)
             .then(function(resp) {
