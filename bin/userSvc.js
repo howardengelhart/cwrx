@@ -369,6 +369,10 @@
             res.send(200, data);
         });
         
+        app.get('/api/account/user/version',function(req, res) {
+            res.send(200, state.config.appVersion);
+        });
+        
         var authGetUser = authUtils.middlewarify({users: 'read'});
         app.get('/api/account/user/:id', authGetUser, function(req, res/*, next*/) {
             userSvc.getUsers({ id: req.params.id }, req, users)
@@ -440,7 +444,7 @@
                 });
             });
         });
-
+        
         app.use(function(err, req, res, next) {
             if (err) {
                 log.error('Error: %1', err);
