@@ -27,6 +27,7 @@
         sessions: {
             key: 'c6Auth',
             maxAge: 14*24*60*60*1000, // 14 days; unit here is milliseconds
+            minAge: 60*1000, // TTL for cookies for unauthenticated users
             db: 'sessions'
         },
         cacheTTLs: {  // units here are minutes
@@ -44,7 +45,7 @@
         }
     };
 
-    auth.login = function(req, users) {
+    auth.login = function(req, users, maxAge) {
         if (!req.body || !req.body.username || !req.body.password) {
             return q({
                 code: 400,
@@ -76,6 +77,7 @@
                     var user = mongoUtils.safeUser(userAccount);
                     return q.npost(req.session, 'regenerate').then(function() {
                         req.session.user = user.id;
+                        req.session.cookie.maxAge = maxAge;
                         return deferred.resolve({
                             code: 200,
                             body: user
@@ -134,14 +136,15 @@
 
         app.use(express.bodyParser());
         app.use(express.cookieParser(state.secrets.cookieParser || ''));
-        app.use(express.session({
+        
+        var sessions = express.session({
             key: state.config.sessions.key,
             cookie: {
                 httpOnly: false,
-                maxAge: state.config.sessions.maxAge
+                maxAge: state.config.sessions.minAge
             },
             store: state.sessionStore
-        }));
+        });
 
         app.all('*', function(req, res, next) {
             res.header('Access-Control-Allow-Headers',
@@ -168,8 +171,8 @@
             next();
         });
 
-        app.post('/api/auth/login', function(req, res/*, next*/) {
-            auth.login(req, users).then(function(resp) {
+        app.post('/api/auth/login', sessions, function(req, res/*, next*/) {
+            auth.login(req, users, state.config.sessions.maxAge).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
                 res.send(500, {
@@ -178,7 +181,7 @@
             });
         });
 
-        app.post('/api/auth/logout', function(req, res/*, next*/) {
+        app.post('/api/auth/logout', sessions, function(req, res/*, next*/) {
             auth.logout(req).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
@@ -189,7 +192,7 @@
         });
 
         var authGetUser = authUtils.middlewarify({});
-        app.get('/api/auth/status', authGetUser, function(req, res/*, next*/) {
+        app.get('/api/auth/status', sessions, authGetUser, function(req, res/*, next*/) {
             res.send(200, req.user); // errors handled entirely by authGetUser
         });
 
