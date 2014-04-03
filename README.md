@@ -1,4 +1,4 @@
 cwrx
 ===
 
-Cinema6 node Library. Awesome. Totally.
+Cinema6 node Library. Awesome. Totally. Awesome.
