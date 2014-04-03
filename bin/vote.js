@@ -507,9 +507,7 @@
         });
 
         webServer.get('/api/vote/version',function(req, res ){
-            res.send(200, {
-                version : state.config.appVersion
-            });
+            res.send(200, state.config.appVersion );
         });
 
         webServer.listen(state.cmdl.port);
