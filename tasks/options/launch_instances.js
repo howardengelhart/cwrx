@@ -40,5 +40,17 @@ module.exports = {
             }
         ],
         checkSsh : [ { host : 'mongo-dev-1' } ]
+    },
+    auth : {
+        startInstances : [ 'mongo-dev-1' ],
+        runInstances   : [ { name: 'test-auth', params: 'apiServer' } ],
+        checkHttp : [
+            {
+                host    : 'test-auth',
+                iface   : 'public',
+                path    : '/api/auth/meta'
+            }
+        ],
+        checkSsh : [ { host : 'mongo-dev-1' } ]
     }
 };
