@@ -40,6 +40,7 @@
         sessions: {
             key: 'c6Auth',
             maxAge: 14*24*60*60*1000, // 14 days; unit here is milliseconds
+            minAge: 60*1000, // TTL for cookies for unauthenticated users
             db: 'sessions'
         },
         secretsPath: path.join(process.env.HOME,'.content.secrets.json'),
@@ -266,7 +267,7 @@
             key: state.config.sessions.key,
             cookie: {
                 httpOnly: false,
-                maxAge: state.config.sessions.maxAge
+                maxAge: state.config.sessions.minAge
             },
             store: state.sessionStore
         });

@@ -29,6 +29,7 @@ describe('auth (UT)', function() {
             },
             session: {
                 regenerate: jasmine.createSpy('regenerate_session').andCallFake(function(cb) {
+                    req.session.cookie = {};
                     cb();
                 })
             }
@@ -102,7 +103,7 @@ describe('auth (UT)', function() {
                 expect(mongoUtils.safeUser).toHaveBeenCalledWith(origUser);
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
