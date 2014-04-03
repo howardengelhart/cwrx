@@ -108,6 +108,12 @@ module.exports = function(grunt) {
                 grunt.log.errorlns('Command line argument check-url is not valid.');
                 return done(false);
             }
+
+            grunt.log.writelns('Check  : ' + asg );
+            grunt.log.writelns('Path   : ' + config.checkParams.path );
+            if (config.httpExpects){
+                grunt.log.writelns('Expect : ' + config.httpExpects);
+            }
             
             config.asg = new aws.AutoScaling();
             config.ec2 = new aws.EC2();
