@@ -94,8 +94,8 @@ module.exports = function(grunt) {
             aws.config.loadFromPath(auth);
             
             config.checkParams   = url.parse(grunt.option('check-url'));
-            config.checkInterval = parseInt((grunt.option('check-interval') || '30' ,10);
-            config.checkTimeout  = parseInt((grunt.option('check-timeout')  || '600',10);
+            config.checkInterval = parseInt((grunt.option('check-interval') || '30') ,10);
+            config.checkTimeout  = parseInt((grunt.option('check-timeout')  || '600'),10);
             config.httpExpects   = grunt.option('check-response');
             config.asgNames      = asg.split(',');
            
