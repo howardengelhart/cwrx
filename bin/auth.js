@@ -202,6 +202,10 @@
             res.send(200, data);
         });
 
+        app.get('/api/auth/version',function(req, res) {
+            res.send(200, state.config.appVersion);
+        });
+
         app.use(function(err, req, res, next) {
             if (err) {
                 log.error('Error: %1', err);
