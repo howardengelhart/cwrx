@@ -17,6 +17,7 @@
         appName : 'vote',
         appDir  : __dirname,
         cacheControl : {
+            default         : 'max-age=0',
             getElection     : 'max-age=300',
             getBallotItem   : 'max-age=300'
         },
@@ -111,7 +112,12 @@
             return true;
         }
 
-        return ((new Date()).valueOf() - lastSync.valueOf()) >= this._syncIval;
+        if (this._syncIval < 60000){
+            return ((new Date()).valueOf() - lastSync.valueOf()) >= this._syncIval;
+        }
+
+        return ((Math.ceil((new Date()).valueOf() / 1000) * 1000) -
+                (Math.floor(lastSync.valueOf() / 1000) * 1000)) >= this._syncIval;
     };
 
     ElectionDb.prototype.getElectionFromCache = function(electionId){
@@ -411,7 +417,7 @@
             res.header('Access-Control-Allow-Origin', '*');
             res.header('Access-Control-Allow-Headers',
                        'Origin, X-Requested-With, Content-Type, Accept');
-    //        res.header('cache-control', 'max-age=0');
+            res.header('cache-control', state.config.cacheControl.default);
 
             if (req.method.toLowerCase() === 'options') {
                 res.send(200);
@@ -498,6 +504,10 @@
                 started : started.toISOString(),
                 status  : 'OK'
             });
+        });
+
+        webServer.get('/api/vote/version',function(req, res ){
+            res.send(200, state.config.appVersion );
         });
 
         webServer.listen(state.cmdl.port);

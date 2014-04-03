@@ -210,9 +210,21 @@ describe('vote.data',function(){
             });
 
             it('returns false when syncIval has not expired',function(){
-                var lastSync = new Date((new Date()).valueOf() - 200);
-                elDb._syncIval = 1000;
+                var lastSync = new Date((new Date()).valueOf() - 1000);
+                elDb._syncIval = 3000;
                 expect(elDb.shouldSync(lastSync)).toEqual(false);
+            });
+            
+            it('does not round dates to seconds when syncIval < 30 seconds',function(){
+                var lastSync = new Date((new Date()).valueOf() - 29500);
+                elDb._syncIval = 30000;
+                expect(elDb.shouldSync(lastSync)).toEqual(false);
+            });
+
+            it('rounds dates to seconds when syncIval > 60 seconds',function(){
+                var lastSync = new Date((new Date()).valueOf() - 59500);
+                elDb._syncIval = 60000;
+                expect(elDb.shouldSync(lastSync)).toEqual(true);
             });
         });
 
