@@ -327,14 +327,15 @@
 
         app.use(express.bodyParser());
         app.use(express.cookieParser(state.secrets.cookieParser || ''));
-        app.use(express.session({
+
+        var sessions = express.session({
             key: state.config.sessions.key,
             cookie: {
                 httpOnly: false,
                 maxAge: state.config.sessions.maxAge
             },
             store: state.sessionStore
-        }));
+        });
 
         app.all('*', function(req, res, next) {
             res.header('Access-Control-Allow-Headers',
@@ -374,7 +375,7 @@
         });
         
         var authGetUser = authUtils.middlewarify({users: 'read'});
-        app.get('/api/account/user/:id', authGetUser, function(req, res/*, next*/) {
+        app.get('/api/account/user/:id', sessions, authGetUser, function(req, res/*, next*/) {
             userSvc.getUsers({ id: req.params.id }, req, users)
             .then(function(resp) {
                 if (resp.body && resp.body instanceof Array) {
@@ -390,7 +391,7 @@
             });
         });
         
-        app.get('/api/account/users', authGetUser, function(req, res/*, next*/) {
+        app.get('/api/account/users', sessions, authGetUser, function(req, res/*, next*/) {
             if (!req.query || !req.query.org) {
                 log.info('[%1] Cannot GET /api/users without org specified',req.uuid);
                 return res.send(400, 'Must specify org param');
@@ -407,7 +408,7 @@
         });
         
         var authPostUser = authUtils.middlewarify({users: 'create'});
-        app.post('/api/account/user', authPostUser, function(req, res/*, next*/) {
+        app.post('/api/account/user', sessions, authPostUser, function(req, res/*, next*/) {
             userSvc.createUser(req, users)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -420,7 +421,7 @@
         });
         
         var authPutUser = authUtils.middlewarify({users: 'edit'});
-        app.put('/api/account/user/:id', authPutUser, function(req, res/*, next*/) {
+        app.put('/api/account/user/:id', sessions, authPutUser, function(req, res/*, next*/) {
             userSvc.updateUser(req, users)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -433,7 +434,7 @@
         });
         
         var authDelUser = authUtils.middlewarify({users: 'delete'});
-        app.delete('/api/account/user/:id', authDelUser, function(req, res/*, next*/) {
+        app.delete('/api/account/user/:id', sessions, authDelUser, function(req, res/*, next*/) {
             userSvc.deleteUser(req, users)
             .then(function(resp) {
                 res.send(resp.code, resp.body);

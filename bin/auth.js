@@ -134,14 +134,15 @@
 
         app.use(express.bodyParser());
         app.use(express.cookieParser(state.secrets.cookieParser || ''));
-        app.use(express.session({
+        
+        var sessions = express.session({
             key: state.config.sessions.key,
             cookie: {
                 httpOnly: false,
                 maxAge: state.config.sessions.maxAge
             },
             store: state.sessionStore
-        }));
+        });
 
         app.all('*', function(req, res, next) {
             res.header('Access-Control-Allow-Headers',
@@ -168,7 +169,7 @@
             next();
         });
 
-        app.post('/api/auth/login', function(req, res/*, next*/) {
+        app.post('/api/auth/login', sessions, function(req, res/*, next*/) {
             auth.login(req, users).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
@@ -178,7 +179,7 @@
             });
         });
 
-        app.post('/api/auth/logout', function(req, res/*, next*/) {
+        app.post('/api/auth/logout', sessions, function(req, res/*, next*/) {
             auth.logout(req).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
@@ -189,7 +190,7 @@
         });
 
         var authGetUser = authUtils.middlewarify({});
-        app.get('/api/auth/status', authGetUser, function(req, res/*, next*/) {
+        app.get('/api/auth/status', sessions, authGetUser, function(req, res/*, next*/) {
             res.send(200, req.user); // errors handled entirely by authGetUser
         });
 
