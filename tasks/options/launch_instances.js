@@ -84,11 +84,6 @@ module.exports = {
                 host    : 'test-monitor',
                 iface   : 'public',
                 path    : '/api/monitor/version'
-            },
-            {
-                host    : 'test-monitor',
-                iface   : 'public',
-                path    : '/api/maint/meta'
             }
         ]
     }
