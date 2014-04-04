@@ -52,5 +52,29 @@ module.exports = {
             }
         ],
         checkSsh : [ { host : 'mongo-dev-1' } ]
+    },
+    content : {
+        startInstances : [ 'mongo-dev-1' ],
+        runInstances   : [ { name: 'test-content', params: 'apiServer' } ],
+        checkHttp : [
+            {
+                host    : 'test-content',
+                iface   : 'public',
+                path    : '/api/content/meta'
+            }
+        ],
+        checkSsh : [ { host : 'mongo-dev-1' } ]
+    },
+    userSvc : {
+        startInstances : [ 'mongo-dev-1' ],
+        runInstances   : [ { name: 'test-userSvc', params: 'apiServer' } ],
+        checkHttp : [
+            {
+                host    : 'test-userSvc',
+                iface   : 'public',
+                path    : '/api/account/user/meta'
+            }
+        ],
+        checkSsh : [ { host : 'mongo-dev-1' } ]
     }
 };
