@@ -76,5 +76,20 @@ module.exports = {
             }
         ],
         checkSsh : [ { host : 'mongo-dev-1' } ]
+    },
+    monitor : {
+        runInstances   : [ { name: 'test-monitor', params: 'apiServer' } ],
+        checkHttp : [
+            {
+                host    : 'test-monitor',
+                iface   : 'public',
+                path    : '/api/monitor/version'
+            },
+            {
+                host    : 'test-monitor',
+                iface   : 'public',
+                path    : '/api/maint/meta'
+            }
+        ]
     }
 };

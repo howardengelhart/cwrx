@@ -320,6 +320,10 @@
         webServer.get('/api/status',function(req, res){
             app.handleGetStatus(state, req, res);
         });
+        
+        webServer.get('/api/monitor/version',function(req, res ){
+            res.send(200, state.config.appVersion );
+        });
 
         webServer.listen(state.config.port);
         log.info('Service is listening on port: ' + state.config.port);
