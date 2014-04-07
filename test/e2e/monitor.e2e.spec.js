@@ -60,7 +60,7 @@ describe('monitor (E2E)', function(){
 
     it('returns 500 if nothing to monitor',function(done){
         restartService(true)
-        .delay(1500)
+        .delay(5000)
         .then(getStatus)
             .then(function(resp){
                 expect(resp.response.statusCode).toEqual(500);
@@ -70,7 +70,7 @@ describe('monitor (E2E)', function(){
                 expect(err).not.toBeDefined();
             })
             .finally(done);
-    });
+    }, 10000);
 
     it('returns 200 if checkProcess succeeds',function(done){
         createMonitorProfile('maint', {
@@ -79,7 +79,7 @@ describe('monitor (E2E)', function(){
             }
         })
         .then(restartService(true))
-        .delay(1500)
+        .delay(5000)
         .then(getStatus)
         .then(function(resp){
             expect(resp.response.statusCode).toEqual(200);
@@ -89,7 +89,7 @@ describe('monitor (E2E)', function(){
             expect(err).not.toBeDefined();
         })
         .finally(done);
-    });
+    },10000);
 
     it('returns 200 if checkHttp succeeds',function(done){
         createMonitorProfile('maint', {
@@ -98,7 +98,7 @@ describe('monitor (E2E)', function(){
             }
         })
         .then(restartService(true))
-        .delay(1500)
+        .delay(5000)
         .then(getStatus)
         .then(function(resp){
             expect(resp.response.statusCode).toEqual(200);
@@ -108,7 +108,7 @@ describe('monitor (E2E)', function(){
             expect(err).not.toBeDefined();
         })
         .finally(done);
-    });
+    },10000);
 
     it('returns 200 if checkHttp && checkProcess succeeds on same service',function(done){
         createMonitorProfile('maint', {
@@ -120,7 +120,7 @@ describe('monitor (E2E)', function(){
             }
         })
         .then(restartService(true))
-        .delay(1500)
+        .delay(5000)
         .then(getStatus)
         .then(function(resp){
             expect(resp.response.statusCode).toEqual(200);
@@ -130,7 +130,7 @@ describe('monitor (E2E)', function(){
             expect(err).not.toBeDefined();
         })
         .finally(done);
-    });
+    },10000);
 
     it('returns 503 if one service good one fails checkProcess',function(done){
         createMonitorProfile('maint', {
@@ -147,7 +147,7 @@ describe('monitor (E2E)', function(){
             }
         }))
         .then(restartService(true))
-        .delay(1500)
+        .delay(5000)
         .then(getStatus)
         .then(function(resp){
             expect(resp.response.statusCode).toEqual(503);
@@ -157,7 +157,7 @@ describe('monitor (E2E)', function(){
             expect(err).not.toBeDefined();
         })
         .finally(done);
-    });
+    },10000);
 
     it('returns 502 if one service good one fails checkHttp',function(done){
         createMonitorProfile('maint', {
@@ -174,7 +174,7 @@ describe('monitor (E2E)', function(){
             }
         }))
         .then(restartService(true))
-        .delay(1500)
+        .delay(5000)
         .then(getStatus)
         .then(function(resp){
             expect(resp.response.statusCode).toEqual(502);
@@ -184,7 +184,7 @@ describe('monitor (E2E)', function(){
             expect(err).not.toBeDefined();
         })
         .finally(done);
-    });
+    },10000);
 
     it('returns 200 if two services pass',function(done){
         createMonitorProfile('maint', {
@@ -201,7 +201,7 @@ describe('monitor (E2E)', function(){
             }
         }))
         .then(restartService(true))
-        .delay(1500)
+        .delay(5000)
         .then(getStatus)
         .then(function(resp){
             expect(resp.response.statusCode).toEqual(200);
@@ -211,6 +211,6 @@ describe('monitor (E2E)', function(){
             expect(err).not.toBeDefined();
         })
         .finally(done);
-    });
+    },10000);
 
 });
