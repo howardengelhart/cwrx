@@ -9,7 +9,7 @@ module.exports = {
         owner         : 'jenkins',
         ec2_templates : {
             'apiServer' : {
-                ImageId             : 'ami-1d9d9474',
+                ImageId             : 'ami-05736f6c',
                 IamInstanceProfile  : {
                     Name: 'apiServer'
                 },
@@ -86,5 +86,32 @@ module.exports = {
                 path    : '/api/monitor/version'
             }
         ]
+    },
+    nightly_build : {
+        startInstances : [ 'mongo-dev-1' ],
+        runInstances   : [ { name: 'nightly_build', params: 'apiServer' } ],
+        checkHttp : [
+            {
+                host    : 'nightly_build',
+                iface   : 'public',
+                path    : '/api/auth/meta'
+            },
+            {
+                host    : 'nightly_build',
+                iface   : 'public',
+                path    : '/api/content/meta'
+            },
+            {
+                host    : 'nightly_build',
+                iface   : 'public',
+                path    : '/api/account/user/meta'
+            },
+            {
+                host    : 'nightly_build',
+                iface   : 'public',
+                path    : '/api/vote/meta'
+            }
+        ],
+        checkSsh : [ { host : 'mongo-dev-1' } ]
     }
 };
