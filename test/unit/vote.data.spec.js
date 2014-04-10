@@ -358,8 +358,9 @@ describe('vote.data',function(){
                 elDb.getElection('el-abc')
                     .then(resolveSpy,rejectSpy)
                     .finally(function(){
-                        expect(resolveSpy).not.toHaveBeenCalled();
-                        expect(rejectSpy).toHaveBeenCalled();
+                        expect(resolveSpy).toHaveBeenCalledWith(undefined);
+                        expect(rejectSpy).not.toHaveBeenCalled();
+                        expect(mockLog.warn).toHaveBeenCalled();
                         expect(mockDb.findAndModify).toHaveBeenCalled();
                         expect(elDb._cache['el-abc']).not.toBeDefined();
                     }).done(done);
@@ -397,7 +398,7 @@ describe('vote.data',function(){
                     }).done(done);
             });
             
-            it('fails if the election is not available',function(done){
+            it('returns nothing if the election is not available',function(done){
                 mockDb.findOne.andCallFake(function(query,cb){
                     process.nextTick(function(){
                         cb(null,null);
@@ -407,10 +408,10 @@ describe('vote.data',function(){
                 elDb.getElection('abc')
                     .then(resolveSpy,rejectSpy)
                     .finally(function(){
-                        expect(resolveSpy).not.toHaveBeenCalled();
-                        expect(rejectSpy).toHaveBeenCalled();
-                        expect(rejectSpy.argsForCall[0][0].message)
-                            .toEqual('Unable to locate election.');
+                        expect(resolveSpy).toHaveBeenCalledWith(undefined);
+                        expect(rejectSpy).not.toHaveBeenCalled();
+                        expect(mockLog.warn).not.toHaveBeenCalled();
+                        expect(mockLog.error).not.toHaveBeenCalled();
                         expect(elDb._keeper.getDeferred('abc',true)).not.toBeDefined();
                     }).done(done);
             });
@@ -484,7 +485,7 @@ describe('vote.data',function(){
                     .done(done);
             });
 
-            it('will fail if passed an invalid id',function(done){
+            it('will return nothing if getElection returns nothing',function(done){
                 mockDb.findOne.andCallFake(function(query,cb){
                     process.nextTick(function(){
                         cb(null,null);
@@ -494,16 +495,14 @@ describe('vote.data',function(){
                 elDb.getBallotItem('abc','123')
                     .then(resolveSpy,rejectSpy)
                     .finally(function(){
-                        expect(resolveSpy).not.toHaveBeenCalled();
-                        expect(rejectSpy).toHaveBeenCalled();
-                        expect(rejectSpy.argsForCall[0][0].message)
-                            .toEqual('Unable to locate election.');
+                        expect(resolveSpy).toHaveBeenCalledWith(undefined);
+                        expect(rejectSpy).not.toHaveBeenCalled();
                         expect(elDb._keeper.getDeferred('abc::123',true)).not.toBeDefined();
                     })
                     .done(done);
             });
 
-            it('will fail if passed an invalid ballot item Id',function(done){
+            it('will return nothing if passed an invalid ballot item Id',function(done){
                 mockDb.findOne.andCallFake(function(query,cb){
                     process.nextTick(function(){
                         cb(null,mockData);
@@ -513,10 +512,8 @@ describe('vote.data',function(){
                 elDb.getBallotItem('el-abc','123')
                     .then(resolveSpy,rejectSpy)
                     .finally(function(){
-                        expect(resolveSpy).not.toHaveBeenCalled();
-                        expect(rejectSpy).toHaveBeenCalled();
-                        expect(rejectSpy.argsForCall[0][0].message)
-                            .toEqual('Unable to locate ballot item.');
+                        expect(resolveSpy).toHaveBeenCalled();
+                        expect(rejectSpy).not.toHaveBeenCalled();
                         expect(elDb._keeper.getDeferred('el-abc:::123',true)).not.toBeDefined();
                     })
                     .done(done);
