@@ -205,7 +205,8 @@
 
                 var deferred = self._keeper.remove(electionId);
                 if (!deferred){
-                // log error here TODO
+                    log.error('Promise of findAndModify call for %1 has been removed or resolved',
+                              electionId);
                     return;
                 }
 
@@ -236,7 +237,8 @@
                 }
                 var deferred = self._keeper.remove(electionId);
                 if (!deferred){
-                // log error here TODO
+                    log.error('Promise of findOne call for %1 has been removed or resolved',
+                              electionId);
                     return;
                 }
                 if (err) {

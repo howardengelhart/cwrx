@@ -246,7 +246,7 @@ describe('vote (E2E)', function(){
                     var deferred = q.defer();
                     testUtils.qRequest('post',{ 
                             url : makeUrl('/maint/service/restart'),
-                            json : { service : 'vote' } })  // TODO: add a catch and print here?
+                            json : { service : 'vote' } })
                         .finally(function(){
                             setTimeout(function(){
                                 deferred.resolve(true);
