@@ -82,7 +82,7 @@ describe('vote (E2E)', function(){
         it('returns with a 404 if the election does not exist',function(done){
             testUtils.qRequest('get', { url : makeUrl('/api/election/e1x')})
                 .then(function(resp){
-                    expect(resp.response.headers['cache-control']).toEqual('max-age=0');
+                    expect(resp.response.headers['cache-control']).toEqual('max-age=300');
                     expect(resp.response.statusCode).toEqual(404);
                 })
                 .catch(function(err){
@@ -136,9 +136,9 @@ describe('vote (E2E)', function(){
         it('returns with a 404 if the election does not exist',function(done){
             testUtils.qRequest('get', { url : makeUrl('/api/election/e2x/ballot/b2')})
                 .then(function(resp){
-                    expect(resp.response.headers['cache-control']).toEqual('max-age=0');
+                    expect(resp.response.headers['cache-control']).toEqual('max-age=300');
                     expect(resp.response.statusCode).toEqual(404);
-                    expect(resp.body).toEqual('Unable to locate election.\n');
+                    expect(resp.body).toEqual('Unable to locate item');
                 })
                 .catch(function(err){
                     expect(err).not.toBeDefined();
@@ -152,9 +152,9 @@ describe('vote (E2E)', function(){
         it('returns with a 404 if the ballot does not exist',function(done){
             testUtils.qRequest('get', { url : makeUrl('/api/election/e2/ballot/b3')})
                 .then(function(resp){
-                    expect(resp.response.headers['cache-control']).toEqual('max-age=0');
+                    expect(resp.response.headers['cache-control']).toEqual('max-age=300');
                     expect(resp.response.statusCode).toEqual(404);
-                    expect(resp.body).toEqual('Unable to locate ballot item.\n');
+                    expect(resp.body).toEqual('Unable to locate item');
                 })
                 .catch(function(err){
                     expect(err).not.toBeDefined();

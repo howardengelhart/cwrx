@@ -205,7 +205,8 @@
 
                 var deferred = self._keeper.remove(electionId);
                 if (!deferred){
-                // log error here
+                    log.error('Promise of findAndModify call for %1 has been removed or resolved',
+                              electionId);
                     return;
                 }
 
@@ -214,11 +215,10 @@
                     deferred.reject(err);
                 }
                 else if (result === null) {
-                    var error = new Error('Unable to locate election.');
-                    error.httpCode = 404;
-                    deferred.reject(error);
-                    log.info('Remove invalid election [%1] from cache',electionId);
+                    log.warn('Unable to find cached election [%1] in db, removing from cache',
+                             electionId);
                     delete self._cache[electionId];
+                    deferred.resolve();
                 } else {
                     delete result._id;
                     election.lastSync   = new Date();
@@ -237,7 +237,8 @@
                 }
                 var deferred = self._keeper.remove(electionId);
                 if (!deferred){
-                // log error here
+                    log.error('Promise of findOne call for %1 has been removed or resolved',
+                              electionId);
                     return;
                 }
                 if (err) {
@@ -245,11 +246,9 @@
                     deferred.reject(err);
                 }
                 else if (item === null){
-                    var error = new Error('Unable to locate election.');
-                    error.httpCode = 404;
-                    deferred.reject(error);
-                    log.info('Remove invalid election [%1] from cache',electionId);
+                    log.info('Unable to find election [%1], removing from cache',electionId);
                     delete self._cache[electionId];
+                    deferred.resolve();
                 } else {
                     delete item._id;
                     election            = self._cache[electionId] || {};
@@ -274,7 +273,11 @@
     };
 
     ElectionDb.prototype.getBallotItem  = function(id,itemId,timeout){
-        var defKey = id + '::' + itemId, self = this, deferred = self._keeper.getDeferred(defKey);
+        var self = this,
+            defKey = id + '::' + itemId,
+            log = logger.getLog(),
+            deferred = self._keeper.getDeferred(defKey);
+            
         if (deferred){
             if (timeout) {
                 return deferred.promise.timeout(timeout);
@@ -289,15 +292,18 @@
             .then(function(election){
                 var deferred = self._keeper.remove(defKey), result;
 
+                if (!election) {
+                    deferred.resolve();
+                }
+
                 if (!election.ballot){
                     deferred.reject(
                         new Error('Corrupt election, missing ballot.')
                     );
                 }
                 else if (!election.ballot[itemId]){
-                    var error = new Error('Unable to locate ballot item.');
-                    error.httpCode = 404;
-                    deferred.reject( error );
+                    log.info('Unable to locate ballot item %1 on election %2', itemId, id);
+                    deferred.resolve();
                 } else {
                     result = { id : election.id , ballot : {} };
                     result.ballot[itemId] = election.ballot[itemId];
@@ -459,7 +465,11 @@
             elDb.getElection(req.params.electionId,state.config.requestTimeout)
                 .then(function(election){
                     res.header('cache-control', state.config.cacheControl.getElection);
-                    res.send(200,app.convertElection(election));
+                    if (!election) {
+                        res.send(404, 'Unable to locate election');
+                    } else {
+                        res.send(200,app.convertElection(election));
+                    }
                 })
                 .catch(function(err){
                     if (err.message.match(/Timed out after/)){
@@ -483,7 +493,11 @@
                 req.params.electionId, req.params.itemId, state.config.requestTimeout)
                 .then(function(election){
                     res.header('cache-control', state.config.cacheControl.getBallotItem);
-                    res.send(200,app.convertElection(election));
+                    if (!election) {
+                        res.send(404, 'Unable to locate item');
+                    } else {
+                        res.send(200,app.convertElection(election));
+                    }
                 })
                 .catch(function(err){
                     if (err.message.match(/Timed out after/)){
