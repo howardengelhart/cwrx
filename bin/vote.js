@@ -464,7 +464,7 @@
                 .then(function(election){
                     res.header('cache-control', state.config.cacheControl.getElection);
                     if (!election) {
-                        res.send(400, 'Unable to locate election');
+                        res.send(404, 'Unable to locate election');
                     } else {
                         res.send(200,app.convertElection(election));
                     }
@@ -492,7 +492,7 @@
                 .then(function(election){
                     res.header('cache-control', state.config.cacheControl.getBallotItem);
                     if (!election) {
-                        res.send(400, 'Unable to locate item');
+                        res.send(404, 'Unable to locate item');
                     } else {
                         res.send(200,app.convertElection(election));
                     }
