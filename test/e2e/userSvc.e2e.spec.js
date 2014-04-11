@@ -204,7 +204,8 @@ describe('user (E2E):', function() {
         beforeEach(function(done) {
             mockUser = {
                 username: 'testPostUser',
-                password: 'password'
+                password: 'password',
+                org: 'o-1234'
             };
             testUtils.resetCollection('users', mockRequester).done(done);
         });

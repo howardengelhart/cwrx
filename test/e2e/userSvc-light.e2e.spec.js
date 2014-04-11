@@ -17,6 +17,7 @@ describe('user-light (E2E):', function() {
             newUser = {
                 username: 'userSvc-lightE2EUser#' + Math.round(Math.random() * 1000000000000),
                 password: 'password',
+                org: 'e2e-org',
                 e2e: true
             };
             

@@ -12,6 +12,7 @@ describe('content-light (E2E):', function() {
             origExp = {
                 title: "origTitle",
                 status: "inactive",
+                org: 'e2e-org',
                 e2e: true
             },
             testUser = {
