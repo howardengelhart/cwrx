@@ -124,16 +124,48 @@ describe('userSvc (UT)', function() {
     
     describe('createValidator', function() {
         it('should have initialized correctly', function() {
+            expect(userSvc.createValidator._forbidden).toEqual(['id', 'created']);
+            expect(typeof userSvc.createValidator._condForbidden.org).toBe('function');
+        });
+        
+        it('should prevent setting forbidden fields', function() {
+            var updates = { a: 'b' };
+            expect(userSvc.updateValidator.validate(updates, {}, {})).toBe(true);
+            var updates = { a: 'b', id: 'foo' };
+            expect(userSvc.updateValidator.validate(updates, {}, {})).toBe(false);
+            var updates = { a: 'b', created: 'foo' };
+            expect(userSvc.updateValidator.validate(updates, {}, {})).toBe(false);
+        });
+        
+        it('should conditionally prevent setting the org field', function() {
+            var requester = {
+                id: 'u-1234',
+                org: 'o-1234',
+                permissions: {
+                    users: { create: Scope.Org }
+                }
+            };
+            var user = { a: 'b', org: 'o-1234' };
             spyOn(FieldValidator, 'eqReqFieldFunc').andCallThrough();
             spyOn(FieldValidator, 'scopeFunc').andCallThrough();
-            delete require.cache[require.resolve('../../bin/userSvc')];
-            userSvc = require('../../bin/userSvc');
-
-            expect(userSvc.createValidator._forbidden).toEqual(['id', 'created']);
-            expect(userSvc.createValidator._condForbidden.org instanceof Array).toBeTruthy();
-            expect(userSvc.createValidator._condForbidden.org.length).toBe(2);
+            
+            expect(userSvc.createValidator.validate(user, {}, requester)).toBe(true);
             expect(FieldValidator.eqReqFieldFunc).toHaveBeenCalledWith('org');
             expect(FieldValidator.scopeFunc).toHaveBeenCalledWith('users', 'create', Scope.All);
+            
+            user.org = 'o-4567';
+            expect(userSvc.createValidator.validate(user, {}, requester)).toBe(false);
+            requester.permissions.users.create = Scope.All;
+            expect(userSvc.createValidator.validate(user, {}, requester)).toBe(true);
+        });
+        
+        it('should conditionally prevent setting the permissions', function() {
+            spyOn(userSvc, 'permsCheck').andReturn(true);
+            userSvc.createValidator._condForbidden.permissions = userSvc.permsCheck;
+            var user = { a: 'b', permissions: 'foo' };
+            expect(userSvc.createValidator.validate(user, {}, {})).toBe(true);
+            userSvc.permsCheck.andReturn(false);
+            expect(userSvc.createValidator.validate(user, {}, {})).toBe(false);
         });
     });
     
@@ -141,6 +173,24 @@ describe('userSvc (UT)', function() {
         it('should have initalized correctly', function() {
             expect(userSvc.updateValidator._forbidden).toEqual(['id', 'org', 'password', 'created']);
             expect(userSvc.updateValidator._condForbidden.permissions).toBe(userSvc.permsCheck);
+        });
+        
+        it('should prevent illegal updates', function() {
+            spyOn(userSvc, 'permsCheck').andReturn(true);
+            userSvc.updateValidator._condForbidden.permissions = userSvc.permsCheck;
+            var updates = { a: 'b', permissions: 'foo' };
+            expect(userSvc.updateValidator.validate(updates, {}, {})).toBe(true);
+            updates = { a: 'b', id: 'u-4567', permissions: 'foo' };
+            expect(userSvc.updateValidator.validate(updates, {}, {})).toBe(false);
+            updates = { a: 'b', org: 'o-4567', permissions: 'foo' };
+            expect(userSvc.updateValidator.validate(updates, {}, {})).toBe(false);
+            updates = { a: 'b', password: 'bad password', permissions: 'foo' };
+            expect(userSvc.updateValidator.validate(updates, {}, {})).toBe(false);
+            updates = { a: 'b', created: 'long, long ago', permissions: 'foo' };
+            expect(userSvc.updateValidator.validate(updates, {}, {})).toBe(false);
+            updates = { a: 'b', permissions: 'foo' };
+            userSvc.permsCheck.andReturn(false);
+            expect(userSvc.updateValidator.validate(updates, {}, {})).toBe(false);
         });
     });
     

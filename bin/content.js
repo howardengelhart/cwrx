@@ -65,8 +65,11 @@
     content.createValidator = new FieldValidator({
         forbidden: ['id', 'created'],
         condForbidden: {
-            org: [FieldValidator.eqReqFieldFunc('org'),
-                  FieldValidator.scopeFunc('experiences', 'create', Scope.All)]
+            org:    function(exp, orig, requester) {
+                        var eqFunc = FieldValidator.eqReqFieldFunc('org'),
+                            scopeFunc = FieldValidator.scopeFunc('experiences','create',Scope.All);
+                        return eqFunc(exp, orig, requester) || scopeFunc(exp, orig, requester);
+                    }
         }
     });
     content.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created'] });
