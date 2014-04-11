@@ -90,8 +90,11 @@
         forbidden: ['id', 'created'],
         condForbidden: {
             permissions: userSvc.permsCheck,
-            org: [ FieldValidator.eqReqFieldFunc('org'),
-                   FieldValidator.scopeFunc('users', 'create', Scope.All) ]
+            org:    function(user, orig, requester) {
+                        var eqFunc = FieldValidator.eqReqFieldFunc('org'),
+                            scopeFunc = FieldValidator.scopeFunc('users', 'create', Scope.All);
+                        return eqFunc(user, orig, requester) || scopeFunc(user, orig, requester);
+                    }
         }
     });
     userSvc.updateValidator = new FieldValidator({

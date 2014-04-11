@@ -80,22 +80,56 @@ describe('content (UT)', function() {
     
     describe('createValidator', function() {
         it('should have initialized correctly', function() {
+            expect(content.createValidator._forbidden).toEqual(['id', 'created']);
+            expect(typeof content.createValidator._condForbidden.org).toBe('function');
+        });
+        
+        it('should prevent setting forbidden fields', function() {
+            var exp = { id: 'foo', a: 'b' };
+            expect(content.createValidator.validate(exp, {}, {})).toBe(false);
+            exp = { created: 'foo', a: 'b' };
+            expect(content.createValidator.validate(exp, {}, {})).toBe(false);
+            exp = { bar: 'foo', a: 'b' };
+            expect(content.createValidator.validate(exp, {}, {})).toBe(true);
+        });
+        
+        it('should conditionally prevent setting the org field', function() {
+            var user = {
+                id: 'u-1234',
+                org: 'o-1234',
+                permissions: {
+                    experiences: { create: Scope.Org }
+                }
+            };
+            var exp = { a: 'b', org: 'o-1234' };
             spyOn(FieldValidator, 'eqReqFieldFunc').andCallThrough();
             spyOn(FieldValidator, 'scopeFunc').andCallThrough();
-            delete require.cache[require.resolve('../../bin/content')];
-            content = require('../../bin/content');
-
-            expect(content.createValidator._forbidden).toEqual(['id', 'created']);
-            expect(content.createValidator._condForbidden.org instanceof Array).toBeTruthy();
-            expect(content.createValidator._condForbidden.org.length).toBe(2);
+            
+            expect(content.createValidator.validate(exp, {}, user)).toBe(true);
             expect(FieldValidator.eqReqFieldFunc).toHaveBeenCalledWith('org');
             expect(FieldValidator.scopeFunc).toHaveBeenCalledWith('experiences', 'create', Scope.All);
+            
+            exp.org = 'o-4567';
+            expect(content.createValidator.validate(exp, {}, user)).toBe(false);
+            user.permissions.experiences.create = Scope.All;
+            expect(content.createValidator.validate(exp, {}, user)).toBe(true);
         });
     });
     
     describe('updateValidator', function() {
         it('should have initalized correctly', function() {
             expect(content.updateValidator._forbidden).toEqual(['id', 'org', 'created']);
+        });
+        
+        it('should prevent illegal updates', function() {
+            var updates = { id: 'foo', a: 'b' };
+            expect(content.updateValidator.validate(updates, {}, {})).toBe(false);
+            updates = { org: 'foo', a: 'b' };
+            expect(content.updateValidator.validate(updates, {}, {})).toBe(false);
+            updates = { created: 'foo', a: 'b' };
+            expect(content.updateValidator.validate(updates, {}, {})).toBe(false);
+            updates = { bar: 'foo', a: 'b' };
+            expect(content.updateValidator.validate(updates, {}, {})).toBe(true);
         });
     });
     
