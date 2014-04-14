@@ -28,7 +28,10 @@
             key: 'c6Auth',
             maxAge: 14*24*60*60*1000, // 14 days; unit here is milliseconds
             minAge: 60*1000, // TTL for cookies for unauthenticated users
-            db: 'sessions'
+            mongo: {
+                host: null,
+                port: null
+            }
         },
         cacheTTLs: {  // units here are minutes
             auth: {
@@ -38,10 +41,11 @@
         },
         secretsPath: path.join(process.env.HOME,'.auth.secrets.json'),
         mongo: {
-            host: 'localhost',
-            port: 27017,
-            db: 'c6Db',
-            retryConnect : true
+            c6Db: {
+                host: null,
+                port: null,
+                retryConnect : true
+            }
         }
     };
 
@@ -130,7 +134,7 @@
 
         var express     = require('express'),
             app         = express(),
-            users       = state.db.collection('users'),
+            users       = state.dbs.c6Db.collection('users'),
             authTTLs    = state.config.cacheTTLs.auth;
         authUtils = require('../lib/authUtils')(authTTLs.freshTTL, authTTLs.maxTTL, users);
 
