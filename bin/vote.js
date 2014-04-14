@@ -201,20 +201,35 @@
         }));
     };
 
-    ElectionDb.prototype.getElection = function(electionId, timeout) {
-        var self = this, deferred = self._keeper.getDeferred(electionId),
-            election = self._cache[electionId], voteCounts,
-            log = logger.getLog();
+    ElectionDb.prototype.getElection = function(electionId, timeout, user) {
+        var self = this,
+            deferred = self._keeper.getDeferred(electionId),
+            election = self._cache[electionId],
+            log = logger.getLog(),
+            voteCounts, promise;
+            
+        function filter(election) {
+            log.trace(JSON.stringify(election));
+            log.trace(JSON.stringify(user));
+            if (!(app.checkScope(user,election,'read') || election.status === Status.Active)) {
+                log.info('User %1 not allowed to read election %2',
+                          user && user.id || 'guest', electionId);
+                return q();
+            } else {
+                return q(election);
+            }
+        }
 
         if (deferred) {
+            promise = deferred.promise.then(filter);
             if (timeout) {
-                return deferred.promise.timeout(timeout);
+                return promise.timeout(timeout);
             }
-            return deferred.promise;
+            return promise;
         }
 
         if (election && election.data && !self.shouldSync(election.lastSync)){
-            return q(election.data);
+            return filter(election.data);
         }
 
         deferred = self._keeper.defer(electionId);
@@ -300,16 +315,17 @@
             });
         }
 
+        promise = deferred.promise.then(filter);
         if (timeout) {
-            return deferred.promise.timeout(timeout);
+            return promise.timeout(timeout);
         }
 
-        return deferred.promise;
+        return promise;
     };
 
-    ElectionDb.prototype.getBallotItem  = function(id,itemId,timeout){
+    ElectionDb.prototype.getBallotItem = function(id, itemId, timeout, user){
         var self = this,
-            defKey = id + '::' + itemId,
+            defKey = id + '::' + itemId + '::' + (user && user.id || 'guest'),
             log = logger.getLog(),
             deferred = self._keeper.getDeferred(defKey);
             
@@ -323,7 +339,7 @@
 
         deferred = self._keeper.defer(defKey);
 
-        self.getElection(id)
+        self.getElection(id, null, user)
             .then(function(election){
                 var deferred = self._keeper.remove(defKey), result;
 
@@ -462,6 +478,9 @@
         obj.created = now;
         obj.lastUpdated = now;
         obj.user = user.id;
+        if (!obj.status) {
+            obj.status = Status.Active;
+        }
         if (user.org) {
             obj.org = user.org;
         }
@@ -641,7 +660,7 @@
                 return;
             }
 
-            elDb.getElection(req.params.electionId,state.config.requestTimeout)
+            elDb.getElection(req.params.electionId, state.config.requestTimeout)
                 .then(function(election){
                     res.header('cache-control', state.config.cacheControl.getElection);
                     if (!election) {
