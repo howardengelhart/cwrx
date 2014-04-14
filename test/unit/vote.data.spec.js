@@ -1,5 +1,5 @@
 describe('vote.data',function(){
-    var ElectionDb, VotingBooth, mockLog, resolveSpy, rejectSpy, q, logger,app,
+    var ElectionDb, VotingBooth, mockLog, resolveSpy, rejectSpy, q, logger, app, enums, Status,
         mockDb, mockData, mockCursor, flush = true;
     
     beforeEach(function() {
@@ -12,6 +12,8 @@ describe('vote.data',function(){
         ElectionDb    = require('../../bin/vote').ElectionDb;
         VotingBooth   = require('../../bin/vote').VotingBooth;
         app           = require('../../bin/vote').app;
+        enums         = require('../../lib/enums');
+        Status        = enums.Status;
 
         mockCursor  = {
             limit       : jasmine.createSpy('cursor.limit').andReturn(mockCursor), 
@@ -55,6 +57,109 @@ describe('vote.data',function(){
         spyOn(logger,'getLog').andReturn(mockLog);
     });
 
+    describe('checkScope', function() {
+        it('should correctly handle the scopes', function() {
+            var user = {
+                id: 'u-1234',
+                org: 'o-1234',
+                permissions: {
+                    elections: {
+                        read: Scope.All,
+                        edit: Scope.Org,
+                        delete: Scope.Own
+                    }
+                }
+            };
+            var elections = [{ id: 'el-1', user: 'u-1234', org: 'o-1234'},
+                        { id: 'el-2', user: 'u-4567', org: 'o-1234'},
+                        { id: 'el-3', user: 'u-1234', org: 'o-4567'},
+                        { id: 'el-4', user: 'u-4567', org: 'o-4567'}];
+            
+            expect(elections.filter(function(election) {
+                return app.checkScope(user, election, 'read');
+            })).toEqual(elections);
+            
+            expect(elections.filter(function(election) {
+                return app.checkScope(user, election, 'edit');
+            })).toEqual([elections[0], elections[1], elections[2]]);
+            
+            expect(elections.filter(function(election) {
+                return app.checkScope(user, election, 'delete');
+            })).toEqual([elections[0], elections[2]]);
+        });
+    
+        it('should sanity-check the user permissions object', function() {
+            var election = { id: 'el-1' };
+            expect(app.checkScope({}, election, 'read')).toBe(false);
+            var user = { id: 'u-1234', org: 'o-1234' };
+            expect(app.checkScope(user, election, 'read')).toBe(false);
+            user.permissions = {};
+            expect(app.checkScope(user, election, 'read')).toBe(false);
+            user.permissions.elections = {};
+            user.permissions.orgs = { read: Scope.All };
+            expect(app.checkScope(user, election, 'read')).toBe(false);
+            user.permissions.elections.read = '';
+            expect(app.checkScope(user, election, 'read')).toBe(false);
+            user.permissions.elections.read = Scope.All;
+            expect(app.checkScope(user, election, 'read')).toBe(true);
+        });
+    });
+    
+    describe('createValidator', function() {
+        it('should have initialized correctly', function() {
+            expect(app.createValidator._forbidden).toEqual(['id', 'created']);
+            expect(typeof app.createValidator._condForbidden.org).toBe('function');
+        });
+        
+        it('should prevent setting forbidden fields', function() {
+            var exp = { id: 'foo', a: 'b' };
+            expect(app.createValidator.validate(exp, {}, {})).toBe(false);
+            exp = { created: 'foo', a: 'b' };
+            expect(app.createValidator.validate(exp, {}, {})).toBe(false);
+            exp = { bar: 'foo', a: 'b' };
+            expect(app.createValidator.validate(exp, {}, {})).toBe(true);
+        });
+        
+        it('should conditionally prevent setting the org field', function() {
+            var user = {
+                id: 'u-1234',
+                org: 'o-1234',
+                permissions: {
+                    elections: { create: Scope.Org }
+                }
+            };
+            var exp = { a: 'b', org: 'o-1234' };
+            spyOn(FieldValidator, 'eqReqFieldFunc').andCallThrough();
+            spyOn(FieldValidator, 'scopeFunc').andCallThrough();
+            
+            expect(app.createValidator.validate(exp, {}, user)).toBe(true);
+            expect(FieldValidator.eqReqFieldFunc).toHaveBeenCalledWith('org');
+            expect(FieldValidator.scopeFunc).toHaveBeenCalledWith('elections', 'create', Scope.All);
+            
+            exp.org = 'o-4567';
+            expect(app.createValidator.validate(exp, {}, user)).toBe(false);
+            user.permissions.elections.create = Scope.All;
+            expect(app.createValidator.validate(exp, {}, user)).toBe(true);
+        });
+    });
+    
+    describe('updateValidator', function() {
+        it('should have initalized correctly', function() {
+            expect(app.updateValidator._forbidden).toEqual(['id', 'org', 'created']);
+        });
+        
+        it('should prevent illegal updates', function() {
+            var updates = { id: 'foo', a: 'b' };
+            expect(app.updateValidator.validate(updates, {}, {})).toBe(false);
+            updates = { org: 'foo', a: 'b' };
+            expect(app.updateValidator.validate(updates, {}, {})).toBe(false);
+            updates = { created: 'foo', a: 'b' };
+            expect(app.updateValidator.validate(updates, {}, {})).toBe(false);
+            updates = { bar: 'foo', a: 'b' };
+            expect(app.updateValidator.validate(updates, {}, {})).toBe(true);
+        });
+    });
+/*
     describe('VotingBooth',function(){
         describe('initialization',function(){
             it('fails without an election id',function(){
@@ -817,5 +922,5 @@ describe('vote.data',function(){
                 expect(elDb.getElection).toHaveBeenCalledWith('abc');
             });
         });
-    });
+    });*/
 });
