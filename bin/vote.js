@@ -207,11 +207,9 @@
             election = self._cache[electionId],
             log = logger.getLog(),
             voteCounts, promise;
-            
         function filter(election) {
-            log.trace(JSON.stringify(election));
-            log.trace(JSON.stringify(user));
-            if (!(app.checkScope(user,election,'read') || election.status === Status.Active)) {
+            if (election &&
+                !(app.checkScope(user,election,'read') || election.status === Status.Active)) {
                 log.info('User %1 not allowed to read election %2',
                           user && user.id || 'guest', electionId);
                 return q();
@@ -458,7 +456,7 @@
                     }
         }
     });
-    app.updateValidator = new FieldValidator({ forbidden: ['id', 'created', 'created'] });
+    app.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created'] });
 
     app.createElection = function(req, elections) {
         var obj = req.body,
