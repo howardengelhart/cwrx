@@ -176,7 +176,7 @@
             return q({code: 400, body: 'You must provide an object in the body'});
         }
         
-        log.info('[%1] User %2 is attempting to update experience %3',req.uuid,user.id,updates.id);
+        log.info('[%1] User %2 is attempting to update experience %3',req.uuid,user.id,id);
         q.npost(experiences, 'findOne', [{id: id}])
         .then(function(orig) {
             if (!orig) {

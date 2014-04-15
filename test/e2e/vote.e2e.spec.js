@@ -1,13 +1,13 @@
 describe('vote (E2E)', function(){
-    var testUtils, q, makeUrl, restart = true,
+    var testUtils, q, makeUrl, mockData, cookieJar, restart = true,
         dbEnv = JSON.parse(process.env['mongo']);
     if (dbEnv && !dbEnv.db) {
-        dbEnv.db = "voteDb";
+        dbEnv.db = 'voteDb';
     }
     process.env['mongo'] = JSON.stringify(dbEnv);
     
     beforeEach(function(){
-        var urlBase; 
+        var urlBase;
         q           = require('q');
         testUtils   = require('./testUtils');
 
@@ -19,9 +19,13 @@ describe('vote (E2E)', function(){
     });
     
     beforeEach(function(done) {
-        var mockData = [
+        var coll;
+        mockData = [
             {
                 id: 'e1',
+                status: 'active',
+                user: 'e2e-user',
+                created: new Date(new Date() - 24*60*60*1000),
                 ballot:   {
                     'b1' : { 'red apple'  : 10, 'yellow banana'  : 20, 'orange carrot'  : 30 },
                     'b2' : { 'one chicken': 0, 'two ducks'      : 2 }
@@ -29,12 +33,25 @@ describe('vote (E2E)', function(){
             },
             {
                 id: 'e2',
+                status: 'active',
+                user: 'not-e2e-user',
+                created: new Date(new Date() - 24*60*60*1000),
                 ballot:   {
                     'b1' : { 'one fish'   : 10, 'two fish'   : 20, },
                     'b2' : { 'red fish'   : 30, 'blue fish'  : 40 }
                 }
+            },
+            {
+                id: 'e3',
+                status: 'deleted',
+                user: 'e2e-user',
+                created: new Date(new Date() - 24*60*60*1000),
+                ballot:   {
+                    'b1' : { 'one fish'   : 20, 'two fish'   : 10, },
+                    'b2' : { 'red fish'   : 40, 'blue fish'  : 30 }
+                }
             }
-        ], cli, coll;
+        ];
 
         testUtils.resetCollection('elections',mockData)
             .then(function(){
@@ -57,6 +74,43 @@ describe('vote (E2E)', function(){
             });
     });
     
+    beforeEach(function(done) {
+        if (cookieJar && cookieJar.cookies) {
+            return done();
+        }
+        cookieJar = require('request').jar();
+        var mockUser = {
+            id: 'e2e-user',
+            status: 'active',
+            username : 'voteE2EUser',
+            password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
+            org: 'e2e-org',
+            permissions: {
+                elections: {
+                    read: 'org',
+                    create: 'own',
+                    edit: 'own',
+                    delete: 'own'
+                }
+            }
+        };
+        var loginOpts = {
+            url: makeUrl('/api/auth/login'),
+            jar: cookieJar,
+            json: {
+                username: 'voteE2EUser',
+                password: 'password'
+            }
+        };
+        var userDbCfg = JSON.parse(JSON.stringify(dbEnv));
+        userDbCfg.db = 'c6Db'
+        testUtils.resetCollection('users', mockUser, userDbCfg).then(function(resp) {
+            return testUtils.qRequest('post', loginOpts);
+        }).done(function(resp) {
+            done();
+        });
+    });
+
     describe('GET /api/election/:id',function(){
 
         it('gets an election if it exists',function(done){
@@ -109,7 +163,20 @@ describe('vote (E2E)', function(){
                 });
 
         });
-
+        
+        it('returns a 404 if the user cannot read the election', function(done) {
+            testUtils.qRequest('get', { url : makeUrl('/api/election/e3')})
+                .then(function(resp){
+                    expect(resp.response.headers['cache-control']).toEqual('max-age=300');
+                    expect(resp.response.statusCode).toEqual(404);
+                })
+                .catch(function(err){
+                    expect(err).not.toBeDefined();
+                })
+                .finally(function(){
+                    done();
+                });
+        });
     });
 
 
@@ -163,6 +230,20 @@ describe('vote (E2E)', function(){
                     done();
                 });
 
+        });
+
+        it('returns a 404 if the user cannot read the election', function(done) {
+            testUtils.qRequest('get', { url : makeUrl('/api/election/e3/ballot/b1')})
+                .then(function(resp){
+                    expect(resp.response.headers['cache-control']).toEqual('max-age=300');
+                    expect(resp.response.statusCode).toEqual(404);
+                })
+                .catch(function(err){
+                    expect(err).not.toBeDefined();
+                })
+                .finally(function(){
+                    done();
+                });
         });
     });
 
@@ -265,6 +346,196 @@ describe('vote (E2E)', function(){
                 })
                 .finally(done);
         });
+    });
 
+    describe('POST /api/election', function() {
+        var mockElec;
+        beforeEach(function() {
+            mockElec = {
+                ballot: { b1: { 'one fish' : 10, 'two fish' : 20, } },
+                org: 'e2e-org'
+            };
+        });
+
+        it('should be able to create an election', function(done) {
+            var options = {
+                url: makeUrl('/api/election'),
+                jar: cookieJar,
+                json: mockElec
+            };
+            testUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toBeDefined();
+                expect(resp.body.id).toBeDefined();
+                expect(resp.body.ballot).toEqual({ b1: { 'one fish' : 10, 'two fish' : 20, } });
+                expect(resp.body.user).toBe('e2e-user');
+                expect(resp.body.org).toBe('e2e-org');
+                expect(resp.body.created).toBeDefined();
+                expect(new Date(resp.body.created).toString()).not.toEqual('Invalid Date');
+                expect(resp.body.lastUpdated).toEqual(resp.body.created);
+                expect(resp.body.status).toBe('active');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            }); 
+        });
+        
+        it('should throw a 401 error if the user is not authenticated', function(done) {
+            var options = {
+                url: makeUrl('/api/election'),
+                json: mockElec
+            };
+            testUtils.qRequest('post', options)
+            .then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe('Unauthorized');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+    });
+    
+    describe('PUT /api/election/:id', function() {
+
+        it('should successfully update an election', function(done) {
+            var options = {
+                url: makeUrl('/api/election/e1'),
+                jar: cookieJar,
+                json: { ballot: { b1: { foo: 1, bar: 10 } } }
+            }, updatedElec;
+            testUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                updatedElec = resp.body;
+                expect(updatedElec).not.toEqual(mockData[0]);
+                expect(updatedElec).toBeDefined();
+                expect(updatedElec.id).toBe('e1');
+                expect(updatedElec.ballot).toEqual({ b1: { foo: 1, bar: 10 } });
+                expect(updatedElec.user).toBe('e2e-user');
+                expect(new Date(updatedElec.created)).toEqual(mockData[0].created);
+                expect(new Date(updatedElec.lastUpdated)).toBeGreaterThan(mockData[0].created);
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should not create an election if it does not exist', function(done) {
+            var options = {
+                url: makeUrl('/api/election/e2e-putfake'),
+                jar: cookieJar,
+                json: { ballot: 'fakeBallot' }
+            };
+            testUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toBe('That election does not exist');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should not update an election the user does not own', function(done) {
+            var options = {
+                url: makeUrl('/api/election/e2'),
+                jar: cookieJar,
+                json: { ballot: 'fakeBallot' }
+            };
+            testUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(403);
+                expect(resp.body).toBe('Not authorized to edit this election');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should throw a 401 error if the user is not authenticated', function(done) {
+            var options = {
+                url: makeUrl('/api/election/e1'),
+                json: { ballot: 'fakeBallot' }
+            };
+            testUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe('Unauthorized');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+    });
+    
+    describe('DELETE /api/election/:id', function() {
+        
+        it('should set the status of an election to deleted', function(done) {
+            var options = {jar: cookieJar, url: makeUrl('/api/election/e1')};
+            testUtils.qRequest('del', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should not delete an election the user does not own', function(done) {
+            var options = {jar: cookieJar, url: makeUrl('/api/election/e2')};
+            testUtils.qRequest('del', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(403);
+                expect(resp.body).toBe('Not authorized to delete this election');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should still return a 200 if the election was already deleted', function(done) {
+            var options = {jar: cookieJar, url: makeUrl('/api/election/e1')};
+            testUtils.qRequest('del', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
+                return testUtils.qRequest('del', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should still return a 204 if the election does not exist', function(done) {
+            var options = {jar: cookieJar, url: makeUrl('/api/election/fake')};
+            testUtils.qRequest('del', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should throw a 401 error if the user is not authenticated', function(done) {
+            testUtils.qRequest('del', {url: makeUrl('/api/election/e1')})
+            .then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe('Unauthorized');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
     });
 });

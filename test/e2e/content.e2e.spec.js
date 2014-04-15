@@ -615,7 +615,7 @@ describe('content (E2E):', function() {
             });
         });
         
-        it('should still return a 200 if the experience was already deleted', function(done) {
+        it('should still return a 204 if the experience was already deleted', function(done) {
             var options = {jar: cookieJar, url: config.contentUrl + '/experience/e2e-del1'};
             testUtils.qRequest('del', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
@@ -631,7 +631,7 @@ describe('content (E2E):', function() {
             });
         });
         
-        it('should still return a 200 if the experience does not exist', function(done) {
+        it('should still return a 204 if the experience does not exist', function(done) {
             var options = {jar: cookieJar, url: config.contentUrl + '/experience/fake'};
             testUtils.qRequest('del', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);

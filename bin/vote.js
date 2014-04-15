@@ -463,6 +463,7 @@
             user = req.user,
             log = logger.getLog(),
             now = new Date();
+
         if (!obj || typeof obj !== 'object') {
             return q({code: 400, body: 'You must provide an object in the body'});
         }
@@ -503,7 +504,7 @@
             return q({code: 400, body: 'You must provide an object in the body'});
         }
         
-        log.info('[%1] User %2 is attempting to update election %3',req.uuid,user.id,updates.id);
+        log.info('[%1] User %2 is attempting to update election %3',req.uuid,user.id,id);
         q.npost(elections, 'findOne', [{id: id}])
         .then(function(orig) {
             if (!orig) {
