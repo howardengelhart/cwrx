@@ -5,19 +5,19 @@ var request     = require('request'),
     mongoUtils  = require('../../lib/mongoUtils');
 
 
-function resetCollection(collection,data,dbConfig){
-    var dbEnv, db, coll;
-    if (!dbConfig){
-        dbEnv = process.env['mongo'] ? JSON.parse(process.env['mongo']) : {};
-        dbConfig = {
-            host : dbEnv.host ? dbEnv.host : 'localhost',
-            port : dbEnv.port ? dbEnv.port : 27017,
-            db   : dbEnv.db   ? dbEnv.db   : 'c6Db',
-            user : dbEnv.user ? dbEnv.user : 'e2eTests',
-            pass : dbEnv.pass ? dbEnv.pass : 'password'
-        };
+function resetCollection(collection,data,userCfg){
+    var dbEnv, db, coll, dbConfig;
+    if (!userCfg){
+        userCfg = process.env['mongo'] ? JSON.parse(process.env['mongo']) : {};
     }
-
+    dbConfig = {
+        host : userCfg.host ? userCfg.host : 'localhost',
+        port : userCfg.port ? userCfg.port : 27017,
+        db   : userCfg.db   ? userCfg.db   : 'c6Db',
+        user : userCfg.user ? userCfg.user : 'e2eTests',
+        pass : userCfg.pass ? userCfg.pass : 'password'
+    };
+    
     return mongoUtils.connect(dbConfig.host,dbConfig.port,dbConfig.db,dbConfig.user,dbConfig.pass)
         .then(function(database){
             db      = database;

@@ -74,7 +74,6 @@ describe('auth-light (E2E):', function() {
             testUtils.qRequest('get', [options])
             .then(function(resp) {
                 expect(resp.body.version).toBeDefined();
-                expect(resp.body.version.match(/^.+\.build\d+-\d+-g\w+$/)).toBeTruthy('version match');
                 expect(resp.body.started).toBeDefined();
                 expect(new Date(resp.body.started).toString()).not.toEqual('Invalid Date');
                 expect(resp.body.status).toBe("OK");

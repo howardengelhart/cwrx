@@ -2,16 +2,21 @@
 (function(){
     'use strict';
 
-    var q           = require('q'),
-        express     = require('express'),
-        path        = require('path'),
-        service     = require('../lib/service'),
-        uuid        = require('../lib/uuid'),
-        promise     = require('../lib/promise'),
-        logger      = require('../lib/logger'),
-        __ut__      = (global.jasmine !== undefined) ? true : false,
-        app         = {},
-        state       = {};
+    var q               = require('q'),
+        express         = require('express'),
+        path            = require('path'),
+        service         = require('../lib/service'),
+        uuid            = require('../lib/uuid'),
+        promise         = require('../lib/promise'),
+        logger          = require('../lib/logger'),
+        FieldValidator  = require('../lib/fieldValidator'),
+        authUtils       = require('../lib/authUtils')(),
+        enums           = require('../lib/enums'),
+        Status          = enums.Status,
+        Scope           = enums.Scope,
+        __ut__          = (global.jasmine !== undefined) ? true : false,
+        app             = {},
+        state           = {};
 
     state.defaultConfig = {
         appName : 'vote',
@@ -20,6 +25,12 @@
             default         : 'max-age=0',
             getElection     : 'max-age=300',
             getBallotItem   : 'max-age=300'
+        },
+        cacheTTLs: {
+            auth: {
+                freshTTL: 1,
+                maxTTL: 10
+            }
         },
         log    : {
             logLevel : 'info',
@@ -30,12 +41,36 @@
         requestTimeout : 2000,
         idleSyncTimeout : 60000,
         secretsPath: path.join(process.env.HOME,'.vote.secrets.json'),
+        sessions: {
+            key: 'c6Auth',
+            maxAge: 14*24*60*60*1000, // 14 days; unit here is milliseconds
+            minAge: 60*1000, // TTL for cookies for unauthenticated users
+            mongo: {
+                host: null,
+                port: null
+            }
+        },
         mongo : {
-            host: null,
-            port: null,
-            db  : null,
-            retryConnect : true
+            voteDb: {
+                host: null,
+                port: null,
+                retryConnect : true
+            },
+            c6Db: {
+                host: null,
+                port: null,
+                retryConnect : true
+            }
         }
+    };
+
+    app.checkScope = function(user, election, verb) {
+        return !!(user && user.permissions && user.permissions.elections &&
+                  user.permissions.elections[verb] &&
+             (user.permissions.elections[verb] === Scope.All ||
+             (user.permissions.elections[verb] === Scope.Org && (user.org === election.org ||
+                                                                 user.id === election.user)) ||
+             (user.permissions.elections[verb] === Scope.Own && user.id === election.user) ));
     };
 
     function VotingBooth(electionId){
@@ -166,23 +201,36 @@
         }));
     };
 
-    ElectionDb.prototype.getElection = function(electionId, timeout) {
-        var self = this, deferred = self._keeper.getDeferred(electionId),
-            election = self._cache[electionId], voteCounts,
-            log = logger.getLog();
+    ElectionDb.prototype.getElection = function(electionId, timeout, user) {
+        var self = this,
+            deferred = self._keeper.getDeferred(electionId),
+            election = self._cache[electionId],
+            log = logger.getLog(),
+            voteCounts, promise;
+        function filter(election) {
+            if (election &&
+                !(app.checkScope(user,election,'read') || election.status === Status.Active)) {
+                log.info('User %1 not allowed to read election %2',
+                          user && user.id || 'guest', electionId);
+                return q();
+            } else {
+                return q(election);
+            }
+        }
 
         if (deferred) {
+            promise = deferred.promise.then(filter);
             if (timeout) {
-                return deferred.promise.timeout(timeout);
+                return promise.timeout(timeout);
             }
-            return deferred.promise;
+            return promise;
         }
 
         if (election && election.data && !self.shouldSync(election.lastSync)){
-            return q(election.data);
+            return filter(election.data);
         }
 
-        deferred    = self._keeper.defer(electionId);
+        deferred = self._keeper.defer(electionId);
 
         if (election && (election.votingBooth) && (election.votingBooth.dirty)){
             election.votingBooth.each(function(ballotId,vote,count){
@@ -265,61 +313,12 @@
             });
         }
 
+        promise = deferred.promise.then(filter);
         if (timeout) {
-            return deferred.promise.timeout(timeout);
+            return promise.timeout(timeout);
         }
 
-        return deferred.promise;
-    };
-
-    ElectionDb.prototype.getBallotItem  = function(id,itemId,timeout){
-        var self = this,
-            defKey = id + '::' + itemId,
-            log = logger.getLog(),
-            deferred = self._keeper.getDeferred(defKey);
-            
-        if (deferred){
-            if (timeout) {
-                return deferred.promise.timeout(timeout);
-            }
-
-            return deferred.promise;
-        }
-
-        deferred = self._keeper.defer(defKey);
-
-        self.getElection(id)
-            .then(function(election){
-                var deferred = self._keeper.remove(defKey), result;
-
-                if (!election) {
-                    deferred.resolve();
-                }
-
-                if (!election.ballot){
-                    deferred.reject(
-                        new Error('Corrupt election, missing ballot.')
-                    );
-                }
-                else if (!election.ballot[itemId]){
-                    log.info('Unable to locate ballot item %1 on election %2', itemId, id);
-                    deferred.resolve();
-                } else {
-                    result = { id : election.id , ballot : {} };
-                    result.ballot[itemId] = election.ballot[itemId];
-                    deferred.resolve(result);
-                }
-            })
-            .catch(function(err){
-                var deferred = self._keeper.remove(defKey);
-                deferred.reject(err);
-            });
-
-        if (timeout) {
-            return deferred.promise.timeout(timeout);
-        }
-
-        return deferred.promise;
+        return promise;
     };
 
     ElectionDb.prototype.recordVote     = function(vote){
@@ -353,8 +352,7 @@
 
         return self;
     };
-
-
+    
     app.convertObjectValsToPercents = function(object){
         var sum = 0, result = {};
 
@@ -397,12 +395,151 @@
             log.trace('Failed with: %1',error.message);
         });
     };
+    
+    app.createValidator = new FieldValidator({
+        forbidden: ['id', 'created'],
+        condForbidden: {
+            org:    function(elec, orig, requester) {
+                        var eqFunc = FieldValidator.eqReqFieldFunc('org'),
+                            scopeFunc = FieldValidator.scopeFunc('elections', 'create', Scope.All);
+                        return eqFunc(elec, orig, requester) || scopeFunc(elec, orig, requester);
+                    }
+        }
+    });
+    app.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created'] });
+
+    app.createElection = function(req, elections) {
+        var obj = req.body,
+            user = req.user,
+            log = logger.getLog(),
+            now = new Date();
+
+        if (!obj || typeof obj !== 'object') {
+            return q({code: 400, body: 'You must provide an object in the body'});
+        }
+        if (!app.createValidator.validate(obj, {}, user)) {
+            log.warn('[%1] election contains illegal fields', req.uuid);
+            log.trace('obj: %1  |  requester: %2', JSON.stringify(obj), JSON.stringify(user));
+            return q({code: 400, body: 'Illegal fields'});
+        }
+        obj.id = 'el-' + uuid.createUuid().substr(0,14);
+        log.trace('[%1] User %2 is creating election %3', req.uuid, user.id, obj.id);
+        obj.created = now;
+        obj.lastUpdated = now;
+        obj.user = user.id;
+        if (!obj.status) {
+            obj.status = Status.Active;
+        }
+        if (user.org) {
+            obj.org = user.org;
+        }
+        return q.npost(elections, 'insert', [obj, {w: 1, journal: true}])
+        .then(function() {
+            log.info('[%1] User %2 successfully created election %3', req.uuid, user.id, obj.id);
+            return q({code: 201, body: obj});
+        }).catch(function(error) {
+            log.error('[%1] Error creating election %2 for user %3: %4',
+                      req.uuid, obj.id, user.id, error);
+            return q.reject(error);
+        });
+    };
+    
+    app.updateElection = function(req, elections) {
+        var updates = req.body,
+            id = req.params.id,
+            user = req.user,
+            log = logger.getLog(),
+            deferred = q.defer();
+        if (!updates || typeof updates !== 'object') {
+            return q({code: 400, body: 'You must provide an object in the body'});
+        }
+        
+        log.info('[%1] User %2 is attempting to update election %3',req.uuid,user.id,id);
+        q.npost(elections, 'findOne', [{id: id}])
+        .then(function(orig) {
+            if (!orig) {
+                log.info('[%1] Election %2 does not exist; not creating it', req.uuid, id);
+                return deferred.resolve({code: 404, body: 'That election does not exist'});
+            }
+            if (!app.updateValidator.validate(updates, orig, user)) {
+                log.warn('[%1] updates contain illegal fields', req.uuid);
+                log.trace('updates: %1  |  orig: %2  |  requester: %3',
+                          JSON.stringify(updates), JSON.stringify(orig), JSON.stringify(user));
+                return deferred.resolve({code: 400, body: 'Illegal fields'});
+            }
+            if (!app.checkScope(user, orig, 'edit')) {
+                log.info('[%1] User %2 is not authorized to edit %3', req.uuid, user.id, id);
+                return deferred.resolve({
+                    code: 403,
+                    body: 'Not authorized to edit this election'
+                });
+            }
+            updates.lastUpdated = new Date();
+            var opts = {w: 1, journal: true, new: true};
+            return q.npost(elections, 'findAndModify', [{id: id}, {id: 1}, {$set: updates}, opts])
+            .then(function(results) {
+                var updated = results[0];
+                log.info('[%1] User %2 successfully updated election %3',
+                         req.uuid, user.id, updated.id);
+                deferred.resolve({code: 200, body: updated});
+            });
+        }).catch(function(error) {
+            log.error('[%1] Error updating election %2 for user %3: %4',
+                      req.uuid, id, user.id, error);
+            deferred.reject(error);
+        });
+        return deferred.promise;
+    };
+    
+    app.deleteElection = function(req, elections) {
+        var id = req.params.id,
+            user = req.user,
+            log = logger.getLog(),
+            deferred = q.defer(),
+            now;
+        log.info('[%1] User %2 is attempting to delete election %3', req.uuid, user.id, id);
+        q.npost(elections, 'findOne', [{id: id}])
+        .then(function(orig) {
+            now = new Date();
+            if (!orig) {
+                log.info('[%1] Election %2 does not exist', req.uuid, id);
+                return deferred.resolve({code: 204});
+            }
+            if (!app.checkScope(user, orig, 'delete')) {
+                log.info('[%1] User %2 is not authorized to delete %3', req.uuid, user.id, id);
+                return deferred.resolve({
+                    code: 403,
+                    body: 'Not authorized to delete this election'
+                });
+            }
+            if (orig.status === Status.Deleted) {
+                log.info('[%1] Election %2 has already been deleted', req.uuid, id);
+                return deferred.resolve({code: 204});
+            }
+            var updates = { $set: { lastUpdated:now, status:Status.Deleted } };
+            return q.npost(elections, 'update', [{id: id}, updates, {w:1, journal:true}])
+            .then(function() {
+                log.info('[%1] User %2 successfully deleted election %3', req.uuid, user.id, id);
+                deferred.resolve({code: 204});
+            });
+        }).catch(function(error) {
+            log.error('[%1] Error deleting election %2 for user %3: %4',
+                      req.uuid, id, user.id, error);
+            deferred.reject(error);
+        });
+        return deferred.promise;
+    };
 
     app.main = function(state){
-        var log = logger.getLog(), webServer,
-            elDb = new ElectionDb(state.db.collection('elections'),
-                state.config.idleSyncTimeout),
-            started = new Date();
+        var log         = logger.getLog(),
+            elections   = state.dbs.voteDb.collection('elections'),
+            users       = state.dbs.c6Db.collection('users'),
+            elDb        = new ElectionDb(elections, state.config.idleSyncTimeout),
+            started     = new Date(),
+            authTTLs    = state.config.cacheTTLs.auth,
+            webServer;
+        authUtils = require('../lib/authUtils')(authTTLs.freshTTL, authTTLs.maxTTL, users);
+        
         if (state.clusterMaster){
             log.info('Cluster master, not a worker');
             return state;
@@ -418,6 +555,16 @@
         log.info('Running as cluster worker, proceed with setting up web server.');
         webServer = express();
         webServer.use(express.bodyParser());
+        webServer.use(express.cookieParser(state.secrets.cookieParser || ''));
+
+        var sessions = express.session({
+            key: state.config.sessions.key,
+            cookie: {
+                httpOnly: false,
+                maxAge: state.config.sessions.minAge
+            },
+            store: state.sessionStore
+        });
 
         webServer.all('*', function(req, res, next) {
             res.header('Access-Control-Allow-Origin', '*');
@@ -444,6 +591,16 @@
             }
             next();
         });
+        
+        webServer.post('/api/public/vote', function(req, res){
+            if ((!req.body.election) || (!req.body.ballotItem) ||  (!req.body.vote)) {
+                res.send(400, 'Invalid request.\n');
+                return;
+            }
+
+            elDb.recordVote(req.body);
+            res.send(200);
+        });
 
         webServer.post('/api/vote', function(req, res){
             if ((!req.body.election) || (!req.body.ballotItem) ||  (!req.body.vote)) {
@@ -455,14 +612,13 @@
             res.send(200);
         });
 
-
-        webServer.get('/api/election/:electionId', function(req, res){
+        webServer.get('/api/public/election/:electionId', function(req, res){
             if (!req.params || !req.params.electionId ) {
                 res.send(400, 'You must provide the electionId in the request url.\n');
                 return;
             }
 
-            elDb.getElection(req.params.electionId,state.config.requestTimeout)
+            elDb.getElection(req.params.electionId, state.config.requestTimeout)
                 .then(function(election){
                     res.header('cache-control', state.config.cacheControl.getElection);
                     if (!election) {
@@ -484,17 +640,17 @@
                 });
         });
 
-        webServer.get('/api/election/:electionId/ballot/:itemId', function(req, res ){
-            if (!req.params || !req.params.electionId || !req.params.itemId) {
-                res.send(400, 'You must provide the electionId and itemId in the request url.\n');
+        webServer.get('/api/election/:electionId', function(req, res){
+            if (!req.params || !req.params.electionId ) {
+                res.send(400, 'You must provide the electionId in the request url.\n');
                 return;
             }
-            elDb.getBallotItem(
-                req.params.electionId, req.params.itemId, state.config.requestTimeout)
+
+            elDb.getElection(req.params.electionId, state.config.requestTimeout)
                 .then(function(election){
-                    res.header('cache-control', state.config.cacheControl.getBallotItem);
+                    res.header('cache-control', state.config.cacheControl.getElection);
                     if (!election) {
-                        res.send(404, 'Unable to locate item');
+                        res.send(404, 'Unable to locate election');
                     } else {
                         res.send(200,app.convertElection(election));
                     }
@@ -503,7 +659,7 @@
                     if (err.message.match(/Timed out after/)){
                         err.httpCode = 408;
                     }
-                    log.error('getBallotItem Error: %1',err.message);
+                    log.error('getElection Error: %1',err.message);
                     if (err.httpCode){
                         res.send(err.httpCode,err.message + '\n');
                     } else {
@@ -511,6 +667,46 @@
                     }
                 });
         });
+
+        var authPostElec = authUtils.middlewarify({elections: 'create'});
+        webServer.post('/api/election', sessions, authPostElec, function(req, res) {
+            app.createElection(req, elections)
+            .then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error creating election',
+                    detail: error
+                });
+            });
+        });
+        
+        var authPutElec = authUtils.middlewarify({elections: 'edit'});
+        webServer.put('/api/election/:id', sessions, authPutElec, function(req, res) {
+            app.updateElection(req, elections)
+            .then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error updating election',
+                    detail: error
+                });
+            });
+        });
+        
+        var authDelElec = authUtils.middlewarify({elections: 'delete'});
+        webServer.delete('/api/election/:id', sessions, authDelElec, function(req, res) {
+            app.deleteElection(req, elections)
+            .then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error deleting election',
+                    detail: error
+                });
+            });
+        });
+
 
         webServer.get('/api/vote/meta',function(req, res ){
             res.send(200, {
@@ -545,6 +741,7 @@
         .then(service.daemonize)
         .then(service.cluster)
         .then(service.initMongo)
+        .then(service.initSessionStore)
         .then(app.main)
         .catch( function(err){
             var log = logger.getLog();

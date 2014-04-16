@@ -1,5 +1,5 @@
-describe('vote.data',function(){
-    var ElectionDb, VotingBooth, mockLog, resolveSpy, rejectSpy, q, logger,app,
+describe('vote.elecDb (UT)',function(){
+    var ElectionDb, VotingBooth, mockLog, resolveSpy, rejectSpy, q, logger, app, enums, Status,
         mockDb, mockData, mockCursor, flush = true;
     
     beforeEach(function() {
@@ -12,6 +12,8 @@ describe('vote.data',function(){
         ElectionDb    = require('../../bin/vote').ElectionDb;
         VotingBooth   = require('../../bin/vote').VotingBooth;
         app           = require('../../bin/vote').app;
+        enums         = require('../../lib/enums');
+        Status        = enums.Status;
 
         mockCursor  = {
             limit       : jasmine.createSpy('cursor.limit').andReturn(mockCursor), 
@@ -38,6 +40,7 @@ describe('vote.data',function(){
         
         mockData = {
             id: 'el-abc',
+            status: Status.Active,
             ballot:   {
                 'item-1' : {
                     'good and plenty'  : 100 ,
@@ -53,125 +56,6 @@ describe('vote.data',function(){
 
         spyOn(logger,'createLog').andReturn(mockLog);
         spyOn(logger,'getLog').andReturn(mockLog);
-    });
-
-    describe('VotingBooth',function(){
-        describe('initialization',function(){
-            it('fails without an election id',function(){
-                expect(function(){ new VotingBooth() }).toThrow('ElectionId is required.');
-            });
-
-            it('sets electionId property based on electionId param.',function(){
-                var vb = new VotingBooth('xyz');
-                expect(vb.electionId).toEqual('xyz');
-            });
-        });
-
-        describe('voteForBallotItem',function(){
-            var vb;
-            beforeEach(function(){
-                vb = new VotingBooth('xyz');
-            });
-
-            it('will initialize the ballot item and choice if they do not exist',function(){
-                expect(vb._items['item1']).not.toBeDefined();
-                vb.voteForBallotItem('item1','happy');
-                expect(vb._items['item1']).toBeDefined();
-                expect(vb._items['item1']['happy']).toEqual(1);
-            });
-
-            it('will increment the ballot item choice vote count if they do exist',function(){
-                vb.voteForBallotItem('item1','happy');
-                vb.voteForBallotItem('item1','happy');
-                expect(vb._items['item1']['happy']).toEqual(2);
-            });
-        });
-
-        describe('clear',function(){
-            var vb;
-            beforeEach(function(){
-                vb = new VotingBooth('xyz');
-                vb._items  = {
-                    'item1' : {
-                        'happy' : 2,
-                        'sad'   : 1
-                    },
-                    'item2' : {
-                        'red'   : 2,
-                        'green' : 2,
-                        'blue'  : 1
-                    }
-                };
-            });
-
-            it('will clear all data',function(){
-                expect(vb._items).not.toEqual({});
-                vb.clear();
-                expect(vb._items).toEqual({});
-            });
-
-        });
-
-        describe('dirty property',function(){
-            var vb, mockVotes;
-            beforeEach(function(){
-                vb = new VotingBooth('xyz');
-                mockVotes = {
-                    'item1' : {
-                        'happy' : 2,
-                        'sad'   : 1
-                    },
-                    'item2' : {
-                        'red'   : 2,
-                        'green' : 2,
-                        'blue'  : 1
-                    }
-                };
-            });
-
-            it('returns false if no votes to update',function(){
-                expect(vb.dirty).toEqual(false);
-            });
-
-            it('returns true if there are votes to update',function(){
-                expect(vb.dirty).toEqual(false);
-                vb._items = mockVotes;
-                expect(vb.dirty).toEqual(true);
-            });
-        });
-
-        describe('each',function(){
-            var vb, mockVotes, eachSpy;
-            beforeEach(function(){
-                vb = new VotingBooth('xyz');
-                eachSpy = jasmine.createSpy('VotingBooth.each');
-                mockVotes = {
-                    'item1' : {
-                        'happy' : 2,
-                        'sad'   : 1
-                    },
-                    'item2' : {
-                        'red'   : 2,
-                        'green' : 2,
-                        'blue'  : 1
-                    }
-                };
-            });
-
-            it('does nothing if there is no data',function(){
-                vb.each(eachSpy);
-                expect(eachSpy).not.toHaveBeenCalled();
-            });
-
-            it('execs callback with data for each vote if exists',function(){
-                vb._items = mockVotes;
-                vb.each(eachSpy);
-                expect(eachSpy.callCount).toEqual(5);
-                expect(eachSpy.argsForCall[0]).toEqual(['item1','happy',2]);
-                expect(eachSpy.argsForCall[1]).toEqual(['item1','sad',1]);
-                expect(eachSpy.argsForCall[4]).toEqual(['item2','blue',1]);
-            });
-        });
     });
 
     describe('ElectionDb',function(){
@@ -238,7 +122,7 @@ describe('vote.data',function(){
             });
 
             it('returns the cached election if lastSync < syncInterval',function(done){
-                mockData = { id : 'abc' };
+                mockData = { id : 'abc', status: Status.Active };
                 elDb._cache['abc'] = {
                     lastSync : new Date(),
                     data     :  mockData
@@ -256,7 +140,7 @@ describe('vote.data',function(){
 
             it('queries the db if the cached election is old',function(done){
                 var oldSync = new Date((new Date()).valueOf() - 5000);
-                mockData = { _id : 'xyz', id : 'abc', foo : 'bar' };
+                mockData = { _id : 'xyz', id : 'abc', status: Status.Active, foo : 'bar' };
                 elDb._syncIval = 1000;
                 elDb._cache['abc'] = {
                     lastSync : oldSync,
@@ -282,7 +166,7 @@ describe('vote.data',function(){
             });
 
             it('queries the db if the election is not in the cache',function(done){
-                mockData = { _id : 'xyz', id : 'abc', foo : 'bar' };
+                mockData = { _id : 'xyz', id : 'abc', status: Status.Active, foo : 'bar' };
                 elDb._syncIval = 1000;
                 elDb._cache['abc'] = {};
                 
@@ -431,7 +315,7 @@ describe('vote.data',function(){
             });
 
             it('batches calls while waiting for mongo',function(done){
-                mockData = { _id : 'xyz', id : 'abc', foo : 'bar' };
+                mockData = { _id : 'xyz', id : 'abc', status: Status.Active, foo : 'bar' };
                 mockDb.findOne.andCallFake(function(query,cb){
                     process.nextTick(function(){
                         cb(null,mockData);
@@ -451,155 +335,36 @@ describe('vote.data',function(){
                         expect(elDb._keeper.getDeferred('abc',true)).not.toBeDefined();
                     }).done(done);
             });
-        });
-
-        describe('getBallotItem',function(){
-            var elDb;
-
-            beforeEach(function(){
-                elDb = new ElectionDb(mockDb);
-                elDb._cache['el-abc'] = {
-                    lastSync : new Date(),
-                    data : mockData
-                };
-                resolveSpy = jasmine.createSpy('getBallotItem.resolve');
-                rejectSpy = jasmine.createSpy('getBallotItem.reject');
-            });
-
-            it('will fail if getElection fails',function(done){
-                mockDb.findOne.andCallFake(function(query,cb){
-                    process.nextTick(function(){
-                        cb(new Error('I have failed.'),null);
-                    });
-                });
-
-                elDb.getBallotItem('abc','123')
-                    .then(resolveSpy,rejectSpy)
-                    .finally(function(){
-                        expect(resolveSpy).not.toHaveBeenCalled();
-                        expect(rejectSpy).toHaveBeenCalled();
-                        expect(rejectSpy.argsForCall[0][0].message)
-                            .toEqual('I have failed.');
-                        expect(elDb._keeper.getDeferred('abc::123',true)).not.toBeDefined();
-                    })
-                    .done(done);
-            });
-
-            it('will return nothing if getElection returns nothing',function(done){
-                mockDb.findOne.andCallFake(function(query,cb){
-                    process.nextTick(function(){
-                        cb(null,null);
-                    });
-                });
-
-                elDb.getBallotItem('abc','123')
-                    .then(resolveSpy,rejectSpy)
-                    .finally(function(){
-                        expect(resolveSpy).toHaveBeenCalledWith(undefined);
-                        expect(rejectSpy).not.toHaveBeenCalled();
-                        expect(elDb._keeper.getDeferred('abc::123',true)).not.toBeDefined();
-                    })
-                    .done(done);
-            });
-
-            it('will return nothing if passed an invalid ballot item Id',function(done){
-                mockDb.findOne.andCallFake(function(query,cb){
-                    process.nextTick(function(){
-                        cb(null,mockData);
-                    });
-                });
-
-                elDb.getBallotItem('el-abc','123')
-                    .then(resolveSpy,rejectSpy)
-                    .finally(function(){
-                        expect(resolveSpy).toHaveBeenCalled();
-                        expect(rejectSpy).not.toHaveBeenCalled();
-                        expect(elDb._keeper.getDeferred('el-abc:::123',true)).not.toBeDefined();
-                    })
-                    .done(done);
-            });
-
-            it('will return a ballot item from cache if it exists',function(done){
-                mockDb.findOne.andCallFake(function(query,cb){
-                    process.nextTick(function(){
-                        mockData._id = 'xxx';
-                        cb(null,mockData);
-                    });
-                });
-
-                elDb.getBallotItem('el-abc','item-1')
-                    .then(resolveSpy,rejectSpy)
-                    .finally(function(){
-                        expect(resolveSpy).toHaveBeenCalled();
-                        expect(rejectSpy).not.toHaveBeenCalled();
-                        expect(mockDb.findOne).not.toHaveBeenCalled();
-                        expect(resolveSpy.argsForCall[0]).toEqual([{
-                            id      : 'el-abc' ,
-                            ballot  : {
-                                'item-1' : {
-                                    'good and plenty' : 100,
-                                    'bad and nasty'   : 200,
-                                    'ugly and fat'    : 300
-                                }
-                            }
-                        }]);
-                        expect(elDb._keeper.getDeferred('el-abc::item-1',true)).not.toBeDefined();
-                    })
-                    .done(done);
-            });
-
-            it('will return a ballot item from db if not in the cache',function(done){
-                elDb._cache = {};
-                mockDb.findOne.andCallFake(function(query,cb){
-                    process.nextTick(function(){
-                        mockData._id = 'xxx';
-                        cb(null,mockData);
-                    });
-                });
-
-                elDb.getBallotItem('el-abc','item-1')
-                    .then(resolveSpy,rejectSpy)
-                    .finally(function(){
-                        expect(resolveSpy).toHaveBeenCalled();
-                        expect(rejectSpy).not.toHaveBeenCalled();
-                        expect(mockDb.findOne).toHaveBeenCalled();
-                        expect(resolveSpy.argsForCall[0]).toEqual([{
-                            id      : 'el-abc' ,
-                            ballot  : {
-                                'item-1' : {
-                                    'good and plenty' : 100,
-                                    'bad and nasty'   : 200,
-                                    'ugly and fat'    : 300
-                                }
-                            }
-                        }]);
-                        expect(elDb._keeper.getDeferred('el-abc::item-1',true))
-                            .not.toBeDefined();
-                    })
-                    .done(done);
-            });
             
-            it('batches calls while waiting for mongo',function(done){
-                elDb._cache = {};
+            it('does not return elections the user is not allowed to see', function(done) {
+                spyOn(app, 'checkScope').andCallFake(function(user, election, verb) {
+                    return !!user;
+                });
+                spyOn(elDb._keeper, 'getDeferred').andCallThrough();
+                mockData.status = Status.Deleted;
                 mockDb.findOne.andCallFake(function(query,cb){
                     process.nextTick(function(){
-                        mockData._id = 'xxx';
                         cb(null,mockData);
                     });
                 });
 
-                q.all([
-                        elDb.getBallotItem('el-abc','item-1') ,
-                        elDb.getBallotItem('el-abc','item-1') ,
-                        elDb.getBallotItem('el-abc','item-1') 
-                     ])
+                q.all([ elDb.getElection('abc'),
+                        elDb.getElection('abc', null, 'fakeUser')])
                     .then(resolveSpy,rejectSpy)
                     .finally(function(){
                         expect(resolveSpy).toHaveBeenCalled();
                         expect(rejectSpy).not.toHaveBeenCalled();
                         expect(mockDb.findOne.callCount).toEqual(1);
-                        expect(resolveSpy.argsForCall[0][0].length).toEqual(3);
-                        expect(elDb._keeper.getDeferred('el-abc::item-1',true)).not.toBeDefined();
+                        expect(app.checkScope.callCount).toEqual(2);
+                        expect(app.checkScope.argsForCall[0][0]).not.toBeDefined();
+                        expect(app.checkScope.argsForCall[1][0]).toBe('fakeUser');
+                        expect(resolveSpy.argsForCall[0][0].length).toEqual(2);
+                        expect(resolveSpy.argsForCall[0][0][0]).not.toBeDefined()
+                        expect(resolveSpy.argsForCall[0][0][1]).toBeDefined()
+                        expect(resolveSpy.argsForCall[0][0][1].status).toBe(Status.Deleted);
+                        expect(elDb._keeper.getDeferred('abc',true)).not.toBeDefined();
+                        expect(elDb._cache['abc']).toBeDefined();
+                        expect(elDb._cache['abc'].data.status).toBe(Status.Deleted);
                     }).done(done);
             });
         });
@@ -725,96 +490,6 @@ describe('vote.data',function(){
                         expect(q.ninvoke.callCount).toEqual(2);
                         expect(clearSpy.callCount).toEqual(2);
                     }).done(done);
-            });
-        });
-    });
-
-    describe('app',function(){
-        describe('convertObjectValsToPercents',function(){
-            it('converts numbers to percents',function(){
-                var obj = { 'a' : 25, 'b' : 50, 'c' : 25 };
-                expect(app.convertObjectValsToPercents(obj))
-                    .toEqual({ a : 0.25, b : 0.50, c: 0.25 });
-            });
-
-            it('rounds numbers down to hundredths',function(){
-                var result = app.convertObjectValsToPercents({ a : 34, b : 65 });
-                expect(result.a.toString()).toEqual('0.34');
-                expect(result.b.toString()).toEqual('0.66');
-            });
-
-            it('creates a copy of the objct and does not modify the original',function(){
-                var obj = { 'a' : 25, 'b' : 50, 'c' : 25 },
-                    res = app.convertObjectValsToPercents(obj);
-                
-                expect(obj.a).toEqual(25);
-                expect(res.a).toEqual(0.25);
-            });
-
-            it('handles an empty object',function(){
-                expect(app.convertObjectValsToPercents({})).toEqual({});
-            });
-
-            it('handles zero values',function(){
-                expect(app.convertObjectValsToPercents({ a : 0, b : 30, c : 70}))
-                    .toEqual({ a : 0.0, b : 0.30, c : 0.70});
-            });
-        });
-
-        describe('convertElection',function(){
-            it('converts an election from vals to percents',function(){
-                var election = {
-                        id : 'abc',
-                        ballot : {
-                            'b1' : { 'v1' : 10, 'v2' : 20 },
-                            'b2' : { 'v1' : 5, 'v2' : 20 }
-                        }
-                    },
-                    result = app.convertElection(election);
-
-                expect(result.id).toEqual('abc');
-                expect(result.ballot.b1.v1).toEqual(0.33);
-                expect(result.ballot.b1.v2).toEqual(0.67);
-                expect(result.ballot.b2.v1).toEqual(0.20);
-                expect(result.ballot.b2.v2).toEqual(0.80);
-            });
-        });
-
-        describe('syncElections',function(){
-            var elDb, mockElection;
-            beforeEach(function(){
-                elDb = {
-                    getCachedElections  : jasmine.createSpy('elDb.getCachedElections'),
-                    getElection         : jasmine.createSpy('elDb.getElection'),
-                };
-                mockElection = {
-                    id : 'abc',
-                    lastSync : new Date(),
-                    data : null,
-                    votingBooth : {
-                        dirty : false
-                    }
-                };
-            });
-
-
-            it('will do nothing if there are no elections in the cache',function(){
-                elDb.getCachedElections.andReturn([]);
-                app.syncElections(elDb);
-                expect(elDb.getElection).not.toHaveBeenCalled();
-            });
-
-            it('will not attempt to sync an election that does not need it',function(){
-                elDb.getCachedElections.andReturn([mockElection]); 
-                app.syncElections(elDb);
-                expect(elDb.getElection).not.toHaveBeenCalled();
-            });
-
-            it('will call getElection if there is an election that shouldSync',function(){
-                mockElection.votingBooth.dirty = true;
-                elDb.getCachedElections.andReturn([mockElection]); 
-                app.syncElections(elDb);
-                expect(elDb.getElection).toHaveBeenCalledWith('abc');
             });
         });
     });

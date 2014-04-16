@@ -2,8 +2,8 @@ var q           = require('q'),
     testUtils   = require('./testUtils'),
     host        = process.env['host'] || 'localhost',
     config      = {
-        contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api/content',
-        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
+        contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api',
+        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
     };
 
 describe('content (E2E):', function() {
@@ -30,7 +30,7 @@ describe('content (E2E):', function() {
             }
         };
         var loginOpts = {
-            url: config.authUrl + '/login',
+            url: config.authUrl + '/auth/login',
             jar: cookieJar,
             json: {
                 username: 'contentE2EUser',
@@ -44,7 +44,7 @@ describe('content (E2E):', function() {
         });
     });
     
-    describe('GET /api/content/public/experience/:id', function() {
+    describe('GET /api/public/content/experience/:id', function() {
         beforeEach(function(done) {
             var mockExp = {
                 id: "e2e-pubget1",
@@ -57,7 +57,7 @@ describe('content (E2E):', function() {
     
         it('should get an experience by id', function(done) {
             var options = {
-                url: config.contentUrl + '/public/experience/e2e-pubget1'
+                url: config.contentUrl + '/public/content/experience/e2e-pubget1'
             };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -86,12 +86,12 @@ describe('content (E2E):', function() {
             ];
 
             testUtils.resetCollection('experiences', mockExps).then(function() {
-                var options = {url: config.contentUrl + '/public/experience/e2e-pubget2'};
+                var options = {url: config.contentUrl + '/public/content/experience/e2e-pubget2'};
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('No experiences found');
-                var options = {url: config.contentUrl + '/public/experience/e2e-pubget3'};
+                var options = {url: config.contentUrl + '/public/content/experience/e2e-pubget3'};
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
@@ -105,7 +105,7 @@ describe('content (E2E):', function() {
         
         it('should return a 404 if nothing is found', function(done) {
             var options = {
-                url: config.contentUrl + '/public/experience/e2e-getid5678'
+                url: config.contentUrl + '/public/content/experience/e2e-getid5678'
             };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
@@ -148,7 +148,7 @@ describe('content (E2E):', function() {
         
         it('should get an experience by id', function(done) {
             var options = {
-                url: config.contentUrl + '/experience/e2e-getid1',
+                url: config.contentUrl + '/content/experience/e2e-getid1',
                 jar: cookieJar
             };
             testUtils.qRequest('get', options).then(function(resp) {
@@ -165,13 +165,13 @@ describe('content (E2E):', function() {
 
         it('should not get private or inactive experiences the user does not own', function(done) {
             var options = {
-                url: config.contentUrl + '/experience/e2e-getid2',
+                url: config.contentUrl + '/content/experience/e2e-getid2',
                 jar: cookieJar
             };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('No experiences found');
-                options.url = config.contentUrl + '/experience/e2e-getid3';
+                options.url = config.contentUrl + '/content/experience/e2e-getid3';
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
@@ -185,7 +185,7 @@ describe('content (E2E):', function() {
 
         it('should throw a 401 error if the user is not authenticated', function(done) {
             var options = {
-                url: config.contentUrl + '/experience/e2e-getid1'
+                url: config.contentUrl + '/content/experience/e2e-getid1'
             };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
@@ -199,7 +199,7 @@ describe('content (E2E):', function() {
         
         it('should return a 404 if nothing is found', function(done) {
             var options = {
-                url: config.contentUrl + '/experience/e2e-getid5678',
+                url: config.contentUrl + '/content/experience/e2e-getid5678',
                 jar: cookieJar
             };
             testUtils.qRequest('get', options).then(function(resp) {
@@ -253,7 +253,7 @@ describe('content (E2E):', function() {
         
         it('should get multiple experiences by id', function(done) {
             var options = {
-                url: config.contentUrl + '/experiences?ids=e2e-getquery1,e2e-getquery3&sort=id,1',
+                url: config.contentUrl + '/content/experiences?ids=e2e-getquery1,e2e-getquery3&sort=id,1',
                 jar: cookieJar
             };
             testUtils.qRequest('get', options).then(function(resp) {
@@ -271,7 +271,7 @@ describe('content (E2E):', function() {
         
         it('should get experiences by user', function(done) {
             var options = {
-                url: config.contentUrl + '/experiences?user=e2e-user&sort=id,1',
+                url: config.contentUrl + '/content/experiences?user=e2e-user&sort=id,1',
                 jar: cookieJar
             };
             testUtils.qRequest('get', options).then(function(resp) {
@@ -289,7 +289,7 @@ describe('content (E2E):', function() {
 
         it('should get experiences by type', function(done) {
             var options = {
-                url: config.contentUrl + '/experiences?type=foo&sort=id,1',
+                url: config.contentUrl + '/content/experiences?type=foo&sort=id,1',
                 jar: cookieJar
             };
             testUtils.qRequest('get', options).then(function(resp) {
@@ -307,7 +307,7 @@ describe('content (E2E):', function() {
         
         it('should get experiences by org', function(done) {
             var options = {
-                url: config.contentUrl + '/experiences?org=e2e-org&sort=id,1',
+                url: config.contentUrl + '/content/experiences?org=e2e-org&sort=id,1',
                 jar: cookieJar
             };
             testUtils.qRequest('get', options).then(function(resp) {
@@ -325,7 +325,7 @@ describe('content (E2E):', function() {
 
         it('should not get experiences by any other query param', function(done) {
             var options = {
-                url: config.contentUrl + '/experiences?status=active&sort=id,1',
+                url: config.contentUrl + '/content/experiences?status=active&sort=id,1',
                 jar: cookieJar
             };
             testUtils.qRequest('get', options).then(function(resp) {
@@ -340,7 +340,7 @@ describe('content (E2E):', function() {
 
         it('should only get private or inactive experiences the user owns', function(done) {
             var options = {
-                url: config.contentUrl + '/experiences?ids=e2e-getquery2,e2e-getquery4',
+                url: config.contentUrl + '/content/experiences?ids=e2e-getquery2,e2e-getquery4',
                 jar: cookieJar
             };
             testUtils.qRequest('get', options).then(function(resp) {
@@ -357,7 +357,7 @@ describe('content (E2E):', function() {
         
         it('should throw a 401 error if the user is not authenticated', function(done) {
             var options = {
-                url: config.contentUrl + '/experiences?user=e2e-user'
+                url: config.contentUrl + '/content/experiences?user=e2e-user'
             };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
@@ -372,7 +372,7 @@ describe('content (E2E):', function() {
         it('should be able to sort and paginate the results', function(done) {
             var options = {
                 jar: cookieJar,
-                url: config.contentUrl + '/experiences?ids=e2e-getquery1,e2e-getquery2,e2e-getquery3' +
+                url: config.contentUrl + '/content/experiences?ids=e2e-getquery1,e2e-getquery2,e2e-getquery3' +
                                          '&limit=2&sort=id,-1'
             };
             testUtils.qRequest('get', options).then(function(resp) {
@@ -408,7 +408,7 @@ describe('content (E2E):', function() {
         
         it('should be able to create an experience', function(done) {
             var options = {
-                url: config.contentUrl + '/experience',
+                url: config.contentUrl + '/content/experience',
                 jar: cookieJar,
                 json: mockExp
             };
@@ -434,7 +434,7 @@ describe('content (E2E):', function() {
         it('should be able to create a private experience', function(done) {
             mockExp.access = 'private';
             var options = {
-                url: config.contentUrl + '/experience',
+                url: config.contentUrl + '/content/experience',
                 jar: cookieJar,
                 json: mockExp
             };
@@ -454,7 +454,7 @@ describe('content (E2E):', function() {
         
         it('should throw a 401 error if the user is not authenticated', function(done) {
             var options = {
-                url: config.contentUrl + '/experience',
+                url: config.contentUrl + '/content/experience',
                 json: mockExp
             };
             testUtils.qRequest('post', options)
@@ -498,7 +498,7 @@ describe('content (E2E):', function() {
         it('should successfully update an experience', function(done) {
             mockExps[0].title = "newTitle";
             var options = {
-                url: config.contentUrl + '/experience/e2e-put1',
+                url: config.contentUrl + '/content/experience/e2e-put1',
                 jar: cookieJar,
                 json: { title: 'newTitle' }
             }, updatedExp;
@@ -521,7 +521,7 @@ describe('content (E2E):', function() {
         
         it('should not create an experience if it does not exist', function(done) {
             var options = {
-                url: config.contentUrl + '/experience/e2e-putfake',
+                url: config.contentUrl + '/content/experience/e2e-putfake',
                 jar: cookieJar,
                 json: { title: 'fakeTitle' }
             }, updatedExp;
@@ -537,7 +537,7 @@ describe('content (E2E):', function() {
         
         it('should not update an experience the user does not own', function(done) {
             var options = {
-                url: config.contentUrl + '/experience/e2e-put2',
+                url: config.contentUrl + '/content/experience/e2e-put2',
                 jar: cookieJar,
                 json: { title: 'newTitle' }
             }, updatedExp;
@@ -553,7 +553,7 @@ describe('content (E2E):', function() {
         
         it('should throw a 401 error if the user is not authenticated', function(done) {
             var options = {
-                url: config.contentUrl + '/experience/e2e-put1',
+                url: config.contentUrl + '/content/experience/e2e-put1',
                 json: { title: 'newTitle' }
             };
             testUtils.qRequest('put', options).then(function(resp) {
@@ -587,11 +587,11 @@ describe('content (E2E):', function() {
         });
         
         it('should set the status of an experience to deleted', function(done) {
-            var options = {jar: cookieJar, url: config.contentUrl + '/experience/e2e-del1'};
+            var options = {jar: cookieJar, url: config.contentUrl + '/content/experience/e2e-del1'};
             testUtils.qRequest('del', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
-                options = {url: config.contentUrl + '/public/experience/e2e-del1'};
+                options = {url: config.contentUrl + '/public/content/experience/e2e-del1'};
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
@@ -604,7 +604,7 @@ describe('content (E2E):', function() {
         });
         
         it('should not delete an experience the user does not own', function(done) {
-            var options = {jar: cookieJar, url: config.contentUrl + '/experience/e2e-del2'};
+            var options = {jar: cookieJar, url: config.contentUrl + '/content/experience/e2e-del2'};
             testUtils.qRequest('del', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe("Not authorized to delete this experience");
@@ -615,8 +615,8 @@ describe('content (E2E):', function() {
             });
         });
         
-        it('should still return a 200 if the experience was already deleted', function(done) {
-            var options = {jar: cookieJar, url: config.contentUrl + '/experience/e2e-del1'};
+        it('should still return a 204 if the experience was already deleted', function(done) {
+            var options = {jar: cookieJar, url: config.contentUrl + '/content/experience/e2e-del1'};
             testUtils.qRequest('del', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -631,8 +631,8 @@ describe('content (E2E):', function() {
             });
         });
         
-        it('should still return a 200 if the experience does not exist', function(done) {
-            var options = {jar: cookieJar, url: config.contentUrl + '/experience/fake'};
+        it('should still return a 204 if the experience does not exist', function(done) {
+            var options = {jar: cookieJar, url: config.contentUrl + '/content/experience/fake'};
             testUtils.qRequest('del', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -644,7 +644,7 @@ describe('content (E2E):', function() {
         });
         
         it('should throw a 401 error if the user is not authenticated', function(done) {
-            testUtils.qRequest('del', {url: config.contentUrl + '/experience/e2e-del1'})
+            testUtils.qRequest('del', {url: config.contentUrl + '/content/experience/e2e-del1'})
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe("Unauthorized");

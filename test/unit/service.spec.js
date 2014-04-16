@@ -480,7 +480,10 @@ describe('service (UT)',function(){
             resolveSpy = jasmine.createSpy('initMongo.resolve');
             rejectSpy  = jasmine.createSpy('initMongo.reject');
             
-            state.config.mongo = {host: '1.2.3.4', port: 1234, db: 'fakeDb'};
+            state.config.mongo = {
+                db1: {host: '1.2.3.4', port: 1234},
+                db2: {host: '5.6.7.8', port: 5678}
+            };
             state.secrets = {mongoCredentials: {user: 'ut', password: 'password'}};
             spyOn(mongoUtils, 'connect').andReturn(q('fakeDb'));
         });
@@ -505,33 +508,42 @@ describe('service (UT)',function(){
             }).done(done);
         });
         
-        it('will connect and auth to the database', function(done) {
+        it('will connect and auth to the databases', function(done) {
             service.initMongo(state).then(resolveSpy, rejectSpy)
             .finally(function() {
                 expect(resolveSpy).toHaveBeenCalledWith(state);
                 expect(rejectSpy).not.toHaveBeenCalled();
-                expect(mongoUtils.connect)
-                    .toHaveBeenCalledWith('1.2.3.4', 1234, 'fakeDb', 'ut', 'password');
-                expect(mongoUtils.connect.calls.length).toBe(1);
-                expect(state.db).toBe('fakeDb');
+                expect(mongoUtils.connect.calls.length).toBe(2);
+                expect(mongoUtils.connect.calls[0].args)
+                    .toEqual(['1.2.3.4', 1234, 'db1', 'ut', 'password']);
+                expect(mongoUtils.connect.calls[1].args)
+                    .toEqual(['5.6.7.8', 5678, 'db2', 'ut', 'password']);
+                expect(state.dbs.db1).toBe('fakeDb');
+                expect(state.dbs.db2).toBe('fakeDb');
                 expect(state.sessionsDb).not.toBeDefined();
             }).done(done);
         });
         
-        it('will reject with an error if connecting/authenticating to mongo fails', function(done) {
-            // mongoUtils.connect.andReturn(q.reject('Error!'));
+        it('will reject with an error if connecting to mongo fails', function(done) {
             mongoUtils.connect.andCallFake(function(host, port, db, user, pass) {
-                return q.reject('Error!');
+                if (db === 'db1') {
+                    return q.reject('Error!');
+                } else {
+                    return q('fakeDb');
+                }
             });
             service.initMongo(state).then(resolveSpy, rejectSpy)
             .finally(function() {
+                expect(state.dbs.db1).not.toBeDefined();
+                expect(mongoUtils.connect.calls.length).toBe(2);
                 expect(resolveSpy).not.toHaveBeenCalled();
                 expect(rejectSpy).toHaveBeenCalledWith('Error!');
             }).done(done);
         });
 
         it('will attempt auto reconnects if configured to', function(done){
-            state.config.mongo.retryConnect = true;
+            delete state.config.mongo.db2;
+            state.config.mongo.db1.retryConnect = true;
             mongoUtils.connect.andCallFake(function(){
                 if (this.connect.callCount >= 5){
                     return q(mockClient);
@@ -550,7 +562,8 @@ describe('service (UT)',function(){
         });
         
         it('will not auto reconnect if authentication fails', function(done) {
-            state.config.mongo.retryConnect = true;
+            delete state.config.mongo.db2;
+            state.config.mongo.db1.retryConnect = true;
             mongoUtils.connect.andCallFake(function(){
                 if (this.connect.callCount >= 5){
                     return q(mockClient);
@@ -587,8 +600,7 @@ describe('service (UT)',function(){
             state.secrets = {
                 mongoCredentials: { user: "fakeUser", password: "fakePass" }
             };
-            state.config.mongo = { host: "fakeHost", port: 111 };
-            state.config.sessions = { db: "fakeDb" };
+            state.config.sessions = { mongo: { host: "fakeHost", port: 111 } };
         });
         
         it('should initialize the MongoStore and call the callback', function(done) {
@@ -601,7 +613,7 @@ describe('service (UT)',function(){
                 expect(fakeMongoStore.calls[0].args[0]).toEqual({
                     host: "fakeHost",
                     port: 111,
-                    db: "fakeDb",
+                    db: "sessions",
                     username: "fakeUser",
                     password: "fakePass",
                     auto_reconnect: true
@@ -614,20 +626,16 @@ describe('service (UT)',function(){
         });
         
         it('should reject if given incomplete params', function(done) {
-            delete state.config.mongo;
+            delete state.config.sessions;
             resolveSpy.andReturn();
             rejectSpy.andReturn();
             service.initSessionStore(state).then(resolveSpy, rejectSpy).then(function() {
-                state.config.mongo = { host: "fakeHost", port: 111 };
-                delete state.config.sessions;
-                return service.initSessionStore(state).then(resolveSpy, rejectSpy);
-            }).then(function() {
-                state.config.sessions = { db: "fakeDb" };
+                state.config.sessions = { mongo: { host: "fakeHost", port: 111 } };
                 delete state.secrets;
                 return service.initSessionStore(state).then(resolveSpy, rejectSpy);
             }).finally(function() {
                 expect(resolveSpy).not.toHaveBeenCalled();
-                expect(rejectSpy.calls.length).toBe(3);
+                expect(rejectSpy.calls.length).toBe(2);
                 expect(fakeMongoStore).not.toHaveBeenCalled();
             }).done(done);
         });

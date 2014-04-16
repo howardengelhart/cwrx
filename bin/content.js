@@ -41,14 +41,18 @@
             key: 'c6Auth',
             maxAge: 14*24*60*60*1000, // 14 days; unit here is milliseconds
             minAge: 60*1000, // TTL for cookies for unauthenticated users
-            db: 'sessions'
+            mongo: {
+                host: null,
+                port: null
+            }
         },
         secretsPath: path.join(process.env.HOME,'.content.secrets.json'),
         mongo: {
-            host: 'localhost',
-            port: 27017,
-            db: 'c6Db',
-            retryConnect : true
+            c6Db: {
+                host: null,
+                port: null,
+                retryConnect : true
+            }
         }
     };
 
@@ -172,7 +176,7 @@
             return q({code: 400, body: 'You must provide an object in the body'});
         }
         
-        log.info('[%1] User %2 is attempting to update experience %3',req.uuid,user.id,updates.id);
+        log.info('[%1] User %2 is attempting to update experience %3',req.uuid,user.id,id);
         q.npost(experiences, 'findOne', [{id: id}])
         .then(function(orig) {
             if (!orig) {
@@ -259,7 +263,7 @@
             
         var express     = require('express'),
             app         = express(),
-            users       = state.db.collection('users'),
+            users       = state.dbs.c6Db.collection('users'),
             authTTLs    = state.config.cacheTTLs.auth;
         authUtils = require('../lib/authUtils')(authTTLs.freshTTL, authTTLs.maxTTL, users);
 
@@ -300,9 +304,28 @@
             next();
         });
         
-        var experiences = state.db.collection('experiences');
+        var experiences = state.dbs.c6Db.collection('experiences');
         var expTTLs = state.config.cacheTTLs.experiences;
         var expCache = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences);
+
+        // public get experience by id
+        app.get('/api/public/content/experience/:id', function(req, res) {
+            content.getExperiences({id: req.params.id}, req, expCache)
+            .then(function(resp) {
+                res.header('cache-control', 'max-age=' + state.config.cacheTTLs.cloudFront*60);
+                if (resp.body && resp.body instanceof Array) {
+                    res.send(resp.code, resp.body[0]);
+                } else {
+                    res.send(resp.code, resp.body);
+                }
+            }).catch(function(error) {
+                res.header('cache-control', 'max-age=60');
+                res.send(500, {
+                    error: 'Error retrieving content',
+                    detail: error
+                });
+            });
+        });
         
         // public get experience by id
         app.get('/api/content/public/experience/:id', function(req, res) {
