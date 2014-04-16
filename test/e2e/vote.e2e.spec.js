@@ -111,10 +111,10 @@ describe('vote (E2E)', function(){
         });
     });
 
-    describe('GET /api/election/:id',function(){
+    describe('GET /api/election/public/:id',function(){
 
         it('gets an election if it exists',function(done){
-            testUtils.qRequest('get', { url : makeUrl('/api/election/e1')})
+            testUtils.qRequest('get', { url : makeUrl('/api/election/public/e1')})
                 .then(function(resp){
                     expect(resp.response.headers['cache-control']).toEqual('max-age=300');
                     expect(resp.response.statusCode).toEqual(200);
@@ -134,7 +134,7 @@ describe('vote (E2E)', function(){
         });
 
         it('returns with a 404 if the election does not exist',function(done){
-            testUtils.qRequest('get', { url : makeUrl('/api/election/e1x')})
+            testUtils.qRequest('get', { url : makeUrl('/api/election/public/e1x')})
                 .then(function(resp){
                     expect(resp.response.headers['cache-control']).toEqual('max-age=300');
                     expect(resp.response.statusCode).toEqual(404);
@@ -147,25 +147,9 @@ describe('vote (E2E)', function(){
                 });
 
         });
-
-        it('returns with 404 if the electionId is not passed',function(done){
-            testUtils.qRequest('get', { url : makeUrl('/api/election')})
-                .then(function(resp){
-                    expect(resp.response.headers['cache-control']).toEqual('max-age=0');
-                    expect(resp.response.statusCode).toEqual(404);
-                    expect(resp.body).toEqual('Cannot GET /api/election');
-                })
-                .catch(function(err){
-                    expect(err).not.toBeDefined();
-                })
-                .finally(function(){
-                    done();
-                });
-
-        });
         
         it('returns a 404 if the user cannot read the election', function(done) {
-            testUtils.qRequest('get', { url : makeUrl('/api/election/e3')})
+            testUtils.qRequest('get', { url : makeUrl('/api/election/public/e3')})
                 .then(function(resp){
                     expect(resp.response.headers['cache-control']).toEqual('max-age=300');
                     expect(resp.response.statusCode).toEqual(404);
@@ -179,79 +163,11 @@ describe('vote (E2E)', function(){
         });
     });
 
-
-    describe('GET /api/election/:id/ballot:id',function(){
-
-        it('gets a ballot if it and the election exist',function(done){
-            testUtils.qRequest('get', { url : makeUrl('/api/election/e2/ballot/b2')})
-                .then(function(resp){
-                    expect(resp.response.headers['cache-control']).toEqual('max-age=300');
-                    expect(resp.response.statusCode).toEqual(200);
-                    expect(resp.body.id).toEqual('e2');
-                    expect(resp.body.ballot.b2['red fish']).toEqual(0.43);
-                    expect(resp.body.ballot.b2['blue fish']).toEqual(0.57);
-                })
-                .catch(function(err){
-                    expect(err).not.toBeDefined();
-                })
-                .finally(function(){
-                    done();
-                });
-
-        });
-        
-        it('returns with a 404 if the election does not exist',function(done){
-            testUtils.qRequest('get', { url : makeUrl('/api/election/e2x/ballot/b2')})
-                .then(function(resp){
-                    expect(resp.response.headers['cache-control']).toEqual('max-age=300');
-                    expect(resp.response.statusCode).toEqual(404);
-                    expect(resp.body).toEqual('Unable to locate item');
-                })
-                .catch(function(err){
-                    expect(err).not.toBeDefined();
-                })
-                .finally(function(){
-                    done();
-                });
-
-        });
-
-        it('returns with a 404 if the ballot does not exist',function(done){
-            testUtils.qRequest('get', { url : makeUrl('/api/election/e2/ballot/b3')})
-                .then(function(resp){
-                    expect(resp.response.headers['cache-control']).toEqual('max-age=300');
-                    expect(resp.response.statusCode).toEqual(404);
-                    expect(resp.body).toEqual('Unable to locate item');
-                })
-                .catch(function(err){
-                    expect(err).not.toBeDefined();
-                })
-                .finally(function(){
-                    done();
-                });
-
-        });
-
-        it('returns a 404 if the user cannot read the election', function(done) {
-            testUtils.qRequest('get', { url : makeUrl('/api/election/e3/ballot/b1')})
-                .then(function(resp){
-                    expect(resp.response.headers['cache-control']).toEqual('max-age=300');
-                    expect(resp.response.statusCode).toEqual(404);
-                })
-                .catch(function(err){
-                    expect(err).not.toBeDefined();
-                })
-                .finally(function(){
-                    done();
-                });
-        });
-    });
-
-    describe('POST /api/vote/',function(){
+    describe('POST /api/vote/public/',function(){
         var options;
         beforeEach(function(){
             options = {
-                url: makeUrl('/api/vote'),
+                url: makeUrl('/api/vote/public'),
                 json: { }
             };
         });
@@ -299,7 +215,7 @@ describe('vote (E2E)', function(){
                     expect(resp.body).toEqual('OK');
                 })
                 .then(function(){
-                    return testUtils.qRequest('get', { url : makeUrl('/api/election/e1/ballot/b2')});
+                    return testUtils.qRequest('get', { url : makeUrl('/api/election/public/e1')});
                 })
                 .then(function(resp){
                     expect(resp.body.ballot.b2['one chicken']).toEqual(0.33);
@@ -336,7 +252,7 @@ describe('vote (E2E)', function(){
                     return deferred.promise;
                 })
                 .then(function(){
-                    return testUtils.qRequest('get', { url : makeUrl('/api/election/e1/ballot/b2')});
+                    return testUtils.qRequest('get', { url : makeUrl('/api/election/public/e1')});
                 })
                 .then(function(resp){
                     expect(resp.body.ballot.b2['one chicken']).toEqual(0.50);

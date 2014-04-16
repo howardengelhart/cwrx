@@ -321,56 +321,6 @@
         return promise;
     };
 
-    ElectionDb.prototype.getBallotItem = function(id, itemId, timeout, user){
-        var self = this,
-            defKey = id + '::' + itemId + '::' + (user && user.id || 'guest'),
-            log = logger.getLog(),
-            deferred = self._keeper.getDeferred(defKey);
-            
-        if (deferred){
-            if (timeout) {
-                return deferred.promise.timeout(timeout);
-            }
-
-            return deferred.promise;
-        }
-
-        deferred = self._keeper.defer(defKey);
-
-        self.getElection(id, null, user)
-            .then(function(election){
-                var deferred = self._keeper.remove(defKey), result;
-
-                if (!election) {
-                    deferred.resolve();
-                }
-
-                if (!election.ballot){
-                    deferred.reject(
-                        new Error('Corrupt election, missing ballot.')
-                    );
-                }
-                else if (!election.ballot[itemId]){
-                    log.info('Unable to locate ballot item %1 on election %2', itemId, id);
-                    deferred.resolve();
-                } else {
-                    result = { id : election.id , ballot : {} };
-                    result.ballot[itemId] = election.ballot[itemId];
-                    deferred.resolve(result);
-                }
-            })
-            .catch(function(err){
-                var deferred = self._keeper.remove(defKey);
-                deferred.reject(err);
-            });
-
-        if (timeout) {
-            return deferred.promise.timeout(timeout);
-        }
-
-        return deferred.promise;
-    };
-
     ElectionDb.prototype.recordVote     = function(vote){
         var self = this, election = self._cache[vote.election];
 
@@ -641,6 +591,16 @@
             }
             next();
         });
+        
+        webServer.post('/api/vote/public', function(req, res){
+            if ((!req.body.election) || (!req.body.ballotItem) ||  (!req.body.vote)) {
+                res.send(400, 'Invalid request.\n');
+                return;
+            }
+
+            elDb.recordVote(req.body);
+            res.send(200);
+        });
 
         webServer.post('/api/vote', function(req, res){
             if ((!req.body.election) || (!req.body.ballotItem) ||  (!req.body.vote)) {
@@ -652,8 +612,7 @@
             res.send(200);
         });
 
-
-        webServer.get('/api/election/:electionId', function(req, res){
+        webServer.get('/api/election/public/:electionId', function(req, res){
             if (!req.params || !req.params.electionId ) {
                 res.send(400, 'You must provide the electionId in the request url.\n');
                 return;
@@ -681,17 +640,17 @@
                 });
         });
 
-        webServer.get('/api/election/:electionId/ballot/:itemId', function(req, res ){
-            if (!req.params || !req.params.electionId || !req.params.itemId) {
-                res.send(400, 'You must provide the electionId and itemId in the request url.\n');
+        webServer.get('/api/election/:electionId', function(req, res){
+            if (!req.params || !req.params.electionId ) {
+                res.send(400, 'You must provide the electionId in the request url.\n');
                 return;
             }
-            elDb.getBallotItem(
-                req.params.electionId, req.params.itemId, state.config.requestTimeout)
+
+            elDb.getElection(req.params.electionId, state.config.requestTimeout)
                 .then(function(election){
-                    res.header('cache-control', state.config.cacheControl.getBallotItem);
+                    res.header('cache-control', state.config.cacheControl.getElection);
                     if (!election) {
-                        res.send(404, 'Unable to locate item');
+                        res.send(404, 'Unable to locate election');
                     } else {
                         res.send(200,app.convertElection(election));
                     }
@@ -700,7 +659,7 @@
                     if (err.message.match(/Timed out after/)){
                         err.httpCode = 408;
                     }
-                    log.error('getBallotItem Error: %1',err.message);
+                    log.error('getElection Error: %1',err.message);
                     if (err.httpCode){
                         res.send(err.httpCode,err.message + '\n');
                     } else {
