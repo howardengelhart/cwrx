@@ -2,8 +2,8 @@ var q           = require('q'),
     testUtils   = require('./testUtils'),
     host        = process.env['host'] || 'localhost',
     config      = {
-        contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api/content',
-        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
+        contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api',
+        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
     };
 
 describe('content-light (E2E):', function() {
@@ -23,7 +23,7 @@ describe('content-light (E2E):', function() {
         
         it('login the e2e test user', function(done) {
             var options = {
-                url: config.authUrl + '/login',
+                url: config.authUrl + '/auth/login',
                 jar: cookieJar,
                 json: testUser
             };
@@ -44,7 +44,7 @@ describe('content-light (E2E):', function() {
         
         it('create an experience', function(done) {
             var options = {
-                url: config.contentUrl + '/experience',
+                url: config.contentUrl + '/content/experience',
                 jar: cookieJar,
                 json: origExp
             };
@@ -68,7 +68,7 @@ describe('content-light (E2E):', function() {
         
         it('retrieve an experience', function(done) {
             var options = {
-                url: config.contentUrl + '/experience/' + currExp.id,
+                url: config.contentUrl + '/content/experience/' + currExp.id,
                 jar: cookieJar
             };
             testUtils.qRequest('get', options).then(function(resp) {
@@ -86,7 +86,7 @@ describe('content-light (E2E):', function() {
                 origExp[key] = currExp[key];
             });
             var options = {
-                url: config.contentUrl + '/experience/' + currExp.id,
+                url: config.contentUrl + '/content/experience/' + currExp.id,
                 jar: cookieJar,
                 json: { title: 'newTitle', status: 'active' }
             };
@@ -108,7 +108,7 @@ describe('content-light (E2E):', function() {
 
         it('retrieve a public experience', function(done) {
             var options = {
-                url: config.contentUrl + '/public/experience/' + currExp.id
+                url: config.contentUrl + '/public/content/experience/' + currExp.id
             };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -122,7 +122,7 @@ describe('content-light (E2E):', function() {
         
         it('delete an experience', function(done) {
             var options = {
-                url: config.contentUrl + '/experience/' + currExp.id,
+                url: config.contentUrl + '/content/experience/' + currExp.id,
                 jar: cookieJar
             };
             testUtils.qRequest('del', options).then(function(resp) {
@@ -137,7 +137,7 @@ describe('content-light (E2E):', function() {
         
         it('logout the e2e test user', function(done) {
             var options = {
-                url: config.authUrl + '/logout',
+                url: config.authUrl + '/auth/logout',
                 jar: cookieJar
             };
             testUtils.qRequest('post', options).then(function(resp) {
@@ -154,7 +154,7 @@ describe('content-light (E2E):', function() {
     describe('/api/content/meta', function() {
         it('should print out appropriate metadata about the content service', function(done) {
             var options = {
-                url: config.contentUrl + '/meta'
+                url: config.contentUrl + '/content/meta'
             };
             testUtils.qRequest('get', [options])
             .then(function(resp) {

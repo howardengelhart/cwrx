@@ -307,6 +307,25 @@
         var experiences = state.dbs.c6Db.collection('experiences');
         var expTTLs = state.config.cacheTTLs.experiences;
         var expCache = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences);
+
+        // public get experience by id
+        app.get('/api/public/content/experience/:id', function(req, res) {
+            content.getExperiences({id: req.params.id}, req, expCache)
+            .then(function(resp) {
+                res.header('cache-control', 'max-age=' + state.config.cacheTTLs.cloudFront*60);
+                if (resp.body && resp.body instanceof Array) {
+                    res.send(resp.code, resp.body[0]);
+                } else {
+                    res.send(resp.code, resp.body);
+                }
+            }).catch(function(error) {
+                res.header('cache-control', 'max-age=60');
+                res.send(500, {
+                    error: 'Error retrieving content',
+                    detail: error
+                });
+            });
+        });
         
         // public get experience by id
         app.get('/api/content/public/experience/:id', function(req, res) {

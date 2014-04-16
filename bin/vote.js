@@ -592,7 +592,7 @@
             next();
         });
         
-        webServer.post('/api/vote/public', function(req, res){
+        webServer.post('/api/public/vote', function(req, res){
             if ((!req.body.election) || (!req.body.ballotItem) ||  (!req.body.vote)) {
                 res.send(400, 'Invalid request.\n');
                 return;
@@ -612,7 +612,7 @@
             res.send(200);
         });
 
-        webServer.get('/api/election/public/:electionId', function(req, res){
+        webServer.get('/api/public/election/:electionId', function(req, res){
             if (!req.params || !req.params.electionId ) {
                 res.send(400, 'You must provide the electionId in the request url.\n');
                 return;

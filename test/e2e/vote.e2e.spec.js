@@ -111,10 +111,10 @@ describe('vote (E2E)', function(){
         });
     });
 
-    describe('GET /api/election/public/:id',function(){
+    describe('GET /api/public/election/:id',function(){
 
         it('gets an election if it exists',function(done){
-            testUtils.qRequest('get', { url : makeUrl('/api/election/public/e1')})
+            testUtils.qRequest('get', { url : makeUrl('/api/public/election/e1')})
                 .then(function(resp){
                     expect(resp.response.headers['cache-control']).toEqual('max-age=300');
                     expect(resp.response.statusCode).toEqual(200);
@@ -134,7 +134,7 @@ describe('vote (E2E)', function(){
         });
 
         it('returns with a 404 if the election does not exist',function(done){
-            testUtils.qRequest('get', { url : makeUrl('/api/election/public/e1x')})
+            testUtils.qRequest('get', { url : makeUrl('/api/public/election/e1x')})
                 .then(function(resp){
                     expect(resp.response.headers['cache-control']).toEqual('max-age=300');
                     expect(resp.response.statusCode).toEqual(404);
@@ -149,7 +149,7 @@ describe('vote (E2E)', function(){
         });
         
         it('returns a 404 if the user cannot read the election', function(done) {
-            testUtils.qRequest('get', { url : makeUrl('/api/election/public/e3')})
+            testUtils.qRequest('get', { url : makeUrl('/api/public/election/e3')})
                 .then(function(resp){
                     expect(resp.response.headers['cache-control']).toEqual('max-age=300');
                     expect(resp.response.statusCode).toEqual(404);
@@ -163,11 +163,11 @@ describe('vote (E2E)', function(){
         });
     });
 
-    describe('POST /api/vote/public/',function(){
+    describe('POST /api/public/vote/',function(){
         var options;
         beforeEach(function(){
             options = {
-                url: makeUrl('/api/vote/public'),
+                url: makeUrl('/api/public/vote'),
                 json: { }
             };
         });
@@ -215,7 +215,7 @@ describe('vote (E2E)', function(){
                     expect(resp.body).toEqual('OK');
                 })
                 .then(function(){
-                    return testUtils.qRequest('get', { url : makeUrl('/api/election/public/e1')});
+                    return testUtils.qRequest('get', { url : makeUrl('/api/public/election/e1')});
                 })
                 .then(function(resp){
                     expect(resp.body.ballot.b2['one chicken']).toEqual(0.33);
@@ -252,7 +252,7 @@ describe('vote (E2E)', function(){
                     return deferred.promise;
                 })
                 .then(function(){
-                    return testUtils.qRequest('get', { url : makeUrl('/api/election/public/e1')});
+                    return testUtils.qRequest('get', { url : makeUrl('/api/public/election/e1')});
                 })
                 .then(function(resp){
                     expect(resp.body.ballot.b2['one chicken']).toEqual(0.50);
