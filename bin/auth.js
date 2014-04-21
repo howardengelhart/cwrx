@@ -30,7 +30,8 @@
             minAge: 60*1000, // TTL for cookies for unauthenticated users
             mongo: {
                 host: null,
-                port: null
+                port: null,
+                retryConnect : true
             }
         },
         cacheTTLs: {  // units here are minutes
