@@ -1,4 +1,4 @@
 module.exports = {
-    pollingInterval: 5,
-    maxIters: 24
+    pollingInterval: 15,
+    maxIters: 40
 };
