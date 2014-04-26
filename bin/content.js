@@ -224,7 +224,8 @@
             var mongoUpdates = {$set: updates};
             
             // if un-publishing exp, want to make sure we keep a record of that data next update
-            if (updates.status !== Status.Active && orig.status === Status.Active) {
+            if (updates.status && updates.status !== Status.Active &&
+                                  orig.status === Status.Active) {
                 updates.wasActive = true;
             }
             
