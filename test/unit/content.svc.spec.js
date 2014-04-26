@@ -26,6 +26,7 @@ describe('content (UT)', function() {
         };
         spyOn(logger, 'createLog').andReturn(mockLog);
         spyOn(logger, 'getLog').andReturn(mockLog);
+        spyOn(content, 'getMostRecentData').andCallThrough();
         experiences = {};
         req = {uuid: '1234'};
     });
@@ -133,6 +134,23 @@ describe('content (UT)', function() {
         });
     });
     
+    describe('getMostRecentData', function() {
+        var experience;
+        
+        it('should convert .data to .data[0] for the client', function() {
+            experience = { id: 'e1', data: [ { foo: 'baz' }, { foo: 'bar' } ] };
+            expect(content.getMostRecentData(experience)).toEqual({ id: 'e1', data: { foo: 'baz' } });
+        });
+        
+        it('should do nothing if the experience does not have an array of data', function() {
+            experience = { id: 'e1', data: { foo: 'baz' } };
+            expect(content.getMostRecentData(experience)).toEqual({ id: 'e1', data: { foo: 'baz' } });
+            delete experience.data;
+            expect(content.getMostRecentData(experience)).toEqual({ id: 'e1' });
+            expect(mockLog.warn.calls.length).toBe(2);
+        });
+    });
+    
     describe('getExperiences', function() {
         var req, cache, query, fakeCursor;
         beforeEach(function() {
@@ -173,6 +191,8 @@ describe('content (UT)', function() {
                 expect(cache.getPromise).not.toHaveBeenCalled();
                 expect(content.checkScope)
                     .toHaveBeenCalledWith('fakeUser', 'fake1', 'experiences', 'read');
+                expect(content.getMostRecentData.calls.length).toBe(1);
+                expect(content.getMostRecentData.calls[0].args[0]).toBe('fake1');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -255,6 +275,7 @@ describe('content (UT)', function() {
                 expect(resp.body).toEqual([{ id: 'e-3', status: Status.Active, access: Access.Public },
                                            { id: 'e-4', status: Status.Inactive, access: Access.Private }]);
                 expect(content.checkScope.calls.length).toBe(4);
+                expect(content.getMostRecentData.calls.length).toBe(2);
                 return content.getExperiences(query, { uuid: '1234' }, cache);
             }).then(function(resp) {
                 expect(resp).toBeDefined();
@@ -313,7 +334,7 @@ describe('content (UT)', function() {
     
     describe('createExperience', function() {
         beforeEach(function() {
-            req.body = {title: 'fakeExp'};
+            req.body = {title: 'fakeExp', data: { foo: 'bar' } };
             req.user = {id: 'u-1234', org: 'o-1234'};
             experiences.insert = jasmine.createSpy('experiences.insert')
                 .andCallFake(function(obj, opts, cb) { cb(); });
@@ -342,13 +363,15 @@ describe('content (UT)', function() {
                 expect(resp.body.title).toBe('fakeExp');
                 expect(resp.body.created instanceof Date).toBeTruthy('created is a Date');
                 expect(resp.body.lastUpdated instanceof Date).toBeTruthy('lastUpdated is a Date');
+                expect(resp.body.data).toEqual({foo: 'bar'});
                 expect(resp.body.user).toBe('u-1234');
                 expect(resp.body.org).toBe('o-1234');
                 expect(resp.body.status).toBe(Status.Active);
                 expect(content.createValidator.validate).toHaveBeenCalledWith(req.body, {}, req.user);
                 expect(experiences.insert).toHaveBeenCalled();
-                expect(experiences.insert.calls[0].args[0]).toBe(resp.body);
+                expect(experiences.insert.calls[0].args[0].data).toEqual([{ foo: 'bar' }]);
                 expect(experiences.insert.calls[0].args[1]).toEqual({w: 1, journal: true});
+                expect(content.getMostRecentData).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -389,14 +412,15 @@ describe('content (UT)', function() {
             oldExp;
         beforeEach(function() {
             req.params = {id: 'e-1234'};
-            req.body = {title: 'newExp'};
-            oldExp = {id:'e-1234', title:'oldExp', user:'u-1234', created:start, lastUpdated:start};
+            req.body = {title: 'newExp', data: {foo: 'baz'} };
+            oldExp = {id:'e-1234', title:'oldExp', user:'u-1234', data: [{foo:'bar'}],
+                      status:Status.Pending, created:start, lastUpdated:start};
             req.user = {id: 'u-1234'};
             experiences.findOne = jasmine.createSpy('experiences.findOne')
                 .andCallFake(function(query, cb) { cb(null, oldExp); });
             experiences.findAndModify = jasmine.createSpy('experiences.findAndModify').andCallFake(
                 function(query, sort, obj, opts, cb) {
-                    cb(null, [{ id: 'e-1234', updated: true }]);
+                    cb(null, [{ id: 'e-1234', data: obj.$set.data }]);
                 });
             spyOn(content, 'checkScope').andReturn(true);
             spyOn(content.updateValidator, 'validate').andReturn(true);
@@ -418,7 +442,7 @@ describe('content (UT)', function() {
         it('should successfully update an experience', function(done) {
             content.updateExperience(req, experiences).then(function(resp) {
                 expect(resp.code).toBe(200);
-                expect(resp.body).toEqual({id: 'e-1234', updated: true});
+                expect(resp.body).toEqual({id: 'e-1234', data: {foo:'baz'}});
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findOne.calls[0].args[0]).toEqual({id: 'e-1234'});
                 expect(content.updateValidator.validate).toHaveBeenCalledWith(req.body, oldExp, req.user);
@@ -428,9 +452,63 @@ describe('content (UT)', function() {
                 var updates = experiences.findAndModify.calls[0].args[2];
                 expect(Object.keys(updates)).toEqual(['$set']);
                 expect(updates.$set.title).toBe('newExp');
+                expect(updates.$set.data).toEqual([{foo:'baz'}]);
                 expect(updates.$set.lastUpdated instanceof Date).toBeTruthy('lastUpdated is Date');
                 expect(experiences.findAndModify.calls[0].args[3])
                     .toEqual({w: 1, journal: true, new: true});
+                expect(content.getMostRecentData).toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should preserve the previous data if updating an active experience', function(done) {
+            oldExp.status = Status.Active;
+            req.body.data = { foo: 'baz' };
+            content.updateExperience(req, experiences).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual({id: 'e-1234', data: {foo:'baz'}});
+                expect(experiences.findAndModify).toHaveBeenCalled();
+                var updates = experiences.findAndModify.calls[0].args[2];
+                expect(updates.$set.data).toEqual([{foo:'baz'}, {foo:'bar'}]);
+                expect(content.getMostRecentData).toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should preserve published data if an experience is unpublished', function(done) {
+            experiences.findAndModify = jasmine.createSpy('experiences.findAndModify').andCallFake(
+                function(query, sort, obj, opts, cb) {
+                    for (var key in obj.$set) {
+                        oldExp[key] = obj.$set[key];
+                    }
+                    for (var key in obj.$unset) {
+                        delete oldExp[key];
+                    }
+                    cb(null, [oldExp]);
+                });
+            oldExp.status = Status.Active;
+            req.body = {status: Status.Pending};
+            content.updateExperience(req, experiences).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body.wasActive).toBe(true);
+                expect(resp.body.data).toEqual({foo:'bar'});
+                expect(resp.body.status).toEqual(Status.Pending);
+                req.body = { data: { foo: 'baz' } };
+                return content.updateExperience(req, experiences);
+            }).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body.data).toEqual({foo:'baz'});
+                expect(resp.body.wasActive).not.toBeDefined();
+                var updates = experiences.findAndModify.calls[1].args[2];
+                expect(updates.$set.data).toEqual([{foo:'baz'}, {foo:'bar'}]);
+                expect(updates.$unset).toEqual({wasActive:1});
+                expect(content.getMostRecentData.calls.length).toBe(2);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

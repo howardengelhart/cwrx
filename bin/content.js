@@ -78,6 +78,25 @@
         }
     });
     content.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created'] });
+    
+    content.getMostRecentData = function(experience) {
+        var log = logger.getLog(),
+            newExp = {};
+        if (!(experience.data instanceof Array)) {
+            log.warn('Experience %1 does not have array of data, not getting most recent',
+                     experience.id);
+            return experience;
+        }
+        
+        for (var key in experience) {
+            if (key === 'data') {
+                newExp.data = experience.data[0];
+            } else {
+                newExp[key] = experience[key];
+            }
+        }
+        return newExp;
+    };
 
     content.getExperiences = function(query, req, cache) {
         var limit = req.query && req.query.limit || 0,
@@ -121,7 +140,7 @@
             if (experiences.length === 0) {
                 return q({code: 404, body: 'No experiences found'});
             } else {
-                return q({code: 200, body: experiences});
+                return q({code: 200, body: experiences.map(content.getMostRecentData)});
             }
         }).catch(function(error) {
             log.error('[%1] Error getting experiences: %2', req.uuid, error);
@@ -156,10 +175,14 @@
         if (!obj.access) {
             obj.access = Access.Public;
         }
+        if (obj.data) {
+            obj.data = [ obj.data ];
+        }
+
         return q.npost(experiences, 'insert', [obj, {w: 1, journal: true}])
         .then(function() {
             log.info('[%1] User %2 successfully created experience %3', req.uuid, user.id, obj.id);
-            return q({code: 201, body: obj});
+            return q({code: 201, body: content.getMostRecentData(obj)});
         }).catch(function(error) {
             log.error('[%1] Error creating experience %2 for user %3: %4',
                       req.uuid, obj.id, user.id, error);
@@ -197,14 +220,38 @@
                     body: 'Not authorized to edit this experience'
                 });
             }
+            
+            var mongoUpdates = {$set: updates};
+            
+            // if un-publishing exp, want to make sure we keep a record of that data next update
+            if (updates.status !== Status.Active && orig.status === Status.Active) {
+                updates.wasActive = true;
+            }
+            
+            if (updates.data) {
+                if (!(orig.data instanceof Array)) {
+                    log.warn('[%1] Original exp %1 does not have an array of data', orig.id);
+                    orig.data = [ orig.data ];
+                }
+                if (orig.status === Status.Active) {
+                    orig.data.unshift(updates.data);
+                } else if (orig.wasActive) {
+                    orig.data.unshift(updates.data);
+                    mongoUpdates.$unset = { wasActive: 1 };
+                } else {
+                    orig.data[0] = updates.data;
+                }
+                updates.data = orig.data;
+            }
+            
             updates.lastUpdated = new Date();
             return q.npost(experiences, 'findAndModify',
-                           [{id: id}, {id: 1}, {$set: updates}, {w: 1, journal: true, new: true}])
+                           [{id: id}, {id: 1}, mongoUpdates, {w: 1, journal: true, new: true}])
             .then(function(results) {
                 var updated = results[0];
                 log.info('[%1] User %2 successfully updated experience %3',
                          req.uuid, user.id, updated.id);
-                deferred.resolve({code: 200, body: updated});
+                deferred.resolve({code: 200, body: content.getMostRecentData(updated)});
             });
         }).catch(function(error) {
             log.error('[%1] Error updating experience %2 for user %3: %4',

@@ -12,6 +12,7 @@ describe('content-light (E2E):', function() {
             origExp = {
                 title: "origTitle",
                 status: "inactive",
+                data: { foo: 'bar' },
                 org: 'e2e-org',
                 e2e: true
             },
@@ -56,6 +57,7 @@ describe('content-light (E2E):', function() {
                 expect(currExp.title).toBe("origTitle");
                 expect(currExp.status).toBe("inactive");
                 expect(currExp.e2e).toBe(true);
+                expect(currExp.data).toEqual({foo: 'bar'});
                 expect(currExp.created).toBeDefined();
                 expect(currExp.lastUpdated).toBeDefined();
                 expect(currExp.user).toBeDefined();
@@ -88,13 +90,14 @@ describe('content-light (E2E):', function() {
             var options = {
                 url: config.contentUrl + '/content/experience/' + currExp.id,
                 jar: cookieJar,
-                json: { title: 'newTitle', status: 'active' }
+                json: { title: 'newTitle', data: { blah: 'bloop' }, status: 'active' }
             };
             testUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
                 expect(resp.body).not.toEqual(origExp);
                 expect(resp.body.title).toBe('newTitle');
+                expect(resp.body.data).toEqual({blah: 'bloop'});
                 expect(resp.body.id).toBe(origExp.id);
                 expect(resp.body.created).toBe(origExp.created);
                 expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(origExp.lastUpdated));
