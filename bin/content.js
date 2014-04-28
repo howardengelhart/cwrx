@@ -90,7 +90,7 @@
         
         for (var key in experience) {
             if (key === 'data') {
-                newExp.data = experience.data[0];
+                newExp.data = experience.data[0].data;
             } else {
                 newExp[key] = experience[key];
             }
@@ -176,7 +176,7 @@
             obj.access = Access.Public;
         }
         if (obj.data) {
-            obj.data = [ obj.data ];
+            obj.data = [ { user: user.username, date: now, data: obj.data } ];
         }
 
         return q.npost(experiences, 'insert', [obj, {w: 1, journal: true}])
@@ -221,7 +221,7 @@
                 });
             }
             
-            var mongoUpdates = {$set: updates};
+            var mongoUpdates = {$set: updates}, now = new Date();
             
             // if un-publishing exp, want to make sure we keep a record of that data next update
             if (updates.status && updates.status !== Status.Active &&
@@ -230,22 +230,23 @@
             }
             
             if (updates.data) {
+                var wrapper = { user: user.username, date: now, data: updates.data };
                 if (!(orig.data instanceof Array)) {
                     log.warn('[%1] Original exp %1 does not have an array of data', orig.id);
-                    orig.data = [ orig.data ];
+                    orig.data = [ { user: user.username, date: orig.created, data: orig.data } ];
                 }
                 if (orig.status === Status.Active) {
-                    orig.data.unshift(updates.data);
+                    orig.data.unshift(wrapper);
                 } else if (orig.wasActive) {
-                    orig.data.unshift(updates.data);
+                    orig.data.unshift(wrapper);
                     mongoUpdates.$unset = { wasActive: 1 };
                 } else {
-                    orig.data[0] = updates.data;
+                    orig.data[0] = wrapper;
                 }
                 updates.data = orig.data;
             }
             
-            updates.lastUpdated = new Date();
+            updates.lastUpdated = now;
             return q.npost(experiences, 'findAndModify',
                            [{id: id}, {id: 1}, mongoUpdates, {w: 1, journal: true, new: true}])
             .then(function(results) {

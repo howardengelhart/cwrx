@@ -138,7 +138,11 @@ describe('content (UT)', function() {
         var experience;
         
         it('should convert .data to .data[0] for the client', function() {
-            experience = { id: 'e1', data: [ { foo: 'baz' }, { foo: 'bar' } ] };
+            var now = new Date();
+            experience = { id: 'e1', data: [
+                { username: 'otter', date: now, data: { foo: 'baz' } },
+                { username: 'crosby', date: now, data: { foo: 'bar' } }
+            ]};
             expect(content.getMostRecentData(experience)).toEqual({ id: 'e1', data: { foo: 'baz' } });
         });
         
@@ -335,7 +339,7 @@ describe('content (UT)', function() {
     describe('createExperience', function() {
         beforeEach(function() {
             req.body = {title: 'fakeExp', data: { foo: 'bar' } };
-            req.user = {id: 'u-1234', org: 'o-1234'};
+            req.user = {id: 'u-1234', org: 'o-1234', username: 'otter'};
             experiences.insert = jasmine.createSpy('experiences.insert')
                 .andCallFake(function(obj, opts, cb) { cb(); });
             spyOn(uuid, 'createUuid').andReturn('1234');
@@ -369,7 +373,10 @@ describe('content (UT)', function() {
                 expect(resp.body.status).toBe(Status.Active);
                 expect(content.createValidator.validate).toHaveBeenCalledWith(req.body, {}, req.user);
                 expect(experiences.insert).toHaveBeenCalled();
-                expect(experiences.insert.calls[0].args[0].data).toEqual([{ foo: 'bar' }]);
+                var data = experiences.insert.calls[0].args[0].data[0];
+                expect(data.user).toBe('otter');
+                expect(data.date instanceof Date).toBeTruthy('data.date is a Date');
+                expect(data.data).toEqual({foo: 'bar'});
                 expect(experiences.insert.calls[0].args[1]).toEqual({w: 1, journal: true});
                 expect(content.getMostRecentData).toHaveBeenCalled();
                 done();
@@ -413,9 +420,10 @@ describe('content (UT)', function() {
         beforeEach(function() {
             req.params = {id: 'e-1234'};
             req.body = {title: 'newExp', data: {foo: 'baz'} };
-            oldExp = {id:'e-1234', title:'oldExp', user:'u-1234', data: [{foo:'bar'}],
-                      status:Status.Pending, created:start, lastUpdated:start};
-            req.user = {id: 'u-1234'};
+            oldExp = {id: 'e-1234', title: 'oldExp', user: 'u-1234',
+                      data: [ { user: 'otter', date: start, data: { foo: 'bar' } } ],
+                      status: Status.Pending, created: start, lastUpdated: start};
+            req.user = {id: 'u-1234', username: 'otter'};
             experiences.findOne = jasmine.createSpy('experiences.findOne')
                 .andCallFake(function(query, cb) { cb(null, oldExp); });
             experiences.findAndModify = jasmine.createSpy('experiences.findAndModify').andCallFake(
@@ -452,7 +460,9 @@ describe('content (UT)', function() {
                 var updates = experiences.findAndModify.calls[0].args[2];
                 expect(Object.keys(updates)).toEqual(['$set']);
                 expect(updates.$set.title).toBe('newExp');
-                expect(updates.$set.data).toEqual([{foo:'baz'}]);
+                expect(updates.$set.data[0].user).toBe('otter');
+                expect(updates.$set.data[0].date instanceof Date).toBeTruthy('data.date is a Date');
+                expect(updates.$set.data[0].data).toEqual({foo: 'baz'});
                 expect(updates.$set.lastUpdated instanceof Date).toBeTruthy('lastUpdated is Date');
                 expect(experiences.findAndModify.calls[0].args[3])
                     .toEqual({w: 1, journal: true, new: true});
@@ -472,7 +482,14 @@ describe('content (UT)', function() {
                 expect(resp.body).toEqual({id: 'e-1234', data: {foo:'baz'}});
                 expect(experiences.findAndModify).toHaveBeenCalled();
                 var updates = experiences.findAndModify.calls[0].args[2];
-                expect(updates.$set.data).toEqual([{foo:'baz'}, {foo:'bar'}]);
+                expect(updates.$set.data.length).toBe(2);
+                expect(updates.$set.data[0].user).toBe('otter');
+                expect(updates.$set.data[0].date instanceof Date).toBeTruthy();
+                expect(updates.$set.data[0].data).toEqual({foo: 'baz'});
+                expect(updates.$set.data[1].user).toBe('otter');
+                expect(updates.$set.data[1].date instanceof Date).toBeTruthy();
+                expect(updates.$set.data[1].data).toEqual({foo: 'bar'});
+                expect(updates.$set.data[0].date).toBeGreaterThan(updates.$set.data[1].date);
                 expect(content.getMostRecentData).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
@@ -480,7 +497,7 @@ describe('content (UT)', function() {
                 done();
             });
         });
-        
+
         it('should preserve published data if an experience is unpublished', function(done) {
             experiences.findAndModify = jasmine.createSpy('experiences.findAndModify').andCallFake(
                 function(query, sort, obj, opts, cb) {
@@ -506,7 +523,10 @@ describe('content (UT)', function() {
                 expect(resp.body.data).toEqual({foo:'baz'});
                 expect(resp.body.wasActive).not.toBeDefined();
                 var updates = experiences.findAndModify.calls[1].args[2];
-                expect(updates.$set.data).toEqual([{foo:'baz'}, {foo:'bar'}]);
+                expect(updates.$set.data.length).toBe(2);
+                expect(updates.$set.data[0].data).toEqual({foo: 'baz'});
+                expect(updates.$set.data[1].data).toEqual({foo: 'bar'});
+                expect(updates.$set.data[0].date).toBeGreaterThan(updates.$set.data[1].date);
                 expect(updates.$unset).toEqual({wasActive:1});
                 expect(content.getMostRecentData.calls.length).toBe(2);
                 done();
