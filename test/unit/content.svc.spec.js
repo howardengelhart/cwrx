@@ -259,11 +259,13 @@ describe('content (UT)', function() {
         });
         
         it('should only return experiences the user is allowed to see', function(done) {
+            req.user = { id: 'u-1', applications: 'e-5' };
             var exps = [
                 { id: 'e-1', status: Status.Active, access: Access.Private },
                 { id: 'e-2', status: Status.Inactive, access: Access.Public },
                 { id: 'e-3', status: Status.Active, access: Access.Public },
-                { id: 'e-4', status: Status.Inactive, access: Access.Private }
+                { id: 'e-4', status: Status.Inactive, access: Access.Private },
+                { id: 'e-5', status: Status.Inactive, access: Access.Private }
             ];
             fakeCursor.toArray.andCallFake(function(cb) {
                 cb(null, exps);
@@ -278,9 +280,10 @@ describe('content (UT)', function() {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual([{ id: 'e-3', status: Status.Active, access: Access.Public },
-                                           { id: 'e-4', status: Status.Inactive, access: Access.Private }]);
-                expect(content.checkScope.calls.length).toBe(4);
-                expect(content.getMostRecentState.calls.length).toBe(4);
+                                           { id: 'e-4', status: Status.Inactive, access: Access.Private },
+                                           { id: 'e-5', status: Status.Inactive, access: Access.Private }]);
+                expect(content.checkScope.calls.length).toBe(5);
+                expect(content.getMostRecentState.calls.length).toBe(5);
                 return content.getExperiences(query, { uuid: '1234' }, cache);
             }).then(function(resp) {
                 expect(resp).toBeDefined();
