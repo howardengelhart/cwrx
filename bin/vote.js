@@ -227,7 +227,7 @@
             return promise;
         }
 
-        if (election && election.data && !self.shouldSync(election.lastSync)){
+        if (election && election.data && !self.shouldSync(election.lastSync) && !user){
             return filter(election.data);
         }
 
@@ -641,19 +641,19 @@
                 });
         });
 
-        webServer.get('/api/election/:electionId', function(req, res){
+        var authGetElec = authUtils.middlewarify({elections: 'read'});
+        webServer.get('/api/election/:electionId', sessions, authGetElec, function(req, res){
             if (!req.params || !req.params.electionId ) {
                 res.send(400, 'You must provide the electionId in the request url.\n');
                 return;
             }
 
-            elDb.getElection(req.params.electionId, state.config.requestTimeout)
+            elDb.getElection(req.params.electionId, state.config.requestTimeout, req.user)
                 .then(function(election){
-                    res.header('cache-control', state.config.cacheControl.getElection);
                     if (!election) {
                         res.send(404, 'Unable to locate election');
                     } else {
-                        res.send(200,app.convertElection(election));
+                        res.send(200, election);
                     }
                 })
                 .catch(function(err){
