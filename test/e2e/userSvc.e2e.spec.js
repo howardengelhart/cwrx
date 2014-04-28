@@ -221,10 +221,12 @@ describe('user (E2E):', function() {
                 expect(newUser.password).not.toBeDefined();
                 expect(new Date(newUser.created).toString()).not.toEqual('Invalid Date');
                 expect(newUser.lastUpdated).toEqual(newUser.created);
+                expect(newUser.applications).toEqual(['e-51ae37625cb57f']);
                 expect(newUser.org).toBe('o-1234');
                 expect(newUser.status).toBe('active');
                 expect(newUser.permissions).toEqual({
                     experiences: { read: 'own', create: 'own', edit: 'own', delete: 'own' },
+                    elections: { read: 'own', create: 'own', edit: 'own', delete: 'own' },
                     users: { read: 'own', edit: 'own' },
                     orgs: { read: 'own' }
                 });
@@ -249,6 +251,7 @@ describe('user (E2E):', function() {
                 expect(newUser.status).toBe('pending');
                 expect(newUser.permissions).toEqual({
                     experiences: { read: 'own', create: 'own', edit: 'own', delete: 'own' },
+                    elections: { read: 'own', create: 'own', edit: 'own', delete: 'own' },
                     users: { read: 'org', edit: 'org' },
                     orgs: { read: 'own' }
                 });

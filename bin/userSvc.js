@@ -152,6 +152,7 @@
         newUser.id = 'u-' + uuid.createUuid().substr(0,14);
         newUser.created = now;
         newUser.lastUpdated = now;
+        newUser.applications = [ 'e-51ae37625cb57f' ]; // Minireelinator
         if (requester.org && !newUser.org) {
             newUser.org = requester.org;
         }
@@ -162,6 +163,12 @@
             newUser.permissions = {};
         }
         var defaultPerms = { // ensure that every user at least has these permissions
+            elections: {
+                read: Scope.Own,
+                create: Scope.Own,
+                edit: Scope.Own,
+                delete: Scope.Own
+            },
             experiences: {
                 read: Scope.Own,
                 create: Scope.Own,

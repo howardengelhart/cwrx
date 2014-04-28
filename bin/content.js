@@ -142,7 +142,9 @@
             
             var experiences = results.map(content.getMostRecentState).filter(function(result) {
                 return content.checkScope(req.user, result, 'experiences', 'read') ||
-                      (result.status === Status.Active && result.access === Access.Public);
+                      (result.status === Status.Active && result.access === Access.Public) ||
+                      (req.user && req.user.applications &&
+                                   req.user.applications.indexOf(result.id) >= 0);
             });
             
             log.info('[%1] Showing the user %2 experiences', req.uuid, experiences.length);
