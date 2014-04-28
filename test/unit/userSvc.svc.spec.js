@@ -343,7 +343,7 @@ describe('userSvc (UT)', function() {
                 expect(newUser.username).toBe('testUser');
                 expect(newUser.created instanceof Date).toBeTruthy('created is a Date');
                 expect(newUser.lastUpdated).toEqual(newUser.created);
-                expect(newUser.applications).toEqual(['e-7a2e2aa57bb68f']);
+                expect(newUser.applications).toEqual(['e-51ae37625cb57f']);
                 expect(newUser.org).toBe('o-1234');
                 expect(newUser.status).toBe(Status.Active);
                 expect(newUser.permissions).toEqual({

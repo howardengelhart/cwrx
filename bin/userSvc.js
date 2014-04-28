@@ -152,7 +152,7 @@
         newUser.id = 'u-' + uuid.createUuid().substr(0,14);
         newUser.created = now;
         newUser.lastUpdated = now;
-        newUser.applications = [ 'e-7a2e2aa57bb68f' ]; // Minireelinator
+        newUser.applications = [ 'e-51ae37625cb57f' ]; // Minireelinator
         if (requester.org && !newUser.org) {
             newUser.org = requester.org;
         }

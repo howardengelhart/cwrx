@@ -221,7 +221,7 @@ describe('user (E2E):', function() {
                 expect(newUser.password).not.toBeDefined();
                 expect(new Date(newUser.created).toString()).not.toEqual('Invalid Date');
                 expect(newUser.lastUpdated).toEqual(newUser.created);
-                expect(newUser.applications).toEqual(['e-7a2e2aa57bb68f']);
+                expect(newUser.applications).toEqual(['e-51ae37625cb57f']);
                 expect(newUser.org).toBe('o-1234');
                 expect(newUser.status).toBe('active');
                 expect(newUser.permissions).toEqual({

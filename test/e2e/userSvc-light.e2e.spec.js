@@ -57,7 +57,7 @@ describe('user-light (E2E):', function() {
                 expect(currUser.password).not.toBeDefined();
                 expect(currUser.status).toBe('active');
                 expect(currUser.e2e).toBe(true);
-                expect(currUser.applications).toEqual(['e-7a2e2aa57bb68f']);
+                expect(currUser.applications).toEqual(['e-51ae37625cb57f']);
                 expect(currUser.created).toBeDefined();
                 expect(currUser.lastUpdated).toEqual(currUser.created);
                 expect(currUser.org).toBeDefined();
