@@ -138,6 +138,32 @@ describe('vote.elecDb (UT)',function(){
                     }).done(done);
             });
 
+            it('queries the db if the user is defined',function(done){
+                var now = new Date(new Date() - 1000), user = { id: 'u-1', username: 'otter' };
+                mockData = { _id : 'xyz', id : 'abc', status: Status.Active, foo : 'bar' };
+                elDb._cache['abc'] = {
+                    lastSync : now,
+                    data     : mockData
+                }
+                
+                mockDb.findOne.andCallFake(function(query,cb){
+                    process.nextTick(function(){
+                        cb(null,mockData);
+                    });
+                });
+                
+                elDb.getElection('abc', null, user)
+                    .then(resolveSpy,rejectSpy)
+                    .finally(function(){
+                        expect(resolveSpy).toHaveBeenCalled();
+                        expect(rejectSpy).not.toHaveBeenCalled();
+                        expect(mockDb.findOne).toHaveBeenCalled();
+                        expect(resolveSpy.argsForCall[0][0].foo).toEqual('bar');
+                        expect(elDb._cache['abc'].lastSync).toBeGreaterThan(now);
+                        expect(elDb._keeper.getDeferred('abc',true)).not.toBeDefined();
+                    }).done(done);
+            });
+
             it('queries the db if the cached election is old',function(done){
                 var oldSync = new Date((new Date()).valueOf() - 5000);
                 mockData = { _id : 'xyz', id : 'abc', status: Status.Active, foo : 'bar' };

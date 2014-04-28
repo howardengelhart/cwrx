@@ -162,6 +162,70 @@ describe('vote (E2E)', function(){
                 });
         });
     });
+    
+    describe('GET /api/election/vote/:id', function() {
+        it('gets an election if it exists', function(done) {
+            testUtils.qRequest('get', { url : makeUrl('/api/election/e1'), jar: cookieJar })
+                .then(function(resp){
+                    expect(resp.response.headers['cache-control']).toEqual('max-age=0');
+                    expect(resp.response.statusCode).toEqual(200);
+                    expect(resp.body.id).toEqual('e1');
+                    expect(resp.body.ballot).toEqual({
+                        'b1' : { 'red apple' : 10, 'yellow banana' : 20, 'orange carrot' : 30 },
+                        'b2' : { 'one chicken': 0, 'two ducks' : 2 }
+                    });
+                    expect(resp.body.user).toBe('e2e-user');
+                    expect(resp.body.created).toBeDefined();
+                    expect(resp.body.status).toBe('active');
+                })
+                .catch(function(err){
+                    expect(err).not.toBeDefined();
+                })
+                .finally(function(){
+                    done();
+                });
+        });
+        
+        it('gets normally private elections the user is allowed to see', function(done) {
+            testUtils.qRequest('get', { url : makeUrl('/api/election/e3'), jar: cookieJar })
+                .then(function(resp){
+                    expect(resp.response.headers['cache-control']).toEqual('max-age=0');
+                    expect(resp.response.statusCode).toEqual(200);
+                    expect(resp.body.id).toEqual('e3');
+                    expect(resp.body.status).toBe('deleted');
+                })
+                .catch(function(err){
+                    expect(err).not.toBeDefined();
+                })
+                .finally(function(){
+                    done();
+                });
+        });
+        
+        it('forces a sync before returning data', function(done) {
+            var postOpts = {
+                url: makeUrl('/api/vote'),
+                json: { election : 'e3', ballotItem: 'b1', vote: 'one fish' }
+            };
+            testUtils.qRequest('post', postOpts)
+                .then(function(resp) {
+                    expect(resp.response.statusCode).toEqual(200);
+                    return testUtils.qRequest('get', {url:makeUrl('/api/election/e3'),jar:cookieJar})
+                }).then(function(resp) {
+                    expect(resp.body.id).toEqual('e3');
+                    expect(resp.body.ballot).toEqual({
+                        'b1' : { 'one fish'   : 21, 'two fish'   : 10, },
+                        'b2' : { 'red fish'   : 40, 'blue fish'  : 30 }
+                    });
+                })
+                .catch(function(err){
+                    expect(err).not.toBeDefined();
+                })
+                .finally(function(){
+                    done();
+                });
+        });
+    });
 
     describe('POST /api/public/vote/',function(){
         var options;
