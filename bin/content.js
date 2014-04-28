@@ -79,18 +79,27 @@
     });
     content.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created'] });
     
-    content.getMostRecentData = function(experience) {
+    content.getMostRecentState = function(experience) {
         var log = logger.getLog(),
             newExp = {};
-        if (!(experience.data instanceof Array)) {
-            log.warn('Experience %1 does not have array of data, not getting most recent',
-                     experience.id);
-            return experience;
-        }
         
         for (var key in experience) {
             if (key === 'data') {
-                newExp.data = experience.data[0].data;
+                if (!(experience.data instanceof Array)) {
+                    log.warn('Experience %1 does not have array of data, not getting most recent',
+                             experience.id);
+                    newExp.data = experience.data;
+                } else {
+                    newExp.data = experience.data[0].data;
+                }
+            } else if (key === 'status') {
+                if (!(experience.status instanceof Array)) {
+                    log.warn('Experience %1 does not have status array, not getting most recent',
+                             experience.id);
+                    newExp.status = experience.status;
+                } else {
+                    newExp.status = experience.status[0].status;
+                }
             } else {
                 newExp[key] = experience[key];
             }
@@ -131,7 +140,7 @@
         return promise.then(function(results) {
             log.trace('[%1] Retrieved %2 experiences', req.uuid, results.length);
             
-            var experiences = results.filter(function(result) {
+            var experiences = results.map(content.getMostRecentState).filter(function(result) {
                 return content.checkScope(req.user, result, 'experiences', 'read') ||
                       (result.status === Status.Active && result.access === Access.Public);
             });
@@ -140,7 +149,7 @@
             if (experiences.length === 0) {
                 return q({code: 404, body: 'No experiences found'});
             } else {
-                return q({code: 200, body: experiences.map(content.getMostRecentData)});
+                return q({code: 200, body: experiences});
             }
         }).catch(function(error) {
             log.error('[%1] Error getting experiences: %2', req.uuid, error);
@@ -172,22 +181,79 @@
         if (!obj.status) {
             obj.status = Status.Active;
         }
+        obj.status = [ { user: user.username, date: now, status: obj.status } ];
         if (!obj.access) {
             obj.access = Access.Public;
         }
         if (obj.data) {
             obj.data = [ { user: user.username, date: now, data: obj.data } ];
+            if (obj.status[0].status === Status.Active) {
+                obj.data[0].active = true;
+            }
         }
 
         return q.npost(experiences, 'insert', [obj, {w: 1, journal: true}])
         .then(function() {
             log.info('[%1] User %2 successfully created experience %3', req.uuid, user.id, obj.id);
-            return q({code: 201, body: content.getMostRecentData(obj)});
+            return q({code: 201, body: content.getMostRecentState(obj)});
         }).catch(function(error) {
             log.error('[%1] Error creating experience %2 for user %3: %4',
                       req.uuid, obj.id, user.id, error);
             return q.reject(error);
         });
+    };
+    
+    content.compareData = function(a, b) {
+        return JSON.stringify(QueryCache.sortQuery(a)) === JSON.stringify(QueryCache.sortQuery(b));
+    };
+    
+    content.formatUpdates = function(req, orig, updates, user) {
+        var log = logger.getLog(),
+            now = new Date();
+
+        if (!(orig.data instanceof Array)) {
+            log.warn('[%1] Original exp %2 does not have an array of data', req.uuid, orig.id);
+            orig.data = [ { user: user.username, date: orig.created, data: orig.data } ];
+        }
+        if (!(orig.status instanceof Array)) {
+            log.warn('[%1] Original exp %2 does not have an array of statuses', req.uuid, orig.id);
+            orig.status = [{user: user.username, date: orig.created, status: orig.status}];
+        }
+
+        if (updates.data) {
+            if (!content.compareData(orig.data[0].data, updates.data)) {
+                var dataWrapper = { user: user.username, date: now, data: updates.data };
+                if (orig.status[0].status === Status.Active) {
+                    dataWrapper.active = true;
+                    orig.data.unshift(dataWrapper);
+                } else if (orig.data[0].active) { // preserve previously active data
+                    orig.data.unshift(dataWrapper);
+                } else {
+                    orig.data[0] = dataWrapper;
+                }
+                updates.data = orig.data;
+            } else {
+                delete updates.data;
+            }
+        }
+        
+        if (updates.status) {
+            if (updates.status !== orig.status[0].status) {
+                var statWrapper = { user: user.username, date: now, status: updates.status };
+                if (updates.status === Status.Active) {
+                    orig.data[0].active = true;
+                    updates.data = orig.data;
+                } else if (updates.data) {
+                    delete updates.data[0].active;
+                }
+                orig.status.unshift(statWrapper);
+                updates.status = orig.status;
+            } else {
+                delete updates.status;
+            }
+        }
+        
+        updates.lastUpdated = now;
     };
 
     content.updateExperience = function(req, experiences) {
@@ -220,40 +286,16 @@
                     body: 'Not authorized to edit this experience'
                 });
             }
-            
-            var mongoUpdates = {$set: updates}, now = new Date();
-            
-            // if un-publishing exp, want to make sure we keep a record of that data next update
-            if (updates.status && updates.status !== Status.Active &&
-                                  orig.status === Status.Active) {
-                updates.wasActive = true;
-            }
-            
-            if (updates.data) {
-                var wrapper = { user: user.username, date: now, data: updates.data };
-                if (!(orig.data instanceof Array)) {
-                    log.warn('[%1] Original exp %1 does not have an array of data', orig.id);
-                    orig.data = [ { user: user.username, date: orig.created, data: orig.data } ];
-                }
-                if (orig.status === Status.Active) {
-                    orig.data.unshift(wrapper);
-                } else if (orig.wasActive) {
-                    orig.data.unshift(wrapper);
-                    mongoUpdates.$unset = { wasActive: 1 };
-                } else {
-                    orig.data[0] = wrapper;
-                }
-                updates.data = orig.data;
-            }
-            
-            updates.lastUpdated = now;
+
+            content.formatUpdates(req, orig, updates, user);
+
             return q.npost(experiences, 'findAndModify',
-                           [{id: id}, {id: 1}, mongoUpdates, {w: 1, journal: true, new: true}])
+                           [{id: id}, {id: 1}, {$set: updates}, {w: 1, journal: true, new: true}])
             .then(function(results) {
                 var updated = results[0];
                 log.info('[%1] User %2 successfully updated experience %3',
                          req.uuid, user.id, updated.id);
-                deferred.resolve({code: 200, body: content.getMostRecentData(updated)});
+                deferred.resolve({code: 200, body: content.getMostRecentState(updated)});
             });
         }).catch(function(error) {
             log.error('[%1] Error updating experience %2 for user %3: %4',
