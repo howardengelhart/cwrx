@@ -26,6 +26,7 @@ describe('content (UT)', function() {
         };
         spyOn(logger, 'createLog').andReturn(mockLog);
         spyOn(logger, 'getLog').andReturn(mockLog);
+        spyOn(content, 'getMostRecentState').andCallThrough();
         experiences = {};
         req = {uuid: '1234'};
     });
@@ -133,6 +134,28 @@ describe('content (UT)', function() {
         });
     });
     
+    describe('getMostRecentState', function() {
+        var experience;
+        
+        it('should convert .data to .data[0].data for the client', function() {
+            var now = new Date();
+            experience = { id: 'e1', data: [
+                { username: 'otter', date: now, data: { foo: 'baz' } },
+                { username: 'crosby', date: now, data: { foo: 'bar' } }
+            ]};
+            expect(content.getMostRecentState(experience)).toEqual({ id:'e1', data: { foo:'baz' } });
+        });
+
+        it('should convert .status to .status[0].status for the client', function() {
+            var now = new Date();
+            experience = { id: 'e1', status: [
+                { username: 'otter', date: now, status: Status.Active },
+                { username: 'crosby', date: now, status: Status.Pending }
+            ]};
+            expect(content.getMostRecentState(experience)).toEqual({ id:'e1', status: Status.Active });
+        });
+    });
+    
     describe('getExperiences', function() {
         var req, cache, query, fakeCursor;
         beforeEach(function() {
@@ -148,14 +171,14 @@ describe('content (UT)', function() {
             query = 'fakeQuery';
             fakeCursor = {
                 toArray: jasmine.createSpy('cursor.toArray').andCallFake(function(cb) {
-                    cb(null, q(['fake1']));
+                    cb(null, q([{title: 'fake1'}]));
                 })
             };
             cache = {
                 _coll: {
                     find: jasmine.createSpy('cache._coll.find').andReturn(fakeCursor)
                 },
-                getPromise: jasmine.createSpy('cache.getPromise').andReturn(q(['fake2']))
+                getPromise: jasmine.createSpy('cache.getPromise').andReturn(q([{title: 'fake2'}]))
             };
             spyOn(content, 'checkScope').andReturn(true);
             spyOn(QueryCache, 'formatQuery').andReturn('formatted')
@@ -165,14 +188,16 @@ describe('content (UT)', function() {
             content.getExperiences(query, req, cache).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
-                expect(resp.body).toEqual(['fake1']);
+                expect(resp.body).toEqual([{title: 'fake1'}]);
                 expect(QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery');
                 expect(cache._coll.find)
                     .toHaveBeenCalledWith('formatted', {sort: {id: 1}, limit: 20, skip: 10});
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(cache.getPromise).not.toHaveBeenCalled();
                 expect(content.checkScope)
-                    .toHaveBeenCalledWith('fakeUser', 'fake1', 'experiences', 'read');
+                    .toHaveBeenCalledWith('fakeUser', {title: 'fake1'}, 'experiences', 'read');
+                expect(content.getMostRecentState.calls.length).toBe(1);
+                expect(content.getMostRecentState.calls[0].args[0]).toEqual({title: 'fake1'});
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -185,12 +210,12 @@ describe('content (UT)', function() {
             content.getExperiences(query, req, cache).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
-                expect(resp.body).toEqual(['fake1']);
+                expect(resp.body).toEqual([{title: 'fake1'}]);
                 expect(QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery');
                 expect(cache._coll.find)
                     .toHaveBeenCalledWith('formatted', {sort: {}, limit: 0, skip: 0});
                 expect(content.checkScope)
-                    .toHaveBeenCalledWith('fakeUser', 'fake1', 'experiences', 'read');
+                    .toHaveBeenCalledWith('fakeUser', {title: 'fake1'}, 'experiences', 'read');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -203,7 +228,7 @@ describe('content (UT)', function() {
             content.getExperiences(query, req, cache).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
-                expect(resp.body).toEqual(['fake1']);
+                expect(resp.body).toEqual([{title: 'fake1'}]);
                 expect(mockLog.warn).toHaveBeenCalled();
                 expect(QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery');
                 expect(cache._coll.find)
@@ -220,12 +245,12 @@ describe('content (UT)', function() {
             content.getExperiences(query, req, cache).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
-                expect(resp.body).toEqual(['fake2']);
+                expect(resp.body).toEqual([{title: 'fake2'}]);
                 expect(QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery');
                 expect(cache.getPromise).toHaveBeenCalledWith('formatted', {id: 1}, 20, 10);
                 expect(cache._coll.find).not.toHaveBeenCalled();
                 expect(content.checkScope)
-                    .toHaveBeenCalledWith(undefined, 'fake2', 'experiences', 'read');
+                    .toHaveBeenCalledWith(undefined, {title: 'fake2'}, 'experiences', 'read');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -255,6 +280,7 @@ describe('content (UT)', function() {
                 expect(resp.body).toEqual([{ id: 'e-3', status: Status.Active, access: Access.Public },
                                            { id: 'e-4', status: Status.Inactive, access: Access.Private }]);
                 expect(content.checkScope.calls.length).toBe(4);
+                expect(content.getMostRecentState.calls.length).toBe(4);
                 return content.getExperiences(query, { uuid: '1234' }, cache);
             }).then(function(resp) {
                 expect(resp).toBeDefined();
@@ -313,8 +339,8 @@ describe('content (UT)', function() {
     
     describe('createExperience', function() {
         beforeEach(function() {
-            req.body = {title: 'fakeExp'};
-            req.user = {id: 'u-1234', org: 'o-1234'};
+            req.body = {title: 'fakeExp', data: { foo: 'bar' } };
+            req.user = {id: 'u-1234', org: 'o-1234', username: 'otter'};
             experiences.insert = jasmine.createSpy('experiences.insert')
                 .andCallFake(function(obj, opts, cb) { cb(); });
             spyOn(uuid, 'createUuid').andReturn('1234');
@@ -342,13 +368,18 @@ describe('content (UT)', function() {
                 expect(resp.body.title).toBe('fakeExp');
                 expect(resp.body.created instanceof Date).toBeTruthy('created is a Date');
                 expect(resp.body.lastUpdated instanceof Date).toBeTruthy('lastUpdated is a Date');
+                expect(resp.body.data).toEqual({foo: 'bar'});
                 expect(resp.body.user).toBe('u-1234');
                 expect(resp.body.org).toBe('o-1234');
                 expect(resp.body.status).toBe(Status.Active);
                 expect(content.createValidator.validate).toHaveBeenCalledWith(req.body, {}, req.user);
                 expect(experiences.insert).toHaveBeenCalled();
-                expect(experiences.insert.calls[0].args[0]).toBe(resp.body);
+                var data = experiences.insert.calls[0].args[0].data[0];
+                expect(data.user).toBe('otter');
+                expect(data.date instanceof Date).toBeTruthy('data.date is a Date');
+                expect(data.data).toEqual({foo: 'bar'});
                 expect(experiences.insert.calls[0].args[1]).toEqual({w: 1, journal: true});
+                expect(content.getMostRecentState).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -383,21 +414,157 @@ describe('content (UT)', function() {
             });
         });
     });
+
+    describe('compareData', function() {
+        it('should perform a deep equality check on two objects', function() {
+            var a = { foo: 'bar', arr: [1, 3, 2] }, b = { foo: 'bar', arr: [1, 2, 2] };
+            expect(content.compareData(a, b)).toBe(false);
+            b.arr[1] = 3;
+            expect(content.compareData(a, b)).toBe(true);
+            a.foo = 'baz';
+            expect(content.compareData(a, b)).toBe(false);
+            a.foo = 'bar';
+            a.data = { user: 'otter' };
+            b.data = { user: 'otter', org: 'c6' };
+            expect(content.compareData(a, b)).toBe(false);
+            a.data.org = 'c6';
+            expect(content.compareData(a, b)).toBe(true);
+        });
+    });
+    
+    describe('formatUpdates', function() {
+        var req, orig, updates, user, start = new Date();
+        
+        beforeEach(function() {
+            req = { uuid: '1234' };
+            updates = {};
+            orig = {
+                id: 'e-1',
+                created: start,
+                data: [{user: 'johnny', date: start, data: {foo: 'bar'}}],
+                status: [{user: 'johnny', date: start, status: Status.Pending}]
+            };
+            user = { id: 'u-1', username: 'otter' };
+        });
+        
+        it('should append a new status entry on each change', function() {
+            updates.status = Status.Deleted;
+            content.formatUpdates(req, orig, updates, user);
+            expect(updates.status instanceof Array).toBe(true);
+            expect(updates.status.length).toBe(2);
+            expect(updates.status[0].user).toBe('otter');
+            expect(updates.status[0].date).toBeGreaterThan(start);
+            expect(updates.status[0].status).toEqual(Status.Deleted);
+            expect(updates.status[1].user).toBe('johnny');
+            expect(updates.status[1].date).toBe(start);
+            expect(updates.status[1].status).toEqual(Status.Pending);
+            expect(updates.data).not.toBeDefined();
+            expect(updates.lastUpdated).toBeGreaterThan(start);
+        });
+        
+        it('should set the current data to active if the experience becomes active', function() {
+            updates.status = Status.Active;
+            content.formatUpdates(req, orig, updates, user);
+            expect(updates.status.length).toBe(2);
+            expect(updates.data.length).toBe(1);
+            expect(updates.data[0].active).toBe(true);
+        });
+        
+        it('should append a new data entry if the experience is active', function() {
+            orig.status[0].status = Status.Active;
+            updates.data = {foo: 'baz'};
+            content.formatUpdates(req, orig, updates, user);
+            expect(updates.data instanceof Array).toBe(true);
+            expect(updates.data.length).toBe(2);
+            expect(updates.data[0].user).toBe('otter');
+            expect(updates.data[0].date).toBeGreaterThan(start);
+            expect(updates.data[0].data).toEqual({foo: 'baz'});
+            expect(updates.data[0].active).toBe(true);
+            expect(updates.data[1].user).toBe('johnny');
+            expect(updates.data[1].date).toBe(start);
+            expect(updates.data[1].data).toEqual({foo: 'bar'});
+            expect(updates.data[1].active).not.toBeDefined();
+            expect(updates.status).not.toBeDefined();
+        });
+
+        it('should edit the current data entry if the experience is not active', function() {
+            updates.data = {foo: 'baz'};
+            content.formatUpdates(req, orig, updates, user);
+            expect(updates.data.length).toBe(1);
+            expect(updates.data[0].user).toBe('otter');
+            expect(updates.data[0].date).toBeGreaterThan(start);
+            expect(updates.data[0].data).toEqual({foo: 'baz'});
+        });
+        
+        it('should append a new data entry if the current data was active', function() {
+            orig.data[0].active = true;
+            updates.data = {foo: 'baz'};
+            content.formatUpdates(req, orig, updates, user);
+            expect(updates.data.length).toBe(2);
+            expect(updates.data[0].active).not.toBeDefined();
+        });
+        
+        it('should not create a new data entry if the status is just becoming active', function() {
+            updates.status = Status.Active;
+            updates.data = {foo: 'baz'};
+            content.formatUpdates(req, orig, updates, user);
+            expect(updates.data.length).toBe(1);
+            expect(updates.status.length).toBe(2);
+            expect(updates.data[0].active).toBe(true);
+            expect(updates.data[0].user).toBe('otter');
+        });
+        
+        it('should create a new data entry if the status is just becoming not active', function() {
+            orig.status[0].status = Status.Active;
+            updates.status = Status.Pending;
+            updates.data = {foo: 'baz'};
+            content.formatUpdates(req, orig, updates, user);
+            expect(updates.data.length).toBe(2);
+            expect(updates.status.length).toBe(2);
+            expect(updates.data[0].active).not.toBeDefined();
+        });
+
+        it('should prune out updates to the status and data if there\'s no change', function() {
+            updates = {foo: 'bar'};
+            updates.status = Status.Pending;
+            content.formatUpdates(req, orig, updates, user);
+            expect(updates.data).not.toBeDefined();
+            expect(updates.status).not.toBeDefined();
+        });
+        
+        it('should turn the data and status props into arrays if necessary', function() {
+            updates = { data: { foo: 'baz' }, status: Status.Deleted };
+            orig.data = { foo: 'bar' };
+            orig.status = Status.Active;
+            content.formatUpdates(req, orig, updates, user);
+            expect(updates.data.length).toBe(2);
+            expect(updates.status.length).toBe(2);
+            expect(updates.data[1].user).toBe('otter');
+            expect(updates.data[1].date).toBe(start);
+            expect(updates.data[1].data).toEqual({foo: 'bar'});
+            expect(updates.status[1].user).toBe('otter');
+            expect(updates.status[1].date).toBe(start);
+            expect(updates.status[1].status).toBe(Status.Active);
+        });
+    });
     
     describe('updateExperience', function() {
         var start = new Date(),
             oldExp;
         beforeEach(function() {
             req.params = {id: 'e-1234'};
-            req.body = {title: 'newExp'};
-            oldExp = {id:'e-1234', title:'oldExp', user:'u-1234', created:start, lastUpdated:start};
-            req.user = {id: 'u-1234'};
+            req.body = {title: 'newExp', data: {foo: 'baz'} };
+            oldExp = {id:'e-1234', title:'oldExp', user:'u-1234', created:start, lastUpdated:start,
+                      data: [ { user: 'otter', date: start, data: { foo: 'bar' } } ],
+                      status: [ { user: 'otter', date: start, status: Status.Pending } ] };
+            req.user = {id: 'u-1234', username: 'otter'};
             experiences.findOne = jasmine.createSpy('experiences.findOne')
                 .andCallFake(function(query, cb) { cb(null, oldExp); });
             experiences.findAndModify = jasmine.createSpy('experiences.findAndModify').andCallFake(
                 function(query, sort, obj, opts, cb) {
-                    cb(null, [{ id: 'e-1234', updated: true }]);
+                    cb(null, [{ id: 'e-1234', data: obj.$set.data }]);
                 });
+            spyOn(content, 'formatUpdates').andCallThrough();
             spyOn(content, 'checkScope').andReturn(true);
             spyOn(content.updateValidator, 'validate').andReturn(true);
         });
@@ -418,19 +585,24 @@ describe('content (UT)', function() {
         it('should successfully update an experience', function(done) {
             content.updateExperience(req, experiences).then(function(resp) {
                 expect(resp.code).toBe(200);
-                expect(resp.body).toEqual({id: 'e-1234', updated: true});
+                expect(resp.body).toEqual({id: 'e-1234', data: {foo:'baz'}});
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findOne.calls[0].args[0]).toEqual({id: 'e-1234'});
                 expect(content.updateValidator.validate).toHaveBeenCalledWith(req.body, oldExp, req.user);
+                expect(content.formatUpdates).toHaveBeenCalledWith(req, oldExp, req.body, req.user);
                 expect(experiences.findAndModify).toHaveBeenCalled();
                 expect(experiences.findAndModify.calls[0].args[0]).toEqual({id: 'e-1234'});
                 expect(experiences.findAndModify.calls[0].args[1]).toEqual({id: 1});
                 var updates = experiences.findAndModify.calls[0].args[2];
                 expect(Object.keys(updates)).toEqual(['$set']);
                 expect(updates.$set.title).toBe('newExp');
+                expect(updates.$set.data[0].user).toBe('otter');
+                expect(updates.$set.data[0].date instanceof Date).toBeTruthy('data.date is a Date');
+                expect(updates.$set.data[0].data).toEqual({foo: 'baz'});
                 expect(updates.$set.lastUpdated instanceof Date).toBeTruthy('lastUpdated is Date');
                 expect(experiences.findAndModify.calls[0].args[3])
                     .toEqual({w: 1, journal: true, new: true});
+                expect(content.getMostRecentState).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

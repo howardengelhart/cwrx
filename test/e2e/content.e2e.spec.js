@@ -368,6 +368,21 @@ describe('content (E2E):', function() {
                 done();
             });
         });
+
+        it('should return a 404 if nothing is found', function(done) {
+            var options = {
+                url: config.contentUrl + '/content/experiences?user=hamboneHarry',
+                jar: cookieJar
+            };
+            testUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toEqual('No experiences found');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
         
         it('should be able to sort and paginate the results', function(done) {
             var options = {
