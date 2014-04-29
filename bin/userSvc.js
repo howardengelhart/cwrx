@@ -429,7 +429,7 @@
         });
 
         var credsChecker = authUtils.userPassChecker(users);
-        app.put('/api/account/user/username', credsChecker, function(req, res) {
+        app.post('/api/account/user/username', credsChecker, function(req, res) {
             userSvc.changeUsername(req, users).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
@@ -440,7 +440,7 @@
             });
         });
 
-        app.put('/api/account/user/password', credsChecker, function(req, res) {
+        app.post('/api/account/user/password', credsChecker, function(req, res) {
             userSvc.changePassword(req, users).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {

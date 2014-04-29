@@ -540,7 +540,7 @@ describe('user (E2E):', function() {
         });
     });
     
-    describe('PUT /api/account/user/username', function() {
+    describe('POST /api/account/user/username', function() {
         var user, reqBody, options;
         beforeEach(function(done) {
             user = {
@@ -557,18 +557,18 @@ describe('user (E2E):', function() {
         it('should fail if username, password, or newUsername are not provided', function(done) {
             reqBody = { password: 'password', newUsername: 'johnny' };
             options.json = reqBody;
-            testUtils.qRequest('put', options).then(function(resp) {
+            testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Must provide username and password');
                 reqBody = { username: 'otter', newUsername: 'johnny' };
                 options.json = reqBody;
-                return testUtils.qRequest('put', options);
+                return testUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Must provide username and password');
                 reqBody = { username: 'otter', password: 'password' };
                 options.json = reqBody;
-                return testUtils.qRequest('put', options);
+                return testUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Must provide a new username');
@@ -582,7 +582,7 @@ describe('user (E2E):', function() {
         it('should fail if the username is invalid', function(done) {
             reqBody.username = 'johnny';
             options.json = reqBody;
-            testUtils.qRequest('put', options).then(function(resp) {
+            testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Invalid username or password');
                 done();
@@ -595,7 +595,7 @@ describe('user (E2E):', function() {
         it('should fail if the password is invalid', function(done) {
             reqBody.password = 'thisisnotapassword';
             options.json = reqBody;
-            testUtils.qRequest('put', options).then(function(resp) {
+            testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Invalid username or password');
                 done();
@@ -606,7 +606,7 @@ describe('user (E2E):', function() {
         });
         
         it('should change the user\'s username successfully', function(done) {
-            testUtils.qRequest('put', options).then(function(resp) {
+            testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBe('Successfully changed username');
                 var optionsA = {url:config.authUrl + '/login', json:{username:'otter',password:'password'}};
@@ -625,7 +625,7 @@ describe('user (E2E):', function() {
         });
     });
     
-    describe('PUT /api/account/user/password', function() {
+    describe('POST /api/account/user/password', function() {
         var user, reqBody, options;
         beforeEach(function(done) {
             user = {
@@ -642,18 +642,18 @@ describe('user (E2E):', function() {
         it('should fail if username, password, or newPassword are not provided', function(done) {
             reqBody = { password: 'password', newPassword: 'foobar' };
             options.json = reqBody;
-            testUtils.qRequest('put', options).then(function(resp) {
+            testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Must provide username and password');
                 reqBody = { username: 'otter', newPassword: 'foobar' };
                 options.json = reqBody;
-                return testUtils.qRequest('put', options);
+                return testUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Must provide username and password');
                 reqBody = { username: 'otter', password: 'password' };
                 options.json = reqBody;
-                return testUtils.qRequest('put', options);
+                return testUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Must provide a new password');
@@ -667,7 +667,7 @@ describe('user (E2E):', function() {
         it('should fail if the username is invalid', function(done) {
             reqBody.username = 'johnny';
             options.json = reqBody;
-            testUtils.qRequest('put', options).then(function(resp) {
+            testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Invalid username or password');
                 done();
@@ -680,7 +680,7 @@ describe('user (E2E):', function() {
         it('should fail if the password is invalid', function(done) {
             reqBody.password = 'thisisnotapassword';
             options.json = reqBody;
-            testUtils.qRequest('put', options).then(function(resp) {
+            testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Invalid username or password');
                 done();
@@ -691,7 +691,7 @@ describe('user (E2E):', function() {
         });
         
         it('should change the user\'s password successfully', function(done) {
-            testUtils.qRequest('put', options).then(function(resp) {
+            testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBe('Successfully changed password');
                 var loginOpts = {url:config.authUrl + '/login', json:{username:'otter',password:'foobar'}};
