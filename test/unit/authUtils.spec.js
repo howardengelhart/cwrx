@@ -1,10 +1,11 @@
 var flush = true;
 describe('authUtils', function() {
-    var mockUser, q, authUtils, uuid, logger, mongoUtils;
+    var mockUser, q, authUtils, uuid, logger, mongoUtils, mockLog, bcrypt;
     
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q           = require('q');
+        bcrypt      = require('bcrypt');
         authUtils   = require('../../lib/authUtils')();
         mongoUtils  = require('../../lib/mongoUtils');
         QueryCache  = require('../../lib/queryCache');
@@ -23,6 +24,16 @@ describe('authUtils', function() {
                 }
             }
         };
+
+        mockLog = {
+            trace : jasmine.createSpy('log_trace'),
+            error : jasmine.createSpy('log_error'),
+            warn  : jasmine.createSpy('log_warn'),
+            info  : jasmine.createSpy('log_info'),
+            fatal : jasmine.createSpy('log_fatal'),
+            log   : jasmine.createSpy('log_log')
+        };
+        spyOn(logger, 'getLog').andReturn(mockLog);
         
         spyOn(authUtils, '_initCache').andCallThrough();
         authUtils._cache = new QueryCache(5, 10, 'fakeColl');
@@ -236,18 +247,9 @@ describe('authUtils', function() {
         });
         
         describe('middleware', function() {
-            var perms, mockLog, req, res, next;
+            var perms, req, res, next;
             beforeEach(function() {
                 perms = "fakePerms";
-                mockLog = {
-                    trace : jasmine.createSpy('log_trace'),
-                    error : jasmine.createSpy('log_error'),
-                    warn  : jasmine.createSpy('log_warn'),
-                    info  : jasmine.createSpy('log_info'),
-                    fatal : jasmine.createSpy('log_fatal'),
-                    log   : jasmine.createSpy('log_log')
-                };
-                spyOn(logger, 'getLog').andReturn(mockLog);
                 spyOn(uuid, 'createUuid').andReturn('1234567890abcd');
                 req = {
                     uuid: '1234',
@@ -352,4 +354,137 @@ describe('authUtils', function() {
             });
         });  // end -- describe returned function
     });  // end -- describe middlewarify
+    
+    describe('userPassChecker', function() {
+        var userColl, user, req, res, next, midWare;
+        beforeEach(function() {
+            user = { id: 'u-1', username: 'otter', password: 'fakeHash' };
+            userColl = {
+                findOne: jasmine.createSpy('users.findOne').andCallFake(function(query, cb) {
+                    cb(null, user);
+                })
+            };
+            req = {
+                uuid: '1234',
+                route: { method: 'get', path: '/ut' },
+                body: { username: 'otter', password: 'thisisapassword' }
+            };
+            res = {};
+            midWare = authUtils.userPassChecker(userColl);
+            spyOn(bcrypt, 'compare').andCallFake(function(password, hashed, cb) {
+                cb(null, true);
+            });
+            spyOn(mongoUtils, 'safeUser').andCallThrough();
+        });
+        
+        it('should fail with a 400 if no username or password is provided', function(done) {
+            res.send = function(code, body) {
+                expect(code).toBe(400);
+                expect(body).toBe('Must provide username and password');
+                expect(userColl.findOne).not.toHaveBeenCalled();
+                expect(req.user).not.toBeDefined();
+                done();
+            };
+            next = function() {
+                expect('called next').toBe('should not have called next');
+                done();
+            };
+            req.body = { username: 'otter' };
+            midWare(req, res, next);
+            req.body = { password: 'thisisapassword' };
+            midWare(req, res, next);
+        });
+        
+        it('should call next if the credentials are valid', function(done) {
+            res.send = function(code, body) {
+                expect(code).not.toBeDefined();
+                expect(body).not.toBeDefined();
+                done();
+            };
+            midWare(req, res, function() {
+                expect(req.user).toEqual({id: 'u-1', username: 'otter'});
+                expect(userColl.findOne).toHaveBeenCalled();
+                expect(userColl.findOne.calls[0].args[0]).toEqual({username: 'otter'});
+                expect(bcrypt.compare).toHaveBeenCalled();
+                expect(bcrypt.compare.calls[0].args[0]).toBe('thisisapassword');
+                expect(bcrypt.compare.calls[0].args[1]).toBe('fakeHash');
+                expect(mongoUtils.safeUser).toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should fail with a 401 if the user does not exist', function(done) {
+            userColl.findOne.andCallFake(function(query, cb) {
+                cb(null, null);
+            });
+            res.send = function(code, body) {
+                expect(code).toBe(401);
+                expect(body).toBe('Invalid username or password');
+                expect(userColl.findOne).toHaveBeenCalled();
+                expect(bcrypt.compare).not.toHaveBeenCalled();
+                expect(req.user).not.toBeDefined();
+                done();
+            };
+            midWare(req, res, function() {
+                expect('called next').toBe('should not have called next');
+                done();
+            });
+        });
+        
+        it('should fail with a 401 if the password is incorrect', function(done) {
+            bcrypt.compare.andCallFake(function(password, hashed, cb) {
+                cb(null, false);
+            });
+            res.send = function(code, body) {
+                expect(code).toBe(401);
+                expect(body).toBe('Invalid username or password');
+                expect(userColl.findOne).toHaveBeenCalled();
+                expect(bcrypt.compare).toHaveBeenCalled();
+                expect(req.user).not.toBeDefined();
+                done();
+            };
+            midWare(req, res, function() {
+                expect('called next').toBe('should not have called next');
+                done();
+            });
+        });
+        
+        it('should reject with an error if bcrypt.compare fails', function(done) {
+            bcrypt.compare.andCallFake(function(password, hashed, cb) {
+                cb('I GOT A PROBLEM');
+            });
+            res.send = function(code, body) {
+                expect(code).toBe(500);
+                expect(body).toBe('Error checking authorization of user');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(userColl.findOne).toHaveBeenCalled();
+                expect(bcrypt.compare).toHaveBeenCalled();
+                expect(req.user).not.toBeDefined();
+                done();
+            };
+            midWare(req, res, function() {
+                expect('called next').toBe('should not have called next');
+                done();
+            });
+        });
+        
+        it('should reject with an error if users.findOne fails', function(done) {
+            userColl.findOne.andCallFake(function(query, cb) {
+                cb('I GOT A PROBLEM');
+            });
+            res.send = function(code, body) {
+                expect(code).toBe(500);
+                expect(body).toBe('Error checking authorization of user');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(userColl.findOne).toHaveBeenCalled();
+                expect(bcrypt.compare).not.toHaveBeenCalled();
+                expect(req.user).not.toBeDefined();
+                done();
+            };
+            midWare(req, res, function() {
+                expect('called next').toBe('should not have called next');
+                done();
+            });
+        });
+    });  // end -- describe userPassChecker
 });  // end -- describe authUtils

@@ -103,7 +103,7 @@
         }
     });
     userSvc.updateValidator = new FieldValidator({
-        forbidden: ['id', 'org', 'password', 'created', '_id'],
+        forbidden: ['id', 'org', 'password', 'created', '_id', 'username'],
         condForbidden: { permissions: userSvc.permsCheck }
     });
 
@@ -323,6 +323,46 @@
         });
         return deferred.promise;
     };
+    
+    userSvc.changePassword = function(req, users) {
+        var log = logger.getLog(),
+            now = new Date();
+        if (!req.body.newPassword) {
+            log.info('[%1] User %2 did not provide a new password', req.uuid, req.user.id);
+            return q({code: 400, body: 'Must provide a new password'});
+        }
+        return q.npost(bcrypt, 'hash', [req.body.newPassword, bcrypt.genSaltSync()])
+        .then(function(hashed) {
+            var updates = { $set: { lastUpdated: now, password: hashed } };
+            return q.npost(users, 'update', [{id: req.user.id}, updates, {w: 1, journal: true}]);
+        }).then(function() {
+            log.info('[%1] User %2 successfully changed their password', req.uuid, req.user.id);
+            return q({code: 200, body: 'Successfully changed password'});
+        }).catch(function(error) {
+            log.error('[%1] Error changing password for user %2: %3', req.uuid, req.user.id, error);
+            return q.reject(error);
+        });
+    };
+    
+    userSvc.changeUsername = function(req, users) {
+        var log = logger.getLog(),
+            now = new Date();
+        if (!req.body.newUsername) {
+            log.info('[%1] User %2 did not provide a new username', req.uuid, req.user.id);
+            return q({code: 400, body: 'Must provide a new username'});
+        }
+
+        var updates = { $set: { lastUpdated: now, username: req.body.newUsername } };
+
+        return q.npost(users, 'update', [{id: req.user.id}, updates, {w: 1, journal: true}])
+        .then(function() {
+            log.info('[%1] User %2 successfully changed their username', req.uuid, req.user.id);
+            return q({code: 200, body: 'Successfully changed username'});
+        }).catch(function(error) {
+            log.error('[%1] Error changing password for user %2: %3', req.uuid, req.user.id, error);
+            return q.reject(error);
+        });
+    };
 
     userSvc.main = function(state) {
         var log = logger.getLog(),
@@ -386,6 +426,29 @@
         
         app.get('/api/account/user/version',function(req, res) {
             res.send(200, state.config.appVersion);
+        });
+
+        var credsChecker = authUtils.userPassChecker(users);
+        app.post('/api/account/user/username', credsChecker, function(req, res) {
+            userSvc.changeUsername(req, users).then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error changing username',
+                    detail: error
+                });
+            });
+        });
+
+        app.post('/api/account/user/password', credsChecker, function(req, res) {
+            userSvc.changePassword(req, users).then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error changing password',
+                    detail: error
+                });
+            });
         });
         
         var authGetUser = authUtils.middlewarify({users: 'read'});
@@ -459,7 +522,7 @@
                 });
             });
         });
-        
+
         app.use(function(err, req, res, next) {
             if (err) {
                 log.error('Error: %1', err);
