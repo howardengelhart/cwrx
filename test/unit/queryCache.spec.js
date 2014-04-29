@@ -52,6 +52,12 @@ describe('QueryCache', function() {
             var sorted = QueryCache.sortQuery(query);
             expect(JSON.stringify(sorted)).toBe(JSON.stringify({a: 2, b: [{g: 2, h: 1}, {e: 5, f: 3}]}));
         });
+        
+        it('should be able to handle null fields', function() {
+            var query = {b: 1, a: null}, sorted;
+            expect(function() {sorted = QueryCache.sortQuery(query);}).not.toThrow();
+            expect(sorted).toEqual({a: null, b: 1});
+        });
     });
     
     describe('formatQuery', function() {
