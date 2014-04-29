@@ -533,4 +533,171 @@ describe('user (E2E):', function() {
             });
         });
     });
+    
+    describe('PUT /api/account/user/username', function() {
+        var user, reqBody, options;
+        beforeEach(function(done) {
+            user = {
+                id: 'u-1',
+                username: 'otter',
+                status: 'active',
+                password: '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq'
+            };
+            reqBody = { username: 'otter', password: 'password', newUsername: 'johnny' };
+            options = { url: config.userSvcUrl + '/user/username', json: reqBody };
+            testUtils.resetCollection('users', user).done(done);
+        });
+        
+        it('should fail if username, password, or newUsername are not provided', function(done) {
+            reqBody = { password: 'password', newUsername: 'johnny' };
+            options.json = reqBody;
+            testUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Must provide username and password');
+                reqBody = { username: 'otter', newUsername: 'johnny' };
+                options.json = reqBody;
+                return testUtils.qRequest('put', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Must provide username and password');
+                reqBody = { username: 'otter', password: 'password' };
+                options.json = reqBody;
+                return testUtils.qRequest('put', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Must provide a new username');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should fail if the username is invalid', function(done) {
+            reqBody.username = 'johnny';
+            options.json = reqBody;
+            testUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe('Invalid username or password');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should fail if the password is invalid', function(done) {
+            reqBody.password = 'thisisnotapassword';
+            options.json = reqBody;
+            testUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe('Invalid username or password');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should change the user\'s username successfully', function(done) {
+            testUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBe('Successfully changed username');
+                var optionsA = {url:config.authUrl + '/login', json:{username:'otter',password:'password'}};
+                var optionsB = {url:config.authUrl + '/login', json:{username:'johnny',password:'password'}};
+                return q.all([testUtils.qRequest('post', optionsA), testUtils.qRequest('post', optionsB)]);
+            }).then(function(resps) {
+                expect(resps[0].response.statusCode).toBe(401);
+                expect(resps[0].body).toBe('Invalid username or password');
+                expect(resps[1].response.statusCode).toBe(200);
+                expect(resps[1].body).toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+    });
+    
+    describe('PUT /api/account/user/password', function() {
+        var user, reqBody, options;
+        beforeEach(function(done) {
+            user = {
+                id: 'u-1',
+                username: 'otter',
+                status: 'active',
+                password: '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq'
+            };
+            reqBody = { username: 'otter', password: 'password', newPassword: 'foobar' };
+            options = { url: config.userSvcUrl + '/user/password', json: reqBody };
+            testUtils.resetCollection('users', user).done(done);
+        });
+
+        it('should fail if username, password, or newPassword are not provided', function(done) {
+            reqBody = { password: 'password', newPassword: 'foobar' };
+            options.json = reqBody;
+            testUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Must provide username and password');
+                reqBody = { username: 'otter', newPassword: 'foobar' };
+                options.json = reqBody;
+                return testUtils.qRequest('put', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Must provide username and password');
+                reqBody = { username: 'otter', password: 'password' };
+                options.json = reqBody;
+                return testUtils.qRequest('put', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Must provide a new password');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should fail if the username is invalid', function(done) {
+            reqBody.username = 'johnny';
+            options.json = reqBody;
+            testUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe('Invalid username or password');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should fail if the password is invalid', function(done) {
+            reqBody.password = 'thisisnotapassword';
+            options.json = reqBody;
+            testUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe('Invalid username or password');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should change the user\'s password successfully', function(done) {
+            testUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBe('Successfully changed password');
+                var loginOpts = {url:config.authUrl + '/login', json:{username:'otter',password:'foobar'}};
+                return testUtils.qRequest('post', loginOpts);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+    });
 });
