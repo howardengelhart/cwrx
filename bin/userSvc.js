@@ -430,7 +430,6 @@
             res.send(200, state.config.appVersion);
         });
 
-        //TODO: rename endpoints?
         var credsChecker = authUtils.userPassChecker(users);
         app.put('/api/account/user/username', credsChecker, function(req, res) {
             userSvc.changeUsername(req, users).then(function(resp) {
