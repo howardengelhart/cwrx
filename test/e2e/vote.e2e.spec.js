@@ -43,7 +43,7 @@ describe('vote (E2E)', function(){
             },
             {
                 id: 'e3',
-                status: 'deleted',
+                status: 'inactive',
                 user: 'e2e-user',
                 created: new Date(new Date() - 24*60*60*1000),
                 ballot:   {
@@ -192,7 +192,7 @@ describe('vote (E2E)', function(){
                     expect(resp.response.headers['cache-control']).toEqual('max-age=0');
                     expect(resp.response.statusCode).toEqual(200);
                     expect(resp.body.id).toEqual('e3');
-                    expect(resp.body.status).toBe('deleted');
+                    expect(resp.body.status).toBe('inactive');
                 })
                 .catch(function(err){
                     expect(err).not.toBeDefined();

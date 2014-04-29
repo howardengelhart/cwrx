@@ -367,7 +367,7 @@ describe('vote.elecDb (UT)',function(){
                     return !!user;
                 });
                 spyOn(elDb._keeper, 'getDeferred').andCallThrough();
-                mockData.status = Status.Deleted;
+                mockData.status = Status.Inactive;
                 mockDb.findOne.andCallFake(function(query,cb){
                     process.nextTick(function(){
                         cb(null,mockData);
@@ -387,7 +387,28 @@ describe('vote.elecDb (UT)',function(){
                         expect(resolveSpy.argsForCall[0][0].length).toEqual(2);
                         expect(resolveSpy.argsForCall[0][0][0]).not.toBeDefined()
                         expect(resolveSpy.argsForCall[0][0][1]).toBeDefined()
-                        expect(resolveSpy.argsForCall[0][0][1].status).toBe(Status.Deleted);
+                        expect(resolveSpy.argsForCall[0][0][1].status).toBe(Status.Inactive);
+                        expect(elDb._keeper.getDeferred('abc',true)).not.toBeDefined();
+                        expect(elDb._cache['abc']).toBeDefined();
+                        expect(elDb._cache['abc'].data.status).toBe(Status.Inactive);
+                    }).done(done);
+            });
+            
+            it('does not show any deleted experiences', function(done) {
+                spyOn(app, 'checkScope').andReturn(true);
+                mockData.status = Status.Deleted;
+                mockDb.findOne.andCallFake(function(query,cb){
+                    process.nextTick(function(){
+                        cb(null,mockData);
+                    });
+                });
+
+                elDb.getElection('abc', null, 'fakeUser')
+                    .then(resolveSpy,rejectSpy)
+                    .finally(function(){
+                        expect(resolveSpy).toHaveBeenCalledWith(undefined);
+                        expect(rejectSpy).not.toHaveBeenCalled();
+                        expect(mockDb.findOne.callCount).toEqual(1);
                         expect(elDb._keeper.getDeferred('abc',true)).not.toBeDefined();
                         expect(elDb._cache['abc']).toBeDefined();
                         expect(elDb._cache['abc'].data.status).toBe(Status.Deleted);

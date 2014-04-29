@@ -127,14 +127,12 @@
         .then(function(results) {
             log.trace('[%1] Retrieved %2 users', req.uuid, results.length);
             var users = results.filter(function(result) {
-                return userSvc.checkScope(req.user, result, 'read');
+                return result.status !== Status.Deleted &&
+                       userSvc.checkScope(req.user, result, 'read');
             });
             users = users.map(mongoUtils.safeUser);
             log.info('[%1] Showing the requester %2 user documents', req.uuid, users.length);
             if (users.length === 0) {
-                if (results.length !== 0) {
-                    return q({code: 403, body: 'Not authorized to get those users'});
-                }
                 return q({code: 404, body: 'No users found'});
             } else {
                 return q({code: 200, body: users});

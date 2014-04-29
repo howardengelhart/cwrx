@@ -67,15 +67,15 @@ describe('user (E2E):', function() {
             });
         });
         
-        it('should return a 403 if the requester cannot see the user', function(done) {
+        it('should return a 404 if the requester cannot see the user', function(done) {
             var options = { url: config.userSvcUrl + '/user/e2e-getId2', jar: cookieJar };
             mockUser.org = 'o-4567';
             mockUser.id = 'e2e-getId2';
             testUtils.resetCollection('users', [mockUser, mockRequester]).then(function() {
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(403);
-                expect(resp.body).toEqual('Not authorized to get those users');
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toEqual('No users found');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -177,8 +177,8 @@ describe('user (E2E):', function() {
         it('should not show users the requester cannot see', function(done) {
             var options = { url: config.userSvcUrl + '/users?org=o-4567', jar: cookieJar };
             testUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(403);
-                expect(resp.body).toBe('Not authorized to get those users');
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toEqual('No users found');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -452,8 +452,8 @@ describe('user (E2E):', function() {
                 options = { url: config.userSvcUrl + '/user/e2e-delete1', jar: cookieJar };
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.status).toBe('deleted');
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toBe('No users found');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();

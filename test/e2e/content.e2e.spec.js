@@ -606,7 +606,7 @@ describe('content (E2E):', function() {
             testUtils.qRequest('del', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
-                options = {url: config.contentUrl + '/public/content/experience/e2e-del1'};
+                options = {url: config.contentUrl + '/content/experience/e2e-del1', jar: cookieJar};
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);

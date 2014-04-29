@@ -209,8 +209,8 @@
             log = logger.getLog(),
             voteCounts, promise;
         function filter(election) {
-            if (election &&
-                !(app.checkScope(user,election,'read') || election.status === Status.Active)) {
+            if (election && (election.status === Status.Deleted ||
+                !(app.checkScope(user,election,'read') || election.status === Status.Active))) {
                 log.info('User %1 not allowed to read election %2',
                           user && user.id || 'guest', electionId);
                 return q();

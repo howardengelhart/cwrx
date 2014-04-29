@@ -276,6 +276,21 @@ describe('userSvc (UT)', function() {
             });
         });
         
+        it('should not show any deleted users', function(done) {
+            fakeCursor.toArray.andCallFake(function(cb) {
+                cb(null, q([{id: '1', status: Status.Deleted}]));
+            })
+            userSvc.getUsers(query, req, userColl).then(function(resp) {
+                expect(resp.code).toBe(404);
+                expect(resp.body).toBe('No users found');
+                expect(userColl.find).toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
         it('should return a 404 if nothing was found', function(done) {
             fakeCursor.toArray.andCallFake(function(cb) {
                 cb(null, []);

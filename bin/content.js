@@ -141,10 +141,11 @@
             log.trace('[%1] Retrieved %2 experiences', req.uuid, results.length);
             
             var experiences = results.map(content.getMostRecentState).filter(function(result) {
-                return content.checkScope(req.user, result, 'experiences', 'read') ||
-                      (result.status === Status.Active && result.access === Access.Public) ||
-                      (req.user && req.user.applications &&
-                                   req.user.applications.indexOf(result.id) >= 0);
+                return result.status !== Status.Deleted &&
+                      (content.checkScope(req.user, result, 'experiences', 'read') ||
+                       (result.status === Status.Active && result.access === Access.Public) ||
+                       (req.user && req.user.applications &&
+                                    req.user.applications.indexOf(result.id) >= 0));
             });
             
             log.info('[%1] Showing the user %2 experiences', req.uuid, experiences.length);
@@ -311,12 +312,10 @@
         var id = req.params.id,
             user = req.user,
             log = logger.getLog(),
-            deferred = q.defer(),
-            now;
+            deferred = q.defer();
         log.info('[%1] User %2 is attempting to delete experience %3', req.uuid, user.id, id);
         q.npost(experiences, 'findOne', [{id: id}])
         .then(function(orig) {
-            now = new Date();
             if (!orig) {
                 log.info('[%1] Experience %2 does not exist', req.uuid, id);
                 return deferred.resolve({code: 204});
@@ -328,12 +327,16 @@
                     body: 'Not authorized to delete this experience'
                 });
             }
-            if (orig.status === Status.Deleted) {
+
+            if (orig.status[0] && orig.status[0].status === Status.Deleted) {
                 log.info('[%1] Experience %2 has already been deleted', req.uuid, id);
                 return deferred.resolve({code: 204});
             }
-            return q.npost(experiences, 'update', [{id: id},
-                           {$set: {lastUpdated:now, status:Status.Deleted}}, {w:1, journal:true}])
+            
+            var updates = { status: Status.Deleted };
+            content.formatUpdates(req, orig, updates, user);
+
+            return q.npost(experiences, 'update', [{id: id}, {$set: updates}, {w:1, journal:true}])
             .then(function() {
                 log.info('[%1] User %2 successfully deleted experience %3', req.uuid, user.id, id);
                 deferred.resolve({code: 204});
