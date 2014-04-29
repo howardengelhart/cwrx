@@ -77,9 +77,9 @@
                     }
         }
     });
-    content.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created'] });
+    content.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created', '_id'] });
     
-    content.getMostRecentState = function(experience) {
+    content.formatOutput = function(experience) {
         var log = logger.getLog(),
             newExp = {};
         
@@ -100,7 +100,7 @@
                 } else {
                     newExp.status = experience.status[0].status;
                 }
-            } else {
+            } else if (key !== '_id') {
                 newExp[key] = experience[key];
             }
         }
@@ -140,11 +140,12 @@
         return promise.then(function(results) {
             log.trace('[%1] Retrieved %2 experiences', req.uuid, results.length);
             
-            var experiences = results.map(content.getMostRecentState).filter(function(result) {
-                return content.checkScope(req.user, result, 'experiences', 'read') ||
-                      (result.status === Status.Active && result.access === Access.Public) ||
-                      (req.user && req.user.applications &&
-                                   req.user.applications.indexOf(result.id) >= 0);
+            var experiences = results.map(content.formatOutput).filter(function(result) {
+                return result.status !== Status.Deleted &&
+                      (content.checkScope(req.user, result, 'experiences', 'read') ||
+                       (result.status === Status.Active && result.access === Access.Public) ||
+                       (req.user && req.user.applications &&
+                                    req.user.applications.indexOf(result.id) >= 0));
             });
             
             log.info('[%1] Showing the user %2 experiences', req.uuid, experiences.length);
@@ -197,7 +198,7 @@
         return q.npost(experiences, 'insert', [obj, {w: 1, journal: true}])
         .then(function() {
             log.info('[%1] User %2 successfully created experience %3', req.uuid, user.id, obj.id);
-            return q({code: 201, body: content.getMostRecentState(obj)});
+            return q({code: 201, body: content.formatOutput(obj)});
         }).catch(function(error) {
             log.error('[%1] Error creating experience %2 for user %3: %4',
                       req.uuid, obj.id, user.id, error);
@@ -297,7 +298,7 @@
                 var updated = results[0];
                 log.info('[%1] User %2 successfully updated experience %3',
                          req.uuid, user.id, updated.id);
-                deferred.resolve({code: 200, body: content.getMostRecentState(updated)});
+                deferred.resolve({code: 200, body: content.formatOutput(updated)});
             });
         }).catch(function(error) {
             log.error('[%1] Error updating experience %2 for user %3: %4',
@@ -311,12 +312,10 @@
         var id = req.params.id,
             user = req.user,
             log = logger.getLog(),
-            deferred = q.defer(),
-            now;
+            deferred = q.defer();
         log.info('[%1] User %2 is attempting to delete experience %3', req.uuid, user.id, id);
         q.npost(experiences, 'findOne', [{id: id}])
         .then(function(orig) {
-            now = new Date();
             if (!orig) {
                 log.info('[%1] Experience %2 does not exist', req.uuid, id);
                 return deferred.resolve({code: 204});
@@ -328,12 +327,16 @@
                     body: 'Not authorized to delete this experience'
                 });
             }
-            if (orig.status === Status.Deleted) {
+
+            if (orig.status[0] && orig.status[0].status === Status.Deleted) {
                 log.info('[%1] Experience %2 has already been deleted', req.uuid, id);
                 return deferred.resolve({code: 204});
             }
-            return q.npost(experiences, 'update', [{id: id},
-                           {$set: {lastUpdated:now, status:Status.Deleted}}, {w:1, journal:true}])
+            
+            var updates = { status: Status.Deleted };
+            content.formatUpdates(req, orig, updates, user);
+
+            return q.npost(experiences, 'update', [{id: id}, {$set: updates}, {w:1, journal:true}])
             .then(function() {
                 log.info('[%1] User %2 successfully deleted experience %3', req.uuid, user.id, id);
                 deferred.resolve({code: 204});

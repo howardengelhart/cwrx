@@ -209,8 +209,8 @@
             log = logger.getLog(),
             voteCounts, promise;
         function filter(election) {
-            if (election &&
-                !(app.checkScope(user,election,'read') || election.status === Status.Active)) {
+            if (election && (election.status === Status.Deleted ||
+                !(app.checkScope(user,election,'read') || election.status === Status.Active))) {
                 log.info('User %1 not allowed to read election %2',
                           user && user.id || 'guest', electionId);
                 return q();
@@ -407,7 +407,7 @@
                     }
         }
     });
-    app.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created'] });
+    app.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created', '_id'] });
 
     app.createElection = function(req, elections) {
         var obj = req.body,
@@ -436,6 +436,7 @@
         }
         return q.npost(elections, 'insert', [obj, {w: 1, journal: true}])
         .then(function() {
+            delete obj._id;
             log.info('[%1] User %2 successfully created election %3', req.uuid, user.id, obj.id);
             return q({code: 201, body: obj});
         }).catch(function(error) {
@@ -480,6 +481,7 @@
             return q.npost(elections, 'findAndModify', [{id: id}, {id: 1}, {$set: updates}, opts])
             .then(function(results) {
                 var updated = results[0];
+                delete updated._id;
                 log.info('[%1] User %2 successfully updated election %3',
                          req.uuid, user.id, updated.id);
                 deferred.resolve({code: 200, body: updated});

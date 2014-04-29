@@ -58,6 +58,7 @@ describe('user (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).not.toEqual(mockUser);
                 expect(resp.body.id).toBe('e2e-getId1');
+                expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.username).toBe('test');
                 expect(resp.body.password).not.toBeDefined();
                 done();
@@ -67,15 +68,15 @@ describe('user (E2E):', function() {
             });
         });
         
-        it('should return a 403 if the requester cannot see the user', function(done) {
+        it('should return a 404 if the requester cannot see the user', function(done) {
             var options = { url: config.userSvcUrl + '/user/e2e-getId2', jar: cookieJar };
             mockUser.org = 'o-4567';
             mockUser.id = 'e2e-getId2';
             testUtils.resetCollection('users', [mockUser, mockRequester]).then(function() {
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(403);
-                expect(resp.body).toEqual('Not authorized to get those users');
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toEqual('No users found');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -128,12 +129,15 @@ describe('user (E2E):', function() {
                 expect(resp.body).toBeDefined();
                 expect(resp.body instanceof Array).toBeTruthy('body is array');
                 expect(resp.body.length).toBe(3);
+                expect(resp.body[0]._id).not.toBeDefined();
                 expect(resp.body[0].id).toBe('e2e-getOrg1');
                 expect(resp.body[0].username).toBe('defg');
                 expect(resp.body[0].password).not.toBeDefined();
+                expect(resp.body[1]._id).not.toBeDefined();
                 expect(resp.body[1].id).toBe('e2e-getOrg2');
                 expect(resp.body[1].username).toBe('abcd');
                 expect(resp.body[1].password).not.toBeDefined();
+                expect(resp.body[2]._id).not.toBeDefined();
                 expect(resp.body[2].id).toBe('e2e-user');
                 expect(resp.body[2].username).toBe('userSvcE2EUser');
                 expect(resp.body[2].password).not.toBeDefined();
@@ -177,8 +181,8 @@ describe('user (E2E):', function() {
         it('should not show users the requester cannot see', function(done) {
             var options = { url: config.userSvcUrl + '/users?org=o-4567', jar: cookieJar };
             testUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(403);
-                expect(resp.body).toBe('Not authorized to get those users');
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toEqual('No users found');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -216,6 +220,7 @@ describe('user (E2E):', function() {
                 expect(resp.response.statusCode).toBe(201);
                 var newUser = resp.body;
                 expect(newUser).toBeDefined();
+                expect(newUser._id).not.toBeDefined();
                 expect(newUser.id).toBeDefined();
                 expect(newUser.username).toBe('testPostUser');
                 expect(newUser.password).not.toBeDefined();
@@ -361,6 +366,7 @@ describe('user (E2E):', function() {
             testUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 var user = resp.body;
+                expect(user._id).not.toBeDefined();
                 expect(user.id).toBe('e2e-put1');
                 expect(user.username).toBe('abcd');
                 expect(user.password).not.toBeDefined();
@@ -452,8 +458,8 @@ describe('user (E2E):', function() {
                 options = { url: config.userSvcUrl + '/user/e2e-delete1', jar: cookieJar };
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.status).toBe('deleted');
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toBe('No users found');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();

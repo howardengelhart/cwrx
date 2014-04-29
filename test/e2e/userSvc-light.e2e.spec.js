@@ -52,6 +52,7 @@ describe('user-light (E2E):', function() {
                 expect(resp.response.statusCode).toBe(201);
                 currUser = resp.body;
                 expect(currUser).toBeDefined();
+                expect(currUser._id).not.toBeDefined();
                 expect(currUser.id).toBeDefined();
                 expect(currUser.username).toBe(newUser.username);
                 expect(currUser.password).not.toBeDefined();
