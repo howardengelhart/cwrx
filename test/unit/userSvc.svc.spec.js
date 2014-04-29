@@ -334,6 +334,7 @@ describe('userSvc (UT)', function() {
             spyOn(bcrypt, 'hash').andCallFake(function(password, salt, cb) {
                 cb(null, 'fakeHash');
             });
+            spyOn(bcrypt, 'genSaltSync').andReturn('sodiumChloride');
             spyOn(uuid, 'createUuid').andReturn('1234567890abcdefg')
         });
 
@@ -352,6 +353,9 @@ describe('userSvc (UT)', function() {
                     users: { read: Scope.Own, edit: Scope.Own },
                     orgs: { read: Scope.Own }
                 });
+                expect(bcrypt.hash).toHaveBeenCalled();
+                expect(bcrypt.hash.calls[0].args[0]).toBe('pass');
+                expect(bcrypt.hash.calls[0].args[1]).toBe('sodiumChloride');
                 expect(newUser.password).toBe('fakeHash');
                 done();
             }).catch(function(error) {
@@ -437,7 +441,7 @@ describe('userSvc (UT)', function() {
             });            
         });
         
-        it('should reject with a 400 if the username or password are unspecificied', function(done) {
+        it('should reject with a 400 if the username or password are unspecified', function(done) {
             delete req.body.username;
             userSvc.createUser(req, userColl).then(function(resp) {
                 expect(resp).toBeDefined();
@@ -845,6 +849,135 @@ describe('userSvc (UT)', function() {
                 expect(userColl.findOne).toHaveBeenCalled();
                 expect(userColl.update).toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
+                done();
+            });
+        });
+    });
+    
+    describe('changePassword', function() {
+        var req, userColl;
+        beforeEach(function() {
+            req = { uuid: '1234', body: { newPassword: 'crosby' }, user: { id: 'u-1' } };
+            userColl = {
+                update: jasmine.createSpy('users.update').andCallFake(
+                    function(query, updates, opts, cb) { cb(); })
+            };
+            spyOn(bcrypt, 'hash').andCallFake(function(password, salt, cb) {
+                cb(null, 'fakeHash');
+            });
+            spyOn(bcrypt, 'genSaltSync').andReturn('sodiumChloride');
+        });
+
+        it('fails if there is no newPassword in req.body', function(done) {
+            delete req.body.newPassword;
+            userSvc.changePassword(req, userColl).then(function(resp) {
+                expect(resp.code).toBe(400);
+                expect(resp.body).toBe('Must provide a new password');
+                expect(bcrypt.hash).not.toHaveBeenCalled();
+                expect(userColl.update).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should successfully hash and update a user\'s password', function(done) {
+            userSvc.changePassword(req, userColl).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toBe('Successfully changed password');
+                expect(userColl.update).toHaveBeenCalled();
+                expect(userColl.update.calls[0].args[0]).toEqual({id: 'u-1'});
+                expect(userColl.update.calls[0].args[1].$set.password).toBe('fakeHash');
+                expect(userColl.update.calls[0].args[1].$set.lastUpdated instanceof Date).toBe(true);
+                expect(userColl.update.calls[0].args[2]).toEqual({w: 1, journal: true});
+                expect(bcrypt.hash).toHaveBeenCalled();
+                expect(bcrypt.hash.calls[0].args[0]).toBe('crosby');
+                expect(bcrypt.hash.calls[0].args[1]).toBe('sodiumChloride');
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should fail if hashing the password fails', function(done) {
+            bcrypt.hash.andCallFake(function(password, salt, cb) { cb('I GOT A PROBLEM'); });
+            userSvc.changePassword(req, userColl).then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(bcrypt.hash).toHaveBeenCalled();
+                expect(userColl.update).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should fail if the mongo update call fails', function(done) {
+            userColl.update.andCallFake(function(query, updates, opts, cb) { cb('I GOT A PROBLEM'); });
+            userSvc.changePassword(req, userColl).then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(userColl.update).toHaveBeenCalled();
+                expect(bcrypt.hash).toHaveBeenCalled();
+                done();
+            });
+        });
+    });
+    
+    describe('changeUsername', function() {
+        var req, userColl;
+        beforeEach(function() {
+            req = { uuid: '1234', body: { newUsername: 'otter' }, user: { id: 'u-1' } };
+            userColl = {
+                update: jasmine.createSpy('users.update').andCallFake(
+                    function(query, updates, opts, cb) { cb(); })
+            };
+        });
+        
+        it('should fail if there is no newUsername in req.body', function(done) {
+            delete req.body.newUsername;
+            userSvc.changeUsername(req, userColl).then(function(resp) {
+                expect(resp.code).toBe(400);
+                expect(resp.body).toBe('Must provide a new username');
+                expect(userColl.update).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should successfully update a user\'s username', function(done) {
+            userSvc.changeUsername(req, userColl).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toBe('Successfully changed username');
+                expect(userColl.update).toHaveBeenCalled();
+                expect(userColl.update.calls[0].args[0]).toEqual({id: 'u-1'});
+                expect(userColl.update.calls[0].args[1].$set.username).toBe('otter');
+                expect(userColl.update.calls[0].args[1].$set.lastUpdated instanceof Date).toBe(true);
+                expect(userColl.update.calls[0].args[2]).toEqual({w: 1, journal: true});
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should fail if the mongo update call fails', function(done) {
+            userColl.update.andCallFake(function(query, updates, opts, cb) { cb('I GOT A PROBLEM'); });
+            userSvc.changeUsername(req, userColl).then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(userColl.update).toHaveBeenCalled();
                 done();
             });
         });
