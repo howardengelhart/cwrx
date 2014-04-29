@@ -171,7 +171,7 @@ describe('userSvc (UT)', function() {
     
     describe('updateValidator', function() {
         it('should have initalized correctly', function() {
-            expect(userSvc.updateValidator._forbidden).toEqual(['id', 'org', 'password', 'created']);
+            expect(userSvc.updateValidator._forbidden).toEqual(['id', 'org', 'password', 'created', '_id']);
             expect(userSvc.updateValidator._condForbidden.permissions).toBe(userSvc.permsCheck);
         });
         
@@ -269,6 +269,21 @@ describe('userSvc (UT)', function() {
                 expect(userSvc.checkScope.calls[1].args).toEqual([{id: 'u-1234'}, {id:'2'}, 'read']);
                 expect(mongoUtils.safeUser.calls.length).toBe(1);
                 expect(mongoUtils.safeUser.calls[0].args[0]).toEqual({id:'2'});
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should not show any deleted users', function(done) {
+            fakeCursor.toArray.andCallFake(function(cb) {
+                cb(null, q([{id: '1', status: Status.Deleted}]));
+            })
+            userSvc.getUsers(query, req, userColl).then(function(resp) {
+                expect(resp.code).toBe(404);
+                expect(resp.body).toBe('No users found');
+                expect(userColl.find).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();

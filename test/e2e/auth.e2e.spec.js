@@ -36,6 +36,7 @@ describe('auth (E2E):', function() {
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
+                expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBe("u-1234567890abcd");
                 expect(resp.body.username).toBe("authE2EUser");
                 expect(resp.body.password).not.toBeDefined();
@@ -200,6 +201,7 @@ describe('auth (E2E):', function() {
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
+                expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBeDefined();
                 expect(resp.body.username).toBe('authE2EUser');
                 done();

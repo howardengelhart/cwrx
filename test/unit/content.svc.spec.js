@@ -26,7 +26,7 @@ describe('content (UT)', function() {
         };
         spyOn(logger, 'createLog').andReturn(mockLog);
         spyOn(logger, 'getLog').andReturn(mockLog);
-        spyOn(content, 'getMostRecentState').andCallThrough();
+        spyOn(content, 'formatOutput').andCallThrough();
         experiences = {};
         req = {uuid: '1234'};
     });
@@ -119,7 +119,7 @@ describe('content (UT)', function() {
     
     describe('updateValidator', function() {
         it('should have initalized correctly', function() {
-            expect(content.updateValidator._forbidden).toEqual(['id', 'org', 'created']);
+            expect(content.updateValidator._forbidden).toEqual(['id', 'org', 'created', '_id']);
         });
         
         it('should prevent illegal updates', function() {
@@ -134,7 +134,7 @@ describe('content (UT)', function() {
         });
     });
     
-    describe('getMostRecentState', function() {
+    describe('formatOutput', function() {
         var experience;
         
         it('should convert .data to .data[0].data for the client', function() {
@@ -143,7 +143,7 @@ describe('content (UT)', function() {
                 { username: 'otter', date: now, data: { foo: 'baz' } },
                 { username: 'crosby', date: now, data: { foo: 'bar' } }
             ]};
-            expect(content.getMostRecentState(experience)).toEqual({ id:'e1', data: { foo:'baz' } });
+            expect(content.formatOutput(experience)).toEqual({ id:'e1', data: { foo:'baz' } });
         });
 
         it('should convert .status to .status[0].status for the client', function() {
@@ -152,7 +152,7 @@ describe('content (UT)', function() {
                 { username: 'otter', date: now, status: Status.Active },
                 { username: 'crosby', date: now, status: Status.Pending }
             ]};
-            expect(content.getMostRecentState(experience)).toEqual({ id:'e1', status: Status.Active });
+            expect(content.formatOutput(experience)).toEqual({ id:'e1', status: Status.Active });
         });
     });
     
@@ -196,8 +196,8 @@ describe('content (UT)', function() {
                 expect(cache.getPromise).not.toHaveBeenCalled();
                 expect(content.checkScope)
                     .toHaveBeenCalledWith('fakeUser', {title: 'fake1'}, 'experiences', 'read');
-                expect(content.getMostRecentState.calls.length).toBe(1);
-                expect(content.getMostRecentState.calls[0].args[0]).toEqual({title: 'fake1'});
+                expect(content.formatOutput.calls.length).toBe(1);
+                expect(content.formatOutput.calls[0].args[0]).toEqual({title: 'fake1'});
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -283,12 +283,30 @@ describe('content (UT)', function() {
                                            { id: 'e-4', status: Status.Inactive, access: Access.Private },
                                            { id: 'e-5', status: Status.Inactive, access: Access.Private }]);
                 expect(content.checkScope.calls.length).toBe(5);
-                expect(content.getMostRecentState.calls.length).toBe(5);
+                expect(content.formatOutput.calls.length).toBe(5);
                 return content.getExperiences(query, { uuid: '1234' }, cache);
             }).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual([{ id: 'e-3', status: Status.Active, access: Access.Public }]);
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should not show any deleted experiences', function(done) {
+            fakeCursor.toArray.andCallFake(function(cb) {
+                cb(null, [{id: 'e-del', status: [{status: Status.Deleted}], access: Access.Public}]);
+            });
+            content.getExperiences(query, req, cache).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(404);
+                expect(resp.body).toEqual('No experiences found');
+                expect(cache.getPromise).not.toHaveBeenCalled();
+                expect(cache._coll.find).toHaveBeenCalled();
+                expect(content.formatOutput).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -382,7 +400,7 @@ describe('content (UT)', function() {
                 expect(data.date instanceof Date).toBeTruthy('data.date is a Date');
                 expect(data.data).toEqual({foo: 'bar'});
                 expect(experiences.insert.calls[0].args[1]).toEqual({w: 1, journal: true});
-                expect(content.getMostRecentState).toHaveBeenCalled();
+                expect(content.formatOutput).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -605,7 +623,7 @@ describe('content (UT)', function() {
                 expect(updates.$set.lastUpdated instanceof Date).toBeTruthy('lastUpdated is Date');
                 expect(experiences.findAndModify.calls[0].args[3])
                     .toEqual({w: 1, journal: true, new: true});
-                expect(content.getMostRecentState).toHaveBeenCalled();
+                expect(content.formatOutput).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -687,12 +705,14 @@ describe('content (UT)', function() {
             oldExp;
         beforeEach(function() {
             req.params = {id: 'e-1234'};
-            oldExp = {id:'e-1234', status: Status.Active, user:'u-1234', lastUpdated:start};
-            req.user = {id: 'u-1234'};
+            oldExp = {id:'e-1234', status: [{user:'otter', date:start, status:Status.Active}],
+                      user:'u-1234', lastUpdated:start};
+            req.user = {id: 'u-1234', username: 'johnny'};
             experiences.findOne = jasmine.createSpy('experiences.findOne')
                 .andCallFake(function(query, cb) { cb(null, oldExp); });
             experiences.update = jasmine.createSpy('experiences.update')
                 .andCallFake(function(query, obj, opts, cb) { cb(null, 1); });
+            spyOn(content, 'formatUpdates').andCallThrough();
             spyOn(content, 'checkScope').andReturn(true);
         });
         
@@ -706,10 +726,14 @@ describe('content (UT)', function() {
                 expect(content.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'delete');
                 expect(experiences.update).toHaveBeenCalled();
                 expect(experiences.update.calls[0].args[0]).toEqual({id: 'e-1234'});
-                var setProps = experiences.update.calls[0].args[1];
-                expect(setProps.$set.status).toBe(Status.Deleted);
-                expect(setProps.$set.lastUpdated instanceof Date).toBeTruthy('lastUpdated is a Date');
-                expect(setProps.$set.lastUpdated).toBeGreaterThan(start);
+                var setProps = experiences.update.calls[0].args[1].$set;
+                expect(setProps.status instanceof Array).toBe(true);
+                expect(setProps.status.length).toBe(2);
+                expect(setProps.status[0].status).toBe(Status.Deleted);
+                expect(setProps.status[0].user).toBe('johnny');
+                expect(setProps.status[0].date).toBeGreaterThan(setProps.status[1].date);
+                expect(setProps.lastUpdated instanceof Date).toBeTruthy('lastUpdated is a Date');
+                expect(setProps.lastUpdated).toBeGreaterThan(start);
                 expect(experiences.update.calls[0].args[2]).toEqual({w: 1, journal: true});
                 done();
             }).catch(function(error) {
@@ -734,7 +758,7 @@ describe('content (UT)', function() {
         });
         
         it('should not do anything if the experience has been deleted', function(done) {
-            oldExp.status = Status.Deleted;
+            oldExp.status[0].status = Status.Deleted;
             content.deleteExperience(req, experiences).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(204);
