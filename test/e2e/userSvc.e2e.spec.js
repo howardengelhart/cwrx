@@ -58,6 +58,7 @@ describe('user (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).not.toEqual(mockUser);
                 expect(resp.body.id).toBe('e2e-getId1');
+                expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.username).toBe('test');
                 expect(resp.body.password).not.toBeDefined();
                 done();
@@ -128,12 +129,15 @@ describe('user (E2E):', function() {
                 expect(resp.body).toBeDefined();
                 expect(resp.body instanceof Array).toBeTruthy('body is array');
                 expect(resp.body.length).toBe(3);
+                expect(resp.body[0]._id).not.toBeDefined();
                 expect(resp.body[0].id).toBe('e2e-getOrg1');
                 expect(resp.body[0].username).toBe('defg');
                 expect(resp.body[0].password).not.toBeDefined();
+                expect(resp.body[1]._id).not.toBeDefined();
                 expect(resp.body[1].id).toBe('e2e-getOrg2');
                 expect(resp.body[1].username).toBe('abcd');
                 expect(resp.body[1].password).not.toBeDefined();
+                expect(resp.body[2]._id).not.toBeDefined();
                 expect(resp.body[2].id).toBe('e2e-user');
                 expect(resp.body[2].username).toBe('userSvcE2EUser');
                 expect(resp.body[2].password).not.toBeDefined();
@@ -216,6 +220,7 @@ describe('user (E2E):', function() {
                 expect(resp.response.statusCode).toBe(201);
                 var newUser = resp.body;
                 expect(newUser).toBeDefined();
+                expect(newUser._id).not.toBeDefined();
                 expect(newUser.id).toBeDefined();
                 expect(newUser.username).toBe('testPostUser');
                 expect(newUser.password).not.toBeDefined();
@@ -361,6 +366,7 @@ describe('user (E2E):', function() {
             testUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 var user = resp.body;
+                expect(user._id).not.toBeDefined();
                 expect(user.id).toBe('e2e-put1');
                 expect(user.username).toBe('abcd');
                 expect(user.password).not.toBeDefined();

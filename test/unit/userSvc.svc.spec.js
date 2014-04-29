@@ -171,7 +171,7 @@ describe('userSvc (UT)', function() {
     
     describe('updateValidator', function() {
         it('should have initalized correctly', function() {
-            expect(userSvc.updateValidator._forbidden).toEqual(['id', 'org', 'password', 'created']);
+            expect(userSvc.updateValidator._forbidden).toEqual(['id', 'org', 'password', 'created', '_id']);
             expect(userSvc.updateValidator._condForbidden.permissions).toBe(userSvc.permsCheck);
         });
         

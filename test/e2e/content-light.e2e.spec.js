@@ -53,6 +53,7 @@ describe('content-light (E2E):', function() {
                 expect(resp.response.statusCode).toBe(201);
                 currExp = resp.body;
                 expect(currExp).toBeDefined();
+                expect(currExp._id).not.toBeDefined();
                 expect(currExp.id).toBeDefined();
                 expect(currExp.title).toBe("origTitle");
                 expect(currExp.status).toBe("inactive");
@@ -99,6 +100,7 @@ describe('content-light (E2E):', function() {
                 expect(resp.body.title).toBe('newTitle');
                 expect(resp.body.data).toEqual({blah: 'bloop'});
                 expect(resp.body.id).toBe(origExp.id);
+                expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.created).toBe(origExp.created);
                 expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(origExp.lastUpdated));
                 currExp = resp.body;

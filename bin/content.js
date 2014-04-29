@@ -77,9 +77,9 @@
                     }
         }
     });
-    content.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created'] });
+    content.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created', '_id'] });
     
-    content.getMostRecentState = function(experience) {
+    content.formatOutput = function(experience) {
         var log = logger.getLog(),
             newExp = {};
         
@@ -100,7 +100,7 @@
                 } else {
                     newExp.status = experience.status[0].status;
                 }
-            } else {
+            } else if (key !== '_id') {
                 newExp[key] = experience[key];
             }
         }
@@ -140,7 +140,7 @@
         return promise.then(function(results) {
             log.trace('[%1] Retrieved %2 experiences', req.uuid, results.length);
             
-            var experiences = results.map(content.getMostRecentState).filter(function(result) {
+            var experiences = results.map(content.formatOutput).filter(function(result) {
                 return result.status !== Status.Deleted &&
                       (content.checkScope(req.user, result, 'experiences', 'read') ||
                        (result.status === Status.Active && result.access === Access.Public) ||
@@ -198,7 +198,7 @@
         return q.npost(experiences, 'insert', [obj, {w: 1, journal: true}])
         .then(function() {
             log.info('[%1] User %2 successfully created experience %3', req.uuid, user.id, obj.id);
-            return q({code: 201, body: content.getMostRecentState(obj)});
+            return q({code: 201, body: content.formatOutput(obj)});
         }).catch(function(error) {
             log.error('[%1] Error creating experience %2 for user %3: %4',
                       req.uuid, obj.id, user.id, error);
@@ -298,7 +298,7 @@
                 var updated = results[0];
                 log.info('[%1] User %2 successfully updated experience %3',
                          req.uuid, user.id, updated.id);
-                deferred.resolve({code: 200, body: content.getMostRecentState(updated)});
+                deferred.resolve({code: 200, body: content.formatOutput(updated)});
             });
         }).catch(function(error) {
             log.error('[%1] Error updating experience %2 for user %3: %4',

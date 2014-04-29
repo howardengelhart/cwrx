@@ -119,6 +119,7 @@ describe('vote (E2E)', function(){
                     expect(resp.response.headers['cache-control']).toEqual('max-age=300');
                     expect(resp.response.statusCode).toEqual(200);
                     expect(resp.body.id).toEqual('e1');
+                    expect(resp.body._id).not.toBeDefined();
                     expect(resp.body.ballot.b1['red apple']).toEqual(0.17);
                     expect(resp.body.ballot.b1['yellow banana']).toEqual(0.33);
                     expect(resp.body.ballot.b1['orange carrot']).toEqual(0.50);
@@ -169,6 +170,7 @@ describe('vote (E2E)', function(){
                 .then(function(resp){
                     expect(resp.response.headers['cache-control']).toEqual('max-age=0');
                     expect(resp.response.statusCode).toEqual(200);
+                    expect(resp.body._id).not.toBeDefined();
                     expect(resp.body.id).toEqual('e1');
                     expect(resp.body.ballot).toEqual({
                         'b1' : { 'red apple' : 10, 'yellow banana' : 20, 'orange carrot' : 30 },
@@ -346,6 +348,7 @@ describe('vote (E2E)', function(){
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toBeDefined();
+                expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBeDefined();
                 expect(resp.body.ballot).toEqual({ b1: { 'one fish' : 10, 'two fish' : 20, } });
                 expect(resp.body.user).toBe('e2e-user');
@@ -392,6 +395,7 @@ describe('vote (E2E)', function(){
                 updatedElec = resp.body;
                 expect(updatedElec).not.toEqual(mockData[0]);
                 expect(updatedElec).toBeDefined();
+                expect(updatedElec._id).not.toBeDefined();
                 expect(updatedElec.id).toBe('e1');
                 expect(updatedElec.ballot).toEqual({ b1: { foo: 1, bar: 10 } });
                 expect(updatedElec.user).toBe('e2e-user');

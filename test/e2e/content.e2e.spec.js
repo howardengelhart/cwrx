@@ -62,6 +62,7 @@ describe('content (E2E):', function() {
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(typeof resp.body).toBe('object');
+                expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBe("e2e-pubget1");
                 expect(resp.body.title).toBe("test experience");
                 done();
@@ -154,6 +155,7 @@ describe('content (E2E):', function() {
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(typeof resp.body).toBe('object');
+                expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBe("e2e-getid1");
                 expect(resp.body.title).toBe("test experience");
                 done();
@@ -260,6 +262,8 @@ describe('content (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body instanceof Array).toBeTruthy('body is array');
                 expect(resp.body.length).toBe(2);
+                expect(resp.body[0]._id).not.toBeDefined();
+                expect(resp.body[1]._id).not.toBeDefined();
                 expect(resp.body[0].id).toBe("e2e-getquery1");
                 expect(resp.body[1].id).toBe("e2e-getquery3");
                 done();
@@ -430,6 +434,7 @@ describe('content (E2E):', function() {
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toBeDefined();
+                expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBeDefined();
                 expect(resp.body.title).toBe("testExp");
                 expect(resp.body.user).toBe("e2e-user");
@@ -522,6 +527,7 @@ describe('content (E2E):', function() {
                 updatedExp = resp.body;
                 expect(updatedExp).not.toEqual(mockExps);
                 expect(updatedExp).toBeDefined();
+                expect(updatedExp._id).not.toBeDefined();
                 expect(updatedExp.id).toBe('e2e-put1');
                 expect(updatedExp.title).toBe('newTitle');
                 expect(updatedExp.user).toBe('e2e-user');

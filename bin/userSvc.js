@@ -103,7 +103,7 @@
         }
     });
     userSvc.updateValidator = new FieldValidator({
-        forbidden: ['id', 'org', 'password', 'created'],
+        forbidden: ['id', 'org', 'password', 'created', '_id'],
         condForbidden: { permissions: userSvc.permsCheck }
     });
 

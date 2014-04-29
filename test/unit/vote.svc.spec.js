@@ -121,7 +121,7 @@ describe('vote (UT)',function(){
     
     describe('updateValidator', function() {
         it('should have initalized correctly', function() {
-            expect(app.updateValidator._forbidden).toEqual(['id', 'org', 'created']);
+            expect(app.updateValidator._forbidden).toEqual(['id', 'org', 'created', '_id']);
         });
         
         it('should prevent illegal updates', function() {

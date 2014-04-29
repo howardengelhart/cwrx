@@ -22,6 +22,7 @@ describe('auth-light (E2E):', function() {
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
+                expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.username).toBe('johnnyTestmonkey');
                 expect(resp.body.password).not.toBeDefined();
                 expect(resp.response.headers['set-cookie'].length).toBe(1);
@@ -41,6 +42,7 @@ describe('auth-light (E2E):', function() {
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
+                expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.username).toBe('johnnyTestmonkey');
                 expect(resp.body.password).not.toBeDefined();
                 done();
