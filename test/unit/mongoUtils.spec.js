@@ -98,16 +98,16 @@ describe('mongoUtils', function() {
         it('should create a new user object without any sensitive fields', function() {
             var user = {
                 _id: "thisisamongo_id",
-                username: 'johnnyTestmonkey',
+                email: 'johnnyTestmonkey',
                 password: 'hashofasecret'
             };
             var newUser = mongoUtils.safeUser(user);
-            expect(newUser.username).toBe('johnnyTestmonkey');
+            expect(newUser.email).toBe('johnnyTestmonkey');
             expect(newUser._id).not.toBeDefined();
             expect(newUser.password).not.toBeDefined();
             // shouldn't edit existing user object
             expect(user._id).toBe('thisisamongo_id');
-            expect(user.username).toBe('johnnyTestmonkey');
+            expect(user.email).toBe('johnnyTestmonkey');
             expect(user.password).toBe('hashofasecret');
         });
     });

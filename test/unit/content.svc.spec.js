@@ -140,8 +140,8 @@ describe('content (UT)', function() {
         it('should convert .data to .data[0].data for the client', function() {
             var now = new Date();
             experience = { id: 'e1', data: [
-                { username: 'otter', date: now, data: { foo: 'baz' } },
-                { username: 'crosby', date: now, data: { foo: 'bar' } }
+                { email: 'otter', date: now, data: { foo: 'baz' } },
+                { email: 'crosby', date: now, data: { foo: 'bar' } }
             ]};
             expect(content.formatOutput(experience)).toEqual({ id:'e1', data: { foo:'baz' } });
         });
@@ -149,8 +149,8 @@ describe('content (UT)', function() {
         it('should convert .status to .status[0].status for the client', function() {
             var now = new Date();
             experience = { id: 'e1', status: [
-                { username: 'otter', date: now, status: Status.Active },
-                { username: 'crosby', date: now, status: Status.Pending }
+                { email: 'otter', date: now, status: Status.Active },
+                { email: 'crosby', date: now, status: Status.Pending }
             ]};
             expect(content.formatOutput(experience)).toEqual({ id:'e1', status: Status.Active });
         });
@@ -361,7 +361,7 @@ describe('content (UT)', function() {
     describe('createExperience', function() {
         beforeEach(function() {
             req.body = {title: 'fakeExp', data: { foo: 'bar' } };
-            req.user = {id: 'u-1234', org: 'o-1234', username: 'otter'};
+            req.user = {id: 'u-1234', org: 'o-1234', email: 'otter'};
             experiences.insert = jasmine.createSpy('experiences.insert')
                 .andCallFake(function(obj, opts, cb) { cb(); });
             spyOn(uuid, 'createUuid').andReturn('1234');
@@ -465,7 +465,7 @@ describe('content (UT)', function() {
                 data: [{user: 'johnny', date: start, data: {foo: 'bar'}}],
                 status: [{user: 'johnny', date: start, status: Status.Pending}]
             };
-            user = { id: 'u-1', username: 'otter' };
+            user = { id: 'u-1', email: 'otter' };
         });
         
         it('should append a new status entry on each change', function() {
@@ -578,7 +578,7 @@ describe('content (UT)', function() {
             oldExp = {id:'e-1234', title:'oldExp', user:'u-1234', created:start, lastUpdated:start,
                       data: [ { user: 'otter', date: start, data: { foo: 'bar' } } ],
                       status: [ { user: 'otter', date: start, status: Status.Pending } ] };
-            req.user = {id: 'u-1234', username: 'otter'};
+            req.user = {id: 'u-1234', email: 'otter'};
             experiences.findOne = jasmine.createSpy('experiences.findOne')
                 .andCallFake(function(query, cb) { cb(null, oldExp); });
             experiences.findAndModify = jasmine.createSpy('experiences.findAndModify').andCallFake(
@@ -707,7 +707,7 @@ describe('content (UT)', function() {
             req.params = {id: 'e-1234'};
             oldExp = {id:'e-1234', status: [{user:'otter', date:start, status:Status.Active}],
                       user:'u-1234', lastUpdated:start};
-            req.user = {id: 'u-1234', username: 'johnny'};
+            req.user = {id: 'u-1234', email: 'johnny'};
             experiences.findOne = jasmine.createSpy('experiences.findOne')
                 .andCallFake(function(query, cb) { cb(null, oldExp); });
             experiences.update = jasmine.createSpy('experiences.update')

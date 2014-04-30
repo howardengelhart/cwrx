@@ -51,23 +51,23 @@
     };
 
     auth.login = function(req, users, maxAge) {
-        if (!req.body || !req.body.username || !req.body.password) {
+        if (!req.body || !req.body.email || !req.body.password) {
             return q({
                 code: 400,
-                body: 'You need to provide a username and password in the body'
+                body: 'You need to provide a email and password in the body'
             });
         }
         var deferred = q.defer(),
             log = logger.getLog(),
             userAccount;
 
-        log.info('[%1] Starting login for user %2', req.uuid, req.body.username);
-        q.npost(users, 'findOne', [{username: req.body.username}])
+        log.info('[%1] Starting login for user %2', req.uuid, req.body.email);
+        q.npost(users, 'findOne', [{email: req.body.email}])
         .then(function(account) {
             if (!account) {
-                log.info('[%1] Failed login for user %2: unknown username',
-                         req.uuid,req.body.username);
-                return deferred.resolve({code: 401, body: 'Invalid username or password'});
+                log.info('[%1] Failed login for user %2: unknown email',
+                         req.uuid,req.body.email);
+                return deferred.resolve({code: 401, body: 'Invalid email or password'});
             }
             userAccount = account;
             return q.npost(bcrypt, 'compare', [req.body.password, userAccount.password])
@@ -75,10 +75,10 @@
                 if (matching) {
                     if (account.status !== Status.Active) {
                         log.info('[%1] Failed login for user %2: account status is %3',
-                                 req.uuid, req.body.username, account.status);
+                                 req.uuid, req.body.email, account.status);
                         return deferred.resolve({code: 403, body: 'Account not active'});
                     }
-                    log.info('[%1] Successful login for user %2', req.uuid, req.body.username);
+                    log.info('[%1] Successful login for user %2', req.uuid, req.body.email);
                     var user = mongoUtils.safeUser(userAccount);
                     return q.npost(req.session, 'regenerate').then(function() {
                         req.session.user = user.id;
@@ -90,12 +90,12 @@
                     });
                 } else {
                     log.info('[%1] Failed login for user %2: invalid password',
-                             req.uuid, req.body.username);
-                    return deferred.resolve({code: 401, body: 'Invalid username or password'});
+                             req.uuid, req.body.email);
+                    return deferred.resolve({code: 401, body: 'Invalid email or password'});
                 }
             });
         }).catch(function(error) {
-            log.error('[%1] Error logging in user %2: %3', req.uuid, req.body.username, error);
+            log.error('[%1] Error logging in user %2: %3', req.uuid, req.body.email, error);
             deferred.reject(error);
         });
 

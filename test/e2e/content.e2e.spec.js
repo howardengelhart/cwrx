@@ -17,7 +17,7 @@ describe('content (E2E):', function() {
         var mockUser = {
             id: "e2e-user",
             status: "active",
-            username : "contentE2EUser",
+            email : "contentE2EUser",
             password : "$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq", // hash of 'password'
             org: "e2e-org",
             permissions: {
@@ -33,7 +33,7 @@ describe('content (E2E):', function() {
             url: config.authUrl + '/auth/login',
             jar: cookieJar,
             json: {
-                username: 'contentE2EUser',
+                email: 'contentE2EUser',
                 password: 'password'
             }
         };

@@ -17,7 +17,7 @@ describe('content-light (E2E):', function() {
                 e2e: true
             },
             testUser = {
-                username: 'johnnyTestmonkey',
+                email: 'johnnyTestmonkey@cinema6.com',
                 password: 'bananas4bananas'
             },
             currExp;
@@ -31,7 +31,7 @@ describe('content-light (E2E):', function() {
             testUtils.qRequest('post', options).done(function(resp) {
                 if (resp.response.statusCode !== 200) {
                     console.log('Could not log in the test user');
-                    console.log('Double check that the user johnnyTestmonkey exists in the database');
+                    console.log('Double check that the user johnnyTestmonkey@cinema6.com exists in the database');
                     return q.reject('Received response: code = ' + resp.response.statusCode +
                                     ', body = ' + resp.body);
                 }

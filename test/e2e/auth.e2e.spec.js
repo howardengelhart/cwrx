@@ -15,7 +15,7 @@ describe('auth (E2E):', function() {
             id : "u-1234567890abcd",
             status: Status.Active,
             created : now,
-            username : "authE2EUser",
+            email : "authE2EUser",
             password : "$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq" // hash of 'password'
         };
     });
@@ -29,7 +29,7 @@ describe('auth (E2E):', function() {
             var options = {
                 url: config.authUrl + '/login',
                 json: {
-                    username: 'authE2EUser',
+                    email: 'authE2EUser',
                     password: 'password'
                 }
             };
@@ -38,7 +38,7 @@ describe('auth (E2E):', function() {
                 expect(resp.body).toBeDefined();
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBe("u-1234567890abcd");
-                expect(resp.body.username).toBe("authE2EUser");
+                expect(resp.body.email).toBe("authE2EUser");
                 expect(resp.body.password).not.toBeDefined();
                 expect(new Date(resp.body.created)).toEqual(now);
                 expect(resp.response.headers['set-cookie'].length).toBe(1);
@@ -50,17 +50,17 @@ describe('auth (E2E):', function() {
             });
         });
         
-        it('should fail for an invalid username', function(done) {
+        it('should fail for an invalid email', function(done) {
             var options = {
                 url: config.authUrl + '/login',
                 json: {
-                    username: 'randomUser',
+                    email: 'randomUser',
                     password: 'password'
                 }
             };
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
-                expect(resp.response.body).toBe("Invalid username or password");
+                expect(resp.response.body).toBe("Invalid email or password");
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -72,13 +72,13 @@ describe('auth (E2E):', function() {
             var options = {
                 url: config.authUrl + '/login',
                 json: {
-                    username: 'authE2EUser',
+                    email: 'authE2EUser',
                     password: 'notpassword'
                 }
             };
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
-                expect(resp.response.body).toBe("Invalid username or password");
+                expect(resp.response.body).toBe("Invalid email or password");
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -90,7 +90,7 @@ describe('auth (E2E):', function() {
             var options = {
                 url: config.authUrl + '/login',
                 json: {
-                    username: 'authE2EUser',
+                    email: 'authE2EUser',
                     password: 'password'
                 }
             };
@@ -107,22 +107,22 @@ describe('auth (E2E):', function() {
             });
         });
         
-        it('should fail if not given both a username and password', function(done) {
+        it('should fail if not given both a email and password', function(done) {
             var options = {
                 url: config.authUrl + '/login',
                 json: {
-                    username: 'authE2EUser'
+                    email: 'authE2EUser'
                 }
             };
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.response.body).toBe('You need to provide a username and password in the body');
-                delete options.json.username;
+                expect(resp.response.body).toBe('You need to provide a email and password in the body');
+                delete options.json.email;
                 options.json.password = 'password';
                 return testUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.response.body).toBe('You need to provide a username and password in the body');
+                expect(resp.response.body).toBe('You need to provide a email and password in the body');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -138,7 +138,7 @@ describe('auth (E2E):', function() {
                     url: config.authUrl + '/login',
                     jar: true,
                     json: {
-                        username: 'authE2EUser',
+                        email: 'authE2EUser',
                         password: 'password'
                     }
                 };
@@ -185,7 +185,7 @@ describe('auth (E2E):', function() {
                     url: config.authUrl + '/login',
                     jar: true,
                     json: {
-                        username: 'authE2EUser',
+                        email: 'authE2EUser',
                         password: 'password'
                     }
                 };
@@ -203,7 +203,7 @@ describe('auth (E2E):', function() {
                 expect(resp.body).toBeDefined();
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBeDefined();
-                expect(resp.body.username).toBe('authE2EUser');
+                expect(resp.body.email).toBe('authE2EUser');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

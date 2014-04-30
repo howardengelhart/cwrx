@@ -11,11 +11,11 @@ describe('user-light (E2E):', function() {
         var currUser, origUser = {},
             cookieJar = require('request').jar(),
             testUser = {
-                username: 'johnnyTestmonkey',
+                email: 'johnnyTestmonkey@cinema6.com',
                 password: 'bananas4bananas'
             },
             newUser = {
-                username: 'userSvc-lightE2EUser#' + Math.round(Math.random() * 1000000000000),
+                email: 'userSvc-lightE2EUser#' + Math.round(Math.random() * 1000000000000),
                 password: 'password',
                 org: 'e2e-org',
                 e2e: true
@@ -30,7 +30,7 @@ describe('user-light (E2E):', function() {
             testUtils.qRequest('post', options).done(function(resp) {
                 if (resp.response.statusCode !== 200) {
                     console.log('Could not log in the test user');
-                    console.log('Double check that the user johnnyTestmonkey exists in the database');
+                    console.log('Double check that the user johnnyTestmonkey@cinema6.com exists in the database');
                     return q.reject('Received response: code = ' + resp.response.statusCode +
                                     ', body = ' + resp.body);
                 }
@@ -54,7 +54,7 @@ describe('user-light (E2E):', function() {
                 expect(currUser).toBeDefined();
                 expect(currUser._id).not.toBeDefined();
                 expect(currUser.id).toBeDefined();
-                expect(currUser.username).toBe(newUser.username);
+                expect(currUser.email).toBe(newUser.email);
                 expect(currUser.password).not.toBeDefined();
                 expect(currUser.status).toBe('active');
                 expect(currUser.e2e).toBe(true);
