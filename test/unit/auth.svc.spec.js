@@ -24,7 +24,7 @@ describe('auth (UT)', function() {
         req = {
             uuid: '12345',
             body: {
-                username: 'user',
+                email: 'user',
                 password: 'pass'
             },
             session: {
@@ -46,7 +46,7 @@ describe('auth (UT)', function() {
             origUser = {
                 id: 'u-123',
                 status: Status.Active,
-                username: 'user',
+                email: 'user',
                 password: 'hashpass'
             };
             users.findOne.andCallFake(function(query, cb) {
@@ -62,7 +62,7 @@ describe('auth (UT)', function() {
             auth.login(req, users).then(function(resp) {
                 expect(resp.code).toBe(400);
                 expect(resp.body).toBeDefined();
-                req.body = {username: 'user'};
+                req.body = {email: 'user'};
                 return auth.login(req, users);
             }).then(function(resp) {
                 expect(resp.code).toBe(400);
@@ -87,7 +87,7 @@ describe('auth (UT)', function() {
                 expect(resp.body).toBeDefined();
                 var safeUser = {
                     id: 'u-123',
-                    username: 'user',
+                    email: 'user',
                     status: Status.Active
                 };
                 expect(resp.body).toEqual(safeUser);
@@ -95,7 +95,7 @@ describe('auth (UT)', function() {
                 expect(origUser.password).toBe('hashpass'); // shouldn't accidentally delete this
                 
                 expect(users.findOne).toHaveBeenCalled();
-                expect(users.findOne.calls[0].args[0]).toEqual({'username': 'user'});
+                expect(users.findOne.calls[0].args[0]).toEqual({'email': 'user'});
                 expect(bcrypt.compare).toHaveBeenCalled();
                 expect(bcrypt.compare.calls[0].args[0]).toBe('pass');
                 expect(bcrypt.compare.calls[0].args[1]).toBe('hashpass');
@@ -115,7 +115,7 @@ describe('auth (UT)', function() {
             auth.login(req, users).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(401);
-                expect(resp.body).toBe('Invalid username or password');
+                expect(resp.body).toBe('Invalid email or password');
                 expect(req.session.user).not.toBeDefined();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
                 expect(bcrypt.compare).toHaveBeenCalled();
@@ -133,7 +133,7 @@ describe('auth (UT)', function() {
             auth.login(req, users).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(401);
-                expect(resp.body).toBe('Invalid username or password');
+                expect(resp.body).toBe('Invalid email or password');
                 expect(req.session.user).not.toBeDefined();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
                 expect(users.findOne).toHaveBeenCalled();

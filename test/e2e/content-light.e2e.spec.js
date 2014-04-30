@@ -17,7 +17,7 @@ describe('content-light (E2E):', function() {
                 e2e: true
             },
             testUser = {
-                username: 'johnnyTestmonkey',
+                email: 'johnnyTestmonkey',
                 password: 'bananas4bananas'
             },
             currExp;

@@ -139,7 +139,7 @@ describe('vote.elecDb (UT)',function(){
             });
 
             it('queries the db if the user is defined',function(done){
-                var now = new Date(new Date() - 1000), user = { id: 'u-1', username: 'otter' };
+                var now = new Date(new Date() - 1000), user = { id: 'u-1', email: 'otter' };
                 mockData = { _id : 'xyz', id : 'abc', status: Status.Active, foo : 'bar' };
                 elDb._cache['abc'] = {
                     lastSync : now,

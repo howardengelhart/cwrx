@@ -171,7 +171,7 @@ describe('userSvc (UT)', function() {
     
     describe('updateValidator', function() {
         it('should have initalized correctly', function() {
-            expect(userSvc.updateValidator._forbidden).toEqual(['id', 'org', 'password', 'created', '_id', 'username']);
+            expect(userSvc.updateValidator._forbidden).toEqual(['id', 'org', 'password', 'created', '_id', 'email']);
             expect(userSvc.updateValidator._condForbidden.permissions).toBe(userSvc.permsCheck);
         });
         
@@ -344,7 +344,7 @@ describe('userSvc (UT)', function() {
     describe('setupUser', function() {
         var newUser, requester;
         beforeEach(function() {
-            newUser = { username: 'testUser', password: 'pass' };
+            newUser = { email: 'testUser', password: 'pass' };
             requester = { id: 'u-4567', org: 'o-1234' };
             spyOn(bcrypt, 'hash').andCallFake(function(password, salt, cb) {
                 cb(null, 'fakeHash');
@@ -356,7 +356,7 @@ describe('userSvc (UT)', function() {
         it('should set some default fields and hash the user\'s password', function(done) {
             userSvc.setupUser(newUser, requester).then(function() {
                 expect(newUser.id).toBe('u-1234567890abcd');
-                expect(newUser.username).toBe('testUser');
+                expect(newUser.email).toBe('testUser');
                 expect(newUser.created instanceof Date).toBeTruthy('created is a Date');
                 expect(newUser.lastUpdated).toEqual(newUser.created);
                 expect(newUser.applications).toEqual(['e-51ae37625cb57f']);
@@ -388,7 +388,7 @@ describe('userSvc (UT)', function() {
             };
             userSvc.setupUser(newUser, requester).then(function() {
                 expect(newUser.id).toBe('u-1234567890abcd');
-                expect(newUser.username).toBe('testUser');
+                expect(newUser.email).toBe('testUser');
                 expect(newUser.created instanceof Date).toBeTruthy('created is a Date');
                 expect(newUser.lastUpdated).toEqual(newUser.created);
                 expect(newUser.org).toBe('o-4567');
@@ -430,7 +430,7 @@ describe('userSvc (UT)', function() {
                     cb();
                 })
             };
-            req.body = { username: 'test', password: 'pass'};
+            req.body = { email: 'test', password: 'pass'};
             req.user = { id: 'u-1234', org: 'o-1234' };
             spyOn(userSvc, 'setupUser').andCallFake(function(target, requester) {
                 target.password = 'hashPass';
@@ -456,18 +456,18 @@ describe('userSvc (UT)', function() {
             });            
         });
         
-        it('should reject with a 400 if the username or password are unspecified', function(done) {
-            delete req.body.username;
+        it('should reject with a 400 if the email or password are unspecified', function(done) {
+            delete req.body.email;
             userSvc.createUser(req, userColl).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(400);
-                expect(resp.body).toEqual('New user object must have a username and password');
-                req.body = { username: 'test' };
+                expect(resp.body).toEqual('New user object must have a email and password');
+                req.body = { email: 'test' };
                 return userSvc.createUser(req, userColl);
             }).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(400);
-                expect(resp.body).toEqual('New user object must have a username and password');
+                expect(resp.body).toEqual('New user object must have a email and password');
                 expect(userColl.findOne).not.toHaveBeenCalled();
                 expect(userColl.insert).not.toHaveBeenCalled();
                 done();
@@ -479,12 +479,12 @@ describe('userSvc (UT)', function() {
         
         it('should reject with a 409 if the user already exists', function(done) {
             userColl.findOne.andCallFake(function(query, cb) {
-                cb(null, { id: 'u-4567', username: 'test' });
+                cb(null, { id: 'u-4567', email: 'test' });
             });
             userSvc.createUser(req, userColl).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(409);
-                expect(resp.body).toEqual('A user with that username already exists');
+                expect(resp.body).toEqual('A user with that email already exists');
                 expect(userColl.findOne).toHaveBeenCalled();
                 expect(userColl.insert).not.toHaveBeenCalled();
                 done();
@@ -498,16 +498,16 @@ describe('userSvc (UT)', function() {
             userSvc.createUser(req, userColl).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(201);
-                expect(resp.body).toEqual({username: 'test', org: 'o-1234'});
+                expect(resp.body).toEqual({email: 'test', org: 'o-1234'});
                 expect(userColl.findOne).toHaveBeenCalled();
-                expect(userColl.findOne.calls[0].args[0]).toEqual({username: 'test'});
+                expect(userColl.findOne.calls[0].args[0]).toEqual({email: 'test'});
                 expect(userSvc.createValidator.validate).toHaveBeenCalledWith(req.body, {}, req.user);
                 expect(userSvc.setupUser).toHaveBeenCalledWith(req.body, req.user);
                 expect(userColl.insert).toHaveBeenCalled();
                 expect(userColl.insert.calls[0].args[0]).toBe(req.body);
                 expect(userColl.insert.calls[0].args[1]).toEqual({w: 1, journal: true});
                 expect(mongoUtils.safeUser)
-                    .toHaveBeenCalledWith({username: 'test', org: 'o-1234', password: 'hashPass'});
+                    .toHaveBeenCalledWith({email: 'test', org: 'o-1234', password: 'hashPass'});
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -537,11 +537,11 @@ describe('userSvc (UT)', function() {
             userSvc.createUser(req, userColl).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(201);
-                expect(resp.body).toEqual({username: 'test', org: 'o-4567'});
+                expect(resp.body).toEqual({email: 'test', org: 'o-4567'});
                 expect(userColl.findOne).toHaveBeenCalled();
                 expect(userColl.insert).toHaveBeenCalled();
                 expect(mongoUtils.safeUser)
-                    .toHaveBeenCalledWith({username: 'test', org: 'o-4567', password: 'hashPass'});
+                    .toHaveBeenCalledWith({email: 'test', org: 'o-4567', password: 'hashPass'});
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -945,21 +945,21 @@ describe('userSvc (UT)', function() {
         });
     });
     
-    describe('changeUsername', function() {
+    describe('changeEmail', function() {
         var req, userColl;
         beforeEach(function() {
-            req = { uuid: '1234', body: { newUsername: 'otter' }, user: { id: 'u-1' } };
+            req = { uuid: '1234', body: { newEmail: 'otter' }, user: { id: 'u-1' } };
             userColl = {
                 update: jasmine.createSpy('users.update').andCallFake(
                     function(query, updates, opts, cb) { cb(); })
             };
         });
         
-        it('should fail if there is no newUsername in req.body', function(done) {
-            delete req.body.newUsername;
-            userSvc.changeUsername(req, userColl).then(function(resp) {
+        it('should fail if there is no newEmail in req.body', function(done) {
+            delete req.body.newEmail;
+            userSvc.changeEmail(req, userColl).then(function(resp) {
                 expect(resp.code).toBe(400);
-                expect(resp.body).toBe('Must provide a new username');
+                expect(resp.body).toBe('Must provide a new email');
                 expect(userColl.update).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
@@ -968,13 +968,13 @@ describe('userSvc (UT)', function() {
             });
         });
         
-        it('should successfully update a user\'s username', function(done) {
-            userSvc.changeUsername(req, userColl).then(function(resp) {
+        it('should successfully update a user\'s email', function(done) {
+            userSvc.changeEmail(req, userColl).then(function(resp) {
                 expect(resp.code).toBe(200);
-                expect(resp.body).toBe('Successfully changed username');
+                expect(resp.body).toBe('Successfully changed email');
                 expect(userColl.update).toHaveBeenCalled();
                 expect(userColl.update.calls[0].args[0]).toEqual({id: 'u-1'});
-                expect(userColl.update.calls[0].args[1].$set.username).toBe('otter');
+                expect(userColl.update.calls[0].args[1].$set.email).toBe('otter');
                 expect(userColl.update.calls[0].args[1].$set.lastUpdated instanceof Date).toBe(true);
                 expect(userColl.update.calls[0].args[2]).toEqual({w: 1, journal: true});
                 done();
@@ -986,7 +986,7 @@ describe('userSvc (UT)', function() {
         
         it('should fail if the mongo update call fails', function(done) {
             userColl.update.andCallFake(function(query, updates, opts, cb) { cb('I GOT A PROBLEM'); });
-            userSvc.changeUsername(req, userColl).then(function(resp) {
+            userSvc.changeEmail(req, userColl).then(function(resp) {
                 expect(resp).not.toBeDefined();
                 done();
             }).catch(function(error) {

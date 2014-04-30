@@ -15,7 +15,7 @@ describe('authUtils', function() {
         mockUser = {
             id: 'u-1234',
             status: 'active',
-            username: 'johnnyTestmonkey',
+            email: 'johnnyTestmonkey',
             password: 'password',
             permissions: {
                 dub: {
@@ -358,7 +358,7 @@ describe('authUtils', function() {
     describe('userPassChecker', function() {
         var userColl, user, req, res, next, midWare;
         beforeEach(function() {
-            user = { id: 'u-1', username: 'otter', password: 'fakeHash' };
+            user = { id: 'u-1', email: 'otter', password: 'fakeHash' };
             userColl = {
                 findOne: jasmine.createSpy('users.findOne').andCallFake(function(query, cb) {
                     cb(null, user);
@@ -367,7 +367,7 @@ describe('authUtils', function() {
             req = {
                 uuid: '1234',
                 route: { method: 'get', path: '/ut' },
-                body: { username: 'otter', password: 'thisisapassword' }
+                body: { email: 'otter', password: 'thisisapassword' }
             };
             res = {};
             midWare = authUtils.userPassChecker(userColl);
@@ -377,10 +377,10 @@ describe('authUtils', function() {
             spyOn(mongoUtils, 'safeUser').andCallThrough();
         });
         
-        it('should fail with a 400 if no username or password is provided', function(done) {
+        it('should fail with a 400 if no email or password is provided', function(done) {
             res.send = function(code, body) {
                 expect(code).toBe(400);
-                expect(body).toBe('Must provide username and password');
+                expect(body).toBe('Must provide email and password');
                 expect(userColl.findOne).not.toHaveBeenCalled();
                 expect(req.user).not.toBeDefined();
                 done();
@@ -389,7 +389,7 @@ describe('authUtils', function() {
                 expect('called next').toBe('should not have called next');
                 done();
             };
-            req.body = { username: 'otter' };
+            req.body = { email: 'otter' };
             midWare(req, res, next);
             req.body = { password: 'thisisapassword' };
             midWare(req, res, next);
@@ -402,9 +402,9 @@ describe('authUtils', function() {
                 done();
             };
             midWare(req, res, function() {
-                expect(req.user).toEqual({id: 'u-1', username: 'otter'});
+                expect(req.user).toEqual({id: 'u-1', email: 'otter'});
                 expect(userColl.findOne).toHaveBeenCalled();
-                expect(userColl.findOne.calls[0].args[0]).toEqual({username: 'otter'});
+                expect(userColl.findOne.calls[0].args[0]).toEqual({email: 'otter'});
                 expect(bcrypt.compare).toHaveBeenCalled();
                 expect(bcrypt.compare.calls[0].args[0]).toBe('thisisapassword');
                 expect(bcrypt.compare.calls[0].args[1]).toBe('fakeHash');
@@ -419,7 +419,7 @@ describe('authUtils', function() {
             });
             res.send = function(code, body) {
                 expect(code).toBe(401);
-                expect(body).toBe('Invalid username or password');
+                expect(body).toBe('Invalid email or password');
                 expect(userColl.findOne).toHaveBeenCalled();
                 expect(bcrypt.compare).not.toHaveBeenCalled();
                 expect(req.user).not.toBeDefined();
@@ -437,7 +437,7 @@ describe('authUtils', function() {
             });
             res.send = function(code, body) {
                 expect(code).toBe(401);
-                expect(body).toBe('Invalid username or password');
+                expect(body).toBe('Invalid email or password');
                 expect(userColl.findOne).toHaveBeenCalled();
                 expect(bcrypt.compare).toHaveBeenCalled();
                 expect(req.user).not.toBeDefined();
