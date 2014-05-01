@@ -55,7 +55,7 @@
         }
     };
 
-    collateral.uploadFile = function(req, s3, config) {
+    collateral.uploadFiles = function(req, s3, config) {
         var log = logger.getLog();
 
         if (!req.files || Object.keys(req.files).length === 0) {
@@ -69,11 +69,22 @@
         return q.allSettled(Object.keys(req.files).map(function(objName) {
             var file = req.files[objName],
                 outParams, headParams, fname;
+                
+            function cleanup() {
+                q.npost(fs, 'remove', [file.path])
+                .then(function() {
+                    log.trace('[%1] Successfully removed %2', req.uuid, file.path);
+                })
+                .catch(function(error) {
+                    log.warn('[%1] Unable to remove %2: %3', req.uuid, file.path, error);
+                });
+            }
             
             if (file.size > config.maxFileSize) {
                 log.warn('[%1] File %2 is %3 bytes large, which is too big',
                          req.uuid, file.name, file.size);
-                return q.reject('File is too big');
+                cleanup();
+                return q.reject({ code: 413, name: objName, error: 'File is too big' });
             }
             
             return uuid.hashFile(file.path).then(function(hash) {
@@ -85,6 +96,7 @@
                     ContentType : file.type
                 };
                 headParams = {Key: outParams.Key, Bucket: outParams.Bucket};
+                
                 log.info('[%1] User %2 is uploading file to %3/%4',
                          req.uuid, req.user.id, outParams.Bucket, outParams.Key);
 
@@ -92,33 +104,41 @@
                     log.info('[%1] Identical file %2 already exists on s3, not uploading',
                              req.uuid, fname);
                     return q();
-                }).catch(function(/*error*/) {
+                })
+                .catch(function(/*error*/) {
                     return s3util.putObject(s3, file.path, outParams);
                 });
-            }).then(function() {
+            })
+            .then(function() {
                 log.info('[%1] File %2 has been uploaded successfully', req.uuid, fname);
-                q.npost(fs, 'remove', [file.path]).then(function() {
-                    log.trace('[%1] Successfully removed %2', req.uuid, file.path);
-                }).catch(function(error) {
-                    log.warn('[%1] Unable to remove %2: %3', req.uuid, file.path, error);
-                });
-                return q({ name: objName, path: outParams.Key });
-            }).catch(function(error) {
+                return q({ code: 201, name: objName, path: outParams.Key });
+            })
+            .catch(function(error) {
                 log.error('[%1] Error processing upload for %2: %3', req.uuid, file.name, error);
-                return q.reject({ name: objName, error: error });
-            });
-        })).then(function(results) {
-            var retObj = {}, oneSuccess = false;
+                return q.reject({ code: 500, name: objName, error: error });
+            })
+            .finally(cleanup);
+        }))
+        .then(function(results) {
+            var retObj = {}, reqCode = 201;
+            
             results.forEach(function(result) {
                 if (result.state === 'fulfilled') {
-                    oneSuccess = true;
-                    retObj[result.value.name] = { result: 'success', path: result.value.path };
+                    retObj[result.value.name] = {
+                        code:   result.value.code,
+                        path:   result.value.path
+                    };
                 } else {
-                    retObj[result.reason.name] = { result: 'failure', error: result.reason.error };
+                    reqCode = Math.max(result.reason.code, reqCode); // prefer 5xx over 4xx over 2xx
+                    retObj[result.reason.name] = {
+                        code:   result.reason.code,
+                        error:  result.reason.error
+                    };
                 }
             });
-            return q({code: oneSuccess ? 201 : 500, body: retObj});
-        }).catch(function(error) {
+            return q({code: reqCode, body: retObj});
+        })
+        .catch(function(error) {
             log.error('[%1] Error processing uploads: %2', req.uuid, error);
             return q.reject(error);
         });
@@ -182,7 +202,7 @@
         
         var authUpload = authUtils.middlewarify({experiences: 'edit'}); //TODO: new permission?
         app.put('/api/collateral/files', sessions, authUpload, function(req, res) {
-            collateral.uploadFile(req, s3, state.config)
+            collateral.uploadFiles(req, s3, state.config)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
