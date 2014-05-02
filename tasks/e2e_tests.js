@@ -33,6 +33,9 @@ module.exports = function(grunt) {
         if (grunt.option('bucket')) {
             args.push('--config', 'bucket', grunt.option('bucket'));
         }
+        if (grunt.option('awsAuth')) {
+            args.push('--config', 'awsAuth', grunt.option('awsAuth'));
+        }
         if (grunt.option('getLogs')) {
             args.push('--config', 'getLogs', grunt.option('getLogs'));
         }

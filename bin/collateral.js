@@ -88,7 +88,7 @@
             }
             
             return uuid.hashFile(file.path).then(function(hash) {
-                fname = hash + '.' + file.name; //TODO different name?
+                fname = hash + '.' + file.name;
                 outParams = {
                     Bucket      : config.s3.bucket,
                     Key         : path.join(config.s3.path, req.user.org, fname),
@@ -200,8 +200,8 @@
             next();
         });
         
-        var authUpload = authUtils.middlewarify({experiences: 'edit'}); //TODO: new permission?
-        app.put('/api/collateral/files', sessions, authUpload, function(req, res) {
+        var authUpload = authUtils.middlewarify({});
+        app.post('/api/collateral/files', sessions, authUpload, function(req, res) {
             collateral.uploadFiles(req, s3, state.config)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
