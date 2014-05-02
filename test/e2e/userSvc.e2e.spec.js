@@ -452,7 +452,7 @@ describe('user (E2E):', function() {
         
         it('should successfully mark a user as deleted', function(done) {
             var options = { url: config.userSvcUrl + '/user/e2e-delete1', jar: cookieJar };
-            testUtils.qRequest('del', options).then(function(resp) {
+            testUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 options = { url: config.userSvcUrl + '/user/e2e-delete1', jar: cookieJar };
@@ -469,7 +469,7 @@ describe('user (E2E):', function() {
         
         it('should still succeed if the user does not exist', function(done) {
             var options = { url: config.userSvcUrl + '/user/e2e-fake', jar: cookieJar };
-            testUtils.qRequest('del', options).then(function(resp) {
+            testUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 done();
@@ -481,11 +481,11 @@ describe('user (E2E):', function() {
         
         it('should still succeed if the user has already been deleted', function(done) {
             var options = { url: config.userSvcUrl + '/user/e2e-delete1', jar: cookieJar };
-            testUtils.qRequest('del', options).then(function(resp) {
+            testUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 options = { url: config.userSvcUrl + '/user/e2e-delete1', jar: cookieJar };
-                return testUtils.qRequest('del', options);
+                return testUtils.qRequest('delete', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -500,7 +500,7 @@ describe('user (E2E):', function() {
             // var options = { url: config.userSvcUrl + '/user/e2e-user', jar: cookieJar };
             // testUtils.qRequest('get', options).then(function(resp) {
             var options = { url: config.userSvcUrl + '/user/e2e-user', jar: cookieJar };
-            testUtils.qRequest('del', options).then(function(resp) {
+            testUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('You cannot delete yourself');
                 options = { url: config.userSvcUrl + '/user/e2e-user', jar: cookieJar };
@@ -517,7 +517,7 @@ describe('user (E2E):', function() {
         
         it('should throw a 403 if the requester is not authorized to delete the user', function(done) {
             var options = { url: config.userSvcUrl + '/user/e2e-delete2', jar: cookieJar };
-            testUtils.qRequest('del', options).then(function(resp) {
+            testUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Not authorized to delete this user');
                 done();
@@ -529,7 +529,7 @@ describe('user (E2E):', function() {
     
         it('should throw a 401 error if the user is not authenticated', function(done) {
             var options = { url: config.userSvcUrl + '/user/e2e-fake' };
-            testUtils.qRequest('del', options).then(function(resp) {
+            testUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe("Unauthorized");
                 done();

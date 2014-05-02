@@ -59,7 +59,7 @@ testUtils.qRequest = function(method, opts, files) {
     var req = request(opts, function(error, response, body) {
         if (error) return deferred.reject(error);
         if (!response) return deferred.reject({error: 'Missing response'});
-        body = body || {};
+        body = body || '';
         try {
             body = JSON.parse(body);
         } catch(e) {

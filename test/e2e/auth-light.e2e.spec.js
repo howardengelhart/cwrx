@@ -73,7 +73,7 @@ describe('auth-light (E2E):', function() {
             var options = {
                 url: config.authUrl + '/meta'
             };
-            testUtils.qRequest('get', [options])
+            testUtils.qRequest('get', options)
             .then(function(resp) {
                 expect(resp.body.version).toBeDefined();
                 expect(resp.body.started).toBeDefined();
