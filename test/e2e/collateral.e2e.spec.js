@@ -5,9 +5,11 @@ var q           = require('q'),
     host        = process.env['host'] || 'localhost',
     bucket      = process.env.bucket || 'c6.dev',
     config      = {
-        collateralUrl   : 'http://' + host + ':3600/api',
+        collateralUrl   : 'http://' + (host === 'localhost' ? host + ':3600' : host) + '/api',
         authUrl         : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
     };
+
+jasmine.getEnv().defaultTimeoutInterval = 10000;
 
 describe('collateral (E2E):', function() {
     var cookieJar, mockUser;
