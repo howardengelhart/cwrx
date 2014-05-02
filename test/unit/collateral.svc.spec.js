@@ -1,16 +1,17 @@
 var flush = true;
 describe('collateral (UT)', function() {
-    var mockLog, uuid, logger, collateral, q;
+    var mockLog, uuid, logger, collateral, q, enums, Scope;
     
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         uuid        = require('../../lib/uuid');
         logger      = require('../../lib/logger');
         s3util      = require('../../lib/s3util');
-        
         fs          = require('fs-extra');
         collateral  = require('../../bin/collateral');
         q           = require('q');
+        enums       = require('../../lib/enums');
+        Scope       = enums.Scope;
         
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -205,6 +206,42 @@ describe('collateral (UT)', function() {
                 done();
             });
         });
-    });  // end -- describe uploadFiless
+        
+        it('should allow uploads to other orgs if the user is an admin', function(done) {
+            req.query = { org: 'o-2' };
+            req.user.permissions = { experiences: { edit: Scope.All } };
+            collateral.uploadFiles(req, s3, config).then(function(resp) {
+                expect(resp.code).toBe(201);
+                expect(resp.body).toEqual({testFile: {code: 201, path: 'ut/o-2/fakeHash.test.txt'}});
+                expect(uuid.hashFile).toHaveBeenCalled();
+                expect(s3.headObject).toHaveBeenCalled();
+                expect(s3.headObject.calls[0].args[0]).toEqual({Key:'ut/o-2/fakeHash.test.txt',Bucket:'bkt'});
+                expect(s3util.putObject).toHaveBeenCalledWith(s3, '/tmp/123',
+                    {Bucket:'bkt',Key:'ut/o-2/fakeHash.test.txt',ACL:'public-read',ContentType:'text/plain'});
+                expect(fs.remove).toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should prevent uploads ot other orgs if the user is not an admin', function(done) {
+            req.query = { org: 'o-2' };
+            req.user.permissions = { experiences: { edit: Scope.Org } };
+            collateral.uploadFiles(req, s3, config).then(function(resp) {
+                expect(resp.code).toBe(403);
+                expect(resp.body).toBe('Cannot upload files to that org');
+                expect(uuid.hashFile).not.toHaveBeenCalled();
+                expect(s3util.putObject).not.toHaveBeenCalled();
+                expect(fs.remove).toHaveBeenCalled();
+                expect(fs.remove.calls[0].args[0]).toBe('/tmp/123');
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+    });  // end -- describe uploadFiles
 });  // end -- describe collateral
 

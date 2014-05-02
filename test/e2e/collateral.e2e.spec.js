@@ -10,13 +10,13 @@ var q           = require('q'),
     };
 
 describe('collateral (E2E):', function() {
-    var cookieJar;
+    var cookieJar, mockUser;
     beforeEach(function(done) {
         if (cookieJar && cookieJar.cookies) {
             return done();
         }
         cookieJar = require('request').jar();
-        var mockUser = {
+        mockUser = {
             id: 'e2e-user',
             status: 'active',
             email : 'collateralE2EUser',
@@ -151,6 +151,51 @@ describe('collateral (E2E):', function() {
             testUtils.qRequest('post', options, files).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toEqual('Must provide files to upload');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should throw a 403 if a non-admin user tries to upload to another org', function(done) {
+            options.url += '?org=not-e2e-org';
+            testUtils.qRequest('post', options, files).then(function(resp) {
+                expect(resp.response.statusCode).toBe(403);
+                expect(resp.body).toEqual('Cannot upload files to that org');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should allow an admin to upload files to another org', function(done) {
+            options.url += '?org=not-e2e-org';
+            mockUser.id = 'not-e2e-user';
+            mockUser.email = 'adminE2EUser';
+            mockUser.permissions.experiences.edit = 'all';
+            var loginOpts = {
+                url: config.authUrl + '/auth/login',
+                jar: cookieJar,
+                json: {
+                    email: 'adminE2EUser',
+                    password: 'password'
+                }
+            };
+            testUtils.resetCollection('users', mockUser).then(function(resp) {
+                return testUtils.qRequest('post', loginOpts);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return testUtils.qRequest('post', options, files);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toEqual({testFile: {code: 201, path: 'collateral/not-e2e-org/ce114e4501d2f4e2dcea3e17b546f339.test.txt'}});
+                rmList.push(resp.body.testFile.path);
+                return testUtils.qRequest('get', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body.testFile.path)});
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBe('This is a test');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();

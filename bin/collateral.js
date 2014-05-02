@@ -12,6 +12,8 @@
         authUtils   = require('../lib/authUtils')(),
         service     = require('../lib/service'),
         s3util      = require('../lib/s3util'),
+        enums       = require('../lib/enums'),
+        Scope       = enums.Scope,
         
         state      = {},
         collateral = {}; // for exporting functions to unit tests
@@ -56,7 +58,18 @@
     };
 
     collateral.uploadFiles = function(req, s3, config) {
-        var log = logger.getLog();
+        var log = logger.getLog(),
+            org = req.user.org;
+
+        function cleanup(fpath) {
+            q.npost(fs, 'remove', [fpath])
+            .then(function() {
+                log.trace('[%1] Successfully removed %2', req.uuid, fpath);
+            })
+            .catch(function(error) {
+                log.warn('[%1] Unable to remove %2: %3', req.uuid, fpath, error);
+            });
+        }
 
         if (!req.files || Object.keys(req.files).length === 0) {
             log.info('[%1] No files to upload from user %2', req.uuid, req.user.id);
@@ -66,24 +79,30 @@
                      req.uuid, req.user.id, Object.keys(req.files).length);
         }
         
+        if (req.query && req.query.org && req.query.org !== req.user.org) {
+            if (req.user.permissions && req.user.permissions.experiences &&
+                req.user.permissions.experiences.edit === Scope.All) {
+                log.info('[%1] Admin user %2 is uploading file to org %3',req.uuid,req.user.id,org);
+                org = req.query.org;
+            } else {
+                log.info('[%1] Non-admin user %2 tried to upload files to org %3',
+                         req.uuid, req.user.id, org);
+                Object.keys(req.files).forEach(function(key) {
+                    cleanup(req.files[key].path);
+                });
+                return q({code: 403, body: 'Cannot upload files to that org'});
+            }
+        }
+        
         return q.allSettled(Object.keys(req.files).map(function(objName) {
             var file = req.files[objName],
                 outParams, headParams, fname;
                 
-            function cleanup() {
-                q.npost(fs, 'remove', [file.path])
-                .then(function() {
-                    log.trace('[%1] Successfully removed %2', req.uuid, file.path);
-                })
-                .catch(function(error) {
-                    log.warn('[%1] Unable to remove %2: %3', req.uuid, file.path, error);
-                });
-            }
             
             if (file.size > config.maxFileSize) {
                 log.warn('[%1] File %2 is %3 bytes large, which is too big',
                          req.uuid, file.name, file.size);
-                cleanup();
+                cleanup(file.path);
                 return q.reject({ code: 413, name: objName, error: 'File is too big' });
             }
             
@@ -91,7 +110,7 @@
                 fname = hash + '.' + file.name;
                 outParams = {
                     Bucket      : config.s3.bucket,
-                    Key         : path.join(config.s3.path, req.user.org, fname),
+                    Key         : path.join(config.s3.path, org, fname),
                     ACL         : 'public-read',
                     ContentType : file.type
                 };
@@ -117,7 +136,7 @@
                 log.error('[%1] Error processing upload for %2: %3', req.uuid, file.name, error);
                 return q.reject({ code: 500, name: objName, error: error });
             })
-            .finally(cleanup);
+            .finally(function() { cleanup(file.path); });
         }))
         .then(function(results) {
             var retObj = {}, reqCode = 201;
