@@ -75,7 +75,7 @@ describe('collateral (UT)', function() {
             req.files.testFile.size = 1100;
             collateral.uploadFiles(req, s3, config).then(function(resp) {
                 expect(resp.code).toBe(413);
-                expect(resp.body).toEqual({ testFile: { code: 413, error: 'File is too big' } });
+                expect(resp.body).toEqual([{name: 'testFile', code: 413, error: 'File is too big' }]);
                 expect(uuid.hashFile).not.toHaveBeenCalled();
                 expect(s3.headObject).not.toHaveBeenCalled();
                 done();
@@ -88,7 +88,7 @@ describe('collateral (UT)', function() {
         it('should upload a file successfully', function(done) {
             collateral.uploadFiles(req, s3, config).then(function(resp) {
                 expect(resp.code).toBe(201);
-                expect(resp.body).toEqual({testFile: {code: 201, path: 'ut/o-1/fakeHash.test.txt'}});
+                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: 'ut/o-1/fakeHash.test.txt'}]);
                 expect(uuid.hashFile).toHaveBeenCalledWith('/tmp/123');
                 expect(s3.headObject).toHaveBeenCalled();
                 expect(s3.headObject.calls[0].args[0]).toEqual({Key:'ut/o-1/fakeHash.test.txt',Bucket:'bkt'});
@@ -107,7 +107,7 @@ describe('collateral (UT)', function() {
             s3.headObject.andCallFake(function(params, cb) { cb(null, 'that does exist'); });
             collateral.uploadFiles(req, s3, config).then(function(resp) {
                 expect(resp.code).toBe(201);
-                expect(resp.body).toEqual({testFile: {code: 201, path: 'ut/o-1/fakeHash.test.txt'}});
+                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: 'ut/o-1/fakeHash.test.txt'}]);
                 expect(uuid.hashFile).toHaveBeenCalled();
                 expect(s3.headObject).toHaveBeenCalled();
                 expect(s3util.putObject).not.toHaveBeenCalled();
@@ -124,7 +124,7 @@ describe('collateral (UT)', function() {
             uuid.hashFile.andReturn(q.reject('I GOT A PROBLEM'));
             collateral.uploadFiles(req, s3, config).then(function(resp) {
                 expect(resp.code).toBe(500);
-                expect(resp.body).toEqual({testFile: {code: 500, error: 'I GOT A PROBLEM'}});
+                expect(resp.body).toEqual([{name: 'testFile', code: 500, error: 'I GOT A PROBLEM'}]);
                 expect(uuid.hashFile).toHaveBeenCalled();
                 expect(s3.headObject).not.toHaveBeenCalled();
                 expect(s3util.putObject).not.toHaveBeenCalled();
@@ -141,7 +141,7 @@ describe('collateral (UT)', function() {
             s3util.putObject.andReturn(q.reject('I GOT A PROBLEM'));
             collateral.uploadFiles(req, s3, config).then(function(resp) {
                 expect(resp.code).toBe(500);
-                expect(resp.body).toEqual({testFile: {code: 500, error: 'I GOT A PROBLEM'}});
+                expect(resp.body).toEqual([{name: 'testFile', code: 500, error: 'I GOT A PROBLEM'}]);
                 expect(uuid.hashFile).toHaveBeenCalled();
                 expect(s3.headObject).toHaveBeenCalled();
                 expect(s3util.putObject).toHaveBeenCalled();
@@ -158,7 +158,7 @@ describe('collateral (UT)', function() {
             fs.remove.andCallFake(function(fpath, cb) { cb('I GOT A PROBLEM'); });
             collateral.uploadFiles(req, s3, config).then(function(resp) {
                 expect(resp.code).toBe(201);
-                expect(resp.body).toEqual({testFile: {code: 201, path: 'ut/o-1/fakeHash.test.txt'}});
+                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: 'ut/o-1/fakeHash.test.txt'}]);
                 expect(uuid.hashFile).toHaveBeenCalled();
                 expect(s3.headObject).toHaveBeenCalled();
                 expect(s3util.putObject).toHaveBeenCalled();
@@ -190,12 +190,12 @@ describe('collateral (UT)', function() {
 
             collateral.uploadFiles(req, s3, config).then(function(resp) {
                 expect(resp.code).toBe(500);
-                expect(resp.body).toEqual({
-                    file1: {code: 201, path: 'ut/o-1/fakeHash.1.txt'},
-                    file2: {code: 413, error: 'File is too big'},
-                    file3: {code: 201, path: 'ut/o-1/fakeHash.3.txt'},
-                    file4: {code: 500, error: 'I GOT A PROBLEM'}
-                });
+                expect(resp.body).toEqual([
+                    {name: 'file1', code: 201, path: 'ut/o-1/fakeHash.1.txt'},
+                    {name: 'file2', code: 413, error: 'File is too big'},
+                    {name: 'file3', code: 201, path: 'ut/o-1/fakeHash.3.txt'},
+                    {name: 'file4', code: 500, error: 'I GOT A PROBLEM'}
+                ]);
                 expect(uuid.hashFile.calls.length).toBe(3);
                 expect(s3.headObject.calls.length).toBe(3);
                 expect(s3util.putObject.calls.length).toBe(2);
@@ -212,7 +212,7 @@ describe('collateral (UT)', function() {
             req.user.permissions = { experiences: { edit: Scope.All } };
             collateral.uploadFiles(req, s3, config).then(function(resp) {
                 expect(resp.code).toBe(201);
-                expect(resp.body).toEqual({testFile: {code: 201, path: 'ut/o-2/fakeHash.test.txt'}});
+                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: 'ut/o-2/fakeHash.test.txt'}]);
                 expect(uuid.hashFile).toHaveBeenCalled();
                 expect(s3.headObject).toHaveBeenCalled();
                 expect(s3.headObject.calls[0].args[0]).toEqual({Key:'ut/o-2/fakeHash.test.txt',Bucket:'bkt'});
@@ -226,7 +226,7 @@ describe('collateral (UT)', function() {
             });
         });
         
-        it('should prevent uploads ot other orgs if the user is not an admin', function(done) {
+        it('should prevent uploads to other orgs if the user is not an admin', function(done) {
             req.query = { org: 'o-2' };
             req.user.permissions = { experiences: { edit: Scope.Org } };
             collateral.uploadFiles(req, s3, config).then(function(resp) {

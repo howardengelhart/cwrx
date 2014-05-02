@@ -71,9 +71,9 @@ describe('collateral (E2E):', function() {
         it('should upload a file', function(done) {
             testUtils.qRequest('post', options, files).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toEqual({testFile: {code: 201, path: 'collateral/e2e-org/ce114e4501d2f4e2dcea3e17b546f339.test.txt'}});
-                rmList.push(resp.body.testFile.path);
-                return testUtils.qRequest('get', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body.testFile.path)});
+                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: 'collateral/e2e-org/ce114e4501d2f4e2dcea3e17b546f339.test.txt'}]);
+                rmList.push(resp.body[0].path);
+                return testUtils.qRequest('get', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)});
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBe('This is a test');
@@ -87,13 +87,13 @@ describe('collateral (E2E):', function() {
         it('should still succeed if reuploading a file', function(done) {
             testUtils.qRequest('post', options, files).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toEqual({testFile: {code: 201, path: 'collateral/e2e-org/ce114e4501d2f4e2dcea3e17b546f339.test.txt'}});
-                rmList.push(resp.body.testFile.path);
+                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: 'collateral/e2e-org/ce114e4501d2f4e2dcea3e17b546f339.test.txt'}]);
+                rmList.push(resp.body[0].path);
                 return testUtils.qRequest('post', options, files);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toEqual({testFile: {code: 201, path: 'collateral/e2e-org/ce114e4501d2f4e2dcea3e17b546f339.test.txt'}});
-                return testUtils.qRequest('get', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body.testFile.path)});
+                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: 'collateral/e2e-org/ce114e4501d2f4e2dcea3e17b546f339.test.txt'}]);
+                return testUtils.qRequest('get', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)});
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBe('This is a test');
@@ -108,9 +108,9 @@ describe('collateral (E2E):', function() {
             fs.writeFileSync(files.testFile, 'This is a good test');
             testUtils.qRequest('post', options, files).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toEqual({testFile: {code: 201, path: 'collateral/e2e-org/77815a86e0fdc3168df95ea8db6e3775.test.txt'}});
-                rmList.push(resp.body.testFile.path);
-                return testUtils.qRequest('get', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body.testFile.path)});
+                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: 'collateral/e2e-org/77815a86e0fdc3168df95ea8db6e3775.test.txt'}]);
+                rmList.push(resp.body[0].path);
+                return testUtils.qRequest('get', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)});
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBe('This is a good test');
@@ -126,15 +126,15 @@ describe('collateral (E2E):', function() {
             fs.writeFileSync(files.newFile, 'Foobar is my fave thang');
             testUtils.qRequest('post', options, files).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toEqual({
-                    testFile: {code: 201, path: 'collateral/e2e-org/ce114e4501d2f4e2dcea3e17b546f339.test.txt'},
-                    newFile: {code: 201, path: 'collateral/e2e-org/ad44a02eeeb5a2f5fadd6a3c9b743183.foo.txt'}
-                });
-                rmList.push(resp.body.testFile.path);
-                rmList.push(resp.body.newFile.path);
+                expect(resp.body).toEqual([
+                    {name: 'testFile', code: 201, path: 'collateral/e2e-org/ce114e4501d2f4e2dcea3e17b546f339.test.txt'},
+                    {name: 'newFile', code: 201, path: 'collateral/e2e-org/ad44a02eeeb5a2f5fadd6a3c9b743183.foo.txt'}
+                ]);
+                rmList.push(resp.body[0].path);
+                rmList.push(resp.body[1].path);
                 return q.all([
-                    testUtils.qRequest('get', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body.testFile.path)}),
-                    testUtils.qRequest('get', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body.newFile.path)}),
+                    testUtils.qRequest('get', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)}),
+                    testUtils.qRequest('get', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[1].path)})
                 ]);
             }).then(function(resps) {
                 expect(resps[0].response.statusCode).toBe(200);
@@ -192,9 +192,9 @@ describe('collateral (E2E):', function() {
                 return testUtils.qRequest('post', options, files);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toEqual({testFile: {code: 201, path: 'collateral/not-e2e-org/ce114e4501d2f4e2dcea3e17b546f339.test.txt'}});
-                rmList.push(resp.body.testFile.path);
-                return testUtils.qRequest('get', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body.testFile.path)});
+                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: 'collateral/not-e2e-org/ce114e4501d2f4e2dcea3e17b546f339.test.txt'}]);
+                rmList.push(resp.body[0].path);
+                return testUtils.qRequest('get', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)});
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBe('This is a test');

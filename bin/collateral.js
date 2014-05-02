@@ -139,23 +139,25 @@
             .finally(function() { cleanup(file.path); });
         }))
         .then(function(results) {
-            var retObj = {}, reqCode = 201;
+            var retArray = [], reqCode = 201;
             
             results.forEach(function(result) {
                 if (result.state === 'fulfilled') {
-                    retObj[result.value.name] = {
+                    retArray.push({
+                        name:   result.value.name,
                         code:   result.value.code,
                         path:   result.value.path
-                    };
+                    });
                 } else {
                     reqCode = Math.max(result.reason.code, reqCode); // prefer 5xx over 4xx over 2xx
-                    retObj[result.reason.name] = {
+                    retArray.push({
+                        name:   result.reason.name,
                         code:   result.reason.code,
                         error:  result.reason.error
-                    };
+                    });
                 }
             });
-            return q({code: reqCode, body: retObj});
+            return q({code: reqCode, body: retArray});
         })
         .catch(function(error) {
             log.error('[%1] Error processing uploads: %2', req.uuid, error);
