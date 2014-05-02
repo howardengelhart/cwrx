@@ -609,7 +609,7 @@ describe('content (E2E):', function() {
         
         it('should set the status of an experience to deleted', function(done) {
             var options = {jar: cookieJar, url: config.contentUrl + '/content/experience/e2e-del1'};
-            testUtils.qRequest('del', options).then(function(resp) {
+            testUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 options = {url: config.contentUrl + '/content/experience/e2e-del1', jar: cookieJar};
@@ -626,7 +626,7 @@ describe('content (E2E):', function() {
         
         it('should not delete an experience the user does not own', function(done) {
             var options = {jar: cookieJar, url: config.contentUrl + '/content/experience/e2e-del2'};
-            testUtils.qRequest('del', options).then(function(resp) {
+            testUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe("Not authorized to delete this experience");
                 done();
@@ -638,10 +638,10 @@ describe('content (E2E):', function() {
         
         it('should still return a 204 if the experience was already deleted', function(done) {
             var options = {jar: cookieJar, url: config.contentUrl + '/content/experience/e2e-del1'};
-            testUtils.qRequest('del', options).then(function(resp) {
+            testUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
-                return testUtils.qRequest('del', options);
+                return testUtils.qRequest('delete', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -654,7 +654,7 @@ describe('content (E2E):', function() {
         
         it('should still return a 204 if the experience does not exist', function(done) {
             var options = {jar: cookieJar, url: config.contentUrl + '/content/experience/fake'};
-            testUtils.qRequest('del', options).then(function(resp) {
+            testUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 done();
@@ -665,7 +665,7 @@ describe('content (E2E):', function() {
         });
         
         it('should throw a 401 error if the user is not authenticated', function(done) {
-            testUtils.qRequest('del', {url: config.contentUrl + '/content/experience/e2e-del1'})
+            testUtils.qRequest('delete', {url: config.contentUrl + '/content/experience/e2e-del1'})
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe("Unauthorized");

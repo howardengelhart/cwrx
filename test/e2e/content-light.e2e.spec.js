@@ -130,7 +130,7 @@ describe('content-light (E2E):', function() {
                 url: config.contentUrl + '/content/experience/' + currExp.id,
                 jar: cookieJar
             };
-            testUtils.qRequest('del', options).then(function(resp) {
+            testUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 done();
@@ -161,7 +161,7 @@ describe('content-light (E2E):', function() {
             var options = {
                 url: config.contentUrl + '/content/meta'
             };
-            testUtils.qRequest('get', [options])
+            testUtils.qRequest('get', options)
             .then(function(resp) {
                 expect(resp.body.version).toBeDefined();
                 expect(resp.body.started).toBeDefined();

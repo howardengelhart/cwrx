@@ -460,7 +460,7 @@ describe('vote (E2E)', function(){
         
         it('should set the status of an election to deleted', function(done) {
             var options = {jar: cookieJar, url: makeUrl('/api/election/e1')};
-            testUtils.qRequest('del', options).then(function(resp) {
+            testUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 done();
@@ -472,7 +472,7 @@ describe('vote (E2E)', function(){
         
         it('should not delete an election the user does not own', function(done) {
             var options = {jar: cookieJar, url: makeUrl('/api/election/e2')};
-            testUtils.qRequest('del', options).then(function(resp) {
+            testUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Not authorized to delete this election');
                 done();
@@ -484,10 +484,10 @@ describe('vote (E2E)', function(){
         
         it('should still return a 200 if the election was already deleted', function(done) {
             var options = {jar: cookieJar, url: makeUrl('/api/election/e1')};
-            testUtils.qRequest('del', options).then(function(resp) {
+            testUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
-                return testUtils.qRequest('del', options);
+                return testUtils.qRequest('delete', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -500,7 +500,7 @@ describe('vote (E2E)', function(){
         
         it('should still return a 204 if the election does not exist', function(done) {
             var options = {jar: cookieJar, url: makeUrl('/api/election/fake')};
-            testUtils.qRequest('del', options).then(function(resp) {
+            testUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 done();
@@ -511,7 +511,7 @@ describe('vote (E2E)', function(){
         });
         
         it('should throw a 401 error if the user is not authenticated', function(done) {
-            testUtils.qRequest('del', {url: makeUrl('/api/election/e1')})
+            testUtils.qRequest('delete', {url: makeUrl('/api/election/e1')})
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');

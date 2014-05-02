@@ -935,8 +935,8 @@ describe('dub (UT)',function(){
                         expect(retval).toBe(job);
                         expect(getObjSpy).toHaveBeenCalled();
                         var spyArgs = getObjSpy.calls[0].args;
-                        expect(spyArgs[1]).toEqual('s3SrcParams');
-                        expect(spyArgs[2]).toEqual('caches/video/test.mp4');
+                        expect(spyArgs[1]).toEqual('caches/video/test.mp4');
+                        expect(spyArgs[2]).toEqual('s3SrcParams');
                         expect(job.setStartTime).toHaveBeenCalledWith('getSourceVideo');
                         expect(dub.updateJobStatus).toHaveBeenCalledWith(job, 202, 'getSourceVideo');
                         expect(job.setEndTime).toHaveBeenCalledWith('getSourceVideo');

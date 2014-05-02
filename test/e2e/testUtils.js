@@ -2,10 +2,13 @@ var request     = require('request'),
     q           = require('q'),
     path        = require('path'),
     fs          = require('fs-extra'),
-    mongoUtils  = require('../../lib/mongoUtils');
+    aws         = require('aws-sdk'),
+    mongoUtils  = require('../../lib/mongoUtils'),
+    awsAuth     = process.env['awsAuth'] || path.join(process.env.HOME,'.aws.json'),
+    
+    testUtils = {};
 
-
-function resetCollection(collection,data,userCfg){
+testUtils.resetCollection = function(collection,data,userCfg){
     var dbEnv, db, coll, dbConfig;
     if (!userCfg){
         userCfg = process.env['mongo'] ? JSON.parse(process.env['mongo']) : {};
@@ -46,32 +49,36 @@ function resetCollection(collection,data,userCfg){
         .then(function(){
             db.close();
         });
-}
+};
 
-function qRequest(method, opts) {
+// files should be { file1: path, file2: path, ... }. They get appended as multipart/form-data uploads
+testUtils.qRequest = function(method, opts, files) {
     var deferred = q.defer();
-    if (!(opts instanceof Array)) {
-        opts = [opts];
-    }
-    q.npost(request, method, opts)
-    .then(function(values) {
-        if (!values) return q.reject({error: 'Received no data'});
-        if (!values[0]) return q.reject({error: 'Missing response'});
-        var body = values[1] || '';
+    opts.method = method;
+
+    var req = request(opts, function(error, response, body) {
+        if (error) return deferred.reject(error);
+        if (!response) return deferred.reject({error: 'Missing response'});
+        body = body || '';
         try {
             body = JSON.parse(body);
         } catch(e) {
         }
-        if (body.error) return q.reject(body);
-        deferred.resolve({response: values[0], body: body});
-    }).catch(function(error) {
-        deferred.reject(error);
+        if (body.error) return deferred.reject(body);
+        deferred.resolve({response: response, body: body});
     });
+    
+    if (files && typeof files === 'object' && Object.keys(files).length > 0) {
+        var form = req.form();
+        Object.keys(files).forEach(function(key) {
+            form.append(key, fs.createReadStream(files[key]));
+        });
+    }
     
     return deferred.promise;
 }
 
-function checkStatus(jobId, host, statusUrl, statusTimeout, pollInterval) {
+testUtils.checkStatus = function(jobId, host, statusUrl, statusTimeout, pollInterval) {
     var interval, timeout,
         pollInterval = pollInterval || 5000,
         deferred = q.defer(),
@@ -103,10 +110,19 @@ function checkStatus(jobId, host, statusUrl, statusTimeout, pollInterval) {
     }, statusTimeout);
     
     return deferred.promise;
+};
+
+testUtils.removeS3File = function(bucket, key) {
+    aws.config.loadFromPath(awsAuth);
+    var s3 = new aws.S3(),
+        deferred = q.defer(),
+        params = { Bucket: bucket, Key: key };
+
+    q.npost(s3, 'deleteObject', [params]).then(function() {
+        deferred.resolve();
+    }).catch(function(error) {
+        deferred.reject('Error deleting ' + bucket + '/' + key + ' : ' + error);
+    });
 }
 
-module.exports = {
-    qRequest: qRequest,
-    checkStatus: checkStatus,
-    resetCollection : resetCollection
-};
+module.exports = testUtils;

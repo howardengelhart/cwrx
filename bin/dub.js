@@ -489,7 +489,7 @@
             var s3 = new aws.S3(),
                 params = job.getS3SrcVideoParams();
             log.trace('[%1] S3 Request: %2',job.id, JSON.stringify(params));
-            s3util.getObject(s3, params, job.videoPath).then(
+            s3util.getObject(s3, job.videoPath, params).then(
                 function (/*data*/) {
                     deferred.resolve(job);
                     job.setEndTime(fnName);
