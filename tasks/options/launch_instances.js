@@ -53,6 +53,18 @@ module.exports = {
         ],
         checkSsh : [ { host : 'mongo-dev-1' } ]
     },
+    collateral : {
+        startInstances : [ 'mongo-dev-1' ],
+        runInstances   : [ { name: 'test-collateral', params: 'apiServer' } ],
+        checkHttp : [
+            {
+                host    : 'test-collateral',
+                iface   : 'public',
+                path    : '/api/collateral/meta'
+            }
+        ],
+        checkSsh : [ { host : 'mongo-dev-1' } ]
+    },
     content : {
         startInstances : [ 'mongo-dev-1' ],
         runInstances   : [ { name: 'test-content', params: 'apiServer' } ],
@@ -95,6 +107,11 @@ module.exports = {
                 host    : 'nightly_build',
                 iface   : 'public',
                 path    : '/api/auth/meta'
+            },
+            {
+                host    : 'nightly_build',
+                iface   : 'public',
+                path    : '/api/collateral/meta'
             },
             {
                 host    : 'nightly_build',
