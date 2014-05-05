@@ -11,7 +11,7 @@ module.exports = {
             'apiServer' : {
                 ImageId             : 'ami-f623c49e',
                 IamInstanceProfile  : {
-                    Name: 'apiServer'
+                    Name: 'apiServer-Dev'
                 },
                 MaxCount : 1,
                 MinCount : 1,
