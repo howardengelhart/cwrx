@@ -5,7 +5,7 @@ module.exports = {
         sshInterval   :  15,
         sshTimeout    : 120,
         httpInterval  :  30,
-        httpTimeout   : 600,
+        httpTimeout   : 900,
         owner         : 'jenkins',
         ec2_templates : {
             'apiServer' : {
