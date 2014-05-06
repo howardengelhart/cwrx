@@ -1,4 +1,6 @@
 var request = require('request'),
+    path    = require('path'),
+    fs      = require('fs-extra'),
     q       = require('q'),
     uuid   = require('../lib/uuid'),
     app     = {},
@@ -39,29 +41,41 @@ function showUsageUser(sub){
     app.log('environment cookbook versions are downloaded, along with data bags.');
 }
 
-app.parseCmdLine = function(state){
-    var cmdl = require('commander'),
-        deferred = q.defer();
-    
-    function doPrompt(prompt, defaultVal){
-        var def = q.defer(), method = 'prompt';
-        if (prompt.toLowerCase().match(/password/)){
-            method = 'password';
-        }
-        cmdl[method].call(cmdl,prompt,function(res){
-            def.resolve(res || defaultVal);
-        });
-        return def.promise;
+function doPrompt(prompt, defaultVal){
+    var def = q.defer(), method = 'prompt';
+    if (prompt.toLowerCase().match(/password/)){
+        method = 'promptPassword';
     }
+    state.cmdl[method].call(state.cmdl,prompt,function(res){
+        def.resolve(res || defaultVal);
+    });
+    return def.promise;
+}
+
+app.parseCmdLine = function(state){
+    var cmdl = state.cmdl = require('commander');
     
-    if (!state.config){
-        state.config = {};
+    if (!state.login){
+        state.login = {
+            'id'      : null,
+            'password' : null
+        };
     }
 
+    cmdl.promptPassword = cmdl.password;
+    
+    var provData;
+    try {
+        provData = fs.readJsonSync(path.join(process.env.HOME,'.c6prov.json'));
+        cmdl.username = provData.username;
+        cmdl.password = provData.password;
+    }catch(e){
+        console.log(e);
+    }
+    
     cmdl
-//        .option('-p, --password [pwd]','Password, or prompt for password','./')
+        .option('-u, --username [email]','Logon.')
         .option('-s, --server [URL]','API Host.','https://staging.cinema6.com')
-////        .option('-u, --user [$USER]','User name.',process.env.USER)
         .version(app.getVersion());
     cmdl
         .command('help')
@@ -93,57 +107,20 @@ app.parseCmdLine = function(state){
                 process.exit(1);
             }
 
-            state.task = {
-                method : app.createUser,
-                data   : {}
-            };
+            state.task = app.createUser;
            
-            app.log('Will create user.');
-            doPrompt('Username: ')
-            .then(function(name){
-                return state.task.data.username = name;
-            })
-            .then(function(){
-                if (!state.task.data.password){
-                    return doPrompt('Password: ')
-                    .then(function(pw){
-                        state.task.data.password = pw;
-                    })
-                    .then(function(){
-                        return doPrompt('Repeat Password: ');
-                    })
-                    .then(function(pw){
-                        if (pw !== state.task.data.password){
-                            throw new Error('Passwords do not match!');
-                        }
-                    });
-                }
-                return '';
-            })
-            .then(function(){
-                var org = 'o-' + uuid.createUuid().substr(0,14);
-                return doPrompt('Organization [' + org + ']: ', org);
-            })
-            .then(function(org){
-                return state.task.data.organization = org;
-            })
-            .then(function(){
-                return deferred.resolve(state);
-            })
-            .catch(function(err){
-                return deferred.reject(err);
-            });
         });
     cmdl
         .parse(process.argv);
 
-    return deferred.promise;
+
+    return q(state);
 };
 
 app.qrequest = function(opts){
     var deferred = q.defer();
   
-    opts.uri = host + opts.uri;
+    opts.uri = state.cmdl.server + opts.uri;
     request(opts,function(error, response, body){
         if (error){
             deferred.reject(error);
@@ -163,51 +140,100 @@ app.qrequest = function(opts){
     
 
     return deferred.promise;
-}
+};
 
 app.login = function(state){
-    app.log('login ' + username);
-    var opts  = {
-            method : 'POST',
-            uri     : '/api/auth/login',
-            jar     : true,
-            json : {
-                email   : state.username,
-                password: state.password
+    var loginId, password;
+    return (function(){
+            if (state.cmdl.username) {
+                return q(state.cmdl.username);
             }
-        };
-  
-    return qrequest(opts);
-}
+            return doPrompt('Email : ');
+        }())
+        .then(function(logon){
+            loginId = logon;
+            if (state.cmdl.password) {
+                return state.cmdl.password;
+            }
+            return doPrompt('Your Password: ');
+        })
+        .then(function(pwd){
+            password = pwd;
+            app.log('login ' + loginId);
+            var opts  = {
+                    method : 'POST',
+                    uri     : '/api/auth/login',
+                    jar     : true,
+                    json : {
+                        email   : loginId,
+                        password: password
+                    }
+                };
+          
+            return app.qrequest(opts);
+        })
+        .then(function(result){
+            return state;
+        });
+};
 
-app.createUser = function(username,password,org){
-    app.log('create ' + username);
-    var opts  = {
-            method : 'POST',
-            uri     : '/api/account/user',
-            jar     : true,
-            json : {
-                email   : username,
-                password: password,
-                org : 'o-272dad8355526d'
-            }
-        };
-  
-    return qrequest(opts);
-}
+app.createUser = function(state){
+    var userName, password, orgId;
+    app.log('Will create user.');
+
+    return doPrompt('User Email: ')
+    .then(function(email){
+        userName = email;
+        return doPrompt('Password: ');
+    })
+    .then(function(pwd){
+        password = pwd;
+        return doPrompt('Repeat Password: ');
+    })
+    .then(function(pw){
+        if (pw !== password){
+            throw new Error('Passwords do not match!');
+        }
+        var org = 'o-' + uuid.createUuid().substr(0,14);
+        return doPrompt('Organization [' + org + ']: ', org);
+    })
+    .then(function(org){
+        orgId = org;
+        app.log('create ' + userName);
+        var opts  = {
+                method : 'POST',
+                uri     : '/api/account/user',
+                jar     : true,
+                json : {
+                    email   : userName,
+                    password: password,
+                    org : orgId
+                }
+            };
+      
+        return app.qrequest(opts);
+    })
+};
 
 app.parseCmdLine(state)
-    /*
-app.login(state)
-.then(function(){
-    return app.createUser('jglickman@cinema6.com','password');
+.then(function(state){
+    if (!state.task){
+        return q.reject(new Error('Need to define a task!'));
+    }
+    return app.login(state);
 })
-*/
+.then(function(state){
+    return state.task.apply(null,state);
+})
 .then(function(result){
     app.log(JSON.stringify(result,null,3));
     process.exit(0);
 })
 .catch(function(err){
-    app.log('Error: ' + err.message);
+    if (err.message) {
+        app.log('Error: ' + err.message);
+    } else {
+        app.log('Error: ' + JSON.stringify(err,null,3));
+    }
     process.exit(1);
 });
