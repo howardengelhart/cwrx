@@ -92,6 +92,9 @@
                 } else {
                     newExp.data = experience.data[0].data;
                 }
+                if (newExp.data.title) {
+                    newExp.title = newExp.data.title;
+                }
             } else if (key === 'status') {
                 if (!(experience.status instanceof Array)) {
                     log.warn('Experience %1 does not have status array, not getting most recent',
@@ -268,6 +271,10 @@
         if (!updates || typeof updates !== 'object') {
             return q({code: 400, body: 'You must provide an object in the body'});
         }
+        
+        // only update exp.title through exp.data.title, but trying to update exp.title shouldn't
+        // return a 400
+        delete updates.title;
         
         log.info('[%1] User %2 is attempting to update experience %3',req.uuid,user.id,id);
         q.npost(experiences, 'findOne', [{id: id}])
