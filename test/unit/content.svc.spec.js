@@ -145,6 +145,16 @@ describe('content (UT)', function() {
             ]};
             expect(content.formatOutput(experience)).toEqual({ id:'e1', data: { foo:'baz' } });
         });
+        
+        it('should create a .title property from .data[0].data.title', function() {
+            var now = new Date();
+            experience = { id: 'e1', data: [
+                { email: 'otter', date: now, data: { title: 'Cool Tapes', foo: 'baz' } },
+                { email: 'crosby', date: now, data: { title: 'Not Cool Tapes', foo: 'bar' } }
+            ]};
+            expect(content.formatOutput(experience))
+                .toEqual({ id: 'e1', title: 'Cool Tapes', data: {title: 'Cool Tapes', foo: 'baz'} });
+        });
 
         it('should convert .status to .status[0].status for the client', function() {
             var now = new Date();
@@ -574,8 +584,8 @@ describe('content (UT)', function() {
             oldExp;
         beforeEach(function() {
             req.params = {id: 'e-1234'};
-            req.body = {title: 'newExp', data: {foo: 'baz'} };
-            oldExp = {id:'e-1234', title:'oldExp', user:'u-1234', created:start, lastUpdated:start,
+            req.body = {tag: 'newTag', data: {foo: 'baz'} };
+            oldExp = {id:'e-1234', tag:'oldTag', user:'u-1234', created:start, lastUpdated:start,
                       data: [ { user: 'otter', date: start, data: { foo: 'bar' } } ],
                       status: [ { user: 'otter', date: start, status: Status.Pending } ] };
             req.user = {id: 'u-1234', email: 'otter'};
@@ -616,13 +626,31 @@ describe('content (UT)', function() {
                 expect(experiences.findAndModify.calls[0].args[1]).toEqual({id: 1});
                 var updates = experiences.findAndModify.calls[0].args[2];
                 expect(Object.keys(updates)).toEqual(['$set']);
-                expect(updates.$set.title).toBe('newExp');
+                expect(updates.$set.tag).toBe('newTag');
                 expect(updates.$set.data[0].user).toBe('otter');
                 expect(updates.$set.data[0].date instanceof Date).toBeTruthy('data.date is a Date');
                 expect(updates.$set.data[0].data).toEqual({foo: 'baz'});
                 expect(updates.$set.lastUpdated instanceof Date).toBeTruthy('lastUpdated is Date');
                 expect(experiences.findAndModify.calls[0].args[3])
                     .toEqual({w: 1, journal: true, new: true});
+                expect(content.formatOutput).toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should prevent improper direct edits to the title property', function(done) {
+            req.body.title = 'a title';
+            content.updateExperience(req, experiences).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual({id: 'e-1234', data: {foo:'baz'}});
+                expect(experiences.findOne).toHaveBeenCalled();
+                expect(experiences.findAndModify).toHaveBeenCalled();
+                var updates = experiences.findAndModify.calls[0].args[2];
+                expect(updates.$set.tag).toBe('newTag');
+                expect(updates.$set.title).not.toBeDefined();
                 expect(content.formatOutput).toHaveBeenCalled();
                 done();
             }).catch(function(error) {

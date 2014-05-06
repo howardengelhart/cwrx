@@ -91,13 +91,13 @@ describe('content-light (E2E):', function() {
             var options = {
                 url: config.contentUrl + '/content/experience/' + currExp.id,
                 jar: cookieJar,
-                json: { title: 'newTitle', data: { blah: 'bloop' }, status: 'active' }
+                json: { tag: 'newTag', data: { blah: 'bloop' }, status: 'active' }
             };
             testUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
                 expect(resp.body).not.toEqual(origExp);
-                expect(resp.body.title).toBe('newTitle');
+                expect(resp.body.tag).toBe('newTag');
                 expect(resp.body.data).toEqual({blah: 'bloop'});
                 expect(resp.body.id).toBe(origExp.id);
                 expect(resp.body._id).not.toBeDefined();

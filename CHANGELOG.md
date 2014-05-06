@@ -12,6 +12,10 @@
     * Push up update to staging environment to include collateral service
 
 ## content Service
+### 1.3.4: Tue May  6 15:52:57 EDT 2014
+* [FIX]: Copy exp.data.title into exp.title: [#141](https://github.com/cinema6/cwrx/pull/141)
+* Extra deployment steps: None
+
 ### 1.3.3: Wed Apr 30 10:44:00 EDT 2014
 * [FIX]: Use email field in place of username: [#124](https://github.com/cinema6/cwrx/pull/124)
 * Extra deployment steps:
