@@ -555,6 +555,24 @@ describe('content (E2E):', function() {
             });
         });
         
+        it('should not edit an experience that has been deleted', function(done) {
+            var url = config.contentUrl + '/content/experience/e2e-put1',
+                putOpts = { url: url, jar: cookieJar, json: { tag: 'fakeTag' } },
+                deleteOpts = { url: url, jar: cookieJar };
+            testUtils.qRequest('delete', deleteOpts).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
+                return testUtils.qRequest('put', putOpts)
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toBe("That experience does not exist");
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
         it('should not update an experience the user does not own', function(done) {
             var options = {
                 url: config.contentUrl + '/content/experience/e2e-put2',

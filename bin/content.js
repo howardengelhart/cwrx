@@ -283,6 +283,10 @@
                 log.info('[%1] Experience %2 does not exist; not creating it', req.uuid, id);
                 return deferred.resolve({code: 404, body: 'That experience does not exist'});
             }
+            if (orig.status && orig.status[0] && orig.status[0].status === Status.Deleted) {
+                log.info('[%1] User %2 trying to update deleted experience %3',req.uuid,user.id,id);
+                return deferred.resolve({code: 404, body: 'That experience does not exist'});
+            }
             if (!content.updateValidator.validate(updates, orig, user)) {
                 log.warn('[%1] updates contain illegal fields', req.uuid);
                 log.trace('exp: %1  |  orig: %2  |  requester: %3',
