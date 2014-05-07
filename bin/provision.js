@@ -14,7 +14,7 @@ app.log = function(){
 
 app.getVersion  = function(){
     return 1;
-}
+};
 
 function showUsageUser(sub){
     app.log('');
@@ -172,12 +172,12 @@ app.login = function(state){
           
             return app.qrequest(opts);
         })
-        .then(function(result){
+        .then(function(/*result*/){
             return state;
         });
 };
 
-app.createUser = function(state){
+app.createUser = function(/*state*/){
     var userName, password, orgId;
     app.log('Will create user.');
 
@@ -212,7 +212,7 @@ app.createUser = function(state){
             };
       
         return app.qrequest(opts);
-    })
+    });
 };
 
 app.parseCmdLine(state)
