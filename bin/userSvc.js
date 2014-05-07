@@ -6,12 +6,14 @@
     var path            = require('path'),
         q               = require('q'),
         bcrypt          = require('bcrypt'),
+        aws             = require('aws-sdk'),
         logger          = require('../lib/logger'),
         uuid            = require('../lib/uuid'),
         FieldValidator  = require('../lib/fieldValidator'),
         mongoUtils      = require('../lib/mongoUtils'),
         authUtils       = require('../lib/authUtils')(),
         service         = require('../lib/service'),
+        email           = require('../lib/email'),
         enums           = require('../lib/enums'),
         Status          = enums.Status,
         Scope           = enums.Scope,
@@ -31,6 +33,10 @@
                 freshTTL: 1,
                 maxTTL: 10
             }
+        },
+        ses: {
+            region: 'us-east-1',
+            sender: 'support@cinema6.com'
         },
         sessions: {
             key: 'c6Auth',
@@ -344,19 +350,31 @@
         });
     };
     
-    userSvc.changeEmail = function(req, users) {
+    userSvc.changeEmail = function(req, users, ses, emailSender) {
         var log = logger.getLog(),
             now = new Date();
         if (!req.body.newEmail) {
             log.info('[%1] User %2 did not provide a new email', req.uuid, req.user.id);
             return q({code: 400, body: 'Must provide a new email'});
         }
-
+        
         var updates = { $set: { lastUpdated: now, email: req.body.newEmail } };
 
         return q.npost(users, 'update', [{id: req.user.id}, updates, {w: 1, journal: true}])
         .then(function() {
             log.info('[%1] User %2 successfully changed their email', req.uuid, req.user.id);
+            
+            var addrParams = { sender: emailSender, recipient: req.body.email },
+                data = { newEmail: req.body.newEmail, contact: emailSender },
+                subject = 'Your account email address has been changed';
+
+            email.sendTemplate(ses, addrParams, subject, 'changeEmailMsg', data)
+            .then(function() {
+                log.info('[%1] Notified user of change at %2', req.uuid, req.body.email);
+            }).catch(function(error) {
+                log.error('[%1] Error sending email to %2: %3', req.uuid, req.body.email, error);
+            });
+            
             return q({code: 200, body: 'Successfully changed email'});
         }).catch(function(error) {
             log.error('[%1] Error changing password for user %2: %3', req.uuid, req.user.id, error);
@@ -366,7 +384,8 @@
 
     userSvc.main = function(state) {
         var log = logger.getLog(),
-            started = new Date();
+            started = new Date(),
+            ses;
         if (state.clusterMaster){
             log.info('Cluster master, not a worker');
             return state;
@@ -378,6 +397,10 @@
             users       = state.dbs.c6Db.collection('users'),
             authTTLs    = state.config.cacheTTLs.auth;
         authUtils = require('../lib/authUtils')(authTTLs.freshTTL, authTTLs.maxTTL, users);
+
+        // If running locally, you need to put AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in env
+        aws.config.region = state.config.ses.region;
+        ses = new aws.SES();
 
         app.use(express.bodyParser());
         app.use(express.cookieParser(state.secrets.cookieParser || ''));
@@ -427,10 +450,10 @@
         app.get('/api/account/user/version',function(req, res) {
             res.send(200, state.config.appVersion);
         });
-
+        
         var credsChecker = authUtils.userPassChecker(users);
         app.post('/api/account/user/email', credsChecker, function(req, res) {
-            userSvc.changeEmail(req, users).then(function(resp) {
+            userSvc.changeEmail(req, users, ses, state.config.ses.sender).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, {

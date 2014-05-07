@@ -11,7 +11,8 @@ describe('userSvc (UT)', function() {
         userSvc         = require('../../bin/userSvc');
         QueryCache      = require('../../lib/queryCache');
         FieldValidator  = require('../../lib/fieldValidator');
-        mongoUtils      = require('../../lib/mongoUtils'),
+        mongoUtils      = require('../../lib/mongoUtils');
+        email           = require('../../lib/email');
         q               = require('q');
         enums           = require('../../lib/enums');
         Status          = enums.Status;
@@ -946,18 +947,21 @@ describe('userSvc (UT)', function() {
     });
     
     describe('changeEmail', function() {
-        var req, userColl;
+        var req, userColl, ses, sender;
         beforeEach(function() {
-            req = { uuid: '1234', body: { newEmail: 'otter' }, user: { id: 'u-1' } };
+            req = {uuid: '1234', body: { email: 'johnny', newEmail: 'otter' }, user: { id: 'u-1' }};
             userColl = {
                 update: jasmine.createSpy('users.update').andCallFake(
                     function(query, updates, opts, cb) { cb(); })
             };
+            spyOn(email, 'sendTemplate').andReturn(q());
+            ses = 'fakeSes';
+            sender = 'fakeSender';
         });
         
         it('should fail if there is no newEmail in req.body', function(done) {
             delete req.body.newEmail;
-            userSvc.changeEmail(req, userColl).then(function(resp) {
+            userSvc.changeEmail(req, userColl, ses, sender).then(function(resp) {
                 expect(resp.code).toBe(400);
                 expect(resp.body).toBe('Must provide a new email');
                 expect(userColl.update).not.toHaveBeenCalled();
@@ -969,7 +973,7 @@ describe('userSvc (UT)', function() {
         });
         
         it('should successfully update a user\'s email', function(done) {
-            userSvc.changeEmail(req, userColl).then(function(resp) {
+            userSvc.changeEmail(req, userColl, ses, sender).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toBe('Successfully changed email');
                 expect(userColl.update).toHaveBeenCalled();
@@ -977,6 +981,25 @@ describe('userSvc (UT)', function() {
                 expect(userColl.update.calls[0].args[1].$set.email).toBe('otter');
                 expect(userColl.update.calls[0].args[1].$set.lastUpdated instanceof Date).toBe(true);
                 expect(userColl.update.calls[0].args[2]).toEqual({w: 1, journal: true});
+                expect(email.sendTemplate).toHaveBeenCalledWith(
+                    'fakeSes', { sender: 'fakeSender', recipient: 'johnny' },
+                    'Your account email address has been changed', 'changeEmailMsg',
+                    { newEmail: 'otter', contact: 'fakeSender' });
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should just log an error if sending emails fails', function(done) {
+            email.sendTemplate.andReturn(q.reject('I GOT A PROBLEM'));
+            userSvc.changeEmail(req, userColl, ses, sender).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toBe('Successfully changed email');
+                expect(userColl.update).toHaveBeenCalled();
+                expect(email.sendTemplate).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -986,7 +1009,7 @@ describe('userSvc (UT)', function() {
         
         it('should fail if the mongo update call fails', function(done) {
             userColl.update.andCallFake(function(query, updates, opts, cb) { cb('I GOT A PROBLEM'); });
-            userSvc.changeEmail(req, userColl).then(function(resp) {
+            userSvc.changeEmail(req, userColl, ses, sender).then(function(resp) {
                 expect(resp).not.toBeDefined();
                 done();
             }).catch(function(error) {
