@@ -658,7 +658,7 @@ describe('content (UT)', function() {
                 done();
             });
         });
-
+        
         it('should not edit the experience if the updates contain illegal fields', function(done) {
             content.updateValidator.validate.andReturn(false);
             content.updateExperience(req, experiences).then(function(resp) {
@@ -690,6 +690,20 @@ describe('content (UT)', function() {
         
         it('should not create an experience if it does not already exist', function(done) {
             experiences.findOne.andCallFake(function(query, cb) { cb(); });
+            content.updateExperience(req, experiences).then(function(resp) {
+                expect(resp.code).toBe(404);
+                expect(resp.body).toBe('That experience does not exist');
+                expect(experiences.findOne).toHaveBeenCalled();
+                expect(experiences.findAndModify).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should not edit an experience that has been deleted', function(done) {
+            oldExp.status = [{user: 'otter', status: Status.Deleted}];
             content.updateExperience(req, experiences).then(function(resp) {
                 expect(resp.code).toBe(404);
                 expect(resp.body).toBe('That experience does not exist');
