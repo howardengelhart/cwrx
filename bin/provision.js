@@ -33,8 +33,8 @@ function showUsageUser(sub){
 
     app.log('Example:');
     app.log('');
-    app.log(' #Download QA environment');
-    app.log(' $ cheftogo environment QA');
+    app.log(' #Create a user');
+    app.log(' $ node bin/provision.js user create');
     app.log('');
     app.log('');
     app.log('Downloads QA environment, writes default_attributes to attributes.json,');
@@ -64,13 +64,15 @@ app.parseCmdLine = function(state){
 
     cmdl.promptPassword = cmdl.password;
     
-    var provData;
-    try {
-        provData = fs.readJsonSync(path.join(process.env.HOME,'.c6prov.json'));
-        cmdl.username = provData.username;
-        cmdl.password = provData.password;
-    }catch(e){
-        console.log(e);
+    var provData, authFile = path.join(process.env.HOME,'.c6prov.json');
+    if (fs.existsSync(authFile)){
+        try {
+            provData = fs.readJsonSync(authFile);
+            cmdl.username = provData.username;
+            cmdl.password = provData.password;
+        }catch(e){
+            app.log('Unable to read ' +  authFile);
+        }
     }
     
     cmdl
@@ -199,6 +201,9 @@ app.createUser = function(/*state*/){
     })
     .then(function(org){
         orgId = org;
+        return orgId;
+    })
+    .then(function(){
         app.log('create ' + userName);
         var opts  = {
                 method : 'POST',
