@@ -12,6 +12,10 @@
     * Push up update to staging environment to include collateral service
 
 ## content Service
+### 1.3.5: Wed May  7 16:28:53 EDT 2014
+* [FIX]: Prevent editing deleted experience: [#145](https://github.com/cinema6/cwrx/pull/145)
+* Extra deployment steps: None
+
 ### 1.3.4: Tue May  6 15:52:57 EDT 2014
 * [FIX]: Copy exp.data.title into exp.title: [#141](https://github.com/cinema6/cwrx/pull/141)
 * Extra deployment steps: None
