@@ -320,8 +320,8 @@ describe('content (UT)', function() {
             });
             content.getExperiences(query, req, cache).then(function(resp) {
                 expect(resp).toBeDefined();
-                expect(resp.code).toBe(404);
-                expect(resp.body).toEqual('No experiences found');
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual([]);
                 expect(cache.getPromise).not.toHaveBeenCalled();
                 expect(cache._coll.find).toHaveBeenCalled();
                 expect(content.formatOutput).toHaveBeenCalled();
@@ -332,20 +332,20 @@ describe('content (UT)', function() {
             });
         });
         
-        it('should return a 404 if nothing was found', function(done) {
+        it('should return a 200 and empty array if nothing was found', function(done) {
             fakeCursor.toArray.andCallFake(function(cb) {
                 cb(null, []);
             });
             cache.getPromise.andReturn(q([]));
             content.getExperiences(query, req, cache).then(function(resp) {
                 expect(resp).toBeDefined();
-                expect(resp.code).toBe(404);
-                expect(resp.body).toBe('No experiences found');
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual([]);
                 return content.getExperiences(query, { uuid: '1234' }, cache);
             }).then(function(resp) {
                 expect(resp).toBeDefined();
-                expect(resp.code).toBe(404);
-                expect(resp.body).toBe('No experiences found');
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual([]);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
