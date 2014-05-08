@@ -12,12 +12,37 @@ describe('config', function() {
     });
     
     describe('mergeObjects', function() {
-    
+        it('should merge two objects, favoring the second one', function() {
+            var a = { foo: 'bar', food: 'good', a: 1 },
+                b = { foo: 'baz', food: 'good', b: 2 };
+            expect(config.mergeObjects(a, b)).toEqual({ foo: 'baz', food: 'good', a: 1, b: 2 });
+
+            a = { nested: { c: 1, d: { user: 'otter' } } };
+            b = { nested: { c: 'qwerty', d: 'uiop' } };
+            expect(config.mergeObjects(a, b)).toEqual({ nested: { c: 'qwerty', d: 'uiop' } });
+            
+            a = { arr: [ 'foo', 'bar', { key: 'val', a: true } ] };
+            b = { arr: [ 'bar', 'foo', { key: 'notval' } ] };
+            expect(config.mergeObjects(a, b)).toEqual({arr:['bar','foo',{key:'notval',a:true}]});
+
+            a = { arr: [ 'foo', 'bar', 'baz' ] };
+            b = { arr: { foo: 'bar' } };
+            expect(config.mergeObjects(a, b)).toEqual({ arr: { foo: 'bar' } });
+
+            a = { arr: { foo: 'bar' } };
+            b = { arr: [ 'foo', 'bar', 'baz' ] };
+            expect(config.mergeObjects(a, b)).toEqual({ arr: [ 'foo', 'bar', 'baz' ] });
+
+            var now = new Date(), before = new Date(new Date() - 1000);
+            a = { created: now };
+            b = { created: before };
+            expect(config.mergeObjects(a, b)).toEqual({ created: before });
+        });
     });
 
     describe('createConfiguration', function() {
         beforeEach(function() {
-            spyOn(config.mergeObjects).andCallThrough();
+            spyOn(config, 'mergeObjects').andCallThrough();
         });
 
         it('should create a configuration object without a config file',function(){

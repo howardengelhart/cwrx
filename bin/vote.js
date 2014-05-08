@@ -537,8 +537,14 @@
     };
 
     app.main = function(state){
-        var log         = logger.getLog(),
-            elections   = state.dbs.voteDb.collection('elections'),
+        var log = logger.getLog();
+        if (state.clusterMaster){
+            log.info('Cluster master, not a worker');
+            return state;
+        }
+        log.info('Running as cluster worker, proceed with setting up web server.');
+        
+        var elections   = state.dbs.voteDb.collection('elections'),
             users       = state.dbs.c6Db.collection('users'),
             elDb        = new ElectionDb(elections, state.config.idleSyncTimeout),
             started     = new Date(),
@@ -546,10 +552,6 @@
             webServer;
         authUtils = require('../lib/authUtils')(authTTLs.freshTTL, authTTLs.maxTTL, users);
         
-        if (state.clusterMaster){
-            log.info('Cluster master, not a worker');
-            return state;
-        }
 
         state.onSIGTERM = function(){
             log.info('Received sigterm, sync and exit.');
@@ -558,7 +560,6 @@
             });
         };
 
-        log.info('Running as cluster worker, proceed with setting up web server.');
         webServer = express();
         webServer.use(express.bodyParser());
         webServer.use(express.cookieParser(state.secrets.cookieParser || ''));
