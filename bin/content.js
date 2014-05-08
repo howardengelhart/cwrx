@@ -153,11 +153,7 @@
             });
             
             log.info('[%1] Showing the user %2 experiences', req.uuid, experiences.length);
-            if (experiences.length === 0) {
-                return q({code: 404, body: 'No experiences found'});
-            } else {
-                return q({code: 200, body: experiences});
-            }
+            return q({code: 200, body: experiences});
         }).catch(function(error) {
             log.error('[%1] Error getting experiences: %2', req.uuid, error);
             return q.reject(error);
@@ -424,26 +420,11 @@
             .then(function(resp) {
                 res.header('cache-control', 'max-age=' + state.config.cacheTTLs.cloudFront*60);
                 if (resp.body && resp.body instanceof Array) {
-                    res.send(resp.code, resp.body[0]);
-                } else {
-                    res.send(resp.code, resp.body);
-                }
-            }).catch(function(error) {
-                res.header('cache-control', 'max-age=60');
-                res.send(500, {
-                    error: 'Error retrieving content',
-                    detail: error
-                });
-            });
-        });
-        
-        // public get experience by id
-        app.get('/api/content/public/experience/:id', function(req, res) {
-            content.getExperiences({id: req.params.id}, req, expCache)
-            .then(function(resp) {
-                res.header('cache-control', 'max-age=' + state.config.cacheTTLs.cloudFront*60);
-                if (resp.body && resp.body instanceof Array) {
-                    res.send(resp.code, resp.body[0]);
+                    if (resp.body.length === 0) {
+                        res.send(404, 'Experience not found');
+                    } else {
+                        res.send(resp.code, resp.body[0]);
+                    }
                 } else {
                     res.send(resp.code, resp.body);
                 }
@@ -463,7 +444,11 @@
             content.getExperiences({id: req.params.id}, req, expCache)
             .then(function(resp) {
                 if (resp.body && resp.body instanceof Array) {
-                    res.send(resp.code, resp.body[0]);
+                    if (resp.body.length === 0) {
+                        res.send(404, 'Experience not found');
+                    } else {
+                        res.send(resp.code, resp.body[0]);
+                    }
                 } else {
                     res.send(resp.code, resp.body);
                 }
