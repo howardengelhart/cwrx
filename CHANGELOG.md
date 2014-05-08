@@ -1,6 +1,10 @@
 # cwrx Changelog
 
 ## auth Service
+### 1.2.3: Thu May  8 12:39:02 EDT 2014
+* [FIX]: Escape/unescape keys in mongo objects: [#147](https://github.com/cinema6/cwrx/pull/147)
+* Extra deployment steps: None
+
 ### 1.2.2: Wed Apr 30 10:44:00 EDT 2014
 * [FIX]: Use email field in place of username: [#124](https://github.com/cinema6/cwrx/pull/124)
 * Extra deployment steps: None
@@ -12,6 +16,11 @@
     * Push up update to staging environment to include collateral service
 
 ## content Service
+### 1.3.6: Thu May  8 12:39:02 EDT 2014
+* [FIX]: Escape/unescape keys in mongo objects: [#147](https://github.com/cinema6/cwrx/pull/147)
+* [FIX]: Return 200 if nothing found when getting multiple experiences: [#148](https://github.com/cinema6/cwrx/pull/148)
+* Extra deployment steps: None
+
 ### 1.3.5: Wed May  7 16:28:53 EDT 2014
 * [FIX]: Prevent editing deleted experience: [#145](https://github.com/cinema6/cwrx/pull/145)
 * Extra deployment steps: None
@@ -27,8 +36,15 @@
     * Edit c6mongo chef config to build indexes on email + give johnnyTestmonkey an email
 
 ## userSvc Service
+### 1.4.2: Thu May  8 12:39:02 EDT 2014
+* [FIX]: Escape/unescape keys in mongo objects: [#147](https://github.com/cinema6/cwrx/pull/147)
+* Extra deployment steps: None
+
 ### 1.4.1: Wed Apr 30 10:44:00 EDT 2014
 * [FIX]: Use email field in place of username: [#124](https://github.com/cinema6/cwrx/pull/124)
 * Extra deployment steps: None
 
 ## vote Service
+### 1.3.2: Thu May  8 12:39:02 EDT 2014
+* [FIX]: Escape/unescape keys in mongo objects: [#147](https://github.com/cinema6/cwrx/pull/147)
+* Extra deployment steps: None
