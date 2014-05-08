@@ -1,6 +1,6 @@
 describe('vote.elecDb (UT)',function(){
     var ElectionDb, VotingBooth, mockLog, resolveSpy, rejectSpy, q, logger, app, enums, Status,
-        mockDb, mockData, mockCursor, flush = true;
+        mongoUtils, mockDb, mockData, mockCursor, flush = true;
     
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -12,6 +12,7 @@ describe('vote.elecDb (UT)',function(){
         ElectionDb    = require('../../bin/vote').ElectionDb;
         VotingBooth   = require('../../bin/vote').VotingBooth;
         app           = require('../../bin/vote').app;
+        mongoUtils    = require('../../lib/mongoUtils');
         enums         = require('../../lib/enums');
         Status        = enums.Status;
 
@@ -56,6 +57,7 @@ describe('vote.elecDb (UT)',function(){
 
         spyOn(logger,'createLog').andReturn(mockLog);
         spyOn(logger,'getLog').andReturn(mockLog);
+        spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
     });
 
     describe('ElectionDb',function(){
@@ -135,6 +137,7 @@ describe('vote.elecDb (UT)',function(){
                         expect(rejectSpy).not.toHaveBeenCalled();
                         expect(mockDb.findOne).not.toHaveBeenCalled();
                         expect(resolveSpy.argsForCall[0][0]).toEqual(mockData);
+                        expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                     }).done(done);
             });
 
@@ -161,6 +164,7 @@ describe('vote.elecDb (UT)',function(){
                         expect(resolveSpy.argsForCall[0][0].foo).toEqual('bar');
                         expect(elDb._cache['abc'].lastSync).toBeGreaterThan(now);
                         expect(elDb._keeper.getDeferred('abc',true)).not.toBeDefined();
+                        expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                     }).done(done);
             });
 
@@ -188,6 +192,7 @@ describe('vote.elecDb (UT)',function(){
                         expect(resolveSpy.argsForCall[0][0].foo).toEqual('bar');
                         expect(elDb._cache['abc'].lastSync - oldSync).toBeGreaterThan(4999);
                         expect(elDb._keeper.getDeferred('abc',true)).not.toBeDefined();
+                        expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                     }).done(done);
             });
 
@@ -210,6 +215,7 @@ describe('vote.elecDb (UT)',function(){
                         expect(mockDb.findOne).toHaveBeenCalled();
                         expect(resolveSpy.argsForCall[0][0].foo).toEqual('bar');
                         expect(elDb._keeper.getDeferred('abc',true)).not.toBeDefined();
+                        expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                     }).done(done);
             });
 
@@ -242,6 +248,7 @@ describe('vote.elecDb (UT)',function(){
                         expect(resolveSpy.argsForCall[0]).toEqual([mockData]);
                         expect(elDb._keeper.getDeferred('abc',true)).not.toBeDefined();
                         expect(elDb._cache['el-abc']).toBeDefined();
+                        expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                     }).done(done);
             });
 
@@ -294,7 +301,7 @@ describe('vote.elecDb (UT)',function(){
                 
                 mockDb.findAndModify.andCallFake(function(query,sort,update,options,cb){
                     process.nextTick(function(){
-                        cb(null,[mockData]);
+                        cb(null,mockData);
                     });
                 });
                 
@@ -305,6 +312,7 @@ describe('vote.elecDb (UT)',function(){
                         expect(rejectSpy).not.toHaveBeenCalled();
                         expect(mockDb.findAndModify).toHaveBeenCalled();
                         expect(election.votingBooth._items).toEqual({});
+                        expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                     }).done(done);
             });
             
@@ -359,6 +367,7 @@ describe('vote.elecDb (UT)',function(){
                         expect(resolveSpy.argsForCall[0][0].length).toEqual(3);
                         expect(resolveSpy.argsForCall[0][0][0].foo).toEqual('bar');
                         expect(elDb._keeper.getDeferred('abc',true)).not.toBeDefined();
+                        expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                     }).done(done);
             });
             
