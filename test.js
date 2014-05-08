@@ -1,4 +1,3 @@
-
 var util = require('util'),
     q    = require('q'),
     cmdl = require('commander');
