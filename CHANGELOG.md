@@ -1,6 +1,10 @@
 # cwrx Changelog
 
 ## auth Service
+### 1.2.4: Thu May  8 18:32:05 EDT 2014
+* [FIX]: Fix mongo reconnect: [#151](https://github.com/cinema6/cwrx/pull/151)
+* Extra deployment steps: Set # of kids to 1
+
 ### 1.2.3: Thu May  8 12:39:02 EDT 2014
 * [FIX]: Escape/unescape keys in mongo objects: [#147](https://github.com/cinema6/cwrx/pull/147)
 * Extra deployment steps: None
@@ -10,12 +14,20 @@
 * Extra deployment steps: None
 
 ## collateral Service
+### 1.0.1: Thu May  8 18:32:05 EDT 2014
+* [FIX]: Fix mongo reconnect: [#151](https://github.com/cinema6/cwrx/pull/151)
+* Extra deployment steps: Set # of kids to 1
+
 ### 1.0.0: Mon May  5 14:36:24 EDT 2014
 * First deployment: [#127](https://github.com/cinema6/cwrx/pull/127)
 * Extra deployment steps:
     * Push up update to staging environment to include collateral service
 
 ## content Service
+### 1.3.7: Thu May  8 18:32:05 EDT 2014
+* [FIX]: Fix mongo reconnect: [#151](https://github.com/cinema6/cwrx/pull/151)
+* Extra deployment steps: Set # of kids to 1
+
 ### 1.3.6: Thu May  8 12:39:02 EDT 2014
 * [FIX]: Escape/unescape keys in mongo objects: [#147](https://github.com/cinema6/cwrx/pull/147)
 * [FIX]: Return 200 if nothing found when getting multiple experiences: [#148](https://github.com/cinema6/cwrx/pull/148)
@@ -36,6 +48,10 @@
     * Edit c6mongo chef config to build indexes on email + give johnnyTestmonkey an email
 
 ## userSvc Service
+### 1.4.3: Thu May  8 18:32:05 EDT 2014
+* [FIX]: Fix mongo reconnect: [#151](https://github.com/cinema6/cwrx/pull/151)
+* Extra deployment steps: Set # of kids to 1
+
 ### 1.4.2: Thu May  8 12:39:02 EDT 2014
 * [FIX]: Escape/unescape keys in mongo objects: [#147](https://github.com/cinema6/cwrx/pull/147)
 * Extra deployment steps: None
@@ -45,6 +61,10 @@
 * Extra deployment steps: None
 
 ## vote Service
+### 1.3.3: Thu May  8 18:32:05 EDT 2014
+* [FIX]: Fix mongo reconnect: [#151](https://github.com/cinema6/cwrx/pull/151)
+* Extra deployment steps: Set # of kids to 1
+
 ### 1.3.2: Thu May  8 12:39:02 EDT 2014
 * [FIX]: Escape/unescape keys in mongo objects: [#147](https://github.com/cinema6/cwrx/pull/147)
 * Extra deployment steps: None
