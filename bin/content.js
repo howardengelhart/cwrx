@@ -7,6 +7,7 @@
         q               = require('q'),
         logger          = require('../lib/logger'),
         uuid            = require('../lib/uuid'),
+        mongoUtils      = require('../lib/mongoUtils'),
         QueryCache      = require('../lib/queryCache'),
         FieldValidator  = require('../lib/fieldValidator'),
         authUtils       = require('../lib/authUtils')(),
@@ -107,7 +108,7 @@
                 newExp[key] = experience[key];
             }
         }
-        return newExp;
+        return mongoUtils.unescapeKeys(newExp);
     };
     
     content.getExperiences = function(query, req, cache) {
@@ -198,7 +199,7 @@
             }
         }
 
-        return q.npost(experiences, 'insert', [obj, {w: 1, journal: true}])
+        return q.npost(experiences, 'insert', [mongoUtils.escapeKeys(obj), {w: 1, journal: true}])
         .then(function() {
             log.info('[%1] User %2 successfully created experience %3', req.uuid, user.id, obj.id);
             return q({code: 201, body: content.formatOutput(obj)});
@@ -260,6 +261,7 @@
         }
         
         updates.lastUpdated = now;
+        return mongoUtils.escapeKeys(updates);
     };
 
     content.updateExperience = function(req, experiences) {
@@ -301,7 +303,7 @@
                 });
             }
 
-            content.formatUpdates(req, orig, updates, user);
+            updates = content.formatUpdates(req, orig, updates, user);
 
             return q.npost(experiences, 'findAndModify',
                            [{id: id}, {id: 1}, {$set: updates}, {w: 1, journal: true, new: true}])

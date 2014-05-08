@@ -27,6 +27,8 @@ describe('userSvc (UT)', function() {
         };
         spyOn(logger, 'createLog').andReturn(mockLog);
         spyOn(logger, 'getLog').andReturn(mockLog);
+        spyOn(mongoUtils, 'escapeKeys').andCallThrough();
+        spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
         req = {uuid: '1234'};
     });
     
@@ -350,7 +352,7 @@ describe('userSvc (UT)', function() {
                 cb(null, 'fakeHash');
             });
             spyOn(bcrypt, 'genSaltSync').andReturn('sodiumChloride');
-            spyOn(uuid, 'createUuid').andReturn('1234567890abcdefg')
+            spyOn(uuid, 'createUuid').andReturn('1234567890abcdefg');
         });
 
         it('should set some default fields and hash the user\'s password', function(done) {
@@ -372,6 +374,7 @@ describe('userSvc (UT)', function() {
                 expect(bcrypt.hash.calls[0].args[0]).toBe('pass');
                 expect(bcrypt.hash.calls[0].args[1]).toBe('sodiumChloride');
                 expect(newUser.password).toBe('fakeHash');
+                expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -400,6 +403,7 @@ describe('userSvc (UT)', function() {
                     orgs: { read: Scope.Own }
                 });
                 expect(newUser.password).toBe('fakeHash');
+                expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -649,6 +653,7 @@ describe('userSvc (UT)', function() {
                 expect(updates.$set.lastUpdated instanceof Date).toBeTruthy('lastUpdated is Date');
                 expect(userColl.findAndModify.calls[0].args[3]).toEqual({w:1,journal:true,new:true});
                 expect(mongoUtils.safeUser).toHaveBeenCalledWith({ id: 'u-4567', updated: true });
+                expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();

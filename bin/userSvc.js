@@ -195,6 +195,7 @@
         return q.npost(bcrypt, 'hash', [newUser.password, bcrypt.genSaltSync()])
         .then(function(hashed) {
             newUser.password = hashed;
+            newUser = mongoUtils.escapeKeys(newUser);
         });
     };
 
@@ -269,7 +270,7 @@
                 return deferred.resolve({code: 400, body: 'Illegal fields'});
             }
             updates.lastUpdated = new Date();
-            var updateObj = { $set: updates };
+            var updateObj = { $set: mongoUtils.escapeKeys(updates) };
             var opts = {w: 1, journal: true, new: true};
             return q.npost(users, 'findAndModify', [{id: id}, {id: 1}, updateObj, opts])
             .then(function(results) {

@@ -1,6 +1,6 @@
 describe('vote (UT)',function(){
     var VotingBooth, mockLog, resolveSpy, rejectSpy, q, logger, app, enums, Status, Scope, fv,
-        elections, req, uuid, flush = true;
+        mongoUtils, elections, req, uuid, flush = true;
     
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -11,6 +11,7 @@ describe('vote (UT)',function(){
         logger        = require('../../lib/logger');
         uuid          = require('../../lib/uuid');
         VotingBooth   = require('../../bin/vote').VotingBooth;
+        mongoUtils    = require('../../lib/mongoUtils');
         app           = require('../../bin/vote').app;
         enums         = require('../../lib/enums');
         fv            = require('../../lib/fieldValidator');
@@ -30,6 +31,8 @@ describe('vote (UT)',function(){
         
         spyOn(logger,'createLog').andReturn(mockLog);
         spyOn(logger,'getLog').andReturn(mockLog);
+        spyOn(mongoUtils, 'escapeKeys').andCallThrough();
+        spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
         req = {uuid: '1234'};
     });
 
@@ -380,8 +383,10 @@ describe('vote (UT)',function(){
                     expect(resp.body.status).toBe(Status.Active);
                     expect(app.createValidator.validate).toHaveBeenCalledWith(req.body, {}, req.user);
                     expect(elections.insert).toHaveBeenCalled();
-                    expect(elections.insert.calls[0].args[0]).toBe(resp.body);
+                    expect(elections.insert.calls[0].args[0]).toEqual(resp.body);
                     expect(elections.insert.calls[0].args[1]).toEqual({w: 1, journal: true});
+                    expect(mongoUtils.escapeKeys).toHaveBeenCalled();
+                    expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                     done();
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
@@ -464,6 +469,8 @@ describe('vote (UT)',function(){
                     expect(updates.$set.lastUpdated instanceof Date).toBeTruthy('lastUpdated is Date');
                     expect(elections.findAndModify.calls[0].args[3])
                         .toEqual({w: 1, journal: true, new: true});
+                    expect(mongoUtils.escapeKeys).toHaveBeenCalled();
+                    expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                     done();
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();

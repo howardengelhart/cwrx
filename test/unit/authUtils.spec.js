@@ -87,6 +87,7 @@ describe('authUtils', function() {
             collection = 'fakeColl';
             spyOn(authUtils._cache, 'getPromise').andReturn(q([mockUser]));
             spyOn(mongoUtils, 'safeUser').andCallThrough();
+            spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
         });
         
         it('should call cache.getPromise to get the results of a query', function(done) {
@@ -96,6 +97,7 @@ describe('authUtils', function() {
                 expect(authUtils._initCache).toHaveBeenCalledWith('fakeColl');
                 expect(authUtils._cache.getPromise).toHaveBeenCalledWith({id: 'u-1234'});
                 expect(mongoUtils.safeUser).toHaveBeenCalled();
+                expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -180,7 +182,7 @@ describe('authUtils', function() {
             db = "mockDB";
             spyOn(authUtils, 'compare').andReturn(true);
             spyOn(authUtils, 'getUser').andCallFake(function() {
-                return q(mongoUtils.safeUser(mockUser));
+                return q(mongoUtils.unescapeKeys(mongoUtils.safeUser(mockUser)));
             });
         });
         
@@ -375,6 +377,7 @@ describe('authUtils', function() {
                 cb(null, true);
             });
             spyOn(mongoUtils, 'safeUser').andCallThrough();
+            spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
         });
         
         it('should fail with a 400 if no email or password is provided', function(done) {
@@ -408,6 +411,7 @@ describe('authUtils', function() {
                 expect(bcrypt.compare).toHaveBeenCalled();
                 expect(bcrypt.compare.calls[0].args[0]).toBe('thisisapassword');
                 expect(bcrypt.compare.calls[0].args[1]).toBe('fakeHash');
+                expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                 expect(mongoUtils.safeUser).toHaveBeenCalled();
                 done();
             });

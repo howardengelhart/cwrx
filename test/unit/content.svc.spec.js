@@ -1,13 +1,14 @@
 var flush = true;
 describe('content (UT)', function() {
     var mockLog, mockLogger, experiences, req, uuid, logger, content, q, QueryCache, FieldValidator,
-        enums, Status, Scope, Access;
+        mongoUtils, enums, Status, Scope, Access;
     
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         uuid            = require('../../lib/uuid');
         logger          = require('../../lib/logger');
         content         = require('../../bin/content');
+        mongoUtils      = require('../../lib/mongoUtils');
         QueryCache      = require('../../lib/queryCache');
         FieldValidator  = require('../../lib/fieldValidator');
         q               = require('q');
@@ -27,6 +28,9 @@ describe('content (UT)', function() {
         spyOn(logger, 'createLog').andReturn(mockLog);
         spyOn(logger, 'getLog').andReturn(mockLog);
         spyOn(content, 'formatOutput').andCallThrough();
+        spyOn(mongoUtils, 'escapeKeys').andCallThrough();
+        spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
+        
         experiences = {};
         req = {uuid: '1234'};
     });
@@ -144,6 +148,7 @@ describe('content (UT)', function() {
                 { email: 'crosby', date: now, data: { foo: 'bar' } }
             ]};
             expect(content.formatOutput(experience)).toEqual({ id:'e1', data: { foo:'baz' } });
+            expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
         });
         
         it('should create a .title property from .data[0].data.title', function() {
@@ -154,6 +159,7 @@ describe('content (UT)', function() {
             ]};
             expect(content.formatOutput(experience))
                 .toEqual({ id: 'e1', title: 'Cool Tapes', data: {title: 'Cool Tapes', foo: 'baz'} });
+            expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
         });
 
         it('should convert .status to .status[0].status for the client', function() {
@@ -163,6 +169,7 @@ describe('content (UT)', function() {
                 { email: 'crosby', date: now, status: Status.Pending }
             ]};
             expect(content.formatOutput(experience)).toEqual({ id:'e1', status: Status.Active });
+            expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
         });
     });
     
@@ -208,6 +215,7 @@ describe('content (UT)', function() {
                     .toHaveBeenCalledWith('fakeUser', {title: 'fake1'}, 'experiences', 'read');
                 expect(content.formatOutput.calls.length).toBe(1);
                 expect(content.formatOutput.calls[0].args[0]).toEqual({title: 'fake1'});
+                expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -411,6 +419,7 @@ describe('content (UT)', function() {
                 expect(data.data).toEqual({foo: 'bar'});
                 expect(experiences.insert.calls[0].args[1]).toEqual({w: 1, journal: true});
                 expect(content.formatOutput).toHaveBeenCalled();
+                expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -491,6 +500,7 @@ describe('content (UT)', function() {
             expect(updates.status[1].status).toEqual(Status.Pending);
             expect(updates.data).not.toBeDefined();
             expect(updates.lastUpdated).toBeGreaterThan(start);
+            expect(mongoUtils.escapeKeys).toHaveBeenCalled();
         });
         
         it('should set the current data to active if the experience becomes active', function() {
@@ -634,6 +644,7 @@ describe('content (UT)', function() {
                 expect(experiences.findAndModify.calls[0].args[3])
                     .toEqual({w: 1, journal: true, new: true});
                 expect(content.formatOutput).toHaveBeenCalled();
+                expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -777,6 +788,7 @@ describe('content (UT)', function() {
                 expect(setProps.lastUpdated instanceof Date).toBeTruthy('lastUpdated is a Date');
                 expect(setProps.lastUpdated).toBeGreaterThan(start);
                 expect(experiences.update.calls[0].args[2]).toEqual({w: 1, journal: true});
+                expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

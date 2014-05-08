@@ -95,6 +95,10 @@ describe('mongoUtils', function() {
     });
     
     describe('safe user', function() {
+        beforeEach(function() {
+            spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
+        });
+
         it('should create a new user object without any sensitive fields', function() {
             var user = {
                 _id: "thisisamongo_id",
@@ -109,6 +113,82 @@ describe('mongoUtils', function() {
             expect(user._id).toBe('thisisamongo_id');
             expect(user.email).toBe('johnnyTestmonkey');
             expect(user.password).toBe('hashofasecret');
+            expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
+        });
+    });
+    
+    describe('escapeKeys', function() {
+        var eD = String.fromCharCode(65284),
+            eP = String.fromCharCode(65294);
+
+        it('should properly escape keys where necessary', function() {
+            var obj = {
+                'foo': 'bar', '$set': 'someprops', 'a$set': 'isgood', 'a.b.c': 'd.e.f',
+                '$nested': { '$foo.bar': 'fubar' }
+            };
+            var newObj = mongoUtils.escapeKeys(obj);
+            expect(newObj).not.toBe(obj);
+            expect(Object.keys(newObj)).toEqual(['foo', eD + 'set', 'a$set',
+                                                 'a' + eP + 'b' + eP + 'c', eD + 'nested']);
+            expect(newObj.foo).toBe('bar');
+            expect(newObj[eD + 'set']).toBe('someprops');
+            expect(newObj['a' + eP + 'b' + eP + 'c']).toBe('d.e.f');
+            expect(Object.keys(newObj[eD + 'nested'])).toEqual([eD + 'foo' + eP + 'bar']);
+            expect(newObj[eD + 'nested'][eD + 'foo' + eP + 'bar']).toBe('fubar');
+        });
+        
+        it('should handle arrays properly', function() {
+            var obj = [ {foo: 'bar'}, {'$set': 'prop'} ],
+                newObj = mongoUtils.escapeKeys(obj);
+            expect(newObj instanceof Array).toBeTruthy();
+            expect(newObj.length).toBe(2);
+            expect(newObj[0]).toEqual({foo: 'bar'});
+            expect(newObj[1][eD + 'set']).toBe('prop');
+        });
+        
+        it('should leave dates alone', function() {
+            var start = new Date();
+            expect(mongoUtils.escapeKeys({ created: start })).toEqual({ created: start });
+        });
+    });
+    
+    describe('unescapeKeys', function() {
+        var eD = String.fromCharCode(65284),
+            eP = String.fromCharCode(65294);
+
+        it('should restore escaped keys to original values', function() {
+            var obj = {
+                'foo': 'bar', '$set': 'someprops'
+            };
+            obj[eD + 'thang'] = 'yes';
+            obj['this' + eP + 'that'] = { yorp: 'yurp' };
+            expect(mongoUtils.unescapeKeys(obj)).toEqual({
+                foo: 'bar', '$set': 'someprops', '$thang': 'yes', 'this.that': { yorp: 'yurp' }
+            });
+        });
+        
+        it('should exactly reverse the changes of escapeKeys', function() {
+            var obj = {
+                'foo': 'bar', '$set': 'someprops', 'a$set': 'isgood', 'a.b.c': 'd.e.f',
+                '$nested': { '$foo.bar': 'fubar' }, arr: [{'$foo': 'bar'},{'a.b': 'b.c'},{'a': 'b'}]
+            };
+            var escObj = mongoUtils.escapeKeys(obj),
+                newObj = mongoUtils.unescapeKeys(escObj);
+
+            expect(newObj).not.toBe(obj);
+            expect(newObj).toEqual(obj);
+            expect(escObj).not.toEqual(obj);
+        });
+
+        it('should leave dates alone', function() {
+            var start = new Date();
+            expect(mongoUtils.unescapeKeys({ created: start })).toEqual({ created: start });
+        });
+
+        it('should handle arrays properly', function() {
+            var obj = [ {foo: 'bar'}, {} ];
+            obj[1][eD + 'set'] = 'prop';
+            expect(mongoUtils.unescapeKeys(obj)).toEqual([ {foo: 'bar'}, {'$set': 'prop'} ]);
         });
     });
 });

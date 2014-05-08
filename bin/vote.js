@@ -9,6 +9,7 @@
         uuid            = require('../lib/uuid'),
         promise         = require('../lib/promise'),
         logger          = require('../lib/logger'),
+        mongoUtils      = require('../lib/mongoUtils'),
         FieldValidator  = require('../lib/fieldValidator'),
         authUtils       = require('../lib/authUtils')(),
         enums           = require('../lib/enums'),
@@ -208,6 +209,7 @@
             election = self._cache[electionId],
             log = logger.getLog(),
             voteCounts, promise;
+
         function filter(election) {
             if (election && (election.status === Status.Deleted ||
                 !(app.checkScope(user,election,'read') || election.status === Status.Active))) {
@@ -215,7 +217,7 @@
                           user && user.id || 'guest', electionId);
                 return q();
             } else {
-                return q(election);
+                return q(mongoUtils.unescapeKeys(election));
             }
         }
 
@@ -434,11 +436,11 @@
         if (user.org) {
             obj.org = user.org;
         }
-        return q.npost(elections, 'insert', [obj, {w: 1, journal: true}])
+        return q.npost(elections, 'insert', [mongoUtils.escapeKeys(obj), {w: 1, journal: true}])
         .then(function() {
             delete obj._id;
             log.info('[%1] User %2 successfully created election %3', req.uuid, user.id, obj.id);
-            return q({code: 201, body: obj});
+            return q({code: 201, body: mongoUtils.unescapeKeys(obj)});
         }).catch(function(error) {
             log.error('[%1] Error creating election %2 for user %3: %4',
                       req.uuid, obj.id, user.id, error);
@@ -477,6 +479,7 @@
                 });
             }
             updates.lastUpdated = new Date();
+            updates = mongoUtils.escapeKeys(updates);
             var opts = {w: 1, journal: true, new: true};
             return q.npost(elections, 'findAndModify', [{id: id}, {id: 1}, {$set: updates}, opts])
             .then(function(results) {
@@ -484,7 +487,7 @@
                 delete updated._id;
                 log.info('[%1] User %2 successfully updated election %3',
                          req.uuid, user.id, updated.id);
-                deferred.resolve({code: 200, body: updated});
+                deferred.resolve({code: 200, body: mongoUtils.unescapeKeys(updated)});
             });
         }).catch(function(error) {
             log.error('[%1] Error updating election %2 for user %3: %4',

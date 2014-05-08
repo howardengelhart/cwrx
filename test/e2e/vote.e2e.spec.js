@@ -364,6 +364,25 @@ describe('vote (E2E)', function(){
             }); 
         });
         
+        it('should be able to create an election that has special characters in its keys', function(done) {
+            mockElec.ballot = { b1: { 'Dr. Who': 'good', 'Dr. No': 'bad', '$foo': 'bar' } };
+            var options = {
+                url: makeUrl('/api/election'),
+                jar: cookieJar,
+                json: mockElec
+            };
+            testUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toBeDefined();
+                expect(resp.body._id).not.toBeDefined();
+                expect(resp.body.ballot).toEqual({b1:{'Dr. Who':'good','Dr. No':'bad','$foo':'bar'}});
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            }); 
+        });
+        
         it('should throw a 401 error if the user is not authenticated', function(done) {
             var options = {
                 url: makeUrl('/api/election'),
