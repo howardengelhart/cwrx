@@ -1,40 +1,24 @@
 var flush = true;    
 describe('mongoUtils', function() {
-    var mongodb, mongoUtils, q, events, logger, mockLog;
+    var mongodb, mongoUtils, q;
     
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         mongodb     = require('mongodb');
         mongoUtils  = require('../../lib/mongoUtils');
-        logger      = require('../../lib/logger');
-        events      = require('events');
         q           = require('q');
-
-        mockLog = {
-            trace : jasmine.createSpy('log_trace'),
-            error : jasmine.createSpy('log_error'),
-            warn  : jasmine.createSpy('log_warn'),
-            info  : jasmine.createSpy('log_info'),
-            fatal : jasmine.createSpy('log_fatal'),
-            log   : jasmine.createSpy('log_log')
-        };
-        spyOn(logger, 'createLog').andReturn(mockLog);
-        spyOn(logger, 'getLog').andReturn(mockLog);
     });
     
     describe('connect', function() {
-        var fakeDb;
         beforeEach(function() {
-            fakeDb = new events.EventEmitter();
             spyOn(mongodb.MongoClient, 'connect').andCallFake(function(url, opts, cb) {
-                cb(null, fakeDb);
+                cb(null, 'fakeDb');
             });
-            spyOn(process, 'exit');
         });
         
         it('should correctly setup the client and connect', function(done) {
             mongoUtils.connect('10.0.0.1', '666', 'fakeDb').then(function(db) {
-                expect(db).toBe(fakeDb);
+                expect(db).toBe('fakeDb');
                 expect(mongodb.MongoClient.connect).toHaveBeenCalled();
                 expect(mongodb.MongoClient.connect.calls[0].args[0]).toBe('mongodb://10.0.0.1:666/fakeDb');
                 expect(mongodb.MongoClient.connect.calls[0].args[1]).toEqual({
@@ -52,7 +36,7 @@ describe('mongoUtils', function() {
             var hosts = [ '10.0.1.1:123', '10.0.1.2:456' ];
             mongoUtils.connect('10.0.0.1', '666', 'fakeDb', null, null, hosts, 'devReplSet')
             .then(function(db) {
-                expect(db).toBe(fakeDb);
+                expect(db).toBe('fakeDb');
                 expect(mongodb.MongoClient.connect).toHaveBeenCalled();
                 expect(mongodb.MongoClient.connect.calls[0].args[0])
                     .toBe('mongodb://10.0.1.1:123,10.0.1.2:456/fakeDb?replicaSet=devReplSet');
@@ -70,7 +54,7 @@ describe('mongoUtils', function() {
         it('should include auth params if passed to the function', function(done) {
             mongoUtils.connect('10.0.0.1', '666', 'fakeDb', 'test', 'password')
             .then(function(db) {
-                expect(db).toBe(fakeDb);
+                expect(db).toBe('fakeDb');
                 expect(mongodb.MongoClient.connect).toHaveBeenCalled();
                 expect(mongodb.MongoClient.connect.calls[0].args[0])
                     .toBe('mongodb://test:password@10.0.0.1:666/fakeDb');
@@ -108,37 +92,6 @@ describe('mongoUtils', function() {
                 done();
             });
         });
-        /*
-        it('should create a db that responds to close events', function(done) {
-            mongoUtils.connect('10.0.0.1', '666', 'fakeDb')
-            .then(function(db) {
-                expect(db).toBe(fakeDb);
-                expect(mongodb.MongoClient.connect).toHaveBeenCalled();
-                db.emit('close');
-                expect(mockLog.error).toHaveBeenCalled();
-                expect(process.exit).toHaveBeenCalledWith(1);
-                done();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-                done();
-            });
-        });
-
-        it('should create a db that responds to error events', function(done) {
-            mongoUtils.connect('10.0.0.1', '666', 'fakeDb')
-            .then(function(db) {
-                expect(db).toBe(fakeDb);
-                expect(mongodb.MongoClient.connect).toHaveBeenCalled();
-                db.emit('error', 'I GOT A PROBLEM');
-                expect(mockLog.error).toHaveBeenCalled();
-                expect(process.exit).toHaveBeenCalledWith(1);
-                done();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-                done();
-            });
-        });
-        */
     });
     
     describe('safe user', function() {
