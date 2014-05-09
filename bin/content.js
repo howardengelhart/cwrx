@@ -369,8 +369,11 @@
             
         var express     = require('express'),
             app         = express(),
+            experiences = state.dbs.c6Db.collection('experiences'),
             users       = state.dbs.c6Db.collection('users'),
-            authTTLs    = state.config.cacheTTLs.auth;
+            authTTLs    = state.config.cacheTTLs.auth,
+            expTTLs     = state.config.cacheTTLs.experiences,
+            expCache    = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences);
         authUtils = require('../lib/authUtils')(authTTLs.freshTTL, authTTLs.maxTTL, users);
 
         app.use(express.bodyParser());
@@ -384,6 +387,44 @@
             },
             store: state.sessionStore
         });
+
+        // Check that c6Db is running, recreating collections if db was restarted
+        function checkC6Db(req, res, next) {
+            if (state.dbStatus.c6Db === 'down') {
+                log.error('[%1] c6Db is down', req.uuid);
+                return res.send(500, 'Connection to db is down');
+            }
+            if (state.dbStatus.c6Db === 'recovered') { // recreate all collections
+                experiences = state.dbs.c6Db.collection('experiences');
+                users = state.dbs.c6Db.collection('users');
+                expCache._coll = experiences;
+                authUtils._cache._coll = users;
+                state.dbStatus.c6Db = 'ok';
+                log.info('[%1] Recreated collections from restarted c6Db', req.uuid);
+            }
+            next();
+        }
+        
+        // Check that sessions db is running, recreating if db was restarted, then call sessions
+        function sessionWrapper(req, res, next) {
+            if (state.dbStatus.sessions === 'down') {
+                log.error('[%1] sessions is down', req.uuid);
+                return res.send(500, 'Connection to db is down');
+            }
+            if (state.dbStatus.sessions === 'recovered') { // recreate session store
+                sessions = express.session({
+                    key: state.config.sessions.key,
+                    cookie: {
+                        httpOnly: false,
+                        maxAge: state.config.sessions.minAge
+                    },
+                    store: state.sessionStore
+                });
+                state.dbStatus.sessions = 'ok';
+                log.info('[%1] Recreated session store from restarted db', req.uuid);
+            }
+            return sessions(req, res, next);
+        }
 
         app.all('*', function(req, res, next) {
             res.header('Access-Control-Allow-Origin', '*');
@@ -410,12 +451,8 @@
             next();
         });
         
-        var experiences = state.dbs.c6Db.collection('experiences');
-        var expTTLs = state.config.cacheTTLs.experiences;
-        var expCache = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences);
-
         // public get experience by id
-        app.get('/api/public/content/experience/:id', function(req, res) {
+        app.get('/api/public/content/experience/:id', checkC6Db, function(req, res) {
             content.getExperiences({id: req.params.id}, req, expCache)
             .then(function(resp) {
                 res.header('cache-control', 'max-age=' + state.config.cacheTTLs.cloudFront*60);
@@ -440,98 +477,108 @@
         var authGetExp = authUtils.middlewarify({experiences: 'read'});
         
         // private get experience by id
-        app.get('/api/content/experience/:id', sessions, authGetExp, function(req, res) {
-            content.getExperiences({id: req.params.id}, req, expCache)
-            .then(function(resp) {
-                if (resp.body && resp.body instanceof Array) {
-                    if (resp.body.length === 0) {
-                        res.send(404, 'Experience not found');
+        app.get('/api/content/experience/:id', checkC6Db, sessionWrapper, authGetExp,
+            function(req,res){
+                content.getExperiences({id: req.params.id}, req, expCache)
+                .then(function(resp) {
+                    if (resp.body && resp.body instanceof Array) {
+                        if (resp.body.length === 0) {
+                            res.send(404, 'Experience not found');
+                        } else {
+                            res.send(resp.code, resp.body[0]);
+                        }
                     } else {
-                        res.send(resp.code, resp.body[0]);
+                        res.send(resp.code, resp.body);
                     }
-                } else {
-                    res.send(resp.code, resp.body);
-                }
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error retrieving content',
-                    detail: error
+                }).catch(function(error) {
+                    res.send(500, {
+                        error: 'Error retrieving content',
+                        detail: error
+                    });
                 });
-            });
-        });
+            }
+        );
 
         // private get experience by query
-        app.get('/api/content/experiences', sessions, authGetExp, function(req, res) {
-            var queryFields = ['ids', 'user', 'org', 'type'];
-            function isKeyInFields(key) {
-                return queryFields.indexOf(key) >= 0;
-            }
-            if (!req.query || !(Object.keys(req.query).some(isKeyInFields))) {
-                log.info('[%1] Cannot GET /content/experiences with no query params',req.uuid);
-                return res.send(400, 'Must specify at least one supported query param');
-            }
-            var query = {};
-            if (req.query.ids) {
-                query.id = req.query.ids.split(',');
-            }
-            if (req.query.user) {
-                query.user = req.query.user;
-            }
-            if (req.query.org) {
-                query.org = req.query.org;
-            }
-            if (req.query.type) {
-                query.type = req.query.type;
-            }
-            content.getExperiences(query, req, expCache)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error retrieving content',
-                    detail: error
+        app.get('/api/content/experiences', checkC6Db, sessionWrapper, authGetExp,
+            function(req, res) {
+                var queryFields = ['ids', 'user', 'org', 'type'];
+                function isKeyInFields(key) {
+                    return queryFields.indexOf(key) >= 0;
+                }
+                if (!req.query || !(Object.keys(req.query).some(isKeyInFields))) {
+                    log.info('[%1] Cannot GET /content/experiences with no query params',req.uuid);
+                    return res.send(400, 'Must specify at least one supported query param');
+                }
+                var query = {};
+                if (req.query.ids) {
+                    query.id = req.query.ids.split(',');
+                }
+                if (req.query.user) {
+                    query.user = req.query.user;
+                }
+                if (req.query.org) {
+                    query.org = req.query.org;
+                }
+                if (req.query.type) {
+                    query.type = req.query.type;
+                }
+                content.getExperiences(query, req, expCache)
+                .then(function(resp) {
+                    res.send(resp.code, resp.body);
+                }).catch(function(error) {
+                    res.send(500, {
+                        error: 'Error retrieving content',
+                        detail: error
+                    });
                 });
-            });
-        });
+            }
+        );
         
         var authPostExp = authUtils.middlewarify({experiences: 'create'});
-        app.post('/api/content/experience', sessions, authPostExp, function(req, res) {
-            content.createExperience(req, experiences)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error creating experience',
-                    detail: error
+        app.post('/api/content/experience', checkC6Db, sessionWrapper, authPostExp,
+            function(req, res) {
+                content.createExperience(req, experiences)
+                .then(function(resp) {
+                    res.send(resp.code, resp.body);
+                }).catch(function(error) {
+                    res.send(500, {
+                        error: 'Error creating experience',
+                        detail: error
+                    });
                 });
-            });
-        });
+            }
+        );
         
         var authPutExp = authUtils.middlewarify({experiences: 'edit'});
-        app.put('/api/content/experience/:id', sessions, authPutExp, function(req, res) {
-            content.updateExperience(req, experiences)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error updating experience',
-                    detail: error
+        app.put('/api/content/experience/:id', checkC6Db, sessionWrapper, authPutExp,
+            function(req, res) {
+                content.updateExperience(req, experiences)
+                .then(function(resp) {
+                    res.send(resp.code, resp.body);
+                }).catch(function(error) {
+                    res.send(500, {
+                        error: 'Error updating experience',
+                        detail: error
+                    });
                 });
-            });
-        });
+            }
+        );
         
         var authDelExp = authUtils.middlewarify({experiences: 'delete'});
-        app.delete('/api/content/experience/:id', sessions, authDelExp, function(req, res) {
-            content.deleteExperience(req, experiences)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error deleting experience',
-                    detail: error
+        app.delete('/api/content/experience/:id', checkC6Db, sessionWrapper, authDelExp,
+            function(req, res) {
+                content.deleteExperience(req, experiences)
+                .then(function(resp) {
+                    res.send(resp.code, resp.body);
+                }).catch(function(error) {
+                    res.send(500, {
+                        error: 'Error deleting experience',
+                        detail: error
+                    });
                 });
-            });
-        });
+            }
+        );
         
         app.get('/api/content/meta', function(req, res){
             var data = {
