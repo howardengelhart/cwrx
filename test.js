@@ -1,11 +1,79 @@
 
 var request = require('request'),
     util    = require('util'),
+    path    = require('path'),
     q       = require('q'),
     cmdl    = require('commander'),
     uuid    = require('./lib/uuid'),
-    MVC     = require('./lib/mvc');
+    MVC     = require('./lib/mvc'),
+    app     = {
+        data : {
 
+        }
+    }
+
+log = function(){
+    var args = Array.prototype.slice.call(arguments, 0);
+    args.push('\n');
+    process.stdout.write(args.join(' '));
+};
+
+parseCmdLine = function(){
+    var cmdl = require('commander'),
+        provData, authFile = path.join(process.env.HOME,'.c6prov.json'),
+        data = {};
+
+    if (fs.existsSync(authFile)){
+        try {
+            provData = fs.readJsonSync(authFile);
+            data.email = provData.email;
+            data.password = provData.password;
+        }catch(e){
+            log('Unable to read ' +  authFile);
+        }
+    }
+    
+    cmdl
+        .option('-e, --email [email]','Logon.')
+        .option('-s, --server [URL]','API Host.','https://staging.cinema6.com')
+    cmdl
+        .command('help')
+        .description('Help [command]')
+        .action(function(cmd){
+            if (cmd === 'user'){
+                //showUsageUser();
+            } else {
+                //app.log('Command <' + cmd + '> is not recognized.');
+            }
+            process.exit(0);
+        });
+    cmdl
+        .command('user')
+        .description('Manage users')
+        .action(function(subcommand,data){
+            if (arguments.length === 1) {
+                //showUsageUser();
+                process.exit(1);
+            }
+
+            if (subcommand === 'help'){
+                //showUsageUser(data);
+                process.exit(1);
+            }
+
+            if (data === 'help'){
+                //showUsageUser(subcommand);
+                process.exit(1);
+            }
+
+            data.controller = NewUserController;
+        });
+    cmdl
+        .parse(process.argv);
+
+
+    return q(data);
+}
 
 ////////////////////////////////////////////////////////////
 //  
@@ -146,7 +214,7 @@ function NewUserView() {
 ////////////////////////////////////////////////////////////
 // NewUserController
 
-function NewUserController(){
+function NewUserController(api){
     var self = this;
 
     self.onData = function(key,val){
@@ -156,7 +224,7 @@ function NewUserController(){
     self.run = function(){
         return self.showView()
             .then(function(){
-                return c6Api.createUser(self.model)
+                return api.createUser(self.model)
                     .then(function(response){
                         console.log('Created new user: ' + self.model.email);
                         console.log(response);
@@ -167,6 +235,7 @@ function NewUserController(){
 
 NewUserController.$view  = MVC.CmdlView.Subclass(NewUserView);
 NewUserController.$model = NewUserModel;
+NewUserController.$deps  = ['c6Api'];
 ////////////////////////////////////////////////////////////
 // Login
 
@@ -193,9 +262,8 @@ function LoginView() {
 
 // Controller
 //
-function LoginController() {
+function LoginController(api) {
     var self = this;
-
     self.initWithData = function(initData){
         self.model.email    = initData.email;
         self.model.password = initData.password;
@@ -213,7 +281,7 @@ function LoginController() {
             return self.showView();
         }())
         .then(function(){
-            return c6Api.login(self.model)
+            return api.login(self.model)
                 .then(function(){
                     console.log('Logged in as ' + self.model.email);
                     return true;
@@ -224,17 +292,21 @@ function LoginController() {
 
 LoginController.$model = LoginModel;
 LoginController.$view  = MVC.CmdlView.Subclass(LoginView);
+LoginController.$deps  = ['c6Api'];
 
 ////////////////////////////////////////////////////////////
 
-console.log('Start');
+MVC.registerDependency('c6Api',c6Api);
 
-var loginCtrl   = MVC.createController(LoginController),
-    newUserCtrl = MVC.createController(NewUserController);
+var loginCtrl   = MVC.createController(LoginController);
 
-loginCtrl.run()
+parseCmdLine()
+.then(function(config){
+    app.data = config;
+    return loginCtrl.run();
+})
 .then(function(){
-    return newUserCtrl.run();
+    return MVC.createController(app.data.controller).run();
 })
 .then(function(){
     process.exit(0);
