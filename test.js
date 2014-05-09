@@ -3,108 +3,8 @@ var request = require('request'),
     util    = require('util'),
     q       = require('q'),
     cmdl    = require('commander'),
-    uuid    = require('./lib/uuid');
-
-////////////////////////////////////////////////////////////
-//
-function View() {
-
-}
-
-View.prototype.presentView = function(){
-    return q.when({});
-};
-
-function registerView(constructor){
-    function wrapper(){
-        View.call(this);
-        constructor.call(this);
-    }
-    util.inherits(wrapper,View);
-    return wrapper;
-}
-
-////////////////////////////////////////////////////////////
-//
-
-function Controller(view,model) {
-    this.view   = view;
-    this.model  = model;
-};
-
-Controller.prototype.showView = function(){
-    return this.view.presentView();
-}
-
-Controller.prototype.onData = function(){
-
-};
-
-
-////////////////////////////////////////////////////////////
-//
-
-function CmdlView(delegate) {
-    this.cmdl       = require('commander');
-    this.delegate   = delegate;
-    
-    this.cmdl.promptPassword = cmdl.password;
-}
-util.inherits(CmdlView,View);
-
-CmdlView.prototype.doPrompt = function(prompt, storage){
-    var self = this, def = q.defer(), method = 'prompt', key, defaultVal;
-    if (typeof storage === 'string'){
-        key = storage;
-        storage ={};
-        storage[key] = null;
-    }
-    for (key in storage){
-        defaultVal = storage[key];
-        break;
-    }
-    if (!key){
-        key = prompt.replace(/^\s*(\S*)\s*/,'$1');
-    }
-    if (prompt.toLowerCase().match(/password/)){
-        method = 'promptPassword';
-    }
-    if (defaultVal){
-        prompt += ' [' + defaultVal + ']: '
-    } else {
-        prompt += ': ';
-    }
-    this.cmdl[method].call(this.cmdl,prompt,function(res){
-        try {
-            self.delegate.onData(key , res || defaultVal);
-        }
-        catch(e){
-            def.reject(e);
-        }
-        def.resolve();
-    });
-    return def.promise;
-}
-
-function createCmdlView(constructor,delegate){
-    function wrapper(delegate){
-        CmdlView.call(this,delegate);
-        constructor.call(this);
-    }
-    util.inherits(wrapper,CmdlView); 
-    return new wrapper(delegate);
-}
-
-function createCmdlController(constructor){
-    function wrapper(){
-        var view = createCmdlView(constructor.$view,this),
-            model = (constructor.$model) ? (new constructor.$model()) : undefined;
-        Controller.call(this,view,model);
-        constructor.call(this);
-    }
-    util.inherits(wrapper,Controller);
-    return new wrapper();
-}
+    uuid    = require('./lib/uuid'),
+    MVC     = require('./lib/mvc');
 
 
 ////////////////////////////////////////////////////////////
@@ -265,9 +165,8 @@ function NewUserController(){
     };
 }
 
-NewUserController.$view  = NewUserView;
+NewUserController.$view  = MVC.CmdlView.Subclass(NewUserView);
 NewUserController.$model = NewUserModel;
-
 ////////////////////////////////////////////////////////////
 // Login
 
@@ -324,14 +223,14 @@ function LoginController() {
 }
 
 LoginController.$model = LoginModel;
-LoginController.$view  = LoginView;
+LoginController.$view  = MVC.CmdlView.Subclass(LoginView);
 
 ////////////////////////////////////////////////////////////
 
 console.log('Start');
 
-var loginCtrl   = createCmdlController(LoginController),
-    newUserCtrl = createCmdlController(NewUserController);
+var loginCtrl   = MVC.createController(LoginController),
+    newUserCtrl = MVC.createController(NewUserController);
 
 loginCtrl.run()
 .then(function(){
