@@ -1,10 +1,10 @@
 
-var util = require('util'),
-    q    = require('q'),
-    cmdl = require('commander'),
-    uuid = require('./lib/uuid');
+var request = require('request'),
+    util    = require('util'),
+    q       = require('q'),
+    cmdl    = require('commander'),
+    uuid    = require('./lib/uuid');
 
-    cmdl.promptPassword = cmdl.password;
 ////////////////////////////////////////////////////////////
 //
 function View() {
@@ -44,9 +44,11 @@ Controller.prototype.onData = function(){
 ////////////////////////////////////////////////////////////
 //
 
-function CmdlView(cmdl, delegate) {
-    this.cmdl       = cmdl;
+function CmdlView(delegate) {
+    this.cmdl       = require('commander');
     this.delegate   = delegate;
+    
+    this.cmdl.promptPassword = cmdl.password;
 }
 util.inherits(CmdlView,View);
 
@@ -86,7 +88,7 @@ CmdlView.prototype.doPrompt = function(prompt, storage){
 
 function createCmdlView(constructor,delegate){
     function wrapper(delegate){
-        CmdlView.call(this,cmdl,delegate);
+        CmdlView.call(this,delegate);
         constructor.call(this);
     }
     util.inherits(wrapper,CmdlView); 
@@ -104,10 +106,67 @@ function createCmdlController(constructor){
     return new wrapper();
 }
 
-////////////////////////////////////////////////////////////
-//
 
-function UserModel () {
+////////////////////////////////////////////////////////////
+//  
+
+function c6Api(opts){
+    var deferred = q.defer();
+  
+    opts.uri = 'http://staging.cinema6.com' + opts.uri;
+    request(opts,function(error, response, body){
+        if (error){
+            deferred.reject(error);
+            return;
+        }
+
+        if ((response.statusCode < 200) || (response.statusCode >= 300)){
+            deferred.reject({
+                statusCode : response.statusCode,
+                response   : response.body
+            });
+            return;
+        }
+
+        deferred.resolve(body);
+    });
+    
+
+    return deferred.promise;
+};
+
+c6Api.login = function(params){
+    var opts  = {
+            method  : 'POST',
+            uri     : '/api/auth/login',
+            jar     : true,
+            json : {
+                email   : params.email,
+                password: params.password
+            }
+        };
+    return this(opts); 
+};
+
+c6Api.createUser = function(params){
+    var opts  = {
+            method : 'POST',
+            uri     : '/api/account/user',
+            jar     : true,
+            json : {
+                email   : params.email,
+                password: params.password,
+                org     : params.orgId
+            }
+        };
+  
+    return this(opts);
+};
+
+////////////////////////////////////////////////////////////
+// NewUserModel
+
+function NewUserModel () {
     _email     = null;
     _password  = null;
     _password2 = null;
@@ -144,7 +203,7 @@ function UserModel () {
     });
     
     Object.defineProperty(this,'password2',{
-        set : function(v){ _password2 = validatePassword(v,_password1); },
+        set : function(v){ _password2 = validatePassword(v,_password); },
         get : function() { return _password2; } 
     });
     
@@ -155,8 +214,12 @@ function UserModel () {
     });
 }
 
+////////////////////////////////////////////////////////////
+// NewUserView
+
 function NewUserView() {
     this.presentView = function(){
+        console.log('Create new user:');
         var self = this;
         return self.doPrompt('email' )
         .then(function(){
@@ -179,6 +242,9 @@ function NewUserView() {
         });
     };
 }
+
+////////////////////////////////////////////////////////////
+// NewUserController
 
 function NewUserController(){
     var self = this;
@@ -187,53 +253,94 @@ function NewUserController(){
         self.model[key] = val;
     };
 
-    self.submit = function(){
-
+    self.run = function(){
+        return self.showView()
+            .then(function(){
+                return c6Api.createUser(self.model)
+                    .then(function(response){
+                        console.log('Created new user: ' + self.model.email);
+                        console.log(response);
+                    });
+            });
     };
 }
 
 NewUserController.$view  = NewUserView;
-NewUserController.$model = UserModel;
+NewUserController.$model = NewUserModel;
 
+////////////////////////////////////////////////////////////
+// Login
+
+// Model
+//
+function LoginModel() {
+    this.email       = null;
+    this.password    = null;
+}
+
+// View
+//
 function LoginView() {
     this.presentView = function(){
+        console.log('');
+        console.log('Login to server:');
         var self = this;
         return self.doPrompt('email' )
         .then(function(){
             return self.doPrompt('password')
-                .catch(function(e){
-                    console.log(e.message);
-                    return self.doPrompt('password')
-                });
         })
+    };
+}
+
+// Controller
+//
+function LoginController() {
+    var self = this;
+
+    self.initWithData = function(initData){
+        self.model.email    = initData.email;
+        self.model.password = initData.password;
+    };
+
+    self.onData = function( key, value){
+        self.model[key] = value;
+    };
+
+    self.run = function(){
+        return q(function(){
+            if (self.model.email && self.model.password){
+                return q.when({});
+            }
+            return self.showView();
+        }())
         .then(function(){
-            return self.doPrompt('repeat password','password2')
-                .catch(function(e){
-                    console.log(e.message);
-                    return self.doPrompt('repeat password','password2')
+            return c6Api.login(self.model)
+                .then(function(){
+                    console.log('Logged in as ' + self.model.email);
+                    return true;
                 });
-        })
-        .then(function(){
-            var defaultOrg = 'o-' + uuid.createUuid().substr(0,14);
-            return self.doPrompt('organization',{ orgId : defaultOrg });
         });
     };
 }
 
-console.log('Start');
-var c = createCmdlController(NewUserController);
+LoginController.$model = LoginModel;
+LoginController.$view  = LoginView;
 
-c.showView()
+////////////////////////////////////////////////////////////
+
+console.log('Start');
+
+var loginCtrl   = createCmdlController(LoginController),
+    newUserCtrl = createCmdlController(NewUserController);
+
+loginCtrl.run()
 .then(function(){
-    console.log(c.model);
-    console.log('End');
+    return newUserCtrl.run();
+})
+.then(function(){
     process.exit(0);
 })
 .catch(function(err){
-    console.log(err.stack);
+    console.log(err);
     process.exit(1);
 });
-/*
-var m = new UserModel();
-m.email = 'abc@some.com';
-*/
