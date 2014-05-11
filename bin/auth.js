@@ -151,39 +151,27 @@
             store: state.sessionStore
         });
         
-        function checkC6Db(req, res, next) {
-            if (state.dbStatus.c6Db === 'down') {
-                log.error('[%1] c6Db is down', req.uuid);
-                return res.send(500, 'Connection to db is down');
-            }
-            if (state.dbStatus.c6Db === 'recovered') { // recreate all collections
-                users = state.dbs.c6Db.collection('users');
-                authUtils._cache._coll = users;
-                state.dbStatus.c6Db = 'ok';
-                log.info('[%1] Recreated collections from restarted c6Db', req.uuid);
-            }
-            next();
-        }
+        state.dbStatus.c6Db.on('reconnected', function() {
+            users = state.dbs.c6Db.collection('users');
+            authUtils._cache._coll = users;
+            log.info('Recreated collections from restarted c6Db');
+        });
         
-        // TODO: this actually requires checkC6Db as well....
-        function sessionWrapper(req, res, next) {
-            if (state.dbStatus.sessions === 'down') {
-                log.error('[%1] sessions is down', req.uuid);
-                return res.send(500, 'Connection to db is down');
-            }
-            if (state.dbStatus.sessions === 'recovered') { // recreate session store
-                sessions = express.session({
-                    key: state.config.sessions.key,
-                    cookie: {
-                        httpOnly: false,
-                        maxAge: state.config.sessions.minAge
-                    },
-                    store: state.sessionStore
-                });
-                state.dbStatus.sessions = 'ok';
-                log.info('[%1] Recreated session store from restarted db', req.uuid);
-            }
-            return sessions(req, res, next);
+        state.dbStatus.sessions.on('reconnected', function() {
+            sessions = express.session({
+                key: state.config.sessions.key,
+                cookie: {
+                    httpOnly: false,
+                    maxAge: state.config.sessions.minAge
+                },
+                store: state.sessionStore
+            });
+            log.info('Recreated session store from restarted db');
+        });
+
+        // Because we may recreate the session middleware, we need to wrap it in the route handlers
+        function sessionsWrapper(req, res, next) {
+            sessions(req, res, next);
         }
         
         app.all('*', function(req, res, next) {
@@ -211,7 +199,7 @@
             next();
         });
 
-        app.post('/api/auth/login', checkC6Db, sessionWrapper, function(req, res) {
+        app.post('/api/auth/login', sessionsWrapper, function(req, res) {
             auth.login(req, users, state.config.sessions.maxAge).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
@@ -221,7 +209,7 @@
             });
         });
 
-        app.post('/api/auth/logout', checkC6Db, sessionWrapper, function(req, res) {
+        app.post('/api/auth/logout', sessionsWrapper, function(req, res) {
             auth.logout(req).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
@@ -232,7 +220,7 @@
         });
 
         var authGetUser = authUtils.middlewarify({});
-        app.get('/api/auth/status', checkC6Db, sessionWrapper, authGetUser, function(req, res) {
+        app.get('/api/auth/status', sessionsWrapper, authGetUser, function(req, res) {
             res.send(200, req.user); // errors handled entirely by authGetUser
         });
 

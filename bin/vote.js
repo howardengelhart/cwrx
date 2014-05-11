@@ -573,6 +573,35 @@
             store: state.sessionStore
         });
 
+        state.dbStatus.c6Db.on('reconnected', function() {
+            users = state.dbs.c6Db.collection('users');
+            authUtils._cache._coll = users;
+            log.info('Recreated collections from restarted c6Db');
+        });
+
+        state.dbStatus.voteDb.on('reconnected', function() {
+            elections = state.dbs.voteDb.collection('elections');
+            elDb._coll = elections;
+            log.info('Recreated collections from restarted voteDb');
+        });
+        
+        state.dbStatus.sessions.on('reconnected', function() {
+            sessions = express.session({
+                key: state.config.sessions.key,
+                cookie: {
+                    httpOnly: false,
+                    maxAge: state.config.sessions.minAge
+                },
+                store: state.sessionStore
+            });
+            log.info('Recreated session store from restarted db');
+        });
+
+        // Because we may recreate the session middleware, we need to wrap it in the route handlers
+        function sessionsWrapper(req, res, next) {
+            sessions(req, res, next);
+        }
+
         webServer.all('*', function(req, res, next) {
             res.header('Access-Control-Allow-Origin', '*');
             res.header('Access-Control-Allow-Headers',
@@ -648,7 +677,7 @@
         });
 
         var authGetElec = authUtils.middlewarify({elections: 'read'});
-        webServer.get('/api/election/:electionId', sessions, authGetElec, function(req, res){
+        webServer.get('/api/election/:electionId', sessionsWrapper, authGetElec, function(req,res){
             if (!req.params || !req.params.electionId ) {
                 res.send(400, 'You must provide the electionId in the request url.\n');
                 return;
@@ -676,7 +705,7 @@
         });
 
         var authPostElec = authUtils.middlewarify({elections: 'create'});
-        webServer.post('/api/election', sessions, authPostElec, function(req, res) {
+        webServer.post('/api/election', sessionsWrapper, authPostElec, function(req, res) {
             app.createElection(req, elections)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -689,7 +718,7 @@
         });
         
         var authPutElec = authUtils.middlewarify({elections: 'edit'});
-        webServer.put('/api/election/:id', sessions, authPutElec, function(req, res) {
+        webServer.put('/api/election/:id', sessionsWrapper, authPutElec, function(req, res) {
             app.updateElection(req, elections)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -702,7 +731,7 @@
         });
         
         var authDelElec = authUtils.middlewarify({elections: 'delete'});
-        webServer.delete('/api/election/:id', sessions, authDelElec, function(req, res) {
+        webServer.delete('/api/election/:id', sessionsWrapper, authDelElec, function(req, res) {
             app.deleteElection(req, elections)
             .then(function(resp) {
                 res.send(resp.code, resp.body);

@@ -536,6 +536,8 @@ describe('service (UT)',function(){
                     .toEqual([undefined,undefined,'db2','ut','password',['h1:p1','h2:p2'],'devRepl']);
                 expect(state.dbs.db1).toBe(db1);
                 expect(state.dbs.db2).toBe(db2);
+                expect(state.dbStatus.db1 instanceof events.EventEmitter).toBeTruthy();
+                expect(state.dbStatus.db2 instanceof events.EventEmitter).toBeTruthy();
                 expect(state.sessionsDb).not.toBeDefined();
             }).done(done);
         });
@@ -598,23 +600,35 @@ describe('service (UT)',function(){
         });
         
         it('should create a db that responds to close events', function(done) {
+            delete state.config.mongo.db2;
             service.initMongo(state).then(resolveSpy, rejectSpy)
             .finally(function() {
                 expect(mongoUtils.connect).toHaveBeenCalled();
                 state.dbs.db1.emit('close');
-                expect(mockLog.error).toHaveBeenCalled();
-                expect(process.exit).toHaveBeenCalledWith(1);
-            }).done(done);
+
+                state.dbStatus.db1.on('reconnected', function() {
+                    expect(mockLog.error).toHaveBeenCalled();
+                    expect(mongoUtils.connect.calls.length).toBe(2);
+                    expect(state.dbs.db1).toBe(db1);
+                    done();
+                });
+            });
         });
 
         it('should create a db that responds to error events', function(done) {
+            delete state.config.mongo.db2;
             service.initMongo(state).then(resolveSpy, rejectSpy)
             .finally(function() {
                 expect(mongoUtils.connect).toHaveBeenCalled();
-                state.dbs.db1.emit('error', 'I GOT A PROBLEM');
-                expect(mockLog.error).toHaveBeenCalled();
-                expect(process.exit).toHaveBeenCalledWith(1);
-            }).done(done);
+                state.dbs.db1.emit('error');
+
+                state.dbStatus.db1.on('reconnected', function() {
+                    expect(mockLog.error).toHaveBeenCalled();
+                    expect(mongoUtils.connect.calls.length).toBe(2);
+                    expect(state.dbs.db1).toBe(db1);
+                    done();
+                });
+            });
         });
     });
 
@@ -623,7 +637,9 @@ describe('service (UT)',function(){
         beforeEach(function() {
             delete require.cache[require.resolve('../../lib/service')];
             fakeExpress = 'express';
-            fakeMongoStore = jasmine.createSpy('new_MongoStore');
+            fakeMongoStore = jasmine.createSpy('new_MongoStore').andCallFake(function(opts) {
+                this.db = fakeDb;
+            });
             msModule = jasmine.createSpy('MongoStore_module').andReturn(fakeMongoStore);
             require.cache[require.resolve('express')] = { exports: fakeExpress};
             require.cache[require.resolve('connect-mongo')] = { exports: msModule};
@@ -733,21 +749,30 @@ describe('service (UT)',function(){
             service.initSessionStore(state).then(resolveSpy, rejectSpy)
             .finally(function() {
                 expect(mongoUtils.connect).toHaveBeenCalled();
-                fakeDb.emit('close');
-                expect(mockLog.error).toHaveBeenCalled();
-                expect(process.exit).toHaveBeenCalledWith(1);
-            }).done(done);
+                state.sessionStore.db.emit('close');
+
+                state.dbStatus.sessions.on('reconnected', function() {
+                    expect(mockLog.error).toHaveBeenCalled();
+                    expect(mongoUtils.connect.calls.length).toBe(2);
+                    expect(state.sessionStore).toBeDefined();
+                    done();
+                });
+            });
         });
 
         it('should create a db that responds to error events', function(done) {
             service.initSessionStore(state).then(resolveSpy, rejectSpy)
             .finally(function() {
                 expect(mongoUtils.connect).toHaveBeenCalled();
-                fakeDb.emit('error', 'I GOT A PROBLEM');
-                expect(mockLog.error).toHaveBeenCalled();
-                expect(process.exit).toHaveBeenCalledWith(1);
-            }).done(done);
-        });
+                state.sessionStore.db.emit('error');
 
+                state.dbStatus.sessions.on('reconnected', function() {
+                    expect(mockLog.error).toHaveBeenCalled();
+                    expect(mongoUtils.connect.calls.length).toBe(2);
+                    expect(state.sessionStore).toBeDefined();
+                    done();
+                });
+            });
+        });
     });
 });
