@@ -353,14 +353,27 @@
             return q({code: 400, body: 'Must provide a new email'});
         }
 
-        var updates = { $set: { lastUpdated: now, email: req.body.newEmail } };
+        // check if a user already exists with that email
+        return q.npost(users, 'findOne', [{email: req.body.newEmail}])
+        .then(function(userAccount) {
+            if (userAccount) {
+                log.info('[%1] User %2 already exists', req.uuid, req.body.email);
+                return q({
+                    code: 409,
+                    body: 'A user with that email already exists'
+                });
+            }
+            
+            var updates = { $set: { lastUpdated: now, email: req.body.newEmail } };
 
-        return q.npost(users, 'update', [{id: req.user.id}, updates, {w: 1, journal: true}])
-        .then(function() {
-            log.info('[%1] User %2 successfully changed their email', req.uuid, req.user.id);
-            return q({code: 200, body: 'Successfully changed email'});
+            return q.npost(users, 'update', [{id: req.user.id}, updates, {w: 1, journal: true}])
+            .then(function() {
+                log.info('[%1] User %2 successfully changed their email', req.uuid, req.user.id);
+                return q({code: 200, body: 'Successfully changed email'});
+            });
+            
         }).catch(function(error) {
-            log.error('[%1] Error changing password for user %2: %3', req.uuid, req.user.id, error);
+            log.error('[%1] Error changing email for user %2: %3', req.uuid, req.user.id, error);
             return q.reject(error);
         });
     };

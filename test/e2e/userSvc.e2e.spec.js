@@ -579,7 +579,7 @@ describe('user (E2E):', function() {
             });
         });
         
-        it('should fail if the email is invalid', function(done) {
+        it('should fail if the user\'s email is invalid', function(done) {
             reqBody.email = 'johnny';
             options.json = reqBody;
             testUtils.qRequest('post', options).then(function(resp) {
@@ -592,12 +592,26 @@ describe('user (E2E):', function() {
             });
         });
         
-        it('should fail if the password is invalid', function(done) {
+        it('should fail if the user\'s password is invalid', function(done) {
             reqBody.password = 'thisisnotapassword';
             options.json = reqBody;
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Invalid email or password');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should fail if a user with that email already exists', function(done) {
+            var altUser = { id: 'u-2', email: 'johnny' };
+            testUtils.resetCollection('users', [user, altUser]).then(function() {
+                return testUtils.qRequest('post', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(409);
+                expect(resp.body).toBe('A user with that email already exists');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
