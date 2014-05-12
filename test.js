@@ -3,14 +3,11 @@ var request = require('request'),
     util    = require('util'),
     path    = require('path'),
     q       = require('q'),
+    fs      = require('fs-extra'),
     cmdl    = require('commander'),
     uuid    = require('./lib/uuid'),
     MVC     = require('./lib/mvc'),
-    app     = {
-        data : {
-
-        }
-    }
+    config  = {}; 
 
 log = function(){
     var args = Array.prototype.slice.call(arguments, 0);
@@ -18,16 +15,15 @@ log = function(){
     process.stdout.write(args.join(' '));
 };
 
-parseCmdLine = function(){
+parseCmdLine = function(cfg){
     var cmdl = require('commander'),
-        provData, authFile = path.join(process.env.HOME,'.c6prov.json'),
-        data = {};
+        provData, authFile = path.join(process.env.HOME,'.c6prov.json');
 
     if (fs.existsSync(authFile)){
         try {
             provData = fs.readJsonSync(authFile);
-            data.email = provData.email;
-            data.password = provData.password;
+            cfg.email = provData.email;
+            cfg.password = provData.password;
         }catch(e){
             log('Unable to read ' +  authFile);
         }
@@ -66,13 +62,25 @@ parseCmdLine = function(){
                 process.exit(1);
             }
 
-            data.controller = NewUserController;
+            cfg.controller = NewUserController;
         });
     cmdl
         .parse(process.argv);
 
+    if (!cfg.controller){
+        log('Need a command!');
+        process.exit(1);
+    }
 
-    return q(data);
+    if (cmdl.email){
+        cfg.email = cmdl.email;
+    }
+
+    if (cmdl.server) {
+        cfg.server = cmdl.server;
+    }
+
+    return q(cfg);
 }
 
 ////////////////////////////////////////////////////////////
@@ -81,7 +89,6 @@ parseCmdLine = function(){
 function c6Api(opts){
     var deferred = q.defer();
   
-    opts.uri = 'http://staging.cinema6.com' + opts.uri;
     request(opts,function(error, response, body){
         if (error){
             deferred.reject(error);
@@ -106,7 +113,7 @@ function c6Api(opts){
 c6Api.login = function(params){
     var opts  = {
             method  : 'POST',
-            uri     : '/api/auth/login',
+            uri     : c6Api.server + '/api/auth/login',
             jar     : true,
             json : {
                 email   : params.email,
@@ -119,7 +126,7 @@ c6Api.login = function(params){
 c6Api.createUser = function(params){
     var opts  = {
             method : 'POST',
-            uri     : '/api/account/user',
+            uri     : c6Api.server + '/api/account/user',
             jar     : true,
             json : {
                 email   : params.email,
@@ -130,6 +137,7 @@ c6Api.createUser = function(params){
   
     return this(opts);
 };
+
 
 ////////////////////////////////////////////////////////////
 // NewUserModel
@@ -214,7 +222,7 @@ function NewUserView() {
 ////////////////////////////////////////////////////////////
 // NewUserController
 
-function NewUserController(api){
+function NewUserController(api,cfg){
     var self = this;
 
     self.onData = function(key,val){
@@ -235,7 +243,7 @@ function NewUserController(api){
 
 NewUserController.$view  = MVC.CmdlView.Subclass(NewUserView);
 NewUserController.$model = NewUserModel;
-NewUserController.$deps  = ['c6Api'];
+NewUserController.$deps  = ['c6Api','config'];
 ////////////////////////////////////////////////////////////
 // Login
 
@@ -262,7 +270,7 @@ function LoginView() {
 
 // Controller
 //
-function LoginController(api) {
+function LoginController(api,cfg) {
     var self = this;
     self.initWithData = function(initData){
         self.model.email    = initData.email;
@@ -292,21 +300,22 @@ function LoginController(api) {
 
 LoginController.$model = LoginModel;
 LoginController.$view  = MVC.CmdlView.Subclass(LoginView);
-LoginController.$deps  = ['c6Api'];
+LoginController.$deps  = ['c6Api','config'];
 
 ////////////////////////////////////////////////////////////
 
 MVC.registerDependency('c6Api',c6Api);
+MVC.registerDependency('config',config);
 
 var loginCtrl   = MVC.createController(LoginController);
 
-parseCmdLine()
-.then(function(config){
-    app.data = config;
+parseCmdLine(config)
+.then(function(cfg){
+    c6Api.server = cfg.server;
     return loginCtrl.run();
 })
 .then(function(){
-    return MVC.createController(app.data.controller).run();
+    return MVC.createController(config.controller).run();
 })
 .then(function(){
     process.exit(0);
