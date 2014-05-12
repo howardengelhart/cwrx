@@ -1,7 +1,7 @@
 var flush = true;
 describe('service (UT)',function(){
     
-    var vote, state, mockLog, processProperties, resolveSpy, rejectSpy,
+    var vote, state, mockLog, processProperties, resolveSpy, rejectSpy, events,
         path, q, cluster, fs, logger, daemon, mongoUtils;
     
     beforeEach(function() {
@@ -13,6 +13,7 @@ describe('service (UT)',function(){
         q           = require('q');
         cluster     = require('cluster');
         fs          = require('fs-extra');
+        events      = require('events');
         logger      = require('../../lib/logger');
         daemon      = require('../../lib/daemon');
         mongoUtils  = require('../../lib/mongoUtils');
@@ -113,7 +114,6 @@ describe('service (UT)',function(){
                     expect(rejectSpy).not.toHaveBeenCalled();
                     expect(resolveSpy).toHaveBeenCalledWith(state);
                     expect(state.cmdl).toBeDefined(); 
-                    expect(state.cmdl.kids).toEqual(0);
                     expect(state.cmdl.port).toEqual(3100);
                     expect(state.cmdl.config).not.toBeDefined('cmdl.config');
                     expect(state.cmdl.daemon).not.toBeDefined('cmdl.daemon');
@@ -475,6 +475,7 @@ describe('service (UT)',function(){
     });
     
     describe('initMongo', function() {
+        var db1, db2;
         beforeEach(function(){
             resolveSpy = jasmine.createSpy('initMongo.resolve');
             rejectSpy  = jasmine.createSpy('initMongo.reject');
@@ -483,8 +484,24 @@ describe('service (UT)',function(){
                 db1: {host: '1.2.3.4', port: 1234},
                 db2: {hosts: ['h1:p1', 'h2:p2'], replSet: 'devRepl'}
             };
+            db1 = new events.EventEmitter();
+            db2 = new events.EventEmitter();
             state.secrets = {mongoCredentials: {user: 'ut', password: 'password'}};
-            spyOn(mongoUtils, 'connect').andReturn(q('fakeDb'));
+            spyOn(mongoUtils, 'connect').andCallFake(function(host, port, db) {
+                if (db === 'db1') return q(db1);
+                else return q(db2);
+            });
+        });
+
+        it('should skip if the process is the cluster master', function(done) {
+            state.clusterMaster = true;
+            service.initMongo(state).then(resolveSpy, rejectSpy)
+            .finally(function() {
+                expect(resolveSpy).toHaveBeenCalledWith(state);
+                expect(rejectSpy).not.toHaveBeenCalled();
+                expect(mongoUtils.connect).not.toHaveBeenCalled();
+                expect(state.dbs).not.toBeDefined();
+            }).done(done);
         });
         
         it('will fail if missing mongo config info', function(done) {
@@ -517,8 +534,10 @@ describe('service (UT)',function(){
                     .toEqual(['1.2.3.4', 1234, 'db1', 'ut', 'password', undefined, undefined]);
                 expect(mongoUtils.connect.calls[1].args)
                     .toEqual([undefined,undefined,'db2','ut','password',['h1:p1','h2:p2'],'devRepl']);
-                expect(state.dbs.db1).toBe('fakeDb');
-                expect(state.dbs.db2).toBe('fakeDb');
+                expect(state.dbs.db1).toBe(db1);
+                expect(state.dbs.db2).toBe(db2);
+                expect(state.dbStatus.db1 instanceof events.EventEmitter).toBeTruthy();
+                expect(state.dbStatus.db2 instanceof events.EventEmitter).toBeTruthy();
                 expect(state.sessionsDb).not.toBeDefined();
             }).done(done);
         });
@@ -528,7 +547,7 @@ describe('service (UT)',function(){
                 if (db === 'db1') {
                     return q.reject('Error!');
                 } else {
-                    return q('fakeDb');
+                    return q(db2);
                 }
             });
             service.initMongo(state).then(resolveSpy, rejectSpy)
@@ -545,7 +564,7 @@ describe('service (UT)',function(){
             state.config.mongo.db1.retryConnect = true;
             mongoUtils.connect.andCallFake(function(){
                 if (this.connect.callCount >= 5){
-                    return q('fakeDb');
+                    return q(db1);
                 }
                 return q.reject('Error!')
             });
@@ -565,7 +584,7 @@ describe('service (UT)',function(){
             state.config.mongo.db1.retryConnect = true;
             mongoUtils.connect.andCallFake(function(){
                 if (this.connect.callCount >= 5){
-                    return q('fakeDb');
+                    return q(db1);
                 }
                 return q.reject({name: "MongoError", errmsg: "auth fails"});
             });
@@ -579,14 +598,48 @@ describe('service (UT)',function(){
                 expect(rejectSpy).toHaveBeenCalledWith({name: "MongoError", errmsg: "auth fails"});
             }).done(done);
         });
+        
+        it('should create a db that responds to close events', function(done) {
+            delete state.config.mongo.db2;
+            service.initMongo(state).then(resolveSpy, rejectSpy)
+            .finally(function() {
+                expect(mongoUtils.connect).toHaveBeenCalled();
+                state.dbs.db1.emit('close');
+
+                state.dbStatus.db1.on('reconnected', function() {
+                    expect(mockLog.error).toHaveBeenCalled();
+                    expect(mongoUtils.connect.calls.length).toBe(2);
+                    expect(state.dbs.db1).toBe(db1);
+                    done();
+                });
+            });
+        });
+
+        it('should create a db that responds to error events', function(done) {
+            delete state.config.mongo.db2;
+            service.initMongo(state).then(resolveSpy, rejectSpy)
+            .finally(function() {
+                expect(mongoUtils.connect).toHaveBeenCalled();
+                state.dbs.db1.emit('error');
+
+                state.dbStatus.db1.on('reconnected', function() {
+                    expect(mockLog.error).toHaveBeenCalled();
+                    expect(mongoUtils.connect.calls.length).toBe(2);
+                    expect(state.dbs.db1).toBe(db1);
+                    done();
+                });
+            });
+        });
     });
 
     describe('initSessionStore', function() {
-        var fakeExpress, fakeMongoStore, msModule;
+        var fakeExpress, fakeMongoStore, msModule, fakeDb;
         beforeEach(function() {
             delete require.cache[require.resolve('../../lib/service')];
             fakeExpress = 'express';
-            fakeMongoStore = jasmine.createSpy('new_MongoStore');
+            fakeMongoStore = jasmine.createSpy('new_MongoStore').andCallFake(function(opts) {
+                this.db = fakeDb;
+            });
             msModule = jasmine.createSpy('MongoStore_module').andReturn(fakeMongoStore);
             require.cache[require.resolve('express')] = { exports: fakeExpress};
             require.cache[require.resolve('connect-mongo')] = { exports: msModule};
@@ -599,7 +652,19 @@ describe('service (UT)',function(){
             state.config.sessions = {
                 mongo: { host: "fakeHost", port: 111, hosts: ["h1:p1", "h2:p2"], replSet: "devRepl" }
             };
-            spyOn(mongoUtils, 'connect').andReturn(q('fakeDb'));
+            fakeDb = new events.EventEmitter();
+            spyOn(mongoUtils, 'connect').andReturn(q(fakeDb));
+        });
+        
+        it('should skip if the process is the cluster master', function(done) {
+            state.clusterMaster = true;
+            service.initSessionStore(state).then(resolveSpy, rejectSpy)
+            .finally(function() {
+                expect(resolveSpy).toHaveBeenCalledWith(state);
+                expect(rejectSpy).not.toHaveBeenCalled();
+                expect(mongoUtils.connect).not.toHaveBeenCalled();
+                expect(state.sessionStore).not.toBeDefined();
+            }).done(done);
         });
         
         it('should initialize the MongoStore and call the callback', function(done) {
@@ -611,7 +676,7 @@ describe('service (UT)',function(){
                     'fakeUser', 'fakePass', ["h1:p1", "h2:p2"], "devRepl");
                 expect(msModule).toHaveBeenCalledWith('express');
                 expect(fakeMongoStore).toHaveBeenCalled();
-                expect(fakeMongoStore.calls[0].args[0]).toEqual({ db: "fakeDb" });
+                expect(fakeMongoStore.calls[0].args[0]).toEqual({ db: fakeDb });
                 expect(state.sessionStore).toBeDefined();
             }).done(done);
         });
@@ -646,7 +711,7 @@ describe('service (UT)',function(){
             state.config.sessions.mongo.retryConnect = true;
             mongoUtils.connect.andCallFake(function(){
                 if (this.connect.callCount >= 5){
-                    return q('fakeDb');
+                    return q(fakeDb);
                 }
                 return q.reject('Error!')
             });
@@ -665,7 +730,7 @@ describe('service (UT)',function(){
             state.config.sessions.mongo.retryConnect = true;
             mongoUtils.connect.andCallFake(function(){
                 if (this.connect.callCount >= 5){
-                    return q('fakeDb');
+                    return q(fakeDb);
                 }
                 return q.reject({name: "MongoError", errmsg: "auth fails"});
             });
@@ -678,6 +743,36 @@ describe('service (UT)',function(){
                 expect(resolveSpy).not.toHaveBeenCalled();
                 expect(rejectSpy).toHaveBeenCalledWith({name: "MongoError", errmsg: "auth fails"});
             }).done(done);
+        });
+
+        it('should create a db that responds to close events', function(done) {
+            service.initSessionStore(state).then(resolveSpy, rejectSpy)
+            .finally(function() {
+                expect(mongoUtils.connect).toHaveBeenCalled();
+                state.sessionStore.db.emit('close');
+
+                state.dbStatus.sessions.on('reconnected', function() {
+                    expect(mockLog.error).toHaveBeenCalled();
+                    expect(mongoUtils.connect.calls.length).toBe(2);
+                    expect(state.sessionStore).toBeDefined();
+                    done();
+                });
+            });
+        });
+
+        it('should create a db that responds to error events', function(done) {
+            service.initSessionStore(state).then(resolveSpy, rejectSpy)
+            .finally(function() {
+                expect(mongoUtils.connect).toHaveBeenCalled();
+                state.sessionStore.db.emit('error');
+
+                state.dbStatus.sessions.on('reconnected', function() {
+                    expect(mockLog.error).toHaveBeenCalled();
+                    expect(mongoUtils.connect.calls.length).toBe(2);
+                    expect(state.sessionStore).toBeDefined();
+                    done();
+                });
+            });
         });
     });
 });

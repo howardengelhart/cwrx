@@ -369,8 +369,11 @@
             
         var express     = require('express'),
             app         = express(),
+            experiences = state.dbs.c6Db.collection('experiences'),
             users       = state.dbs.c6Db.collection('users'),
-            authTTLs    = state.config.cacheTTLs.auth;
+            authTTLs    = state.config.cacheTTLs.auth,
+            expTTLs     = state.config.cacheTTLs.experiences,
+            expCache    = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences);
         authUtils = require('../lib/authUtils')(authTTLs.freshTTL, authTTLs.maxTTL, users);
 
         app.use(express.bodyParser());
@@ -384,6 +387,31 @@
             },
             store: state.sessionStore
         });
+        
+        state.dbStatus.c6Db.on('reconnected', function() {
+            experiences = state.dbs.c6Db.collection('experiences');
+            users = state.dbs.c6Db.collection('users');
+            expCache._coll = experiences;
+            authUtils._cache._coll = users;
+            log.info('Recreated collections from restarted c6Db');
+        });
+        
+        state.dbStatus.sessions.on('reconnected', function() {
+            sessions = express.session({
+                key: state.config.sessions.key,
+                cookie: {
+                    httpOnly: false,
+                    maxAge: state.config.sessions.minAge
+                },
+                store: state.sessionStore
+            });
+            log.info('Recreated session store from restarted db');
+        });
+        
+        // Because we may recreate the session middleware, we need to wrap it in the route handlers
+        function sessionsWrapper(req, res, next) {
+            sessions(req, res, next);
+        }
 
         app.all('*', function(req, res, next) {
             res.header('Access-Control-Allow-Origin', '*');
@@ -410,10 +438,6 @@
             next();
         });
         
-        var experiences = state.dbs.c6Db.collection('experiences');
-        var expTTLs = state.config.cacheTTLs.experiences;
-        var expCache = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences);
-
         // public get experience by id
         app.get('/api/public/content/experience/:id', function(req, res) {
             content.getExperiences({id: req.params.id}, req, expCache)
@@ -440,7 +464,7 @@
         var authGetExp = authUtils.middlewarify({experiences: 'read'});
         
         // private get experience by id
-        app.get('/api/content/experience/:id', sessions, authGetExp, function(req, res) {
+        app.get('/api/content/experience/:id', sessionsWrapper, authGetExp, function(req, res) {
             content.getExperiences({id: req.params.id}, req, expCache)
             .then(function(resp) {
                 if (resp.body && resp.body instanceof Array) {
@@ -461,7 +485,7 @@
         });
 
         // private get experience by query
-        app.get('/api/content/experiences', sessions, authGetExp, function(req, res) {
+        app.get('/api/content/experiences', sessionsWrapper, authGetExp, function(req, res) {
             var queryFields = ['ids', 'user', 'org', 'type'];
             function isKeyInFields(key) {
                 return queryFields.indexOf(key) >= 0;
@@ -495,7 +519,7 @@
         });
         
         var authPostExp = authUtils.middlewarify({experiences: 'create'});
-        app.post('/api/content/experience', sessions, authPostExp, function(req, res) {
+        app.post('/api/content/experience', sessionsWrapper, authPostExp, function(req, res) {
             content.createExperience(req, experiences)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -508,7 +532,7 @@
         });
         
         var authPutExp = authUtils.middlewarify({experiences: 'edit'});
-        app.put('/api/content/experience/:id', sessions, authPutExp, function(req, res) {
+        app.put('/api/content/experience/:id', sessionsWrapper, authPutExp, function(req, res) {
             content.updateExperience(req, experiences)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -521,7 +545,7 @@
         });
         
         var authDelExp = authUtils.middlewarify({experiences: 'delete'});
-        app.delete('/api/content/experience/:id', sessions, authDelExp, function(req, res) {
+        app.delete('/api/content/experience/:id', sessionsWrapper, authDelExp, function(req, res) {
             content.deleteExperience(req, experiences)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -532,7 +556,7 @@
                 });
             });
         });
-        
+
         app.get('/api/content/meta', function(req, res){
             var data = {
                 version: state.config.appVersion,

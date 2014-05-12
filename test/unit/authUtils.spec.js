@@ -366,6 +366,7 @@ describe('authUtils', function() {
                     cb(null, user);
                 })
             };
+            authUtils._cache._coll = userColl;
             req = {
                 uuid: '1234',
                 route: { method: 'get', path: '/ut' },
@@ -406,6 +407,7 @@ describe('authUtils', function() {
             };
             midWare(req, res, function() {
                 expect(req.user).toEqual({id: 'u-1', email: 'otter'});
+                expect(authUtils._initCache).toHaveBeenCalledWith(userColl);
                 expect(userColl.findOne).toHaveBeenCalled();
                 expect(userColl.findOne.calls[0].args[0]).toEqual({email: 'otter'});
                 expect(bcrypt.compare).toHaveBeenCalled();
