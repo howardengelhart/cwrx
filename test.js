@@ -6,8 +6,7 @@ var request = require('request'),
     fs      = require('fs-extra'),
     cmdl    = require('commander'),
     uuid    = require('./lib/uuid'),
-    MVC     = require('./lib/mvc'),
-    config  = {}; 
+    MVC     = require('./lib/mvc');
 
 log = function(){
     var args = Array.prototype.slice.call(arguments, 0);
@@ -19,27 +18,54 @@ parseCmdLine = function(cfg){
     var cmdl = require('commander'),
         provData, authFile = path.join(process.env.HOME,'.c6prov.json');
 
+    if (!cfg){
+        cfg = {};
+    }
+
     if (fs.existsSync(authFile)){
         try {
             provData = fs.readJsonSync(authFile);
-            cfg.email = provData.email;
+            cfg.email    = provData.email;
             cfg.password = provData.password;
+            cfg.server   = provData.server;
         }catch(e){
             log('Unable to read ' +  authFile);
         }
     }
     
+    function showUsageUser(sub){
+        log('');
+        log('Usage:');
+        log(' provision user');
+        log('');
+        if (sub === 'create'){
+
+        } else {
+            log(' Users associated api tasks.  Current list includes:');
+            log('   * create');
+            log('');
+            log(' user help <task> will provide additional detail.');
+            log('');
+        }
+
+        log('Example:');
+        log('');
+        log(' #Create a user');
+        log(' $ node bin/provision.js user create');
+        log('');
+    }
+    
     cmdl
         .option('-e, --email [email]','Logon.')
-        .option('-s, --server [URL]','API Host.','https://staging.cinema6.com')
+        .option('-s, --server [URL]','API Host.', cfg.server || 'https://staging.cinema6.com')
     cmdl
         .command('help')
         .description('Help [command]')
         .action(function(cmd){
             if (cmd === 'user'){
-                //showUsageUser();
+                showUsageUser();
             } else {
-                //app.log('Command <' + cmd + '> is not recognized.');
+                log('Command <' + cmd + '> is not recognized.');
             }
             process.exit(0);
         });
@@ -48,21 +74,23 @@ parseCmdLine = function(cfg){
         .description('Manage users')
         .action(function(subcommand,data){
             if (arguments.length === 1) {
-                //showUsageUser();
+                showUsageUser();
                 process.exit(1);
             }
 
             if (subcommand === 'help'){
-                //showUsageUser(data);
+                showUsageUser(data);
                 process.exit(1);
             }
 
             if (data === 'help'){
-                //showUsageUser(subcommand);
+                showUsageUser(subcommand);
                 process.exit(1);
             }
 
-            cfg.controller = NewUserController;
+            if (subcommand === 'create')  { 
+                cfg.controller = NewUserController;
+            }
         });
     cmdl
         .parse(process.argv);
@@ -88,7 +116,7 @@ parseCmdLine = function(cfg){
 
 function c6Api(opts){
     var deferred = q.defer();
-  
+ 
     request(opts,function(error, response, body){
         if (error){
             deferred.reject(error);
@@ -129,12 +157,15 @@ c6Api.createUser = function(params){
             uri     : c6Api.server + '/api/account/user',
             jar     : true,
             json : {
-                email   : params.email,
-                password: params.password,
-                org     : params.orgId
+                email    : params.email,
+                password : params.password,
+                org      : params.orgId
             }
         };
-  
+    if (params.branding){
+        opts.json.branding = params.branding;
+    }
+    
     return this(opts);
 };
 
@@ -147,6 +178,7 @@ function NewUserModel () {
     _password  = null;
     _password2 = null;
     _orgId     = null;
+    _branding  = null;
 
     function validatePassword(p1,p2){
         if  ((p1 && p2) && (p1 !== p2)){
@@ -188,35 +220,12 @@ function NewUserModel () {
         set : function(v){ _orgId = v; },
         get : function() { return _orgId; } 
     });
-}
-
-////////////////////////////////////////////////////////////
-// NewUserView
-
-function NewUserView() {
-    this.presentView = function(){
-        console.log('Create new user:');
-        var self = this;
-        return self.doPrompt('email' )
-        .then(function(){
-            return self.doPrompt('password')
-                .catch(function(e){
-                    console.log(e.message);
-                    return self.doPrompt('password')
-                });
-        })
-        .then(function(){
-            return self.doPrompt('repeat password','password2')
-                .catch(function(e){
-                    console.log(e.message);
-                    return self.doPrompt('repeat password','password2')
-                });
-        })
-        .then(function(){
-            var defaultOrg = 'o-' + uuid.createUuid().substr(0,14);
-            return self.doPrompt('organization',{ orgId : defaultOrg });
-        });
-    };
+    
+    Object.defineProperty(this,'branding',{
+        enumerable: true,
+        set : function(v){ _branding = v; },
+        get : function() { return _branding; } 
+    });
 }
 
 ////////////////////////////////////////////////////////////
@@ -225,23 +234,48 @@ function NewUserView() {
 function NewUserController(api,cfg){
     var self = this;
 
-    self.onData = function(key,val){
-        self.model[key] = val;
-    };
+    self.initView([
+        {
+            label : 'email',
+            repeat: 1,
+            binding: self.model
+        },
+        {
+            label : 'password',
+            repeat: 1,
+            binding: self.model
+        },
+        {
+            label : 'confirm password',
+            alias : 'password2',
+            repeat: 1,
+            binding: self.model
+        },
+        {
+            label : 'organization',
+            alias : 'orgId',
+            defaultVal : 'o-' + uuid.createUuid().substr(0,14),
+            binding: self.model
+        },
+        {
+            label : 'branding',
+            binding: self.model
+        }
+    ]);
 
     self.run = function(){
         return self.showView()
             .then(function(){
                 return api.createUser(self.model)
                     .then(function(response){
-                        console.log('Created new user: ' + self.model.email);
-                        console.log(response);
+                        log('Created new user: ' + self.model.email);
+                        log(response);
                     });
             });
     };
 }
 
-NewUserController.$view  = MVC.CmdlView.Subclass(NewUserView);
+NewUserController.$view  = MVC.CmdlView;
 NewUserController.$model = NewUserModel;
 NewUserController.$deps  = ['c6Api','config'];
 ////////////////////////////////////////////////////////////
@@ -254,44 +288,36 @@ function LoginModel() {
     this.password    = null;
 }
 
-// View
-//
-function LoginView() {
-    this.presentView = function(){
-        console.log('');
-        console.log('Login to server:');
-        var self = this;
-        return self.doPrompt('email' )
-        .then(function(){
-            return self.doPrompt('password')
-        })
-    };
-}
-
 // Controller
 //
 function LoginController(api,cfg) {
-    var self = this;
-    self.initWithData = function(initData){
-        self.model.email    = initData.email;
-        self.model.password = initData.password;
-    };
+    var self = this, prompts = [];
+    
+    self.model.email    = cfg.email;
+    self.model.password = cfg.password;
 
-    self.onData = function( key, value){
-        self.model[key] = value;
-    };
+    if (!self.model.email){
+        prompts.push({
+            label : 'email',
+            binding: self.model
+        });
+    }
 
+    if (!self.model.password){
+        prompts.push({
+            label : 'password',
+            binding: self.model
+        });
+    }
+
+    self.initView( prompts );
+    
     self.run = function(){
-        return q(function(){
-            if (self.model.email && self.model.password){
-                return q.when({});
-            }
-            return self.showView();
-        }())
+        return self.showView()
         .then(function(){
             return api.login(self.model)
                 .then(function(){
-                    console.log('Logged in as ' + self.model.email);
+                    log('Logged in to ' + api.server + ' as ' + self.model.email);
                     return true;
                 });
         });
@@ -299,28 +325,33 @@ function LoginController(api,cfg) {
 }
 
 LoginController.$model = LoginModel;
-LoginController.$view  = MVC.CmdlView.Subclass(LoginView);
+LoginController.$view  = MVC.CmdlView;
 LoginController.$deps  = ['c6Api','config'];
 
 ////////////////////////////////////////////////////////////
 
-MVC.registerDependency('c6Api',c6Api);
-MVC.registerDependency('config',config);
-
-var loginCtrl   = MVC.createController(LoginController);
-
-parseCmdLine(config)
+parseCmdLine()
 .then(function(cfg){
+    MVC.registerDependency('config',cfg);
+    MVC.registerDependency('c6Api',c6Api);
     c6Api.server = cfg.server;
-    return loginCtrl.run();
+    return MVC.createController(LoginController).run().then(function(){ return cfg; });
 })
-.then(function(){
-    return MVC.createController(config.controller).run();
+.then(function(cfg){
+    return MVC.createController(cfg.controller).run();
 })
 .then(function(){
     process.exit(0);
 })
 .catch(function(err){
-    console.log(err);
+    log('');
+    log('There was an error:');
+    log('');
+    if (err.message) {
+        log(err.message);
+    } else {
+        log(JSON.stringify(err,null,3));
+    }
+    log('');
     process.exit(1);
 });
