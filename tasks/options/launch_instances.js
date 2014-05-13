@@ -5,13 +5,13 @@ module.exports = {
         sshInterval   :  15,
         sshTimeout    : 120,
         httpInterval  :  30,
-        httpTimeout   : 600,
+        httpTimeout   : 900,
         owner         : 'jenkins',
         ec2_templates : {
             'apiServer' : {
                 ImageId             : 'ami-f623c49e',
                 IamInstanceProfile  : {
-                    Name: 'apiServer'
+                    Name: 'apiServer-Dev'
                 },
                 MaxCount : 1,
                 MinCount : 1,
@@ -49,6 +49,18 @@ module.exports = {
                 host    : 'test-auth',
                 iface   : 'public',
                 path    : '/api/auth/meta'
+            }
+        ],
+        checkSsh : [ { host : 'mongo-dev-1' } ]
+    },
+    collateral : {
+        startInstances : [ 'mongo-dev-1' ],
+        runInstances   : [ { name: 'test-collateral', params: 'apiServer' } ],
+        checkHttp : [
+            {
+                host    : 'test-collateral',
+                iface   : 'public',
+                path    : '/api/collateral/meta'
             }
         ],
         checkSsh : [ { host : 'mongo-dev-1' } ]
@@ -95,6 +107,11 @@ module.exports = {
                 host    : 'nightly_build',
                 iface   : 'public',
                 path    : '/api/auth/meta'
+            },
+            {
+                host    : 'nightly_build',
+                iface   : 'public',
+                path    : '/api/collateral/meta'
             },
             {
                 host    : 'nightly_build',

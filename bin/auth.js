@@ -150,7 +150,30 @@
             },
             store: state.sessionStore
         });
+        
+        state.dbStatus.c6Db.on('reconnected', function() {
+            users = state.dbs.c6Db.collection('users');
+            authUtils._cache._coll = users;
+            log.info('Recreated collections from restarted c6Db');
+        });
+        
+        state.dbStatus.sessions.on('reconnected', function() {
+            sessions = express.session({
+                key: state.config.sessions.key,
+                cookie: {
+                    httpOnly: false,
+                    maxAge: state.config.sessions.minAge
+                },
+                store: state.sessionStore
+            });
+            log.info('Recreated session store from restarted db');
+        });
 
+        // Because we may recreate the session middleware, we need to wrap it in the route handlers
+        function sessionsWrapper(req, res, next) {
+            sessions(req, res, next);
+        }
+        
         app.all('*', function(req, res, next) {
             res.header('Access-Control-Allow-Headers',
                        'Origin, X-Requested-With, Content-Type, Accept');
@@ -176,7 +199,7 @@
             next();
         });
 
-        app.post('/api/auth/login', sessions, function(req, res/*, next*/) {
+        app.post('/api/auth/login', sessionsWrapper, function(req, res) {
             auth.login(req, users, state.config.sessions.maxAge).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
@@ -186,7 +209,7 @@
             });
         });
 
-        app.post('/api/auth/logout', sessions, function(req, res/*, next*/) {
+        app.post('/api/auth/logout', sessionsWrapper, function(req, res) {
             auth.logout(req).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
@@ -197,11 +220,11 @@
         });
 
         var authGetUser = authUtils.middlewarify({});
-        app.get('/api/auth/status', sessions, authGetUser, function(req, res/*, next*/) {
+        app.get('/api/auth/status', sessionsWrapper, authGetUser, function(req, res) {
             res.send(200, req.user); // errors handled entirely by authGetUser
         });
 
-        app.get('/api/auth/meta', function(req, res/*, next*/){
+        app.get('/api/auth/meta', function(req, res){
             var data = {
                 version: state.config.appVersion,
                 started : started.toISOString(),

@@ -38,6 +38,7 @@ describe('auth (UT)', function() {
             findOne: jasmine.createSpy('users_findOne')
         };
         spyOn(mongoUtils, 'safeUser').andCallThrough();
+        spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
     });
     
     describe('login', function() {
@@ -101,6 +102,7 @@ describe('auth (UT)', function() {
                 expect(bcrypt.compare.calls[0].args[1]).toBe('hashpass');
                 expect(req.session.regenerate).toHaveBeenCalled();
                 expect(mongoUtils.safeUser).toHaveBeenCalledWith(origUser);
+                expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

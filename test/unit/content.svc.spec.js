@@ -1,13 +1,14 @@
 var flush = true;
 describe('content (UT)', function() {
     var mockLog, mockLogger, experiences, req, uuid, logger, content, q, QueryCache, FieldValidator,
-        enums, Status, Scope, Access;
+        mongoUtils, enums, Status, Scope, Access;
     
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         uuid            = require('../../lib/uuid');
         logger          = require('../../lib/logger');
         content         = require('../../bin/content');
+        mongoUtils      = require('../../lib/mongoUtils');
         QueryCache      = require('../../lib/queryCache');
         FieldValidator  = require('../../lib/fieldValidator');
         q               = require('q');
@@ -27,6 +28,9 @@ describe('content (UT)', function() {
         spyOn(logger, 'createLog').andReturn(mockLog);
         spyOn(logger, 'getLog').andReturn(mockLog);
         spyOn(content, 'formatOutput').andCallThrough();
+        spyOn(mongoUtils, 'escapeKeys').andCallThrough();
+        spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
+        
         experiences = {};
         req = {uuid: '1234'};
     });
@@ -144,6 +148,18 @@ describe('content (UT)', function() {
                 { email: 'crosby', date: now, data: { foo: 'bar' } }
             ]};
             expect(content.formatOutput(experience)).toEqual({ id:'e1', data: { foo:'baz' } });
+            expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
+        });
+        
+        it('should create a .title property from .data[0].data.title', function() {
+            var now = new Date();
+            experience = { id: 'e1', data: [
+                { email: 'otter', date: now, data: { title: 'Cool Tapes', foo: 'baz' } },
+                { email: 'crosby', date: now, data: { title: 'Not Cool Tapes', foo: 'bar' } }
+            ]};
+            expect(content.formatOutput(experience))
+                .toEqual({ id: 'e1', title: 'Cool Tapes', data: {title: 'Cool Tapes', foo: 'baz'} });
+            expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
         });
 
         it('should convert .status to .status[0].status for the client', function() {
@@ -153,6 +169,7 @@ describe('content (UT)', function() {
                 { email: 'crosby', date: now, status: Status.Pending }
             ]};
             expect(content.formatOutput(experience)).toEqual({ id:'e1', status: Status.Active });
+            expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
         });
     });
     
@@ -198,6 +215,7 @@ describe('content (UT)', function() {
                     .toHaveBeenCalledWith('fakeUser', {title: 'fake1'}, 'experiences', 'read');
                 expect(content.formatOutput.calls.length).toBe(1);
                 expect(content.formatOutput.calls[0].args[0]).toEqual({title: 'fake1'});
+                expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -302,8 +320,8 @@ describe('content (UT)', function() {
             });
             content.getExperiences(query, req, cache).then(function(resp) {
                 expect(resp).toBeDefined();
-                expect(resp.code).toBe(404);
-                expect(resp.body).toEqual('No experiences found');
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual([]);
                 expect(cache.getPromise).not.toHaveBeenCalled();
                 expect(cache._coll.find).toHaveBeenCalled();
                 expect(content.formatOutput).toHaveBeenCalled();
@@ -314,20 +332,20 @@ describe('content (UT)', function() {
             });
         });
         
-        it('should return a 404 if nothing was found', function(done) {
+        it('should return a 200 and empty array if nothing was found', function(done) {
             fakeCursor.toArray.andCallFake(function(cb) {
                 cb(null, []);
             });
             cache.getPromise.andReturn(q([]));
             content.getExperiences(query, req, cache).then(function(resp) {
                 expect(resp).toBeDefined();
-                expect(resp.code).toBe(404);
-                expect(resp.body).toBe('No experiences found');
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual([]);
                 return content.getExperiences(query, { uuid: '1234' }, cache);
             }).then(function(resp) {
                 expect(resp).toBeDefined();
-                expect(resp.code).toBe(404);
-                expect(resp.body).toBe('No experiences found');
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual([]);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -401,6 +419,7 @@ describe('content (UT)', function() {
                 expect(data.data).toEqual({foo: 'bar'});
                 expect(experiences.insert.calls[0].args[1]).toEqual({w: 1, journal: true});
                 expect(content.formatOutput).toHaveBeenCalled();
+                expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -481,6 +500,7 @@ describe('content (UT)', function() {
             expect(updates.status[1].status).toEqual(Status.Pending);
             expect(updates.data).not.toBeDefined();
             expect(updates.lastUpdated).toBeGreaterThan(start);
+            expect(mongoUtils.escapeKeys).toHaveBeenCalled();
         });
         
         it('should set the current data to active if the experience becomes active', function() {
@@ -574,8 +594,8 @@ describe('content (UT)', function() {
             oldExp;
         beforeEach(function() {
             req.params = {id: 'e-1234'};
-            req.body = {title: 'newExp', data: {foo: 'baz'} };
-            oldExp = {id:'e-1234', title:'oldExp', user:'u-1234', created:start, lastUpdated:start,
+            req.body = {tag: 'newTag', data: {foo: 'baz'} };
+            oldExp = {id:'e-1234', tag:'oldTag', user:'u-1234', created:start, lastUpdated:start,
                       data: [ { user: 'otter', date: start, data: { foo: 'bar' } } ],
                       status: [ { user: 'otter', date: start, status: Status.Pending } ] };
             req.user = {id: 'u-1234', email: 'otter'};
@@ -616,7 +636,7 @@ describe('content (UT)', function() {
                 expect(experiences.findAndModify.calls[0].args[1]).toEqual({id: 1});
                 var updates = experiences.findAndModify.calls[0].args[2];
                 expect(Object.keys(updates)).toEqual(['$set']);
-                expect(updates.$set.title).toBe('newExp');
+                expect(updates.$set.tag).toBe('newTag');
                 expect(updates.$set.data[0].user).toBe('otter');
                 expect(updates.$set.data[0].date instanceof Date).toBeTruthy('data.date is a Date');
                 expect(updates.$set.data[0].data).toEqual({foo: 'baz'});
@@ -624,13 +644,32 @@ describe('content (UT)', function() {
                 expect(experiences.findAndModify.calls[0].args[3])
                     .toEqual({w: 1, journal: true, new: true});
                 expect(content.formatOutput).toHaveBeenCalled();
+                expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
-
+        
+        it('should prevent improper direct edits to the title property', function(done) {
+            req.body.title = 'a title';
+            content.updateExperience(req, experiences).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual({id: 'e-1234', data: {foo:'baz'}});
+                expect(experiences.findOne).toHaveBeenCalled();
+                expect(experiences.findAndModify).toHaveBeenCalled();
+                var updates = experiences.findAndModify.calls[0].args[2];
+                expect(updates.$set.tag).toBe('newTag');
+                expect(updates.$set.title).not.toBeDefined();
+                expect(content.formatOutput).toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
         it('should not edit the experience if the updates contain illegal fields', function(done) {
             content.updateValidator.validate.andReturn(false);
             content.updateExperience(req, experiences).then(function(resp) {
@@ -662,6 +701,20 @@ describe('content (UT)', function() {
         
         it('should not create an experience if it does not already exist', function(done) {
             experiences.findOne.andCallFake(function(query, cb) { cb(); });
+            content.updateExperience(req, experiences).then(function(resp) {
+                expect(resp.code).toBe(404);
+                expect(resp.body).toBe('That experience does not exist');
+                expect(experiences.findOne).toHaveBeenCalled();
+                expect(experiences.findAndModify).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should not edit an experience that has been deleted', function(done) {
+            oldExp.status = [{user: 'otter', status: Status.Deleted}];
             content.updateExperience(req, experiences).then(function(resp) {
                 expect(resp.code).toBe(404);
                 expect(resp.body).toBe('That experience does not exist');
@@ -735,6 +788,7 @@ describe('content (UT)', function() {
                 expect(setProps.lastUpdated instanceof Date).toBeTruthy('lastUpdated is a Date');
                 expect(setProps.lastUpdated).toBeGreaterThan(start);
                 expect(experiences.update.calls[0].args[2]).toEqual({w: 1, journal: true});
+                expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

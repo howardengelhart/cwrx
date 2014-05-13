@@ -195,6 +195,7 @@
         return q.npost(bcrypt, 'hash', [newUser.password, bcrypt.genSaltSync()])
         .then(function(hashed) {
             newUser.password = hashed;
+            newUser = mongoUtils.escapeKeys(newUser);
         });
     };
 
@@ -269,7 +270,7 @@
                 return deferred.resolve({code: 400, body: 'Illegal fields'});
             }
             updates.lastUpdated = new Date();
-            var updateObj = { $set: updates };
+            var updateObj = { $set: mongoUtils.escapeKeys(updates) };
             var opts = {w: 1, journal: true, new: true};
             return q.npost(users, 'findAndModify', [{id: id}, {id: 1}, updateObj, opts])
             .then(function(results) {
@@ -352,14 +353,27 @@
             return q({code: 400, body: 'Must provide a new email'});
         }
 
-        var updates = { $set: { lastUpdated: now, email: req.body.newEmail } };
+        // check if a user already exists with that email
+        return q.npost(users, 'findOne', [{email: req.body.newEmail}])
+        .then(function(userAccount) {
+            if (userAccount) {
+                log.info('[%1] User %2 already exists', req.uuid, req.body.email);
+                return q({
+                    code: 409,
+                    body: 'A user with that email already exists'
+                });
+            }
+            
+            var updates = { $set: { lastUpdated: now, email: req.body.newEmail } };
 
-        return q.npost(users, 'update', [{id: req.user.id}, updates, {w: 1, journal: true}])
-        .then(function() {
-            log.info('[%1] User %2 successfully changed their email', req.uuid, req.user.id);
-            return q({code: 200, body: 'Successfully changed email'});
+            return q.npost(users, 'update', [{id: req.user.id}, updates, {w: 1, journal: true}])
+            .then(function() {
+                log.info('[%1] User %2 successfully changed their email', req.uuid, req.user.id);
+                return q({code: 200, body: 'Successfully changed email'});
+            });
+            
         }).catch(function(error) {
-            log.error('[%1] Error changing password for user %2: %3', req.uuid, req.user.id, error);
+            log.error('[%1] Error changing email for user %2: %3', req.uuid, req.user.id, error);
             return q.reject(error);
         });
     };
@@ -391,6 +405,29 @@
             store: state.sessionStore
         });
 
+        state.dbStatus.c6Db.on('reconnected', function() {
+            users = state.dbs.c6Db.collection('users');
+            authUtils._cache._coll = users;
+            log.info('Recreated collections from restarted c6Db');
+        });
+        
+        state.dbStatus.sessions.on('reconnected', function() {
+            sessions = express.session({
+                key: state.config.sessions.key,
+                cookie: {
+                    httpOnly: false,
+                    maxAge: state.config.sessions.minAge
+                },
+                store: state.sessionStore
+            });
+            log.info('Recreated session store from restarted db');
+        });
+
+        // Because we may recreate the session middleware, we need to wrap it in the route handlers
+        function sessionsWrapper(req, res, next) {
+            sessions(req, res, next);
+        }
+
         app.all('*', function(req, res, next) {
             res.header('Access-Control-Allow-Headers',
                        'Origin, X-Requested-With, Content-Type, Accept');
@@ -415,7 +452,7 @@
             next();
         });
         
-        app.get('/api/account/user/meta', function(req, res/*, next*/){
+        app.get('/api/account/user/meta', function(req, res){
             var data = {
                 version: state.config.appVersion,
                 started : started.toISOString(),
@@ -452,7 +489,7 @@
         });
         
         var authGetUser = authUtils.middlewarify({users: 'read'});
-        app.get('/api/account/user/:id', sessions, authGetUser, function(req, res/*, next*/) {
+        app.get('/api/account/user/:id', sessionsWrapper, authGetUser, function(req,res){
             userSvc.getUsers({ id: req.params.id }, req, users)
             .then(function(resp) {
                 if (resp.body && resp.body instanceof Array) {
@@ -468,7 +505,7 @@
             });
         });
         
-        app.get('/api/account/users', sessions, authGetUser, function(req, res/*, next*/) {
+        app.get('/api/account/users', sessionsWrapper, authGetUser, function(req, res) {
             if (!req.query || !req.query.org) {
                 log.info('[%1] Cannot GET /api/users without org specified',req.uuid);
                 return res.send(400, 'Must specify org param');
@@ -485,7 +522,7 @@
         });
         
         var authPostUser = authUtils.middlewarify({users: 'create'});
-        app.post('/api/account/user', sessions, authPostUser, function(req, res/*, next*/) {
+        app.post('/api/account/user', sessionsWrapper, authPostUser, function(req, res) {
             userSvc.createUser(req, users)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -498,7 +535,7 @@
         });
         
         var authPutUser = authUtils.middlewarify({users: 'edit'});
-        app.put('/api/account/user/:id', sessions, authPutUser, function(req, res/*, next*/) {
+        app.put('/api/account/user/:id', sessionsWrapper, authPutUser, function(req, res) {
             userSvc.updateUser(req, users)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -511,7 +548,7 @@
         });
         
         var authDelUser = authUtils.middlewarify({users: 'delete'});
-        app.delete('/api/account/user/:id', sessions, authDelUser, function(req, res/*, next*/) {
+        app.delete('/api/account/user/:id', sessionsWrapper, authDelUser, function(req, res) {
             userSvc.deleteUser(req, users)
             .then(function(resp) {
                 res.send(resp.code, resp.body);

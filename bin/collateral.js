@@ -197,6 +197,29 @@
             store: state.sessionStore
         });
 
+        state.dbStatus.c6Db.on('reconnected', function() {
+            users = state.dbs.c6Db.collection('users');
+            authUtils._cache._coll = users;
+            log.info('Recreated collections from restarted c6Db');
+        });
+        
+        state.dbStatus.sessions.on('reconnected', function() {
+            sessions = express.session({
+                key: state.config.sessions.key,
+                cookie: {
+                    httpOnly: false,
+                    maxAge: state.config.sessions.minAge
+                },
+                store: state.sessionStore
+            });
+            log.info('Recreated session store from restarted db');
+        });
+
+        // Because we may recreate the session middleware, we need to wrap it in the route handlers
+        function sessionsWrapper(req, res, next) {
+            sessions(req, res, next);
+        }
+
         app.all('*', function(req, res, next) {
             res.header('Access-Control-Allow-Headers',
                        'Origin, X-Requested-With, Content-Type, Accept');
@@ -222,7 +245,7 @@
         });
         
         var authUpload = authUtils.middlewarify({});
-        app.post('/api/collateral/files', sessions, authUpload, function(req, res) {
+        app.post('/api/collateral/files', sessionsWrapper, authUpload, function(req,res){
             collateral.uploadFiles(req, s3, state.config)
             .then(function(resp) {
                 res.send(resp.code, resp.body);

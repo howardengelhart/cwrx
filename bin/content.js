@@ -7,6 +7,7 @@
         q               = require('q'),
         logger          = require('../lib/logger'),
         uuid            = require('../lib/uuid'),
+        mongoUtils      = require('../lib/mongoUtils'),
         QueryCache      = require('../lib/queryCache'),
         FieldValidator  = require('../lib/fieldValidator'),
         authUtils       = require('../lib/authUtils')(),
@@ -92,6 +93,9 @@
                 } else {
                     newExp.data = experience.data[0].data;
                 }
+                if (newExp.data.title) {
+                    newExp.title = newExp.data.title;
+                }
             } else if (key === 'status') {
                 if (!(experience.status instanceof Array)) {
                     log.warn('Experience %1 does not have status array, not getting most recent',
@@ -104,7 +108,7 @@
                 newExp[key] = experience[key];
             }
         }
-        return newExp;
+        return mongoUtils.unescapeKeys(newExp);
     };
     
     content.getExperiences = function(query, req, cache) {
@@ -149,11 +153,7 @@
             });
             
             log.info('[%1] Showing the user %2 experiences', req.uuid, experiences.length);
-            if (experiences.length === 0) {
-                return q({code: 404, body: 'No experiences found'});
-            } else {
-                return q({code: 200, body: experiences});
-            }
+            return q({code: 200, body: experiences});
         }).catch(function(error) {
             log.error('[%1] Error getting experiences: %2', req.uuid, error);
             return q.reject(error);
@@ -195,7 +195,7 @@
             }
         }
 
-        return q.npost(experiences, 'insert', [obj, {w: 1, journal: true}])
+        return q.npost(experiences, 'insert', [mongoUtils.escapeKeys(obj), {w: 1, journal: true}])
         .then(function() {
             log.info('[%1] User %2 successfully created experience %3', req.uuid, user.id, obj.id);
             return q({code: 201, body: content.formatOutput(obj)});
@@ -257,6 +257,7 @@
         }
         
         updates.lastUpdated = now;
+        return mongoUtils.escapeKeys(updates);
     };
 
     content.updateExperience = function(req, experiences) {
@@ -269,11 +270,19 @@
             return q({code: 400, body: 'You must provide an object in the body'});
         }
         
+        // only update exp.title through exp.data.title, but trying to update exp.title shouldn't
+        // return a 400
+        delete updates.title;
+        
         log.info('[%1] User %2 is attempting to update experience %3',req.uuid,user.id,id);
         q.npost(experiences, 'findOne', [{id: id}])
         .then(function(orig) {
             if (!orig) {
                 log.info('[%1] Experience %2 does not exist; not creating it', req.uuid, id);
+                return deferred.resolve({code: 404, body: 'That experience does not exist'});
+            }
+            if (orig.status && orig.status[0] && orig.status[0].status === Status.Deleted) {
+                log.info('[%1] User %2 trying to update deleted experience %3',req.uuid,user.id,id);
                 return deferred.resolve({code: 404, body: 'That experience does not exist'});
             }
             if (!content.updateValidator.validate(updates, orig, user)) {
@@ -290,7 +299,7 @@
                 });
             }
 
-            content.formatUpdates(req, orig, updates, user);
+            updates = content.formatUpdates(req, orig, updates, user);
 
             return q.npost(experiences, 'findAndModify',
                            [{id: id}, {id: 1}, {$set: updates}, {w: 1, journal: true, new: true}])
@@ -360,8 +369,11 @@
             
         var express     = require('express'),
             app         = express(),
+            experiences = state.dbs.c6Db.collection('experiences'),
             users       = state.dbs.c6Db.collection('users'),
-            authTTLs    = state.config.cacheTTLs.auth;
+            authTTLs    = state.config.cacheTTLs.auth,
+            expTTLs     = state.config.cacheTTLs.experiences,
+            expCache    = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences);
         authUtils = require('../lib/authUtils')(authTTLs.freshTTL, authTTLs.maxTTL, users);
 
         app.use(express.bodyParser());
@@ -375,6 +387,31 @@
             },
             store: state.sessionStore
         });
+        
+        state.dbStatus.c6Db.on('reconnected', function() {
+            experiences = state.dbs.c6Db.collection('experiences');
+            users = state.dbs.c6Db.collection('users');
+            expCache._coll = experiences;
+            authUtils._cache._coll = users;
+            log.info('Recreated collections from restarted c6Db');
+        });
+        
+        state.dbStatus.sessions.on('reconnected', function() {
+            sessions = express.session({
+                key: state.config.sessions.key,
+                cookie: {
+                    httpOnly: false,
+                    maxAge: state.config.sessions.minAge
+                },
+                store: state.sessionStore
+            });
+            log.info('Recreated session store from restarted db');
+        });
+        
+        // Because we may recreate the session middleware, we need to wrap it in the route handlers
+        function sessionsWrapper(req, res, next) {
+            sessions(req, res, next);
+        }
 
         app.all('*', function(req, res, next) {
             res.header('Access-Control-Allow-Origin', '*');
@@ -401,36 +438,17 @@
             next();
         });
         
-        var experiences = state.dbs.c6Db.collection('experiences');
-        var expTTLs = state.config.cacheTTLs.experiences;
-        var expCache = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences);
-
         // public get experience by id
         app.get('/api/public/content/experience/:id', function(req, res) {
             content.getExperiences({id: req.params.id}, req, expCache)
             .then(function(resp) {
                 res.header('cache-control', 'max-age=' + state.config.cacheTTLs.cloudFront*60);
                 if (resp.body && resp.body instanceof Array) {
-                    res.send(resp.code, resp.body[0]);
-                } else {
-                    res.send(resp.code, resp.body);
-                }
-            }).catch(function(error) {
-                res.header('cache-control', 'max-age=60');
-                res.send(500, {
-                    error: 'Error retrieving content',
-                    detail: error
-                });
-            });
-        });
-        
-        // public get experience by id
-        app.get('/api/content/public/experience/:id', function(req, res) {
-            content.getExperiences({id: req.params.id}, req, expCache)
-            .then(function(resp) {
-                res.header('cache-control', 'max-age=' + state.config.cacheTTLs.cloudFront*60);
-                if (resp.body && resp.body instanceof Array) {
-                    res.send(resp.code, resp.body[0]);
+                    if (resp.body.length === 0) {
+                        res.send(404, 'Experience not found');
+                    } else {
+                        res.send(resp.code, resp.body[0]);
+                    }
                 } else {
                     res.send(resp.code, resp.body);
                 }
@@ -446,11 +464,15 @@
         var authGetExp = authUtils.middlewarify({experiences: 'read'});
         
         // private get experience by id
-        app.get('/api/content/experience/:id', sessions, authGetExp, function(req, res) {
+        app.get('/api/content/experience/:id', sessionsWrapper, authGetExp, function(req, res) {
             content.getExperiences({id: req.params.id}, req, expCache)
             .then(function(resp) {
                 if (resp.body && resp.body instanceof Array) {
-                    res.send(resp.code, resp.body[0]);
+                    if (resp.body.length === 0) {
+                        res.send(404, 'Experience not found');
+                    } else {
+                        res.send(resp.code, resp.body[0]);
+                    }
                 } else {
                     res.send(resp.code, resp.body);
                 }
@@ -463,7 +485,7 @@
         });
 
         // private get experience by query
-        app.get('/api/content/experiences', sessions, authGetExp, function(req, res) {
+        app.get('/api/content/experiences', sessionsWrapper, authGetExp, function(req, res) {
             var queryFields = ['ids', 'user', 'org', 'type'];
             function isKeyInFields(key) {
                 return queryFields.indexOf(key) >= 0;
@@ -497,7 +519,7 @@
         });
         
         var authPostExp = authUtils.middlewarify({experiences: 'create'});
-        app.post('/api/content/experience', sessions, authPostExp, function(req, res) {
+        app.post('/api/content/experience', sessionsWrapper, authPostExp, function(req, res) {
             content.createExperience(req, experiences)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -510,7 +532,7 @@
         });
         
         var authPutExp = authUtils.middlewarify({experiences: 'edit'});
-        app.put('/api/content/experience/:id', sessions, authPutExp, function(req, res) {
+        app.put('/api/content/experience/:id', sessionsWrapper, authPutExp, function(req, res) {
             content.updateExperience(req, experiences)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -523,7 +545,7 @@
         });
         
         var authDelExp = authUtils.middlewarify({experiences: 'delete'});
-        app.delete('/api/content/experience/:id', sessions, authDelExp, function(req, res) {
+        app.delete('/api/content/experience/:id', sessionsWrapper, authDelExp, function(req, res) {
             content.deleteExperience(req, experiences)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -534,7 +556,7 @@
                 });
             });
         });
-        
+
         app.get('/api/content/meta', function(req, res){
             var data = {
                 version: state.config.appVersion,

@@ -44,13 +44,13 @@ module.exports = function(grunt) {
             var dirPath = 'logs/test' + testNum;
             return q.npost(fs, 'mkdirs', [dirPath])
             .then(function() {
-                return testUtils.qRequest('get', [getOpts])
+                return testUtils.qRequest('get', getOpts)
             }).then(function(resp) {
                 var fpath = path.join(dirPath, logfile);
                 grunt.log.writeln("Remote log " + logfile + " stored in " + fpath);
                 return q.npost(fs, 'outputFile', [fpath, resp.body]);
             }).then(function() {
-                return testUtils.qRequest('post', [clearOpts]);
+                return testUtils.qRequest('post', clearOpts);
             }).then(function(resp) {
                 console.log("Cleared remote log " + logfile);
                 return q();

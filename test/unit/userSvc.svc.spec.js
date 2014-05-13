@@ -27,6 +27,8 @@ describe('userSvc (UT)', function() {
         };
         spyOn(logger, 'createLog').andReturn(mockLog);
         spyOn(logger, 'getLog').andReturn(mockLog);
+        spyOn(mongoUtils, 'escapeKeys').andCallThrough();
+        spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
         req = {uuid: '1234'};
     });
     
@@ -350,7 +352,7 @@ describe('userSvc (UT)', function() {
                 cb(null, 'fakeHash');
             });
             spyOn(bcrypt, 'genSaltSync').andReturn('sodiumChloride');
-            spyOn(uuid, 'createUuid').andReturn('1234567890abcdefg')
+            spyOn(uuid, 'createUuid').andReturn('1234567890abcdefg');
         });
 
         it('should set some default fields and hash the user\'s password', function(done) {
@@ -372,6 +374,7 @@ describe('userSvc (UT)', function() {
                 expect(bcrypt.hash.calls[0].args[0]).toBe('pass');
                 expect(bcrypt.hash.calls[0].args[1]).toBe('sodiumChloride');
                 expect(newUser.password).toBe('fakeHash');
+                expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -400,6 +403,7 @@ describe('userSvc (UT)', function() {
                     orgs: { read: Scope.Own }
                 });
                 expect(newUser.password).toBe('fakeHash');
+                expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -649,6 +653,7 @@ describe('userSvc (UT)', function() {
                 expect(updates.$set.lastUpdated instanceof Date).toBeTruthy('lastUpdated is Date');
                 expect(userColl.findAndModify.calls[0].args[3]).toEqual({w:1,journal:true,new:true});
                 expect(mongoUtils.safeUser).toHaveBeenCalledWith({ id: 'u-4567', updated: true });
+                expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -950,6 +955,8 @@ describe('userSvc (UT)', function() {
         beforeEach(function() {
             req = { uuid: '1234', body: { newEmail: 'otter' }, user: { id: 'u-1' } };
             userColl = {
+                findOne: jasmine.createSpy('users.findOne').andCallFake(
+                    function(query, cb) { cb(); }),
                 update: jasmine.createSpy('users.update').andCallFake(
                     function(query, updates, opts, cb) { cb(); })
             };
@@ -960,6 +967,21 @@ describe('userSvc (UT)', function() {
             userSvc.changeEmail(req, userColl).then(function(resp) {
                 expect(resp.code).toBe(400);
                 expect(resp.body).toBe('Must provide a new email');
+                expect(userColl.findOne).not.toHaveBeenCalled();
+                expect(userColl.update).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should fail if a user with newEmail already exists', function(done) {
+            userColl.findOne.andCallFake(function(query, cb) { cb(null, 'A user'); });
+            userSvc.changeEmail(req, userColl).then(function(resp) {
+                expect(resp.code).toBe(409);
+                expect(resp.body).toBe('A user with that email already exists');
+                expect(userColl.findOne).toHaveBeenCalled();
                 expect(userColl.update).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
@@ -972,6 +994,8 @@ describe('userSvc (UT)', function() {
             userSvc.changeEmail(req, userColl).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toBe('Successfully changed email');
+                expect(userColl.findOne).toHaveBeenCalled();
+                expect(userColl.findOne.calls[0].args[0]).toEqual({email: 'otter'});
                 expect(userColl.update).toHaveBeenCalled();
                 expect(userColl.update.calls[0].args[0]).toEqual({id: 'u-1'});
                 expect(userColl.update.calls[0].args[1].$set.email).toBe('otter');
@@ -980,6 +1004,20 @@ describe('userSvc (UT)', function() {
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should fail if the mongo findOne call fails', function(done) {
+            userColl.findOne.andCallFake(function(query, cb) { cb('I GOT A PROBLEM'); });
+            userSvc.changeEmail(req, userColl).then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(userColl.findOne).toHaveBeenCalled();
+                expect(userColl.update).not.toHaveBeenCalled();
                 done();
             });
         });
@@ -992,6 +1030,7 @@ describe('userSvc (UT)', function() {
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(mockLog.error).toHaveBeenCalled();
+                expect(userColl.findOne).toHaveBeenCalled();
                 expect(userColl.update).toHaveBeenCalled();
                 done();
             });

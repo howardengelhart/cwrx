@@ -91,12 +91,12 @@ describe('content (E2E):', function() {
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('No experiences found');
+                expect(resp.body).toBe('Experience not found');
                 var options = {url: config.contentUrl + '/public/content/experience/e2e-pubget3'};
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('No experiences found');
+                expect(resp.body).toBe('Experience not found');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -110,7 +110,7 @@ describe('content (E2E):', function() {
             };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toEqual('No experiences found');
+                expect(resp.body).toEqual('Experience not found');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -172,12 +172,12 @@ describe('content (E2E):', function() {
             };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('No experiences found');
+                expect(resp.body).toBe('Experience not found');
                 options.url = config.contentUrl + '/content/experience/e2e-getid3';
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('No experiences found');
+                expect(resp.body).toBe('Experience not found');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -206,7 +206,7 @@ describe('content (E2E):', function() {
             };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toEqual('No experiences found');
+                expect(resp.body).toEqual('Experience not found');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -373,14 +373,14 @@ describe('content (E2E):', function() {
             });
         });
 
-        it('should return a 404 if nothing is found', function(done) {
+        it('should return a 200 and empty array if nothing is found', function(done) {
             var options = {
                 url: config.contentUrl + '/content/experiences?user=hamboneHarry',
                 jar: cookieJar
             };
             testUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toEqual('No experiences found');
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([]);
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -498,7 +498,7 @@ describe('content (E2E):', function() {
             mockExps = [
                 {
                     id: "e2e-put1",
-                    title: "origTitle",
+                    tag: "origTag",
                     status: "active",
                     access: "public",
                     created: now,
@@ -516,11 +516,10 @@ describe('content (E2E):', function() {
         });
         
         it('should successfully update an experience', function(done) {
-            mockExps[0].title = "newTitle";
             var options = {
                 url: config.contentUrl + '/content/experience/e2e-put1',
                 jar: cookieJar,
-                json: { title: 'newTitle' }
+                json: { tag: 'newTag' }
             }, updatedExp;
             testUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -529,7 +528,7 @@ describe('content (E2E):', function() {
                 expect(updatedExp).toBeDefined();
                 expect(updatedExp._id).not.toBeDefined();
                 expect(updatedExp.id).toBe('e2e-put1');
-                expect(updatedExp.title).toBe('newTitle');
+                expect(updatedExp.tag).toBe('newTag');
                 expect(updatedExp.user).toBe('e2e-user');
                 expect(new Date(updatedExp.created)).toEqual(now);
                 expect(new Date(updatedExp.lastUpdated)).toBeGreaterThan(now);
@@ -544,9 +543,27 @@ describe('content (E2E):', function() {
             var options = {
                 url: config.contentUrl + '/content/experience/e2e-putfake',
                 jar: cookieJar,
-                json: { title: 'fakeTitle' }
+                json: { tag: 'fakeTag' }
             }, updatedExp;
             testUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toBe("That experience does not exist");
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should not edit an experience that has been deleted', function(done) {
+            var url = config.contentUrl + '/content/experience/e2e-put1',
+                putOpts = { url: url, jar: cookieJar, json: { tag: 'fakeTag' } },
+                deleteOpts = { url: url, jar: cookieJar };
+            testUtils.qRequest('delete', deleteOpts).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
+                return testUtils.qRequest('put', putOpts)
+            }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe("That experience does not exist");
                 done();
@@ -560,7 +577,7 @@ describe('content (E2E):', function() {
             var options = {
                 url: config.contentUrl + '/content/experience/e2e-put2',
                 jar: cookieJar,
-                json: { title: 'newTitle' }
+                json: { tag: 'newTag' }
             }, updatedExp;
             testUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
@@ -575,7 +592,7 @@ describe('content (E2E):', function() {
         it('should throw a 401 error if the user is not authenticated', function(done) {
             var options = {
                 url: config.contentUrl + '/content/experience/e2e-put1',
-                json: { title: 'newTitle' }
+                json: { tag: 'newTag' }
             };
             testUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
@@ -616,7 +633,7 @@ describe('content (E2E):', function() {
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('No experiences found');
+                expect(resp.body).toBe('Experience not found');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
