@@ -1,122 +1,23 @@
 
 var request = require('request'),
-    util    = require('util'),
     path    = require('path'),
     q       = require('q'),
     fs      = require('fs-extra'),
-    cmdl    = require('commander'),
-    uuid    = require('./lib/uuid'),
-    MVC     = require('./lib/mvc');
+    uuid    = require('../lib/uuid'),
+    MVC     = require('../lib/mvc');
 
-log = function(){
+function log(){
     var args = Array.prototype.slice.call(arguments, 0);
     args.push('\n');
     process.stdout.write(args.join(' '));
-};
-
-parseCmdLine = function(cfg){
-    var cmdl = require('commander'),
-        provData, authFile = path.join(process.env.HOME,'.c6prov.json');
-
-    if (!cfg){
-        cfg = {};
-    }
-
-    if (fs.existsSync(authFile)){
-        try {
-            provData = fs.readJsonSync(authFile);
-            cfg.email    = provData.email;
-            cfg.password = provData.password;
-            cfg.server   = provData.server;
-        }catch(e){
-            log('Unable to read ' +  authFile);
-        }
-    }
-    
-    function showUsageUser(sub){
-        log('');
-        log('Usage:');
-        log(' provision user');
-        log('');
-        if (sub === 'create'){
-
-        } else {
-            log(' Users associated api tasks.  Current list includes:');
-            log('   * create');
-            log('');
-            log(' user help <task> will provide additional detail.');
-            log('');
-        }
-
-        log('Example:');
-        log('');
-        log(' #Create a user');
-        log(' $ node bin/provision.js user create');
-        log('');
-    }
-    
-    cmdl
-        .option('-e, --email [email]','Logon.')
-        .option('-s, --server [URL]','API Host.', cfg.server || 'https://staging.cinema6.com')
-    cmdl
-        .command('help')
-        .description('Help [command]')
-        .action(function(cmd){
-            if (cmd === 'user'){
-                showUsageUser();
-            } else {
-                log('Command <' + cmd + '> is not recognized.');
-            }
-            process.exit(0);
-        });
-    cmdl
-        .command('user')
-        .description('Manage users')
-        .action(function(subcommand,data){
-            if (arguments.length === 1) {
-                showUsageUser();
-                process.exit(1);
-            }
-
-            if (subcommand === 'help'){
-                showUsageUser(data);
-                process.exit(1);
-            }
-
-            if (data === 'help'){
-                showUsageUser(subcommand);
-                process.exit(1);
-            }
-
-            if (subcommand === 'create')  { 
-                cfg.controller = NewUserController;
-            }
-        });
-    cmdl
-        .parse(process.argv);
-
-    if (!cfg.controller){
-        log('Need a command!');
-        process.exit(1);
-    }
-
-    if (cmdl.email){
-        cfg.email = cmdl.email;
-    }
-
-    if (cmdl.server) {
-        cfg.server = cmdl.server;
-    }
-
-    return q(cfg);
 }
 
 ////////////////////////////////////////////////////////////
-//  
+//
 
 function c6Api(opts){
     var deferred = q.defer();
- 
+
     request(opts,function(error, response, body){
         if (error){
             deferred.reject(error);
@@ -133,10 +34,10 @@ function c6Api(opts){
 
         deferred.resolve(body);
     });
-    
+
 
     return deferred.promise;
-};
+}
 
 c6Api.login = function(params){
     var opts  = {
@@ -148,7 +49,7 @@ c6Api.login = function(params){
                 password: params.password
             }
         };
-    return this(opts); 
+    return this(opts);
 };
 
 c6Api.createUser = function(params){
@@ -165,7 +66,7 @@ c6Api.createUser = function(params){
     if (params.branding){
         opts.json.branding = params.branding;
     }
-    
+
     return this(opts);
 };
 
@@ -174,23 +75,23 @@ c6Api.createUser = function(params){
 // NewUserModel
 
 function NewUserModel () {
-    _email     = null;
-    _password  = null;
-    _password2 = null;
-    _orgId     = null;
-    _branding  = null;
+    var _email     = null,
+        _password  = null,
+        _password2 = null,
+        _orgId     = null,
+        _branding  = null;
 
     function validatePassword(p1,p2){
         if  ((p1 && p2) && (p1 !== p2)){
             throw new Error('Passwords much match!');
         }
-        
+
         if (p1.length < 8){
             throw new Error('Password must be at least 8 chars.');
         }
         return p1;
     }
-   
+
     function validateEmail(v){
         if (!v.match(/^.*@.*\.\w+$/)){
             throw new TypeError('Invalid email.');
@@ -201,37 +102,37 @@ function NewUserModel () {
     Object.defineProperty(this,'email',{
         enumerable : true,
         set : function(v){ _email = validateEmail(v); },
-        get : function() { return _email; } 
+        get : function() { return _email; }
     });
 
     Object.defineProperty(this,'password',{
         enumerable: true,
         set : function(v){ _password = validatePassword(v,_password2); },
-        get : function() { return _password; } 
+        get : function() { return _password; }
     });
-    
+
     Object.defineProperty(this,'password2',{
         set : function(v){ _password2 = validatePassword(v,_password); },
-        get : function() { return _password2; } 
+        get : function() { return _password2; }
     });
-    
+
     Object.defineProperty(this,'orgId',{
         enumerable: true,
         set : function(v){ _orgId = v; },
-        get : function() { return _orgId; } 
+        get : function() { return _orgId; }
     });
-    
+
     Object.defineProperty(this,'branding',{
         enumerable: true,
         set : function(v){ _branding = v; },
-        get : function() { return _branding; } 
+        get : function() { return _branding; }
     });
 }
 
 ////////////////////////////////////////////////////////////
 // NewUserController
 
-function NewUserController(api,cfg){
+function NewUserController(api){
     var self = this;
 
     self.initView(
@@ -279,7 +180,7 @@ function NewUserController(api,cfg){
 
 NewUserController.$view  = MVC.CmdlView;
 NewUserController.$model = NewUserModel;
-NewUserController.$deps  = ['c6Api','config'];
+NewUserController.$deps  = ['c6Api'];
 ////////////////////////////////////////////////////////////
 // Login
 
@@ -294,7 +195,7 @@ function LoginModel() {
 //
 function LoginController(api,cfg) {
     var self = this, prompts = [];
-    
+
     self.model.email    = cfg.email;
     self.model.password = cfg.password;
 
@@ -313,7 +214,7 @@ function LoginController(api,cfg) {
     }
 
     self.initView('Logon to ' + cfg.server,  prompts );
-    
+
     self.run = function(){
         return self.showView()
         .then(function(){
@@ -334,6 +235,106 @@ LoginController.$deps  = ['c6Api','config'];
 
 ////////////////////////////////////////////////////////////
 
+function parseCmdLine (cfg){
+    var cmdl = require('commander'),
+        provData, authFile = path.join(process.env.HOME,'.c6prov.json');
+
+    if (!cfg){
+        cfg = {};
+    }
+
+    if (fs.existsSync(authFile)){
+        try {
+            provData = fs.readJsonSync(authFile);
+            cfg.email    = provData.email;
+            cfg.password = provData.password;
+            cfg.server   = provData.server;
+        }catch(e){
+            log('Unable to read ' +  authFile);
+        }
+    }
+
+    function showUsageUser(sub){
+        log('');
+        log('Usage:');
+        log(' provision user');
+        log('');
+        if (sub === 'create'){
+
+        } else {
+            log(' Users associated api tasks.  Current list includes:');
+            log('   * create');
+            log('');
+            log(' user help <task> will provide additional detail.');
+            log('');
+        }
+
+        log('Example:');
+        log('');
+        log(' #Create a user');
+        log(' $ node bin/provision.js user create');
+        log('');
+    }
+
+    cmdl
+        .option('-e, --email [email]','Logon.')
+        .option('-s, --server [URL]','API Host.', cfg.server || 'https://staging.cinema6.com');
+    cmdl
+        .command('help')
+        .description('Help [command]')
+        .action(function(cmd){
+            if (cmd === 'user'){
+                showUsageUser();
+            } else {
+                log('Command <' + cmd + '> is not recognized.');
+            }
+            process.exit(0);
+        });
+    cmdl
+        .command('user')
+        .description('Manage users')
+        .action(function(subcommand,data){
+            if (arguments.length === 1) {
+                showUsageUser();
+                process.exit(1);
+            }
+
+            if (subcommand === 'help'){
+                showUsageUser(data);
+                process.exit(1);
+            }
+
+            if (data === 'help'){
+                showUsageUser(subcommand);
+                process.exit(1);
+            }
+
+            if (subcommand === 'create')  {
+                cfg.controller = NewUserController;
+            }
+        });
+    cmdl
+        .parse(process.argv);
+
+    if (!cfg.controller){
+        log('Need a command!');
+        process.exit(1);
+    }
+
+    if (cmdl.email){
+        cfg.email = cmdl.email;
+    }
+
+    if (cmdl.server) {
+        cfg.server = cmdl.server;
+    }
+
+    return q(cfg);
+}
+
+
+////////////////////////////////////////////////////////////
+//
 parseCmdLine()
 .then(function(cfg){
     MVC.registerDependency('config',cfg);
