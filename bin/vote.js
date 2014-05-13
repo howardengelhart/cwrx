@@ -9,6 +9,7 @@
         uuid            = require('../lib/uuid'),
         promise         = require('../lib/promise'),
         logger          = require('../lib/logger'),
+        mongoUtils      = require('../lib/mongoUtils'),
         FieldValidator  = require('../lib/fieldValidator'),
         authUtils       = require('../lib/authUtils')(),
         enums           = require('../lib/enums'),
@@ -208,6 +209,7 @@
             election = self._cache[electionId],
             log = logger.getLog(),
             voteCounts, promise;
+
         function filter(election) {
             if (election && (election.status === Status.Deleted ||
                 !(app.checkScope(user,election,'read') || election.status === Status.Active))) {
@@ -215,7 +217,7 @@
                           user && user.id || 'guest', electionId);
                 return q();
             } else {
-                return q(election);
+                return q(mongoUtils.unescapeKeys(election));
             }
         }
 
@@ -434,11 +436,11 @@
         if (user.org) {
             obj.org = user.org;
         }
-        return q.npost(elections, 'insert', [obj, {w: 1, journal: true}])
+        return q.npost(elections, 'insert', [mongoUtils.escapeKeys(obj), {w: 1, journal: true}])
         .then(function() {
             delete obj._id;
             log.info('[%1] User %2 successfully created election %3', req.uuid, user.id, obj.id);
-            return q({code: 201, body: obj});
+            return q({code: 201, body: mongoUtils.unescapeKeys(obj)});
         }).catch(function(error) {
             log.error('[%1] Error creating election %2 for user %3: %4',
                       req.uuid, obj.id, user.id, error);
@@ -477,6 +479,7 @@
                 });
             }
             updates.lastUpdated = new Date();
+            updates = mongoUtils.escapeKeys(updates);
             var opts = {w: 1, journal: true, new: true};
             return q.npost(elections, 'findAndModify', [{id: id}, {id: 1}, {$set: updates}, opts])
             .then(function(results) {
@@ -484,7 +487,7 @@
                 delete updated._id;
                 log.info('[%1] User %2 successfully updated election %3',
                          req.uuid, user.id, updated.id);
-                deferred.resolve({code: 200, body: updated});
+                deferred.resolve({code: 200, body: mongoUtils.unescapeKeys(updated)});
             });
         }).catch(function(error) {
             log.error('[%1] Error updating election %2 for user %3: %4',
@@ -534,8 +537,14 @@
     };
 
     app.main = function(state){
-        var log         = logger.getLog(),
-            elections   = state.dbs.voteDb.collection('elections'),
+        var log = logger.getLog();
+        if (state.clusterMaster){
+            log.info('Cluster master, not a worker');
+            return state;
+        }
+        log.info('Running as cluster worker, proceed with setting up web server.');
+        
+        var elections   = state.dbs.voteDb.collection('elections'),
             users       = state.dbs.c6Db.collection('users'),
             elDb        = new ElectionDb(elections, state.config.idleSyncTimeout),
             started     = new Date(),
@@ -543,10 +552,6 @@
             webServer;
         authUtils = require('../lib/authUtils')(authTTLs.freshTTL, authTTLs.maxTTL, users);
         
-        if (state.clusterMaster){
-            log.info('Cluster master, not a worker');
-            return state;
-        }
 
         state.onSIGTERM = function(){
             log.info('Received sigterm, sync and exit.');
@@ -555,7 +560,6 @@
             });
         };
 
-        log.info('Running as cluster worker, proceed with setting up web server.');
         webServer = express();
         webServer.use(express.bodyParser());
         webServer.use(express.cookieParser(state.secrets.cookieParser || ''));
@@ -568,6 +572,35 @@
             },
             store: state.sessionStore
         });
+
+        state.dbStatus.c6Db.on('reconnected', function() {
+            users = state.dbs.c6Db.collection('users');
+            authUtils._cache._coll = users;
+            log.info('Recreated collections from restarted c6Db');
+        });
+
+        state.dbStatus.voteDb.on('reconnected', function() {
+            elections = state.dbs.voteDb.collection('elections');
+            elDb._coll = elections;
+            log.info('Recreated collections from restarted voteDb');
+        });
+        
+        state.dbStatus.sessions.on('reconnected', function() {
+            sessions = express.session({
+                key: state.config.sessions.key,
+                cookie: {
+                    httpOnly: false,
+                    maxAge: state.config.sessions.minAge
+                },
+                store: state.sessionStore
+            });
+            log.info('Recreated session store from restarted db');
+        });
+
+        // Because we may recreate the session middleware, we need to wrap it in the route handlers
+        function sessionsWrapper(req, res, next) {
+            sessions(req, res, next);
+        }
 
         webServer.all('*', function(req, res, next) {
             res.header('Access-Control-Allow-Origin', '*');
@@ -644,7 +677,7 @@
         });
 
         var authGetElec = authUtils.middlewarify({elections: 'read'});
-        webServer.get('/api/election/:electionId', sessions, authGetElec, function(req, res){
+        webServer.get('/api/election/:electionId', sessionsWrapper, authGetElec, function(req,res){
             if (!req.params || !req.params.electionId ) {
                 res.send(400, 'You must provide the electionId in the request url.\n');
                 return;
@@ -672,7 +705,7 @@
         });
 
         var authPostElec = authUtils.middlewarify({elections: 'create'});
-        webServer.post('/api/election', sessions, authPostElec, function(req, res) {
+        webServer.post('/api/election', sessionsWrapper, authPostElec, function(req, res) {
             app.createElection(req, elections)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -685,7 +718,7 @@
         });
         
         var authPutElec = authUtils.middlewarify({elections: 'edit'});
-        webServer.put('/api/election/:id', sessions, authPutElec, function(req, res) {
+        webServer.put('/api/election/:id', sessionsWrapper, authPutElec, function(req, res) {
             app.updateElection(req, elections)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -698,7 +731,7 @@
         });
         
         var authDelElec = authUtils.middlewarify({elections: 'delete'});
-        webServer.delete('/api/election/:id', sessions, authDelElec, function(req, res) {
+        webServer.delete('/api/election/:id', sessionsWrapper, authDelElec, function(req, res) {
             app.deleteElection(req, elections)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
