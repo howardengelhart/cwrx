@@ -234,42 +234,44 @@ function NewUserModel () {
 function NewUserController(api,cfg){
     var self = this;
 
-    self.initView([
-        {
-            label : 'email',
-            repeat: 1,
-            binding: self.model
-        },
-        {
-            label : 'password',
-            repeat: 1,
-            binding: self.model
-        },
-        {
-            label : 'confirm password',
-            alias : 'password2',
-            repeat: 1,
-            binding: self.model
-        },
-        {
-            label : 'organization',
-            alias : 'orgId',
-            defaultVal : 'o-' + uuid.createUuid().substr(0,14),
-            binding: self.model
-        },
-        {
-            label : 'branding',
-            binding: self.model
-        }
-    ]);
+    self.initView(
+        'Create User',
+        [
+            {
+                label : 'email',
+                repeat: 1
+            },
+            {
+                label : 'password',
+                repeat: 1
+            },
+            {
+                label : 'confirm password',
+                alias : 'password2',
+                repeat: 1
+            },
+            {
+                label : 'organization',
+                alias : 'orgId',
+                defaultVal : 'o-' + uuid.createUuid().substr(0,14)
+            },
+            {
+                label : 'branding'
+            }
+        ],
+        self.model
+    );
 
     self.run = function(){
         return self.showView()
             .then(function(){
                 return api.createUser(self.model)
                     .then(function(response){
-                        log('Created new user: ' + self.model.email);
-                        log(response);
+                        self.view.alert('');
+                        self.view.alert('Created new user: ' + self.model.email);
+                        self.view.alert('');
+                        self.view.alert(JSON.stringify(response,null,3));
+                        self.view.alert('');
                     });
             });
     };
@@ -310,14 +312,16 @@ function LoginController(api,cfg) {
         });
     }
 
-    self.initView( prompts );
+    self.initView('Logon to ' + cfg.server,  prompts );
     
     self.run = function(){
         return self.showView()
         .then(function(){
             return api.login(self.model)
                 .then(function(){
-                    log('Logged in to ' + api.server + ' as ' + self.model.email);
+                    self.view.alert('');
+                    self.view.alert('Logged in to ' + api.server + ' as ' + self.model.email);
+                    self.view.alert('');
                     return true;
                 });
         });
@@ -335,10 +339,10 @@ parseCmdLine()
     MVC.registerDependency('config',cfg);
     MVC.registerDependency('c6Api',c6Api);
     c6Api.server = cfg.server;
-    return MVC.createController(LoginController).run().then(function(){ return cfg; });
+    return MVC.launchController(LoginController).then(function(){ return cfg; });
 })
 .then(function(cfg){
-    return MVC.createController(cfg.controller).run();
+    return MVC.launchController(cfg.controller);
 })
 .then(function(){
     process.exit(0);
