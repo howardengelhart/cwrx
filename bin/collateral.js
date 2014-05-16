@@ -9,6 +9,7 @@
         fs          = require('fs-extra'),
         phantom     = require('phantom'),
         handlebars  = require('handlebars'),
+        util        = require('util'),
         logger      = require('../lib/logger'),
         uuid        = require('../lib/uuid'),
         authUtils   = require('../lib/authUtils')(),
@@ -62,7 +63,9 @@
     // TODO comment, make sure to mention how versionate -> no replace, !versionate -> replace
     collateral.upload = function(req, org, fileOpts, versionate, s3, config) {
         var log = logger.getLog(),
-            outParams, headParams, promise;
+            outParams = {},
+            headParams = {},
+            promise;
             
         if (versionate) {
             promise = uuid.hashFile(fileOpts.path).then(function(hash) {
@@ -88,17 +91,18 @@
                 return q.npost(s3, 'headObject', [headParams]).then(function(/*data*/) {
                     log.info('[%1] Identical file %2 already exists on s3, not uploading',
                              req.uuid, fname);
-                    return q();
+                    return q(outParams.Key);
                 })
                 .catch(function(/*error*/) {
-                    return s3util.putObject(s3, fileOpts.path, outParams);
+                    return s3util.putObject(s3, fileOpts.path, outParams)
+                    .thenResolve(outParams.Key);
                 });
             } else {
                 log.info('[%1] Not versionating, overwriting potential existing file', req.uuid);
-                return s3util.putObject(s3, fileOpts.path, outParams);
+                return s3util.putObject(s3, fileOpts.path, outParams)
+                .thenResolve(outParams.Key);
             }
-        })
-        .thenResolve(outParams.Key);
+        });
     };
     
     collateral.uploadFiles = function(req, s3, config) {
@@ -195,7 +199,7 @@
             log.info('[%1] No thumbs to generate a splash from', req.uuid);
             return q({code: 400, body: 'Must provide thumbs to create splash from'});
         }
-        if (!req.body.size || !req.body.size.height || !req.body.size.weight) {
+        if (!req.body.size || !req.body.size.height || !req.body.size.width) {
             log.info('[%1] No size provided in request', req.uuid);
             return q({code: 400, body: 'Must provide size object with width + height'});
         }
@@ -203,49 +207,73 @@
             log.info('[%1] No experience id provided', req.uuid);
             return q({code: 400, body: 'Need an experience id to name image with'});
         }
+
+//TODO: fix templatePath based on actual template names/paths, may need templ name from client
+        var numThumbs       = req.body.thumbs.length,
+            templateNum     = (numThumbs % 2) ? Math.max(numThumbs - 1, 1) : numThumbs,
+            templatePath    = path.join('splashTemplates', 'template' + templateNum + '.html'),
+            compiledPath    = path.join('/tmp', req.body.id + '-compiled.html'),
+            splashName      = req.body.id + '-splash.jpg',
+            // splashName      = req.body.id + '-splash.png',
+            splashPath      = path.join('/tmp', splashName),
+            deferred        = q.defer(),
+            ph, page;
         
-        var numThumbs = req.body.thumbs.length,
-            templateNum = (numThumbs % 2) ? Math.max(numThumbs - 1, 1) : numThumbs,
-            templatePath = 'foo' + templateNum, //TODO: fix based on actual template names/paths
-            compiledPath = path.join('/tmp', req.body.id + '-compiled.html'),
-            splashName = req.body.id + '-splash.jpg',
-            splashPath = path.join('/tmp', splashName);
+        // Phantom callbacks only callback with one arg, so we need to transform to Nodejs style
+        function phantWrap(object, method, args, cb) {
+            args.push(function(result) { cb(null, result); });
+            object[method].apply(object, args);
+        }
             
         log.info('[%1] User %2 generating splash for %3 from %4 thumbs',
                  req.uuid, req.user.id, req.body.id, numThumbs);
         
         // Start by reading and rendering our template with handlebars
-        return q.npost(fs, 'readFile', [templatePath, {encoding: 'utf8'}])
+        q.npost(fs, 'readFile', [templatePath, {encoding: 'utf8'}])
         .then(function(template) {
-            var data = {}, //TODO: format data based on links
+            var data = {thumbs: req.body.thumbs}, //TODO: format data based on links
                 compiled = handlebars.compile(template)(data);
 
             return q.npost(fs, 'writeFile', [compiledPath, compiled]);
         })
         .then(function() { // Start setting up phantomjs
-            return q.npost(phantom, 'create');
-        })
-        .then(function(ph) {
-            return q.npost(ph, 'createPage');
-        })
-        .then(function(page) { // Set viewportSize to create image of desired size
-            return q.npost(page, 'set', ['viewportSize', req.body.size])
-            .thenResolve(page);
-        })
-        .then(function(page) { // Open the compiled html
-            return q.npost(page, 'open', [compiledPath])
-            .then(function(status) {
-                if (status !== 'success') {
-                    return q.reject('Failed to open ' + compiledPath + ': status was ' + status);
-                } else {
-                    return q(page);
+            log.trace('[%1] Wrote compiled html, starting phantom', req.uuid);
+            function onExit(code, signal) {
+                if (code === 0) {
+                    return;
                 }
-            });
+                log.error('[%1] Phantom exited with code %2, signal %3', req.uuid, code, signal);
+                deferred.reject('PhantomJS exited prematurely');
+            }
+            function onStderr(data) {
+                if (data.match(/(No such method.*socketSentData)|(CoreText performance note)/)) {
+                    return;
+                }
+                log.error('[%1] Phantom had an error: %2', req.uuid, data);
+            }
+            return q.nfapply(phantWrap, [phantom, 'create', [{onExit:onExit, onStderr:onStderr}]]);
         })
-        .then(function(page) { // Render page as image
-            return q.npost(page, 'render', [splashPath]);
+        .then(function(phantObj) {
+            ph = phantObj;
+            return q.nfapply(phantWrap, [ph, 'createPage', []]);
+        })
+        .then(function(webpage) { // Set viewportSize to create image of desired size
+            page = webpage;
+            log.trace('[%1] Created page, setting viewport size', req.uuid);
+            return q.nfapply(phantWrap, [page, 'set', ['viewportSize', req.body.size]]);
+        })
+        .then(function() { // Open the compiled html
+            return q.nfapply(phantWrap, [page, 'open', [compiledPath]]);
+        })
+        .then(function(status) { // Render page as image
+            if (status !== 'success') {
+                return q.reject('Failed to open ' + compiledPath + ': status was ' + status);
+            }
+            log.trace('[%1] Opened page, rendering image', req.uuid);
+            return q.nfapply(phantWrap, [page, 'render', [splashPath]]);
         })
         .then(function() { // Upload the rendered splash image to S3
+            log.trace('[%1] Rendered image', req.uuid);
             var fileOpts = {
                 name: splashName,
                 path: splashPath,
@@ -255,13 +283,15 @@
         })
         .then(function(key) {
             log.info('[%1] File %2 has been uploaded successfully', req.uuid, splashName);
-            return q({ code: 201, body: key });
+            deferred.resolve({ code: 201, body: key });
         })
         .catch(function(error) {
-            log.error('[%1] Error generating splash: %2', error);
-            return q.reject(error);
+            log.error('[%1] Error generating splash image: %2', req.uuid, util.inspect(error));
+            deferred.reject(error);
         })
         .finally(function() { // Cleanup by removing compiled template + splash image
+            page.close();
+            ph.exit();
             [compiledPath, splashPath].map(function(fpath) {
                 q.npost(fs, 'remove', [fpath])
                 .then(function() {
@@ -272,6 +302,8 @@
                 });
             });
         });
+        
+        return deferred.promise;
     };
 
     collateral.main = function(state) {
@@ -354,8 +386,21 @@
         });
         
         var authUpload = authUtils.middlewarify({});
+
         app.post('/api/collateral/files', sessionsWrapper, authUpload, function(req,res){
             collateral.uploadFiles(req, s3, state.config)
+            .then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error uploading files',
+                    detail: error
+                });
+            });
+        });
+
+        app.post('/api/collateral/splash/generate', sessionsWrapper, authUpload, function(req,res){
+            collateral.generateSplash(req, s3, state.config)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
