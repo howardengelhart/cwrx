@@ -211,7 +211,8 @@
 //TODO: fix templatePath based on actual template names/paths, may need templ name from client
         var numThumbs       = req.body.thumbs.length,
             templateNum     = (numThumbs % 2) ? Math.max(numThumbs - 1, 1) : numThumbs,
-            templatePath    = path.join('splashTemplates', 'template' + templateNum + '.html'),
+            templatePath    = path.join(__dirname, '../splashTemplates',
+                                        'template' + templateNum + '.html'),
             compiledPath    = path.join('/tmp', req.body.id + '-compiled.html'),
             splashName      = req.body.id + '-splash.jpg',
             // splashName      = req.body.id + '-splash.png',
