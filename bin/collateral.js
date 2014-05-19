@@ -60,7 +60,12 @@
         }
     };
     
-    // TODO comment, make sure to mention how versionate -> no replace, !versionate -> replace
+    /**
+     * Upload a single file to S3. If versionate is true, this will use uuid.hashFile to create a
+     * new versioned file name, check S3 for an existing file with this name, and upload if missing.
+     * If versionate is false, this will just upload the file directly to S3 (overwriting any
+     * existing file with that unmodified file name).
+     */
     collateral.upload = function(req, org, fileOpts, versionate, s3, config) {
         var log = logger.getLog(),
             outParams = {},
@@ -190,12 +195,11 @@
         });
     };
     
-    //TODO: we will need phantomjs installed, which will require cookbook changes
     //TODO: should we sanity check or default the size?
     //TODO: Need unit and e2e tests
     collateral.generateSplash = function(req, s3, config) {
         var log = logger.getLog();
-        if (!(req.body.thumbs instanceof Array) || req.body.thumbs.length === 0) {
+        if (!req.body || !(req.body.thumbs instanceof Array) || req.body.thumbs.length === 0) {
             log.info('[%1] No thumbs to generate a splash from', req.uuid);
             return q({code: 400, body: 'Must provide thumbs to create splash from'});
         }
@@ -215,7 +219,6 @@
                                         'template' + templateNum + '.html'),
             compiledPath    = path.join('/tmp', req.body.id + '-compiled.html'),
             splashName      = req.body.id + '-splash.jpg',
-            // splashName      = req.body.id + '-splash.png',
             splashPath      = path.join('/tmp', splashName),
             deferred        = q.defer(),
             ph, page;
@@ -246,11 +249,12 @@
                 log.error('[%1] Phantom exited with code %2, signal %3', req.uuid, code, signal);
                 deferred.reject('PhantomJS exited prematurely');
             }
+            // this mostly copies the default onStderr but replaces their console.warn with our log
             function onStderr(data) {
                 if (data.match(/(No such method.*socketSentData)|(CoreText performance note)/)) {
                     return;
                 }
-                log.error('[%1] Phantom had an error: %2', req.uuid, data);
+                log.warn('[%1] Phantom had an error: %2', req.uuid, data);
             }
             return q.nfapply(phantWrap, [phantom, 'create', [{onExit:onExit, onStderr:onStderr}]]);
         })
