@@ -25,6 +25,109 @@ describe('collateral (UT)', function() {
         spyOn(logger, 'getLog').andReturn(mockLog);
     });
     
+    describe('upload', function() {
+        var s3, req, config, fileOpts;
+        beforeEach(function() {
+            req = { uuid: '1234', user: { id: 'u-1', org: 'o-1' } };
+            s3 = {
+                headObject: jasmine.createSpy('s3.headObject').andCallFake(function(params, cb) {
+                    cb('that does not exist', null);
+                })
+            };
+            config = { s3: { bucket: 'bkt', path: 'ut/' } };
+            fileOpts = { name: 'foo.txt', path: '/ut/foo.txt', type: 'text/plain' };
+            spyOn(uuid, 'hashFile').andReturn(q('fakeHash'));
+            spyOn(s3util, 'putObject').andReturn(q('success'));
+        });
+        
+        it('should upload a file', function(done) {
+            collateral.upload(req, 'o-1', fileOpts, false, s3, config).then(function(key) {
+                expect(key).toBe('ut/o-1/foo.txt');
+                expect(uuid.hashFile).not.toHaveBeenCalled();
+                expect(s3.headObject).not.toHaveBeenCalled();
+                expect(s3util.putObject).toHaveBeenCalledWith(s3, '/ut/foo.txt',
+                    {Bucket:'bkt', Key:'ut/o-1/foo.txt', ACL:'public-read', ContentType:'text/plain'});
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should overwrite an existing file if versionate is false', function(done) {
+            s3.headObject.andCallFake(function(params, cb) {
+                cb(null, 'that file exists yo');
+            });
+            collateral.upload(req, 'o-1', fileOpts, false, s3, config).then(function(key) {
+                expect(key).toBe('ut/o-1/foo.txt');
+                expect(s3util.putObject).toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should versionate a file if versionate is true', function(done) {
+            collateral.upload(req, 'o-1', fileOpts, true, s3, config).then(function(key) {
+                expect(key).toBe('ut/o-1/fakeHash.foo.txt');
+                expect(uuid.hashFile).toHaveBeenCalledWith('/ut/foo.txt');
+                expect(s3.headObject).toHaveBeenCalled();
+                expect(s3.headObject.calls[0].args[0]).toEqual({Bucket:'bkt', Key:'ut/o-1/fakeHash.foo.txt'});
+                expect(s3util.putObject).toHaveBeenCalledWith(s3, '/ut/foo.txt',
+                    {Bucket:'bkt', Key:'ut/o-1/fakeHash.foo.txt', ACL:'public-read', ContentType:'text/plain'});
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should skip uploading if versionate is true and the file exists', function(done) {
+            s3.headObject.andCallFake(function(params, cb) {
+                cb(null, 'that file exists yo');
+            });
+            collateral.upload(req, 'o-1', fileOpts, true, s3, config).then(function(key) {
+                expect(key).toBe('ut/o-1/fakeHash.foo.txt');
+                expect(uuid.hashFile).toHaveBeenCalled();
+                expect(s3.headObject).toHaveBeenCalled();
+                expect(s3util.putObject).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should fail if hashing the file fails', function(done) {
+            uuid.hashFile.andReturn(q.reject('I GOT A PROBLEM'));
+            collateral.upload(req, 'o-1', fileOpts, true, s3, config).then(function(key) {
+                expect(key).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(uuid.hashFile).toHaveBeenCalled();
+                expect(s3.headObject).not.toHaveBeenCalled();
+                expect(s3util.putObject).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should fail if uploading the file fails', function(done) {
+            s3util.putObject.andReturn(q.reject('I GOT A PROBLEM'));
+            collateral.upload(req, 'o-1', fileOpts, true, s3, config).then(function(key) {
+                expect(key).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(uuid.hashFile).toHaveBeenCalled();
+                expect(s3.headObject).toHaveBeenCalled();
+                expect(s3util.putObject).toHaveBeenCalled();
+                done();
+            });
+        });
+    });
+    
     describe('uploadFiles', function() {
         var s3, req, config;
         beforeEach(function() {
