@@ -224,11 +224,11 @@ describe('collateral (E2E):', function() {
         });
     });
 
-    describe('POST /api/collateral/:expId/files', function() {
+    describe('POST /api/collateral/files/:expId', function() {
         var files, rmList, options;
         
         beforeEach(function() {
-            options = { url: config.collateralUrl + '/collateral/e-1234/files', jar: cookieJar };
+            options = { url: config.collateralUrl + '/collateral/files/e-1234', jar: cookieJar };
             rmList = [];
             files = { testFile: './test.txt' };
             fs.writeFileSync(files.testFile, 'This is a test');

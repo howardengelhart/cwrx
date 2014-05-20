@@ -281,7 +281,7 @@
         
         var authUpload = authUtils.middlewarify({});
 
-        app.post('/api/collateral/files', sessionsWrapper, authUpload, function(req,res){
+        app.post('/api/collateral/files/:expId', sessionsWrapper, authUpload, function(req,res){
             collateral.uploadFiles(req, s3, state.config)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -293,7 +293,7 @@
             });
         });
 
-        app.post('/api/collateral/:expId/files', sessionsWrapper, authUpload, function(req,res){
+        app.post('/api/collateral/files', sessionsWrapper, authUpload, function(req,res){
             collateral.uploadFiles(req, s3, state.config)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
