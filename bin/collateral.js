@@ -66,7 +66,7 @@
      * If versionate is false, this will just upload the file directly to S3 (overwriting any
      * existing file with that unmodified file name).
      */
-    collateral.upload = function(req, org, fileOpts, versionate, s3, config) {
+    collateral.upload = function(req, prefix, fileOpts, versionate, s3, config) {
         var log = logger.getLog(),
             outParams = {},
             headParams = {},
@@ -83,7 +83,7 @@
         return promise.then(function(fname) {
             outParams = {
                 Bucket      : config.s3.bucket,
-                Key         : path.join(config.s3.path, org, fname),
+                Key         : path.join(prefix, fname),
                 ACL         : 'public-read',
                 ContentType : fileOpts.type
             };
@@ -112,7 +112,9 @@
     
     collateral.uploadFiles = function(req, s3, config) {
         var log = logger.getLog(),
-            org = req.user.org;
+            org = req.user.org,
+            versionate = req.query && req.query.versionate || false,
+            prefix;
 
         function cleanup(fpath) {
             q.npost(fs, 'remove', [fpath])
@@ -132,19 +134,25 @@
                      req.uuid, req.user.id, Object.keys(req.files).length);
         }
         
-        if (req.query && req.query.org && req.query.org !== req.user.org) {
-            if (req.user.permissions && req.user.permissions.experiences &&
-                req.user.permissions.experiences.edit === Scope.All) {
-                log.info('[%1] Admin user %2 is uploading file to org %3',req.uuid,req.user.id,org);
-                org = req.query.org;
-            } else {
-                log.info('[%1] Non-admin user %2 tried to upload files to org %3',
-                         req.uuid, req.user.id, org);
-                Object.keys(req.files).forEach(function(key) {
-                    cleanup(req.files[key].path);
-                });
-                return q({code: 403, body: 'Cannot upload files to that org'});
+        if (req.params && req.params.expId) {
+            prefix = path.join(config.s3.path, req.params.expId);
+        } else {
+            if (req.query && req.query.org && req.query.org !== req.user.org) {
+                if (req.user.permissions && req.user.permissions.experiences &&
+                    req.user.permissions.experiences.edit === Scope.All) {
+                    log.info('[%1] Admin user %2 is uploading file to org %3',
+                             req.uuid, req.user.id, org);
+                    org = req.query.org;
+                } else {
+                    log.info('[%1] Non-admin user %2 tried to upload files to org %3',
+                             req.uuid, req.user.id, org);
+                    Object.keys(req.files).forEach(function(key) {
+                        cleanup(req.files[key].path);
+                    });
+                    return q({code: 403, body: 'Cannot upload files to that org'});
+                }
             }
+            prefix = path.join(config.s3.path, org);
         }
         
         return q.allSettled(Object.keys(req.files).map(function(objName) {
@@ -157,7 +165,7 @@
                 return q.reject({ code: 413, name: objName, error: 'File is too big' });
             }
             
-            return collateral.upload(req, org, file, true, s3, config)
+            return collateral.upload(req, prefix, file, versionate, s3, config)
             .then(function(key) {
                 log.info('[%1] File %2 has been uploaded successfully', req.uuid, file.name);
                 return q({ code: 201, name: objName, path: key });
@@ -196,7 +204,8 @@
     };
     
     //TODO: should we sanity check or default the size?
-    //TODO: Need unit and e2e tests
+    //TODO: Need e2e tests
+    //TODO: turn req.body.published -> req.body.versionate? or req.query.versionate?
     collateral.generateSplash = function(req, s3, config) {
         var log = logger.getLog();
         if (!req.body || !(req.body.thumbs instanceof Array) || req.body.thumbs.length === 0) {
@@ -212,7 +221,7 @@
             return q({code: 400, body: 'Need an experience id to name image with'});
         }
 
-//TODO: fix templatePath based on actual template names/paths, may need templ name from client
+        //TODO: templatePath choosing logic will need to be updated
         var numThumbs       = req.body.thumbs.length,
             templateNum     = (numThumbs % 2) ? Math.max(numThumbs - 1, 1) : numThumbs,
             templatePath    = path.join(__dirname, '../splashTemplates',
@@ -221,7 +230,13 @@
             splashName      = req.body.id + '-splash.jpg',
             splashPath      = path.join('/tmp', splashName),
             deferred        = q.defer(),
-            ph, page;
+            ph, page, prefix;
+
+        if (req.params && req.params.expId) {
+            prefix = path.join(config.s3.path, req.params.expId);
+        } else {
+            prefix = path.join(config.s3.path, req.user.org);
+        }
         
         // Phantom callbacks only callback with one arg, so we need to transform to Nodejs style
         function phantWrap(object, method, args, cb) {
@@ -284,7 +299,7 @@
                 path: splashPath,
                 type: 'image/jpeg'
             };
-            return collateral.upload(req, req.user.org, fileOpts, !!req.body.published, s3, config);
+            return collateral.upload(req, prefix, fileOpts, !!req.body.published, s3, config);
         })
         .then(function(key) {
             log.info('[%1] File %2 has been uploaded successfully', req.uuid, splashName);
@@ -404,7 +419,31 @@
             });
         });
 
-        app.post('/api/collateral/splash/generate', sessionsWrapper, authUpload, function(req,res){
+        app.post('/api/collateral/:expId/files', sessionsWrapper, authUpload, function(req,res){
+            collateral.uploadFiles(req, s3, state.config)
+            .then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error uploading files',
+                    detail: error
+                });
+            });
+        });
+
+        app.post('/api/collateral/splash', sessionsWrapper, authUpload, function(req, res) {
+            collateral.generateSplash(req, s3, state.config)
+            .then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error uploading files',
+                    detail: error
+                });
+            });
+        });
+
+        app.post('/api/collateral/:expId/splash', sessionsWrapper, authUpload, function(req, res) {
             collateral.generateSplash(req, s3, state.config)
             .then(function(resp) {
                 res.send(resp.code, resp.body);

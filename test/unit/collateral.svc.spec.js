@@ -37,14 +37,14 @@ describe('collateral (UT)', function() {
                     cb('that does not exist', null);
                 })
             };
-            config = { s3: { bucket: 'bkt', path: 'ut/' } };
+            config = { s3: { bucket: 'bkt' } };
             fileOpts = { name: 'foo.txt', path: '/ut/foo.txt', type: 'text/plain' };
             spyOn(uuid, 'hashFile').andReturn(q('fakeHash'));
             spyOn(s3util, 'putObject').andReturn(q('success'));
         });
         
         it('should upload a file', function(done) {
-            collateral.upload(req, 'o-1', fileOpts, false, s3, config).then(function(key) {
+            collateral.upload(req, 'ut/o-1', fileOpts, false, s3, config).then(function(key) {
                 expect(key).toBe('ut/o-1/foo.txt');
                 expect(uuid.hashFile).not.toHaveBeenCalled();
                 expect(s3.headObject).not.toHaveBeenCalled();
@@ -61,7 +61,7 @@ describe('collateral (UT)', function() {
             s3.headObject.andCallFake(function(params, cb) {
                 cb(null, 'that file exists yo');
             });
-            collateral.upload(req, 'o-1', fileOpts, false, s3, config).then(function(key) {
+            collateral.upload(req, 'ut/o-1', fileOpts, false, s3, config).then(function(key) {
                 expect(key).toBe('ut/o-1/foo.txt');
                 expect(s3util.putObject).toHaveBeenCalled();
                 done();
@@ -72,7 +72,7 @@ describe('collateral (UT)', function() {
         });
         
         it('should versionate a file if versionate is true', function(done) {
-            collateral.upload(req, 'o-1', fileOpts, true, s3, config).then(function(key) {
+            collateral.upload(req, 'ut/o-1', fileOpts, true, s3, config).then(function(key) {
                 expect(key).toBe('ut/o-1/fakeHash.foo.txt');
                 expect(uuid.hashFile).toHaveBeenCalledWith('/ut/foo.txt');
                 expect(s3.headObject).toHaveBeenCalled();
@@ -90,7 +90,7 @@ describe('collateral (UT)', function() {
             s3.headObject.andCallFake(function(params, cb) {
                 cb(null, 'that file exists yo');
             });
-            collateral.upload(req, 'o-1', fileOpts, true, s3, config).then(function(key) {
+            collateral.upload(req, 'ut/o-1', fileOpts, true, s3, config).then(function(key) {
                 expect(key).toBe('ut/o-1/fakeHash.foo.txt');
                 expect(uuid.hashFile).toHaveBeenCalled();
                 expect(s3.headObject).toHaveBeenCalled();
@@ -104,7 +104,7 @@ describe('collateral (UT)', function() {
         
         it('should fail if hashing the file fails', function(done) {
             uuid.hashFile.andReturn(q.reject('I GOT A PROBLEM'));
-            collateral.upload(req, 'o-1', fileOpts, true, s3, config).then(function(key) {
+            collateral.upload(req, 'ut/o-1', fileOpts, true, s3, config).then(function(key) {
                 expect(key).not.toBeDefined();
                 done();
             }).catch(function(error) {
@@ -118,7 +118,7 @@ describe('collateral (UT)', function() {
         
         it('should fail if uploading the file fails', function(done) {
             s3util.putObject.andReturn(q.reject('I GOT A PROBLEM'));
-            collateral.upload(req, 'o-1', fileOpts, true, s3, config).then(function(key) {
+            collateral.upload(req, 'ut/o-1', fileOpts, true, s3, config).then(function(key) {
                 expect(key).not.toBeDefined();
                 done();
             }).catch(function(error) {
@@ -142,7 +142,7 @@ describe('collateral (UT)', function() {
                 }
             };
             s3 = 'fakeS3';
-            config = { maxFileSize: 1000 };
+            config = { maxFileSize: 1000, s3: { path: 'ut/' } };
             spyOn(fs, 'remove').andCallFake(function(path, cb) { cb(); });
             spyOn(collateral, 'upload').andReturn(q('/path/on/s3'));
         });
@@ -182,9 +182,35 @@ describe('collateral (UT)', function() {
             collateral.uploadFiles(req, s3, config).then(function(resp) {
                 expect(resp.code).toBe(201);
                 expect(resp.body).toEqual([{name: 'testFile', code: 201, path: '/path/on/s3'}]);
-                expect(collateral.upload).toHaveBeenCalledWith(req,'o-1',req.files.testFile,true,'fakeS3',config);
+                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/o-1',req.files.testFile,false,'fakeS3',config);
                 expect(fs.remove).toHaveBeenCalled();
                 expect(fs.remove.calls[0].args[0]).toBe('/tmp/123');
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should upload to an experience folder if expId is defined', function(done) {
+            req.params = { expId: 'e-1' };
+            collateral.uploadFiles(req, s3, config).then(function(resp) {
+                expect(resp.code).toBe(201);
+                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: '/path/on/s3'}]);
+                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/e-1',req.files.testFile,false,'fakeS3',config);
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should versionate the file if instructed to', function(done) {
+            req.query = { versionate: true };
+            collateral.uploadFiles(req, s3, config).then(function(resp) {
+                expect(resp.code).toBe(201);
+                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: '/path/on/s3'}]);
+                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/o-1',req.files.testFile,true,'fakeS3',config);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -256,7 +282,7 @@ describe('collateral (UT)', function() {
             collateral.uploadFiles(req, s3, config).then(function(resp) {
                 expect(resp.code).toBe(201);
                 expect(resp.body).toEqual([{name: 'testFile', code: 201, path: '/path/on/s3'}]);
-                expect(collateral.upload).toHaveBeenCalledWith(req,'o-2',req.files.testFile,true,'fakeS3',config);
+                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/o-2',req.files.testFile,false,'fakeS3',config);
                 expect(fs.remove).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
@@ -293,7 +319,7 @@ describe('collateral (UT)', function() {
                 }
             };
             s3 = 'fakeS3';
-            config = 'fakeConfig';
+            config = { s3: { path: 'ut/' } };
             templDir = path.join(__dirname, '../../splashTemplates');
             anyFunc = jasmine.any(Function);
             phantObj = {
@@ -360,8 +386,8 @@ describe('collateral (UT)', function() {
                 expect(page.set).toHaveBeenCalledWith('viewportSize',{height:600,width:600},anyFunc);
                 expect(page.open).toHaveBeenCalledWith('/tmp/e-1-compiled.html', anyFunc);
                 expect(page.render).toHaveBeenCalledWith('/tmp/e-1-splash.jpg', anyFunc);
-                expect(collateral.upload).toHaveBeenCalledWith(req,'o-1',{name:'e-1-splash.jpg',
-                    path:'/tmp/e-1-splash.jpg',type:'image/jpeg'},true,'fakeS3','fakeConfig');
+                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/o-1',{name:'e-1-splash.jpg',
+                    path:'/tmp/e-1-splash.jpg',type:'image/jpeg'},true,'fakeS3',{s3:{path:'ut/'}});
                 process.nextTick(function() {
                     expect(page.close).toHaveBeenCalled();
                     expect(phantObj.exit).toHaveBeenCalled();
