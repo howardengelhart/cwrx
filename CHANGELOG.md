@@ -14,6 +14,10 @@
 * Extra deployment steps: None
 
 ## collateral Service
+### 1.1.0: Tue May 20 11:55:10 EDT 2014
+* [FIX]: Add endpoint for uploading to experience: [#157](https://github.com/cinema6/cwrx/pull/157)
+* Extra deployment steps: None
+
 ### 1.0.1: Thu May  8 18:32:05 EDT 2014
 * [FIX]: Fix mongo reconnect: [#151](https://github.com/cinema6/cwrx/pull/151)
 * Extra deployment steps: None

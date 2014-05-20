@@ -56,10 +56,62 @@
             }
         }
     };
+    
+    /**
+     * Upload a single file to S3. If versionate is true, this will use uuid.hashFile to create a
+     * new versioned file name, check S3 for an existing file with this name, and upload if missing.
+     * If versionate is false, this will just upload the file directly to S3 (overwriting any
+     * existing file with that unmodified file name).
+     */
+    collateral.upload = function(req, prefix, fileOpts, versionate, s3, config) {
+        var log = logger.getLog(),
+            outParams = {},
+            headParams = {},
+            promise;
+            
+        if (versionate) {
+            promise = uuid.hashFile(fileOpts.path).then(function(hash) {
+                return q(hash + '.' + fileOpts.name);
+            });
+        } else {
+            promise = q(fileOpts.name);
+        }
+        
+        return promise.then(function(fname) {
+            outParams = {
+                Bucket      : config.s3.bucket,
+                Key         : path.join(prefix, fname),
+                ACL         : 'public-read',
+                ContentType : fileOpts.type
+            };
+            headParams = {Key: outParams.Key, Bucket: outParams.Bucket};
+            
+            log.info('[%1] User %2 is uploading file to %3/%4',
+                     req.uuid, req.user.id, outParams.Bucket, outParams.Key);
 
+            if (versionate) {
+                return q.npost(s3, 'headObject', [headParams]).then(function(/*data*/) {
+                    log.info('[%1] Identical file %2 already exists on s3, not uploading',
+                             req.uuid, fname);
+                    return q(outParams.Key);
+                })
+                .catch(function(/*error*/) {
+                    return s3util.putObject(s3, fileOpts.path, outParams)
+                    .thenResolve(outParams.Key);
+                });
+            } else {
+                log.info('[%1] Not versionating, overwriting potential existing file', req.uuid);
+                return s3util.putObject(s3, fileOpts.path, outParams)
+                .thenResolve(outParams.Key);
+            }
+        });
+    };
+    
     collateral.uploadFiles = function(req, s3, config) {
         var log = logger.getLog(),
-            org = req.user.org;
+            org = req.user.org,
+            versionate = req.query && req.query.versionate || false,
+            prefix;
 
         function cleanup(fpath) {
             q.npost(fs, 'remove', [fpath])
@@ -71,7 +123,7 @@
             });
         }
 
-        if (!req.files || Object.keys(req.files).length === 0) {
+        if (typeof req.files !== 'object' || Object.keys(req.files).length === 0) {
             log.info('[%1] No files to upload from user %2', req.uuid, req.user.id);
             return q({code: 400, body: 'Must provide files to upload'});
         } else {
@@ -79,25 +131,29 @@
                      req.uuid, req.user.id, Object.keys(req.files).length);
         }
         
-        if (req.query && req.query.org && req.query.org !== req.user.org) {
-            if (req.user.permissions && req.user.permissions.experiences &&
-                req.user.permissions.experiences.edit === Scope.All) {
-                log.info('[%1] Admin user %2 is uploading file to org %3',req.uuid,req.user.id,org);
-                org = req.query.org;
-            } else {
-                log.info('[%1] Non-admin user %2 tried to upload files to org %3',
-                         req.uuid, req.user.id, org);
-                Object.keys(req.files).forEach(function(key) {
-                    cleanup(req.files[key].path);
-                });
-                return q({code: 403, body: 'Cannot upload files to that org'});
+        if (req.params && req.params.expId) {
+            prefix = path.join(config.s3.path, req.params.expId);
+        } else {
+            if (req.query && req.query.org && req.query.org !== req.user.org) {
+                if (req.user.permissions && req.user.permissions.experiences &&
+                    req.user.permissions.experiences.edit === Scope.All) {
+                    log.info('[%1] Admin user %2 is uploading file to org %3',
+                             req.uuid, req.user.id, org);
+                    org = req.query.org;
+                } else {
+                    log.info('[%1] Non-admin user %2 tried to upload files to org %3',
+                             req.uuid, req.user.id, org);
+                    Object.keys(req.files).forEach(function(key) {
+                        cleanup(req.files[key].path);
+                    });
+                    return q({code: 403, body: 'Cannot upload files to that org'});
+                }
             }
+            prefix = path.join(config.s3.path, org);
         }
         
         return q.allSettled(Object.keys(req.files).map(function(objName) {
-            var file = req.files[objName],
-                outParams, headParams, fname;
-                
+            var file = req.files[objName];
             
             if (file.size > config.maxFileSize) {
                 log.warn('[%1] File %2 is %3 bytes large, which is too big',
@@ -106,31 +162,10 @@
                 return q.reject({ code: 413, name: objName, error: 'File is too big' });
             }
             
-            return uuid.hashFile(file.path).then(function(hash) {
-                fname = hash + '.' + file.name;
-                outParams = {
-                    Bucket      : config.s3.bucket,
-                    Key         : path.join(config.s3.path, org, fname),
-                    ACL         : 'public-read',
-                    ContentType : file.type
-                };
-                headParams = {Key: outParams.Key, Bucket: outParams.Bucket};
-                
-                log.info('[%1] User %2 is uploading file to %3/%4',
-                         req.uuid, req.user.id, outParams.Bucket, outParams.Key);
-
-                return q.npost(s3, 'headObject', [headParams]).then(function(/*data*/) {
-                    log.info('[%1] Identical file %2 already exists on s3, not uploading',
-                             req.uuid, fname);
-                    return q();
-                })
-                .catch(function(/*error*/) {
-                    return s3util.putObject(s3, file.path, outParams);
-                });
-            })
-            .then(function() {
-                log.info('[%1] File %2 has been uploaded successfully', req.uuid, fname);
-                return q({ code: 201, name: objName, path: outParams.Key });
+            return collateral.upload(req, prefix, file, versionate, s3, config)
+            .then(function(key) {
+                log.info('[%1] File %2 has been uploaded successfully', req.uuid, file.name);
+                return q({ code: 201, name: objName, path: key });
             })
             .catch(function(error) {
                 log.error('[%1] Error processing upload for %2: %3', req.uuid, file.name, error);
@@ -245,6 +280,19 @@
         });
         
         var authUpload = authUtils.middlewarify({});
+
+        app.post('/api/collateral/files/:expId', sessionsWrapper, authUpload, function(req,res){
+            collateral.uploadFiles(req, s3, state.config)
+            .then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error uploading files',
+                    detail: error
+                });
+            });
+        });
+
         app.post('/api/collateral/files', sessionsWrapper, authUpload, function(req,res){
             collateral.uploadFiles(req, s3, state.config)
             .then(function(resp) {
@@ -256,7 +304,7 @@
                 });
             });
         });
-        
+
         app.get('/api/collateral/meta', function(req, res){
             var data = {
                 version: state.config.appVersion,
