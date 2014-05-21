@@ -8,6 +8,7 @@
         aws         = require('aws-sdk'),
         fs          = require('fs-extra'),
         phantom     = require('phantom'),
+        glob        = require('glob'),
         handlebars  = require('handlebars'),
         util        = require('util'),
         logger      = require('../lib/logger'),
@@ -34,6 +35,7 @@
                 maxTTL: 10
             }
         },
+        splashQuality: 75, // some integer between 0 and 100
         maxFileSize: 25*1000*1000, // 25MB
         s3: {
             bucket: 'c6.dev',
@@ -203,11 +205,18 @@
         });
     };
     
+    // If num === 5 return 4, if num > 6 return 6, else return num
+    collateral.chooseTemplateNum = function(num) {
+        return Math.min(((num % 2 && num > 4) ? Math.max(num - 1, 1) : num), 6);
+    };
+    
     //TODO: should we sanity check or default the size?
     //TODO: Need e2e tests
     //TODO: turn req.body.published -> req.body.versionate? or req.query.versionate?
     collateral.generateSplash = function(req, s3, config) {
-        var log = logger.getLog();
+        var log = logger.getLog(),
+            templateDir = path.join(__dirname, '../splashTemplates');
+
         if (!req.body || !(req.body.thumbs instanceof Array) || req.body.thumbs.length === 0) {
             log.info('[%1] No thumbs to generate a splash from', req.uuid);
             return q({code: 400, body: 'Must provide thumbs to create splash from'});
@@ -216,28 +225,23 @@
             log.info('[%1] No size provided in request', req.uuid);
             return q({code: 400, body: 'Must provide size object with width + height'});
         }
-        if (!req.body.id) {
-            log.info('[%1] No experience id provided', req.uuid);
-            return q({code: 400, body: 'Need an experience id to name image with'});
-        }
-
-        //TODO: templatePath choosing logic will need to be updated
-        var numThumbs       = req.body.thumbs.length,
-            templateNum     = (numThumbs % 2) ? Math.max(numThumbs - 1, 1) : numThumbs,
-            templatePath    = path.join(__dirname, '../splashTemplates',
-                                        'template' + templateNum + '.html'),
-            compiledPath    = path.join('/tmp', req.body.id + '-compiled.html'),
-            splashName      = req.body.id + '-splash.jpg',
-            splashPath      = path.join('/tmp', splashName),
-            deferred        = q.defer(),
-            ph, page, prefix;
-
-        if (req.params && req.params.expId) {
-            prefix = path.join(config.s3.path, req.params.expId);
-        } else {
-            prefix = path.join(config.s3.path, req.user.org);
+        if (!req.body.ratio) {
+            log.info('[%1] No ratio provided in request', req.uuid);
+            return q({code: 400, body: 'Must provide ratio name to choose template'});
+        } else if (glob.sync(path.join(templateDir, req.body.ratio + '*')).length === 0) {
+            log.info('[%1] Invalid ratio name %2', req.uuid, req.body.ratio);
+            return q({code: 400, body: 'Invalid ratio name'});
         }
         
+        var templateNum     = collateral.chooseTemplateNum(req.body.thumbs.length),
+            templatePath    = path.join(templateDir, req.body.ratio + '_x' + templateNum + '.html'),
+            compiledPath    = path.join('/tmp', req.params.expId + '-compiled.html'),
+            splashName      = req.params.expId + '-splash.jpg',
+            splashPath      = path.join('/tmp', splashName),
+            deferred        = q.defer(),
+            prefix          = path.join(config.s3.path, req.params.expId),
+            ph, page;
+
         // Phantom callbacks only callback with one arg, so we need to transform to Nodejs style
         function phantWrap(object, method, args, cb) {
             args.push(function(result) { cb(null, result); });
@@ -245,12 +249,12 @@
         }
             
         log.info('[%1] User %2 generating splash for %3 from %4 thumbs',
-                 req.uuid, req.user.id, req.body.id, numThumbs);
+                 req.uuid, req.user.id, req.params.expId, req.body.thumbs.length);
         
         // Start by reading and rendering our template with handlebars
         q.npost(fs, 'readFile', [templatePath, {encoding: 'utf8'}])
         .then(function(template) {
-            var data = {thumbs: req.body.thumbs}, //TODO: format data based on links
+            var data = {thumbs: req.body.thumbs},
                 compiled = handlebars.compile(template)(data);
 
             return q.npost(fs, 'writeFile', [compiledPath, compiled]);
@@ -290,7 +294,8 @@
                 return q.reject('Failed to open ' + compiledPath + ': status was ' + status);
             }
             log.trace('[%1] Opened page, rendering image', req.uuid);
-            return q.nfapply(phantWrap, [page, 'render', [splashPath]]);
+            var opts = { quality: config.splashQuality };
+            return q.nfapply(phantWrap, [page, 'render', [splashPath, opts]]);
         })
         .then(function() { // Upload the rendered splash image to S3
             log.trace('[%1] Rendered image', req.uuid);
@@ -443,18 +448,6 @@
             });
         });
 
-        app.post('/api/collateral/splash', sessionsWrapper, authUpload, function(req, res) {
-            collateral.generateSplash(req, s3, state.config)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error uploading files',
-                    detail: error
-                });
-            });
-        });
-        
         app.get('/api/collateral/meta', function(req, res){
             var data = {
                 version: state.config.appVersion,
