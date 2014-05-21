@@ -211,7 +211,6 @@
     };
     
     //TODO: should we sanity check or default the size?
-    //TODO: Need e2e tests
     //TODO: turn req.body.published -> req.body.versionate? or req.query.versionate?
     collateral.generateSplash = function(req, s3, config) {
         var log = logger.getLog(),
@@ -235,9 +234,9 @@
         
         var templateNum     = collateral.chooseTemplateNum(req.body.thumbs.length),
             templatePath    = path.join(templateDir, req.body.ratio + '_x' + templateNum + '.html'),
-            compiledPath    = path.join('/tmp', req.params.expId + '-compiled.html'),
-            splashName      = req.params.expId + '-splash.jpg',
-            splashPath      = path.join('/tmp', splashName),
+            compiledPath    = path.join('/tmp', req.uuid + '-compiled.html'),
+            splashName      = 'generatedSplash.jpg',
+            splashPath      = path.join('/tmp', req.uuid + '-' + splashName),
             deferred        = q.defer(),
             prefix          = path.join(config.s3.path, req.params.expId),
             ph, page;

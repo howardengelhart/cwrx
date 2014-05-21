@@ -410,20 +410,20 @@ describe('collateral (UT)', function() {
                 expect(fs.readFile).toHaveBeenCalledWith(path.join(templDir,'foo_x1.html'),{encoding: 'utf8'},anyFunc);
                 expect(handlebars.compile).toHaveBeenCalledWith('fakeTemplate');
                 expect(compilerSpy).toHaveBeenCalledWith({thumbs: ['http://image.jpg']});
-                expect(fs.writeFile).toHaveBeenCalledWith('/tmp/e-1-compiled.html','compiledHtml',anyFunc);
+                expect(fs.writeFile).toHaveBeenCalledWith('/tmp/1234-compiled.html','compiledHtml',anyFunc);
                 expect(phantom.create).toHaveBeenCalledWith({onExit:anyFunc,onStderr:anyFunc},anyFunc);
                 expect(phantObj.createPage).toHaveBeenCalledWith(anyFunc);
                 expect(page.set).toHaveBeenCalledWith('viewportSize',{height:600,width:600},anyFunc);
-                expect(page.open).toHaveBeenCalledWith('/tmp/e-1-compiled.html', anyFunc);
-                expect(page.render).toHaveBeenCalledWith('/tmp/e-1-splash.jpg',{quality:75},anyFunc);
-                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/e-1',{name:'e-1-splash.jpg',
-                    path:'/tmp/e-1-splash.jpg',type:'image/jpeg'},true,'fakeS3',config);
+                expect(page.open).toHaveBeenCalledWith('/tmp/1234-compiled.html', anyFunc);
+                expect(page.render).toHaveBeenCalledWith('/tmp/1234-generatedSplash.jpg',{quality:75},anyFunc);
+                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/e-1',{name:'generatedSplash.jpg',
+                    path:'/tmp/1234-generatedSplash.jpg',type:'image/jpeg'},true,'fakeS3',config);
                 process.nextTick(function() {
                     expect(page.close).toHaveBeenCalled();
                     expect(phantObj.exit).toHaveBeenCalled();
                     expect(fs.remove.calls.length).toBe(2);
-                    expect(fs.remove.calls[0].args).toEqual(['/tmp/e-1-compiled.html',anyFunc]);
-                    expect(fs.remove.calls[1].args).toEqual(['/tmp/e-1-splash.jpg',anyFunc]);
+                    expect(fs.remove.calls[0].args).toEqual(['/tmp/1234-compiled.html',anyFunc]);
+                    expect(fs.remove.calls[1].args).toEqual(['/tmp/1234-generatedSplash.jpg',anyFunc]);
                     done();
                 });
             }).catch(function(error) {
@@ -477,8 +477,8 @@ describe('collateral (UT)', function() {
                     expect(page.close).toHaveBeenCalled();
                     expect(phantObj.exit).toHaveBeenCalled();
                     expect(fs.remove.calls.length).toBe(2);
-                    expect(fs.remove.calls[0].args).toEqual(['/tmp/e-1-compiled.html',anyFunc]);
-                    expect(fs.remove.calls[1].args).toEqual(['/tmp/e-1-splash.jpg',anyFunc]);
+                    expect(fs.remove.calls[0].args).toEqual(['/tmp/1234-compiled.html',anyFunc]);
+                    expect(fs.remove.calls[1].args).toEqual(['/tmp/1234-generatedSplash.jpg',anyFunc]);
                     done();
                 });
             });
@@ -490,7 +490,7 @@ describe('collateral (UT)', function() {
                 expect(resp).not.toBeDefined();
                 done();
             }).catch(function(error) {
-                expect(error).toBe('Failed to open /tmp/e-1-compiled.html: status was fail');
+                expect(error).toBe('Failed to open /tmp/1234-compiled.html: status was fail');
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(fs.writeFile).toHaveBeenCalled();
                 expect(page.set).toHaveBeenCalled();
