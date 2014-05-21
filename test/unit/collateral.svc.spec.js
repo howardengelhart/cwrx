@@ -4,6 +4,9 @@ describe('collateral (UT)', function() {
     
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
+
+        jasmine.Clock.useMock();
+
         uuid        = require('../../lib/uuid');
         logger      = require('../../lib/logger');
         s3util      = require('../../lib/s3util');
@@ -326,7 +329,7 @@ describe('collateral (UT)', function() {
                 body: { ratio:'foo', size: {height: 600, width: 600}, thumbs: ['http://image.jpg'] }
             };
             s3 = 'fakeS3';
-            config = { s3: { path: 'ut/' }, splash: { quality: 75, maxDimension: 1000 } };
+            config = {s3:{path:'ut/'}, splash:{quality:75, maxDimension:1000, timeout:10000}};
             templDir = path.join(__dirname, '../../splashTemplates');
             anyFunc = jasmine.any(Function);
             phantObj = {
@@ -575,6 +578,26 @@ describe('collateral (UT)', function() {
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should timeout if any part of the process takes too long', function(done) {
+            page.open.andCallFake(function(url, cb) {
+                setTimeout(function() { cb('success'); }, 11*1000);
+            });
+            
+            var promise = collateral.generateSplash(req, s3, config);
+            jasmine.Clock.tick(10*1000);
+            
+            promise.then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toEqual(new Error('Timed out after 10000 ms'));
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(page.render).not.toHaveBeenCalled();
+                expect(collateral.upload).not.toHaveBeenCalled();
                 done();
             });
         });

@@ -37,7 +37,8 @@
         },
         splash: {
             quality: 75, // some integer between 0 and 100
-            maxDimension: 1000 // pixels, either height or width, to provide basic sane limit
+            maxDimension: 1000, // pixels, either height or width, to provide basic sane limit
+            timeout: 10*1000 // timeout for entire splash generation process; 10 seconds
         },
         maxFileSize: 25*1000*1000, // 25MB
         s3: {
@@ -267,6 +268,7 @@
 
             return q.npost(fs, 'writeFile', [compiledPath, compiled]);
         })
+
         .then(function() { // Start setting up phantomjs
             log.trace('[%1] Wrote compiled html, starting phantom', req.uuid);
             function onExit(code, signal) {
@@ -276,6 +278,7 @@
                 log.error('[%1] Phantom exited with code %2, signal %3', req.uuid, code, signal);
                 deferred.reject('PhantomJS exited prematurely');
             }
+
             // this mostly copies the default onStderr but replaces their console.warn with our log
             function onStderr(data) {
                 if (data.match(/(No such method.*socketSentData)|(CoreText performance note)/)) {
@@ -283,9 +286,10 @@
                 }
                 log.warn('[%1] Phantom had an error: %2', req.uuid, data);
             }
+
             return q.nfapply(phantWrap, [phantom, 'create', [{onExit:onExit, onStderr:onStderr}]]);
         })
-        .then(function(phantObj) {
+        .then(function(phantObj) { // Create a page object
             ph = phantObj;
             return q.nfapply(phantWrap, [ph, 'createPage', []]);
         })
@@ -305,6 +309,7 @@
             var opts = { quality: config.splash.quality };
             return q.nfapply(phantWrap, [page, 'render', [splashPath, opts]]);
         })
+
         .then(function() { // Upload the rendered splash image to S3
             log.trace('[%1] Rendered image', req.uuid);
             var fileOpts = {
@@ -314,14 +319,17 @@
             };
             return collateral.upload(req, prefix, fileOpts, versionate, s3, config);
         })
+        
         .then(function(key) {
             log.info('[%1] File %2 has been uploaded successfully', req.uuid, splashName);
             deferred.resolve({ code: 201, body: key });
         })
+        .timeout(config.splash.timeout)
         .catch(function(error) {
             log.error('[%1] Error generating splash image: %2', req.uuid, util.inspect(error));
             deferred.reject(error);
         })
+
         .finally(function() { // Cleanup by removing compiled template + splash image
             page.close();
             ph.exit();
