@@ -35,7 +35,10 @@
                 maxTTL: 10
             }
         },
-        splashQuality: 75, // some integer between 0 and 100
+        splash: {
+            quality: 75, // some integer between 0 and 100
+            maxDimension: 1000 // pixels, either height or width, to provide basic sane limit
+        },
         maxFileSize: 25*1000*1000, // 25MB
         s3: {
             bucket: 'c6.dev',
@@ -210,20 +213,26 @@
         return Math.min(((num % 2 && num > 4) ? Math.max(num - 1, 1) : num), 6);
     };
     
-    //TODO: should we sanity check or default the size?
-    //TODO: turn req.body.published -> req.body.versionate? or req.query.versionate?
     collateral.generateSplash = function(req, s3, config) {
         var log = logger.getLog(),
+            versionate = req.query && req.query.versionate || false,
             templateDir = path.join(__dirname, '../splashTemplates');
 
         if (!req.body || !(req.body.thumbs instanceof Array) || req.body.thumbs.length === 0) {
             log.info('[%1] No thumbs to generate a splash from', req.uuid);
             return q({code: 400, body: 'Must provide thumbs to create splash from'});
         }
+        
         if (!req.body.size || !req.body.size.height || !req.body.size.width) {
             log.info('[%1] No size provided in request', req.uuid);
             return q({code: 400, body: 'Must provide size object with width + height'});
+        } else if (req.body.size.height > config.splash.maxDimension ||
+                   req.body.size.width > config.splash.maxDimension) {
+            log.info('[%1] Trying to create %2x%3 image but limit is %4x%4',
+                     req.uuid,req.body.size.width,req.body.size.height,config.splash.maxDimension);
+            return q({code: 400, body: 'Requested image size is too large'});
         }
+        
         if (!req.body.ratio) {
             log.info('[%1] No ratio provided in request', req.uuid);
             return q({code: 400, body: 'Must provide ratio name to choose template'});
@@ -293,7 +302,7 @@
                 return q.reject('Failed to open ' + compiledPath + ': status was ' + status);
             }
             log.trace('[%1] Opened page, rendering image', req.uuid);
-            var opts = { quality: config.splashQuality };
+            var opts = { quality: config.splash.quality };
             return q.nfapply(phantWrap, [page, 'render', [splashPath, opts]]);
         })
         .then(function() { // Upload the rendered splash image to S3
@@ -303,7 +312,7 @@
                 path: splashPath,
                 type: 'image/jpeg'
             };
-            return collateral.upload(req, prefix, fileOpts, !!req.body.published, s3, config);
+            return collateral.upload(req, prefix, fileOpts, versionate, s3, config);
         })
         .then(function(key) {
             log.info('[%1] File %2 has been uploaded successfully', req.uuid, splashName);

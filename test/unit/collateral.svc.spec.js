@@ -323,12 +323,10 @@ describe('collateral (UT)', function() {
                 uuid: '1234',
                 user: { id: 'u-1', org: 'o-1' },
                 params: { expId: 'e-1' },
-                body: {
-                    ratio:'foo', size:{height:600, width:600}, thumbs:['http://image.jpg'], published:true
-                }
+                body: { ratio:'foo', size: {height: 600, width: 600}, thumbs: ['http://image.jpg'] }
             };
             s3 = 'fakeS3';
-            config = { s3: { path: 'ut/' }, splashQuality: 75 };
+            config = { s3: { path: 'ut/' }, splash: { quality: 75, maxDimension: 1000 } };
             templDir = path.join(__dirname, '../../splashTemplates');
             anyFunc = jasmine.any(Function);
             phantObj = {
@@ -401,6 +399,26 @@ describe('collateral (UT)', function() {
             });
         });
         
+        it('should reject if either dimension is too large', function(done) {
+            req.body.size = { height: 2000, width: 400 };
+            collateral.generateSplash(req, s3, config).then(function(resp) {
+                expect(resp.code).toBe(400);
+                expect(resp.body).toBe('Requested image size is too large');
+                req.body.size = { height: 400, width: 2000 };
+                return collateral.generateSplash(req, s3, config);
+            }).then(function(resp) {
+                expect(resp.code).toBe(400);
+                expect(resp.body).toBe('Requested image size is too large');
+                expect(glob.sync).not.toHaveBeenCalled();
+                expect(fs.readFile).not.toHaveBeenCalled();
+                expect(collateral.upload).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
         it('should successfully generate and upload a splash image', function(done) {
             collateral.generateSplash(req, s3, config).then(function(resp) {
                 expect(resp.code).toBe(201);
@@ -417,7 +435,7 @@ describe('collateral (UT)', function() {
                 expect(page.open).toHaveBeenCalledWith('/tmp/1234-compiled.html', anyFunc);
                 expect(page.render).toHaveBeenCalledWith('/tmp/1234-generatedSplash.jpg',{quality:75},anyFunc);
                 expect(collateral.upload).toHaveBeenCalledWith(req,'ut/e-1',{name:'generatedSplash.jpg',
-                    path:'/tmp/1234-generatedSplash.jpg',type:'image/jpeg'},true,'fakeS3',config);
+                    path:'/tmp/1234-generatedSplash.jpg',type:'image/jpeg'},false,'fakeS3',config);
                 process.nextTick(function() {
                     expect(page.close).toHaveBeenCalled();
                     expect(phantObj.exit).toHaveBeenCalled();
@@ -426,6 +444,20 @@ describe('collateral (UT)', function() {
                     expect(fs.remove.calls[1].args).toEqual(['/tmp/1234-generatedSplash.jpg',anyFunc]);
                     done();
                 });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should versionate the file if configured to', function(done) {
+            req.query = {versionate: true};
+            collateral.generateSplash(req, s3, config).then(function(resp) {
+                expect(resp.code).toBe(201);
+                expect(resp.body).toBe('/path/on/s3');
+                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/e-1',{name:'generatedSplash.jpg',
+                    path:'/tmp/1234-generatedSplash.jpg',type:'image/jpeg'},true,'fakeS3',config);
+                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
                 done();

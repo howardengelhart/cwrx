@@ -454,7 +454,7 @@ describe('collateral (E2E):', function() {
         });
 
         it('should be able to versionate the splash image', function(done) {
-            options.json.published = true;
+            options.url += '?versionate=true';
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toEqual('collateral/e-1234/1ac1b4765354b78678dac5f83a008892.generatedSplash.jpg');
@@ -479,7 +479,7 @@ describe('collateral (E2E):', function() {
             ];
             q.all(profiles.map(function(profile) {
                 options.json.size = profile.size;
-                options.json.published = true;
+                options.url += '?versionate=true';
                 return testUtils.qRequest('post', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(201);
                     expect(resp.body).toEqual('collateral/e-1234/' + profile.etag + '.generatedSplash.jpg');
@@ -512,7 +512,7 @@ describe('collateral (E2E):', function() {
             q.all(etags.map(function(etag, index) {
                 options.json.thumbs = samples.slice(0, index + 1);
                 if (index == 6) options.json.thumbs.push(samples[5]);
-                options.json.published = true;
+                options.url += '?versionate=true';
                 return testUtils.qRequest('post', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(201);
                     expect(resp.body).toEqual('collateral/e-1234/' + etag + '.generatedSplash.jpg');
