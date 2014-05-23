@@ -14,6 +14,11 @@
 * Extra deployment steps: None
 
 ## collateral Service
+### 1.2.0: Fri May 23 10:35:35 EDT 2014
+* [FIX]: Add endpoint for splash generation: [#160](https://github.com/cinema6/cwrx/pull/160)
+* Extra deployment steps:
+    * Deploy collateral cookbook v0.2.0 to all environments
+
 ### 1.1.0: Tue May 20 11:55:10 EDT 2014
 * [FIX]: Add endpoint for uploading to experience: [#157](https://github.com/cinema6/cwrx/pull/157)
 * Extra deployment steps: None
