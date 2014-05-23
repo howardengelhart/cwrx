@@ -1,3 +1,5 @@
+<!--THIS IS USED FOR E2E TESTING AND SHOULD NOT BE USED BY A REAL CLIENT. DO NOT EDIT-->
+
 <!DOCTYPE html>
 <!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
 <!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
@@ -19,7 +21,7 @@
             }
             .imgTiles {
                 position:absolute; 
-                width:100%; height:0; padding:0 0 66.667% 0;
+                width:100%; height:0; padding:0 0 100% 0;
                 background:black;
             }
             .imgBox {
@@ -27,7 +29,7 @@
                 background-position:50% 50%;
                 background-size: cover;
                 background-repeat: no-repeat;
-                width:33.333%; height:50%;
+                width:50%; height:50%;
                 box-sizing:border-box;
                 border:1px solid #000;
             }
@@ -47,23 +49,15 @@
                     border-left:0; border-top:0;
                 }
                 .img1 {
-                    top:0; left:33.333%;
-                    border-top:0;
-                }
-                .img2 {
-                    top:0; left:66.666%;
+                    top:0; left:50%;
                     border-right:0; border-top:0;
                 }
-                .img3 {
+                .img2 {
                     top:50%; left:0;
                     border-left:0; border-bottom:0;
                 }
-                .img4 {
-                    top:50%; left:33.333%;
-                    border-bottom:0;
-                }
-                .img5 {
-                    top:50%; left:66.666%;
+                .img3 {
+                    top:50%; left:50%;
                     border-right:0; border-bottom:0;
                 }
             
@@ -80,10 +74,6 @@
                     style="background-image:url('{{thumbs.[2]}}');">&nbsp;</div>
                 <div class="imgBox img3" 
                     style="background-image:url('{{thumbs.[3]}}');">&nbsp;</div>
-                <div class="imgBox img4" 
-                    style="background-image:url('{{thumbs.[4]}}');">&nbsp;</div>
-                <div class="imgBox img5" 
-                    style="background-image:url('{{thumbs.[5]}}');">&nbsp;</div>
             </div>
         </div>
     </body>

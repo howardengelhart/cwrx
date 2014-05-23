@@ -7,6 +7,10 @@
         q           = require('q'),
         aws         = require('aws-sdk'),
         fs          = require('fs-extra'),
+        phantom     = require('phantom'),
+        glob        = require('glob'),
+        handlebars  = require('handlebars'),
+        util        = require('util'),
         logger      = require('../lib/logger'),
         uuid        = require('../lib/uuid'),
         authUtils   = require('../lib/authUtils')(),
@@ -30,6 +34,11 @@
                 freshTTL: 1,
                 maxTTL: 10
             }
+        },
+        splash: {
+            quality: 75, // some integer between 0 and 100
+            maxDimension: 1000, // pixels, either height or width, to provide basic sane limit
+            timeout: 10*1000 // timeout for entire splash generation process; 10 seconds
         },
         maxFileSize: 25*1000*1000, // 25MB
         s3: {
@@ -199,6 +208,144 @@
             return q.reject(error);
         });
     };
+    
+    // If num === 5 return 4, if num > 6 return 6, else return num
+    collateral.chooseTemplateNum = function(num) {
+        return Math.min(((num % 2 && num > 4) ? Math.max(num - 1, 1) : num), 6);
+    };
+    
+    collateral.generateSplash = function(req, s3, config) {
+        var log = logger.getLog(),
+            versionate = req.query && req.query.versionate || false,
+            templateDir = path.join(__dirname, '../splashTemplates');
+
+        if (!req.body || !(req.body.thumbs instanceof Array) || req.body.thumbs.length === 0) {
+            log.info('[%1] No thumbs to generate a splash from', req.uuid);
+            return q({code: 400, body: 'Must provide thumbs to create splash from'});
+        }
+        
+        if (!req.body.size || !req.body.size.height || !req.body.size.width) {
+            log.info('[%1] No size provided in request', req.uuid);
+            return q({code: 400, body: 'Must provide size object with width + height'});
+        } else if (req.body.size.height > config.splash.maxDimension ||
+                   req.body.size.width > config.splash.maxDimension) {
+            log.info('[%1] Trying to create %2x%3 image but limit is %4x%4',
+                     req.uuid,req.body.size.width,req.body.size.height,config.splash.maxDimension);
+            return q({code: 400, body: 'Requested image size is too large'});
+        }
+        
+        if (!req.body.ratio) {
+            log.info('[%1] No ratio provided in request', req.uuid);
+            return q({code: 400, body: 'Must provide ratio name to choose template'});
+        } else if (glob.sync(path.join(templateDir, req.body.ratio + '*')).length === 0) {
+            log.info('[%1] Invalid ratio name %2', req.uuid, req.body.ratio);
+            return q({code: 400, body: 'Invalid ratio name'});
+        }
+        
+        var templateNum     = collateral.chooseTemplateNum(req.body.thumbs.length),
+            templatePath    = path.join(templateDir, req.body.ratio + '_x' + templateNum + '.html'),
+            compiledPath    = path.join('/tmp', req.uuid + '-compiled.html'),
+            splashName      = 'generatedSplash.jpg',
+            splashPath      = path.join('/tmp', req.uuid + '-' + splashName),
+            deferred        = q.defer(),
+            prefix          = path.join(config.s3.path, req.params.expId),
+            ph, page;
+
+        // Phantom callbacks only callback with one arg, so we need to transform to Nodejs style
+        function phantWrap(object, method, args, cb) {
+            args.push(function(result) { cb(null, result); });
+            object[method].apply(object, args);
+        }
+            
+        log.info('[%1] User %2 generating splash for %3 from %4 thumbs',
+                 req.uuid, req.user.id, req.params.expId, req.body.thumbs.length);
+        
+        // Start by reading and rendering our template with handlebars
+        q.npost(fs, 'readFile', [templatePath, {encoding: 'utf8'}])
+        .then(function(template) {
+            var data = {thumbs: req.body.thumbs},
+                compiled = handlebars.compile(template)(data);
+
+            return q.npost(fs, 'writeFile', [compiledPath, compiled]);
+        })
+
+        .then(function() { // Start setting up phantomjs
+            log.trace('[%1] Wrote compiled html, starting phantom', req.uuid);
+            function onExit(code, signal) {
+                if (code === 0) {
+                    return;
+                }
+                log.error('[%1] Phantom exited with code %2, signal %3', req.uuid, code, signal);
+                deferred.reject('PhantomJS exited prematurely');
+            }
+
+            // this mostly copies the default onStderr but replaces their console.warn with our log
+            function onStderr(data) {
+                if (data.match(/(No such method.*socketSentData)|(CoreText performance note)/)) {
+                    return;
+                }
+                log.warn('[%1] Phantom had an error: %2', req.uuid, data);
+            }
+
+            return q.nfapply(phantWrap, [phantom, 'create', [{onExit:onExit, onStderr:onStderr}]]);
+        })
+        .then(function(phantObj) { // Create a page object
+            ph = phantObj;
+            return q.nfapply(phantWrap, [ph, 'createPage', []]);
+        })
+        .then(function(webpage) { // Set viewportSize to create image of desired size
+            page = webpage;
+            log.trace('[%1] Created page, setting viewport size', req.uuid);
+            return q.nfapply(phantWrap, [page, 'set', ['viewportSize', req.body.size]]);
+        })
+        .then(function() { // Open the compiled html
+            return q.nfapply(phantWrap, [page, 'open', [compiledPath]]);
+        })
+        .then(function(status) { // Render page as image
+            if (status !== 'success') {
+                return q.reject('Failed to open ' + compiledPath + ': status was ' + status);
+            }
+            log.trace('[%1] Opened page, rendering image', req.uuid);
+            var opts = { quality: config.splash.quality };
+            return q.nfapply(phantWrap, [page, 'render', [splashPath, opts]]);
+        })
+
+        .then(function() { // Upload the rendered splash image to S3
+            log.trace('[%1] Rendered image', req.uuid);
+            var fileOpts = {
+                name: splashName,
+                path: splashPath,
+                type: 'image/jpeg'
+            };
+            return collateral.upload(req, prefix, fileOpts, versionate, s3, config);
+        })
+        
+        .then(function(key) {
+            log.info('[%1] File %2 has been uploaded successfully', req.uuid, splashName);
+            deferred.resolve({ code: 201, body: key });
+        })
+        .timeout(config.splash.timeout)
+        .catch(function(error) {
+            log.error('[%1] Error generating splash image: %2', req.uuid, util.inspect(error));
+            deferred.reject(error);
+        })
+
+        .finally(function() { // Cleanup by removing compiled template + splash image
+            page.close();
+            ph.exit();
+            [compiledPath, splashPath].map(function(fpath) {
+                q.npost(fs, 'remove', [fpath])
+                .then(function() {
+                    log.trace('[%1] Successfully removed %2', req.uuid, fpath);
+                })
+                .catch(function(error) {
+                    log.warn('[%1] Unable to remove %2: %3', req.uuid, fpath, error);
+                });
+            });
+        });
+        
+        return deferred.promise;
+    };
 
     collateral.main = function(state) {
         var log = logger.getLog(),
@@ -295,6 +442,18 @@
 
         app.post('/api/collateral/files', sessionsWrapper, authUpload, function(req,res){
             collateral.uploadFiles(req, s3, state.config)
+            .then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error uploading files',
+                    detail: error
+                });
+            });
+        });
+
+        app.post('/api/collateral/splash/:expId', sessionsWrapper, authUpload, function(req, res) {
+            collateral.generateSplash(req, s3, state.config)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {

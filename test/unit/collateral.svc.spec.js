@@ -1,13 +1,19 @@
 var flush = true;
 describe('collateral (UT)', function() {
-    var mockLog, uuid, logger, collateral, q, path, enums, Scope;
+    var mockLog, uuid, logger, collateral, q, glob, phantom, handlebars, path, enums, Scope;
     
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
+
+        jasmine.Clock.useMock();
+
         uuid        = require('../../lib/uuid');
         logger      = require('../../lib/logger');
         s3util      = require('../../lib/s3util');
         path        = require('path');
+        phantom     = require('phantom');
+        glob        = require('glob');
+        handlebars  = require('handlebars');
         fs          = require('fs-extra');
         collateral  = require('../../bin/collateral');
         q           = require('q');
@@ -305,5 +311,296 @@ describe('collateral (UT)', function() {
             });
         });
     });  // end -- describe uploadFiles
+    
+    describe('chooseTemplateNum', function() {
+        it('should correctly choose the template number', function() {
+            var thumbNums = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+            expect(thumbNums.map(collateral.chooseTemplateNum)).toEqual([1, 2, 3, 4, 4, 6, 6, 6, 6]);
+        });
+    });
+    
+    describe('generateSplash', function() {
+        var page, phantObj, compilerSpy, req, s3, config, templDir, anyFunc;
+        beforeEach(function() {
+            req = {
+                uuid: '1234',
+                user: { id: 'u-1', org: 'o-1' },
+                params: { expId: 'e-1' },
+                body: { ratio:'foo', size: {height: 600, width: 600}, thumbs: ['http://image.jpg'] }
+            };
+            s3 = 'fakeS3';
+            config = {s3:{path:'ut/'}, splash:{quality:75, maxDimension:1000, timeout:10000}};
+            templDir = path.join(__dirname, '../../splashTemplates');
+            anyFunc = jasmine.any(Function);
+            phantObj = {
+                createPage: jasmine.createSpy('ph.createPage').andCallFake(function(cb) { cb(page); }),
+                exit: jasmine.createSpy('ph.exit')
+            };
+            page = {
+                set: jasmine.createSpy('page.set').andCallFake(function(prop,data,cb){ cb('i did it'); }),
+                open: jasmine.createSpy('page.open').andCallFake(function(url,cb){ cb('success'); }),
+                render: jasmine.createSpy('page.render').andCallFake(function(fpath,opts,cb){ cb('i did it'); }),
+                close: jasmine.createSpy('page.close')
+            };
+            spyOn(glob, 'sync').andReturn(['template1', 'template2', 'etc']);
+            spyOn(phantom, 'create').andCallFake(function(opts, cb) { cb(phantObj); });
+            spyOn(fs, 'readFile').andCallFake(function(fpath, opts, cb) { cb(null, 'fakeTemplate'); });
+            spyOn(fs, 'writeFile').andCallFake(function(fpath, data, cb) { cb(); });
+            spyOn(fs, 'remove').andCallFake(function(fpath, cb) { cb(); });
+            spyOn(collateral, 'chooseTemplateNum').andCallThrough();
+            spyOn(collateral, 'upload').andReturn('/path/on/s3');
+            compilerSpy = jasmine.createSpy('handlebars compiler').andReturn('compiledHtml');
+            spyOn(handlebars, 'compile').andReturn(compilerSpy);
+        });
+    
+        it('should reject if the request body is incomplete', function(done) {
+            q.all([
+                collateral.generateSplash({}, s3, config),
+                collateral.generateSplash({body:{ratio:'foo',size:{height:600,width:600}}},s3,config),
+                collateral.generateSplash({body:{ratio:'foo',size:{height:600,width:600},thumbs:[]}},s3,config),
+            ]).then(function(resps) {
+                resps.forEach(function(resp) {
+                    expect(resp.code).toBe(400);
+                    expect(resp.body).toBe('Must provide thumbs to create splash from');
+                });
+                return q.all([
+                    collateral.generateSplash({body:{ratio:'foo',thumbs:['foo']}},s3,config),
+                    collateral.generateSplash({body:{ratio:'foo',size:{},thumbs:['foo']}},s3,config),
+                    collateral.generateSplash({body:{ratio:'foo',size:{height:600},thumbs:['foo']}},s3,config),
+                    collateral.generateSplash({body:{ratio:'foo',size:{width:600},thumbs:['foo']}},s3,config),
+                ]);
+            }).then(function(resps) {
+                resps.forEach(function(resp) {
+                    expect(resp.code).toBe(400);
+                    expect(resp.body).toBe('Must provide size object with width + height');
+                });
+                return collateral.generateSplash({body:{size:{height:600,width:600},thumbs:['foo']}},s3,config);
+            }).then(function(resp) {
+                expect(resp.code).toBe(400);
+                expect(resp.body).toBe('Must provide ratio name to choose template');
+                expect(fs.readFile).not.toHaveBeenCalled();
+                expect(collateral.upload).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should reject if the ratio name is invalid', function(done) {
+            glob.sync.andReturn([]);
+            collateral.generateSplash(req, s3, config).then(function(resp) {
+                expect(resp.code).toBe(400);
+                expect(resp.body).toBe('Invalid ratio name');
+                expect(glob.sync).toHaveBeenCalled();
+                expect(fs.readFile).not.toHaveBeenCalled();
+                expect(collateral.upload).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should reject if either dimension is too large', function(done) {
+            req.body.size = { height: 2000, width: 400 };
+            collateral.generateSplash(req, s3, config).then(function(resp) {
+                expect(resp.code).toBe(400);
+                expect(resp.body).toBe('Requested image size is too large');
+                req.body.size = { height: 400, width: 2000 };
+                return collateral.generateSplash(req, s3, config);
+            }).then(function(resp) {
+                expect(resp.code).toBe(400);
+                expect(resp.body).toBe('Requested image size is too large');
+                expect(glob.sync).not.toHaveBeenCalled();
+                expect(fs.readFile).not.toHaveBeenCalled();
+                expect(collateral.upload).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should successfully generate and upload a splash image', function(done) {
+            collateral.generateSplash(req, s3, config).then(function(resp) {
+                expect(resp.code).toBe(201);
+                expect(resp.body).toBe('/path/on/s3');
+                expect(glob.sync).toHaveBeenCalledWith(path.join(templDir, 'foo*'));
+                expect(collateral.chooseTemplateNum).toHaveBeenCalledWith(1);
+                expect(fs.readFile).toHaveBeenCalledWith(path.join(templDir,'foo_x1.html'),{encoding: 'utf8'},anyFunc);
+                expect(handlebars.compile).toHaveBeenCalledWith('fakeTemplate');
+                expect(compilerSpy).toHaveBeenCalledWith({thumbs: ['http://image.jpg']});
+                expect(fs.writeFile).toHaveBeenCalledWith('/tmp/1234-compiled.html','compiledHtml',anyFunc);
+                expect(phantom.create).toHaveBeenCalledWith({onExit:anyFunc,onStderr:anyFunc},anyFunc);
+                expect(phantObj.createPage).toHaveBeenCalledWith(anyFunc);
+                expect(page.set).toHaveBeenCalledWith('viewportSize',{height:600,width:600},anyFunc);
+                expect(page.open).toHaveBeenCalledWith('/tmp/1234-compiled.html', anyFunc);
+                expect(page.render).toHaveBeenCalledWith('/tmp/1234-generatedSplash.jpg',{quality:75},anyFunc);
+                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/e-1',{name:'generatedSplash.jpg',
+                    path:'/tmp/1234-generatedSplash.jpg',type:'image/jpeg'},false,'fakeS3',config);
+                process.nextTick(function() {
+                    expect(page.close).toHaveBeenCalled();
+                    expect(phantObj.exit).toHaveBeenCalled();
+                    expect(fs.remove.calls.length).toBe(2);
+                    expect(fs.remove.calls[0].args).toEqual(['/tmp/1234-compiled.html',anyFunc]);
+                    expect(fs.remove.calls[1].args).toEqual(['/tmp/1234-generatedSplash.jpg',anyFunc]);
+                    done();
+                });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should versionate the file if configured to', function(done) {
+            req.query = {versionate: true};
+            collateral.generateSplash(req, s3, config).then(function(resp) {
+                expect(resp.code).toBe(201);
+                expect(resp.body).toBe('/path/on/s3');
+                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/e-1',{name:'generatedSplash.jpg',
+                    path:'/tmp/1234-generatedSplash.jpg',type:'image/jpeg'},true,'fakeS3',config);
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should fail if reading the template file fails', function(done) {
+            fs.readFile.andCallFake(function(fpath, opts, cb) { cb('I GOT A PROBLEM'); });
+            collateral.generateSplash(req, s3, config).then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(phantom.create).not.toHaveBeenCalled();
+                expect(collateral.upload).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should fail if writing the compiled html fails', function(done) {
+            fs.writeFile.andCallFake(function(fpath, opts, cb) { cb('I GOT A PROBLEM'); });
+            collateral.generateSplash(req, s3, config).then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(fs.readFile).toHaveBeenCalled();
+                expect(handlebars.compile).toHaveBeenCalled();
+                expect(phantom.create).not.toHaveBeenCalled();
+                expect(collateral.upload).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should fail if uploading the splash image fails', function(done) {
+            collateral.upload.andReturn(q.reject('I GOT A PROBLEM'));
+            collateral.generateSplash(req, s3, config).then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(fs.writeFile).toHaveBeenCalled();
+                expect(page.render).toHaveBeenCalled();
+                expect(collateral.upload).toHaveBeenCalled();
+                process.nextTick(function() {
+                    expect(page.close).toHaveBeenCalled();
+                    expect(phantObj.exit).toHaveBeenCalled();
+                    expect(fs.remove.calls.length).toBe(2);
+                    expect(fs.remove.calls[0].args).toEqual(['/tmp/1234-compiled.html',anyFunc]);
+                    expect(fs.remove.calls[1].args).toEqual(['/tmp/1234-generatedSplash.jpg',anyFunc]);
+                    done();
+                });
+            });
+        });
+        
+        it('should fail if opening the page with phantom fails', function(done) {
+            page.open.andCallFake(function(url, cb) { cb('fail'); });
+            collateral.generateSplash(req, s3, config).then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toBe('Failed to open /tmp/1234-compiled.html: status was fail');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(fs.writeFile).toHaveBeenCalled();
+                expect(page.set).toHaveBeenCalled();
+                expect(page.render).not.toHaveBeenCalled();
+                expect(collateral.upload).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should fail if phantom quits prematurely', function(done) {
+            var handlers;
+            phantom.create.andCallFake(function(opts, cb) {
+                handlers = opts;
+                cb(phantObj);
+            });
+            page.open.andCallFake(function(url, cb) {
+                handlers.onExit(1, 'PROBLEMS');
+                cb('success');
+            });
+            collateral.generateSplash(req, s3, config).then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toBe('PhantomJS exited prematurely');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(fs.writeFile).toHaveBeenCalled();
+                expect(page.set).toHaveBeenCalled();
+                expect(page.render).not.toHaveBeenCalled();
+                expect(collateral.upload).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should just log a warning if phantom logs error messages', function(done) {
+            var handlers;
+            phantom.create.andCallFake(function(opts, cb) {
+                handlers = opts;
+                cb(phantObj);
+            });
+            page.open.andCallFake(function(url, cb) {
+                handlers.onStderr('I THINK I GOT A PROBLEM');
+                cb('success');
+            });
+            collateral.generateSplash(req, s3, config).then(function(resp) {
+                expect(resp.code).toBe(201);
+                expect(resp.body).toBe('/path/on/s3');
+                expect(collateral.upload).toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should timeout if any part of the process takes too long', function(done) {
+            page.open.andCallFake(function(url, cb) {
+                setTimeout(function() { cb('success'); }, 11*1000);
+            });
+            
+            var promise = collateral.generateSplash(req, s3, config);
+            jasmine.Clock.tick(10*1000);
+            
+            promise.then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toEqual(new Error('Timed out after 10000 ms'));
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(page.render).not.toHaveBeenCalled();
+                expect(collateral.upload).not.toHaveBeenCalled();
+                done();
+            });
+        });
+    });  // end -- describe generateSplash
 });  // end -- describe collateral
 

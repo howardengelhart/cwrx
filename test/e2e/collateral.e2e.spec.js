@@ -178,6 +178,18 @@ describe('collateral (E2E):', function() {
             });
         });
         
+        it('should throw a 401 if the user is not logged in', function(done) {
+            delete options.jar;
+            testUtils.qRequest('post', options, files).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toEqual('Unauthorized');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
         it('should throw a 403 if a non-admin user tries to upload to another org', function(done) {
             options.url += '?org=not-e2e-org';
             testUtils.qRequest('post', options, files).then(function(resp) {
@@ -353,5 +365,184 @@ describe('collateral (E2E):', function() {
                 done();
             });
         });
+
+        it('should throw a 401 if the user is not logged in', function(done) {
+            delete options.jar;
+            testUtils.qRequest('post', options, files).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toEqual('Unauthorized');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+    });
+    
+    describe('POST /api/collateral/splash/:expId', function() {
+        var rmList, options, samples;
+        
+        beforeEach(function() {
+            samples = [
+                'https://s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample1.jpg',
+                'https://s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample2.jpg',
+                'https://s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample3.jpg',
+                'https://s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample4.jpg',
+                'https://s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample5.jpg',
+                'https://s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample6.jpg'
+            ];
+            var reqBody = {size: {height: 300, width: 300}, ratio: '__e2e', thumbs: [samples[0]]};
+            options = {url:config.collateralUrl+'/collateral/splash/e-1234',json:reqBody,jar:cookieJar};
+            rmList = [];
+        });
+        
+        afterEach(function(done) {
+            return q.all(rmList.map(function(key) {
+                return testUtils.removeS3File(bucket, key);
+            })).done(function() { done(); });
+        });
+        
+        it('should throw a 400 if the request is incomplete', function(done) {
+            var bodies = [
+                { size: { height: 300, width: 300 }, thumbs: [samples[0]] },
+                { ratio: 'square', thumbs: [samples[0]] },
+                { size: { height: 300, width: 300 }, ratio: 'square' }
+            ];
+            q.all(bodies.map(function(body) {
+                options.json = body;
+                return testUtils.qRequest('post', options);
+            })).then(function(results) {
+                expect(results[0].response.statusCode).toBe(400);
+                expect(results[0].response.body).toBe('Must provide ratio name to choose template');
+                expect(results[1].response.statusCode).toBe(400);
+                expect(results[1].response.body).toBe('Must provide size object with width + height');
+                expect(results[2].response.statusCode).toBe(400);
+                expect(results[2].response.body).toBe('Must provide thumbs to create splash from');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should throw a 400 if the ratio name is invalid', function(done) {
+            options.json.ratio = 'foo';
+            testUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toEqual('Invalid ratio name');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should generate a splash image', function(done) {
+            testUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toEqual('collateral/e-1234/generatedSplash.jpg');
+                rmList.push(resp.body);
+                return testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body)});
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.response.headers.etag).toBe('"1ac1b4765354b78678dac5f83a008892"')
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should be able to versionate the splash image', function(done) {
+            options.url += '?versionate=true';
+            testUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toEqual('collateral/e-1234/1ac1b4765354b78678dac5f83a008892.generatedSplash.jpg');
+                rmList.push(resp.body);
+                return testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body)});
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.response.headers.etag).toBe('"1ac1b4765354b78678dac5f83a008892"');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should be able to generate splash images at different sizes', function(done) {
+            var profiles = [
+                { size: { height: 600, width: 600 }, etag: '273077b32f8fef2e6c730993f7a9a7f0' },
+                { size: { height: 1000, width: 1000 }, etag: 'fc843376ada4a815ace6e645b551ccfa' },
+                { size: { height: 80, width: 80 }, etag: 'b22555d2412dc29ca058dc1971a87742' },
+                { size: { height: 400, width: 400 }, etag: '7e3d1c4546394e10c1c95ba59aa78496' }
+            ];
+            q.all(profiles.map(function(profile) {
+                options.json.size = profile.size;
+                options.url += '?versionate=true';
+                return testUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(201);
+                    expect(resp.body).toEqual('collateral/e-1234/' + profile.etag + '.generatedSplash.jpg');
+                    rmList.push(resp.body);
+                    return testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body)});
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.response.headers.etag).toBe('"' + profile.etag + '"');
+                }).catch(function(error) {
+                    expect(error).not.toBeDefined();
+                });
+            })).then(function() {
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should be able to generate splash images with multiple thumbs', function(done) {
+            var etags = [
+                '1ac1b4765354b78678dac5f83a008892',
+                'f7e6da5b1cf6ceade95c96e7793aca8c',
+                'd7042320ccd90eda24b26e94b5012766',
+                '7c46ae535dbf56bf44d83aa26b6433f6',
+                '7c46ae535dbf56bf44d83aa26b6433f6',
+                'aa90445ca7d2d7e9fc995eaaa7c11b43',
+                'aa90445ca7d2d7e9fc995eaaa7c11b43'
+            ];
+            q.all(etags.map(function(etag, index) {
+                options.json.thumbs = samples.slice(0, index + 1);
+                if (index == 6) options.json.thumbs.push(samples[5]);
+                options.url += '?versionate=true';
+                return testUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(201);
+                    expect(resp.body).toEqual('collateral/e-1234/' + etag + '.generatedSplash.jpg');
+                    rmList.push(resp.body);
+                    return testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body)});
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.response.headers.etag).toBe('"' + etag + '"');
+                }).catch(function(error) {
+                    expect(error).not.toBeDefined();
+                });
+            })).then(function() {
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should throw a 401 if the user is not logged in', function(done) {
+            delete options.jar;
+            testUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toEqual('Unauthorized');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+
     });
 });
