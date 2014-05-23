@@ -9,7 +9,7 @@ var q           = require('q'),
         authUrl         : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
     };
 
-jasmine.getEnv().defaultTimeoutInterval = 10000;
+jasmine.getEnv().defaultTimeoutInterval = 30000;
 
 describe('collateral (E2E):', function() {
     var cookieJar, mockUser;
@@ -471,6 +471,7 @@ describe('collateral (E2E):', function() {
         });
         
         it('should be able to generate splash images at different sizes', function(done) {
+            options.url += '?versionate=true';
             var profiles = [
                 { size: { height: 600, width: 600 }, etag: '273077b32f8fef2e6c730993f7a9a7f0' },
                 { size: { height: 1000, width: 1000 }, etag: 'fc843376ada4a815ace6e645b551ccfa' },
@@ -479,7 +480,6 @@ describe('collateral (E2E):', function() {
             ];
             q.all(profiles.map(function(profile) {
                 options.json.size = profile.size;
-                options.url += '?versionate=true';
                 return testUtils.qRequest('post', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(201);
                     expect(resp.body).toEqual('collateral/e-1234/' + profile.etag + '.generatedSplash.jpg');
@@ -500,6 +500,7 @@ describe('collateral (E2E):', function() {
         });
         
         it('should be able to generate splash images with multiple thumbs', function(done) {
+            options.url += '?versionate=true';
             var etags = [
                 '1ac1b4765354b78678dac5f83a008892',
                 'f7e6da5b1cf6ceade95c96e7793aca8c',
@@ -512,7 +513,6 @@ describe('collateral (E2E):', function() {
             q.all(etags.map(function(etag, index) {
                 options.json.thumbs = samples.slice(0, index + 1);
                 if (index == 6) options.json.thumbs.push(samples[5]);
-                options.url += '?versionate=true';
                 return testUtils.qRequest('post', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(201);
                     expect(resp.body).toEqual('collateral/e-1234/' + etag + '.generatedSplash.jpg');
