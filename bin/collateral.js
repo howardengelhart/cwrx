@@ -7,6 +7,10 @@
         q           = require('q'),
         aws         = require('aws-sdk'),
         fs          = require('fs-extra'),
+        phantom     = require('phantom'),
+        glob        = require('glob'),
+        handlebars  = require('handlebars'),
+        util        = require('util'),
         logger      = require('../lib/logger'),
         uuid        = require('../lib/uuid'),
         authUtils   = require('../lib/authUtils')(),
@@ -30,6 +34,11 @@
                 freshTTL: 1,
                 maxTTL: 10
             }
+        },
+        splash: {
+            quality: 75, // some integer between 0 and 100
+            maxDimension: 1000, // pixels, either height or width, to provide basic sane limit
+            timeout: 10*1000 // timeout for entire splash generation process; 10 seconds
         },
         maxFileSize: 25*1000*1000, // 25MB
         s3: {
@@ -56,10 +65,62 @@
             }
         }
     };
+    
+    /**
+     * Upload a single file to S3. If versionate is true, this will use uuid.hashFile to create a
+     * new versioned file name, check S3 for an existing file with this name, and upload if missing.
+     * If versionate is false, this will just upload the file directly to S3 (overwriting any
+     * existing file with that unmodified file name).
+     */
+    collateral.upload = function(req, prefix, fileOpts, versionate, s3, config) {
+        var log = logger.getLog(),
+            outParams = {},
+            headParams = {},
+            promise;
+            
+        if (versionate) {
+            promise = uuid.hashFile(fileOpts.path).then(function(hash) {
+                return q(hash + '.' + fileOpts.name);
+            });
+        } else {
+            promise = q(fileOpts.name);
+        }
+        
+        return promise.then(function(fname) {
+            outParams = {
+                Bucket      : config.s3.bucket,
+                Key         : path.join(prefix, fname),
+                ACL         : 'public-read',
+                ContentType : fileOpts.type
+            };
+            headParams = {Key: outParams.Key, Bucket: outParams.Bucket};
+            
+            log.info('[%1] User %2 is uploading file to %3/%4',
+                     req.uuid, req.user.id, outParams.Bucket, outParams.Key);
 
+            if (versionate) {
+                return q.npost(s3, 'headObject', [headParams]).then(function(/*data*/) {
+                    log.info('[%1] Identical file %2 already exists on s3, not uploading',
+                             req.uuid, fname);
+                    return q(outParams.Key);
+                })
+                .catch(function(/*error*/) {
+                    return s3util.putObject(s3, fileOpts.path, outParams)
+                    .thenResolve(outParams.Key);
+                });
+            } else {
+                log.info('[%1] Not versionating, overwriting potential existing file', req.uuid);
+                return s3util.putObject(s3, fileOpts.path, outParams)
+                .thenResolve(outParams.Key);
+            }
+        });
+    };
+    
     collateral.uploadFiles = function(req, s3, config) {
         var log = logger.getLog(),
-            org = req.user.org;
+            org = req.user.org,
+            versionate = req.query && req.query.versionate || false,
+            prefix;
 
         function cleanup(fpath) {
             q.npost(fs, 'remove', [fpath])
@@ -71,7 +132,7 @@
             });
         }
 
-        if (!req.files || Object.keys(req.files).length === 0) {
+        if (typeof req.files !== 'object' || Object.keys(req.files).length === 0) {
             log.info('[%1] No files to upload from user %2', req.uuid, req.user.id);
             return q({code: 400, body: 'Must provide files to upload'});
         } else {
@@ -79,25 +140,29 @@
                      req.uuid, req.user.id, Object.keys(req.files).length);
         }
         
-        if (req.query && req.query.org && req.query.org !== req.user.org) {
-            if (req.user.permissions && req.user.permissions.experiences &&
-                req.user.permissions.experiences.edit === Scope.All) {
-                log.info('[%1] Admin user %2 is uploading file to org %3',req.uuid,req.user.id,org);
-                org = req.query.org;
-            } else {
-                log.info('[%1] Non-admin user %2 tried to upload files to org %3',
-                         req.uuid, req.user.id, org);
-                Object.keys(req.files).forEach(function(key) {
-                    cleanup(req.files[key].path);
-                });
-                return q({code: 403, body: 'Cannot upload files to that org'});
+        if (req.params && req.params.expId) {
+            prefix = path.join(config.s3.path, req.params.expId);
+        } else {
+            if (req.query && req.query.org && req.query.org !== req.user.org) {
+                if (req.user.permissions && req.user.permissions.experiences &&
+                    req.user.permissions.experiences.edit === Scope.All) {
+                    log.info('[%1] Admin user %2 is uploading file to org %3',
+                             req.uuid, req.user.id, org);
+                    org = req.query.org;
+                } else {
+                    log.info('[%1] Non-admin user %2 tried to upload files to org %3',
+                             req.uuid, req.user.id, org);
+                    Object.keys(req.files).forEach(function(key) {
+                        cleanup(req.files[key].path);
+                    });
+                    return q({code: 403, body: 'Cannot upload files to that org'});
+                }
             }
+            prefix = path.join(config.s3.path, org);
         }
         
         return q.allSettled(Object.keys(req.files).map(function(objName) {
-            var file = req.files[objName],
-                outParams, headParams, fname;
-                
+            var file = req.files[objName];
             
             if (file.size > config.maxFileSize) {
                 log.warn('[%1] File %2 is %3 bytes large, which is too big',
@@ -106,31 +171,10 @@
                 return q.reject({ code: 413, name: objName, error: 'File is too big' });
             }
             
-            return uuid.hashFile(file.path).then(function(hash) {
-                fname = hash + '.' + file.name;
-                outParams = {
-                    Bucket      : config.s3.bucket,
-                    Key         : path.join(config.s3.path, org, fname),
-                    ACL         : 'public-read',
-                    ContentType : file.type
-                };
-                headParams = {Key: outParams.Key, Bucket: outParams.Bucket};
-                
-                log.info('[%1] User %2 is uploading file to %3/%4',
-                         req.uuid, req.user.id, outParams.Bucket, outParams.Key);
-
-                return q.npost(s3, 'headObject', [headParams]).then(function(/*data*/) {
-                    log.info('[%1] Identical file %2 already exists on s3, not uploading',
-                             req.uuid, fname);
-                    return q();
-                })
-                .catch(function(/*error*/) {
-                    return s3util.putObject(s3, file.path, outParams);
-                });
-            })
-            .then(function() {
-                log.info('[%1] File %2 has been uploaded successfully', req.uuid, fname);
-                return q({ code: 201, name: objName, path: outParams.Key });
+            return collateral.upload(req, prefix, file, versionate, s3, config)
+            .then(function(key) {
+                log.info('[%1] File %2 has been uploaded successfully', req.uuid, file.name);
+                return q({ code: 201, name: objName, path: key });
             })
             .catch(function(error) {
                 log.error('[%1] Error processing upload for %2: %3', req.uuid, file.name, error);
@@ -163,6 +207,144 @@
             log.error('[%1] Error processing uploads: %2', req.uuid, error);
             return q.reject(error);
         });
+    };
+    
+    // If num === 5 return 4, if num > 6 return 6, else return num
+    collateral.chooseTemplateNum = function(num) {
+        return Math.min(((num % 2 && num > 4) ? Math.max(num - 1, 1) : num), 6);
+    };
+    
+    collateral.generateSplash = function(req, s3, config) {
+        var log = logger.getLog(),
+            versionate = req.query && req.query.versionate || false,
+            templateDir = path.join(__dirname, '../splashTemplates');
+
+        if (!req.body || !(req.body.thumbs instanceof Array) || req.body.thumbs.length === 0) {
+            log.info('[%1] No thumbs to generate a splash from', req.uuid);
+            return q({code: 400, body: 'Must provide thumbs to create splash from'});
+        }
+        
+        if (!req.body.size || !req.body.size.height || !req.body.size.width) {
+            log.info('[%1] No size provided in request', req.uuid);
+            return q({code: 400, body: 'Must provide size object with width + height'});
+        } else if (req.body.size.height > config.splash.maxDimension ||
+                   req.body.size.width > config.splash.maxDimension) {
+            log.info('[%1] Trying to create %2x%3 image but limit is %4x%4',
+                     req.uuid,req.body.size.width,req.body.size.height,config.splash.maxDimension);
+            return q({code: 400, body: 'Requested image size is too large'});
+        }
+        
+        if (!req.body.ratio) {
+            log.info('[%1] No ratio provided in request', req.uuid);
+            return q({code: 400, body: 'Must provide ratio name to choose template'});
+        } else if (glob.sync(path.join(templateDir, req.body.ratio + '*')).length === 0) {
+            log.info('[%1] Invalid ratio name %2', req.uuid, req.body.ratio);
+            return q({code: 400, body: 'Invalid ratio name'});
+        }
+        
+        var templateNum     = collateral.chooseTemplateNum(req.body.thumbs.length),
+            templatePath    = path.join(templateDir, req.body.ratio + '_x' + templateNum + '.html'),
+            compiledPath    = path.join('/tmp', req.uuid + '-compiled.html'),
+            splashName      = 'generatedSplash.jpg',
+            splashPath      = path.join('/tmp', req.uuid + '-' + splashName),
+            deferred        = q.defer(),
+            prefix          = path.join(config.s3.path, req.params.expId),
+            ph, page;
+
+        // Phantom callbacks only callback with one arg, so we need to transform to Nodejs style
+        function phantWrap(object, method, args, cb) {
+            args.push(function(result) { cb(null, result); });
+            object[method].apply(object, args);
+        }
+            
+        log.info('[%1] User %2 generating splash for %3 from %4 thumbs',
+                 req.uuid, req.user.id, req.params.expId, req.body.thumbs.length);
+        
+        // Start by reading and rendering our template with handlebars
+        q.npost(fs, 'readFile', [templatePath, {encoding: 'utf8'}])
+        .then(function(template) {
+            var data = {thumbs: req.body.thumbs},
+                compiled = handlebars.compile(template)(data);
+
+            return q.npost(fs, 'writeFile', [compiledPath, compiled]);
+        })
+
+        .then(function() { // Start setting up phantomjs
+            log.trace('[%1] Wrote compiled html, starting phantom', req.uuid);
+            function onExit(code, signal) {
+                if (code === 0) {
+                    return;
+                }
+                log.error('[%1] Phantom exited with code %2, signal %3', req.uuid, code, signal);
+                deferred.reject('PhantomJS exited prematurely');
+            }
+
+            // this mostly copies the default onStderr but replaces their console.warn with our log
+            function onStderr(data) {
+                if (data.match(/(No such method.*socketSentData)|(CoreText performance note)/)) {
+                    return;
+                }
+                log.warn('[%1] Phantom had an error: %2', req.uuid, data);
+            }
+
+            return q.nfapply(phantWrap, [phantom, 'create', [{onExit:onExit, onStderr:onStderr}]]);
+        })
+        .then(function(phantObj) { // Create a page object
+            ph = phantObj;
+            return q.nfapply(phantWrap, [ph, 'createPage', []]);
+        })
+        .then(function(webpage) { // Set viewportSize to create image of desired size
+            page = webpage;
+            log.trace('[%1] Created page, setting viewport size', req.uuid);
+            return q.nfapply(phantWrap, [page, 'set', ['viewportSize', req.body.size]]);
+        })
+        .then(function() { // Open the compiled html
+            return q.nfapply(phantWrap, [page, 'open', [compiledPath]]);
+        })
+        .then(function(status) { // Render page as image
+            if (status !== 'success') {
+                return q.reject('Failed to open ' + compiledPath + ': status was ' + status);
+            }
+            log.trace('[%1] Opened page, rendering image', req.uuid);
+            var opts = { quality: config.splash.quality };
+            return q.nfapply(phantWrap, [page, 'render', [splashPath, opts]]);
+        })
+
+        .then(function() { // Upload the rendered splash image to S3
+            log.trace('[%1] Rendered image', req.uuid);
+            var fileOpts = {
+                name: splashName,
+                path: splashPath,
+                type: 'image/jpeg'
+            };
+            return collateral.upload(req, prefix, fileOpts, versionate, s3, config);
+        })
+        
+        .then(function(key) {
+            log.info('[%1] File %2 has been uploaded successfully', req.uuid, splashName);
+            deferred.resolve({ code: 201, body: key });
+        })
+        .timeout(config.splash.timeout)
+        .catch(function(error) {
+            log.error('[%1] Error generating splash image: %2', req.uuid, util.inspect(error));
+            deferred.reject(error);
+        })
+
+        .finally(function() { // Cleanup by removing compiled template + splash image
+            page.close();
+            ph.exit();
+            [compiledPath, splashPath].map(function(fpath) {
+                q.npost(fs, 'remove', [fpath])
+                .then(function() {
+                    log.trace('[%1] Successfully removed %2', req.uuid, fpath);
+                })
+                .catch(function(error) {
+                    log.warn('[%1] Unable to remove %2: %3', req.uuid, fpath, error);
+                });
+            });
+        });
+        
+        return deferred.promise;
     };
 
     collateral.main = function(state) {
@@ -245,6 +427,19 @@
         });
         
         var authUpload = authUtils.middlewarify({});
+
+        app.post('/api/collateral/files/:expId', sessionsWrapper, authUpload, function(req,res){
+            collateral.uploadFiles(req, s3, state.config)
+            .then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error uploading files',
+                    detail: error
+                });
+            });
+        });
+
         app.post('/api/collateral/files', sessionsWrapper, authUpload, function(req,res){
             collateral.uploadFiles(req, s3, state.config)
             .then(function(resp) {
@@ -256,7 +451,19 @@
                 });
             });
         });
-        
+
+        app.post('/api/collateral/splash/:expId', sessionsWrapper, authUpload, function(req, res) {
+            collateral.generateSplash(req, s3, state.config)
+            .then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error uploading files',
+                    detail: error
+                });
+            });
+        });
+
         app.get('/api/collateral/meta', function(req, res){
             var data = {
                 version: state.config.appVersion,

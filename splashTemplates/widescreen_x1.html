@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
+<!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
+<!--[if IE 8]>         <html class="no-js lt-ie9"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js"> <!--<![endif]-->
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <title>Square Splash Template</title>
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+        <style>
+            body {
+                margin:0;
+            }
+            .template__group {
+                position: relative;
+            }
+            .imgTiles {
+                position:absolute; 
+                width:100%; height:0; padding:0 0 56.25%  0;
+                background:black;
+            }
+            .imgBox {
+                position:absolute;
+                background-position:50% 50%;
+                background-size: cover;
+                background-repeat: no-repeat;
+                width:100%; height:100%;
+                box-sizing:border-box;
+            }
+            
+        </style>
+    </head>
+    <body>
+        <div class="template__group">
+            <div class="imgTiles">
+                <div class="imgBox img0" 
+                    style="background-image:url('{{thumbs.[0]}}');">&nbsp;</div>
+            </div>
+        </div>
+    </body>
+</html>

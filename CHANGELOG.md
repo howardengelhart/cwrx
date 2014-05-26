@@ -3,7 +3,7 @@
 ## auth Service
 ### 1.2.4: Thu May  8 18:32:05 EDT 2014
 * [FIX]: Fix mongo reconnect: [#151](https://github.com/cinema6/cwrx/pull/151)
-* Extra deployment steps: Set # of kids to 1
+* Extra deployment steps: None
 
 ### 1.2.3: Thu May  8 12:39:02 EDT 2014
 * [FIX]: Escape/unescape keys in mongo objects: [#147](https://github.com/cinema6/cwrx/pull/147)
@@ -14,9 +14,18 @@
 * Extra deployment steps: None
 
 ## collateral Service
+### 1.2.0: Fri May 23 10:35:35 EDT 2014
+* [FIX]: Add endpoint for splash generation: [#160](https://github.com/cinema6/cwrx/pull/160)
+* Extra deployment steps:
+    * Deploy collateral cookbook v0.2.0 to all environments
+
+### 1.1.0: Tue May 20 11:55:10 EDT 2014
+* [FIX]: Add endpoint for uploading to experience: [#157](https://github.com/cinema6/cwrx/pull/157)
+* Extra deployment steps: None
+
 ### 1.0.1: Thu May  8 18:32:05 EDT 2014
 * [FIX]: Fix mongo reconnect: [#151](https://github.com/cinema6/cwrx/pull/151)
-* Extra deployment steps: Set # of kids to 1
+* Extra deployment steps: None
 
 ### 1.0.0: Mon May  5 14:36:24 EDT 2014
 * First deployment: [#127](https://github.com/cinema6/cwrx/pull/127)
@@ -26,7 +35,7 @@
 ## content Service
 ### 1.3.7: Thu May  8 18:32:05 EDT 2014
 * [FIX]: Fix mongo reconnect: [#151](https://github.com/cinema6/cwrx/pull/151)
-* Extra deployment steps: Set # of kids to 1
+* Extra deployment steps: None
 
 ### 1.3.6: Thu May  8 12:39:02 EDT 2014
 * [FIX]: Escape/unescape keys in mongo objects: [#147](https://github.com/cinema6/cwrx/pull/147)
@@ -50,7 +59,8 @@
 ## userSvc Service
 ### 1.4.3: Thu May  8 18:32:05 EDT 2014
 * [FIX]: Fix mongo reconnect: [#151](https://github.com/cinema6/cwrx/pull/151)
-* Extra deployment steps: Set # of kids to 1
+* [FIX]: Check for existing user with newEmail when changing email: [#153](https://github.com/cinema6/cwrx/pull/153)
+* Extra deployment steps: None
 
 ### 1.4.2: Thu May  8 12:39:02 EDT 2014
 * [FIX]: Escape/unescape keys in mongo objects: [#147](https://github.com/cinema6/cwrx/pull/147)
@@ -63,7 +73,7 @@
 ## vote Service
 ### 1.3.3: Thu May  8 18:32:05 EDT 2014
 * [FIX]: Fix mongo reconnect: [#151](https://github.com/cinema6/cwrx/pull/151)
-* Extra deployment steps: Set # of kids to 1
+* Extra deployment steps: None
 
 ### 1.3.2: Thu May  8 12:39:02 EDT 2014
 * [FIX]: Escape/unescape keys in mongo objects: [#147](https://github.com/cinema6/cwrx/pull/147)

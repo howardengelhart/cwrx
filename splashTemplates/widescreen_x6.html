@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
+<!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
+<!--[if IE 8]>         <html class="no-js lt-ie9"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js"> <!--<![endif]-->
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <title>Square Splash Template</title>
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+        <style>
+            body {
+                margin:0;
+            }
+            .template__group {
+                position: relative;
+            }
+            .imgTiles {
+                position:absolute; 
+                width:100%; height:0; padding:0 0 56.25% 0;
+                background:black;
+            }
+            .imgBox {
+                position:absolute;
+                background-position:50% 50%;
+                background-size: cover;
+                background-repeat: no-repeat;
+                width:33.333%; height:50%;
+                box-sizing:border-box;
+                border:1px solid #000;
+            }
+            @media screen and (min-width:601px) and (max-width:1200px) {
+                .imgBox {
+                    border:2px solid #000;
+                }
+            }
+            @media screen and (min-width:1201px) {
+                .imgBox {
+                    border:3px solid #000;
+                }
+            }
+
+                .img0 {
+                    top:0; left:0;
+                    border-left:0; border-top:0;
+                }
+                .img1 {
+                    top:0; left:33.333%;
+                    border-top:0;
+                }
+                .img2 {
+                    top:0; left:66.666%;
+                    border-right:0; border-top:0;
+                }
+                .img3 {
+                    top:50%; left:0;
+                    border-left:0; border-bottom:0;
+                }
+                .img4 {
+                    top:50%; left:33.333%;
+                    border-bottom:0;
+                }
+                .img5 {
+                    top:50%; left:66.666%;
+                    border-right:0; border-bottom:0;
+                }
+            
+        </style>
+    </head>
+    <body>
+        <div class="template__group">
+            <div class="imgTiles">
+                <div class="imgBox img0" 
+                    style="background-image:url('{{thumbs.[0]}}');">&nbsp;</div>
+                <div class="imgBox img1" 
+                    style="background-image:url('{{thumbs.[1]}}');">&nbsp;</div>
+                <div class="imgBox img2" 
+                    style="background-image:url('{{thumbs.[2]}}');">&nbsp;</div>
+                <div class="imgBox img3" 
+                    style="background-image:url('{{thumbs.[3]}}');">&nbsp;</div>
+                <div class="imgBox img4" 
+                    style="background-image:url('{{thumbs.[4]}}');">&nbsp;</div>
+                <div class="imgBox img5" 
+                    style="background-image:url('{{thumbs.[5]}}');">&nbsp;</div>
+            </div>
+        </div>
+    </body>
+</html>
