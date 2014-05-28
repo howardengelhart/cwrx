@@ -135,6 +135,93 @@ describe('collateral (UT)', function() {
         });
     });
     
+    describe('checkImageType', function() {
+        var buff;
+        beforeEach(function() {
+            buff = new Buffer([]);
+            spyOn(fs, 'readFile').andCallFake(function(fpath, cb) { cb(null, buff); });
+        });
+        
+        it('should correctly identify jpeg images', function(done) {
+            buff = new Buffer([0xff, 0xd8, 0xff, 0xf3, 0x12, 0x56, 0x83]);
+            collateral.checkImageType('fakePath').then(function(info) {
+                expect(info).toBeDefined();
+                expect(info.type).toBe('image/jpeg');
+                expect(info.ext).toBe('.jpg');
+                expect(fs.readFile).toHaveBeenCalledWith('fakePath', jasmine.any(Function));
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should correctly identify png images', function(done) {
+            buff = new Buffer([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x36, 0xf8]);
+            collateral.checkImageType('fakePath').then(function(info) {
+                expect(info).toBeDefined();
+                expect(info.type).toBe('image/png');
+                expect(info.ext).toBe('.png');
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should correctly identify gif images', function(done) {
+            buff = new Buffer([0x47, 0x49, 0x46, 0x38, 0x37, 0x61, 0xff, 0x34, 0x12]);
+            collateral.checkImageType('fakePath').then(function(info) {
+                expect(info).toBeDefined();
+                expect(info.type).toBe('image/gif');
+                expect(info.ext).toBe('.gif');
+                buff = new Buffer([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0xff, 0x34, 0x12]);
+                return collateral.checkImageType('fakePath');
+            }).then(function(info) {
+                expect(info).toBeDefined();
+                expect(info.type).toBe('image/gif');
+                expect(info.ext).toBe('.gif');
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should return false for invalid images', function(done) {
+            var badBuffers = {
+                'badJpeg':  new Buffer([0xff, 0xd8, 0xfe]),
+                'badPng':   new Buffer([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x01, 0x1a, 0x0a]),
+                'badGif1':  new Buffer([0x42, 0x49, 0x46, 0x38, 0x39, 0x61]),
+                'badGif2':  new Buffer([0x47, 0x49, 0x46, 0x38, 0x38, 0x61])
+            };
+            fs.readFile.andCallFake(function(fpath, cb) { cb(null, badBuffers[fpath]); });
+            
+            q.all(Object.keys(badBuffers).map(collateral.checkImageType)).then(function(results) {
+                results.forEach(function(result) { expect(result).toBe(false); });
+                expect(fs.readFile.calls[0].args).toEqual(['badJpeg', jasmine.any(Function)]);
+                expect(fs.readFile.calls[1].args).toEqual(['badPng', jasmine.any(Function)]);
+                expect(fs.readFile.calls[2].args).toEqual(['badGif1', jasmine.any(Function)]);
+                expect(fs.readFile.calls[3].args).toEqual(['badGif2', jasmine.any(Function)]);
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should fail if reading the file fails', function(done) {
+            fs.readFile.andCallFake(function(fpath, cb) { cb('I GOT A PROBLEM'); });
+            collateral.checkImageType('fakePath').then(function(info) {
+                expect(info).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                done();
+            });
+        });
+    });
+    
     describe('uploadFiles', function() {
         var s3, req, config;
         beforeEach(function() {

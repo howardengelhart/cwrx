@@ -116,6 +116,33 @@
         });
     };
     
+    collateral.checkImageType = function(fpath) {
+        var fileTypes = [
+            {ext: '.jpg', type: 'image/jpeg', sig: [0xff, 0xd8, 0xff]},
+            {ext: '.png', type: 'image/png', sig: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]},
+            {ext: '.gif', type: 'image/gif', sig: [0x47, 0x49, 0x46, 0x38, [0x37, 0x39], 0x61]}
+        ];
+        
+        function checkSig(sig, buff) {
+            return sig.every(function(sigVal, i) {
+                if (sigVal instanceof Array) {
+                    return sigVal.some(function(option) { return option === buff[i]; });
+                } else {
+                    return buff[i] === sigVal;
+                }
+            });
+        }
+        
+        return q.npost(fs, 'readFile', [fpath]).then(function(buffer) {
+            for (var i = 0; i < fileTypes.length; i++) {
+                if (checkSig(fileTypes[i].sig, buffer)) {
+                    return q(fileTypes[i]);
+                }
+            }
+            return false;
+        });
+    };
+    
     collateral.uploadFiles = function(req, s3, config) {
         var log = logger.getLog(),
             org = req.user.org,
@@ -439,7 +466,7 @@
                 });
             });
         });
-
+        
         app.post('/api/collateral/files', sessionsWrapper, authUpload, function(req,res){
             collateral.uploadFiles(req, s3, state.config)
             .then(function(resp) {
