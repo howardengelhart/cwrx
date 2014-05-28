@@ -198,16 +198,32 @@
                 return q.reject({ code: 413, name: objName, error: 'File is too big' });
             }
             
-            return collateral.upload(req, prefix, file, versionate, s3, config)
-            .then(function(key) {
-                log.info('[%1] File %2 has been uploaded successfully', req.uuid, file.name);
-                return q({ code: 201, name: objName, path: key });
+            var deferred = q.defer();
+            
+            collateral.checkImageType(file.path)
+            .then(function(info) {
+                if (!info) {
+                    log.warn('[%1] File %2 is not a jpeg, png, or gif', req.uuid, file.name);
+                    return deferred.reject({code:415, name:objName, error:'Unsupported file type'});
+                }
+                
+                file.type = info.type;
+                file.name = file.name.match(/\.\w+$/) ? file.name.replace(/\.\w+$/, info.ext)
+                                                      : file.name + info.ext;
+
+                return collateral.upload(req, prefix, file, versionate, s3, config)
+                .then(function(key) {
+                    log.info('[%1] File %2 has been uploaded successfully', req.uuid, file.name);
+                    deferred.resolve({ code: 201, name: objName, path: key });
+                });
             })
             .catch(function(error) {
                 log.error('[%1] Error processing upload for %2: %3', req.uuid, file.name, error);
-                return q.reject({ code: 500, name: objName, error: error });
+                deferred.reject({ code: 500, name: objName, error: error });
             })
             .finally(function() { cleanup(file.path); });
+            
+            return deferred.promise;
         }))
         .then(function(results) {
             var retArray = [], reqCode = 201;

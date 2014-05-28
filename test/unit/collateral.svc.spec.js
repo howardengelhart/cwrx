@@ -229,13 +229,14 @@ describe('collateral (UT)', function() {
                 uuid: '1234',
                 user: { id: 'u-1', org: 'o-1' },
                 files: {
-                    testFile: { size: 900, name: 'test.txt', type: 'text/plain', path: '/tmp/123' }
+                    testFile: { size: 900, name: 'test', type: 'text/plain', path: '/tmp/123' }
                 }
             };
             s3 = 'fakeS3';
             config = { maxFileSize: 1000, s3: { path: 'ut/' } };
             spyOn(fs, 'remove').andCallFake(function(path, cb) { cb(); });
             spyOn(collateral, 'upload').andReturn(q('/path/on/s3'));
+            spyOn(collateral, 'checkImageType').andReturn(q({ext: '.jpg', type: 'image/jpeg'}));
         });
         
         it('should fail with a 400 if no files are provided', function(done) {
@@ -262,6 +263,21 @@ describe('collateral (UT)', function() {
                 expect(resp.code).toBe(413);
                 expect(resp.body).toEqual([{name: 'testFile', code: 413, error: 'File is too big' }]);
                 expect(collateral.upload).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should fail if the file is not a supported image type', function(done) {
+            collateral.checkImageType.andReturn(q(false));
+            collateral.uploadFiles(req, s3, config).then(function(resp) {
+                expect(resp.code).toBe(415);
+                expect(resp.body).toEqual([{name: 'testFile', code: 415, error: 'Unsupported file type' }]);
+                expect(collateral.upload).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -273,7 +289,9 @@ describe('collateral (UT)', function() {
             collateral.uploadFiles(req, s3, config).then(function(resp) {
                 expect(resp.code).toBe(201);
                 expect(resp.body).toEqual([{name: 'testFile', code: 201, path: '/path/on/s3'}]);
-                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/o-1',req.files.testFile,false,'fakeS3',config);
+                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/o-1',
+                    {size:900,name:'test.jpg',type:'image/jpeg',path:'/tmp/123'},false,'fakeS3',config);
+                expect(collateral.checkImageType).toHaveBeenCalledWith('/tmp/123');
                 expect(fs.remove).toHaveBeenCalled();
                 expect(fs.remove.calls[0].args[0]).toBe('/tmp/123');
                 done();
@@ -330,10 +348,12 @@ describe('collateral (UT)', function() {
                 expect(resp.code).toBe(201);
                 expect(resp.body).toEqual([{name: 'testFile', code: 201, path: '/path/on/s3'}]);
                 expect(collateral.upload).toHaveBeenCalled();
-                expect(fs.remove).toHaveBeenCalled();
-                expect(mockLog.warn).toHaveBeenCalled();
-                expect(mockLog.error).not.toHaveBeenCalled();
-                done();
+                process.nextTick(function() {
+                    expect(fs.remove).toHaveBeenCalled();
+                    expect(mockLog.warn).toHaveBeenCalled();
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                    done();
+                });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
                 done();
@@ -347,14 +367,14 @@ describe('collateral (UT)', function() {
                 file3: { size: 1000, name: '3.txt', type: 'text/plain', path: '/tmp/3' }
             };
             collateral.upload.andCallFake(function(req, org, fileOpts, versionate, s3, config) {
-                if (fileOpts.name === '3.txt') return q.reject('I GOT A PROBLEM');
+                if (fileOpts.name === '3.jpg') return q.reject('I GOT A PROBLEM');
                 else return q('/path/to/' + fileOpts.name);
             });
 
             collateral.uploadFiles(req, s3, config).then(function(resp) {
                 expect(resp.code).toBe(500);
                 expect(resp.body).toEqual([
-                    {name: 'file1', code: 201, path: '/path/to/1.txt'},
+                    {name: 'file1', code: 201, path: '/path/to/1.jpg'},
                     {name: 'file2', code: 413, error: 'File is too big'},
                     {name: 'file3', code: 500, error: 'I GOT A PROBLEM'}
                 ]);
