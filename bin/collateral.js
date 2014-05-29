@@ -115,12 +115,12 @@
             }
         });
     };
-    
+
     collateral.checkImageType = function(fpath) {
         var fileTypes = [
-            {ext: '.jpg', type: 'image/jpeg', sig: [0xff, 0xd8, 0xff]},
-            {ext: '.png', type: 'image/png', sig: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]},
-            {ext: '.gif', type: 'image/gif', sig: [0x47, 0x49, 0x46, 0x38, [0x37, 0x39], 0x61]}
+            { type: 'image/jpeg', sig: [0xff, 0xd8, 0xff] },
+            { type: 'image/png', sig: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] },
+            { type: 'image/gif', sig: [0x47, 0x49, 0x46, 0x38, [0x37, 0x39], 0x61] }
         ];
         
         function checkSig(sig, buff) {
@@ -136,13 +136,13 @@
         return q.npost(fs, 'readFile', [fpath]).then(function(buffer) {
             for (var i = 0; i < fileTypes.length; i++) {
                 if (checkSig(fileTypes[i].sig, buffer)) {
-                    return q(fileTypes[i]);
+                    return q(fileTypes[i].type);
                 }
             }
             return false;
         });
     };
-    
+
     collateral.uploadFiles = function(req, s3, config) {
         var log = logger.getLog(),
             org = req.user.org,
@@ -201,15 +201,13 @@
             var deferred = q.defer();
             
             collateral.checkImageType(file.path)
-            .then(function(info) {
-                if (!info) {
+            .then(function(type) {
+                if (!type) {
                     log.warn('[%1] File %2 is not a jpeg, png, or gif', req.uuid, file.name);
                     return deferred.reject({code:415, name:objName, error:'Unsupported file type'});
                 }
                 
-                file.type = info.type;
-                file.name = file.name.match(/\.\w+$/) ? file.name.replace(/\.\w+$/, info.ext)
-                                                      : file.name + info.ext;
+                file.type = type;
 
                 return collateral.upload(req, prefix, file, versionate, s3, config)
                 .then(function(key) {
@@ -288,8 +286,8 @@
         var templateNum     = collateral.chooseTemplateNum(req.body.thumbs.length),
             templatePath    = path.join(templateDir, req.body.ratio + '_x' + templateNum + '.html'),
             compiledPath    = path.join('/tmp', req.uuid + '-compiled.html'),
-            splashName      = 'generatedSplash.jpg',
-            splashPath      = path.join('/tmp', req.uuid + '-' + splashName),
+            splashName      = 'splash',
+            splashPath      = path.join('/tmp', req.uuid + '-' + splashName + '.jpg'),
             deferred        = q.defer(),
             prefix          = path.join(config.s3.path, req.params.expId),
             ph, page;
