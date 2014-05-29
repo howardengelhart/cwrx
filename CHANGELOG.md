@@ -33,6 +33,10 @@
     * Push up update to staging environment to include collateral service
 
 ## content Service
+### 1.3.8: Thu May 29 12:09:09 EDT 2014
+* [FIX]: Store userId in data+status arrays: [#168](https://github.com/cinema6/cwrx/pull/168)
+* Extra deployment steps: None
+
 ### 1.3.7: Thu May  8 18:32:05 EDT 2014
 * [FIX]: Fix mongo reconnect: [#151](https://github.com/cinema6/cwrx/pull/151)
 * Extra deployment steps: None
