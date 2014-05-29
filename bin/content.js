@@ -184,12 +184,12 @@
         if (!obj.status) {
             obj.status = Status.Active;
         }
-        obj.status = [ { user: user.email, date: now, status: obj.status } ];
+        obj.status = [ { user: user.email, userId: user.id, date: now, status: obj.status } ];
         if (!obj.access) {
             obj.access = Access.Public;
         }
         if (obj.data) {
-            obj.data = [ { user: user.email, date: now, data: obj.data } ];
+            obj.data = [ { user: user.email, userId: user.id, date: now, data: obj.data } ];
             if (obj.status[0].status === Status.Active) {
                 obj.data[0].active = true;
             }
@@ -216,16 +216,16 @@
 
         if (!(orig.data instanceof Array)) {
             log.warn('[%1] Original exp %2 does not have an array of data', req.uuid, orig.id);
-            orig.data = [ { user: user.email, date: orig.created, data: orig.data } ];
+            orig.data = [{user:user.email,userId:user.id,date:orig.created,data:orig.data}];
         }
         if (!(orig.status instanceof Array)) {
             log.warn('[%1] Original exp %2 does not have an array of statuses', req.uuid, orig.id);
-            orig.status = [{user: user.email, date: orig.created, status: orig.status}];
+            orig.status = [{user:user.email,userId:user.id,date:orig.created,status:orig.status}];
         }
 
         if (updates.data) {
             if (!content.compareData(orig.data[0].data, updates.data)) {
-                var dataWrapper = { user: user.email, date: now, data: updates.data };
+                var dataWrapper = {user:user.email, userId:user.id, date:now, data:updates.data};
                 if (orig.status[0].status === Status.Active) {
                     dataWrapper.active = true;
                     orig.data.unshift(dataWrapper);
@@ -242,7 +242,7 @@
         
         if (updates.status) {
             if (updates.status !== orig.status[0].status) {
-                var statWrapper = { user: user.email, date: now, status: updates.status };
+                var statWrapper = {user:user.email,userId:user.id,date:now,status:updates.status};
                 if (updates.status === Status.Active) {
                     orig.data[0].active = true;
                     updates.data = orig.data;

@@ -481,8 +481,8 @@ describe('content (UT)', function() {
             orig = {
                 id: 'e-1',
                 created: start,
-                data: [{user: 'johnny', date: start, data: {foo: 'bar'}}],
-                status: [{user: 'johnny', date: start, status: Status.Pending}]
+                data: [{user: 'johnny', userId: 'u-2', date: start, data: {foo: 'bar'}}],
+                status: [{user: 'johnny', userId: 'u-2', date: start, status: Status.Pending}]
             };
             user = { id: 'u-1', email: 'otter' };
         });
@@ -493,9 +493,11 @@ describe('content (UT)', function() {
             expect(updates.status instanceof Array).toBe(true);
             expect(updates.status.length).toBe(2);
             expect(updates.status[0].user).toBe('otter');
+            expect(updates.status[0].userId).toBe('u-1');
             expect(updates.status[0].date).toBeGreaterThan(start);
             expect(updates.status[0].status).toEqual(Status.Deleted);
             expect(updates.status[1].user).toBe('johnny');
+            expect(updates.status[1].userId).toBe('u-2');
             expect(updates.status[1].date).toBe(start);
             expect(updates.status[1].status).toEqual(Status.Pending);
             expect(updates.data).not.toBeDefined();
@@ -518,10 +520,12 @@ describe('content (UT)', function() {
             expect(updates.data instanceof Array).toBe(true);
             expect(updates.data.length).toBe(2);
             expect(updates.data[0].user).toBe('otter');
+            expect(updates.data[0].userId).toBe('u-1');
             expect(updates.data[0].date).toBeGreaterThan(start);
             expect(updates.data[0].data).toEqual({foo: 'baz'});
             expect(updates.data[0].active).toBe(true);
             expect(updates.data[1].user).toBe('johnny');
+            expect(updates.data[1].userId).toBe('u-2');
             expect(updates.data[1].date).toBe(start);
             expect(updates.data[1].data).toEqual({foo: 'bar'});
             expect(updates.data[1].active).not.toBeDefined();
@@ -533,6 +537,7 @@ describe('content (UT)', function() {
             content.formatUpdates(req, orig, updates, user);
             expect(updates.data.length).toBe(1);
             expect(updates.data[0].user).toBe('otter');
+            expect(updates.data[0].userId).toBe('u-1');
             expect(updates.data[0].date).toBeGreaterThan(start);
             expect(updates.data[0].data).toEqual({foo: 'baz'});
         });
@@ -581,9 +586,11 @@ describe('content (UT)', function() {
             expect(updates.data.length).toBe(2);
             expect(updates.status.length).toBe(2);
             expect(updates.data[1].user).toBe('otter');
+            expect(updates.data[1].userId).toBe('u-1');
             expect(updates.data[1].date).toBe(start);
             expect(updates.data[1].data).toEqual({foo: 'bar'});
             expect(updates.status[1].user).toBe('otter');
+            expect(updates.status[1].userId).toBe('u-1');
             expect(updates.status[1].date).toBe(start);
             expect(updates.status[1].status).toBe(Status.Active);
         });
