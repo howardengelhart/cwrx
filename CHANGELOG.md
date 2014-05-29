@@ -14,6 +14,10 @@
 * Extra deployment steps: None
 
 ## collateral Service
+### 1.2.2: Thu May 29 04:11:00 EDT 2014
+* [FIX]: Splash templates renamed: [#169](https://github.com/cinema6/cwrx/pull/169)
+* Extra deployment steps: None
+
 ### 1.2.1: Thu May 29 11:24:53 EDT 2014
 * [FIX]: Explicitly set Content-Type for uploaded images, but not extensions: [#166](https://github.com/cinema6/cwrx/pull/166)
 * Extra deployment steps: None
