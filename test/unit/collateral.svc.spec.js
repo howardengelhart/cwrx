@@ -135,6 +135,85 @@ describe('collateral (UT)', function() {
         });
     });
     
+    describe('checkImageType', function() {
+        var buff;
+        beforeEach(function() {
+            buff = new Buffer([]);
+            spyOn(fs, 'readFile').andCallFake(function(fpath, cb) { cb(null, buff); });
+        });
+        
+        it('should correctly identify jpeg images', function(done) {
+            buff = new Buffer([0xff, 0xd8, 0xff, 0xf3, 0x12, 0x56, 0x83]);
+            collateral.checkImageType('fakePath').then(function(type) {
+                expect(type).toBe('image/jpeg');
+                expect(fs.readFile).toHaveBeenCalledWith('fakePath', jasmine.any(Function));
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should correctly identify png images', function(done) {
+            buff = new Buffer([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x36, 0xf8]);
+            collateral.checkImageType('fakePath').then(function(type) {
+                expect(type).toBe('image/png');
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should correctly identify gif images', function(done) {
+            buff = new Buffer([0x47, 0x49, 0x46, 0x38, 0x37, 0x61, 0xff, 0x34, 0x12]);
+            collateral.checkImageType('fakePath').then(function(type) {
+                expect(type).toBe('image/gif');
+                buff = new Buffer([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0xff, 0x34, 0x12]);
+                return collateral.checkImageType('fakePath');
+            }).then(function(type) {
+                expect(type).toBe('image/gif');
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should return false for invalid images', function(done) {
+            var badBuffers = {
+                'badJpeg':  new Buffer([0xff, 0xd8, 0xfe]),
+                'badPng':   new Buffer([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x01, 0x1a, 0x0a]),
+                'badGif1':  new Buffer([0x42, 0x49, 0x46, 0x38, 0x39, 0x61]),
+                'badGif2':  new Buffer([0x47, 0x49, 0x46, 0x38, 0x38, 0x61])
+            };
+            fs.readFile.andCallFake(function(fpath, cb) { cb(null, badBuffers[fpath]); });
+            
+            q.all(Object.keys(badBuffers).map(collateral.checkImageType)).then(function(results) {
+                results.forEach(function(result) { expect(result).toBe(false); });
+                expect(fs.readFile.calls[0].args).toEqual(['badJpeg', jasmine.any(Function)]);
+                expect(fs.readFile.calls[1].args).toEqual(['badPng', jasmine.any(Function)]);
+                expect(fs.readFile.calls[2].args).toEqual(['badGif1', jasmine.any(Function)]);
+                expect(fs.readFile.calls[3].args).toEqual(['badGif2', jasmine.any(Function)]);
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should fail if reading the file fails', function(done) {
+            fs.readFile.andCallFake(function(fpath, cb) { cb('I GOT A PROBLEM'); });
+            collateral.checkImageType('fakePath').then(function(type) {
+                expect(type).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                done();
+            });
+        });
+    });
+    
     describe('uploadFiles', function() {
         var s3, req, config;
         beforeEach(function() {
@@ -142,13 +221,14 @@ describe('collateral (UT)', function() {
                 uuid: '1234',
                 user: { id: 'u-1', org: 'o-1' },
                 files: {
-                    testFile: { size: 900, name: 'test.txt', type: 'text/plain', path: '/tmp/123' }
+                    testFile: { size: 900, name: 'test', type: 'text/plain', path: '/tmp/123' }
                 }
             };
             s3 = 'fakeS3';
             config = { maxFileSize: 1000, s3: { path: 'ut/' } };
             spyOn(fs, 'remove').andCallFake(function(path, cb) { cb(); });
             spyOn(collateral, 'upload').andReturn(q('/path/on/s3'));
+            spyOn(collateral, 'checkImageType').andReturn(q('image/jpeg'));
         });
         
         it('should fail with a 400 if no files are provided', function(done) {
@@ -175,6 +255,21 @@ describe('collateral (UT)', function() {
                 expect(resp.code).toBe(413);
                 expect(resp.body).toEqual([{name: 'testFile', code: 413, error: 'File is too big' }]);
                 expect(collateral.upload).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should fail if the file is not a supported image type', function(done) {
+            collateral.checkImageType.andReturn(q(false));
+            collateral.uploadFiles(req, s3, config).then(function(resp) {
+                expect(resp.code).toBe(415);
+                expect(resp.body).toEqual([{name: 'testFile', code: 415, error: 'Unsupported file type' }]);
+                expect(collateral.upload).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -186,7 +281,9 @@ describe('collateral (UT)', function() {
             collateral.uploadFiles(req, s3, config).then(function(resp) {
                 expect(resp.code).toBe(201);
                 expect(resp.body).toEqual([{name: 'testFile', code: 201, path: '/path/on/s3'}]);
-                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/o-1',req.files.testFile,false,'fakeS3',config);
+                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/o-1',
+                    {size:900,name:'test',type:'image/jpeg',path:'/tmp/123'},false,'fakeS3',config);
+                expect(collateral.checkImageType).toHaveBeenCalledWith('/tmp/123');
                 expect(fs.remove).toHaveBeenCalled();
                 expect(fs.remove.calls[0].args[0]).toBe('/tmp/123');
                 done();
@@ -243,10 +340,12 @@ describe('collateral (UT)', function() {
                 expect(resp.code).toBe(201);
                 expect(resp.body).toEqual([{name: 'testFile', code: 201, path: '/path/on/s3'}]);
                 expect(collateral.upload).toHaveBeenCalled();
-                expect(fs.remove).toHaveBeenCalled();
-                expect(mockLog.warn).toHaveBeenCalled();
-                expect(mockLog.error).not.toHaveBeenCalled();
-                done();
+                process.nextTick(function() {
+                    expect(fs.remove).toHaveBeenCalled();
+                    expect(mockLog.warn).toHaveBeenCalled();
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                    done();
+                });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
                 done();
@@ -436,15 +535,15 @@ describe('collateral (UT)', function() {
                 expect(phantObj.createPage).toHaveBeenCalledWith(anyFunc);
                 expect(page.set).toHaveBeenCalledWith('viewportSize',{height:600,width:600},anyFunc);
                 expect(page.open).toHaveBeenCalledWith('/tmp/1234-compiled.html', anyFunc);
-                expect(page.render).toHaveBeenCalledWith('/tmp/1234-generatedSplash.jpg',{quality:75},anyFunc);
-                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/e-1',{name:'generatedSplash.jpg',
-                    path:'/tmp/1234-generatedSplash.jpg',type:'image/jpeg'},false,'fakeS3',config);
+                expect(page.render).toHaveBeenCalledWith('/tmp/1234-splash.jpg',{quality:75},anyFunc);
+                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/e-1',{name:'splash',
+                    path:'/tmp/1234-splash.jpg',type:'image/jpeg'},false,'fakeS3',config);
                 process.nextTick(function() {
                     expect(page.close).toHaveBeenCalled();
                     expect(phantObj.exit).toHaveBeenCalled();
                     expect(fs.remove.calls.length).toBe(2);
                     expect(fs.remove.calls[0].args).toEqual(['/tmp/1234-compiled.html',anyFunc]);
-                    expect(fs.remove.calls[1].args).toEqual(['/tmp/1234-generatedSplash.jpg',anyFunc]);
+                    expect(fs.remove.calls[1].args).toEqual(['/tmp/1234-splash.jpg',anyFunc]);
                     done();
                 });
             }).catch(function(error) {
@@ -458,8 +557,8 @@ describe('collateral (UT)', function() {
             collateral.generateSplash(req, s3, config).then(function(resp) {
                 expect(resp.code).toBe(201);
                 expect(resp.body).toBe('/path/on/s3');
-                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/e-1',{name:'generatedSplash.jpg',
-                    path:'/tmp/1234-generatedSplash.jpg',type:'image/jpeg'},true,'fakeS3',config);
+                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/e-1',{name:'splash',
+                    path:'/tmp/1234-splash.jpg',type:'image/jpeg'},true,'fakeS3',config);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -513,7 +612,7 @@ describe('collateral (UT)', function() {
                     expect(phantObj.exit).toHaveBeenCalled();
                     expect(fs.remove.calls.length).toBe(2);
                     expect(fs.remove.calls[0].args).toEqual(['/tmp/1234-compiled.html',anyFunc]);
-                    expect(fs.remove.calls[1].args).toEqual(['/tmp/1234-generatedSplash.jpg',anyFunc]);
+                    expect(fs.remove.calls[1].args).toEqual(['/tmp/1234-splash.jpg',anyFunc]);
                     done();
                 });
             });

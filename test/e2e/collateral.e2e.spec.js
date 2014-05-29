@@ -2,6 +2,7 @@ var q           = require('q'),
     fs          = require('fs-extra'),
     path        = require('path'),
     testUtils   = require('./testUtils'),
+    request     = require('request'),
     host        = process.env['host'] || 'localhost',
     bucket      = process.env.bucket || 'c6.dev',
     config      = {
@@ -48,6 +49,12 @@ describe('collateral (E2E):', function() {
         });
     });
     
+/**
+ * Rather than keep updating two sets of nearly identical tests, I'm just going to remove the tests
+ * for this deprecated endpoint. I'm leaving these two tests for the unique functionality here for
+ * the future, should we need this endpoint again.
+ */
+/*
     describe('POST /api/collateral/files', function() {
         var files, rmList, options;
         
@@ -66,128 +73,6 @@ describe('collateral (E2E):', function() {
             return q.all(rmList.map(function(key) {
                 return testUtils.removeS3File(bucket, key);
             })).done(function() { done(); });
-        });
-
-        it('should upload a file', function(done) {
-            testUtils.qRequest('post', options, files).then(function(resp) {
-                expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: 'collateral/e2e-org/test.txt'}]);
-                rmList.push(resp.body[0].path);
-                return testUtils.qRequest('get', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)});
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe('This is a test');
-                done();
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
-        });
-
-        it('should be able to versionate a file', function(done) {
-            options.url += '?versionate=true';
-            testUtils.qRequest('post', options, files).then(function(resp) {
-                expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: 'collateral/e2e-org/ce114e4501d2f4e2dcea3e17b546f339.test.txt'}]);
-                rmList.push(resp.body[0].path);
-                return testUtils.qRequest('get', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)});
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe('This is a test');
-                done();
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
-        });
-        
-        it('should still succeed if reuploading a file', function(done) {
-            testUtils.qRequest('post', options, files).then(function(resp) {
-                expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: 'collateral/e2e-org/test.txt'}]);
-                rmList.push(resp.body[0].path);
-                return testUtils.qRequest('post', options, files);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: 'collateral/e2e-org/test.txt'}]);
-                return testUtils.qRequest('get', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)});
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe('This is a test');
-                done();
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
-        });
-        
-        it('should upload a different versionated file if it has different contents', function(done) {
-            options.url += '?versionate=true';
-            fs.writeFileSync(files.testFile, 'This is a good test');
-            testUtils.qRequest('post', options, files).then(function(resp) {
-                expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: 'collateral/e2e-org/77815a86e0fdc3168df95ea8db6e3775.test.txt'}]);
-                rmList.push(resp.body[0].path);
-                return testUtils.qRequest('get', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)});
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe('This is a good test');
-                done();
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
-        });
-        
-        it('should be able to upload multiple files', function(done) {
-            files.newFile = './foo.txt';
-            fs.writeFileSync(files.newFile, 'Foobar is my fave thang');
-            testUtils.qRequest('post', options, files).then(function(resp) {
-                expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toEqual([
-                    {name: 'testFile', code: 201, path: 'collateral/e2e-org/test.txt'},
-                    {name: 'newFile', code: 201, path: 'collateral/e2e-org/foo.txt'}
-                ]);
-                rmList.push(resp.body[0].path);
-                rmList.push(resp.body[1].path);
-                return q.all([
-                    testUtils.qRequest('get', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)}),
-                    testUtils.qRequest('get', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[1].path)})
-                ]);
-            }).then(function(resps) {
-                expect(resps[0].response.statusCode).toBe(200);
-                expect(resps[0].body).toBe('This is a test');
-                expect(resps[1].response.statusCode).toBe(200);
-                expect(resps[1].body).toBe('Foobar is my fave thang');
-                done();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-                done();
-            });
-        });
-        
-        it('should throw a 400 if no files are provided', function(done) {
-            files = {};
-            testUtils.qRequest('post', options, files).then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toEqual('Must provide files to upload');
-                done();
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
-        });
-        
-        it('should throw a 401 if the user is not logged in', function(done) {
-            delete options.jar;
-            testUtils.qRequest('post', options, files).then(function(resp) {
-                expect(resp.response.statusCode).toBe(401);
-                expect(resp.body).toEqual('Unauthorized');
-                done();
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
         });
         
         it('should throw a 403 if a non-admin user tries to upload to another org', function(done) {
@@ -235,15 +120,44 @@ describe('collateral (E2E):', function() {
             });
         });
     });
+*/
 
     describe('POST /api/collateral/files/:expId', function() {
-        var files, rmList, options;
+        var files, rmList, options, samples;
         
-        beforeEach(function() {
+        beforeEach(function(done) {
             options = { url: config.collateralUrl + '/collateral/files/e-1234', jar: cookieJar };
             rmList = [];
-            files = { testFile: './test.txt' };
-            fs.writeFileSync(files.testFile, 'This is a test');
+            samples = [
+                {
+                    path: path.join(__dirname, 'sample1.jpg'),
+                    url: 'https://s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample1.jpg',
+                    etag: '618475c6c98297a486607bc654052447'
+                },
+                {
+                    path: path.join(__dirname, 'sample2.jpg'),
+                    url: 'https://s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample2.jpg',
+                    etag: 'f538387c355263cb915d6a3cc4b42592'
+                }
+            ];
+            
+            q.all(samples.map(function(img) {
+                var deferred = q.defer();
+                if (fs.existsSync(img.path)) {
+                    return q();
+                } else {
+                    request.get({url: img.url}, function(error, response, body) {
+                        if (error) deferred.reject(error);
+                    })
+                    .pipe(fs.createWriteStream(img.path)
+                          .on('error', deferred.reject)
+                          .on('finish', deferred.resolve));
+                }
+                return deferred.promise;
+            })).then(function(results) {
+                files = { testFile: samples[0].path };
+                return;
+            }).done(done);
         });
         
         afterEach(function(done) {
@@ -259,12 +173,12 @@ describe('collateral (E2E):', function() {
         it('should upload a file', function(done) {
             testUtils.qRequest('post', options, files).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: 'collateral/e-1234/test.txt'}]);
+                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: 'collateral/e-1234/sample1.jpg'}]);
                 rmList.push(resp.body[0].path);
-                return testUtils.qRequest('get', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)});
+                return testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)});
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe('This is a test');
+                expect(resp.response.headers.etag).toBe('"' + samples[0].etag + '"');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -276,12 +190,12 @@ describe('collateral (E2E):', function() {
             options.url += '?versionate=true';
             testUtils.qRequest('post', options, files).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: 'collateral/e-1234/ce114e4501d2f4e2dcea3e17b546f339.test.txt'}]);
+                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: 'collateral/e-1234/' + samples[0].etag + '.sample1.jpg'}]);
                 rmList.push(resp.body[0].path);
-                return testUtils.qRequest('get', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)});
+                return testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)});
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe('This is a test');
+                expect(resp.response.headers.etag).toBe('"' + samples[0].etag + '"');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -292,16 +206,16 @@ describe('collateral (E2E):', function() {
         it('should still succeed if reuploading a file', function(done) {
             testUtils.qRequest('post', options, files).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: 'collateral/e-1234/test.txt'}]);
+                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: 'collateral/e-1234/sample1.jpg'}]);
                 rmList.push(resp.body[0].path);
                 return testUtils.qRequest('post', options, files);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: 'collateral/e-1234/test.txt'}]);
-                return testUtils.qRequest('get', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)});
+                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: 'collateral/e-1234/sample1.jpg'}]);
+                return testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)});
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe('This is a test');
+                expect(resp.response.headers.etag).toBe('"' + samples[0].etag + '"');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -311,15 +225,15 @@ describe('collateral (E2E):', function() {
         
         it('should upload a different versionated file if it has different contents', function(done) {
             options.url += '?versionate=true';
-            fs.writeFileSync(files.testFile, 'This is a good test');
+            files.testFile = samples[1].path;
             testUtils.qRequest('post', options, files).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: 'collateral/e-1234/77815a86e0fdc3168df95ea8db6e3775.test.txt'}]);
+                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: 'collateral/e-1234/' + samples[1].etag + '.sample2.jpg'}]);
                 rmList.push(resp.body[0].path);
-                return testUtils.qRequest('get', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)});
+                return testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)});
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe('This is a good test');
+                expect(resp.response.headers.etag).toBe('"' + samples[1].etag + '"');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -328,28 +242,60 @@ describe('collateral (E2E):', function() {
         });
         
         it('should be able to upload multiple files', function(done) {
-            files.newFile = './foo.txt';
-            fs.writeFileSync(files.newFile, 'Foobar is my fave thang');
+            files.newFile = samples[1].path;
             testUtils.qRequest('post', options, files).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toEqual([
-                    {name: 'testFile', code: 201, path: 'collateral/e-1234/test.txt'},
-                    {name: 'newFile', code: 201, path: 'collateral/e-1234/foo.txt'}
+                    {name: 'testFile', code: 201, path: 'collateral/e-1234/sample1.jpg'},
+                    {name: 'newFile', code: 201, path: 'collateral/e-1234/sample2.jpg'}
                 ]);
                 rmList.push(resp.body[0].path);
                 rmList.push(resp.body[1].path);
                 return q.all([
-                    testUtils.qRequest('get', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)}),
-                    testUtils.qRequest('get', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[1].path)})
+                    testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)}),
+                    testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[1].path)})
                 ]);
             }).then(function(resps) {
                 expect(resps[0].response.statusCode).toBe(200);
-                expect(resps[0].body).toBe('This is a test');
+                expect(resps[0].response.headers.etag).toBe('"' + samples[0].etag + '"');
                 expect(resps[1].response.statusCode).toBe(200);
-                expect(resps[1].body).toBe('Foobar is my fave thang');
+                expect(resps[1].response.headers.etag).toBe('"' + samples[1].etag + '"');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should not forcibly set the file extension', function(done) {
+            files = { testFile: samples[0].path.replace('.jpg', '') };
+            fs.renameSync(samples[0].path, samples[0].path.replace('.jpg', ''));
+            testUtils.qRequest('post', options, files).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: 'collateral/e-1234/sample1'}]);
+                rmList.push(resp.body[0].path);
+                return testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)});
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.response.headers.etag).toBe('"' + samples[0].etag + '"');
+                fs.removeSync(samples[0].path.replace('.jpg', ''));
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                fs.removeSync(samples[0].path.replace('.jpg', ''));
+                done();
+            });
+        });
+        
+        it('should throw a 415 if a non-image file is provided', function(done) {
+            files = { testFile: './fake.jpg' };
+            fs.writeFileSync('./fake.jpg', "Ceci n'est pas une jpeg");
+            testUtils.qRequest('post', options, files).then(function(resp) {
+                expect(resp.response.statusCode).toBe(415);
+                expect(resp.body).toEqual([{name: 'testFile', code: 415, error: 'Unsupported file type'}]);
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
                 done();
             });
         });
@@ -371,6 +317,19 @@ describe('collateral (E2E):', function() {
             testUtils.qRequest('post', options, files).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toEqual('Unauthorized');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        
+        // THIS SHOULD ALWAYS GO LAST IN THIS DESCRIBE BLOCK
+        it(': clean up after all these tests are done', function(done) {
+            q.all(samples.map(function(img) {
+                return q.npost(fs, 'remove', [img.path]);
+            })).then(function(results) {
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -440,7 +399,7 @@ describe('collateral (E2E):', function() {
         it('should generate a splash image', function(done) {
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toEqual('collateral/e-1234/generatedSplash.jpg');
+                expect(resp.body).toEqual('collateral/e-1234/splash');
                 rmList.push(resp.body);
                 return testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body)});
             }).then(function(resp) {
@@ -457,7 +416,7 @@ describe('collateral (E2E):', function() {
             options.url += '?versionate=true';
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toEqual('collateral/e-1234/1ac1b4765354b78678dac5f83a008892.generatedSplash.jpg');
+                expect(resp.body).toEqual('collateral/e-1234/1ac1b4765354b78678dac5f83a008892.splash');
                 rmList.push(resp.body);
                 return testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body)});
             }).then(function(resp) {
@@ -482,7 +441,7 @@ describe('collateral (E2E):', function() {
                 options.json.size = profile.size;
                 return testUtils.qRequest('post', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(201);
-                    expect(resp.body).toEqual('collateral/e-1234/' + profile.etag + '.generatedSplash.jpg');
+                    expect(resp.body).toEqual('collateral/e-1234/' + profile.etag + '.splash');
                     rmList.push(resp.body);
                     return testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body)});
                 }).then(function(resp) {
@@ -515,7 +474,7 @@ describe('collateral (E2E):', function() {
                 if (index == 6) options.json.thumbs.push(samples[5]);
                 return testUtils.qRequest('post', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(201);
-                    expect(resp.body).toEqual('collateral/e-1234/' + etag + '.generatedSplash.jpg');
+                    expect(resp.body).toEqual('collateral/e-1234/' + etag + '.splash');
                     rmList.push(resp.body);
                     return testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body)});
                 }).then(function(resp) {

@@ -14,6 +14,10 @@
 * Extra deployment steps: None
 
 ## collateral Service
+### 1.2.1: Thu May 29 11:24:53 EDT 2014
+* [FIX]: Explicitly set Content-Type for uploaded images, but not extensions: [#166](https://github.com/cinema6/cwrx/pull/166)
+* Extra deployment steps: None
+
 ### 1.2.0: Fri May 23 10:35:35 EDT 2014
 * [FIX]: Add endpoint for splash generation: [#160](https://github.com/cinema6/cwrx/pull/160)
 * Extra deployment steps:

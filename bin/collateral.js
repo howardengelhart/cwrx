@@ -115,7 +115,34 @@
             }
         });
     };
-    
+
+    collateral.checkImageType = function(fpath) {
+        var fileTypes = [
+            { type: 'image/jpeg', sig: [0xff, 0xd8, 0xff] },
+            { type: 'image/png', sig: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] },
+            { type: 'image/gif', sig: [0x47, 0x49, 0x46, 0x38, [0x37, 0x39], 0x61] }
+        ];
+        
+        function checkSig(sig, buff) {
+            return sig.every(function(sigVal, i) {
+                if (sigVal instanceof Array) {
+                    return sigVal.some(function(option) { return option === buff[i]; });
+                } else {
+                    return buff[i] === sigVal;
+                }
+            });
+        }
+        
+        return q.npost(fs, 'readFile', [fpath]).then(function(buffer) {
+            for (var i = 0; i < fileTypes.length; i++) {
+                if (checkSig(fileTypes[i].sig, buffer)) {
+                    return q(fileTypes[i].type);
+                }
+            }
+            return false;
+        });
+    };
+
     collateral.uploadFiles = function(req, s3, config) {
         var log = logger.getLog(),
             org = req.user.org,
@@ -171,16 +198,30 @@
                 return q.reject({ code: 413, name: objName, error: 'File is too big' });
             }
             
-            return collateral.upload(req, prefix, file, versionate, s3, config)
-            .then(function(key) {
-                log.info('[%1] File %2 has been uploaded successfully', req.uuid, file.name);
-                return q({ code: 201, name: objName, path: key });
+            var deferred = q.defer();
+            
+            collateral.checkImageType(file.path)
+            .then(function(type) {
+                if (!type) {
+                    log.warn('[%1] File %2 is not a jpeg, png, or gif', req.uuid, file.name);
+                    return deferred.reject({code:415, name:objName, error:'Unsupported file type'});
+                }
+                
+                file.type = type;
+
+                return collateral.upload(req, prefix, file, versionate, s3, config)
+                .then(function(key) {
+                    log.info('[%1] File %2 has been uploaded successfully', req.uuid, file.name);
+                    deferred.resolve({ code: 201, name: objName, path: key });
+                });
             })
             .catch(function(error) {
                 log.error('[%1] Error processing upload for %2: %3', req.uuid, file.name, error);
-                return q.reject({ code: 500, name: objName, error: error });
+                deferred.reject({ code: 500, name: objName, error: error });
             })
             .finally(function() { cleanup(file.path); });
+            
+            return deferred.promise;
         }))
         .then(function(results) {
             var retArray = [], reqCode = 201;
@@ -245,8 +286,8 @@
         var templateNum     = collateral.chooseTemplateNum(req.body.thumbs.length),
             templatePath    = path.join(templateDir, req.body.ratio + '_x' + templateNum + '.html'),
             compiledPath    = path.join('/tmp', req.uuid + '-compiled.html'),
-            splashName      = 'generatedSplash.jpg',
-            splashPath      = path.join('/tmp', req.uuid + '-' + splashName),
+            splashName      = 'splash',
+            splashPath      = path.join('/tmp', req.uuid + '-' + splashName + '.jpg'),
             deferred        = q.defer(),
             prefix          = path.join(config.s3.path, req.params.expId),
             ph, page;
@@ -439,7 +480,7 @@
                 });
             });
         });
-
+        
         app.post('/api/collateral/files', sessionsWrapper, authUpload, function(req,res){
             collateral.uploadFiles(req, s3, state.config)
             .then(function(resp) {
