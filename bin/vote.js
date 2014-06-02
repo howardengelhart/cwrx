@@ -157,10 +157,6 @@
                 (Math.floor(lastSync.valueOf() / 1000) * 1000)) >= this._syncIval;
     };
 
-    ElectionDb.prototype.getElectionFromCache = function(electionId){
-        return this._cache[electionId];
-    };
-
     ElectionDb.prototype.getCachedElections = function(){
         var result = [], self = this;
         Object.keys(self._cache).forEach(function(key){

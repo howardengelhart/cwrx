@@ -461,27 +461,6 @@ describe('vote.elecDb (UT)',function(){
             });
         });
 
-        describe('getElectionFromCache',function(){
-            var elDb;
-            beforeEach(function(){
-                elDb = new ElectionDb(mockDb);
-                elDb._cache['el-abc'] = {
-                    lastSync    : null,
-                    data        : mockData,
-                    votingBooth : null
-                }
-            });
-
-            it('returns the election if it exists',function(){
-                elDb._cache['abc'] = { 'a' : 1 };
-                expect(elDb.getElectionFromCache('el-abc').data).toEqual(mockData);
-            });
-
-            it('returns undefined if it does not exist',function(){
-                expect(elDb.getElectionFromCache('abc')).not.toBeDefined();
-            });
-        });
-
         describe('getCachedElections',function(){
             var elDb;
             
