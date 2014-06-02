@@ -164,7 +164,7 @@ describe('vote (E2E)', function(){
         });
     });
     
-    describe('GET /api/election/vote/:id', function() {
+    describe('GET /api/election/:id', function() {
         it('gets an election if it exists', function(done) {
             testUtils.qRequest('get', { url : makeUrl('/api/election/e1'), jar: cookieJar })
                 .then(function(resp){

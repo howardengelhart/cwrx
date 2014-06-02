@@ -5,6 +5,7 @@
     var q               = require('q'),
         express         = require('express'),
         path            = require('path'),
+        util            = require('util'),
         service         = require('../lib/service'),
         uuid            = require('../lib/uuid'),
         promise         = require('../lib/promise'),
@@ -165,50 +166,97 @@
 
         return result;
     };
-
-    ElectionDb.prototype.updateVoteCounts = function(){
-        var self = this, updates = [], log = logger.getLog();
-        Object.keys(self._cache).forEach(function(key){
-            var election = self._cache[key], u = {};
-            if ((election.votingBooth) && (election.votingBooth.dirty)){
-                u.election = election;
-                election.votingBooth.each(function(ballotId,vote,count){
-                    if (u.voteCounts === undefined) {
-                        u.voteCounts = {};
-                    }
-                    u.voteCounts['ballot.' + ballotId + '.' + vote] = count;
-                });
-                updates.push(u);
-            }
-        });
-
-        log.trace('updates to save: %1',updates.length);
-        return q.allSettled(updates.map(function(update){
-            var deferred = q.defer();
-            q.ninvoke(self._coll,'update',
-                { 'id' : update.election.id }, { $inc : update.voteCounts }, { w : 1 })
-                .then(function(){
-                    update.election.votingBooth.clear();
-                    deferred.resolve(update);
-                })
-                .catch(function(err){
-                    err.update = update;
-                    deferred.reject(err);
-                });
-            return deferred.promise;
+    
+    ElectionDb.prototype.syncCached = function() {
+        var self = this,
+            updates = self.getCachedElections().filter(function(election) {
+                return election && election.votingBooth && election.votingBooth.dirty;
+            });
+        
+        return q.allSettled(updates.map(function(election) {
+            return self.syncElection(election.id);
         }));
+    };
+
+    ElectionDb.prototype.syncElection = function(electionId) { //TODO: probably good idea to comment this
+        var self = this,
+            log = logger.getLog(),
+            election = self._cache[electionId];
+
+        log.info('Syncing election %1', electionId);
+
+        return q.npost(self._coll, 'findOne', [{id: electionId}])
+        .then(function(item) {
+            var voteCounts;
+
+            if (!item || !election || !election.votingBooth || !election.votingBooth.dirty) {
+                return q(item);
+            }
+            
+            election.votingBooth.each(function(ballotId, vote, count) {
+                if (item.ballot[ballotId] && item.ballot[ballotId][vote]) {
+                    if (voteCounts === undefined) {
+                        voteCounts = {};
+                    }
+                    voteCounts['ballot.' + ballotId + '.' + vote] = count;
+                } else {
+                    log.info('%1.%2 not found in election %3, so not writing it',
+                             ballotId, vote, electionId);
+                }
+            });
+            
+            if (!voteCounts) {
+                log.info('No valid votes for election %1, not writing to database', electionId);
+                return q(item);
+            }
+            
+            log.info('Saving %1 updates to election %2',Object.keys(voteCounts).length,electionId);
+            var args = [{'id':electionId},null,{'$inc':voteCounts},{new:true,w:0,journal:true}];
+
+            return q.npost(self._coll, 'findAndModify', args).then(function(results) {
+                return q(results[0]);
+            });
+        })
+        .then(function(item) {
+            if (!item) {
+                log.info('Unable to find election [%1], removing from cache', electionId);
+                delete self._cache[electionId];
+                return q();
+            }
+            
+            log.info('Synced election %1 successfully', electionId);
+            
+            delete item._id;
+            election            = self._cache[electionId] || {};
+            election.id         = electionId;
+            election.lastSync   = new Date();
+            election.data       = item;
+            if (!election.votingBooth) {
+                election.votingBooth = new VotingBooth(electionId);
+            } else {
+                election.votingBooth.clear();
+            }
+            self._cache[electionId] = election;
+
+            return q(election.data);
+        })
+        .catch(function(error) {
+            log.error('Error syncing election %1: %2', util.inspect(error));
+            return q.reject(error);
+        });
     };
 
     ElectionDb.prototype.getElection = function(electionId, timeout, user) {
         var self = this,
+            log = logger.getLog(),
             deferred = self._keeper.getDeferred(electionId),
             election = self._cache[electionId],
-            log = logger.getLog(),
-            voteCounts, promise;
+            promise;
 
         function filter(election) {
             if (election && (election.status === Status.Deleted ||
                 !(app.checkScope(user,election,'read') || election.status === Status.Active))) {
+                log.info(JSON.stringify(election));
                 log.info('User %1 not allowed to read election %2',
                           user && user.id || 'guest', electionId);
                 return q();
@@ -217,110 +265,27 @@
             }
         }
 
-        if (deferred) {
-            promise = deferred.promise.then(filter);
-            if (timeout) {
-                return promise.timeout(timeout);
-            }
-            return promise;
-        }
-
-        if (election && election.data && !self.shouldSync(election.lastSync) && !user){
+        if (election && election.data && !self.shouldSync(election.lastSync) && !user) {
             return filter(election.data);
         }
 
-        deferred = self._keeper.defer(electionId);
-
-        if (election && (election.votingBooth) && (election.votingBooth.dirty)){
-            election.votingBooth.each(function(ballotId,vote,count){
-                if (voteCounts === undefined) {
-                    voteCounts = {};
-                }
-                voteCounts['ballot.' + ballotId + '.' + vote] = count;
+        if (!deferred) {
+            deferred = self._keeper.defer(electionId);
+            self.syncElection(electionId).then(function(item) {
+                deferred.resolve(item);
+            }).catch(function(error) {
+                deferred.reject(error);
             });
         }
-
-        if (voteCounts) {
-            log.trace('findAndModify: [%1] %2',electionId, JSON.stringify(voteCounts));
-            self._coll.findAndModify({ 'id' : electionId }, null,
-                { '$inc' : voteCounts }, { new : true }, function(err, result){
-                if (err) {
-                    log.error('getElection::findAndModify - %1:',err.message);
-                } else {
-                    log.trace('getElection::findAndModify item: %1',JSON.stringify(result));
-                }
-
-                var deferred = self._keeper.remove(electionId);
-                if (!deferred){
-                    log.error('Promise of findAndModify call for %1 has been removed or resolved',
-                              electionId);
-                    return;
-                }
-
-                if (err){
-                    err.httpCode = 400;
-                    deferred.reject(err);
-                }
-                else if (result === null) {
-                    log.warn('Unable to find cached election [%1] in db, removing from cache',
-                             electionId);
-                    delete self._cache[electionId];
-                    deferred.resolve();
-                } else {
-                    delete result._id;
-                    election.lastSync   = new Date();
-                    election.data       = result;
-                    election.votingBooth.clear();
-                    deferred.resolve(election.data);
-                }
-            });
-        } else {
-            log.trace('findOne: [%1]',electionId);
-            self._coll.findOne({'id' : electionId}, function(err,item){
-                if (err) {
-                    log.error('getElection::findOne - %1:',err.message);
-                } else {
-                    log.trace('getElection::findOne item: %1',JSON.stringify(item));
-                }
-                var deferred = self._keeper.remove(electionId);
-                if (!deferred){
-                    log.error('Promise of findOne call for %1 has been removed or resolved',
-                              electionId);
-                    return;
-                }
-                if (err) {
-                    err.httpCode = 400;
-                    deferred.reject(err);
-                }
-                else if (item === null){
-                    log.info('Unable to find election [%1], removing from cache',electionId);
-                    delete self._cache[electionId];
-                    deferred.resolve();
-                } else {
-                    delete item._id;
-                    election            = self._cache[electionId] || {};
-                    election.id         = electionId;
-                    election.lastSync   = new Date();
-                    election.data       = item;
-                    if (!election.votingBooth) {
-                        election.votingBooth = new VotingBooth(electionId);
-                    }
-                    self._cache[electionId] = election;
-
-                    deferred.resolve(election.data);
-                }
-            });
-        }
-
+            
         promise = deferred.promise.then(filter);
         if (timeout) {
             return promise.timeout(timeout);
         }
-
         return promise;
     };
 
-    ElectionDb.prototype.recordVote     = function(vote){
+    ElectionDb.prototype.recordVote = function(vote){
         var self = this, election = self._cache[vote.election];
 
         if (!election){
@@ -380,21 +345,6 @@
         return result;
     };
 
-    app.syncElections = function(elDb){
-        var log = logger.getLog(),
-            cached = elDb.getCachedElections();
-        return q.allSettled(cached.map(function(election){
-            if (election.votingBooth.dirty){
-                log.trace('sync Election %1', election.id);
-                return elDb.getElection(election.id);
-            }
-            return q(true);
-        }))
-        .catch(function(error){
-            log.trace('Failed with: %1',error.message);
-        });
-    };
-    
     app.createValidator = new FieldValidator({
         forbidden: ['id', 'created'],
         condForbidden: {
@@ -555,7 +505,7 @@
 
         state.onSIGTERM = function(){
             log.info('Received sigterm, sync and exit.');
-            return elDb.updateVoteCounts().then(function(results){
+            return elDb.syncCached().then(function(results){
                 log.trace('results: %1',JSON.stringify(results));
             });
         };
@@ -762,7 +712,7 @@
         if(state.config.idleSyncTimeout > 0){
             setInterval(function(){
                 log.trace('Idle Sync timeout.');
-                app.syncElections(elDb);
+                elDb.syncCached();
             }, state.config.idleSyncTimeout);
         }
 
