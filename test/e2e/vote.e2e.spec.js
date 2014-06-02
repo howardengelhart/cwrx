@@ -380,7 +380,26 @@ describe('vote (E2E)', function(){
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
                 done();
-            }); 
+            });
+        });
+
+        it('should fail if the request body or election ballot is empty', function(done) {
+            var options1 = {url: makeUrl('/api/election'), jar: cookieJar},
+                options2 = {url:makeUrl('/api/election'), json:{foo:'bar', ballot:{}}, jar:cookieJar};
+            
+            q.all([
+                testUtils.qRequest('post', options1),
+                testUtils.qRequest('post', options2)
+            ]).then(function(resps) {
+                expect(resps[0].response.statusCode).toBe(400);
+                expect(resps[0].body).toBe('You must provide an object in the body');
+                expect(resps[1].response.statusCode).toBe(400);
+                expect(resps[1].body).toBe('Must provide non-empty ballot');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
         });
         
         it('should throw a 401 error if the user is not authenticated', function(done) {

@@ -417,8 +417,12 @@
             log = logger.getLog(),
             now = new Date();
 
-        if (!obj || typeof obj !== 'object') {
+        if (typeof obj !== 'object' || Object.keys(obj).length === 0) {
             return q({code: 400, body: 'You must provide an object in the body'});
+        }
+        if (typeof obj.ballot !== 'object' || Object.keys(obj.ballot).length === 0) {
+            log.info('[%1] User %2 tried to create election with empty ballot', req.uuid, user.id);
+            return q({code: 400, body: 'Must provide non-empty ballot'});
         }
         if (!app.createValidator.validate(obj, {}, user)) {
             log.warn('[%1] election contains illegal fields', req.uuid);
