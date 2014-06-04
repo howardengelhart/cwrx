@@ -196,7 +196,7 @@
             }
             
             election.votingBooth.each(function(ballotId, vote, count) {
-                if (item.ballot[ballotId] && item.ballot[ballotId][vote]) {
+                if (item.ballot[ballotId] && item.ballot[ballotId][vote] !== undefined) {
                     if (voteCounts === undefined) {
                         voteCounts = {};
                     }

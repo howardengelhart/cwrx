@@ -328,6 +328,28 @@ describe('vote (E2E)', function(){
                 })
                 .finally(done);
         });
+        
+        it('should not add items through voting on nonexistent choices/ballots', function(done) {
+            var options1 = { url: options.url, json: { election: 'e1', ballotItem: 'b1', vote: 'poop' } },
+                options2 = { url: options.url, json: { election: 'e1', ballotItem: 'b8', vote: 'poop' } };
+            q.all([testUtils.qRequest('post', options1), testUtils.qRequest('post', options2)])
+            .then(function(resps) {
+                resps.forEach(function(resp) {
+                    expect(resp.response.statusCode).toEqual(200);
+                    expect(resp.body).toEqual('OK');
+                });
+                return testUtils.qRequest('get', {url: makeUrl('/api/election/e1'), jar: cookieJar});
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toBe('e1');
+                expect(resp.body.ballot.b1).toEqual({'red apple':10,'yellow banana':20,'orange carrot':30});
+                expect(resp.body.ballot.b8).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
     });
 
     describe('POST /api/election', function() {
