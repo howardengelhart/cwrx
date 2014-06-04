@@ -309,44 +309,6 @@ describe('vote (UT)',function(){
             });
         });
 
-        describe('syncElections',function(){
-            var elDb, mockElection;
-            beforeEach(function(){
-                elDb = {
-                    getCachedElections  : jasmine.createSpy('elDb.getCachedElections'),
-                    getElection         : jasmine.createSpy('elDb.getElection'),
-                };
-                mockElection = {
-                    id : 'abc',
-                    lastSync : new Date(),
-                    data : null,
-                    votingBooth : {
-                        dirty : false
-                    }
-                };
-            });
-
-
-            it('will do nothing if there are no elections in the cache',function(){
-                elDb.getCachedElections.andReturn([]);
-                app.syncElections(elDb);
-                expect(elDb.getElection).not.toHaveBeenCalled();
-            });
-
-            it('will not attempt to sync an election that does not need it',function(){
-                elDb.getCachedElections.andReturn([mockElection]); 
-                app.syncElections(elDb);
-                expect(elDb.getElection).not.toHaveBeenCalled();
-            });
-
-            it('will call getElection if there is an election that shouldSync',function(){
-                mockElection.votingBooth.dirty = true;
-                elDb.getCachedElections.andReturn([mockElection]); 
-                app.syncElections(elDb);
-                expect(elDb.getElection).toHaveBeenCalledWith('abc');
-            });
-        });
-
         describe('createElection', function() {
             beforeEach(function() {
                 req.body = { ballot: { fake: { yes: 0, no: 0 } } };

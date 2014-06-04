@@ -167,6 +167,7 @@
         return result;
     };
     
+    // Call syncElection for each election in the cache (if the election has pending votes).
     ElectionDb.prototype.syncCached = function() {
         var self = this,
             updates = self.getCachedElections().filter(function(election) {
@@ -178,7 +179,8 @@
         }));
     };
 
-    ElectionDb.prototype.syncElection = function(electionId) { //TODO: probably good idea to comment this
+    // Retrieve an election, verify all pending votes for it, and then write them to the database.
+    ElectionDb.prototype.syncElection = function(electionId) {
         var self = this,
             log = logger.getLog(),
             election = self._cache[electionId];
@@ -275,6 +277,8 @@
                 deferred.resolve(item);
             }).catch(function(error) {
                 deferred.reject(error);
+            }).finally(function() {
+                self._keeper.remove(electionId);
             });
         }
             
