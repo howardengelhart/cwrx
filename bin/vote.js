@@ -258,7 +258,6 @@
         function filter(election) {
             if (election && (election.status === Status.Deleted ||
                 !(app.checkScope(user,election,'read') || election.status === Status.Active))) {
-                log.info(JSON.stringify(election));
                 log.info('User %1 not allowed to read election %2',
                           user && user.id || 'guest', electionId);
                 return q();
