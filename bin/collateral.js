@@ -255,39 +255,52 @@
         return Math.min(((num % 2 && num > 4) ? Math.max(num - 1, 1) : num), 6);
     };
     
-    collateral.generateSplash = function(req, s3, config) {
+    collateral.generateSplash = function(req, thumbs, imgSpec, s3, config) {
         var log = logger.getLog(),
             versionate = req.query && req.query.versionate || false,
+            splashName = imgSpec && imgSpec.name || 'splash',
             templateDir = path.join(__dirname, '../splashTemplates');
 
-        if (!req.body || !(req.body.thumbs instanceof Array) || req.body.thumbs.length === 0) {
-            log.info('[%1] No thumbs to generate a splash from', req.uuid);
-            return q({code: 400, body: 'Must provide thumbs to create splash from'});
+        function resolveObj(code, path) {
+            return {
+                name: splashName,
+                ratio: imgSpec && imgSpec.ratio || '',
+                code: code,
+                path: path
+            };
         }
         
-        if (!req.body.size || !req.body.size.height || !req.body.size.width) {
-            log.info('[%1] No size provided in request', req.uuid);
-            return q({code: 400, body: 'Must provide size object with width + height'});
-        } else if (req.body.size.height > config.splash.maxDimension ||
-                   req.body.size.width > config.splash.maxDimension) {
+        function rejectObj(code, error) {
+            return {
+                name: splashName,
+                ratio: imgSpec && imgSpec.ratio || '',
+                code: code,
+                path: error
+            };
+        }
+        
+        if (!imgSpec || !imgSpec.width || !imgSpec.height || !imgSpec.ratio) {
+            log.info('[%1] Incomplete imgSpec for %2: %3',
+                     req.uuid, splashName, JSON.stringify(imgSpec));
+            return q.reject(rejectObj(400, 'Must provide complete imgSpec'));
+        }
+        else if (imgSpec.height > config.splash.maxDimension ||
+                   imgSpec.width > config.splash.maxDimension) {
             log.info('[%1] Trying to create %2x%3 image but limit is %4x%4',
-                     req.uuid,req.body.size.width,req.body.size.height,config.splash.maxDimension);
-            return q({code: 400, body: 'Requested image size is too large'});
+                     req.uuid, imgSpec.width, imgSpec.height, config.splash.maxDimension);
+            return q.reject(rejectObj(400, 'Requested image size is too large'));
         }
         
-        if (!req.body.ratio) {
-            log.info('[%1] No ratio provided in request', req.uuid);
-            return q({code: 400, body: 'Must provide ratio name to choose template'});
-        } else if (glob.sync(path.join(templateDir, req.body.ratio + '*')).length === 0) {
-            log.info('[%1] Invalid ratio name %2', req.uuid, req.body.ratio);
-            return q({code: 400, body: 'Invalid ratio name'});
+        if (glob.sync(path.join(templateDir, imgSpec.ratio + '*')).length === 0) {
+            log.info('[%1] Invalid ratio name %2', req.uuid, imgSpec.ratio);
+            return q.reject(rejectObj(400, 'Invalid ratio name'));
         }
         
-        var templateNum     = collateral.chooseTemplateNum(req.body.thumbs.length),
-            templatePath    = path.join(templateDir, req.body.ratio + '_x' + templateNum + '.html'),
-            compiledPath    = path.join('/tmp', req.uuid + '-compiled.html'),
-            splashName      = 'splash',
-            splashPath      = path.join('/tmp', req.uuid + '-' + splashName + '.jpg'),
+        var templateNum     = collateral.chooseTemplateNum(thumbs.length),
+            templatePath    = path.join(templateDir, imgSpec.ratio + '_x' + templateNum + '.html'),
+            jobId           = uuid.createUuid(),
+            compiledPath    = path.join('/tmp', jobId + '-compiled.html'),
+            splashPath      = path.join('/tmp', jobId + '-' + splashName + '.jpg'),
             deferred        = q.defer(),
             prefix          = path.join(config.s3.path, req.params.expId),
             ph, page;
@@ -299,12 +312,12 @@
         }
             
         log.info('[%1] User %2 generating splash for %3 from %4 thumbs',
-                 req.uuid, req.user.id, req.params.expId, req.body.thumbs.length);
+                 req.uuid, req.user.id, req.params.expId, thumbs.length);
         
         // Start by reading and rendering our template with handlebars
         q.npost(fs, 'readFile', [templatePath, {encoding: 'utf8'}])
         .then(function(template) {
-            var data = {thumbs: req.body.thumbs},
+            var data = {thumbs: thumbs},
                 compiled = handlebars.compile(template)(data);
 
             return q.npost(fs, 'writeFile', [compiledPath, compiled]);
@@ -317,7 +330,7 @@
                     return;
                 }
                 log.error('[%1] Phantom exited with code %2, signal %3', req.uuid, code, signal);
-                deferred.reject('PhantomJS exited prematurely');
+                deferred.reject(rejectObj(500, 'PhantomJS exited prematurely'));
             }
 
             // this mostly copies the default onStderr but replaces their console.warn with our log
@@ -337,14 +350,16 @@
         .then(function(webpage) { // Set viewportSize to create image of desired size
             page = webpage;
             log.trace('[%1] Created page, setting viewport size', req.uuid);
-            return q.nfapply(phantWrap, [page, 'set', ['viewportSize', req.body.size]]);
+            var size = { height: imgSpec.height, width: imgSpec.width };
+            return q.nfapply(phantWrap, [page, 'set', ['viewportSize', size]]);
         })
         .then(function() { // Open the compiled html
             return q.nfapply(phantWrap, [page, 'open', [compiledPath]]);
         })
         .then(function(status) { // Render page as image
             if (status !== 'success') {
-                return q.reject('Failed to open ' + compiledPath + ': status was ' + status);
+                var msg = 'Failed to open ' + compiledPath + ': status was ' + status;
+                return q.reject(rejectObj(500, msg));
             }
             log.trace('[%1] Opened page, rendering image', req.uuid);
             var opts = { quality: config.splash.quality };
@@ -363,12 +378,12 @@
         
         .then(function(key) {
             log.info('[%1] File %2 has been uploaded successfully', req.uuid, splashName);
-            deferred.resolve({ code: 201, body: key });
+            deferred.resolve(resolveObj(201, key));
         })
         .timeout(config.splash.timeout)
         .catch(function(error) {
             log.error('[%1] Error generating splash image: %2', req.uuid, util.inspect(error));
-            deferred.reject(error);
+            deferred.reject(rejectObj(500, error));
         })
 
         .finally(function() { // Cleanup by removing compiled template + splash image
@@ -386,6 +401,49 @@
         });
         
         return deferred.promise;
+    };
+    
+    collateral.createSplashes = function(req, s3, config) {
+        var log = logger.getLog();
+        
+        if (!req.body || !(req.body.thumbs instanceof Array) || req.body.thumbs.length === 0) {
+            log.info('[%1] No thumbs to generate splashes from', req.uuid);
+            return q({code: 400, body: 'Must provide thumbs to create splashes from'});
+        }
+        
+        if (!(req.body.imageSpecs instanceof Array) || req.body.imageSpecs.length === 0) {
+            log.info('[%1] No imageSpecs to generate splashes for', req.uuid);
+            return q({code: 400, body: 'Must provide imageSpecs to create splashes for'});
+        }
+        
+        return q.allSettled(req.body.imageSpecs.map(function(imgSpec) {
+            return collateral.generateSplash(req, req.body.thumbs, imgSpec, s3, config);
+        })).then(function(results) {
+            var retArray = [], reqCode = 201;
+            
+            results.forEach(function(result) {
+                if (result.state === 'fulfilled') {
+                    retArray.push({
+                        name:   result.value.name,
+                        code:   result.value.code,
+                        ratio:  result.value.ratio,
+                        path:   result.value.path
+                    });
+                } else {
+                    reqCode = Math.max(result.reason.code, reqCode); // prefer 5xx over 4xx over 2xx
+                    retArray.push({
+                        name:   result.reason.name,
+                        code:   result.reason.code,
+                        ratio:  result.reason.ratio,
+                        error:  result.reason.error
+                    });
+                }
+            });
+            return q({code: reqCode, body: retArray});
+        }).catch(function(error) {
+            log.error('[%1] Error creating splash images: %2', req.uuid, util.inspect(error));
+            return q.reject(error);
+        });
     };
 
     collateral.main = function(state) {
@@ -494,7 +552,7 @@
         });
 
         app.post('/api/collateral/splash/:expId', sessionsWrapper, authUpload, function(req, res) {
-            collateral.generateSplash(req, s3, state.config)
+            collateral.createSplashes(req, s3, state.config)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
