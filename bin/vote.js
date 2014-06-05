@@ -167,83 +167,108 @@
         return result;
     };
     
-    // Call syncElection for each election in the cache (if the election has pending votes).
+    // Call syncElections with the elections in the cache that have pending votes.
     ElectionDb.prototype.syncCached = function() {
         var self = this,
             updates = self.getCachedElections().filter(function(election) {
                 return election && election.votingBooth && election.votingBooth.dirty;
             });
         
-        return q.allSettled(updates.map(function(election) {
-            return self.syncElection(election.id);
+        return self.syncElections(updates.map(function(election) {
+            return election.id;
         }));
     };
 
-    // Retrieve an election, verify all pending votes for it, and then write them to the database.
-    ElectionDb.prototype.syncElection = function(electionId) {
+    // Retrieve elections, verify all pending votes for them, and then write them to the database.
+    ElectionDb.prototype.syncElections = function(electionIds) {
         var self = this,
-            log = logger.getLog(),
-            election = self._cache[electionId];
+            foundElections = [],
+            log = logger.getLog();
 
-        log.info('Syncing election %1', electionId);
+        if (!(electionIds instanceof Array)) {
+            log.warn('syncElections got %1 instead of an array of ids', typeof electionIds);
+            return q.reject('Must pass an array of ids');
+        }
 
-        return q.npost(self._coll, 'findOne', [{id: electionId}])
-        .then(function(item) {
-            var voteCounts;
+        return q.npost(self._coll.find({ id: { '$in': electionIds } }), 'toArray')
+        .then(function(items) {
+            return q.allSettled(items.map(function(item) {
+                var election = self._cache[item.id],
+                    voteCounts;
 
-            if (!item || !election || !election.votingBooth || !election.votingBooth.dirty) {
-                return q(item);
-            }
-            
-            election.votingBooth.each(function(ballotId, vote, count) {
-                if (item.ballot[ballotId] && item.ballot[ballotId][vote] !== undefined) {
-                    if (voteCounts === undefined) {
-                        voteCounts = {};
+                function finishSync(item) {
+                    log.info('Synced election %1 successfully', item.id);
+                    
+                    delete item._id;
+                    var election        = self._cache[item.id] || {};
+                    election.id         = item.id;
+                    election.lastSync   = new Date();
+                    election.data       = item;
+                    if (!election.votingBooth) {
+                        election.votingBooth = new VotingBooth(item.id);
+                    } else {
+                        election.votingBooth.clear();
                     }
-                    voteCounts['ballot.' + ballotId + '.' + vote] = count;
-                } else {
-                    log.info('%1.%2 not found in election %3, so not writing it',
-                             ballotId, vote, electionId);
+                    self._cache[item.id] = election;
+
+                    return q(election.data);
+                }
+                
+                // leave electionIds as an array of unfound cached elections that should be removed
+                foundElections.push(item.id);
+
+                if (!election || !election.votingBooth || !election.votingBooth.dirty) {
+                    return finishSync(item);
+                }
+                
+                election.votingBooth.each(function(ballotId, vote, count) {
+                    if (item.ballot[ballotId] && item.ballot[ballotId][vote] !== undefined) {
+                        if (voteCounts === undefined) {
+                            voteCounts = {};
+                        }
+                        voteCounts['ballot.' + ballotId + '.' + vote] = count;
+                    } else {
+                        log.info('%1.%2 not found in election %3, so not writing it',
+                                 ballotId, vote, item.id);
+                    }
+                });
+                
+                if (!voteCounts) {
+                    log.info('No valid votes for election %1, not writing to database', item.id);
+                    return finishSync(item);
+                }
+                
+                log.info('Saving %1 updates to election %2',Object.keys(voteCounts).length,item.id);
+                var args = [{'id':item.id},null,{'$inc':voteCounts},{new:true,w:0,journal:true}];
+
+                return q.npost(self._coll, 'findAndModify', args).then(function(results) {
+                    return finishSync(results[0]);
+                })
+                .catch(function(error) {
+                    log.error('Error syncing election %1: %2', item.id, util.inspect(error));
+                    return q(item); // still show client these elections even if write failed
+                });
+            }));
+        })
+        .then(function(responses) {
+            var results = [];
+            
+            responses.forEach(function(response) {
+                if (response.state === 'fulfilled') {
+                    results.push(response.value);
+                }
+            });
+            electionIds.forEach(function(id) {
+                if (foundElections.indexOf(id) < 0) {
+                    log.info('Unable to find election [%1], removing from cache', id);
+                    delete self._cache[id];
                 }
             });
             
-            if (!voteCounts) {
-                log.info('No valid votes for election %1, not writing to database', electionId);
-                return q(item);
-            }
-            
-            log.info('Saving %1 updates to election %2',Object.keys(voteCounts).length,electionId);
-            var args = [{'id':electionId},null,{'$inc':voteCounts},{new:true,w:0,journal:true}];
-
-            return q.npost(self._coll, 'findAndModify', args).then(function(results) {
-                return q(results[0]);
-            });
-        })
-        .then(function(item) {
-            if (!item) {
-                log.info('Unable to find election [%1], removing from cache', electionId);
-                delete self._cache[electionId];
-                return q();
-            }
-            
-            log.info('Synced election %1 successfully', electionId);
-            
-            delete item._id;
-            election            = self._cache[electionId] || {};
-            election.id         = electionId;
-            election.lastSync   = new Date();
-            election.data       = item;
-            if (!election.votingBooth) {
-                election.votingBooth = new VotingBooth(electionId);
-            } else {
-                election.votingBooth.clear();
-            }
-            self._cache[electionId] = election;
-
-            return q(election.data);
+            return q(results);
         })
         .catch(function(error) {
-            log.error('Error syncing election %1: %2', util.inspect(error));
+            log.error('Error syncing elections: %1', util.inspect(error));
             return q.reject(error);
         });
     };
@@ -272,8 +297,8 @@
 
         if (!deferred) {
             deferred = self._keeper.defer(electionId);
-            self.syncElection(electionId).then(function(item) {
-                deferred.resolve(item);
+            self.syncElections([electionId]).then(function(items) {
+                deferred.resolve(items[0]);
             }).catch(function(error) {
                 deferred.reject(error);
             }).finally(function() {
