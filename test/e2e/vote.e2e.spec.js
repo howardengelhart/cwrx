@@ -164,7 +164,7 @@ describe('vote (E2E)', function(){
         });
     });
     
-    describe('GET /api/election/vote/:id', function() {
+    describe('GET /api/election/:id', function() {
         it('gets an election if it exists', function(done) {
             testUtils.qRequest('get', { url : makeUrl('/api/election/e1'), jar: cookieJar })
                 .then(function(resp){
@@ -328,6 +328,28 @@ describe('vote (E2E)', function(){
                 })
                 .finally(done);
         });
+        
+        it('should not add items through voting on nonexistent choices/ballots', function(done) {
+            var options1 = { url: options.url, json: { election: 'e1', ballotItem: 'b1', vote: 'poop' } },
+                options2 = { url: options.url, json: { election: 'e1', ballotItem: 'b8', vote: 'poop' } };
+            q.all([testUtils.qRequest('post', options1), testUtils.qRequest('post', options2)])
+            .then(function(resps) {
+                resps.forEach(function(resp) {
+                    expect(resp.response.statusCode).toEqual(200);
+                    expect(resp.body).toEqual('OK');
+                });
+                return testUtils.qRequest('get', {url: makeUrl('/api/election/e1'), jar: cookieJar});
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toBe('e1');
+                expect(resp.body.ballot.b1).toEqual({'red apple':10,'yellow banana':20,'orange carrot':30});
+                expect(resp.body.ballot.b8).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
     });
 
     describe('POST /api/election', function() {
@@ -380,7 +402,26 @@ describe('vote (E2E)', function(){
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
                 done();
-            }); 
+            });
+        });
+
+        it('should fail if the request body or election ballot is empty', function(done) {
+            var options1 = {url: makeUrl('/api/election'), jar: cookieJar},
+                options2 = {url:makeUrl('/api/election'), json:{foo:'bar', ballot:{}}, jar:cookieJar};
+            
+            q.all([
+                testUtils.qRequest('post', options1),
+                testUtils.qRequest('post', options2)
+            ]).then(function(resps) {
+                expect(resps[0].response.statusCode).toBe(400);
+                expect(resps[0].body).toBe('You must provide an object in the body');
+                expect(resps[1].response.statusCode).toBe(400);
+                expect(resps[1].body).toBe('Must provide non-empty ballot');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
         });
         
         it('should throw a 401 error if the user is not authenticated', function(done) {

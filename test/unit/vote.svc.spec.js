@@ -309,47 +309,9 @@ describe('vote (UT)',function(){
             });
         });
 
-        describe('syncElections',function(){
-            var elDb, mockElection;
-            beforeEach(function(){
-                elDb = {
-                    getCachedElections  : jasmine.createSpy('elDb.getCachedElections'),
-                    getElection         : jasmine.createSpy('elDb.getElection'),
-                };
-                mockElection = {
-                    id : 'abc',
-                    lastSync : new Date(),
-                    data : null,
-                    votingBooth : {
-                        dirty : false
-                    }
-                };
-            });
-
-
-            it('will do nothing if there are no elections in the cache',function(){
-                elDb.getCachedElections.andReturn([]);
-                app.syncElections(elDb);
-                expect(elDb.getElection).not.toHaveBeenCalled();
-            });
-
-            it('will not attempt to sync an election that does not need it',function(){
-                elDb.getCachedElections.andReturn([mockElection]); 
-                app.syncElections(elDb);
-                expect(elDb.getElection).not.toHaveBeenCalled();
-            });
-
-            it('will call getElection if there is an election that shouldSync',function(){
-                mockElection.votingBooth.dirty = true;
-                elDb.getCachedElections.andReturn([mockElection]); 
-                app.syncElections(elDb);
-                expect(elDb.getElection).toHaveBeenCalledWith('abc');
-            });
-        });
-
         describe('createElection', function() {
             beforeEach(function() {
-                req.body = {ballot: 'fake'};
+                req.body = { ballot: { fake: { yes: 0, no: 0 } } };
                 req.user = {id: 'u-1234', org: 'o-1234'};
                 elections.insert = jasmine.createSpy('elections.insert')
                     .andCallFake(function(obj, opts, cb) { cb(); });
@@ -374,8 +336,8 @@ describe('vote (UT)',function(){
                 app.createElection(req, elections).then(function(resp) {
                     expect(resp).toBeDefined();
                     expect(resp.code).toBe(201);
-                    expect(resp.body.id).toBe('el-1234');
-                    expect(resp.body.ballot).toBe('fake');
+                    expect(resp.body.id).toEqual('el-1234');
+                    expect(resp.body.ballot).toEqual({ fake: { yes: 0, no: 0 } });
                     expect(resp.body.created instanceof Date).toBeTruthy('created is a Date');
                     expect(resp.body.lastUpdated instanceof Date).toBeTruthy('lastUpdated is a Date');
                     expect(resp.body.user).toBe('u-1234');
@@ -400,6 +362,25 @@ describe('vote (UT)',function(){
                     expect(resp).toBeDefined();
                     expect(resp.code).toBe(400);
                     expect(app.createValidator.validate).toHaveBeenCalled();
+                    expect(elections.insert).not.toHaveBeenCalled();
+                    done();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                    done();
+                });
+            });
+            
+            it('should fail with a 400 if the ballot is empty or undefined', function(done) {
+                q.all([
+                    app.createElection({uuid:'1234', user:req.user, body:{foo:'bar'}}, elections),
+                    app.createElection({uuid:'1234', user:req.user, body:{ballot:'foo'}}, elections),
+                    app.createElection({uuid:'1234', user:req.user, body:{ballot: {}}}, elections)
+                ]).then(function(results) {
+                    results.forEach(function(result) {
+                        expect(result.code).toBe(400);
+                        expect(result.body).toBe('Must provide non-empty ballot');
+                    });
+                    expect(app.createValidator.validate).not.toHaveBeenCalled();
                     expect(elections.insert).not.toHaveBeenCalled();
                     done();
                 }).catch(function(error) {
