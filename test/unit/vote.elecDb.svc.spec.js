@@ -343,7 +343,27 @@ describe('vote.elecDb (UT)',function(){
                     }).done(done);
             });
             
-            it('should fail if find fails', function(done) {
+            it('should correctly handle ballot items that are arrays', function(done) {
+                mockData.ballot['item-1'] = [3, 5];
+                elDb._cache['el-abc'].votingBooth.voteForBallotItem('item-1', 1);
+                elDb.syncElections(['el-abc'])
+                    .then(resolveSpy, rejectSpy)
+                    .finally(function() {
+                        expect(resolveSpy).toHaveBeenCalled();
+                        expect(rejectSpy).not.toHaveBeenCalled();
+                        expect(resolveSpy.calls[0].args[0][0].updated).toBe(true);
+                        expect(elDb._cache['el-abc'].lastSync).toBeGreaterThan(oldDate);
+                        expect(elDb._cache['el-abc'].votingBooth.dirty).toBe(false);
+                        expect(mockDb.find).toHaveBeenCalled();
+                        expect(mockDb.findAndModify).toHaveBeenCalledWith(
+                            {id:'el-abc'}, null,
+                            {'$inc':{'ballot.item-1.1':1}},
+                            {new:true,w:0,journal:true}, jasmine.any(Function)
+                        );
+                    }).done(done);
+            });
+            
+            it('should fail if coll.find fails', function(done) {
                 fakeCursor.toArray.andCallFake(function(cb) { cb('I GOT A PROBLEM'); });
                 elDb.syncElections(['el-abc'])
                     .then(resolveSpy, rejectSpy)
@@ -600,6 +620,15 @@ describe('vote.elecDb (UT)',function(){
                 });
                 expect(elDb._cache['el-abc'].data.ballot['item-1']['bad and nasty'])
                     .toEqual(201);
+            });
+            
+            it('will work for ballot items that are arrays', function() {
+                mockData.ballot = {
+                    'item-1': [10, 20]
+                };
+                
+                elDb.recordVote({election: 'el-abc', ballotItem: 'item-1', vote: 1});
+                expect(elDb._cache['el-abc'].data.ballot).toEqual({'item-1': [10, 21]});
             });
         });
     });

@@ -160,14 +160,19 @@ describe('vote (UT)',function(){
             it('will initialize the ballot item and choice if they do not exist',function(){
                 expect(vb._items['item1']).not.toBeDefined();
                 vb.voteForBallotItem('item1','happy');
-                expect(vb._items['item1']).toBeDefined();
-                expect(vb._items['item1']['happy']).toEqual(1);
+                expect(vb._items['item1']).toEqual({happy: 1});
             });
-
+            
             it('will increment the ballot item choice vote count if they do exist',function(){
                 vb.voteForBallotItem('item1','happy');
                 vb.voteForBallotItem('item1','happy');
                 expect(vb._items['item1']['happy']).toEqual(2);
+            });
+
+            it('will work if the ballotItem is an array', function() {
+                vb.voteForBallotItem('item1', 0);
+                vb.voteForBallotItem('item1', 1);
+                expect(vb._items['item1']).toEqual([1, 1]);
             });
         });
 
@@ -255,6 +260,16 @@ describe('vote (UT)',function(){
                 expect(eachSpy.argsForCall[1]).toEqual(['item1','sad',1]);
                 expect(eachSpy.argsForCall[4]).toEqual(['item2','blue',1]);
             });
+            
+            it('works for ballot items that are arrays or objects', function() {
+                vb._items = { item1: mockVotes.item1, item3: [1, 2] };
+                vb.each(eachSpy);
+                expect(eachSpy.callCount).toEqual(4);
+                expect(eachSpy.calls[0].args).toEqual(['item1', 'happy', 2]);
+                expect(eachSpy.calls[1].args).toEqual(['item1', 'sad', 1]);
+                expect(eachSpy.calls[2].args).toEqual(['item3', '0', 1]);
+                expect(eachSpy.calls[3].args).toEqual(['item3', '1', 2]);
+            });
         });
     });
 
@@ -287,6 +302,10 @@ describe('vote (UT)',function(){
             it('handles zero values',function(){
                 expect(app.convertObjectValsToPercents({ a : 0, b : 30, c : 70}))
                     .toEqual({ a : 0.0, b : 0.30, c : 0.70});
+            });
+            
+            it('handles a ballotItem that is an array instead of a hash', function() {
+                expect(app.convertObjectValsToPercents([25, 75])).toEqual([0.25, 0.75]);
             });
         });
 

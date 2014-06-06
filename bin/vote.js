@@ -104,7 +104,7 @@
 
     VotingBooth.prototype.voteForBallotItem = function(itemId,vote){
         if (!this._items[itemId]){
-            this._items[itemId] = { };
+            this._items[itemId] = typeof vote === 'number' ? [] : {};
         }
 
         if (!this._items[itemId][vote]){
@@ -226,6 +226,9 @@
                         if (voteCounts === undefined) {
                             voteCounts = {};
                         }
+                        if (typeof count !== 'number') {
+                            count = 0;
+                        }
                         voteCounts['ballot.' + ballotId + '.' + vote] = count;
                     } else {
                         log.info('%1.%2 not found in election %3, so not writing it',
@@ -345,17 +348,18 @@
         return self;
     };
     
-    app.convertObjectValsToPercents = function(object){
-        var sum = 0, result = {};
+    app.convertObjectValsToPercents = function(ballotItem){
+        var sum = 0,
+            result = ballotItem instanceof Array ? [] : {};
 
-        Object.keys(object).forEach(function(key){
+        Object.keys(ballotItem).forEach(function(key){
             result[key] = 0;
-            sum += object[key];
+            sum += ballotItem[key];
         });
 
         if (sum > 0){
-            Object.keys(object).forEach(function(key){
-                result[key] = Math.round( (object[key] / sum) * 100) / 100;
+            Object.keys(ballotItem).forEach(function(key){
+                result[key] = Math.round( (ballotItem[key] / sum) * 100) / 100;
             });
         }
 
@@ -426,6 +430,7 @@
         });
     };
     
+    //TODO: add validateBallotUpdates method to prune out bad ballot updates
     app.updateElection = function(req, elections) {
         var updates = req.body,
             id = req.params.id,
@@ -607,7 +612,7 @@
         });
         
         webServer.post('/api/public/vote', function(req, res){
-            if ((!req.body.election) || (!req.body.ballotItem) ||  (!req.body.vote)) {
+            if ((!req.body.election) || (!req.body.ballotItem) || (req.body.vote === undefined)) {
                 res.send(400, 'Invalid request.\n');
                 return;
             }
@@ -617,7 +622,7 @@
         });
 
         webServer.post('/api/vote', function(req, res){
-            if ((!req.body.election) || (!req.body.ballotItem) ||  (!req.body.vote)) {
+            if ((!req.body.election) || (!req.body.ballotItem) || (req.body.vote === undefined)) {
                 res.send(400, 'Invalid request.\n');
                 return;
             }
