@@ -29,6 +29,9 @@
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/collateral/caches/run/'),
         },
+        cacheControl: {
+            default: 'max-age=15'
+        },
         cacheTTLs: {  // units here are minutes
             auth: {
                 freshTTL: 1,
@@ -76,8 +79,10 @@
         var log = logger.getLog(),
             outParams = {},
             headParams = {},
+            cacheControl = req.query && req.query.noCache ? 'max-age=0'
+                                                          : config.cacheControl.default,
             promise;
-            
+
         if (versionate) {
             promise = uuid.hashFile(fileOpts.path).then(function(hash) {
                 return q(hash + '.' + fileOpts.name);
@@ -88,6 +93,7 @@
         
         return promise.then(function(fname) {
             outParams = {
+                CacheControl: cacheControl,
                 Bucket      : config.s3.bucket,
                 Key         : path.join(prefix, fname),
                 ACL         : 'public-read',

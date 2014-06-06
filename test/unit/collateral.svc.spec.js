@@ -41,7 +41,7 @@ describe('collateral (UT)', function() {
                     cb('that does not exist', null);
                 })
             };
-            config = { s3: { bucket: 'bkt' } };
+            config = { s3: { bucket: 'bkt' }, cacheControl: { default: 'max-age=15' } };
             fileOpts = { name: 'foo.txt', path: '/ut/foo.txt', type: 'text/plain' };
             spyOn(uuid, 'hashFile').andReturn(q('fakeHash'));
             spyOn(s3util, 'putObject').andReturn(q('success'));
@@ -53,7 +53,7 @@ describe('collateral (UT)', function() {
                 expect(uuid.hashFile).not.toHaveBeenCalled();
                 expect(s3.headObject).not.toHaveBeenCalled();
                 expect(s3util.putObject).toHaveBeenCalledWith(s3, '/ut/foo.txt',
-                    {Bucket:'bkt', Key:'ut/o-1/foo.txt', ACL:'public-read', ContentType:'text/plain'});
+                    {Bucket:'bkt',Key:'ut/o-1/foo.txt',ACL:'public-read',CacheControl:'max-age=15',ContentType:'text/plain'});
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -82,7 +82,20 @@ describe('collateral (UT)', function() {
                 expect(s3.headObject).toHaveBeenCalled();
                 expect(s3.headObject.calls[0].args[0]).toEqual({Bucket:'bkt', Key:'ut/o-1/fakeHash.foo.txt'});
                 expect(s3util.putObject).toHaveBeenCalledWith(s3, '/ut/foo.txt',
-                    {Bucket:'bkt', Key:'ut/o-1/fakeHash.foo.txt', ACL:'public-read', ContentType:'text/plain'});
+                    {Bucket:'bkt',Key:'ut/o-1/fakeHash.foo.txt',ACL:'public-read',CacheControl:'max-age=15',ContentType:'text/plain'});
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should set CacheControl to be max-age=0 if noCache is true', function(done) {
+            req.query = { noCache: true };
+            collateral.upload(req, 'ut/o-1', fileOpts, true, s3, config).then(function(key) {
+                expect(key).toBe('ut/o-1/fakeHash.foo.txt');
+                expect(s3util.putObject).toHaveBeenCalledWith(s3, '/ut/foo.txt',
+                    {Bucket:'bkt',Key:'ut/o-1/fakeHash.foo.txt',ACL:'public-read',CacheControl:'max-age=0',ContentType:'text/plain'});
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
