@@ -266,7 +266,7 @@ describe('collateral (E2E):', function() {
                 done();
             });
         });
-        
+
         it('should not forcibly set the file extension', function(done) {
             files = { testFile: samples[0].path.replace('.jpg', '') };
             fs.renameSync(samples[0].path, samples[0].path.replace('.jpg', ''));
@@ -286,7 +286,7 @@ describe('collateral (E2E):', function() {
                 done();
             });
         });
-        
+
         it('should throw a 415 if a non-image file is provided', function(done) {
             files = { testFile: './fake.jpg' };
             fs.writeFileSync('./fake.jpg', "Ceci n'est pas une jpeg");
@@ -339,7 +339,7 @@ describe('collateral (E2E):', function() {
     });
     
     describe('POST /api/collateral/splash/:expId', function() {
-        var rmList, options, samples;
+        var rmList, options, samples, reqBody;
         
         beforeEach(function() {
             samples = [
@@ -350,7 +350,7 @@ describe('collateral (E2E):', function() {
                 'https://s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample5.jpg',
                 'https://s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample6.jpg'
             ];
-            var reqBody = {size: {height: 300, width: 300}, ratio: '__e2e', thumbs: [samples[0]]};
+            reqBody = {thumbs: [samples[0]], imageSpecs: [{height: 300, width: 300, ratio: '__e2e'}]};
             options = {url:config.collateralUrl+'/collateral/splash/e-1234',json:reqBody,jar:cookieJar};
             rmList = [];
         });
@@ -363,20 +363,21 @@ describe('collateral (E2E):', function() {
         
         it('should throw a 400 if the request is incomplete', function(done) {
             var bodies = [
-                { size: { height: 300, width: 300 }, thumbs: [samples[0]] },
-                { ratio: 'square', thumbs: [samples[0]] },
-                { size: { height: 300, width: 300 }, ratio: 'square' }
+                { thumbs: [samples[0]] },
+                { imageSpecs: reqBody.imageSpecs },
+                { imageSpecs: [{height: 300, ratio: '__e2e'}], thumbs: [samples[0]] }
             ];
             q.all(bodies.map(function(body) {
                 options.json = body;
                 return testUtils.qRequest('post', options);
             })).then(function(results) {
                 expect(results[0].response.statusCode).toBe(400);
-                expect(results[0].response.body).toBe('Must provide ratio name to choose template');
+                expect(results[0].response.body).toBe('Must provide imageSpecs to create splashes for');
                 expect(results[1].response.statusCode).toBe(400);
-                expect(results[1].response.body).toBe('Must provide size object with width + height');
+                expect(results[1].response.body).toBe('Must provide thumbs to create splashes from');
                 expect(results[2].response.statusCode).toBe(400);
-                expect(results[2].response.body).toBe('Must provide thumbs to create splash from');
+                expect(results[2].response.body).toEqual([{code: 400, name: 'splash', ratio: '__e2e',
+                                                           error: 'Must provide complete imgSpec'}]);
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -385,10 +386,10 @@ describe('collateral (E2E):', function() {
         });
         
         it('should throw a 400 if the ratio name is invalid', function(done) {
-            options.json.ratio = 'foo';
+            options.json.imageSpecs[0].ratio = 'foo';
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toEqual('Invalid ratio name');
+                expect(resp.body).toEqual([{code: 400, name: 'splash', ratio: 'foo', error: 'Invalid ratio name'}]);
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -399,9 +400,26 @@ describe('collateral (E2E):', function() {
         it('should generate a splash image', function(done) {
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toEqual('collateral/e-1234/splash');
-                rmList.push(resp.body);
-                return testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body)});
+                expect(resp.body).toEqual([{code: 201, name: 'splash', ratio: '__e2e', path: 'collateral/e-1234/splash'}]);
+                rmList.push(resp.body[0].path);
+                return testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)});
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.response.headers.etag).toBe('"1ac1b4765354b78678dac5f83a008892"')
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should accept a custom filename for the splash image', function(done) {
+            options.json.imageSpecs[0].name = 'sploosh';
+            testUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toEqual([{code: 201, name: 'sploosh', ratio: '__e2e', path: 'collateral/e-1234/sploosh'}]);
+                rmList.push(resp.body[0].path);
+                return testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)});
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.response.headers.etag).toBe('"1ac1b4765354b78678dac5f83a008892"')
@@ -416,9 +434,10 @@ describe('collateral (E2E):', function() {
             options.url += '?versionate=true';
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toEqual('collateral/e-1234/1ac1b4765354b78678dac5f83a008892.splash');
-                rmList.push(resp.body);
-                return testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body)});
+                expect(resp.body).toEqual([{code: 201, name: 'splash', ratio: '__e2e',
+                                           path: 'collateral/e-1234/1ac1b4765354b78678dac5f83a008892.splash'}]);
+                rmList.push(resp.body[0].path);
+                return testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)});
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.response.headers.etag).toBe('"1ac1b4765354b78678dac5f83a008892"');
@@ -430,28 +449,27 @@ describe('collateral (E2E):', function() {
         });
         
         it('should be able to generate splash images at different sizes', function(done) {
-            options.url += '?versionate=true';
-            var profiles = [
-                { size: { height: 600, width: 600 }, etag: '273077b32f8fef2e6c730993f7a9a7f0' },
-                { size: { height: 1000, width: 1000 }, etag: 'fc843376ada4a815ace6e645b551ccfa' },
-                { size: { height: 80, width: 80 }, etag: 'b22555d2412dc29ca058dc1971a87742' },
-                { size: { height: 400, width: 400 }, etag: '7e3d1c4546394e10c1c95ba59aa78496' }
+            options.json.imageSpecs = [
+                {height: 600, width: 600, ratio: '__e2e', name: 'imgA', etag: '273077b32f8fef2e6c730993f7a9a7f0'},
+                {height: 1000, width: 1000, ratio: '__e2e', name: 'imgB', etag: 'fc843376ada4a815ace6e645b551ccfa'},
+                {height: 80, width: 80, ratio: '__e2e', name: 'imgC', etag: 'b22555d2412dc29ca058dc1971a87742'},
+                {height: 400, width: 400, ratio: '__e2e', name: 'imgD', etag: '7e3d1c4546394e10c1c95ba59aa78496'}
             ];
-            q.all(profiles.map(function(profile) {
-                options.json.size = profile.size;
-                return testUtils.qRequest('post', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(201);
-                    expect(resp.body).toEqual('collateral/e-1234/' + profile.etag + '.splash');
-                    rmList.push(resp.body);
-                    return testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body)});
-                }).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.response.headers.etag).toBe('"' + profile.etag + '"');
-                }).catch(function(error) {
-                    expect(error).not.toBeDefined();
-                });
-            })).then(function() {
-                done();
+            testUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                return q.all(resp.body.map(function(respObj, index) {
+                    var imgSpec = options.json.imageSpecs[index];
+                    expect(respObj).toEqual({code: 201, name: imgSpec.name, ratio: '__e2e',
+                                             path: 'collateral/e-1234/' + imgSpec.name});
+                    rmList.push(respObj.path);
+                    return testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, respObj.path)})
+                    .then(function(s3Resp) {
+                        expect(s3Resp.response.statusCode).toBe(200);
+                        expect(s3Resp.response.headers.etag).toBe('"' + imgSpec.etag + '"');
+                    });
+                })).then(function(results) {
+                    done();
+                })
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
                 done();
@@ -474,9 +492,10 @@ describe('collateral (E2E):', function() {
                 if (index == 6) options.json.thumbs.push(samples[5]);
                 return testUtils.qRequest('post', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(201);
-                    expect(resp.body).toEqual('collateral/e-1234/' + etag + '.splash');
-                    rmList.push(resp.body);
-                    return testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body)});
+                    expect(resp.body).toEqual([{code: 201, name: 'splash', ratio: '__e2e',
+                                               path: 'collateral/e-1234/' + etag + '.splash'}]);
+                    rmList.push(resp.body[0].path);
+                    return testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)});
                 }).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.response.headers.etag).toBe('"' + etag + '"');
