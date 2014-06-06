@@ -14,6 +14,11 @@
 * Extra deployment steps: None
 
 ## collateral Service
+### 1.2.3: Fri Jun  6 15:15:26 EDT 2014
+* [FIX]: Change splash generation request body: [#179](https://github.com/cinema6/cwrx/pull/179)
+* [FIX]: Set Cache-Control for all files: [#179](https://github.com/cinema6/cwrx/pull/179)
+* Extra deployment steps: None
+
 ### 1.2.2: Thu May 29 04:11:00 EDT 2014
 * [FIX]: Splash templates renamed: [#169](https://github.com/cinema6/cwrx/pull/169)
 * Extra deployment steps: None
