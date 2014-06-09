@@ -427,8 +427,8 @@ describe('vote (UT)',function(){
                 oldElec;
             beforeEach(function() {
                 req.params = {id: 'el-1234'};
-                req.body = {ballot: 'fake2'};
-                oldElec = {id:'el-1234',ballot:'fake1',user:'u-1234',created:start,lastUpdated:start};
+                req.body = {tag: 'fake2'};
+                oldElec = {id:'el-1234',tag:'fake1',user:'u-1234',created:start,lastUpdated:start};
                 req.user = {id: 'u-1234'};
                 elections.findOne = jasmine.createSpy('elections.findOne')
                     .andCallFake(function(query, cb) { cb(null, oldElec); });
@@ -465,7 +465,7 @@ describe('vote (UT)',function(){
                     expect(elections.findAndModify.calls[0].args[1]).toEqual({id: 1});
                     var updates = elections.findAndModify.calls[0].args[2];
                     expect(Object.keys(updates)).toEqual(['$set']);
-                    expect(updates.$set.ballot).toBe('fake2');
+                    expect(updates.$set.tag).toBe('fake2');
                     expect(updates.$set.lastUpdated instanceof Date).toBeTruthy('lastUpdated is Date');
                     expect(elections.findAndModify.calls[0].args[3])
                         .toEqual({w: 1, journal: true, new: true});
@@ -485,6 +485,27 @@ describe('vote (UT)',function(){
                     expect(resp.body).toBe('Illegal fields');
                     expect(app.updateValidator.validate).toHaveBeenCalled();
                     expect(elections.findAndModify).not.toHaveBeenCalled();
+                    done();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                    done();
+                });
+            });
+            
+            it('should permit ballot updates only if they create new items', function(done) {
+                oldElec.ballot = { b1: [0, 3], b2: [2, 5] };
+                req.body.ballot = { b1: [1, 4], b2: 'foo', b4: [10, 20] };
+                
+                app.updateElection(req, elections).then(function(resp) {
+                    expect(resp.code).toBe(200);
+                    expect(resp.body).toEqual({id: 'el-1234', updated: true});
+                    expect(elections.findOne).toHaveBeenCalled();
+                    expect(app.updateValidator.validate).toHaveBeenCalledWith(req.body, oldElec, req.user);
+                    expect(elections.findAndModify).toHaveBeenCalled();
+                    expect(elections.findAndModify.calls[0].args[2]).toEqual(
+                        {'$set': {tag: 'fake2', lastUpdated: jasmine.any(Date), 'ballot.b4': [10,20]}});
+                    expect(mongoUtils.escapeKeys).toHaveBeenCalled();
+                    expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                     done();
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();

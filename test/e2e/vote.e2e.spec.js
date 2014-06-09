@@ -468,12 +468,11 @@ describe('vote (E2E)', function(){
     });
     
     describe('PUT /api/election/:id', function() {
-
         it('should successfully update an election', function(done) {
             var options = {
                 url: makeUrl('/api/election/e1'),
                 jar: cookieJar,
-                json: { ballot: { b1: { foo: 1, bar: 10 } } }
+                json: { tag: 'foo' }
             }, updatedElec;
             testUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -482,9 +481,32 @@ describe('vote (E2E)', function(){
                 expect(updatedElec).toBeDefined();
                 expect(updatedElec._id).not.toBeDefined();
                 expect(updatedElec.id).toBe('e1');
-                expect(updatedElec.ballot).toEqual({ b1: { foo: 1, bar: 10 } });
+                expect(updatedElec.tag).toBe('foo');
+                expect(updatedElec.ballot).toEqual(mockData[0].ballot);
                 expect(updatedElec.user).toBe('e2e-user');
                 expect(new Date(updatedElec.created)).toEqual(mockData[0].created);
+                expect(new Date(updatedElec.lastUpdated)).toBeGreaterThan(mockData[0].created);
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should be able to add new ballot items, but not modify existing ones', function(done) {
+            var options = {
+                url: makeUrl('/api/election/e1'),
+                jar: cookieJar,
+                json: { ballot: { b1: [80, 90], b2: [0, 2, 3], b3: [33, 33] } }
+            }, updatedElec;
+            testUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                updatedElec = resp.body;
+                expect(updatedElec).not.toEqual(mockData[0]);
+                expect(updatedElec).toBeDefined();
+                expect(updatedElec._id).not.toBeDefined();
+                expect(updatedElec.id).toBe('e1');
+                expect(updatedElec.ballot).toEqual({b1: [10, 20, 30], b2: [0, 2], b3: [33, 33]});
                 expect(new Date(updatedElec.lastUpdated)).toBeGreaterThan(mockData[0].created);
                 done();
             }).catch(function(error) {

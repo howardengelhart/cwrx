@@ -461,8 +461,22 @@
                     body: 'Not authorized to edit this election'
                 });
             }
+            
             updates.lastUpdated = new Date();
             updates = mongoUtils.escapeKeys(updates);
+
+            if (updates.ballot) {
+                var ballotUpdates = updates.ballot;
+                delete updates.ballot;
+                if (typeof ballotUpdates === 'object' && !(ballotUpdates instanceof Array)) {
+                    Object.keys(ballotUpdates).forEach(function(key) {
+                        if (!orig.ballot[key]) {
+                            updates['ballot.' + key] = ballotUpdates[key];
+                        }
+                    });
+                }
+            }
+
             var opts = {w: 1, journal: true, new: true};
             return q.npost(elections, 'findAndModify', [{id: id}, {id: 1}, {$set: updates}, opts])
             .then(function(results) {
