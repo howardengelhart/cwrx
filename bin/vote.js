@@ -430,7 +430,6 @@
         });
     };
     
-    //TODO: add validateBallotUpdates method to prune out bad ballot updates
     app.updateElection = function(req, elections) {
         var updates = req.body,
             id = req.params.id,
