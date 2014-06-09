@@ -5,7 +5,6 @@
 
     var path            = require('path'),
         q               = require('q'),
-        bcrypt          = require('bcrypt'),
         logger          = require('../lib/logger'),
         uuid            = require('../lib/uuid'),
         FieldValidator  = require('../lib/fieldValidator'),
@@ -122,7 +121,8 @@
             log = logger.getLog(),
             deferred = q.defer();
 
-        if (!(requester && requester.permissions && requester.permissions.orgs && requester.permissions.orgs.create === 'all')) {
+        if (!(requester && requester.permissions && requester.permissions.orgs &&
+                           requester.permissions.orgs.create === 'all')) {
             log.info('[%1] User %2 is not authorized to create orgs', req.uuid, requester.id);
             return q({code: 403, body: 'Not authorized to create orgs'});
         }
@@ -280,7 +280,7 @@
 
         state.dbStatus.c6Db.on('reconnected', function() {
             users = state.dbs.c6Db.collection('users');
-            orgs  = state.dbs.c6Db.collection('orgs'),
+            orgs  = state.dbs.c6Db.collection('orgs');
             authUtils._cache._coll = users;
             log.info('Recreated collections from restarted c6Db');
         });
