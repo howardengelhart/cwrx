@@ -14,7 +14,8 @@ testUtils.resetCollection = function(collection,data,userCfg){
         userCfg = process.env['mongo'] ? JSON.parse(process.env['mongo']) : {};
     }
     dbConfig = {
-        host : userCfg.host ? userCfg.host : 'localhost',
+        host : userCfg.host ? userCfg.host : '33.33.33.100',
+        // host : userCfg.host ? userCfg.host : 'localhost',
         port : userCfg.port ? userCfg.port : 27017,
         db   : userCfg.db   ? userCfg.db   : 'c6Db',
         user : userCfg.user ? userCfg.user : 'e2eTests',
