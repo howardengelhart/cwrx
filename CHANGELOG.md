@@ -46,6 +46,11 @@
     * Push up update to staging environment to include collateral service
 
 ## content Service
+### 1.4.0: Mon Jun  9 15:34:44 EDT 2014
+* [FIX]: Hashinate exp.data + store/return as versionId: [#184](https://github.com/cinema6/cwrx/pull/184)
+* [FIX]: Hide user and org fields from guest user: [#184](https://github.com/cinema6/cwrx/pull/184)
+* Extra deployment steps: None
+
 ### 1.3.8: Thu May 29 12:09:09 EDT 2014
 * [FIX]: Store userId in data+status arrays: [#168](https://github.com/cinema6/cwrx/pull/168)
 * Extra deployment steps: None

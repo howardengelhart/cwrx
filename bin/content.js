@@ -80,8 +80,9 @@
     });
     content.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created', '_id'] });
     
-    content.formatOutput = function(experience) {
+    content.formatOutput = function(experience, isGuest) {
         var log = logger.getLog(),
+            privateFields = ['user', 'org'],
             newExp = {};
         
         for (var key in experience) {
@@ -92,6 +93,7 @@
                     newExp.data = experience.data;
                 } else {
                     newExp.data = experience.data[0].data;
+                    newExp.versionId = experience.data[0].versionId;
                 }
                 if (newExp.data.title) {
                     newExp.title = newExp.data.title;
@@ -104,7 +106,7 @@
                 } else {
                     newExp.status = experience.status[0].status;
                 }
-            } else if (key !== '_id') {
+            } else if (key !== '_id' && !(isGuest && privateFields.indexOf(key) >= 0)) {
                 newExp[key] = experience[key];
             }
         }
@@ -144,7 +146,9 @@
         return promise.then(function(results) {
             log.trace('[%1] Retrieved %2 experiences', req.uuid, results.length);
             
-            var experiences = results.map(content.formatOutput).filter(function(result) {
+            var experiences = results.map(function(exp) {
+                return content.formatOutput(exp, !req.user);
+            }).filter(function(result) {
                 return result.status !== Status.Deleted &&
                       (content.checkScope(req.user, result, 'experiences', 'read') ||
                        (result.status === Status.Active && result.access === Access.Public) ||
@@ -189,7 +193,9 @@
             obj.access = Access.Public;
         }
         if (obj.data) {
-            obj.data = [ { user: user.email, userId: user.id, date: now, data: obj.data } ];
+            var versionId = uuid.hashText(JSON.stringify(obj.data)).substr(0, 8);
+            obj.data = [ { user: user.email, userId: user.id, date: now,
+                           data: obj.data, versionId: versionId } ];
             if (obj.status[0].status === Status.Active) {
                 obj.data[0].active = true;
             }
@@ -216,7 +222,9 @@
 
         if (!(orig.data instanceof Array)) {
             log.warn('[%1] Original exp %2 does not have an array of data', req.uuid, orig.id);
-            orig.data = [{user:user.email,userId:user.id,date:orig.created,data:orig.data}];
+            var oldVersion = uuid.hashText(JSON.stringify(orig.data || {})).substr(0, 8);
+            orig.data = [ { user: user.email, userId: user.id, date: orig.created, data: orig.data,
+                            versionId: oldVersion } ];
         }
         if (!(orig.status instanceof Array)) {
             log.warn('[%1] Original exp %2 does not have an array of statuses', req.uuid, orig.id);
@@ -225,7 +233,9 @@
 
         if (updates.data) {
             if (!content.compareData(orig.data[0].data, updates.data)) {
-                var dataWrapper = {user:user.email, userId:user.id, date:now, data:updates.data};
+                var versionId = uuid.hashText(JSON.stringify(updates.data)).substr(0, 8),
+                    dataWrapper = { user: user.email, userId: user.id, date: now,
+                                    data: updates.data, versionId: versionId };
                 if (orig.status[0].status === Status.Active) {
                     dataWrapper.active = true;
                     orig.data.unshift(dataWrapper);
