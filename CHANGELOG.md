@@ -14,6 +14,11 @@
 * Extra deployment steps: None
 
 ## collateral Service
+### 1.2.4: Mon Jun  9 17:49:43 EDT 2014
+* [FIX]: Rename 6-4 templates to 3-2: [#186](https://github.com/cinema6/cwrx/pull/186)
+* [FIX]: Handle protocol-relative urls properly: [#187](https://github.com/cinema6/cwrx/pull/187)
+* Extra deployment steps: None
+
 ### 1.2.3: Fri Jun  6 15:15:26 EDT 2014
 * [FIX]: Change splash generation request body: [#179](https://github.com/cinema6/cwrx/pull/179)
 * [FIX]: Set Cache-Control for all files: [#179](https://github.com/cinema6/cwrx/pull/179)
