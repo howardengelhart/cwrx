@@ -287,10 +287,10 @@ describe('vote (E2E)', function(){
                     expect(resp.body).toEqual('OK');
                 })
                 .then(function(){
-                    return testUtils.qRequest('get', {url: makeUrl('/api/election/e1'), jar: cookieJar});
+                    return testUtils.qRequest('get', {url: makeUrl('/api/public/election/e1'), jar: cookieJar});
                 })
                 .then(function(resp){
-                    expect(resp.body.ballot.b2[0]).toEqual(1);
+                    expect(resp.body.ballot.b2[0]).toEqual(0.33);
                 })
                 .catch(function(err){
                     expect(err).not.toBeDefined();
