@@ -27,8 +27,8 @@ describe('vote (E2E)', function(){
                 user: 'e2e-user',
                 created: new Date(new Date() - 24*60*60*1000),
                 ballot:   {
-                    'b1' : { 'red apple'  : 10, 'yellow banana'  : 20, 'orange carrot'  : 30 },
-                    'b2' : { 'one chicken': 0, 'two ducks'      : 2 }
+                    'b1' : [ 10, 20, 30 ],
+                    'b2' : [ 0, 2 ]
                 }
             },
             {
@@ -37,8 +37,8 @@ describe('vote (E2E)', function(){
                 user: 'not-e2e-user',
                 created: new Date(new Date() - 24*60*60*1000),
                 ballot:   {
-                    'b1' : { 'one fish'   : 10, 'two fish'   : 20, },
-                    'b2' : { 'red fish'   : 30, 'blue fish'  : 40 }
+                    'b1' : [ 10, 20 ],
+                    'b2' : [ 30, 40 ]
                 }
             },
             {
@@ -47,10 +47,19 @@ describe('vote (E2E)', function(){
                 user: 'e2e-user',
                 created: new Date(new Date() - 24*60*60*1000),
                 ballot:   {
-                    'b1' : { 'one fish'   : 20, 'two fish'   : 10, },
-                    'b2' : { 'red fish'   : 40, 'blue fish'  : 30 }
+                    'b1' : [ 20, 10 ],
+                    'b2' : [ 40, 30 ]
                 }
-            }
+            },
+            {
+                id: 'e4',
+                status: 'active',
+                user: 'e2e-user',
+                created: new Date(new Date() - 24*60*60*1000),
+                ballot:   {
+                    'b1' : { foo: 1, bar: 5 }
+                }
+            },
         ];
 
         testUtils.resetCollection('elections',mockData)
@@ -120,11 +129,8 @@ describe('vote (E2E)', function(){
                     expect(resp.response.statusCode).toEqual(200);
                     expect(resp.body.id).toEqual('e1');
                     expect(resp.body._id).not.toBeDefined();
-                    expect(resp.body.ballot.b1['red apple']).toEqual(0.17);
-                    expect(resp.body.ballot.b1['yellow banana']).toEqual(0.33);
-                    expect(resp.body.ballot.b1['orange carrot']).toEqual(0.50);
-                    expect(resp.body.ballot.b2['one chicken']).toEqual(0.0);
-                    expect(resp.body.ballot.b2['two ducks']).toEqual(1.0);
+                    expect(resp.body.ballot.b1).toEqual([0.17, 0.33, 0.50]);
+                    expect(resp.body.ballot.b2).toEqual([0.0, 1.0]);
                 })
                 .catch(function(err){
                     expect(err).not.toBeDefined();
@@ -173,8 +179,8 @@ describe('vote (E2E)', function(){
                     expect(resp.body._id).not.toBeDefined();
                     expect(resp.body.id).toEqual('e1');
                     expect(resp.body.ballot).toEqual({
-                        'b1' : { 'red apple' : 10, 'yellow banana' : 20, 'orange carrot' : 30 },
-                        'b2' : { 'one chicken': 0, 'two ducks' : 2 }
+                        'b1' : [10, 20, 30],
+                        'b2' : [0, 2]
                     });
                     expect(resp.body.user).toBe('e2e-user');
                     expect(resp.body.created).toBeDefined();
@@ -207,7 +213,7 @@ describe('vote (E2E)', function(){
         it('forces a sync before returning data', function(done) {
             var postOpts = {
                 url: makeUrl('/api/vote'),
-                json: { election : 'e3', ballotItem: 'b1', vote: 'one fish' }
+                json: { election : 'e3', ballotItem: 'b1', vote: 0 }
             };
             testUtils.qRequest('post', postOpts)
                 .then(function(resp) {
@@ -216,8 +222,8 @@ describe('vote (E2E)', function(){
                 }).then(function(resp) {
                     expect(resp.body.id).toEqual('e3');
                     expect(resp.body.ballot).toEqual({
-                        'b1' : { 'one fish'   : 21, 'two fish'   : 10, },
-                        'b2' : { 'red fish'   : 40, 'blue fish'  : 30 }
+                        'b1' : [21, 10],
+                        'b2' : [40, 30]
                     });
                 })
                 .catch(function(err){
@@ -272,7 +278,7 @@ describe('vote (E2E)', function(){
             options.json = {
                 election : 'e1',
                 ballotItem: 'b2',
-                vote:       'one chicken'
+                vote:       0
             };
             
             testUtils.qRequest('post', options)
@@ -281,10 +287,10 @@ describe('vote (E2E)', function(){
                     expect(resp.body).toEqual('OK');
                 })
                 .then(function(){
-                    return testUtils.qRequest('get', { url : makeUrl('/api/public/election/e1')});
+                    return testUtils.qRequest('get', {url: makeUrl('/api/public/election/e1'), jar: cookieJar});
                 })
                 .then(function(resp){
-                    expect(resp.body.ballot.b2['one chicken']).toEqual(0.33);
+                    expect(resp.body.ballot.b2[0]).toEqual(0.33);
                 })
                 .catch(function(err){
                     expect(err).not.toBeDefined();
@@ -297,7 +303,7 @@ describe('vote (E2E)', function(){
             options.json = {
                 election : 'e1',
                 ballotItem: 'b2',
-                vote:       'one chicken'
+                vote:       0
             };
             
             testUtils.qRequest('post', options)
@@ -321,7 +327,7 @@ describe('vote (E2E)', function(){
                     return testUtils.qRequest('get', { url : makeUrl('/api/public/election/e1')});
                 })
                 .then(function(resp){
-                    expect(resp.body.ballot.b2['one chicken']).toEqual(0.50);
+                    expect(resp.body.ballot.b2[0]).toEqual(0.50);
                 })
                 .catch(function(err){
                     expect(err).not.toBeDefined();
@@ -330,7 +336,7 @@ describe('vote (E2E)', function(){
         });
         
         it('should not add items through voting on nonexistent choices/ballots', function(done) {
-            var options1 = { url: options.url, json: { election: 'e1', ballotItem: 'b1', vote: 'poop' } },
+            var options1 = { url: options.url, json: { election: 'e1', ballotItem: 'b1', vote: 3 } },
                 options2 = { url: options.url, json: { election: 'e1', ballotItem: 'b8', vote: 'poop' } };
             q.all([testUtils.qRequest('post', options1), testUtils.qRequest('post', options2)])
             .then(function(resps) {
@@ -342,7 +348,7 @@ describe('vote (E2E)', function(){
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.id).toBe('e1');
-                expect(resp.body.ballot.b1).toEqual({'red apple':10,'yellow banana':20,'orange carrot':30});
+                expect(resp.body.ballot.b1).toEqual([10, 20, 30]);
                 expect(resp.body.ballot.b8).not.toBeDefined();
                 done();
             }).catch(function(error) {
@@ -350,13 +356,32 @@ describe('vote (E2E)', function(){
                 done();
             });
         });
+        
+        it('should still work if the ballot items are objects', function(done) {
+            options.json = { election: 'e4', ballotItem: 'b1', vote: 'foo' };
+            testUtils.qRequest('post', options)
+                .then(function(resp){
+                    expect(resp.response.statusCode).toEqual(200);
+                    expect(resp.body).toEqual('OK');
+                })
+                .then(function(){
+                    return testUtils.qRequest('get', {url: makeUrl('/api/election/e4'), jar: cookieJar});
+                })
+                .then(function(resp){
+                    expect(resp.body.ballot).toEqual({ b1: { foo: 2, bar: 5 } });
+                })
+                .catch(function(err){
+                    expect(err).not.toBeDefined();
+                })
+                .finally(done);
+        });
     });
 
     describe('POST /api/election', function() {
         var mockElec;
         beforeEach(function() {
             mockElec = {
-                ballot: { b1: { 'one fish' : 10, 'two fish' : 20, } },
+                ballot: { b1: [10, 20] },
                 org: 'e2e-org'
             };
         });
@@ -372,7 +397,7 @@ describe('vote (E2E)', function(){
                 expect(resp.body).toBeDefined();
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBeDefined();
-                expect(resp.body.ballot).toEqual({ b1: { 'one fish' : 10, 'two fish' : 20, } });
+                expect(resp.body.ballot).toEqual({ b1: [10, 20] });
                 expect(resp.body.user).toBe('e2e-user');
                 expect(resp.body.org).toBe('e2e-org');
                 expect(resp.body.created).toBeDefined();
@@ -443,12 +468,11 @@ describe('vote (E2E)', function(){
     });
     
     describe('PUT /api/election/:id', function() {
-
         it('should successfully update an election', function(done) {
             var options = {
                 url: makeUrl('/api/election/e1'),
                 jar: cookieJar,
-                json: { ballot: { b1: { foo: 1, bar: 10 } } }
+                json: { tag: 'foo' }
             }, updatedElec;
             testUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -457,9 +481,32 @@ describe('vote (E2E)', function(){
                 expect(updatedElec).toBeDefined();
                 expect(updatedElec._id).not.toBeDefined();
                 expect(updatedElec.id).toBe('e1');
-                expect(updatedElec.ballot).toEqual({ b1: { foo: 1, bar: 10 } });
+                expect(updatedElec.tag).toBe('foo');
+                expect(updatedElec.ballot).toEqual(mockData[0].ballot);
                 expect(updatedElec.user).toBe('e2e-user');
                 expect(new Date(updatedElec.created)).toEqual(mockData[0].created);
+                expect(new Date(updatedElec.lastUpdated)).toBeGreaterThan(mockData[0].created);
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should be able to add new ballot items, but not modify existing ones', function(done) {
+            var options = {
+                url: makeUrl('/api/election/e1'),
+                jar: cookieJar,
+                json: { ballot: { b1: [80, 90], b2: [0, 2, 3], b3: [33, 33] } }
+            }, updatedElec;
+            testUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                updatedElec = resp.body;
+                expect(updatedElec).not.toEqual(mockData[0]);
+                expect(updatedElec).toBeDefined();
+                expect(updatedElec._id).not.toBeDefined();
+                expect(updatedElec.id).toBe('e1');
+                expect(updatedElec.ballot).toEqual({b1: [10, 20, 30], b2: [0, 2], b3: [33, 33]});
                 expect(new Date(updatedElec.lastUpdated)).toBeGreaterThan(mockData[0].created);
                 done();
             }).catch(function(error) {
