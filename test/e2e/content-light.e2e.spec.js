@@ -63,6 +63,7 @@ describe('content-light (E2E):', function() {
                 expect(currExp.created).toBeDefined();
                 expect(currExp.lastUpdated).toBeDefined();
                 expect(currExp.user).toBeDefined();
+                expect(currExp.org).toBe('e2e-org');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -120,7 +121,9 @@ describe('content-light (E2E):', function() {
             };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toEqual(currExp);
+                var expCopy = JSON.parse(JSON.stringify(currExp));
+                delete expCopy.user, delete expCopy.org;
+                expect(resp.body).toEqual(expCopy);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

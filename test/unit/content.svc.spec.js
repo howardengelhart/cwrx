@@ -171,6 +171,12 @@ describe('content (UT)', function() {
             expect(content.formatOutput(experience)).toEqual({ id:'e1', status: Status.Active });
             expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
         });
+        
+        it('should prevent a guest user from seeing certain fields', function() {
+            experience = { id: 'e1', user: 'u1', org: 'o1' };
+            expect(content.formatOutput(experience, true)).toEqual({id: 'e1'});
+            expect(content.formatOutput(experience)).toEqual({id: 'e1', user: 'u1', org: 'o1'});
+        });
     });
     
     describe('getExperiences', function() {
@@ -213,8 +219,7 @@ describe('content (UT)', function() {
                 expect(cache.getPromise).not.toHaveBeenCalled();
                 expect(content.checkScope)
                     .toHaveBeenCalledWith('fakeUser', {title: 'fake1'}, 'experiences', 'read');
-                expect(content.formatOutput.calls.length).toBe(1);
-                expect(content.formatOutput.calls[0].args[0]).toEqual({title: 'fake1'});
+                expect(content.formatOutput).toHaveBeenCalledWith({title: 'fake1'}, false);
                 expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
@@ -269,6 +274,7 @@ describe('content (UT)', function() {
                 expect(cache._coll.find).not.toHaveBeenCalled();
                 expect(content.checkScope)
                     .toHaveBeenCalledWith(undefined, {title: 'fake2'}, 'experiences', 'read');
+                expect(content.formatOutput).toHaveBeenCalledWith({title: 'fake2'}, true);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

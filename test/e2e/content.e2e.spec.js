@@ -51,6 +51,8 @@ describe('content (E2E):', function() {
                 title: "test experience",
                 data: [ { data: { foo: 'bar' }, versionId: 'a5e744d0' } ],
                 access: "public",
+                user: 'e2e-user',
+                org: 'e2e-org',
                 status: "active"
             };
             testUtils.resetCollection('experiences', mockExp).done(done);
@@ -67,6 +69,8 @@ describe('content (E2E):', function() {
                 expect(resp.body.id).toBe("e2e-pubget1");
                 expect(resp.body.title).toBe("test experience");
                 expect(resp.body.data).toEqual({foo: 'bar'});
+                expect(resp.body.user).not.toBeDefined();
+                expect(resp.body.org).not.toBeDefined();
                 expect(resp.body.versionId).toBe('a5e744d0');
                 done();
             }).catch(function(error) {
@@ -130,21 +134,24 @@ describe('content (E2E):', function() {
                     title: "test experience",
                     access: "public",
                     status: "inactive",
-                    user: "e2e-user"
+                    user: "e2e-user",
+                    org: 'e2e-org'
                 },
                 {
                     id: "e2e-getid2",
                     title: "test experience",
                     access: "private",
                     status: "active",
-                    user: "not-e2e-user"
+                    user: "not-e2e-user",
+                    org: 'not-e2e-org'
                 },
                 {
                     id: "e2e-getid3",
                     title: "test experience",
                     access: "public",
                     status: "inactive",
-                    user: "not-e2e-user"
+                    user: "not-e2e-user",
+                    org: 'not-e2e-org'
                 }
             ];
             testUtils.resetCollection('experiences', mockExps).done(done);
@@ -161,6 +168,8 @@ describe('content (E2E):', function() {
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBe("e2e-getid1");
                 expect(resp.body.title).toBe("test experience");
+                expect(resp.body.user).toBe('e2e-user');
+                expect(resp.body.org).toBe('e2e-org');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -266,8 +275,8 @@ describe('content (E2E):', function() {
                 expect(resp.body instanceof Array).toBeTruthy('body is array');
                 expect(resp.body.length).toBe(2);
                 expect(resp.body[0]._id).not.toBeDefined();
-                expect(resp.body[1]._id).not.toBeDefined();
                 expect(resp.body[0].id).toBe("e2e-getquery1");
+                expect(resp.body[1]._id).not.toBeDefined();
                 expect(resp.body[1].id).toBe("e2e-getquery3");
                 done();
             }).catch(function(error) {

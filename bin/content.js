@@ -80,8 +80,9 @@
     });
     content.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created', '_id'] });
     
-    content.formatOutput = function(experience) {
+    content.formatOutput = function(experience, isGuest) {
         var log = logger.getLog(),
+            privateFields = ['user', 'org'],
             newExp = {};
         
         for (var key in experience) {
@@ -105,7 +106,7 @@
                 } else {
                     newExp.status = experience.status[0].status;
                 }
-            } else if (key !== '_id') {
+            } else if (key !== '_id' && !(isGuest && privateFields.indexOf(key) >= 0)) {
                 newExp[key] = experience[key];
             }
         }
@@ -145,7 +146,9 @@
         return promise.then(function(results) {
             log.trace('[%1] Retrieved %2 experiences', req.uuid, results.length);
             
-            var experiences = results.map(content.formatOutput).filter(function(result) {
+            var experiences = results.map(function(exp) {
+                return content.formatOutput(exp, !req.user);
+            }).filter(function(result) {
                 return result.status !== Status.Deleted &&
                       (content.checkScope(req.user, result, 'experiences', 'read') ||
                        (result.status === Status.Active && result.access === Access.Public) ||
