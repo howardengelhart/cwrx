@@ -49,6 +49,7 @@ describe('content (E2E):', function() {
             var mockExp = {
                 id: "e2e-pubget1",
                 title: "test experience",
+                data: [ { data: { foo: 'bar' }, versionId: 'a5e744d0' } ],
                 access: "public",
                 status: "active"
             };
@@ -65,6 +66,8 @@ describe('content (E2E):', function() {
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBe("e2e-pubget1");
                 expect(resp.body.title).toBe("test experience");
+                expect(resp.body.data).toEqual({foo: 'bar'});
+                expect(resp.body.versionId).toBe('a5e744d0');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -420,6 +423,7 @@ describe('content (E2E):', function() {
         beforeEach(function(done) {
             mockExp = {
                 title: 'testExp',
+                data: { foo: 'bar' },
                 org: 'e2e-org'
             };
             testUtils.resetCollection('experiences').done(done);
@@ -437,6 +441,8 @@ describe('content (E2E):', function() {
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBeDefined();
                 expect(resp.body.title).toBe("testExp");
+                expect(resp.body.data).toEqual({foo: 'bar'});
+                expect(resp.body.versionId).toBe('a5e744d0');
                 expect(resp.body.user).toBe("e2e-user");
                 expect(resp.body.org).toBe("e2e-org");
                 expect(resp.body.created).toBeDefined();
@@ -498,6 +504,7 @@ describe('content (E2E):', function() {
             mockExps = [
                 {
                     id: "e2e-put1",
+                    data: [ { data: { foo: 'bar' }, versionId: 'a5e744d0' } ],
                     tag: "origTag",
                     status: "active",
                     access: "public",
@@ -524,12 +531,36 @@ describe('content (E2E):', function() {
             testUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 updatedExp = resp.body;
-                expect(updatedExp).not.toEqual(mockExps);
+                expect(updatedExp).not.toEqual(mockExps[0]);
                 expect(updatedExp).toBeDefined();
                 expect(updatedExp._id).not.toBeDefined();
                 expect(updatedExp.id).toBe('e2e-put1');
                 expect(updatedExp.tag).toBe('newTag');
                 expect(updatedExp.user).toBe('e2e-user');
+                expect(updatedExp.versionId).toBe('a5e744d0');
+                expect(new Date(updatedExp.created)).toEqual(now);
+                expect(new Date(updatedExp.lastUpdated)).toBeGreaterThan(now);
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should properly update the data and versionId together', function(done) {
+            var options = {
+                url: config.contentUrl + '/content/experience/e2e-put1',
+                jar: cookieJar,
+                json: { data: { foo: 'baz' } }
+            };
+            testUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                updatedExp = resp.body;
+                expect(updatedExp).not.toEqual(mockExps[0]);
+                expect(updatedExp).toBeDefined();
+                expect(updatedExp._id).not.toBeDefined();
+                expect(updatedExp.data).toEqual({foo: 'baz'});
+                expect(updatedExp.versionId).toBe('4c5c9754');
                 expect(new Date(updatedExp.created)).toEqual(now);
                 expect(new Date(updatedExp.lastUpdated)).toBeGreaterThan(now);
                 done();
