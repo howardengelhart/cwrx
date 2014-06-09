@@ -788,6 +788,22 @@ describe('collateral (UT)', function() {
             });
         });
         
+        it('should properly handle protocol-relative urls', function(done) {
+            req.body.thumbs = ['//image.png'];
+            collateral.createSplashes(req, s3, config).then(function(resp) {
+                expect(resp).toEqual({ code: 201, body: [
+                    { code: 201, name: 'splash', ratio: 'foo', path: '/path/on/s3' }
+                ]});
+                expect(collateral.generateSplash)
+                    .toHaveBeenCalledWith(req, {height: 600, width: 600, ratio: 'foo'}, s3, config);
+                expect(req.body.thumbs).toEqual(['http://image.png']);
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
         it('should handle multiple imgSpecs', function(done) {
             req.body.imageSpecs = [
                 { name: 'splash1', height: 600, width: 600, ratio: 'a' },

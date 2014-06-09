@@ -418,6 +418,11 @@
         
         log.info('[%1] User %2 generating %3 splashes for %4 from %5 thumbs',req.uuid,
                  req.user.id,req.body.imageSpecs.length,req.params.expId,req.body.thumbs.length);
+                 
+        // default protocol-relative urls to http so phantom will handle properly
+        req.body.thumbs = req.body.thumbs.map(function(thumb) {
+            return thumb.match(/^\/\/.*/) ? 'http:' + thumb : thumb;
+        });
         
         return q.allSettled(req.body.imageSpecs.map(function(imgSpec) {
             return collateral.generateSplash(req, imgSpec, s3, config);

@@ -432,6 +432,24 @@ describe('collateral (E2E):', function() {
                 done();
             });
         });
+
+        it('should be able to handle protocol-relative urls', function(done) {
+            options.json.thumbs = ['//img.youtube.com/vi/wBU8T4hR-6U/0.jpg'];
+            testUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toEqual([{code: 201, name: 'splash', ratio: '__e2e', path: 'collateral/e-1234/splash'}]);
+                rmList.push(resp.body[0].path);
+                return testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)});
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.response.headers.etag).toBe('"6eb210bf00423eaa8db746a9378f647a"');
+                expect(resp.response.headers['cache-control']).toBe('max-age=15');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
         
         it('should set CacheControl to max-age=0 if noCache is true', function(done) {
             options.url += '?noCache=true';
