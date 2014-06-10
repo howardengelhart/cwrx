@@ -122,7 +122,7 @@
             deferred = q.defer();
 
         if (!(requester && requester.permissions && requester.permissions.orgs &&
-                           requester.permissions.orgs.create === 'all')) {
+                           requester.permissions.orgs.create === Scope.All)) {
             log.info('[%1] User %2 is not authorized to create orgs', req.uuid, requester.id);
             return q({code: 403, body: 'Not authorized to create orgs'});
         }
