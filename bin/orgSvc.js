@@ -121,18 +121,18 @@
             log = logger.getLog(),
             deferred = q.defer();
 
-        if (!(requester && requester.permissions && requester.permissions.orgs &&
-                           requester.permissions.orgs.create === Scope.All)) {
-            log.info('[%1] User %2 is not authorized to create orgs', req.uuid, requester.id);
-            return q({code: 403, body: 'Not authorized to create orgs'});
-        }
-
         if (!newOrg || typeof newOrg !== 'object' || Object.keys(newOrg).length === 0) {
             return q({code: 400, body: 'You must provide an object in the body'});
         } else if (!newOrg.name) {
             return q({code: 400, body: 'New org object must have a name'});
         } else if (!newOrg.email) {
             return q({code: 400, body: 'New org object must have an email'});
+        }
+
+        if (!(requester && requester.permissions && requester.permissions.orgs &&
+                           requester.permissions.orgs.create === Scope.All)) {
+            log.info('[%1] User %2 is not authorized to create orgs', req.uuid, requester.id);
+            return q({code: 403, body: 'Not authorized to create orgs'});
         }
 
         // check if an org already exists with that name
