@@ -539,7 +539,7 @@ describe('collateral (E2E):', function() {
                 'f7e6da5b1cf6ceade95c96e7793aca8c',
                 'd7042320ccd90eda24b26e94b5012766',
                 '7c46ae535dbf56bf44d83aa26b6433f6',
-                '7c46ae535dbf56bf44d83aa26b6433f6',
+                '304f8ba0d5ccd4d8365d6bc8e4edb5e8',
                 'aa90445ca7d2d7e9fc995eaaa7c11b43',
                 'aa90445ca7d2d7e9fc995eaaa7c11b43'
             ];
