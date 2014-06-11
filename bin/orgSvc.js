@@ -151,23 +151,19 @@
         if (!newOrg.status) {
             newOrg.status = Status.Active;
         }
-//        var defaultWaterfalls = {
-// ensure that every org has these waterfalls by default if none are specified
-//            video: ['c6'],
-//            display: ['c6']
-//        };
-//        Object.keys(defaultWaterfalls).forEach(function(key) {
-//            if (!newUser.permissions[key]) {
-//                newUser.permissions[key] = defaultPerms[key];
-//            } else {
-//                Object.keys(defaultPerms[key]).forEach(function(action) {
-//                    if (!newUser.permissions[key][action]) {
-//                        newUser.permissions[key][action] = defaultPerms[key][action];
-//                    }
-//                });
-//            }
-//        });
-        newOrg = mongoUtils.escapeKeys(newOrg);
+        if (!newOrg.waterfalls) {
+            newOrg.waterfalls = {};
+        }
+        var defaultWaterfalls = {
+            video: ['c6'],
+            display: ['c6']
+        };
+        Object.keys(defaultWaterfalls).forEach(function(key) {
+            if (!newOrg.waterfalls[key]) {
+                newOrg.waterfalls[key] = defaultWaterfalls[key];
+            }
+        });
+        mongoUtils.escapeKeys(newOrg);
     };
 
     orgSvc.createOrg = function(req, orgs) {

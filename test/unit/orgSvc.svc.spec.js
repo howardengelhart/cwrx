@@ -353,6 +353,8 @@ describe('orgSvc (UT)', function() {
             expect(newOrg.lastUpdated).toEqual(newOrg.created);
             expect(newOrg.name).toBe('myNewOrg');
             expect(newOrg.status).toBe(Status.Active);
+            expect(newOrg.waterfalls.video).toEqual(['c6']);
+            expect(newOrg.waterfalls.display).toEqual(['c6']);
             expect(mongoUtils.escapeKeys).toHaveBeenCalled();
             done();
         });
@@ -360,11 +362,13 @@ describe('orgSvc (UT)', function() {
         it('should intelligently merge the newOrg fields with defaults', function(done) {
             newOrg.id = 'o-4567';
             newOrg.status = Status.Pending;
+            newOrg.waterfalls = {video: ['publisher']};
             orgSvc.setupOrg(newOrg, requester);
             expect(newOrg.id).toBe('o-1234567890abcd');
             expect(newOrg.created instanceof Date).toBeTruthy('created is a Date');
             expect(newOrg.lastUpdated).toEqual(newOrg.created);
             expect(newOrg.status).toBe(Status.Pending);
+            expect(newOrg.waterfalls.display).toEqual(['c6']);
             expect(mongoUtils.escapeKeys).toHaveBeenCalled();
             done();
         });

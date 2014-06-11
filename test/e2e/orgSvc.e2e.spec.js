@@ -232,9 +232,11 @@ describe('org (E2E):', function() {
             };
             testUtils.resetCollection('users', [mockRequester, noPermsUser])
             .then(function(){
-                return testUtils.resetCollection('orgs', null);
+                return testUtils.resetCollection('orgs');
             })
-            .done(done);
+            .done(function(){
+                done();
+            });
         });
         
         it('should be able to create an org', function(done) {
@@ -249,6 +251,7 @@ describe('org (E2E):', function() {
                 expect(newOrg.lastUpdated).toEqual(newOrg.created);
                 expect(newOrg.name).toBe('e2e-org');
                 expect(newOrg.status).toBe('active');
+                expect(newOrg.waterfalls).toEqual({video: ['c6'], display: ['c6']});
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -258,12 +261,14 @@ describe('org (E2E):', function() {
 
         it('should be able to override default properties', function(done) {
             mockOrg.status = 'pending';
+            //mockOrg.waterfall = {video: ['c6']};
             var options = { url: config.orgSvcUrl + '/org', json: mockOrg, jar: cookieJar };
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 var newOrg = resp.body;
                 expect(newOrg).toBeDefined();
                 expect(newOrg.status).toBe('pending');
+                //expect(newOrg.waterfall).toEqual({video: ['c6'], display: ['c6']});
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
