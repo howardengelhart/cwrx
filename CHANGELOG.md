@@ -14,6 +14,11 @@
 * Extra deployment steps: None
 
 ## collateral Service
+### 1.2.5: Wed Jun 11 16:15:13 EDT 2014
+* [FIX]: Add templates for 5 thumbnails: [#189](https://github.com/cinema6/cwrx/pull/189)
+* [FIX]: Allow service to choose 5-thumb templates: [#190](https://github.com/cinema6/cwrx/pull/190)
+* Extra deployment steps: None
+
 ### 1.2.4: Mon Jun  9 17:49:43 EDT 2014
 * [FIX]: Rename 6-4 templates to 3-2: [#186](https://github.com/cinema6/cwrx/pull/186)
 * [FIX]: Handle protocol-relative urls properly: [#187](https://github.com/cinema6/cwrx/pull/187)
