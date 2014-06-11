@@ -254,9 +254,9 @@
         });
     };
     
-    // If num === 5 return 4, if num > 6 return 6, else return num
+    // If num > 6 return 6, else return num
     collateral.chooseTemplateNum = function(num) {
-        return Math.min(((num % 2 && num > 4) ? Math.max(num - 1, 1) : num), 6);
+        return Math.min(num, 6);
     };
     
     // Cache md5's of splash images based on their imgSpec, thumbs, and template file

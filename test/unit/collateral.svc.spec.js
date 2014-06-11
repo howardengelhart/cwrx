@@ -427,7 +427,7 @@ describe('collateral (UT)', function() {
     describe('chooseTemplateNum', function() {
         it('should correctly choose the template number', function() {
             var thumbNums = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-            expect(thumbNums.map(collateral.chooseTemplateNum)).toEqual([1, 2, 3, 4, 4, 6, 6, 6, 6]);
+            expect(thumbNums.map(collateral.chooseTemplateNum)).toEqual([1, 2, 3, 4, 5, 6, 6, 6, 6]);
         });
     });
     
