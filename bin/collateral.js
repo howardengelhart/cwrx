@@ -253,6 +253,7 @@
             return q.reject(error);
         });
     };
+
     
     // If num > 6 return 6, else return num
     collateral.chooseTemplateNum = function(num) {
@@ -273,11 +274,13 @@
             splashPath      = path.join('/tmp', jobId + '-' + splashName + '.jpg'),
             prefix          = path.join(config.s3.path, req.params.expId),
             data            = { thumbs: req.body.thumbs },
-            compiled        = handlebars.compile(template)(data),
+            compiled        = handlebars.compile(template)(data), // Compile the template
+            deferred        = q.defer(),
             ph, page;
 
         // Phantom callbacks only callback with one arg, so we need to transform to Nodejs style
         function phantWrap(object, method, args, cb) {
+            console.log('wrapping ' + method); //TODO
             args.push(function(result) { cb(null, result); });
             object[method].apply(object, args);
         }
@@ -285,16 +288,18 @@
         log.info('[%1] Generating image %2 at %3x%4 with ratio %5',
                  req.uuid, splashName, imgSpec.width, imgSpec.height, imgSpec.ratio);
         
-
-        return q.npost(fs, 'writeFile', [compiledPath, compiled])
+        // Start by writing the compiled template to a file
+        q.npost(fs, 'writeFile', [compiledPath, compiled])
         .then(function() { // Start setting up phantomjs
             log.trace('[%1] Wrote compiled html, starting phantom', req.uuid);
             function onExit(code, signal) {
+                console.log('onExit');
                 if (code === 0) {
                     return;
                 }
                 log.error('[%1] Phantom exited with code %2, signal %3',req.uuid,code,signal);
-                throw new Error('PhantomJS exited prematurely');
+                // throw new Error('PhantomJS exited prematurely');
+                deferred.reject('PhantomJS exited prematurely');
             }
 
             // this copies the default onStderr but replaces their console.warn with our log
@@ -318,17 +323,11 @@
             return q.nfapply(phantWrap, [page, 'set', ['viewportSize', size]]);
         })
         .then(function() { // Open the compiled html
-            // ph.exit(2); // TODO
+            console.log('calling page.open'); //TODO
             return q.nfapply(phantWrap, [page, 'open', [compiledPath]]);
         })
-
-        /*.then(function(val) { //TODO: remove
-            var newDef = q.defer();
-            setTimeout(function() {newDef.resolve(val);}, 11*1000);
-            return newDef.promise;
-        })*/
-
         .then(function(status) { // Render page as image
+            console.log('got status'); //TODO
             if (status !== 'success') {
                 return q.reject('Failed to open ' + compiledPath + ': status was ' + status);
             }
@@ -354,10 +353,19 @@
             setTimeout(function() {
                 delete collateral.splashCache[cacheKey];
             }, config.splash.cacheTTL*60*1000);
-            return q(response.key);
+            deferred.resolve(response.key);
         })
+        
+        .catch(function(error) {
+            console.log('got error'); //TODO
+            console.log(error); //TODO
+            deferred.reject(error);
+        });
+        
+        return deferred.promise
         .timeout(config.splash.timeout)
         .finally(function() { // Cleanup by removing compiled template + splash image
+            console.log('in finally block');
             if (page) {
                 page.close();
             }
@@ -444,22 +452,22 @@
             log.trace('[%1] Have cached md5 %2 for %3', req.uuid, md5, splashName);
             var headParams = {
                 Bucket: config.s3.bucket,
-                Key: path.join(prefix, versionate ? md5 + splashName : splashName)
+                Key: path.join(prefix, versionate ? md5 + '.' + splashName : splashName)
             };
-            
+
             return q.npost(s3, 'headObject', [headParams])
             .then(function(data) {
                 if (data && data.ETag && data.ETag.replace(/"/g, '') === md5) {
                     log.info('[%1] Splash image %2 already exists with cached md5 %3',
                              req.uuid, headParams.Key, md5);
-                    // return deferred.resolve(resolveObj(201, headParams.Key));
                     return q(headParams.Key);
-                } else {
-                    log.info('[%1] No splash image %2 with cached md5 %3', //TODO: log.warn?
-                             req.uuid, headParams.Key, md5);
+                } else { // TODO: log.warn?
+                    log.info('[%1] Splash image %2 exists with md5 %3 instead of cached val %4',
+                             req.uuid, headParams.Key, data && data.ETag, md5);
                     return collateral.generate(req, imgSpec, template, cacheKey, s3, config);
                 }
-            }, function(/*error*/) {
+            }, function(/*error*/) { // TODO: log.warn?
+                log.info('[%1] No splash image %2 with cached md5 %3',req.uuid,headParams.Key,md5);
                 return collateral.generate(req, imgSpec, template, cacheKey, s3, config);
             });
         })
