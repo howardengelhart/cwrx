@@ -18,7 +18,7 @@
         state       = {},
         orgSvc     = {}; // for exporting functions to unit tests
 
-    state.name = 'user';
+    state.name = 'org';
     // This is the template for user's configuration
     state.defaultConfig = {
         appDir: __dirname,
@@ -67,12 +67,43 @@
         forbidden: ['id', 'name', 'created', '_id'],
     });
 
-    orgSvc.getOrgs = function(query, req, orgs) {
+    orgSvc.getOrg = function(req, orgs) {
+
+        var id = req.params.id,
+            log = logger.getLog();
+
+        if (!orgSvc.checkScope(req.user,{id: id},'read')) {
+            log.info('[%1] User %2 is not authorized to read org %3', req.uuid, req.user.id, id);
+            return q({code: 403, body: 'Not authorized to read org'});
+        }
+
+        log.info('[%1] User %2 getting org %3', req.uuid,req.user.id, id);
+        return q.npost(orgs.find({ id: id }), 'toArray')
+        .then(function(results) {
+            log.trace('[%1] Retrieved %2 orgs', req.uuid, results.length);
+            var orgs = results.filter(function(result) {
+                return result.status !== Status.Deleted;
+            });
+            log.info('[%1] Showing the requester %2 org documents', req.uuid, orgs.length);
+            if (orgs.length === 0) {
+                return q({code: 404, body: 'No orgs found'});
+            } else {
+                return q({code: 200, body: orgs[0]});
+            }
+        }).catch(function(error) {
+            log.error('[%1] Error getting orgs: %2', req.uuid, error);
+            return q.reject(error);
+        });
+    };
+
+    orgSvc.getOrgs = function(req, orgs) {
+
         var limit = req.query && req.query.limit || 0,
             skip = req.query && req.query.skip || 0,
             sort = req.query && req.query.sort,
             sortObj = {},
             log = logger.getLog();
+
         if (sort) {
             var sortParts = sort.split(',');
             if (sortParts.length !== 2 || (sortParts[1] !== '-1' && sortParts[1] !== '1' )) {
@@ -81,15 +112,24 @@
                 sortObj[sortParts[0]] = Number(sortParts[1]);
             }
         }
-        log.info('[%1] User %2 getting orgs with query %3, sort %4, limit %5, skip %6', req.uuid,
-                 req.user.id, JSON.stringify(query), JSON.stringify(sortObj), limit, skip);
-        return q.npost(orgs.find(query, {sort: sortObj, limit: limit, skip: skip}), 'toArray')
+
+        if (!(req.user.permissions &&
+              req.user.permissions.orgs &&
+              req.user.permissions.orgs.read &&
+              req.user.permissions.orgs.read === Scope.All)) {
+            log.info('[%1] User %2 is not authorized to read all orgs', req.uuid, req.user.id);
+            return q({code: 403, body: 'Not authorized to read all orgs'});
+        }
+
+        log.info('[%1] User %2 getting orgs with sort %3, limit %4, skip %5', req.uuid,
+                 req.user.id, JSON.stringify(sortObj), limit, skip);
+        return q.npost(orgs.find({}, {sort: sortObj, limit: limit, skip: skip}), 'toArray')
         .then(function(results) {
             log.trace('[%1] Retrieved %2 orgs', req.uuid, results.length);
             var orgs = results.filter(function(result) {
-                return result.status !== Status.Deleted &&
-                       orgSvc.checkScope(req.user, result, 'read');
+                return result.status !== Status.Deleted;
             });
+            orgs = orgs.map(mongoUtils.unescapeKeys);
             log.info('[%1] Showing the requester %2 org documents', req.uuid, orgs.length);
             if (orgs.length === 0) {
                 return q({code: 404, body: 'No orgs found'});
@@ -105,14 +145,29 @@
     // Setup a new org with reasonable defaults
     orgSvc.setupOrg = function(newOrg) {
         var now = new Date();
-        newOrg.id = 'u-' + uuid.createUuid().substr(0,14);
+        newOrg.id = 'o-' + uuid.createUuid().substr(0,14);
         newOrg.created = now;
         newOrg.lastUpdated = now;
         if (!newOrg.status) {
             newOrg.status = Status.Active;
         }
+//        var defaultWaterfalls = {
+// ensure that every org has these waterfalls by default if none are specified
+//            video: ['c6'],
+//            display: ['c6']
+//        };
+//        Object.keys(defaultWaterfalls).forEach(function(key) {
+//            if (!newUser.permissions[key]) {
+//                newUser.permissions[key] = defaultPerms[key];
+//            } else {
+//                Object.keys(defaultPerms[key]).forEach(function(action) {
+//                    if (!newUser.permissions[key][action]) {
+//                        newUser.permissions[key][action] = defaultPerms[key][action];
+//                    }
+//                });
+//            }
+//        });
         newOrg = mongoUtils.escapeKeys(newOrg);
-        return newOrg;
     };
 
     orgSvc.createOrg = function(req, orgs) {
@@ -120,21 +175,16 @@
             requester = req.user,
             log = logger.getLog(),
             deferred = q.defer();
-
         if (!newOrg || typeof newOrg !== 'object' || Object.keys(newOrg).length === 0) {
             return q({code: 400, body: 'You must provide an object in the body'});
         } else if (!newOrg.name) {
             return q({code: 400, body: 'New org object must have a name'});
-        } else if (!newOrg.email) {
-            return q({code: 400, body: 'New org object must have an email'});
         }
-
         if (!(requester && requester.permissions && requester.permissions.orgs &&
                            requester.permissions.orgs.create === Scope.All)) {
             log.info('[%1] User %2 is not authorized to create orgs', req.uuid, requester.id);
             return q({code: 403, body: 'Not authorized to create orgs'});
         }
-
         // check if an org already exists with that name
         q.npost(orgs, 'findOne', [{name: newOrg.name}])
         .then(function(orgAccount) {
@@ -157,7 +207,7 @@
             .then(function() {
                 log.info('[%1] User %2 successfully created org %3 with id: %4',
                          req.uuid, requester.id, newOrg.name, newOrg.id);
-                deferred.resolve({ code: 201, body: newOrg });
+                deferred.resolve({ code: 201, body: mongoUtils.unescapeKeys(newOrg) });
             });
         }).catch(function(error) {
             log.error('[%1] Error creating org %2 for user %3: %4',
@@ -202,7 +252,7 @@
                 var updated = results[0];
                 log.info('[%1] User %2 successfully updated org %3',
                          req.uuid, requester.id, updated.id);
-                deferred.resolve({code: 200, body: mongoUtils.safeUser(updated)});
+                deferred.resolve({code: 200, body: mongoUtils.unescapeKeys(updated)});
             });
         }).catch(function(error) {
             log.error('[%1] Error updating org %2 for user %3: %4',req.uuid,id,requester.id,error);
@@ -222,16 +272,19 @@
             return q({code: 400, body: 'You cannot delete your own org'});
         }
         log.info('[%1] User %2 is attempting to delete org %3', req.uuid, requester.id, id);
+        if (!(req.user.permissions &&
+              req.user.permissions.orgs &&
+              req.user.permissions.orgs.delete &&
+              req.user.permissions.orgs.delete === Scope.All)) {
+            log.info('[%1] User %2 is not authorized to delete org %3', req.uuid, req.user.id, id);
+            return q({code: 403, body: 'Not authorized to delete this org'});
+        }
         q.npost(orgs, 'findOne', [{id: id}])
         .then(function(orig) {
             now = new Date();
             if (!orig) {
                 log.info('[%1] Org %2 does not exist', req.uuid, id);
                 return deferred.resolve({code: 204});
-            }
-            if (!orgSvc.checkScope(requester, orig, 'delete')) {
-                log.info('[%1] User %2 is not authorized to delete %3', req.uuid, requester.id, id);
-                return deferred.resolve({code: 403, body: 'Not authorized to delete this org'});
             }
             if (orig.status === Status.Deleted) {
                 log.info('[%1] Org %2 has already been deleted', req.uuid, id);
@@ -341,13 +394,9 @@
 
         var authGetUser = authUtils.middlewarify({orgs: 'read'});
         app.get('/api/accounts/org/:id', sessionsWrapper, authGetUser, function(req,res){
-            orgSvc.getOrgs({ id: req.params.id }, req, orgs)
+            orgSvc.getOrg(req, orgs)
             .then(function(resp) {
-                if (resp.body && resp.body instanceof Array) {
-                    res.send(resp.code, resp.body[0]);
-                } else {
-                    res.send(resp.code, resp.body);
-                }
+                res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, {
                     error: 'Error retrieving org',
@@ -357,7 +406,7 @@
         });
 
         app.get('/api/accounts/orgs', sessionsWrapper, authGetUser, function(req, res) {
-            orgSvc.getOrgs(null, req, orgs)
+            orgSvc.getOrgs(req, orgs)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {

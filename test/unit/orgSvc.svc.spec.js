@@ -117,20 +117,15 @@ describe('orgSvc (UT)', function() {
 
     });
 
-    describe('getOrgs', function() {
+    describe('getOrg', function() {
 
         var cache, query, orgColl, fakeCursor;
         beforeEach(function() {
-            req.user = { id: 'u-1234' };
-            req.query = {
-                sort: 'id,1',
-                limit: 20,
-                skip: 10
-            };
-            query = {};
+            req.user = { id: 'u-1234', org: 'o-1234', permissions: {orgs: {read: Scope.All}}};
+            req.params = { id: 'o-4567' };
             fakeCursor = {
                 toArray: jasmine.createSpy('cursor.toArray').andCallFake(function(cb) {
-                    cb(null, q([ {id: '1'}, {id: '2'} ]));
+                    cb(null, q([ {id: '1'}]));
                 })
             };
             orgColl = {
@@ -138,17 +133,15 @@ describe('orgSvc (UT)', function() {
             };
             spyOn(orgSvc, 'checkScope').andReturn(true);
         });
-        
-        it('should call orgs.find to get orgs', function(done) {
-            orgSvc.getOrgs(query, req, orgColl).then(function(resp) {
+
+        it('should call orgs.find to get org', function(done) {
+            orgSvc.getOrg(req, orgColl).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
-                expect(resp.body).toEqual([{id:'1'}, {id:'2'}]);
-                expect(orgColl.find).toHaveBeenCalledWith({}, {sort: {id: 1}, limit: 20, skip: 10});
+                expect(resp.body).toEqual({id:'1'});
+                expect(orgColl.find).toHaveBeenCalledWith({id: 'o-4567'});
                 expect(fakeCursor.toArray).toHaveBeenCalled();
-                expect(orgSvc.checkScope.calls.length).toBe(2);
-                expect(orgSvc.checkScope.calls[0].args).toEqual([{id: 'u-1234'}, {id:'1'}, 'read']);
-                expect(orgSvc.checkScope.calls[1].args).toEqual([{id: 'u-1234'}, {id:'2'}, 'read']);
+                expect(orgSvc.checkScope).toHaveBeenCalledWith({ id: 'u-1234', org: 'o-1234', permissions: {orgs: {read: Scope.All}}}, { id: 'o-4567' }, 'read');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -156,46 +149,11 @@ describe('orgSvc (UT)', function() {
             });
         });
         
-        it('should use defaults for sorting/paginating options if not provided', function(done) {
-            req.query = {};
-            orgSvc.getOrgs(query, req, orgColl).then(function(resp) {
-                expect(resp).toBeDefined();
-                expect(resp.code).toBe(200);
-                expect(resp.body).toEqual([{id:'1'}, {id:'2'}]);
-                expect(orgColl.find).toHaveBeenCalledWith({}, {sort: {}, limit: 0, skip: 0});
-                expect(fakeCursor.toArray).toHaveBeenCalled();
-                done();
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
-        });
-
-        it('should only show orgs the requester is allowed to see', function(done) {
-            orgSvc.checkScope.andCallFake(function(requester, target, verb) {
-                if (target.id === '1') return false;
-                else return true;
-            });
-            orgSvc.getOrgs(query, req, orgColl).then(function(resp) {
-                expect(resp).toBeDefined();
-                expect(resp.code).toBe(200);
-                expect(resp.body).toEqual([{id:'2'}]);
-                expect(orgColl.find).toHaveBeenCalled();
-                expect(orgSvc.checkScope.calls.length).toBe(2);
-                expect(orgSvc.checkScope.calls[0].args).toEqual([{id: 'u-1234'}, {id:'1'}, 'read']);
-                expect(orgSvc.checkScope.calls[1].args).toEqual([{id: 'u-1234'}, {id:'2'}, 'read']);
-                done();
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
-        });
-
-        it('should not show any deleted orgs', function(done) {
+        it('should not show a deleted org', function(done) {
             fakeCursor.toArray.andCallFake(function(cb) {
                 cb(null, q([{id: '1', status: Status.Deleted}]));
             })
-            orgSvc.getOrgs(query, req, orgColl).then(function(resp) {
+            orgSvc.getOrg(req, orgColl).then(function(resp) {
                 expect(resp.code).toBe(404);
                 expect(resp.body).toBe('No orgs found');
                 expect(orgColl.find).toHaveBeenCalled();
@@ -210,7 +168,133 @@ describe('orgSvc (UT)', function() {
             fakeCursor.toArray.andCallFake(function(cb) {
                 cb(null, []);
             });
-            orgSvc.getOrgs(query, req, orgColl).then(function(resp) {
+           orgSvc.getOrg(req, orgColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(404);
+                expect(resp.body).toBe('No orgs found');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+       
+        it('should fail if the promise was rejected', function(done) {
+            fakeCursor.toArray.andCallFake(function(cb) {
+                cb('Error!');
+            });
+            orgSvc.getOrg(req, orgColl).then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toBe('Error!');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(orgColl.find).toHaveBeenCalledWith({id: 'o-4567'});
+                expect(orgSvc.checkScope).toHaveBeenCalled();
+                done();
+            });
+        });
+        
+    });
+
+    describe('getOrgs', function() {
+
+        var cache, query, orgColl, fakeCursor;
+        beforeEach(function() {
+            req.user = { id: 'u-1234', permissions: {orgs: {read: Scope.All}}};
+            req.query = {
+                sort: 'id,1',
+                limit: 20,
+                skip: 10
+            };
+            fakeCursor = {
+                toArray: jasmine.createSpy('cursor.toArray').andCallFake(function(cb) {
+                    cb(null, q([ {id: '1'}, {id: '2'} ]));
+                })
+            };
+            orgColl = {
+                find: jasmine.createSpy('orgs.find').andReturn(fakeCursor)
+            };
+            spyOn(orgSvc, 'checkScope').andReturn(true);
+        });
+
+        it('should sanity check the requester\'s permissions before checking them for the required scope', function(done) {
+            delete req.user.permissions;
+            orgSvc.getOrgs(req,orgColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(403);
+                expect(resp.body).toEqual('Not authorized to read all orgs');
+                done();
+            })
+            .catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should return a 403 if the requester doesn\'t have scope \'all\'', function(done) {
+            req.user.permissions.orgs.read = Scope.Own;
+            orgSvc.getOrgs(req,orgColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(403);
+                expect(resp.body).toEqual('Not authorized to read all orgs');
+                done();
+            })
+            .catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should call orgs.find to get orgs', function(done) {
+            orgSvc.getOrgs(req, orgColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual([{id:'1'}, {id:'2'}]);
+                expect(orgColl.find).toHaveBeenCalledWith({}, {sort: {id: 1}, limit: 20, skip: 10});
+                expect(fakeCursor.toArray).toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should use defaults for sorting/paginating options if not provided', function(done) {
+            req.query = {};
+            orgSvc.getOrgs(req, orgColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual([{id:'1'}, {id:'2'}]);
+                expect(orgColl.find).toHaveBeenCalledWith({}, {sort: {}, limit: 0, skip: 0});
+                expect(fakeCursor.toArray).toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should not show any deleted orgs', function(done) {
+            fakeCursor.toArray.andCallFake(function(cb) {
+                cb(null, q([{id: '1', status: Status.Deleted}]));
+            })
+            orgSvc.getOrgs(req, orgColl).then(function(resp) {
+                expect(resp.code).toBe(404);
+                expect(resp.body).toBe('No orgs found');
+                expect(orgColl.find).toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should return a 404 if nothing was found', function(done) {
+            fakeCursor.toArray.andCallFake(function(cb) {
+                cb(null, []);
+            });
+            orgSvc.getOrgs(req, orgColl).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(404);
                 expect(resp.body).toBe('No orgs found');
@@ -225,7 +309,7 @@ describe('orgSvc (UT)', function() {
             fakeCursor.toArray.andCallFake(function(cb) {
                 cb('Error!');
             });
-            orgSvc.getOrgs(query, req, orgColl).then(function(resp) {
+            orgSvc.getOrgs(req, orgColl).then(function(resp) {
                 expect(resp).not.toBeDefined();
                 done();
             }).catch(function(error) {
@@ -239,7 +323,7 @@ describe('orgSvc (UT)', function() {
         
         it('should ignore the sort param if invalid', function(done) {
             req.query.sort = 'foo';
-            orgSvc.getOrgs(query, req, orgColl).then(function(resp) {
+            orgSvc.getOrgs(req, orgColl).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual([{id:'1'}, {id:'2'}]);
@@ -257,15 +341,14 @@ describe('orgSvc (UT)', function() {
     describe('setupOrg', function() {
         var newOrg, requester;
         beforeEach(function() {
-            newOrg = { name: 'myNewOrg', email: 'testOrg'};
+            newOrg = { name: 'myNewOrg'};
             requester = { id: 'u-4567', org: 'o-1234' };
             spyOn(uuid, 'createUuid').andReturn('1234567890abcdefg');
         });
 
         it('should set some default fields', function(done) {
             orgSvc.setupOrg(newOrg, requester);
-            expect(newOrg.id).toBe('u-1234567890abcd');
-            expect(newOrg.email).toBe('testOrg');
+            expect(newOrg.id).toBe('o-1234567890abcd');
             expect(newOrg.created instanceof Date).toBeTruthy('created is a Date');
             expect(newOrg.lastUpdated).toEqual(newOrg.created);
             expect(newOrg.name).toBe('myNewOrg');
@@ -278,8 +361,7 @@ describe('orgSvc (UT)', function() {
             newOrg.id = 'o-4567';
             newOrg.status = Status.Pending;
             orgSvc.setupOrg(newOrg, requester);
-            expect(newOrg.id).toBe('u-1234567890abcd');
-            expect(newOrg.email).toBe('testOrg');
+            expect(newOrg.id).toBe('o-1234567890abcd');
             expect(newOrg.created instanceof Date).toBeTruthy('created is a Date');
             expect(newOrg.lastUpdated).toEqual(newOrg.created);
             expect(newOrg.status).toBe(Status.Pending);
@@ -300,7 +382,7 @@ describe('orgSvc (UT)', function() {
                     cb();
                 })
             };
-            req.body = { name: 'test', email: 'testEmail'};
+            req.body = { name: 'test' };
             req.user = { id: 'u-1234', org: 'o-1234', permissions: {orgs: {create: Scope.All}}};
             spyOn(orgSvc, 'setupOrg');
             spyOn(orgSvc.createValidator, 'validate').andReturn(true);
@@ -321,15 +403,10 @@ describe('orgSvc (UT)', function() {
             });            
         });
         
-        it('should reject with a 400 if the email or name are unspecified', function(done) {
-            delete req.body.email;
-            orgSvc.createOrg(req, orgColl).then(function(resp) {
-                expect(resp).toBeDefined();
-                expect(resp.code).toBe(400);
-                expect(resp.body).toEqual('New org object must have an email');
-                req.body = { email: 'testEmail' };
-                return orgSvc.createOrg(req, orgColl);
-            }).then(function(resp) {
+        it('should reject with a 400 if the name is unspecified', function(done) {
+            req.body = {someAttribute: 'hello'};
+            orgSvc.createOrg(req, orgColl)
+            .then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(400);
                 expect(resp.body).toEqual('New org object must have a name');
@@ -396,7 +473,7 @@ describe('orgSvc (UT)', function() {
 
         it('should reject with a 409 if the org already exists', function(done) {
             orgColl.findOne.andCallFake(function(query, cb) {
-                cb(null, { name: 'test', email: 'testEmail' });
+                cb(null, { name: 'test' });
             });
             orgSvc.createOrg(req, orgColl).then(function(resp) {
                 expect(resp).toBeDefined();
@@ -415,7 +492,7 @@ describe('orgSvc (UT)', function() {
             orgSvc.createOrg(req, orgColl).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(201);
-                expect(resp.body).toEqual({name: 'test', email: 'testEmail'});
+                expect(resp.body).toEqual({name: 'test' });
                 expect(orgColl.findOne).toHaveBeenCalled();
                 expect(orgColl.findOne.calls[0].args[0]).toEqual({name: 'test'});
                 expect(orgSvc.createValidator.validate).toHaveBeenCalledWith(req.body, {}, req.user);
@@ -628,7 +705,7 @@ describe('orgSvc (UT)', function() {
                 })
             };
             req.params = { id: 'o-4567' };
-            req.user = { id: 'u-1234' , org: 'o-1234'};
+            req.user = { id: 'u-1234' , org: 'o-1234', permissions: {orgs: {delete: Scope.All}}};
             spyOn(orgSvc, 'checkScope').andReturn(true);
         });
         
@@ -654,7 +731,6 @@ describe('orgSvc (UT)', function() {
                 expect(resp.body).not.toBeDefined();
                 expect(orgColl.findOne).toHaveBeenCalled();
                 expect(orgColl.findOne.calls[0].args[0]).toEqual({id: 'o-4567'});
-                expect(orgSvc.checkScope).toHaveBeenCalledWith({id: 'u-1234', org: 'o-1234'}, 'original', 'delete');
                 expect(orgColl.update).toHaveBeenCalled();
                 expect(orgColl.update.calls[0].args[0]).toEqual({id: 'o-4567'});
                 var updates = orgColl.update.calls[0].args[1];
@@ -685,13 +761,13 @@ describe('orgSvc (UT)', function() {
         });
         
         it('should not delete an org the requester is not authorized to delete', function(done) {
+            delete req.user.permissions;
             orgSvc.checkScope.andReturn(false);
             orgSvc.deleteOrg(req, orgColl).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(403);
                 expect(resp.body).toBe('Not authorized to delete this org');
-                expect(orgColl.findOne).toHaveBeenCalled();
-                expect(orgSvc.checkScope).toHaveBeenCalled();
+                expect(orgColl.findOne).not.toHaveBeenCalled();
                 expect(orgColl.update).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
