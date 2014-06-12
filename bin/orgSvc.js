@@ -410,7 +410,7 @@
         });
         
         app.get('/api/account/org/version',function(req, res) {
-            res.send(200, state.config.version);
+            res.send(200, state.config.appVersion);
         });
 
         var authGetUser = authUtils.middlewarify({orgs: 'read'});
