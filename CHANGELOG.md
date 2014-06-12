@@ -88,6 +88,10 @@
     * Create email fields for users in staging + production dbs
     * Edit c6mongo chef config to build indexes on email + give johnnyTestmonkey an email
 
+## orgSvc Service
+### 1.0.0: Thu Jun 12 15:13:20 EDT 2014
+* Initial commit of org service: [#192](https://github.com/cinema6/cwrx/pull/192)
+
 ## userSvc Service
 ### 1.4.3: Thu May  8 18:32:05 EDT 2014
 * [FIX]: Fix mongo reconnect: [#151](https://github.com/cinema6/cwrx/pull/151)
