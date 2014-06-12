@@ -2,7 +2,7 @@ var q           = require('q'),
     testUtils   = require('./testUtils'),
     host        = process.env['host'] || 'localhost',
     config      = {
-        orgSvcUrl  : 'http://' + (host === 'localhost' ? host + ':3700' : host) + '/api/accounts',
+        orgSvcUrl  : 'http://' + (host === 'localhost' ? host + ':3700' : host) + '/api/account',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
 
@@ -10,9 +10,6 @@ describe('org (E2E):', function() {
     var cookieJar, mockRequester, noPermsUser;
         
     beforeEach(function(done) {
-        if (cookieJar && cookieJar.cookies) {
-            //return done();
-        }
         cookieJar = require('request').jar();
         mockRequester = {
             id: 'e2e-user',
@@ -60,14 +57,19 @@ describe('org (E2E):', function() {
         });
     });
 
-    describe('GET /api/accounts/org/:id', function() {
+    describe('GET /api/account/org/:id', function() {
         var mockOrg;
         beforeEach(function(done) {
             mockOrg = {
                 id: 'o-1234',
-                name: 'e2e-getId1'
+                name: 'e2e-getId1',
+                status: 'active',
+                waterfalls: {video: ['c6'], display: ['c6']}
             };
             testUtils.resetCollection('users', [mockRequester, noPermsUser])
+            .then(function(){
+                return testUtils.resetCollection('orgs', mockOrg);
+            })
             .done(function(){
                 done()
             });
@@ -75,13 +77,30 @@ describe('org (E2E):', function() {
         
         it('should get an org by id', function(done) {
             var options = { url: config.orgSvcUrl + '/org/o-1234', jar: cookieJar };
-            testUtils.resetCollection('orgs', mockOrg).then(function() {
-                return testUtils.qRequest('get', options);
-            }).then(function(resp) {
+            testUtils.qRequest('get', options)
+            .then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).not.toEqual(mockOrg);
                 expect(resp.body.id).toBe('o-1234');
-                //expect(resp.body._id).not.toBeDefined();
+                expect(resp.body._id).not.toBeDefined();
+                expect(resp.body.name).toBe('e2e-getId1');
+                expect(resp.body.status).toBe('active');
+                expect(resp.body.waterfalls).toEqual({video: ['c6'], display: ['c6']});
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should not be able to get a deleted org', function(done) {
+            var options = { url: config.orgSvcUrl + '/org/o-1234', jar: cookieJar };
+            mockOrg.status = 'deleted';
+            testUtils.resetCollection('orgs', mockOrg).then(function() {
+                return testUtils.qRequest('get', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toEqual('No orgs found');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -91,7 +110,6 @@ describe('org (E2E):', function() {
         
         it('should return a 404 if the requester cannot see the org', function(done) {
             var options = { url: config.orgSvcUrl + '/org/o-4567', jar: cookieJar };
-            mockOrg.org = 'o-4567';
             mockOrg.id = 'e2e-getId2';
             testUtils.resetCollection('orgs', mockOrg).then(function() {
                 return testUtils.qRequest('get', options);
@@ -107,9 +125,8 @@ describe('org (E2E):', function() {
         
         it('should return a 404 if nothing is found', function(done) {
             var options = { url: config.orgSvcUrl + '/org/e2e-fake1', jar: cookieJar };
-            testUtils.resetCollection('orgs', mockOrg).then(function() {
-                return testUtils.qRequest('get', options);
-            }).then(function(resp) {
+            testUtils.qRequest('get', options)
+            .then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('No orgs found');
                 done();
@@ -155,12 +172,15 @@ describe('org (E2E):', function() {
                 expect(resp.body).toBeDefined();
                 expect(resp.body instanceof Array).toBeTruthy('body is array');
                 expect(resp.body.length).toBe(3);
-                //expect(resp.body[0]._id).not.toBeDefined();
+                expect(resp.body[0]._id).not.toBeDefined();
                 expect(resp.body[0].id).toBe('o-1234');
-                //expect(resp.body[1]._id).not.toBeDefined();
+                expect(resp.body[0].name).toBe('e2e-getOrg3');
+                expect(resp.body[1]._id).not.toBeDefined();
                 expect(resp.body[1].id).toBe('o-4567');
-                //expect(resp.body[2]._id).not.toBeDefined();
+                expect(resp.body[1].name).toBe('e2e-getOrg2');
+                expect(resp.body[2]._id).not.toBeDefined();
                 expect(resp.body[2].id).toBe('o-7890');
+                expect(resp.body[2].name).toBe('e2e-getOrg1');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -178,6 +198,8 @@ describe('org (E2E):', function() {
                 expect(resp.body).toBeDefined();
                 expect(resp.body instanceof Array).toBeTruthy('body is array');
                 expect(resp.body.length).toBe(1);
+                expect(resp.body[0].id).toBe('o-7890');
+                expect(resp.body[0]._id).not.toBeDefined();
                 expect(resp.body[0].name).toBe('e2e-getOrg1');
                 options.url += '&skip=1';
                 return testUtils.qRequest('get', options);
@@ -186,6 +208,8 @@ describe('org (E2E):', function() {
                 expect(resp.body).toBeDefined();
                 expect(resp.body instanceof Array).toBeTruthy('body is array');
                 expect(resp.body.length).toBe(1);
+                expect(resp.body[0].id).toBe('o-4567');
+                expect(resp.body[0]._id).not.toBeDefined();
                 expect(resp.body[0].name).toBe('e2e-getOrg2');
                 expect(resp.body[0].password).not.toBeDefined();
                 done();
@@ -224,7 +248,7 @@ describe('org (E2E):', function() {
         });
     });
 
-    describe('POST /api/accounts/org', function() {
+    describe('POST /api/account/org', function() {
         var mockOrg;
         beforeEach(function(done) {
             mockOrg = {
@@ -245,7 +269,7 @@ describe('org (E2E):', function() {
                 expect(resp.response.statusCode).toBe(201);
                 var newOrg = resp.body;
                 expect(newOrg).toBeDefined();
-                //expect(newOrg._id).not.toBeDefined();
+                expect(newOrg._id).not.toBeDefined();
                 expect(newOrg.id).toBeDefined();
                 expect(new Date(newOrg.created).toString()).not.toEqual('Invalid Date');
                 expect(newOrg.lastUpdated).toEqual(newOrg.created);
@@ -261,14 +285,14 @@ describe('org (E2E):', function() {
 
         it('should be able to override default properties', function(done) {
             mockOrg.status = 'pending';
-            //mockOrg.waterfall = {video: ['c6']};
+            mockOrg.waterfalls = {video: ['c6']};
             var options = { url: config.orgSvcUrl + '/org', json: mockOrg, jar: cookieJar };
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 var newOrg = resp.body;
                 expect(newOrg).toBeDefined();
                 expect(newOrg.status).toBe('pending');
-                //expect(newOrg.waterfall).toEqual({video: ['c6'], display: ['c6']});
+                expect(newOrg.waterfalls).toEqual({video: ['c6'], display: ['c6']});
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -367,7 +391,7 @@ describe('org (E2E):', function() {
 
     });
 
-    describe('PUT /api/accounts/org/:id', function() {
+    describe('PUT /api/account/org/:id', function() {
         var start = new Date(),
             mockOrgs, updates;
         beforeEach(function(done) {
@@ -376,7 +400,11 @@ describe('org (E2E):', function() {
                     id: 'o-1234',
                     name: 'e2e-put1',
                     tag: 'foo',
-                    created: start
+                    created: start,
+                    waterfalls: {
+                        video: ['c6', 'publisher'],
+                        display: ['c6', 'publisher']
+                    }
                 },
                 {
                     id: 'o-4567',
@@ -390,7 +418,7 @@ describe('org (E2E):', function() {
                 return testUtils.resetCollection('orgs', mockOrgs);
             })
             .done(done);
-            updates = { tag: 'bar' };
+            updates = { tag: 'bar', waterfalls: {video: ['c6'], display: ['c6']}};
         });
         
         it('should successfully update an org', function(done) {
@@ -402,9 +430,10 @@ describe('org (E2E):', function() {
             testUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 var org = resp.body;
-                //expect(org._id).not.toBeDefined();
+                expect(org._id).not.toBeDefined();
                 expect(org.id).toBe('o-1234');
                 expect(org.tag).toBe('bar');
+                expect(org.waterfalls).toEqual({video: ['c6'], display: ['c6']});
                 expect(new Date(org.lastUpdated)).toBeGreaterThan(new Date(org.created));
                 done();
             }).catch(function(error) {

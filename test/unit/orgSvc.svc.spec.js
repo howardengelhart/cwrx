@@ -506,7 +506,7 @@ describe('orgSvc (UT)', function() {
                 expect(orgColl.insert.calls[0].args[1]).toEqual({w: 1, journal: true});
                 done();
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).not.toBeDefined();
                 done();
             });
         });
@@ -600,7 +600,7 @@ describe('orgSvc (UT)', function() {
                 expect(resp.body).toEqual({ id: 'o-4567', updated: true });
                 expect(orgColl.findOne).toHaveBeenCalled();
                 expect(orgColl.findOne.calls[0].args[0]).toEqual({id: 'o-4567'});
-                expect(orgSvc.checkScope).toHaveBeenCalledWith({id: 'u-1234'}, {orig: 'yes'}, 'edit');
+                expect(orgSvc.checkScope).toHaveBeenCalledWith({id: 'u-1234'}, {id: 'o-4567'}, 'edit');
                 expect(orgSvc.updateValidator.validate).toHaveBeenCalledWith(req.body, {orig: 'yes'}, {id: 'u-1234'});
                 expect(orgColl.findAndModify).toHaveBeenCalled();
                 expect(orgColl.findAndModify.calls[0].args[0]).toEqual({id: 'o-4567'});
@@ -625,7 +625,7 @@ describe('orgSvc (UT)', function() {
                 expect(resp.code).toBe(404);
                 expect(resp.body).toBe('That org does not exist');
                 expect(orgColl.findOne).toHaveBeenCalled();
-                expect(orgSvc.checkScope).not.toHaveBeenCalled();
+                expect(orgSvc.checkScope).toHaveBeenCalled();
                 expect(orgColl.findAndModify).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
@@ -640,7 +640,7 @@ describe('orgSvc (UT)', function() {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(403);
                 expect(resp.body).toBe('Not authorized to edit this org');
-                expect(orgColl.findOne).toHaveBeenCalled();
+                expect(orgColl.findOne).not.toHaveBeenCalled();
                 expect(orgSvc.checkScope).toHaveBeenCalled();
                 expect(orgColl.findAndModify).not.toHaveBeenCalled();
                 done();
