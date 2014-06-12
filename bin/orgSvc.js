@@ -91,7 +91,6 @@
             }
             if(results.length !== 1){
                 log.warn('[%1] There is more than one org with id %2, getting first', req.uuid, id);
-                return q({code: 404, body: 'No orgs found'});
             }
             var org = results[0];
             if (org.status === Status.Deleted) {

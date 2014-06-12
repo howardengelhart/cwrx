@@ -164,6 +164,19 @@ describe('orgSvc (UT)', function() {
             });
         });
         
+        it('should log a warning when attempting to get an org when multiple with the same id exist', function(done) {
+            fakeCursor.toArray.andCallFake(function(cb) {
+                cb(null, q([{id: '1'}, {id: '1'}]));
+            });
+            orgSvc.getOrg(req, orgColl).then(function(resp) {
+                expect(mockLog.warn).toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+
         it('should return a 404 if nothing was found', function(done) {
             fakeCursor.toArray.andCallFake(function(cb) {
                 cb(null, []);

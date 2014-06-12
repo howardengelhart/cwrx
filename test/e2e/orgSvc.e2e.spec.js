@@ -66,6 +66,9 @@ describe('org (E2E):', function() {
                 status: 'active',
                 waterfalls: {video: ['c6'], display: ['c6']}
             };
+            mockOrg2 = {
+                id: 'o-1234'
+            }
             testUtils.resetCollection('users', [mockRequester, noPermsUser])
             .then(function(){
                 return testUtils.resetCollection('orgs', mockOrg);
@@ -86,6 +89,19 @@ describe('org (E2E):', function() {
                 expect(resp.body.name).toBe('e2e-getId1');
                 expect(resp.body.status).toBe('active');
                 expect(resp.body.waterfalls).toEqual({video: ['c6'], display: ['c6']});
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should get an org even when multiple with the same id exist', function(done) {
+            var options = { url: config.orgSvcUrl + '/org/o-1234', jar: cookieJar };
+            testUtils.resetCollection('orgs', [mockOrg, mockOrg2]).then(function() {
+                return testUtils.qRequest('get', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
