@@ -366,8 +366,8 @@ describe('orgSvc (UT)', function() {
             expect(newOrg.lastUpdated).toEqual(newOrg.created);
             expect(newOrg.name).toBe('myNewOrg');
             expect(newOrg.status).toBe(Status.Active);
-            expect(newOrg.waterfalls.video).toEqual(['c6']);
-            expect(newOrg.waterfalls.display).toEqual(['c6']);
+            expect(newOrg.waterfalls.video).toEqual(['cinema6']);
+            expect(newOrg.waterfalls.display).toEqual(['cinema6']);
             expect(mongoUtils.escapeKeys).toHaveBeenCalled();
             done();
         });
@@ -381,7 +381,7 @@ describe('orgSvc (UT)', function() {
             expect(newOrg.created instanceof Date).toBeTruthy('created is a Date');
             expect(newOrg.lastUpdated).toEqual(newOrg.created);
             expect(newOrg.status).toBe(Status.Pending);
-            expect(newOrg.waterfalls.display).toEqual(['c6']);
+            expect(newOrg.waterfalls.display).toEqual(['cinema6']);
             expect(mongoUtils.escapeKeys).toHaveBeenCalled();
             done();
         });
