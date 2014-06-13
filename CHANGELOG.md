@@ -89,8 +89,10 @@
     * Edit c6mongo chef config to build indexes on email + give johnnyTestmonkey an email
 
 ## orgSvc Service
-### 1.0.1: Fri Jun 13 09:54:09 EDT 2014
+### 1.0.0: Thu Jun 12 15:13:20 EDT 2014
 * Initial commit of org service: [#192](https://github.com/cinema6/cwrx/pull/192)
+
+### 1.0.1: Fri Jun 13 09:54:09 EDT 2014
 * [FIX]: Set Org Service to use proper waterfall properties: [#196](https://github.com/cinema6/cwrx/pull/196)
 
 ## userSvc Service
