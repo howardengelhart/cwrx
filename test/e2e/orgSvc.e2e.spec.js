@@ -64,7 +64,7 @@ describe('org (E2E):', function() {
                 id: 'o-1234',
                 name: 'e2e-getId1',
                 status: 'active',
-                waterfalls: {video: ['c6'], display: ['c6']}
+                waterfalls: {video: ['cinema6'], display: ['cinema6']}
             };
             mockOrg2 = {
                 id: 'o-1234'
@@ -88,7 +88,7 @@ describe('org (E2E):', function() {
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.name).toBe('e2e-getId1');
                 expect(resp.body.status).toBe('active');
-                expect(resp.body.waterfalls).toEqual({video: ['c6'], display: ['c6']});
+                expect(resp.body.waterfalls).toEqual({video: ['cinema6'], display: ['cinema6']});
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -291,7 +291,7 @@ describe('org (E2E):', function() {
                 expect(newOrg.lastUpdated).toEqual(newOrg.created);
                 expect(newOrg.name).toBe('e2e-org');
                 expect(newOrg.status).toBe('active');
-                expect(newOrg.waterfalls).toEqual({video: ['c6'], display: ['c6']});
+                expect(newOrg.waterfalls).toEqual({video: ['cinema6'], display: ['cinema6']});
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -301,14 +301,14 @@ describe('org (E2E):', function() {
 
         it('should be able to override default properties', function(done) {
             mockOrg.status = 'pending';
-            mockOrg.waterfalls = {video: ['c6']};
+            mockOrg.waterfalls = {video: ['cinema6']};
             var options = { url: config.orgSvcUrl + '/org', json: mockOrg, jar: cookieJar };
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 var newOrg = resp.body;
                 expect(newOrg).toBeDefined();
                 expect(newOrg.status).toBe('pending');
-                expect(newOrg.waterfalls).toEqual({video: ['c6'], display: ['c6']});
+                expect(newOrg.waterfalls).toEqual({video: ['cinema6'], display: ['cinema6']});
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -418,8 +418,8 @@ describe('org (E2E):', function() {
                     tag: 'foo',
                     created: start,
                     waterfalls: {
-                        video: ['c6', 'publisher'],
-                        display: ['c6', 'publisher']
+                        video: ['cinema6', 'publisher'],
+                        display: ['cinema6', 'publisher']
                     }
                 },
                 {
@@ -434,7 +434,7 @@ describe('org (E2E):', function() {
                 return testUtils.resetCollection('orgs', mockOrgs);
             })
             .done(done);
-            updates = { tag: 'bar', waterfalls: {video: ['c6'], display: ['c6']}};
+            updates = { tag: 'bar', waterfalls: {video: ['cinema6'], display: ['cinema6']}};
         });
         
         it('should successfully update an org', function(done) {
@@ -449,7 +449,7 @@ describe('org (E2E):', function() {
                 expect(org._id).not.toBeDefined();
                 expect(org.id).toBe('o-1234');
                 expect(org.tag).toBe('bar');
-                expect(org.waterfalls).toEqual({video: ['c6'], display: ['c6']});
+                expect(org.waterfalls).toEqual({video: ['cinema6'], display: ['cinema6']});
                 expect(new Date(org.lastUpdated)).toBeGreaterThan(new Date(org.created));
                 done();
             }).catch(function(error) {

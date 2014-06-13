@@ -171,8 +171,8 @@
             newOrg.waterfalls = {};
         }
         var defaultWaterfalls = {
-            video: ['c6'],
-            display: ['c6']
+            video: ['cinema6'],
+            display: ['cinema6']
         };
         Object.keys(defaultWaterfalls).forEach(function(key) {
             if (!newOrg.waterfalls[key]) {
