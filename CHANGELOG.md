@@ -14,6 +14,11 @@
 * Extra deployment steps: None
 
 ## collateral Service
+### 1.2.5: Wed Jun 11 16:15:13 EDT 2014
+* [FIX]: Add templates for 5 thumbnails: [#189](https://github.com/cinema6/cwrx/pull/189)
+* [FIX]: Allow service to choose 5-thumb templates: [#190](https://github.com/cinema6/cwrx/pull/190)
+* Extra deployment steps: None
+
 ### 1.2.4: Mon Jun  9 17:49:43 EDT 2014
 * [FIX]: Rename 6-4 templates to 3-2: [#186](https://github.com/cinema6/cwrx/pull/186)
 * [FIX]: Handle protocol-relative urls properly: [#187](https://github.com/cinema6/cwrx/pull/187)
@@ -82,6 +87,14 @@
 * Extra deployment steps:
     * Create email fields for users in staging + production dbs
     * Edit c6mongo chef config to build indexes on email + give johnnyTestmonkey an email
+
+## orgSvc Service
+### 1.0.1: Fri Jun 13 09:54:09 EDT 2014
+* [FIX]: Set Org Service to use proper waterfall properties: [#196](https://github.com/cinema6/cwrx/pull/196)
+* Extra deployment steps: None
+
+### 1.0.0: Thu Jun 12 15:13:20 EDT 2014
+* Initial commit of org service: [#192](https://github.com/cinema6/cwrx/pull/192)
 
 ## userSvc Service
 ### 1.4.3: Thu May  8 18:32:05 EDT 2014
