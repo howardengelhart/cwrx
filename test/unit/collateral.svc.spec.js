@@ -464,7 +464,7 @@ describe('collateral (UT):', function() {
             spyOn(handlebars, 'compile').andReturn(compilerSpy);
         });
                 
-        xit('should successfully generate and upload a splash image', function(done) {
+        it('should successfully generate and upload a splash image', function(done) {
             collateral.generate(req, imgSpec, 'fakeTempl', 'fakeHash', s3, config).then(function(key) {
                 expect(key).toBe('/path/on/s3');
                 expect(fs.writeFile).toHaveBeenCalledWith('/tmp/fakeUuid-compiled.html','compiledHtml',anyFunc);
@@ -490,7 +490,7 @@ describe('collateral (UT):', function() {
             });
         });
         
-        xit('should delete a cached md5 after a configured period of time', function(done) {
+        it('should delete a cached md5 after a configured period of time', function(done) {
             collateral.generate(req, imgSpec, 'fakeTempl', 'fakeHash', s3, config).then(function(key) {
                 expect(key).toBe('/path/on/s3');
                 expect(collateral.splashCache.fakeHash).toBe('qwer1234');
@@ -503,7 +503,7 @@ describe('collateral (UT):', function() {
             });
         });
         
-        xit('should let a user specify the resulting filename', function(done) {
+        it('should let a user specify the resulting filename', function(done) {
             imgSpec.name = 'brentRambo';
             collateral.generate(req, imgSpec, 'fakeTempl', 'fakeHash', s3, config).then(function(key) {
                 expect(key).toEqual('/path/on/s3');
@@ -522,7 +522,7 @@ describe('collateral (UT):', function() {
             });
         });
         
-        xit('should versionate the file if configured to', function(done) {
+        it('should versionate the file if configured to', function(done) {
             req.query = {versionate: true};
             collateral.generate(req, imgSpec, 'fakeTempl', 'fakeHash', s3, config).then(function(key) {
                 expect(key).toEqual('/path/on/s3');
@@ -535,7 +535,7 @@ describe('collateral (UT):', function() {
             });
         });
         
-        xit('should fail if writing the compiled html fails', function(done) {
+        it('should fail if writing the compiled html fails', function(done) {
             fs.writeFile.andCallFake(function(fpath, opts, cb) { cb('I GOT A PROBLEM'); });
             collateral.generate(req, imgSpec, 'fakeTempl', 'fakeHash', s3, config).then(function(key) {
                 expect(key).not.toBeDefined();
@@ -551,7 +551,7 @@ describe('collateral (UT):', function() {
             });
         });
         
-        xit('should fail if uploading the splash image fails', function(done) {
+        it('should fail if uploading the splash image fails', function(done) {
             collateral.upload.andReturn(q.reject('I GOT A PROBLEM'));
             collateral.generate(req, imgSpec, 'fakeTempl', 'fakeHash', s3, config).then(function(key) {
                 expect(key).not.toBeDefined();
@@ -573,7 +573,7 @@ describe('collateral (UT):', function() {
             });
         });
         
-        xit('should fail if opening the page with phantom fails', function(done) {
+        it('should fail if opening the page with phantom fails', function(done) {
             page.open.andCallFake(function(url, cb) { cb('fail'); });
             collateral.generate(req, imgSpec, 'fakeTempl', 'fakeHash', s3, config).then(function(key) {
                 expect(key).not.toBeDefined();
@@ -595,10 +595,7 @@ describe('collateral (UT):', function() {
                 cb(phantObj);
             });
             page.open.andCallFake(function(url, cb) {
-                console.log('in page.open');
                 handlers.onExit(1, 'PROBLEMS');
-                // phantObj = null;
-                // page = null;
                 cb('success');
             });
             collateral.generate(req, imgSpec, 'fakeTempl', 'fakeHash', s3, config).then(function(key) {
@@ -608,13 +605,11 @@ describe('collateral (UT):', function() {
                 expect(error).toBe('PhantomJS exited prematurely');
                 expect(fs.writeFile).toHaveBeenCalled();
                 expect(page.set).toHaveBeenCalled();
-                expect(page.render).not.toHaveBeenCalled();
-                expect(collateral.upload).not.toHaveBeenCalled();
                 done();
             });
         });
         
-        xit('should just log a warning if phantom logs error messages', function(done) {
+        it('should just log a warning if phantom logs error messages', function(done) {
             var handlers;
             phantom.create.andCallFake(function(opts, cb) {
                 handlers = opts;
@@ -636,7 +631,7 @@ describe('collateral (UT):', function() {
             });
         });
         
-        xit('should timeout if any part of the process takes too long', function(done) {
+        it('should timeout if any part of the process takes too long', function(done) {
             page.open.andCallFake(function(url, cb) {
                 setTimeout(function() { cb('success'); }, 12*1000);
             });
@@ -759,6 +754,7 @@ describe('collateral (UT):', function() {
             }).then(function(resp) {
                 expect(resp).toEqual({code:201,name:'splash',ratio:'foo',path:'/path/on/s3'});
                 expect(s3.headObject.calls[1].args).toEqual([{Bucket:'bkt',Key:'ut/e-1/qwer1234.splash'},anyFunc]);
+                expect(mockLog.warn.calls.length).toBe(2);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -773,6 +769,7 @@ describe('collateral (UT):', function() {
                 expect(resp).toEqual({code:201,name:'splash',ratio:'foo',path:'/path/on/s3'});
                 expect(s3.headObject).toHaveBeenCalledWith({Bucket:'bkt',Key:'ut/e-1/splash'},anyFunc);
                 expect(collateral.generate).toHaveBeenCalledWith(req,imgSpec,'fakeTemplate','fakeHash',s3,config);
+                expect(mockLog.warn).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -787,6 +784,7 @@ describe('collateral (UT):', function() {
                 expect(resp).toEqual({code:201,name:'splash',ratio:'foo',path:'ut/e-1/splash'});
                 expect(s3.headObject).toHaveBeenCalledWith({Bucket:'bkt',Key:'ut/e-1/splash'},anyFunc);
                 expect(collateral.generate).not.toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

@@ -41,7 +41,7 @@
         splash: {
             quality: 75,        // some integer between 0 and 100
             maxDimension: 1000, // pixels, either height or width, to provide basic sane limit
-            cacheTTL: 24*60,    // units are minutes // TODO: update cookbook
+            cacheTTL: 24*60,    // units are minutes
             timeout: 10*1000    // timeout for entire splash generation process; 10 seconds
         },
         maxFileSize: 25*1000*1000, // 25MB
@@ -280,7 +280,6 @@
 
         // Phantom callbacks only callback with one arg, so we need to transform to Nodejs style
         function phantWrap(object, method, args, cb) {
-            console.log('wrapping ' + method); //TODO
             args.push(function(result) { cb(null, result); });
             object[method].apply(object, args);
         }
@@ -293,7 +292,6 @@
         .then(function() { // Start setting up phantomjs
             log.trace('[%1] Wrote compiled html, starting phantom', req.uuid);
             function onExit(code, signal) {
-                console.log('onExit');
                 if (code === 0) {
                     return;
                 }
@@ -323,11 +321,9 @@
             return q.nfapply(phantWrap, [page, 'set', ['viewportSize', size]]);
         })
         .then(function() { // Open the compiled html
-            console.log('calling page.open'); //TODO
             return q.nfapply(phantWrap, [page, 'open', [compiledPath]]);
         })
         .then(function(status) { // Render page as image
-            console.log('got status'); //TODO
             if (status !== 'success') {
                 return q.reject('Failed to open ' + compiledPath + ': status was ' + status);
             }
@@ -357,15 +353,12 @@
         })
         
         .catch(function(error) {
-            console.log('got error'); //TODO
-            console.log(error); //TODO
             deferred.reject(error);
         });
         
         return deferred.promise
         .timeout(config.splash.timeout)
         .finally(function() { // Cleanup by removing compiled template + splash image
-            console.log('in finally block');
             if (page) {
                 page.close();
             }
@@ -461,13 +454,13 @@
                     log.info('[%1] Splash image %2 already exists with cached md5 %3',
                              req.uuid, headParams.Key, md5);
                     return q(headParams.Key);
-                } else { // TODO: log.warn?
-                    log.info('[%1] Splash image %2 exists with md5 %3 instead of cached val %4',
+                } else {
+                    log.warn('[%1] Splash image %2 exists with md5 %3 instead of cached val %4',
                              req.uuid, headParams.Key, data && data.ETag, md5);
                     return collateral.generate(req, imgSpec, template, cacheKey, s3, config);
                 }
-            }, function(/*error*/) { // TODO: log.warn?
-                log.info('[%1] No splash image %2 with cached md5 %3',req.uuid,headParams.Key,md5);
+            }, function(/*error*/) {
+                log.warn('[%1] No splash image %2 with cached md5 %3',req.uuid,headParams.Key,md5);
                 return collateral.generate(req, imgSpec, template, cacheKey, s3, config);
             });
         })
