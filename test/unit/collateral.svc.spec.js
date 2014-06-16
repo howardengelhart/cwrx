@@ -424,6 +424,24 @@ describe('collateral (UT):', function() {
             });
         });
     });  // end -- describe uploadFiles
+
+    describe('clearOldCachedMD5s', function() {
+        it('should clear old items from the splashCache', function() {
+            var config = { splash: { cacheTTL: 5*1000 } };
+            collateral.splashCache = {
+                a: { md5: '1', date: new Date(new Date() - 3*1000) },
+                b: { md5: '2', date: new Date() },
+                c: { md5: '3', date: new Date(new Date() - 6*1000) },
+                d: { md5: '4', date: new Date(new Date() - 1*1000) },
+            };
+            
+            collateral.clearOldCachedMD5s(config);
+            expect(Object.keys(collateral.splashCache)).toEqual(['a', 'b', 'd']);
+            config.splash.cacheTTL = 2*1000;
+            collateral.clearOldCachedMD5s(config);
+            expect(Object.keys(collateral.splashCache)).toEqual(['b', 'd']);
+        });
+    });
     
     describe('chooseTemplateNum', function() {
         it('should correctly choose the template number', function() {
@@ -475,7 +493,7 @@ describe('collateral (UT):', function() {
                 expect(page.render).toHaveBeenCalledWith('/tmp/fakeUuid-splash.jpg',{quality:75},anyFunc);
                 expect(collateral.upload).toHaveBeenCalledWith(req,'ut/e-1',{name:'splash',
                     path:'/tmp/fakeUuid-splash.jpg',type:'image/jpeg'},false,s3,config);
-                expect(collateral.splashCache.fakeHash).toBe('qwer1234');
+                expect(collateral.splashCache.fakeHash).toEqual({md5:'qwer1234',date:jasmine.any(Date)});
                 process.nextTick(function() {
                     expect(page.close).toHaveBeenCalled();
                     expect(phantObj.exit).toHaveBeenCalled();
@@ -490,12 +508,17 @@ describe('collateral (UT):', function() {
             });
         });
         
-        it('should delete a cached md5 after a configured period of time', function(done) {
+        it('should replace the oldest md5 if there are too many in the cache', function(done) {
+            config.splash.maxCacheKeys = 3;
+            collateral.splashCache = {
+                abc: { date: new Date(), md5: '123' },
+                def: { date: new Date(new Date() - 5000), md5: '456' },
+                ghi: { date: new Date(new Date() - 2000), md5: '789' }
+            };
             collateral.generate(req, imgSpec, 'fakeTempl', 'fakeHash', s3, config).then(function(key) {
                 expect(key).toBe('/path/on/s3');
-                expect(collateral.splashCache.fakeHash).toBe('qwer1234');
-                jasmine.Clock.tick(24*60*60*1000 + 1000);
-                expect(collateral.splashCache.fakeHash).not.toBeDefined();
+                expect(collateral.splashCache.fakeHash).toEqual({md5:'qwer1234',date:jasmine.any(Date)});
+                expect(Object.keys(collateral.splashCache)).toEqual(['abc', 'ghi', 'fakeHash']);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -744,7 +767,7 @@ describe('collateral (UT):', function() {
         });
 
         it('should regenerate the splash if there is a cached md5 but no file on s3', function(done) {
-            collateral.splashCache['fakeHash'] = 'qwer1234';
+            collateral.splashCache['fakeHash'] = { md5: 'qwer1234', date: new Date() };
             collateral.generateSplash(req, imgSpec, s3, config).then(function(resp) {
                 expect(resp).toEqual({code:201,name:'splash',ratio:'foo',path:'/path/on/s3'});
                 expect(s3.headObject).toHaveBeenCalledWith({Bucket:'bkt',Key:'ut/e-1/splash'},anyFunc);
@@ -763,7 +786,7 @@ describe('collateral (UT):', function() {
         });
         
         it('should regenerate the splash if there is a file on s3 with the wrong md5', function(done) {
-            collateral.splashCache['fakeHash'] = 'qwer1234';
+            collateral.splashCache['fakeHash'] = { md5: 'qwer1234', date: new Date() };
             s3.headObject.andCallFake(function(params, cb) { cb(null, {ETag: '"qwer5678"'}); });
             collateral.generateSplash(req, imgSpec, s3, config).then(function(resp) {
                 expect(resp).toEqual({code:201,name:'splash',ratio:'foo',path:'/path/on/s3'});
@@ -778,7 +801,7 @@ describe('collateral (UT):', function() {
         });
         
         it('should not regenerate the splash if the correct file is on s3', function(done) {
-            collateral.splashCache['fakeHash'] = 'qwer1234';
+            collateral.splashCache['fakeHash'] = { md5: 'qwer1234', date: new Date() };
             s3.headObject.andCallFake(function(params, cb) { cb(null, {ETag: '"qwer1234"'}); });
             collateral.generateSplash(req, imgSpec, s3, config).then(function(resp) {
                 expect(resp).toEqual({code:201,name:'splash',ratio:'foo',path:'ut/e-1/splash'});

@@ -39,10 +39,12 @@
             }
         },
         splash: {
-            quality: 75,        // some integer between 0 and 100
-            maxDimension: 1000, // pixels, either height or width, to provide basic sane limit
-            cacheTTL: 24*60,    // units are minutes
-            timeout: 10*1000    // timeout for entire splash generation process; 10 seconds
+            quality: 75,            // some integer between 0 and 100
+            maxDimension: 1000,     // pixels, either height or width, to provide basic sane limit
+            cacheTTL: 24*3600*1000, // max age of md5 in cache; units = ms
+            maxCacheKeys: 30000,    // max number of cached md5s in the in-memory cache
+            clearInterval: 60*1000, // how often to check for old cached md5s; units = ms
+            timeout: 10*1000        // timeout for entire splash generation process; units = ms
         },
         maxFileSize: 25*1000*1000, // 25MB
         s3: {
@@ -263,6 +265,21 @@
     // Cache md5's of splash images based on their imgSpec, thumbs, and template file
     collateral.splashCache = {};
     
+    // Clear out all cached md5s that are older than config.splash.cacheTTL
+    collateral.clearOldCachedMD5s = function(config) {
+        var now = new Date(),
+            keys = function() { return Object.keys(collateral.splashCache); },
+            log = logger.getLog();
+        
+        log.trace('Clearing old cached md5s; starting with %1 items in cache', keys().length);
+        keys().forEach(function(key) {
+            if ((now - collateral.splashCache[key].date) > config.splash.cacheTTL) {
+                delete collateral.splashCache[key];
+            }
+        });
+        log.trace('Finished clearing old cached md5s; now have %1 items in cache', keys().length);
+    };
+    
     
     // Handles generating and uploading a splash image
     collateral.generate = function(req, imgSpec, template, cacheKey, s3, config) {
@@ -345,10 +362,21 @@
         .then(function(response) {
             log.info('[%1] File %2 has been uploaded successfully, md5 = %3',
                      req.uuid, splashName, response.md5);
-            collateral.splashCache[cacheKey] = response.md5;
-            setTimeout(function() {
-                delete collateral.splashCache[cacheKey];
-            }, config.splash.cacheTTL*60*1000);
+
+            // If too many keys in the cache, evict the oldest one
+            if (Object.keys(collateral.splashCache).length + 1 > config.splash.maxCacheKeys) {
+                log.info('[%1] Too many keys in the splashCache', req.uuid);
+                var oldestKey = null, oldestDate = new Date();
+                Object.keys(collateral.splashCache).forEach(function(key) {
+                    if (collateral.splashCache[key].date < oldestDate) {
+                        oldestKey = key;
+                        oldestDate = collateral.splashCache[key].date;
+                    }
+                });
+                delete collateral.splashCache[oldestKey];
+            }
+            collateral.splashCache[cacheKey] = { date: new Date(), md5: response.md5 };
+
             deferred.resolve(response.key);
         })
         
@@ -435,7 +463,7 @@
                 templ   : template
             }, md5, cacheKey;
             cacheKey = uuid.hashText(JSON.stringify(splashSpec));
-            md5 = collateral.splashCache[cacheKey];
+            md5 = collateral.splashCache[cacheKey] && collateral.splashCache[cacheKey].md5;
             log.trace('[%1] Splash image %2 hashes to %3', req.uuid, splashName, cacheKey);
             
             // If cached md5, check for matching file on S3; if it exists, skip generation
@@ -654,6 +682,8 @@
                 next();
             }
         });
+        
+        setInterval(collateral.clearOldCachedMD5s, state.config.splash.clearInterval, state.config);
         
         app.listen(state.cmdl.port);
         log.info('Service is listening on port: ' + state.cmdl.port);
