@@ -270,8 +270,8 @@
             versionate      = req.query && req.query.versionate || false,
             splashName      = imgSpec && imgSpec.name || 'splash',
             jobId           = uuid.createUuid(),
-            compiledPath    = path.join('/tmp', jobId + '-compiled.html'),
-            splashPath      = path.join('/tmp', jobId + '-' + splashName + '.jpg'),
+            compiledPath    = path.join(require('os').tmpdir(), jobId + '-compiled.html'),
+            splashPath      = path.join(require('os').tmpdir(), jobId + '-' + splashName + '.jpg'),
             prefix          = path.join(config.s3.path, req.params.expId),
             data            = { thumbs: req.body.thumbs },
             compiled        = handlebars.compile(template)(data), // Compile the template
