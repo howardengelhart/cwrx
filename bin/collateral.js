@@ -546,6 +546,52 @@
         });
     };
 
+
+    // Set headers for an existing file on S3; currently just handles CacheControl
+    collateral.setHeaders = function(req, s3, config) {
+        var log = logger.getLog(),
+            deferred = q.defer(),
+            cacheControl = req.body && req.body['max-age'] ? 'max-age=' + req.body['max-age']
+                                                           : config.cacheControl.default;
+        
+        if (!req.body || !req.body.path) {
+            log.info('[%1] No path in request body', req.uuid);
+            return q({code: 400, body: 'Must provide path of file on s3'});
+        }
+        
+        log.info('[%1] User %2 setting CacheControl of %3 to %4',
+                 req.uuid, req.user.id, req.body.path, cacheControl);
+
+        // Best way to set headers on existing object is to copy the object to same location
+        var params = {
+            Bucket              : config.s3.bucket,
+            CacheControl        : cacheControl,
+            CopySource          : path.join(config.s3.bucket, req.body.path),
+            MetadataDirective   : 'REPLACE',
+            Key                 : req.body.path,
+            ACL                 : 'public-read'
+        };
+        
+        s3.headObject({Bucket: params.Bucket, Key: params.Key}, function(error, data) {
+            if (error || !data || !data.ContentType) {
+                log.info('[%1] Object %2 not found on s3', req.uuid, req.body.path);
+                return deferred.resolve({code: 404, body: 'File not found'});
+            }
+            params.ContentType = data.ContentType;
+            q.npost(s3, 'copyObject', [params])
+            .then(function(/*resp*/) {
+                log.info('[%1] Successfully set headers on %2', req.uuid, req.body.path);
+                deferred.resolve({code: 200, body: req.body.path});
+            }).catch(function(error) {
+                log.error('[%1] Error setting headers on %2: %3',
+                          req.uuid, req.body.path, util.inspect(error));
+                deferred.reject(error);
+            });
+        });
+
+        return deferred.promise;
+    };
+
     collateral.main = function(state) {
         var log = logger.getLog(),
             started = new Date(),
@@ -658,6 +704,18 @@
             }).catch(function(error) {
                 res.send(500, {
                     error: 'Error uploading files',
+                    detail: error
+                });
+            });
+        });
+
+        app.post('/api/collateral/setHeaders', sessionsWrapper, authUpload, function(req, res) {
+            collateral.setHeaders(req, s3, state.config)
+            .then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error setting headers',
                     detail: error
                 });
             });
