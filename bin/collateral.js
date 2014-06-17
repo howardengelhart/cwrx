@@ -267,17 +267,30 @@
     
     // Clear out all cached md5s that are older than config.splash.cacheTTL
     collateral.clearOldCachedMD5s = function(config) {
-        var now = new Date(),
-            keys = function() { return Object.keys(collateral.splashCache); },
+        var keys = Object.keys(collateral.splashCache),
+            maxDate = new Date(new Date() - config.splash.cacheTTL),
+            toDelete = 0,
+            i = 0,
             log = logger.getLog();
+        log.trace('Clearing old cached md5s; starting with %1 items in cache', keys.length);
         
-        log.trace('Clearing old cached md5s; starting with %1 items in cache', keys().length);
-        keys().forEach(function(key) {
-            if ((now - collateral.splashCache[key].date) > config.splash.cacheTTL) {
-                delete collateral.splashCache[key];
-            }
+        if (keys.length > config.splash.maxCacheKeys) {
+            log.info('Too many keys in the splashCache');
+            toDelete = keys.length - config.splash.maxCacheKeys;
+        }
+        
+        keys = keys.sort(function(a, b) {
+            return collateral.splashCache[a].date - collateral.splashCache[b].date;
         });
-        log.trace('Finished clearing old cached md5s; now have %1 items in cache', keys().length);
+        
+        while (i < keys.length && (collateral.splashCache[keys[i]].date < maxDate || toDelete > 0)){
+            delete collateral.splashCache[keys[i]];
+            i++;
+            toDelete--;
+        }
+        
+        log.trace('Finished clearing old cached md5s; now have %1 items in cache',
+                  Object.keys(collateral.splashCache).length);
     };
     
     
@@ -363,18 +376,6 @@
             log.info('[%1] File %2 has been uploaded successfully, md5 = %3',
                      req.uuid, splashName, response.md5);
 
-            // If too many keys in the cache, evict the oldest one
-            if (Object.keys(collateral.splashCache).length + 1 > config.splash.maxCacheKeys) {
-                log.info('[%1] Too many keys in the splashCache', req.uuid);
-                var oldestKey = null, oldestDate = new Date();
-                Object.keys(collateral.splashCache).forEach(function(key) {
-                    if (collateral.splashCache[key].date < oldestDate) {
-                        oldestKey = key;
-                        oldestDate = collateral.splashCache[key].date;
-                    }
-                });
-                delete collateral.splashCache[oldestKey];
-            }
             collateral.splashCache[cacheKey] = { date: new Date(), md5: response.md5 };
 
             deferred.resolve(response.key);
@@ -455,6 +456,7 @@
         .then(function(template) {
             // Hash the specs for this splash, and check if we cached the resulting md5
             var splashSpec = {
+                expId   : req.params.expId,
                 thumbs  : req.body.thumbs,
                 name    : splashName,
                 height  : imgSpec.height,
@@ -483,12 +485,12 @@
                              req.uuid, headParams.Key, md5);
                     return q(headParams.Key);
                 } else {
-                    log.warn('[%1] Splash image %2 exists with md5 %3 instead of cached val %4',
+                    log.info('[%1] Splash image %2 exists with md5 %3 instead of cached val %4',
                              req.uuid, headParams.Key, data && data.ETag, md5);
                     return collateral.generate(req, imgSpec, template, cacheKey, s3, config);
                 }
             }, function(/*error*/) {
-                log.warn('[%1] No splash image %2 with cached md5 %3',req.uuid,headParams.Key,md5);
+                log.info('[%1] No splash image %2 with cached md5 %3',req.uuid,headParams.Key,md5);
                 return collateral.generate(req, imgSpec, template, cacheKey, s3, config);
             });
         })

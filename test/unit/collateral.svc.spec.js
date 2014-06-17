@@ -426,20 +426,38 @@ describe('collateral (UT):', function() {
     });  // end -- describe uploadFiles
 
     describe('clearOldCachedMD5s', function() {
-        it('should clear old items from the splashCache', function() {
-            var config = { splash: { cacheTTL: 5*1000 } };
+        var config;
+        beforeEach(function() {
+            config = { splash: { cacheTTL: 5*1000, maxCacheKeys: 30000 } };
             collateral.splashCache = {
                 a: { md5: '1', date: new Date(new Date() - 3*1000) },
                 b: { md5: '2', date: new Date() },
                 c: { md5: '3', date: new Date(new Date() - 6*1000) },
                 d: { md5: '4', date: new Date(new Date() - 1*1000) },
             };
-            
+        });
+        
+        it('should clear old items from the splashCache', function() {
             collateral.clearOldCachedMD5s(config);
             expect(Object.keys(collateral.splashCache)).toEqual(['a', 'b', 'd']);
             config.splash.cacheTTL = 2*1000;
             collateral.clearOldCachedMD5s(config);
             expect(Object.keys(collateral.splashCache)).toEqual(['b', 'd']);
+        });
+        
+        it('should delete the oldest items if there are too many items in the cache', function() {
+            config.splash.maxCacheKeys = 1;
+            collateral.clearOldCachedMD5s(config);
+            expect(Object.keys(collateral.splashCache)).toEqual(['b']);
+        });
+        
+        it('should handle an empty splashCache', function() {
+            collateral.splashCache = {};
+            collateral.clearOldCachedMD5s(config);
+            expect(collateral.splashCache).toEqual({});
+            config.splash.maxCacheKeys = -1;
+            collateral.clearOldCachedMD5s(config);
+            expect(collateral.splashCache).toEqual({});
         });
     });
     
@@ -502,24 +520,6 @@ describe('collateral (UT):', function() {
                     expect(fs.remove.calls[1].args).toEqual(['/tmp/fakeUuid-splash.jpg',anyFunc]);
                     done();
                 });
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-                done();
-            });
-        });
-        
-        it('should replace the oldest md5 if there are too many in the cache', function(done) {
-            config.splash.maxCacheKeys = 3;
-            collateral.splashCache = {
-                abc: { date: new Date(), md5: '123' },
-                def: { date: new Date(new Date() - 5000), md5: '456' },
-                ghi: { date: new Date(new Date() - 2000), md5: '789' }
-            };
-            collateral.generate(req, imgSpec, 'fakeTempl', 'fakeHash', s3, config).then(function(key) {
-                expect(key).toBe('/path/on/s3');
-                expect(collateral.splashCache.fakeHash).toEqual({md5:'qwer1234',date:jasmine.any(Date)});
-                expect(Object.keys(collateral.splashCache)).toEqual(['abc', 'ghi', 'fakeHash']);
-                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
                 done();
@@ -777,7 +777,6 @@ describe('collateral (UT):', function() {
             }).then(function(resp) {
                 expect(resp).toEqual({code:201,name:'splash',ratio:'foo',path:'/path/on/s3'});
                 expect(s3.headObject.calls[1].args).toEqual([{Bucket:'bkt',Key:'ut/e-1/qwer1234.splash'},anyFunc]);
-                expect(mockLog.warn.calls.length).toBe(2);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -792,7 +791,6 @@ describe('collateral (UT):', function() {
                 expect(resp).toEqual({code:201,name:'splash',ratio:'foo',path:'/path/on/s3'});
                 expect(s3.headObject).toHaveBeenCalledWith({Bucket:'bkt',Key:'ut/e-1/splash'},anyFunc);
                 expect(collateral.generate).toHaveBeenCalledWith(req,imgSpec,'fakeTemplate','fakeHash',s3,config);
-                expect(mockLog.warn).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
