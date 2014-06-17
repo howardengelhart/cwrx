@@ -70,6 +70,19 @@ c6Api.createUser = function(params){
     return this(opts);
 };
 
+c6Api.createOrg = function(params){
+    var opts  = {
+            method : 'POST',
+            uri     : c6Api.server + '/api/account/org',
+            jar     : true,
+            json : {
+                name        : params.name,
+                minAdCount  : params.minAdCount
+            }
+        };
+
+    return this(opts);
+};
 
 ////////////////////////////////////////////////////////////
 // NewUserModel
@@ -181,6 +194,65 @@ function NewUserController(api){
 NewUserController.$view  = MVC.CmdlView;
 NewUserController.$model = NewUserModel;
 NewUserController.$deps  = ['c6Api'];
+
+////////////////////////////////////////////////////////////
+// NewOrgModel
+
+function NewOrgModel () {
+    var _name     = null,
+        _minAdCount  = null; // TODO: waterfalls
+
+    Object.defineProperty(this,'name',{ // TODO: somehow these should be required?
+        enumerable : true,
+        set : function(v){ _name = v; },
+        get : function() { return _name; }
+    });
+
+    Object.defineProperty(this,'minAdCount',{
+        enumerable : true,
+        set : function(v){ _minAdCount = v; },
+        get : function() { return _minAdCount; }
+    });
+
+}
+
+////////////////////////////////////////////////////////////
+// NewOrgController
+
+function NewOrgController(api){
+    var self = this;
+
+    self.initView(
+        'Create Org',
+        [
+            {
+                label : 'name'
+            },
+            {
+                label : 'minAdCount'
+            }
+        ],
+        self.model
+    );
+
+    self.run = function(){
+        return self.showView()
+            .then(function(){
+                return api.createOrg(self.model)
+                    .then(function(response){
+                        self.view.alert('');
+                        self.view.alert('Created new org: ' + self.model.name);
+                        self.view.alert('');
+                        self.view.alert(JSON.stringify(response,null,3));
+                        self.view.alert('');
+                    });
+            });
+    };
+}
+
+NewUserController.$view  = MVC.CmdlView;
+NewUserController.$model = NewOrgModel;
+NewUserController.$deps  = ['c6Api'];
 ////////////////////////////////////////////////////////////
 // Login
 
@@ -253,6 +325,28 @@ function parseCmdLine (cfg){
             log('Unable to read ' +  authFile);
         }
     }
+    
+    function showUsageOrg(sub){
+        log('');
+        log('Usage:');
+        log(' provision org');
+        log('');
+        if (sub === 'create'){
+            //TODO
+        } else {
+            log(' Orgs associated api tasks.  Current list includes:');
+            log('   * create');
+            log('');
+            log(' org help <task> will provide additional detail.');
+            log('');
+        }
+
+        log('Example:');
+        log('');
+        log(' #Create an org');
+        log(' $ node bin/provision.js org create');
+        log('');
+    }
 
     function showUsageUser(sub){
         log('');
@@ -311,6 +405,29 @@ function parseCmdLine (cfg){
 
             if (subcommand === 'create')  {
                 cfg.controller = NewUserController;
+            }
+        });
+    cmdl
+        .command('org')
+        .description('Manage orgs')
+        .action(function(subcommand, data) {
+            if (arguments.length === 1) {
+                showUsageOrg();
+                process.exit(1);
+            }
+
+            if (subcommand === 'help'){
+                showUsageOrg(data);
+                process.exit(1);
+            }
+
+            if (data === 'help'){
+                showUsageOrg(subcommand);
+                process.exit(1);
+            }
+
+            if (subcommand === 'create')  {
+                cfg.controller = NewOrgController;
             }
         });
     cmdl
