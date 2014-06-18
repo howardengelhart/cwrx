@@ -1020,6 +1020,22 @@ describe('collateral (UT):', function() {
             });
         });
         
+        it('should let a user set the CacheControl to 0', function(done) {
+            req.body['max-age'] = 0;
+            collateral.setHeaders(req, s3, config).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'ut/foo.txt'});
+                expect(s3.headObject).toHaveBeenCalledWith({Bucket: 'bkt', Key: 'ut/foo.txt'}, anyFunc);
+                expect(s3.copyObject).toHaveBeenCalledWith(
+                    {Bucket:'bkt',Key:'ut/foo.txt',CacheControl:'max-age=0',ContentType:'text/plain',
+                     CopySource:'bkt/ut/foo.txt',ACL:'public-read',MetadataDirective:'REPLACE'}
+                , anyFunc);
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
         it('should return a 404 if headObject has an error or returns no data', function(done) {
             var files = ['ut/1.txt', 'ut/2.txt', 'ut/3.txt'];
             s3.headObject.andCallFake(function(params, cb) {
