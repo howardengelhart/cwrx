@@ -960,5 +960,103 @@ describe('collateral (UT):', function() {
             });
         });
     });  // end -- describe createSplashes
-});  // end -- describe collateral
 
+    describe('setHeaders', function() {
+        var req, s3, config;
+        beforeEach(function() {
+            req = { uuid: '1234', user: {id: 'u-1'}, body: {path: 'ut/foo.txt', 'max-age': 100} };
+            config = { s3: { bucket: 'bkt' }, cacheControl: { default: 'max-age=15' } };
+            s3 = {
+                headObject: jasmine.createSpy('s3.headObject').andCallFake(function(params, cb) {
+                    cb(null, { ContentType: 'text/plain' });
+                }),
+                copyObject: jasmine.createSpy('s3.copyObject').andCallFake(function(params, cb) {
+                    cb(null, 'i did it yo');
+                })
+            };
+        });
+        
+        it('should reject if there is no path in the request body', function(done) {
+            delete req.body.path;
+            collateral.setHeaders(req, s3, config).then(function(resp) {
+                expect(resp).toEqual({code: 400, body: 'Must provide path of file on s3'});
+                expect(s3.headObject).not.toHaveBeenCalled();
+                expect(s3.copyObject).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should successfully copy the file to set the headers on it', function(done) {
+            collateral.setHeaders(req, s3, config).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'ut/foo.txt'});
+                expect(s3.headObject).toHaveBeenCalledWith({Bucket: 'bkt', Key: 'ut/foo.txt'}, anyFunc);
+                expect(s3.copyObject).toHaveBeenCalledWith(
+                    {Bucket:'bkt',Key:'ut/foo.txt',CacheControl:'max-age=100',ContentType:'text/plain',
+                     CopySource:'bkt/ut/foo.txt',ACL:'public-read',MetadataDirective:'REPLACE'}
+                , anyFunc);
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should use a default CacheControl if not defined in the request', function(done) {
+            delete req.body['max-age'];
+            collateral.setHeaders(req, s3, config).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'ut/foo.txt'});
+                expect(s3.headObject).toHaveBeenCalledWith({Bucket: 'bkt', Key: 'ut/foo.txt'}, anyFunc);
+                expect(s3.copyObject).toHaveBeenCalledWith(
+                    {Bucket:'bkt',Key:'ut/foo.txt',CacheControl:'max-age=15',ContentType:'text/plain',
+                     CopySource:'bkt/ut/foo.txt',ACL:'public-read',MetadataDirective:'REPLACE'}
+                , anyFunc);
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should return a 404 if headObject has an error or returns no data', function(done) {
+            var files = ['ut/1.txt', 'ut/2.txt', 'ut/3.txt'];
+            s3.headObject.andCallFake(function(params, cb) {
+                if (params.Key === 'ut/1.txt') cb('GOT A PROBLEM', 'foo');
+                if (params.Key === 'ut/2.txt') cb(null, null);
+                else cb(null, { foo: 'bar' });
+            });
+            q.all(files.map(function(file) {
+                req.body.path = file;
+                return collateral.setHeaders(req, s3, config);
+            })).then(function(results) {
+                results.forEach(function(resp, index) {
+                    expect(resp).toEqual({code: 404, body: 'File not found'});
+                    expect(s3.headObject.calls[index].args[0].Key).toBe('ut/' + (index + 1) + '.txt');
+                });
+                expect(mockLog.error).not.toHaveBeenCalled();
+                expect(s3.headObject).toHaveBeenCalled();
+                expect(s3.copyObject).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should reject if copyObject has an error', function(done) {
+            s3.copyObject.andCallFake(function(params, cb) { cb('I GOT A PROBLEM'); });
+            collateral.setHeaders(req, s3, config).then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(s3.headObject).toHaveBeenCalled();
+                expect(s3.copyObject).toHaveBeenCalled();
+                done();
+            });
+        });
+    });  // end -- describe setHeaders
+});  // end -- describe collateral
