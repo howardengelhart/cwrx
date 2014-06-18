@@ -77,6 +77,7 @@ c6Api.createOrg = function(params){
             jar     : true,
             json : {
                 name        : params.name,
+                waterfalls  : params.waterfalls,
                 minAdCount  : params.minAdCount
             }
         };
@@ -200,11 +201,31 @@ NewUserController.$deps  = ['c6Api'];
 
 function NewOrgModel () {
     var _name     = null,
-        _minAdCount  = null; // TODO: waterfalls
+        _minAdCount  = null,
+        wfValues = ['cinema6', 'publisher', 'cinema6-publisher', 'publisher-cinema6'];
+    
+    this.waterfalls = {};
+        
+    function validateName(nm) {
+        if (!nm) {
+            throw new Error('Must provide a value for the name');
+        }
+        return nm;
+    }
+    
+    function validateWaterfalls(arr) {
+        arr.forEach(function(value) {
+            if (wfValues.indexOf(value) === -1) {
+                throw new Error('Value ' + value + ' is not one of the acceptable values: ' +
+                                wfValues.join(', '));
+            }
+        });
+        return arr;
+    }
 
-    Object.defineProperty(this,'name',{ // TODO: somehow these should be required?
+    Object.defineProperty(this,'name',{
         enumerable : true,
-        set : function(v){ _name = v; },
+        set : function(v){ _name = validateName(v); },
         get : function() { return _name; }
     });
 
@@ -213,7 +234,16 @@ function NewOrgModel () {
         set : function(v){ _minAdCount = v; },
         get : function() { return _minAdCount; }
     });
-
+    
+    Object.defineProperty(this, 'wfVideo', {
+        set : function(v){ this.waterfalls.video = validateWaterfalls(v.split(/\s*,\s*/)); },
+        get : function() { return this.waterfalls.video && this.waterfalls.video.join(', '); }
+    });
+    
+    Object.defineProperty(this, 'wfDisplay', {
+        set : function(v){ this.waterfalls.display = v.split(/\s*,\s*/); },
+        get : function() { return this.waterfalls.display && this.waterfalls.display.join(', '); }
+    });
 }
 
 ////////////////////////////////////////////////////////////
@@ -226,10 +256,24 @@ function NewOrgController(api){
         'Create Org',
         [
             {
-                label : 'name'
+                label : 'name',
+                repeat : 1
             },
             {
-                label : 'minAdCount'
+                label : 'minAdCount',
+                defaultVal : 0
+            },
+            {
+                label : 'waterfalls.video',
+                alias : 'wfVideo',
+                defaultVal : 'cinema6',
+                repeat : 1
+            },
+            {
+                label : 'waterfalls.display',
+                alias : 'wfDisplay',
+                defaultVal : 'cinema6',
+                repeat : 1
             }
         ],
         self.model
@@ -250,9 +294,9 @@ function NewOrgController(api){
     };
 }
 
-NewUserController.$view  = MVC.CmdlView;
-NewUserController.$model = NewOrgModel;
-NewUserController.$deps  = ['c6Api'];
+NewOrgController.$view  = MVC.CmdlView;
+NewOrgController.$model = NewOrgModel;
+NewOrgController.$deps  = ['c6Api'];
 ////////////////////////////////////////////////////////////
 // Login
 
@@ -332,7 +376,7 @@ function parseCmdLine (cfg){
         log(' provision org');
         log('');
         if (sub === 'create'){
-            //TODO
+
         } else {
             log(' Orgs associated api tasks.  Current list includes:');
             log('   * create');
@@ -379,8 +423,10 @@ function parseCmdLine (cfg){
         .action(function(cmd){
             if (cmd === 'user'){
                 showUsageUser();
+            } else if (cmd === 'org') {
+                showUsageOrg();
             } else {
-                log('Command <' + cmd + '> is not recognized.');
+                log('Available commands: user, org');
             }
             process.exit(0);
         });
