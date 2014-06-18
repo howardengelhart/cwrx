@@ -14,6 +14,11 @@
 * Extra deployment steps: None
 
 ## collateral Service
+### 1.3.0: Wed Jun 18 13:08:35 EDT 2014
+* [FIX]: Add setHeaders method: [#200](https://github.com/cinema6/cwrx/pull/200)
+* [FIX]: Cache splash images: [#199](https://github.com/cinema6/cwrx/pull/199)
+* Extra deployment steps: Deploy collateral cookbook [changes](https://bitbucket.org/cinema6/collateral/pull-request/6/added-extra-options-for-caching/diff)
+
 ### 1.2.5: Wed Jun 11 16:15:13 EDT 2014
 * [FIX]: Add templates for 5 thumbnails: [#189](https://github.com/cinema6/cwrx/pull/189)
 * [FIX]: Allow service to choose 5-thumb templates: [#190](https://github.com/cinema6/cwrx/pull/190)
