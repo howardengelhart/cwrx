@@ -161,10 +161,6 @@ describe('collateral (E2E):', function() {
         });
         
         afterEach(function(done) {
-            Object.keys(files).forEach(function(key) {
-                fs.removeSync(files[key]);
-            });
-
             return q.all(rmList.map(function(key) {
                 return testUtils.removeS3File(bucket, key);
             })).done(function() { done(); });
@@ -312,9 +308,10 @@ describe('collateral (E2E):', function() {
             testUtils.qRequest('post', options, files).then(function(resp) {
                 expect(resp.response.statusCode).toBe(415);
                 expect(resp.body).toEqual([{name: 'testFile', code: 415, error: 'Unsupported file type'}]);
-                done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
+            }).finally(function() {
+                fs.removeSync('./fake.jpg');
                 done();
             });
         });
@@ -355,7 +352,7 @@ describe('collateral (E2E):', function() {
                 done();
             });
         });
-    });
+    });  // end -- describe POST /api/collateral/files/:expId
     
     describe('POST /api/collateral/splash/:expId', function() {
         var rmList, options, samples, reqBody;
@@ -377,7 +374,7 @@ describe('collateral (E2E):', function() {
         afterEach(function(done) {
             return q.all(rmList.map(function(key) {
                 return testUtils.removeS3File(bucket, key);
-            })).done(function() { done(); });
+            })).thenResolve().done(done);
         });
         
         it('should throw a 400 if the request is incomplete', function(done) {
@@ -597,6 +594,91 @@ describe('collateral (E2E):', function() {
                 done();
             });
         });
+    });  // end -- describe POST /api/collateral/splash/:expId
 
-    });
+    describe('POST /api/collateral/setHeaders', function() {
+        var options, params;
+        beforeEach(function(done) {
+            options = {
+                url: config.collateralUrl + '/collateral/setHeaders',
+                json: { path: 'collateral/e-1234/test.txt', 'max-age': 2000 },
+                jar: cookieJar
+            };
+            params = {
+                Bucket: bucket,
+                Key: 'collateral/e-1234/test.txt',
+                ACL: 'public-read',
+                ContentType: 'text/plain',
+                CacheControl: 'max-age=0'
+            };
+            fs.writeFileSync(path.join(__dirname, 'test.txt'), 'This is a test');
+            testUtils.putS3File(params, path.join(__dirname, 'test.txt')).thenResolve().done(done);
+        });
+        
+        afterEach(function(done) {
+            fs.removeSync(path.join(__dirname, 'test.txt'));
+            testUtils.removeS3File(bucket, 'collateral/e-1234/test.txt').thenResolve().done(done);
+        });
+        
+        it('should set the CacheControl header to a custom value', function(done) {
+            testUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBe('collateral/e-1234/test.txt');
+                return testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body)});
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.response.headers['cache-control']).toBe('max-age=2000');
+                expect(resp.response.headers['content-type']).toBe('text/plain');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should use a default CacheControl if not provided', function(done) {
+            delete options.json['max-age'];
+            testUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBe('collateral/e-1234/test.txt');
+                return testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body)});
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.response.headers['cache-control']).toBe('max-age=15');
+                expect(resp.response.headers['content-type']).toBe('text/plain');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should throw a 404 if the file is not found', function(done) {
+            options.json.path = 'collateral/e-1234/fake.txt'
+            testUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toBe('File not found');
+                return testUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, 'collateral/e-1234/test.txt')});
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.response.headers['cache-control']).toBe('max-age=0');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should throw a 401 if the user is not logged in', function(done) {
+            delete options.jar;
+            testUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toEqual('Unauthorized');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+    });  // end -- describe POST /api/collateral/setHeaders
 });
