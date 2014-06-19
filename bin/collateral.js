@@ -551,8 +551,8 @@
     collateral.setHeaders = function(req, s3, config) {
         var log = logger.getLog(),
             deferred = q.defer(),
-            cacheControl = req.body && req.body['max-age'] ? 'max-age=' + req.body['max-age']
-                                                           : config.cacheControl.default;
+            cacheControl = req.body && req.body['max-age'] !== undefined ?
+                           'max-age=' + req.body['max-age'] : config.cacheControl.default;
         
         if (!req.body || !req.body.path) {
             log.info('[%1] No path in request body', req.uuid);

@@ -14,6 +14,10 @@
 * Extra deployment steps: None
 
 ## collateral Service
+### 1.3.1: Wed Jun 18 17:47:23 EDT 2014
+* [FIX]: Allow CacheControl to be set to 0: [#203](https://github.com/cinema6/cwrx/pull/203)
+* Extra deployment steps: None
+
 ### 1.3.0: Wed Jun 18 13:08:35 EDT 2014
 * [FIX]: Add setHeaders method: [#200](https://github.com/cinema6/cwrx/pull/200)
 * [FIX]: Cache splash images: [#199](https://github.com/cinema6/cwrx/pull/199)
