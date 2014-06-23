@@ -14,6 +14,11 @@
 * Extra deployment steps: None
 
 ## collateral Service
+### 1.3.2: Mon Jun 23 08:03:00 EDT 2014
+* [FIX]: splash templates updated to prevent letterboxing of image: [#205](https://github.com/cinema6/cwrx/pull/205)
+* [FIX]: added mock for os.tmpdir to collateral unit tests to handle diffs between OSX and Linux return values
+* Extra deployment steps: None
+
 ### 1.3.1: Wed Jun 18 17:47:23 EDT 2014
 * [FIX]: Allow CacheControl to be set to 0: [#203](https://github.com/cinema6/cwrx/pull/203)
 * Extra deployment steps: None

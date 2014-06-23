@@ -1,6 +1,6 @@
 var flush = true;
 describe('collateral (UT):', function() {
-    var mockLog, uuid, logger, collateral, q, glob, phantom, handlebars, path, enums, Scope, anyFunc;
+    var mockLog, uuid, logger, collateral, q, glob, phantom, handlebars, path, enums, Scope, anyFunc, os;
     
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -10,6 +10,7 @@ describe('collateral (UT):', function() {
         uuid        = require('../../lib/uuid');
         logger      = require('../../lib/logger');
         s3util      = require('../../lib/s3util');
+        os          = require('os');
         path        = require('path');
         phantom     = require('phantom');
         glob        = require('glob');
@@ -28,6 +29,7 @@ describe('collateral (UT):', function() {
             fatal : jasmine.createSpy('log_fatal'),
             log   : jasmine.createSpy('log_log')
         };
+        spyOn(os,'tmpdir').andReturn('/tmp');
         spyOn(logger, 'createLog').andReturn(mockLog);
         spyOn(logger, 'getLog').andReturn(mockLog);
         anyFunc = jasmine.any(Function);
