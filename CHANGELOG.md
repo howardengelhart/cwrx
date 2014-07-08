@@ -70,6 +70,10 @@
     * Push up update to staging environment to include collateral service
 
 ## content Service
+### 1.4.1: Tue Jul  8 11:23:33 EDT 2014
+* [FIX]: Prevent setting top-level versionId on PUTs: [#208](https://github.com/cinema6/cwrx/pull/208)
+* Extra deployment steps: None
+
 ### 1.4.0: Mon Jun  9 15:34:44 EDT 2014
 * [FIX]: Hashinate exp.data + store/return as versionId: [#184](https://github.com/cinema6/cwrx/pull/184)
 * [FIX]: Hide user and org fields from guest user: [#184](https://github.com/cinema6/cwrx/pull/184)

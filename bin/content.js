@@ -69,7 +69,7 @@
     };
     
     content.createValidator = new FieldValidator({
-        forbidden: ['id', 'created'],
+        forbidden: ['id', 'created', 'versionId'],
         condForbidden: {
             org:    function(exp, orig, requester) {
                         var eqFunc = FieldValidator.eqReqFieldFunc('org'),
@@ -281,8 +281,9 @@
         }
         
         // only update exp.title through exp.data.title, but trying to update exp.title shouldn't
-        // return a 400
+        // return a 400; same with versionId
         delete updates.title;
+        delete updates.versionId;
         
         log.info('[%1] User %2 is attempting to update experience %3',req.uuid,user.id,id);
         q.npost(experiences, 'findOne', [{id: id}])
