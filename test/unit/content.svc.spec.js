@@ -85,7 +85,7 @@ describe('content (UT)', function() {
     
     describe('createValidator', function() {
         it('should have initialized correctly', function() {
-            expect(content.createValidator._forbidden).toEqual(['id', 'created']);
+            expect(content.createValidator._forbidden).toEqual(['id', 'created', 'versionId']);
             expect(typeof content.createValidator._condForbidden.org).toBe('function');
         });
         
@@ -675,8 +675,9 @@ describe('content (UT)', function() {
             });
         });
         
-        it('should prevent improper direct edits to the title property', function(done) {
+        it('should prevent improper direct edits to the title or versionId properties', function(done) {
             req.body.title = 'a title';
+            req.body.versionId = 'qwer1234';
             content.updateExperience(req, experiences).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({id: 'e-1234', data: {foo:'baz'}, versionId: 'fakeVers'});
@@ -685,6 +686,7 @@ describe('content (UT)', function() {
                 var updates = experiences.findAndModify.calls[0].args[2];
                 expect(updates.$set.tag).toBe('newTag');
                 expect(updates.$set.title).not.toBeDefined();
+                expect(updates.$set.versionId).not.toBeDefined();
                 expect(content.formatOutput).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
