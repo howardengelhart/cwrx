@@ -133,11 +133,11 @@ describe('userSvc (UT)', function() {
         
         it('should prevent setting forbidden fields', function() {
             var updates = { a: 'b' };
-            expect(userSvc.updateValidator.validate(updates, {}, {})).toBe(true);
+            expect(userSvc.createValidator.validate(updates, {}, {})).toBe(true);
             var updates = { a: 'b', id: 'foo' };
-            expect(userSvc.updateValidator.validate(updates, {}, {})).toBe(false);
+            expect(userSvc.createValidator.validate(updates, {}, {})).toBe(false);
             var updates = { a: 'b', created: 'foo' };
-            expect(userSvc.updateValidator.validate(updates, {}, {})).toBe(false);
+            expect(userSvc.createValidator.validate(updates, {}, {})).toBe(false);
         });
         
         it('should conditionally prevent setting the org field', function() {
@@ -173,7 +173,7 @@ describe('userSvc (UT)', function() {
     });
     
     describe('updateValidator', function() {
-        it('should have initalized correctly', function() {
+        it('should have initialized correctly', function() {
             expect(userSvc.updateValidator._forbidden).toEqual(['id', 'org', 'password', 'created', '_id', 'email']);
             expect(userSvc.updateValidator._condForbidden.permissions).toBe(userSvc.permsCheck);
         });

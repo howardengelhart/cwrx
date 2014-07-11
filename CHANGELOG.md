@@ -14,6 +14,43 @@
 * Extra deployment steps: None
 
 ## collateral Service
+### 1.3.2: Mon Jun 23 08:03:00 EDT 2014
+* [FIX]: splash templates updated to prevent letterboxing of image: [#205](https://github.com/cinema6/cwrx/pull/205)
+* [FIX]: added mock for os.tmpdir to collateral unit tests to handle diffs between OSX and Linux return values
+* Extra deployment steps: None
+
+### 1.3.1: Wed Jun 18 17:47:23 EDT 2014
+* [FIX]: Allow CacheControl to be set to 0: [#203](https://github.com/cinema6/cwrx/pull/203)
+* Extra deployment steps: None
+
+### 1.3.0: Wed Jun 18 13:08:35 EDT 2014
+* [FIX]: Add setHeaders method: [#200](https://github.com/cinema6/cwrx/pull/200)
+* [FIX]: Cache splash images: [#199](https://github.com/cinema6/cwrx/pull/199)
+* Extra deployment steps: Deploy collateral cookbook [changes](https://bitbucket.org/cinema6/collateral/pull-request/6/added-extra-options-for-caching/diff)
+
+### 1.2.5: Wed Jun 11 16:15:13 EDT 2014
+* [FIX]: Add templates for 5 thumbnails: [#189](https://github.com/cinema6/cwrx/pull/189)
+* [FIX]: Allow service to choose 5-thumb templates: [#190](https://github.com/cinema6/cwrx/pull/190)
+* Extra deployment steps: None
+
+### 1.2.4: Mon Jun  9 17:49:43 EDT 2014
+* [FIX]: Rename 6-4 templates to 3-2: [#186](https://github.com/cinema6/cwrx/pull/186)
+* [FIX]: Handle protocol-relative urls properly: [#187](https://github.com/cinema6/cwrx/pull/187)
+* Extra deployment steps: None
+
+### 1.2.3: Fri Jun  6 15:15:26 EDT 2014
+* [FIX]: Change splash generation request body: [#179](https://github.com/cinema6/cwrx/pull/179)
+* [FIX]: Set Cache-Control for all files: [#179](https://github.com/cinema6/cwrx/pull/179)
+* Extra deployment steps: None
+
+### 1.2.2: Thu May 29 04:11:00 EDT 2014
+* [FIX]: Splash templates renamed: [#169](https://github.com/cinema6/cwrx/pull/169)
+* Extra deployment steps: None
+
+### 1.2.1: Thu May 29 11:24:53 EDT 2014
+* [FIX]: Explicitly set Content-Type for uploaded images, but not extensions: [#166](https://github.com/cinema6/cwrx/pull/166)
+* Extra deployment steps: None
+
 ### 1.2.0: Fri May 23 10:35:35 EDT 2014
 * [FIX]: Add endpoint for splash generation: [#160](https://github.com/cinema6/cwrx/pull/160)
 * Extra deployment steps:
@@ -33,6 +70,19 @@
     * Push up update to staging environment to include collateral service
 
 ## content Service
+### 1.4.1: Tue Jul  8 11:23:33 EDT 2014
+* [FIX]: Prevent setting top-level versionId on PUTs: [#208](https://github.com/cinema6/cwrx/pull/208)
+* Extra deployment steps: None
+
+### 1.4.0: Mon Jun  9 15:34:44 EDT 2014
+* [FIX]: Hashinate exp.data + store/return as versionId: [#184](https://github.com/cinema6/cwrx/pull/184)
+* [FIX]: Hide user and org fields from guest user: [#184](https://github.com/cinema6/cwrx/pull/184)
+* Extra deployment steps: None
+
+### 1.3.8: Thu May 29 12:09:09 EDT 2014
+* [FIX]: Store userId in data+status arrays: [#168](https://github.com/cinema6/cwrx/pull/168)
+* Extra deployment steps: None
+
 ### 1.3.7: Thu May  8 18:32:05 EDT 2014
 * [FIX]: Fix mongo reconnect: [#151](https://github.com/cinema6/cwrx/pull/151)
 * Extra deployment steps: None
@@ -56,6 +106,14 @@
     * Create email fields for users in staging + production dbs
     * Edit c6mongo chef config to build indexes on email + give johnnyTestmonkey an email
 
+## orgSvc Service
+### 1.0.1: Fri Jun 13 09:54:09 EDT 2014
+* [FIX]: Set Org Service to use proper waterfall properties: [#196](https://github.com/cinema6/cwrx/pull/196)
+* Extra deployment steps: None
+
+### 1.0.0: Thu Jun 12 15:13:20 EDT 2014
+* Initial commit of org service: [#192](https://github.com/cinema6/cwrx/pull/192)
+
 ## userSvc Service
 ### 1.4.3: Thu May  8 18:32:05 EDT 2014
 * [FIX]: Fix mongo reconnect: [#151](https://github.com/cinema6/cwrx/pull/151)
@@ -71,6 +129,11 @@
 * Extra deployment steps: None
 
 ## vote Service
+### 1.3.4: Mon Jun  9 12:09:23 EDT 2014
+* [FIX]: Support Array ballot items; prevent modifying existing ballot items through PUT: [#182](https://github.com/cinema6/cwrx/pull/182)
+* [FIX]: Prevent creating empty elections; prevent adding items through voting: [#174](https://github.com/cinema6/cwrx/pull/174)
+* Extra deployment steps: None
+
 ### 1.3.3: Thu May  8 18:32:05 EDT 2014
 * [FIX]: Fix mongo reconnect: [#151](https://github.com/cinema6/cwrx/pull/151)
 * Extra deployment steps: None

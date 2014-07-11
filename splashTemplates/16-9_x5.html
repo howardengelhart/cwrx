@@ -27,7 +27,7 @@
                 background-position:50% 50%;
                 background-size: cover;
                 background-repeat: no-repeat;
-                width:33.333%; height:100%;
+                width:33.333%; height:50%;
                 box-sizing:border-box;
                 border:1px solid #000;
             }
@@ -43,16 +43,29 @@
             }
 
                 .img0 {
+                    width:50%;
                     top:0; left:0;
-                    border-left:0; border-top:0; border-bottom:0;
+                    border-left:0; border-top:0;
                 }
                 .img1 {
-                    top:0; left:33.333%;
-                    border-top:0; border-top:0; border-bottom:0;
+                    width:50%;
+                    top:0; left:50%;
+                    border-right:0; border-top:0;
                 }
                 .img2 {
-                    top:0; left:66.666%;
-                    border-right:0; border-top:0; border-bottom:0;
+                    top:50%; left:0;
+                    border-left:0; border-bottom:0;
+                    background-size:auto 136%;
+                }
+                .img3 {
+                    top:50%; left:33.333%;
+                    border-bottom:0;
+                    background-size:auto 136%;
+                }
+                .img4 {
+                    top:50%; left:66.666%;
+                    border-right:0; border-bottom:0;
+                    background-size:auto 136%;
                 }
             
         </style>
@@ -66,6 +79,10 @@
                     style="background-image:url('{{thumbs.[1]}}');">&nbsp;</div>
                 <div class="imgBox img2" 
                     style="background-image:url('{{thumbs.[2]}}');">&nbsp;</div>
+                <div class="imgBox img3" 
+                    style="background-image:url('{{thumbs.[3]}}');">&nbsp;</div>
+                <div class="imgBox img4" 
+                    style="background-image:url('{{thumbs.[4]}}');">&nbsp;</div>
             </div>
         </div>
     </body>

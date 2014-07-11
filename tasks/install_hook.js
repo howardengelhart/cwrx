@@ -3,7 +3,7 @@ var path    = require('path'),
 
 module.exports = function(grunt) {
     grunt.registerTask('install_hook','Installs pre-commit hook', function(){
-        var hookPath = path.join(__dirname,'.git/hooks/pre-commit'), hookFile, done;
+        var hookPath = path.join(__dirname,'../.git/hooks/pre-commit'), hookFile, done;
         
         if (fs.existsSync(hookPath)){
             grunt.log.errorlns('WARNING: will not overwrite existing pre-commit hook');

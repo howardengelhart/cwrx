@@ -69,7 +69,7 @@
     };
     
     content.createValidator = new FieldValidator({
-        forbidden: ['id', 'created'],
+        forbidden: ['id', 'created', 'versionId'],
         condForbidden: {
             org:    function(exp, orig, requester) {
                         var eqFunc = FieldValidator.eqReqFieldFunc('org'),
@@ -80,8 +80,9 @@
     });
     content.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created', '_id'] });
     
-    content.formatOutput = function(experience) {
+    content.formatOutput = function(experience, isGuest) {
         var log = logger.getLog(),
+            privateFields = ['user', 'org'],
             newExp = {};
         
         for (var key in experience) {
@@ -92,6 +93,7 @@
                     newExp.data = experience.data;
                 } else {
                     newExp.data = experience.data[0].data;
+                    newExp.versionId = experience.data[0].versionId;
                 }
                 if (newExp.data.title) {
                     newExp.title = newExp.data.title;
@@ -104,7 +106,7 @@
                 } else {
                     newExp.status = experience.status[0].status;
                 }
-            } else if (key !== '_id') {
+            } else if (key !== '_id' && !(isGuest && privateFields.indexOf(key) >= 0)) {
                 newExp[key] = experience[key];
             }
         }
@@ -144,7 +146,9 @@
         return promise.then(function(results) {
             log.trace('[%1] Retrieved %2 experiences', req.uuid, results.length);
             
-            var experiences = results.map(content.formatOutput).filter(function(result) {
+            var experiences = results.map(function(exp) {
+                return content.formatOutput(exp, !req.user);
+            }).filter(function(result) {
                 return result.status !== Status.Deleted &&
                       (content.checkScope(req.user, result, 'experiences', 'read') ||
                        (result.status === Status.Active && result.access === Access.Public) ||
@@ -184,12 +188,14 @@
         if (!obj.status) {
             obj.status = Status.Active;
         }
-        obj.status = [ { user: user.email, date: now, status: obj.status } ];
+        obj.status = [ { user: user.email, userId: user.id, date: now, status: obj.status } ];
         if (!obj.access) {
             obj.access = Access.Public;
         }
         if (obj.data) {
-            obj.data = [ { user: user.email, date: now, data: obj.data } ];
+            var versionId = uuid.hashText(JSON.stringify(obj.data)).substr(0, 8);
+            obj.data = [ { user: user.email, userId: user.id, date: now,
+                           data: obj.data, versionId: versionId } ];
             if (obj.status[0].status === Status.Active) {
                 obj.data[0].active = true;
             }
@@ -216,16 +222,20 @@
 
         if (!(orig.data instanceof Array)) {
             log.warn('[%1] Original exp %2 does not have an array of data', req.uuid, orig.id);
-            orig.data = [ { user: user.email, date: orig.created, data: orig.data } ];
+            var oldVersion = uuid.hashText(JSON.stringify(orig.data || {})).substr(0, 8);
+            orig.data = [ { user: user.email, userId: user.id, date: orig.created, data: orig.data,
+                            versionId: oldVersion } ];
         }
         if (!(orig.status instanceof Array)) {
             log.warn('[%1] Original exp %2 does not have an array of statuses', req.uuid, orig.id);
-            orig.status = [{user: user.email, date: orig.created, status: orig.status}];
+            orig.status = [{user:user.email,userId:user.id,date:orig.created,status:orig.status}];
         }
 
         if (updates.data) {
             if (!content.compareData(orig.data[0].data, updates.data)) {
-                var dataWrapper = { user: user.email, date: now, data: updates.data };
+                var versionId = uuid.hashText(JSON.stringify(updates.data)).substr(0, 8),
+                    dataWrapper = { user: user.email, userId: user.id, date: now,
+                                    data: updates.data, versionId: versionId };
                 if (orig.status[0].status === Status.Active) {
                     dataWrapper.active = true;
                     orig.data.unshift(dataWrapper);
@@ -242,7 +252,7 @@
         
         if (updates.status) {
             if (updates.status !== orig.status[0].status) {
-                var statWrapper = { user: user.email, date: now, status: updates.status };
+                var statWrapper = {user:user.email,userId:user.id,date:now,status:updates.status};
                 if (updates.status === Status.Active) {
                     orig.data[0].active = true;
                     updates.data = orig.data;
@@ -271,8 +281,9 @@
         }
         
         // only update exp.title through exp.data.title, but trying to update exp.title shouldn't
-        // return a 400
+        // return a 400; same with versionId
         delete updates.title;
+        delete updates.versionId;
         
         log.info('[%1] User %2 is attempting to update experience %3',req.uuid,user.id,id);
         q.npost(experiences, 'findOne', [{id: id}])

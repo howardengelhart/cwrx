@@ -85,7 +85,7 @@ describe('content (UT)', function() {
     
     describe('createValidator', function() {
         it('should have initialized correctly', function() {
-            expect(content.createValidator._forbidden).toEqual(['id', 'created']);
+            expect(content.createValidator._forbidden).toEqual(['id', 'created', 'versionId']);
             expect(typeof content.createValidator._condForbidden.org).toBe('function');
         });
         
@@ -144,10 +144,10 @@ describe('content (UT)', function() {
         it('should convert .data to .data[0].data for the client', function() {
             var now = new Date();
             experience = { id: 'e1', data: [
-                { email: 'otter', date: now, data: { foo: 'baz' } },
-                { email: 'crosby', date: now, data: { foo: 'bar' } }
+                { email: 'otter', date: now, data: { foo: 'baz' }, versionId: 'v2' },
+                { email: 'crosby', date: now, data: { foo: 'bar' }, versionId: 'v1' }
             ]};
-            expect(content.formatOutput(experience)).toEqual({ id:'e1', data: { foo:'baz' } });
+            expect(content.formatOutput(experience)).toEqual({ id:'e1', data: { foo:'baz' }, versionId: 'v2' });
             expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
         });
         
@@ -170,6 +170,12 @@ describe('content (UT)', function() {
             ]};
             expect(content.formatOutput(experience)).toEqual({ id:'e1', status: Status.Active });
             expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
+        });
+        
+        it('should prevent a guest user from seeing certain fields', function() {
+            experience = { id: 'e1', user: 'u1', org: 'o1' };
+            expect(content.formatOutput(experience, true)).toEqual({id: 'e1'});
+            expect(content.formatOutput(experience)).toEqual({id: 'e1', user: 'u1', org: 'o1'});
         });
     });
     
@@ -213,8 +219,7 @@ describe('content (UT)', function() {
                 expect(cache.getPromise).not.toHaveBeenCalled();
                 expect(content.checkScope)
                     .toHaveBeenCalledWith('fakeUser', {title: 'fake1'}, 'experiences', 'read');
-                expect(content.formatOutput.calls.length).toBe(1);
-                expect(content.formatOutput.calls[0].args[0]).toEqual({title: 'fake1'});
+                expect(content.formatOutput).toHaveBeenCalledWith({title: 'fake1'}, false);
                 expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
@@ -269,6 +274,7 @@ describe('content (UT)', function() {
                 expect(cache._coll.find).not.toHaveBeenCalled();
                 expect(content.checkScope)
                     .toHaveBeenCalledWith(undefined, {title: 'fake2'}, 'experiences', 'read');
+                expect(content.formatOutput).toHaveBeenCalledWith({title: 'fake2'}, true);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -384,6 +390,7 @@ describe('content (UT)', function() {
                 .andCallFake(function(obj, opts, cb) { cb(); });
             spyOn(uuid, 'createUuid').andReturn('1234');
             spyOn(content.createValidator, 'validate').andReturn(true);
+            spyOn(uuid, 'hashText').andReturn('fakeVersion');
         });
         
         it('should fail with a 400 if no experience is provided', function(done) {
@@ -413,10 +420,8 @@ describe('content (UT)', function() {
                 expect(resp.body.status).toBe(Status.Active);
                 expect(content.createValidator.validate).toHaveBeenCalledWith(req.body, {}, req.user);
                 expect(experiences.insert).toHaveBeenCalled();
-                var data = experiences.insert.calls[0].args[0].data[0];
-                expect(data.user).toBe('otter');
-                expect(data.date instanceof Date).toBeTruthy('data.date is a Date');
-                expect(data.data).toEqual({foo: 'bar'});
+                expect(experiences.insert.calls[0].args[0].data[0]).toEqual({ user:'otter',userId:'u-1234',
+                    date:jasmine.any(Date),versionId:'fakeVers',data:{foo:'bar'}, active: true });
                 expect(experiences.insert.calls[0].args[1]).toEqual({w: 1, journal: true});
                 expect(content.formatOutput).toHaveBeenCalled();
                 expect(mongoUtils.escapeKeys).toHaveBeenCalled();
@@ -481,10 +486,13 @@ describe('content (UT)', function() {
             orig = {
                 id: 'e-1',
                 created: start,
-                data: [{user: 'johnny', date: start, data: {foo: 'bar'}}],
-                status: [{user: 'johnny', date: start, status: Status.Pending}]
+                data: [{user: 'johnny', userId: 'u-2', date: start, data: {foo: 'bar'}, versionId: 'v1'}],
+                status: [{user: 'johnny', userId: 'u-2', date: start, status: Status.Pending}]
             };
             user = { id: 'u-1', email: 'otter' };
+            spyOn(uuid, 'hashText').andCallFake(function(dataString) {
+                return dataString === JSON.stringify({foo:'bar'}) ? 'version1.0' : 'version2.0';
+            });
         });
         
         it('should append a new status entry on each change', function() {
@@ -493,9 +501,11 @@ describe('content (UT)', function() {
             expect(updates.status instanceof Array).toBe(true);
             expect(updates.status.length).toBe(2);
             expect(updates.status[0].user).toBe('otter');
+            expect(updates.status[0].userId).toBe('u-1');
             expect(updates.status[0].date).toBeGreaterThan(start);
             expect(updates.status[0].status).toEqual(Status.Deleted);
             expect(updates.status[1].user).toBe('johnny');
+            expect(updates.status[1].userId).toBe('u-2');
             expect(updates.status[1].date).toBe(start);
             expect(updates.status[1].status).toEqual(Status.Pending);
             expect(updates.data).not.toBeDefined();
@@ -518,13 +528,17 @@ describe('content (UT)', function() {
             expect(updates.data instanceof Array).toBe(true);
             expect(updates.data.length).toBe(2);
             expect(updates.data[0].user).toBe('otter');
+            expect(updates.data[0].userId).toBe('u-1');
             expect(updates.data[0].date).toBeGreaterThan(start);
             expect(updates.data[0].data).toEqual({foo: 'baz'});
             expect(updates.data[0].active).toBe(true);
+            expect(updates.data[0].versionId).toBe('version2');
             expect(updates.data[1].user).toBe('johnny');
+            expect(updates.data[1].userId).toBe('u-2');
             expect(updates.data[1].date).toBe(start);
             expect(updates.data[1].data).toEqual({foo: 'bar'});
             expect(updates.data[1].active).not.toBeDefined();
+            expect(updates.data[1].versionId).toBe('v1');
             expect(updates.status).not.toBeDefined();
         });
 
@@ -533,8 +547,10 @@ describe('content (UT)', function() {
             content.formatUpdates(req, orig, updates, user);
             expect(updates.data.length).toBe(1);
             expect(updates.data[0].user).toBe('otter');
+            expect(updates.data[0].userId).toBe('u-1');
             expect(updates.data[0].date).toBeGreaterThan(start);
             expect(updates.data[0].data).toEqual({foo: 'baz'});
+            expect(updates.data[0].versionId).toBe('version2');
         });
         
         it('should append a new data entry if the current data was active', function() {
@@ -553,6 +569,7 @@ describe('content (UT)', function() {
             expect(updates.status.length).toBe(2);
             expect(updates.data[0].active).toBe(true);
             expect(updates.data[0].user).toBe('otter');
+            expect(updates.data[0].versionId).toBe('version2');
         });
         
         it('should create a new data entry if the status is just becoming not active', function() {
@@ -581,9 +598,13 @@ describe('content (UT)', function() {
             expect(updates.data.length).toBe(2);
             expect(updates.status.length).toBe(2);
             expect(updates.data[1].user).toBe('otter');
+            expect(updates.data[1].userId).toBe('u-1');
             expect(updates.data[1].date).toBe(start);
             expect(updates.data[1].data).toEqual({foo: 'bar'});
+            expect(updates.data[1].versionId).toBe('version1');
+            expect(updates.data[0].versionId).toBe('version2');
             expect(updates.status[1].user).toBe('otter');
+            expect(updates.status[1].userId).toBe('u-1');
             expect(updates.status[1].date).toBe(start);
             expect(updates.status[1].status).toBe(Status.Active);
         });
@@ -608,6 +629,7 @@ describe('content (UT)', function() {
             spyOn(content, 'formatUpdates').andCallThrough();
             spyOn(content, 'checkScope').andReturn(true);
             spyOn(content.updateValidator, 'validate').andReturn(true);
+            spyOn(uuid, 'hashText').andReturn('fakeVersion');
         });
 
         it('should fail with a 400 if no update object is provided', function(done) {
@@ -626,7 +648,7 @@ describe('content (UT)', function() {
         it('should successfully update an experience', function(done) {
             content.updateExperience(req, experiences).then(function(resp) {
                 expect(resp.code).toBe(200);
-                expect(resp.body).toEqual({id: 'e-1234', data: {foo:'baz'}});
+                expect(resp.body).toEqual({id: 'e-1234', data: {foo:'baz'}, versionId: 'fakeVers'});
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findOne.calls[0].args[0]).toEqual({id: 'e-1234'});
                 expect(content.updateValidator.validate).toHaveBeenCalledWith(req.body, oldExp, req.user);
@@ -640,6 +662,7 @@ describe('content (UT)', function() {
                 expect(updates.$set.data[0].user).toBe('otter');
                 expect(updates.$set.data[0].date instanceof Date).toBeTruthy('data.date is a Date');
                 expect(updates.$set.data[0].data).toEqual({foo: 'baz'});
+                expect(updates.$set.data[0].versionId).toBe('fakeVers');
                 expect(updates.$set.lastUpdated instanceof Date).toBeTruthy('lastUpdated is Date');
                 expect(experiences.findAndModify.calls[0].args[3])
                     .toEqual({w: 1, journal: true, new: true});
@@ -652,16 +675,18 @@ describe('content (UT)', function() {
             });
         });
         
-        it('should prevent improper direct edits to the title property', function(done) {
+        it('should prevent improper direct edits to the title or versionId properties', function(done) {
             req.body.title = 'a title';
+            req.body.versionId = 'qwer1234';
             content.updateExperience(req, experiences).then(function(resp) {
                 expect(resp.code).toBe(200);
-                expect(resp.body).toEqual({id: 'e-1234', data: {foo:'baz'}});
+                expect(resp.body).toEqual({id: 'e-1234', data: {foo:'baz'}, versionId: 'fakeVers'});
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findAndModify).toHaveBeenCalled();
                 var updates = experiences.findAndModify.calls[0].args[2];
                 expect(updates.$set.tag).toBe('newTag');
                 expect(updates.$set.title).not.toBeDefined();
+                expect(updates.$set.versionId).not.toBeDefined();
                 expect(content.formatOutput).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
@@ -765,6 +790,7 @@ describe('content (UT)', function() {
                 .andCallFake(function(query, cb) { cb(null, oldExp); });
             experiences.update = jasmine.createSpy('experiences.update')
                 .andCallFake(function(query, obj, opts, cb) { cb(null, 1); });
+            spyOn(uuid, 'hashText').andReturn('fakeHash');
             spyOn(content, 'formatUpdates').andCallThrough();
             spyOn(content, 'checkScope').andReturn(true);
         });

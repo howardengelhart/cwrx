@@ -59,9 +59,11 @@ describe('content-light (E2E):', function() {
                 expect(currExp.status).toBe("inactive");
                 expect(currExp.e2e).toBe(true);
                 expect(currExp.data).toEqual({foo: 'bar'});
+                expect(currExp.versionId).toBe('a5e744d0');
                 expect(currExp.created).toBeDefined();
                 expect(currExp.lastUpdated).toBeDefined();
                 expect(currExp.user).toBeDefined();
+                expect(currExp.org).toBe('e2e-org');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -99,6 +101,8 @@ describe('content-light (E2E):', function() {
                 expect(resp.body).not.toEqual(origExp);
                 expect(resp.body.tag).toBe('newTag');
                 expect(resp.body.data).toEqual({blah: 'bloop'});
+                expect(resp.body.versionId).toBe('bdca8616');
+                expect(resp.body.versionId).not.toBe(origExp.versionId);
                 expect(resp.body.id).toBe(origExp.id);
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.created).toBe(origExp.created);
@@ -117,7 +121,9 @@ describe('content-light (E2E):', function() {
             };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toEqual(currExp);
+                var expCopy = JSON.parse(JSON.stringify(currExp));
+                delete expCopy.user, delete expCopy.org;
+                expect(resp.body).toEqual(expCopy);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

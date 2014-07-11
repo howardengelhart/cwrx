@@ -4,6 +4,7 @@ var request     = require('request'),
     fs          = require('fs-extra'),
     aws         = require('aws-sdk'),
     mongoUtils  = require('../../lib/mongoUtils'),
+    s3util      = require('../../lib/s3util'),
     awsAuth     = process.env['awsAuth'] || path.join(process.env.HOME,'.aws.json'),
     
     testUtils = {};
@@ -14,7 +15,8 @@ testUtils.resetCollection = function(collection,data,userCfg){
         userCfg = process.env['mongo'] ? JSON.parse(process.env['mongo']) : {};
     }
     dbConfig = {
-        host : userCfg.host ? userCfg.host : 'localhost',
+        host : userCfg.host ? userCfg.host : '33.33.33.100',
+        // host : userCfg.host ? userCfg.host : 'localhost',
         port : userCfg.port ? userCfg.port : 27017,
         db   : userCfg.db   ? userCfg.db   : 'c6Db',
         user : userCfg.user ? userCfg.user : 'e2eTests',
@@ -112,6 +114,12 @@ testUtils.checkStatus = function(jobId, host, statusUrl, statusTimeout, pollInte
     return deferred.promise;
 };
 
+testUtils.putS3File = function(params, fpath) {
+    aws.config.loadFromPath(awsAuth);
+    var s3 = new aws.S3();
+    return s3util.putObject(s3, fpath, params);
+};
+
 testUtils.removeS3File = function(bucket, key) {
     aws.config.loadFromPath(awsAuth);
     var s3 = new aws.S3(),
@@ -123,6 +131,8 @@ testUtils.removeS3File = function(bucket, key) {
     }).catch(function(error) {
         deferred.reject('Error deleting ' + bucket + '/' + key + ' : ' + error);
     });
+    
+    return deferred.promise;
 }
 
 module.exports = testUtils;

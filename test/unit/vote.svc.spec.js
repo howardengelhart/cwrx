@@ -160,14 +160,19 @@ describe('vote (UT)',function(){
             it('will initialize the ballot item and choice if they do not exist',function(){
                 expect(vb._items['item1']).not.toBeDefined();
                 vb.voteForBallotItem('item1','happy');
-                expect(vb._items['item1']).toBeDefined();
-                expect(vb._items['item1']['happy']).toEqual(1);
+                expect(vb._items['item1']).toEqual({happy: 1});
             });
-
+            
             it('will increment the ballot item choice vote count if they do exist',function(){
                 vb.voteForBallotItem('item1','happy');
                 vb.voteForBallotItem('item1','happy');
                 expect(vb._items['item1']['happy']).toEqual(2);
+            });
+
+            it('will work if the ballotItem is an array', function() {
+                vb.voteForBallotItem('item1', 0);
+                vb.voteForBallotItem('item1', 1);
+                expect(vb._items['item1']).toEqual([1, 1]);
             });
         });
 
@@ -255,6 +260,16 @@ describe('vote (UT)',function(){
                 expect(eachSpy.argsForCall[1]).toEqual(['item1','sad',1]);
                 expect(eachSpy.argsForCall[4]).toEqual(['item2','blue',1]);
             });
+            
+            it('works for ballot items that are arrays or objects', function() {
+                vb._items = { item1: mockVotes.item1, item3: [1, 2] };
+                vb.each(eachSpy);
+                expect(eachSpy.callCount).toEqual(4);
+                expect(eachSpy.calls[0].args).toEqual(['item1', 'happy', 2]);
+                expect(eachSpy.calls[1].args).toEqual(['item1', 'sad', 1]);
+                expect(eachSpy.calls[2].args).toEqual(['item3', '0', 1]);
+                expect(eachSpy.calls[3].args).toEqual(['item3', '1', 2]);
+            });
         });
     });
 
@@ -288,6 +303,10 @@ describe('vote (UT)',function(){
                 expect(app.convertObjectValsToPercents({ a : 0, b : 30, c : 70}))
                     .toEqual({ a : 0.0, b : 0.30, c : 0.70});
             });
+            
+            it('handles a ballotItem that is an array instead of a hash', function() {
+                expect(app.convertObjectValsToPercents([25, 75])).toEqual([0.25, 0.75]);
+            });
         });
 
         describe('convertElection',function(){
@@ -309,47 +328,9 @@ describe('vote (UT)',function(){
             });
         });
 
-        describe('syncElections',function(){
-            var elDb, mockElection;
-            beforeEach(function(){
-                elDb = {
-                    getCachedElections  : jasmine.createSpy('elDb.getCachedElections'),
-                    getElection         : jasmine.createSpy('elDb.getElection'),
-                };
-                mockElection = {
-                    id : 'abc',
-                    lastSync : new Date(),
-                    data : null,
-                    votingBooth : {
-                        dirty : false
-                    }
-                };
-            });
-
-
-            it('will do nothing if there are no elections in the cache',function(){
-                elDb.getCachedElections.andReturn([]);
-                app.syncElections(elDb);
-                expect(elDb.getElection).not.toHaveBeenCalled();
-            });
-
-            it('will not attempt to sync an election that does not need it',function(){
-                elDb.getCachedElections.andReturn([mockElection]); 
-                app.syncElections(elDb);
-                expect(elDb.getElection).not.toHaveBeenCalled();
-            });
-
-            it('will call getElection if there is an election that shouldSync',function(){
-                mockElection.votingBooth.dirty = true;
-                elDb.getCachedElections.andReturn([mockElection]); 
-                app.syncElections(elDb);
-                expect(elDb.getElection).toHaveBeenCalledWith('abc');
-            });
-        });
-
         describe('createElection', function() {
             beforeEach(function() {
-                req.body = {ballot: 'fake'};
+                req.body = { ballot: { fake: { yes: 0, no: 0 } } };
                 req.user = {id: 'u-1234', org: 'o-1234'};
                 elections.insert = jasmine.createSpy('elections.insert')
                     .andCallFake(function(obj, opts, cb) { cb(); });
@@ -374,8 +355,8 @@ describe('vote (UT)',function(){
                 app.createElection(req, elections).then(function(resp) {
                     expect(resp).toBeDefined();
                     expect(resp.code).toBe(201);
-                    expect(resp.body.id).toBe('el-1234');
-                    expect(resp.body.ballot).toBe('fake');
+                    expect(resp.body.id).toEqual('el-1234');
+                    expect(resp.body.ballot).toEqual({ fake: { yes: 0, no: 0 } });
                     expect(resp.body.created instanceof Date).toBeTruthy('created is a Date');
                     expect(resp.body.lastUpdated instanceof Date).toBeTruthy('lastUpdated is a Date');
                     expect(resp.body.user).toBe('u-1234');
@@ -408,6 +389,25 @@ describe('vote (UT)',function(){
                 });
             });
             
+            it('should fail with a 400 if the ballot is empty or undefined', function(done) {
+                q.all([
+                    app.createElection({uuid:'1234', user:req.user, body:{foo:'bar'}}, elections),
+                    app.createElection({uuid:'1234', user:req.user, body:{ballot:'foo'}}, elections),
+                    app.createElection({uuid:'1234', user:req.user, body:{ballot: {}}}, elections)
+                ]).then(function(results) {
+                    results.forEach(function(result) {
+                        expect(result.code).toBe(400);
+                        expect(result.body).toBe('Must provide non-empty ballot');
+                    });
+                    expect(app.createValidator.validate).not.toHaveBeenCalled();
+                    expect(elections.insert).not.toHaveBeenCalled();
+                    done();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                    done();
+                });
+            });
+            
             it('should fail with an error if inserting the record fails', function(done) {
                 elections.insert.andCallFake(function(obj, opts, cb) { cb('Error!'); });
                 app.createElection(req, elections).then(function(resp) {
@@ -427,8 +427,8 @@ describe('vote (UT)',function(){
                 oldElec;
             beforeEach(function() {
                 req.params = {id: 'el-1234'};
-                req.body = {ballot: 'fake2'};
-                oldElec = {id:'el-1234',ballot:'fake1',user:'u-1234',created:start,lastUpdated:start};
+                req.body = {tag: 'fake2'};
+                oldElec = {id:'el-1234',tag:'fake1',user:'u-1234',created:start,lastUpdated:start};
                 req.user = {id: 'u-1234'};
                 elections.findOne = jasmine.createSpy('elections.findOne')
                     .andCallFake(function(query, cb) { cb(null, oldElec); });
@@ -465,7 +465,7 @@ describe('vote (UT)',function(){
                     expect(elections.findAndModify.calls[0].args[1]).toEqual({id: 1});
                     var updates = elections.findAndModify.calls[0].args[2];
                     expect(Object.keys(updates)).toEqual(['$set']);
-                    expect(updates.$set.ballot).toBe('fake2');
+                    expect(updates.$set.tag).toBe('fake2');
                     expect(updates.$set.lastUpdated instanceof Date).toBeTruthy('lastUpdated is Date');
                     expect(elections.findAndModify.calls[0].args[3])
                         .toEqual({w: 1, journal: true, new: true});
@@ -485,6 +485,27 @@ describe('vote (UT)',function(){
                     expect(resp.body).toBe('Illegal fields');
                     expect(app.updateValidator.validate).toHaveBeenCalled();
                     expect(elections.findAndModify).not.toHaveBeenCalled();
+                    done();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                    done();
+                });
+            });
+            
+            it('should permit ballot updates only if they create new items', function(done) {
+                oldElec.ballot = { b1: [0, 3], b2: [2, 5] };
+                req.body.ballot = { b1: [1, 4], b2: 'foo', b4: [10, 20] };
+                
+                app.updateElection(req, elections).then(function(resp) {
+                    expect(resp.code).toBe(200);
+                    expect(resp.body).toEqual({id: 'el-1234', updated: true});
+                    expect(elections.findOne).toHaveBeenCalled();
+                    expect(app.updateValidator.validate).toHaveBeenCalledWith(req.body, oldElec, req.user);
+                    expect(elections.findAndModify).toHaveBeenCalled();
+                    expect(elections.findAndModify.calls[0].args[2]).toEqual(
+                        {'$set': {tag: 'fake2', lastUpdated: jasmine.any(Date), 'ballot.b4': [10,20]}});
+                    expect(mongoUtils.escapeKeys).toHaveBeenCalled();
+                    expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                     done();
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();

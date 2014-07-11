@@ -70,6 +70,20 @@ c6Api.createUser = function(params){
     return this(opts);
 };
 
+c6Api.createOrg = function(params){
+    var opts  = {
+            method : 'POST',
+            uri     : c6Api.server + '/api/account/org',
+            jar     : true,
+            json : {
+                name        : params.name,
+                waterfalls  : params.waterfalls,
+                minAdCount  : params.minAdCount
+            }
+        };
+
+    return this(opts);
+};
 
 ////////////////////////////////////////////////////////////
 // NewUserModel
@@ -181,6 +195,108 @@ function NewUserController(api){
 NewUserController.$view  = MVC.CmdlView;
 NewUserController.$model = NewUserModel;
 NewUserController.$deps  = ['c6Api'];
+
+////////////////////////////////////////////////////////////
+// NewOrgModel
+
+function NewOrgModel () {
+    var _name     = null,
+        _minAdCount  = null,
+        wfValues = ['cinema6', 'publisher', 'cinema6-publisher', 'publisher-cinema6'];
+    
+    this.waterfalls = {};
+        
+    function validateName(nm) {
+        if (!nm) {
+            throw new Error('Must provide a value for the name');
+        }
+        return nm;
+    }
+    
+    function validateWaterfalls(arr) {
+        arr.forEach(function(value) {
+            if (wfValues.indexOf(value) === -1) {
+                throw new Error('Value ' + value + ' is not one of the acceptable values: ' +
+                                wfValues.join(', '));
+            }
+        });
+        return arr;
+    }
+
+    Object.defineProperty(this,'name',{
+        enumerable : true,
+        set : function(v){ _name = validateName(v); },
+        get : function() { return _name; }
+    });
+
+    Object.defineProperty(this,'minAdCount',{
+        enumerable : true,
+        set : function(v){ _minAdCount = v; },
+        get : function() { return _minAdCount; }
+    });
+    
+    Object.defineProperty(this, 'wfVideo', {
+        set : function(v){ this.waterfalls.video = validateWaterfalls(v.split(/\s*,\s*/)); },
+        get : function() { return this.waterfalls.video && this.waterfalls.video.join(', '); }
+    });
+    
+    Object.defineProperty(this, 'wfDisplay', {
+        set : function(v){ this.waterfalls.display = v.split(/\s*,\s*/); },
+        get : function() { return this.waterfalls.display && this.waterfalls.display.join(', '); }
+    });
+}
+
+////////////////////////////////////////////////////////////
+// NewOrgController
+
+function NewOrgController(api){
+    var self = this;
+
+    self.initView(
+        'Create Org',
+        [
+            {
+                label : 'name',
+                repeat : 1
+            },
+            {
+                label : 'minAdCount',
+                defaultVal : 0
+            },
+            {
+                label : 'waterfalls.video',
+                alias : 'wfVideo',
+                defaultVal : 'cinema6',
+                repeat : 1
+            },
+            {
+                label : 'waterfalls.display',
+                alias : 'wfDisplay',
+                defaultVal : 'cinema6',
+                repeat : 1
+            }
+        ],
+        self.model
+    );
+
+    self.run = function(){
+        return self.showView()
+            .then(function(){
+                return api.createOrg(self.model)
+                    .then(function(response){
+                        self.view.alert('');
+                        self.view.alert('Created new org: ' + self.model.name);
+                        self.view.alert('');
+                        self.view.alert(JSON.stringify(response,null,3));
+                        self.view.alert('');
+                    });
+            });
+    };
+}
+
+NewOrgController.$view  = MVC.CmdlView;
+NewOrgController.$model = NewOrgModel;
+NewOrgController.$deps  = ['c6Api'];
 ////////////////////////////////////////////////////////////
 // Login
 
@@ -253,6 +369,28 @@ function parseCmdLine (cfg){
             log('Unable to read ' +  authFile);
         }
     }
+    
+    function showUsageOrg(sub){
+        log('');
+        log('Usage:');
+        log(' provision org');
+        log('');
+        if (sub === 'create'){
+
+        } else {
+            log(' Orgs associated api tasks.  Current list includes:');
+            log('   * create');
+            log('');
+            log(' org help <task> will provide additional detail.');
+            log('');
+        }
+
+        log('Example:');
+        log('');
+        log(' #Create an org');
+        log(' $ node bin/provision.js org create');
+        log('');
+    }
 
     function showUsageUser(sub){
         log('');
@@ -285,8 +423,10 @@ function parseCmdLine (cfg){
         .action(function(cmd){
             if (cmd === 'user'){
                 showUsageUser();
+            } else if (cmd === 'org') {
+                showUsageOrg();
             } else {
-                log('Command <' + cmd + '> is not recognized.');
+                log('Available commands: user, org');
             }
             process.exit(0);
         });
@@ -311,6 +451,29 @@ function parseCmdLine (cfg){
 
             if (subcommand === 'create')  {
                 cfg.controller = NewUserController;
+            }
+        });
+    cmdl
+        .command('org')
+        .description('Manage orgs')
+        .action(function(subcommand, data) {
+            if (arguments.length === 1) {
+                showUsageOrg();
+                process.exit(1);
+            }
+
+            if (subcommand === 'help'){
+                showUsageOrg(data);
+                process.exit(1);
+            }
+
+            if (data === 'help'){
+                showUsageOrg(subcommand);
+                process.exit(1);
+            }
+
+            if (subcommand === 'create')  {
+                cfg.controller = NewOrgController;
             }
         });
     cmdl
