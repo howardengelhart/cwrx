@@ -414,7 +414,7 @@
             splashName      = imgSpec && imgSpec.name || 'splash',
             prefix          = path.join(config.s3.path, req.params.expId),
             templateNum     = collateral.chooseTemplateNum(req.body.thumbs.length),
-            templateDir     = path.join(__dirname, '../splashTemplates'),
+            templateDir     = path.join(__dirname, '../templates/splashTemplates'),
             templatePath    = path.join(templateDir, imgSpec.ratio + '_x' + templateNum + '.html');
 
         function resolveObj(code, path) {

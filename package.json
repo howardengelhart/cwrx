@@ -15,7 +15,7 @@
   "license": "BSD",
   "private": true,
   "dependencies": {
-    "email-templates": "~0.1.8",
+    "nodemailer": "~0.7.1",
     "commander": "~1.1.1",
     "express": "~3.2.5",
     "fs-extra": "~0.8.1",

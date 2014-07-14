@@ -688,7 +688,7 @@ describe('collateral (UT):', function() {
             collateral.splashCache = {};
             config = { s3: { path: 'ut/', bucket: 'bkt' },
                        splash: { quality: 75, maxDimension: 1000, timeout: 10000, cacheTTL: 24*60 } };
-            templDir = path.join(__dirname, '../../splashTemplates');
+            templDir = path.join(__dirname, '../../templates/splashTemplates');
             spyOn(glob, 'sync').andReturn(['template1', 'template2', 'etc']);
             spyOn(fs, 'readFile').andCallFake(function(fpath, opts, cb) { cb(null, 'fakeTemplate'); });
             spyOn(uuid, 'hashText').andReturn('fakeHash');

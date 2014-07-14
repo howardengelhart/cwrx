@@ -331,7 +331,7 @@
         return deferred.promise;
     };
     
-    userSvc.changePassword = function(req, users) {
+    userSvc.changePassword = function(req, users, emailSender) {
         var log = logger.getLog(),
             now = new Date();
         if (!req.body.newPassword) {
@@ -344,6 +344,14 @@
             return q.npost(users, 'update', [{id: req.user.id}, updates, {w: 1, journal: true}]);
         }).then(function() {
             log.info('[%1] User %2 successfully changed their password', req.uuid, req.user.id);
+            
+            email.notifyPwdChange(emailSender, req.body.email)
+	        .then(function() {
+	            log.info('[%1] Notified user of change at %2', req.uuid, req.body.email);
+	        }).catch(function(error) {
+	            log.error('[%1] Error sending email to %2: %3',req.uuid,req.body.email,error);
+	        });
+            
             return q({code: 200, body: 'Successfully changed password'});
         }).catch(function(error) {
             log.error('[%1] Error changing password for user %2: %3', req.uuid, req.user.id, error);
@@ -351,7 +359,7 @@
         });
     };
     
-    userSvc.changeEmail = function(req, users, ses, emailSender) {
+    userSvc.changeEmail = function(req, users, emailSender) {
         var log = logger.getLog(),
             now = new Date();
         if (!req.body.newEmail) {
@@ -363,7 +371,7 @@
         return q.npost(users, 'findOne', [{email: req.body.newEmail}])
         .then(function(userAccount) {
             if (userAccount) {
-                log.info('[%1] User %2 already exists', req.uuid, req.body.email);
+                log.info('[%1] User %2 already exists', req.uuid, req.body.newEmail);
                 return q({
                     code: 409,
                     body: 'A user with that email already exists'
@@ -376,11 +384,7 @@
             .then(function() {
                 log.info('[%1] User %2 successfully changed their email', req.uuid, req.user.id);
 
-		        var addrParams = { sender: emailSender, recipient: req.body.email },
-		            data = { newEmail: req.body.newEmail, contact: emailSender },
-		            subject = 'Your account email address has been changed';
-
-		        email.sendTemplate(ses, addrParams, subject, 'changeEmailMsg', data)
+                email.notifyEmailChange(emailSender, req.body.email, req.body.newEmail)
 		        .then(function() {
 		            log.info('[%1] Notified user of change at %2', req.uuid, req.body.email);
 		        }).catch(function(error) {
@@ -398,8 +402,7 @@
 
     userSvc.main = function(state) {
         var log = logger.getLog(),
-            started = new Date(),
-            ses;
+            started = new Date();
         if (state.clusterMaster){
             log.info('Cluster master, not a worker');
             return state;
@@ -412,9 +415,8 @@
             authTTLs    = state.config.cacheTTLs.auth;
         authUtils = require('../lib/authUtils')(authTTLs.freshTTL, authTTLs.maxTTL, users);
 
-        // If running locally, you need to put AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in env
+        // Nodemailer will automatically get SES creds, but need to set region here
         aws.config.region = state.config.ses.region;
-        ses = new aws.SES();
 
         app.use(express.bodyParser());
         app.use(express.cookieParser(state.secrets.cookieParser || ''));
@@ -490,7 +492,7 @@
 
         var credsChecker = authUtils.userPassChecker(users);
         app.post('/api/account/user/email', credsChecker, function(req, res) {
-            userSvc.changeEmail(req, users, ses, state.config.ses.sender).then(function(resp) {
+            userSvc.changeEmail(req, users, state.config.ses.sender).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, {
@@ -501,7 +503,7 @@
         });
 
         app.post('/api/account/user/password', credsChecker, function(req, res) {
-            userSvc.changePassword(req, users).then(function(resp) {
+            userSvc.changePassword(req, users, state.config.ses.sender).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, {
