@@ -346,11 +346,11 @@
             log.info('[%1] User %2 successfully changed their password', req.uuid, req.user.id);
             
             email.notifyPwdChange(emailSender, req.body.email)
-	        .then(function() {
-	            log.info('[%1] Notified user of change at %2', req.uuid, req.body.email);
-	        }).catch(function(error) {
-	            log.error('[%1] Error sending email to %2: %3',req.uuid,req.body.email,error);
-	        });
+            .then(function() {
+                log.info('[%1] Notified user of change at %2', req.uuid, req.body.email);
+            }).catch(function(error) {
+                log.error('[%1] Error sending email to %2: %3',req.uuid,req.body.email,error);
+            });
             
             return q({code: 200, body: 'Successfully changed password'});
         }).catch(function(error) {
@@ -385,11 +385,11 @@
                 log.info('[%1] User %2 successfully changed their email', req.uuid, req.user.id);
 
                 email.notifyEmailChange(emailSender, req.body.email, req.body.newEmail)
-		        .then(function() {
-		            log.info('[%1] Notified user of change at %2', req.uuid, req.body.email);
-		        }).catch(function(error) {
-		            log.error('[%1] Error sending email to %2: %3',req.uuid,req.body.email,error);
-		        });
+                .then(function() {
+                    log.info('[%1] Notified user of change at %2', req.uuid, req.body.email);
+                }).catch(function(error) {
+                    log.error('[%1] Error sending email to %2: %3',req.uuid,req.body.email,error);
+                });
 
                 return q({code: 200, body: 'Successfully changed email'});
             });
