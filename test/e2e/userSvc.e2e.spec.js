@@ -6,6 +6,8 @@ var q           = require('q'),
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
 
+jasmine.getEnv().defaultTimeoutInterval = 30000;
+
 describe('user (E2E):', function() {
     var cookieJar, mockRequester;
         
@@ -545,11 +547,11 @@ describe('user (E2E):', function() {
         beforeEach(function(done) {
             user = {
                 id: 'u-1',
-                email: 'otter',
+                email: 'c6e2eTester@gmail.com',
                 status: 'active',
                 password: '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq'
             };
-            reqBody = { email: 'otter', password: 'password', newEmail: 'johnny' };
+            reqBody = { email: 'c6e2eTester@gmail.com', password: 'password', newEmail: 'johnny' };
             options = { url: config.userSvcUrl + '/user/email', json: reqBody };
             testUtils.resetCollection('users', user).done(done);
         });
@@ -560,13 +562,13 @@ describe('user (E2E):', function() {
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Must provide email and password');
-                reqBody = { email: 'otter', newEmail: 'johnny' };
+                reqBody = { email: 'c6e2eTester@gmail.com', newEmail: 'johnny' };
                 options.json = reqBody;
                 return testUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Must provide email and password');
-                reqBody = { email: 'otter', password: 'password' };
+                reqBody = { email: 'c6e2eTester@gmail.com', password: 'password' };
                 options.json = reqBody;
                 return testUtils.qRequest('post', options);
             }).then(function(resp) {
@@ -623,7 +625,7 @@ describe('user (E2E):', function() {
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBe('Successfully changed email');
-                var optionsA = {url:config.authUrl + '/login', json:{email:'otter',password:'password'}};
+                var optionsA = {url:config.authUrl + '/login', json:{email:'c6e2eTester@gmail.com',password:'password'}};
                 var optionsB = {url:config.authUrl + '/login', json:{email:'johnny',password:'password'}};
                 return q.all([testUtils.qRequest('post', optionsA), testUtils.qRequest('post', optionsB)]);
             }).then(function(resps) {
@@ -644,11 +646,11 @@ describe('user (E2E):', function() {
         beforeEach(function(done) {
             user = {
                 id: 'u-1',
-                email: 'otter',
+                email: 'c6e2eTester@gmail.com',
                 status: 'active',
                 password: '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq'
             };
-            reqBody = { email: 'otter', password: 'password', newPassword: 'foobar' };
+            reqBody = { email: 'c6e2eTester@gmail.com', password: 'password', newPassword: 'foobar' };
             options = { url: config.userSvcUrl + '/user/password', json: reqBody };
             testUtils.resetCollection('users', user).done(done);
         });
@@ -659,13 +661,13 @@ describe('user (E2E):', function() {
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Must provide email and password');
-                reqBody = { email: 'otter', newPassword: 'foobar' };
+                reqBody = { email: 'c6e2eTester@gmail.com', newPassword: 'foobar' };
                 options.json = reqBody;
                 return testUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Must provide email and password');
-                reqBody = { email: 'otter', password: 'password' };
+                reqBody = { email: 'c6e2eTester@gmail.com', password: 'password' };
                 options.json = reqBody;
                 return testUtils.qRequest('post', options);
             }).then(function(resp) {
@@ -691,7 +693,7 @@ describe('user (E2E):', function() {
             });
         });
         
-        it('should fail if the password is invalid', function(done) {
+        it('should fail if the current password is invalid', function(done) {
             reqBody.password = 'thisisnotapassword';
             options.json = reqBody;
             testUtils.qRequest('post', options).then(function(resp) {
@@ -708,7 +710,7 @@ describe('user (E2E):', function() {
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBe('Successfully changed password');
-                var loginOpts = {url:config.authUrl + '/login', json:{email:'otter',password:'foobar'}};
+                var loginOpts = {url:config.authUrl + '/login', json:{email:'c6e2eTester@gmail.com',password:'foobar'}};
                 return testUtils.qRequest('post', loginOpts);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
