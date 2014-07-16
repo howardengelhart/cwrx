@@ -365,8 +365,8 @@ describe('userSvc (UT)', function() {
                 expect(newUser.org).toBe('o-1234');
                 expect(newUser.status).toBe(Status.Active);
                 expect(newUser.permissions).toEqual({
-                    experiences: { read: Scope.Own, create: Scope.Own, edit: Scope.Own, delete: Scope.Own },
-                    elections: { read: Scope.Own, create: Scope.Own, edit: Scope.Own, delete: Scope.Own },
+                    experiences: { read: Scope.Org, create: Scope.Org, edit: Scope.Org, delete: Scope.Org },
+                    elections: { read: Scope.Org, create: Scope.Org, edit: Scope.Org, delete: Scope.Org },
                     users: { read: Scope.Own, edit: Scope.Own },
                     orgs: { read: Scope.Own }
                 });
@@ -397,8 +397,8 @@ describe('userSvc (UT)', function() {
                 expect(newUser.org).toBe('o-4567');
                 expect(newUser.status).toBe(Status.Pending);
                 expect(newUser.permissions).toEqual({
-                    elections: { read: Scope.Own, create: Scope.Own, edit: Scope.Own, delete: Scope.Own },
-                    experiences: { read: Scope.All, create: Scope.Own, edit: Scope.Own, delete: Scope.Own },
+                    elections: { read: Scope.Org, create: Scope.Org, edit: Scope.Org, delete: Scope.Org },
+                    experiences: { read: Scope.All, create: Scope.Own, edit: Scope.Org, delete: Scope.Org },
                     users: { read: Scope.Org, edit: Scope.Own, delete: Scope.Own },
                     orgs: { read: Scope.Own }
                 });
