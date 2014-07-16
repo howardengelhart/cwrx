@@ -1,6 +1,6 @@
 var flush = true;
 describe('email', function() {
-    var path, email, q, handlebars, nodemailer;
+    var path, email, q, handlebars, nodemailer, sesTransport, htmlToText;
     
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -8,13 +8,18 @@ describe('email', function() {
         email           = require('../../lib/email');
         handlebars      = require('handlebars');
         nodemailer      = require('nodemailer');
+        htmlToText      = require('html-to-text');
         fs              = require('fs-extra');
         q               = require('q');
     });
 
     describe('_compileAndSend', function() {
-        var compilerSpy, fakeTransport;
+        var compilerSpy, fakeTransport, sesTportSpy;
         beforeEach(function() {
+            delete require.cache[require.resolve('../../lib/email')];
+            sesTportSpy = jasmine.createSpy('ses-transport').andReturn('fakeSesTport');
+            require.cache[require.resolve('nodemailer-ses-transport')] = { exports: sesTportSpy };
+            email = require('../../lib/email');
             spyOn(fs, 'readFile').andCallFake(function(path, opts, cb) { cb(null, 'templateHtml'); });
             compilerSpy = jasmine.createSpy('handlebars compiler').andReturn('compiledHtml');
             spyOn(handlebars, 'compile').andReturn(compilerSpy);
@@ -24,6 +29,7 @@ describe('email', function() {
                 })
             };
             spyOn(nodemailer, 'createTransport').andReturn(fakeTransport);
+            spyOn(htmlToText, 'fromString').andReturn('compiledText');
         });
 
         it('should successfully compile the template and send an email', function(done) {
@@ -33,9 +39,11 @@ describe('email', function() {
                                                          {encoding: 'utf8'}, jasmine.any(Function));
                 expect(handlebars.compile).toHaveBeenCalledWith('templateHtml');
                 expect(compilerSpy).toHaveBeenCalledWith({foo: 'bar'});
-                expect(nodemailer.createTransport).toHaveBeenCalledWith('SES');
+                expect(htmlToText.fromString).toHaveBeenCalledWith('compiledHtml');
+                expect(sesTportSpy).toHaveBeenCalledWith();
+                expect(nodemailer.createTransport).toHaveBeenCalledWith('fakeSesTport');
                 expect(fakeTransport.sendMail).toHaveBeenCalledWith({from:'sender',to:'recip',
-                    subject:'subj',html:'compiledHtml',generateTextFromHTML:true}, jasmine.any(Function));
+                    subject:'subj',html:'compiledHtml',text:'compiledText'}, jasmine.any(Function));
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
@@ -49,6 +57,8 @@ describe('email', function() {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(fs.readFile).toHaveBeenCalled();
                 expect(handlebars.compile).not.toHaveBeenCalled();
+                expect(htmlToText.fromString).not.toHaveBeenCalled();
+                expect(sesTportSpy).not.toHaveBeenCalled();
                 expect(nodemailer.createTransport).not.toHaveBeenCalled();
                 expect(fakeTransport.sendMail).not.toHaveBeenCalled();
             }).finally(done);
@@ -62,6 +72,8 @@ describe('email', function() {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(fs.readFile).toHaveBeenCalled();
                 expect(handlebars.compile).toHaveBeenCalled();
+                expect(htmlToText.fromString).toHaveBeenCalled();
+                expect(sesTportSpy).toHaveBeenCalledWith();
                 expect(nodemailer.createTransport).toHaveBeenCalled();
                 expect(fakeTransport.sendMail).toHaveBeenCalled();
             }).finally(done);
