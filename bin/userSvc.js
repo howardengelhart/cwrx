@@ -336,7 +336,7 @@
     userSvc.notifyPwdChange = function(sender, recipient) {
         var subject = 'Your account password has been changed',
             data = { contact: sender };
-        return email._compileAndSend(sender, recipient, subject, 'pwdChange.html', data);
+        return email.compileAndSend(sender, recipient, subject, 'pwdChange.html', data);
     };
     
     userSvc.changePassword = function(req, users, emailSender) {
@@ -370,7 +370,7 @@
     userSvc.notifyEmailChange = function(sender, recipient, newEmail) {
         var subject = 'Your account email address has been changed',
             data = { newEmail: newEmail, contact: sender };
-        return email._compileAndSend(sender, recipient, subject, 'emailChange.html', data);
+        return email.compileAndSend(sender, recipient, subject, 'emailChange.html', data);
     };
     
     userSvc.changeEmail = function(req, users, emailSender) {
