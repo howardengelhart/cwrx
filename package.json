@@ -36,6 +36,8 @@
     "grunt-jasmine-node": "~0.1.0",
     "grunt-contrib-jshint": "~0.7.1",
     "grunt-contrib-watch": "~0.5.3",
-    "load-grunt-config": "~0.7.1"
+    "load-grunt-config": "~0.7.1",
+    "imap": "~0.8.12",
+    "mailparser": "~0.4.4"
   }
 }
