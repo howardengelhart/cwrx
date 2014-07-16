@@ -331,6 +331,12 @@
         return deferred.promise;
     };
     
+    userSvc.notifyPwdChange = function(sender, recipient) {
+        var subject = 'Your account password has been changed',
+            data = { contact: sender };
+        return email._compileAndSend(sender, recipient, subject, 'pwdChange.html', data);
+    };
+    
     userSvc.changePassword = function(req, users, emailSender) {
         var log = logger.getLog(),
             now = new Date();
@@ -345,7 +351,7 @@
         }).then(function() {
             log.info('[%1] User %2 successfully changed their password', req.uuid, req.user.id);
             
-            email.notifyPwdChange(emailSender, req.body.email)
+            userSvc.notifyPwdChange(emailSender, req.body.email)
             .then(function() {
                 log.info('[%1] Notified user of change at %2', req.uuid, req.body.email);
             }).catch(function(error) {
@@ -357,6 +363,12 @@
             log.error('[%1] Error changing password for user %2: %3', req.uuid, req.user.id, error);
             return q.reject(error);
         });
+    };
+
+    userSvc.notifyEmailChange = function(sender, recipient, newEmail) {
+        var subject = 'Your account email address has been changed',
+            data = { newEmail: newEmail, contact: sender };
+        return email._compileAndSend(sender, recipient, subject, 'emailChange.html', data);
     };
     
     userSvc.changeEmail = function(req, users, emailSender) {
@@ -384,7 +396,7 @@
             .then(function() {
                 log.info('[%1] User %2 successfully changed their email', req.uuid, req.user.id);
 
-                email.notifyEmailChange(emailSender, req.body.email, req.body.newEmail)
+                userSvc.notifyEmailChange(emailSender, req.body.email, req.body.newEmail)
                 .then(function() {
                     log.info('[%1] Notified user of change at %2', req.uuid, req.body.email);
                 }).catch(function(error) {

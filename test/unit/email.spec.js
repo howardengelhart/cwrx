@@ -12,58 +12,6 @@ describe('email', function() {
         q               = require('q');
     });
 
-    describe('notifyEmailChange', function() {
-        beforeEach(function() {
-            spyOn(email, '_compileAndSend').andReturn(q('success'));
-        });
-        
-        it('should correctly call _compileAndSend', function(done) {
-            email.notifyEmailChange('send', 'recip', 'new').then(function(resp) {
-                expect(resp).toBe('success');
-                expect(email._compileAndSend).toHaveBeenCalledWith('send','recip',
-                    'Your account email address has been changed','emailChange.html',{newEmail:'new',contact:'send'});
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).finally(done);
-        });
-        
-        it('should pass along errors from _compileAndSend', function(done) {
-            email._compileAndSend.andReturn(q.reject('I GOT A PROBLEM'));
-            email.notifyEmailChange('send', 'recip', 'new').then(function(resp) {
-                expect(resp).not.toBeDefined();
-            }).catch(function(error) {
-                expect(error).toBe('I GOT A PROBLEM');
-                expect(email._compileAndSend).toHaveBeenCalled();
-            }).finally(done);
-        });
-    });
-    
-    describe('notifyPwdChange', function() {
-        beforeEach(function() {
-            spyOn(email, '_compileAndSend').andReturn(q('success'));
-        });
-        
-        it('should correctly call _compileAndSend', function(done) {
-            email.notifyPwdChange('send', 'recip').then(function(resp) {
-                expect(resp).toBe('success');
-                expect(email._compileAndSend).toHaveBeenCalledWith('send','recip',
-                    'Your account password has been changed','pwdChange.html',{contact:'send'});
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).finally(done);
-        });
-        
-        it('should pass along errors from _compileAndSend', function(done) {
-            email._compileAndSend.andReturn(q.reject('I GOT A PROBLEM'));
-            email.notifyPwdChange('send', 'recip').then(function(resp) {
-                expect(resp).not.toBeDefined();
-            }).catch(function(error) {
-                expect(error).toBe('I GOT A PROBLEM');
-                expect(email._compileAndSend).toHaveBeenCalled();
-            }).finally(done);
-        });
-    });
-    
     describe('_compileAndSend', function() {
         var compilerSpy, fakeTransport;
         beforeEach(function() {
