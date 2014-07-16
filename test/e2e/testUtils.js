@@ -139,9 +139,13 @@ testUtils.removeS3File = function(bucket, key) {
     return deferred.promise;
 };
 
-// TODO: man this should probably go in a different module but I just don't know...
-// TODO maybe include a note about how the password is stored in the clear?
-testUtils.EmailChecker = function(imapOpts, sender) { //TODO: creative name?
+
+/* Creates an agent that listens for new messages sent to a user from a given sender. The user defaults
+ * to c6e2eTester@gmail.com and the sender defaults to support@cinema6.com, these can be overriden through
+ * the constructor's optional parameters. Once created, call the (async) start() method. After this,
+ * 'message' events are emitted when an email is received from the sender; the data sent with these
+ * events is a JSON representation of an email. */
+testUtils.Mailman = function(imapOpts, sender) {
     var self = this;
     self._imapOpts = imapOpts || { user: 'c6e2eTester@gmail.com', password: 'bananas4bananas',
                                    host: 'imap.gmail.com', port: 993, tls: true };
@@ -156,9 +160,10 @@ testUtils.EmailChecker = function(imapOpts, sender) { //TODO: creative name?
     
     events.EventEmitter.call(this);
 };
-util.inherits(testUtils.EmailChecker, events.EventEmitter);
 
-testUtils.EmailChecker.prototype.start = function() {
+util.inherits(testUtils.Mailman, events.EventEmitter);
+
+testUtils.Mailman.prototype.start = function() {
     var self = this,
         deferred = q.defer();
         
@@ -193,8 +198,14 @@ testUtils.EmailChecker.prototype.start = function() {
     return deferred.promise;
 };
 
-// TODO: explain (and probably rename) oldEmailOk
-testUtils.EmailChecker.prototype.getLatestEmail = function(oldEmailOk) {
+/* This is used internally when the connection receives a new mail event to fetch the message.
+ * However, it can be called manually if needed. If oldEmailOk is not true, this will reject if the
+ * message that's fetched has been seen by the checker before (its seqId === self._lastSeqId) */
+testUtils.Mailman.prototype.getLatestEmail = function(oldEmailOk) {
+    if (this.state !== 'authenticated') {
+        return q.reject('You must call this.start() first');
+    }
+    
     var parser = new mailparser.MailParser(), // will parse the raw message into a JSON object
         deferred = q.defer(),
         self = this;
@@ -230,54 +241,10 @@ testUtils.EmailChecker.prototype.getLatestEmail = function(oldEmailOk) {
     return deferred.promise;
 };
 
-testUtils.EmailChecker.prototype.stop = function() {
+testUtils.Mailman.prototype.stop = function() {
     this._conn.end();
     this._conn = null;
 };
 
-/**
- * Get a json represenation of the latest email sent to a user from a given sender. The sender
- * defaults to support@cinema6.com and the user defaults to c6e2eTester@gmail.com; these can be
- * overriden through the optional parameters.
- */
-testUtils.getLatestEmail = function(imapOpts, sender) {
-    var imapOpts = imapOpts || { user: 'c6e2eTester@gmail.com', password: 'bananas4bananas',
-                                 host: 'imap.gmail.com', port: 993, tls: true},
-        sender = sender || 'support@cinema6.com',
-        conn = new Imap(imapOpts), // establish an IMAP connection to the mailbox
-        parser = new mailparser.MailParser(), // will parse the raw message into a JSON object
-        deferred = q.defer();
-    
-    parser.on('end', deferred.resolve);
-    conn.on('error', deferred.reject);
-    
-    conn.once('ready', function() {
-        q.npost(conn, 'openBox', ['INBOX', true]).then(function(box) {
-            return q.npost(conn.seq, 'search', [[['FROM', sender]]]);
-        })
-        .then(function(results) { // results is an array of message sequence numbers
-            if (results.length === 0) return q.reject('No messages from ' + sender + ' found');
-
-            var seqId = Math.max.apply(null, results), // gets the latest matching message
-                fetch = conn.seq.fetch(seqId, {bodies:''}).on('error', deferred.reject);
-            
-            fetch.once('message', function(msg, seqno) {
-                msg.on('body', function(stream, info) {
-                    stream.pipe(parser);
-                });
-                
-                msg.on('end', function() {
-                    parser.end();
-                });
-            });
-        })
-        .catch(deferred.reject);
-    });
-    conn.connect();
-    
-    return deferred.promise.finally(function() {
-        conn.end();
-    });
-};
 
 module.exports = testUtils;
