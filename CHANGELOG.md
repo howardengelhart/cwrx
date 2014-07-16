@@ -115,6 +115,10 @@
 * Initial commit of org service: [#192](https://github.com/cinema6/cwrx/pull/192)
 
 ## userSvc Service
+### 1.4.4: Wed Jul 16 12:52:22 EDT 2014
+* [FIX]: Update default user perms to allow org-level exp edits: [#211](https://github.com/cinema6/cwrx/pull/211)
+* Extra deployment steps: None
+
 ### 1.4.3: Thu May  8 18:32:05 EDT 2014
 * [FIX]: Fix mongo reconnect: [#151](https://github.com/cinema6/cwrx/pull/151)
 * [FIX]: Check for existing user with newEmail when changing email: [#153](https://github.com/cinema6/cwrx/pull/153)
