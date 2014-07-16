@@ -11,7 +11,8 @@ describe('userSvc (UT)', function() {
         userSvc         = require('../../bin/userSvc');
         QueryCache      = require('../../lib/queryCache');
         FieldValidator  = require('../../lib/fieldValidator');
-        mongoUtils      = require('../../lib/mongoUtils'),
+        mongoUtils      = require('../../lib/mongoUtils');
+        email           = require('../../lib/email');
         q               = require('q');
         enums           = require('../../lib/enums');
         Status          = enums.Status;
@@ -874,10 +875,39 @@ describe('userSvc (UT)', function() {
         });
     });
     
+    describe('notifyPwdChange', function() {
+        beforeEach(function() {
+            spyOn(email, 'compileAndSend').andReturn(q('success'));
+        });
+        
+        it('should correctly call compileAndSend', function(done) {
+            userSvc.notifyPwdChange('send', 'recip').then(function(resp) {
+                expect(resp).toBe('success');
+                expect(email.compileAndSend).toHaveBeenCalledWith('send','recip',
+                    'Your account password has been changed','pwdChange.html',{contact:'send'});
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should pass along errors from compileAndSend', function(done) {
+            email.compileAndSend.andReturn(q.reject('I GOT A PROBLEM'));
+            userSvc.notifyPwdChange('send', 'recip').then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(email.compileAndSend).toHaveBeenCalled();
+            }).finally(done);
+        });
+    });
+    
     describe('changePassword', function() {
         var req, userColl;
         beforeEach(function() {
-            req = { uuid: '1234', body: { newPassword: 'crosby' }, user: { id: 'u-1' } };
+            req = {
+                uuid: '1234', user: { id: 'u-1' },
+                body: { email: 'johnny', password: 'password', newPassword: 'crosby' }
+            };
             userColl = {
                 update: jasmine.createSpy('users.update').andCallFake(
                     function(query, updates, opts, cb) { cb(); })
@@ -886,11 +916,12 @@ describe('userSvc (UT)', function() {
                 cb(null, 'fakeHash');
             });
             spyOn(bcrypt, 'genSaltSync').andReturn('sodiumChloride');
+            spyOn(userSvc, 'notifyPwdChange').andReturn(q('success'));
         });
 
         it('fails if there is no newPassword in req.body', function(done) {
             delete req.body.newPassword;
-            userSvc.changePassword(req, userColl).then(function(resp) {
+            userSvc.changePassword(req, userColl, 'fakeSender').then(function(resp) {
                 expect(resp.code).toBe(400);
                 expect(resp.body).toBe('Must provide a new password');
                 expect(bcrypt.hash).not.toHaveBeenCalled();
@@ -903,7 +934,7 @@ describe('userSvc (UT)', function() {
         });
         
         it('should successfully hash and update a user\'s password', function(done) {
-            userSvc.changePassword(req, userColl).then(function(resp) {
+            userSvc.changePassword(req, userColl, 'fakeSender').then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toBe('Successfully changed password');
                 expect(userColl.update).toHaveBeenCalled();
@@ -914,6 +945,23 @@ describe('userSvc (UT)', function() {
                 expect(bcrypt.hash).toHaveBeenCalled();
                 expect(bcrypt.hash.calls[0].args[0]).toBe('crosby');
                 expect(bcrypt.hash.calls[0].args[1]).toBe('sodiumChloride');
+                expect(userSvc.notifyPwdChange).toHaveBeenCalledWith('fakeSender', 'johnny');
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should just log an error if sending a notification fails', function(done) {
+            userSvc.notifyPwdChange.andReturn(q.reject('I GOT A PROBLEM'));
+            userSvc.changePassword(req, userColl, 'fakeSender').then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toBe('Successfully changed password');
+                expect(userColl.update).toHaveBeenCalled();
+                expect(bcrypt.hash).toHaveBeenCalled();
+                expect(userSvc.notifyPwdChange).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -923,7 +971,7 @@ describe('userSvc (UT)', function() {
         
         it('should fail if hashing the password fails', function(done) {
             bcrypt.hash.andCallFake(function(password, salt, cb) { cb('I GOT A PROBLEM'); });
-            userSvc.changePassword(req, userColl).then(function(resp) {
+            userSvc.changePassword(req, userColl, 'fakeSender').then(function(resp) {
                 expect(resp).not.toBeDefined();
                 done();
             }).catch(function(error) {
@@ -937,7 +985,7 @@ describe('userSvc (UT)', function() {
         
         it('should fail if the mongo update call fails', function(done) {
             userColl.update.andCallFake(function(query, updates, opts, cb) { cb('I GOT A PROBLEM'); });
-            userSvc.changePassword(req, userColl).then(function(resp) {
+            userSvc.changePassword(req, userColl, 'fakeSender').then(function(resp) {
                 expect(resp).not.toBeDefined();
                 done();
             }).catch(function(error) {
@@ -949,22 +997,49 @@ describe('userSvc (UT)', function() {
             });
         });
     });
+
+    describe('notifyEmailChange', function() {
+        beforeEach(function() {
+            spyOn(email, 'compileAndSend').andReturn(q('success'));
+        });
+        
+        it('should correctly call compileAndSend', function(done) {
+            userSvc.notifyEmailChange('send', 'recip', 'new').then(function(resp) {
+                expect(resp).toBe('success');
+                expect(email.compileAndSend).toHaveBeenCalledWith('send','recip',
+                    'Your account email address has been changed','emailChange.html',{newEmail:'new',contact:'send'});
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should pass along errors from compileAndSend', function(done) {
+            email.compileAndSend.andReturn(q.reject('I GOT A PROBLEM'));
+            userSvc.notifyEmailChange('send', 'recip', 'new').then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(email.compileAndSend).toHaveBeenCalled();
+            }).finally(done);
+        });
+    });
     
     describe('changeEmail', function() {
         var req, userColl;
         beforeEach(function() {
-            req = { uuid: '1234', body: { newEmail: 'otter' }, user: { id: 'u-1' } };
+            req = {uuid: '1234', body: { email: 'johnny', newEmail: 'otter' }, user: { id: 'u-1' }};
             userColl = {
                 findOne: jasmine.createSpy('users.findOne').andCallFake(
                     function(query, cb) { cb(); }),
                 update: jasmine.createSpy('users.update').andCallFake(
                     function(query, updates, opts, cb) { cb(); })
             };
+            spyOn(userSvc, 'notifyEmailChange').andReturn(q());
         });
         
         it('should fail if there is no newEmail in req.body', function(done) {
             delete req.body.newEmail;
-            userSvc.changeEmail(req, userColl).then(function(resp) {
+            userSvc.changeEmail(req, userColl, 'fakeSender').then(function(resp) {
                 expect(resp.code).toBe(400);
                 expect(resp.body).toBe('Must provide a new email');
                 expect(userColl.findOne).not.toHaveBeenCalled();
@@ -978,7 +1053,7 @@ describe('userSvc (UT)', function() {
         
         it('should fail if a user with newEmail already exists', function(done) {
             userColl.findOne.andCallFake(function(query, cb) { cb(null, 'A user'); });
-            userSvc.changeEmail(req, userColl).then(function(resp) {
+            userSvc.changeEmail(req, userColl, 'fakeSender').then(function(resp) {
                 expect(resp.code).toBe(409);
                 expect(resp.body).toBe('A user with that email already exists');
                 expect(userColl.findOne).toHaveBeenCalled();
@@ -991,7 +1066,7 @@ describe('userSvc (UT)', function() {
         });
         
         it('should successfully update a user\'s email', function(done) {
-            userSvc.changeEmail(req, userColl).then(function(resp) {
+            userSvc.changeEmail(req, userColl, 'fakeSender').then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toBe('Successfully changed email');
                 expect(userColl.findOne).toHaveBeenCalled();
@@ -1001,6 +1076,22 @@ describe('userSvc (UT)', function() {
                 expect(userColl.update.calls[0].args[1].$set.email).toBe('otter');
                 expect(userColl.update.calls[0].args[1].$set.lastUpdated instanceof Date).toBe(true);
                 expect(userColl.update.calls[0].args[2]).toEqual({w: 1, journal: true});
+                expect(userSvc.notifyEmailChange).toHaveBeenCalledWith('fakeSender', 'johnny', 'otter');
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should just log an error if sending emails fails', function(done) {
+            userSvc.notifyEmailChange.andReturn(q.reject('I GOT A PROBLEM'));
+            userSvc.changeEmail(req, userColl, 'fakeSender').then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toBe('Successfully changed email');
+                expect(userColl.update).toHaveBeenCalled();
+                expect(userSvc.notifyEmailChange).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1010,7 +1101,7 @@ describe('userSvc (UT)', function() {
 
         it('should fail if the mongo findOne call fails', function(done) {
             userColl.findOne.andCallFake(function(query, cb) { cb('I GOT A PROBLEM'); });
-            userSvc.changeEmail(req, userColl).then(function(resp) {
+            userSvc.changeEmail(req, userColl, 'fakeSender').then(function(resp) {
                 expect(resp).not.toBeDefined();
                 done();
             }).catch(function(error) {
@@ -1024,7 +1115,7 @@ describe('userSvc (UT)', function() {
         
         it('should fail if the mongo update call fails', function(done) {
             userColl.update.andCallFake(function(query, updates, opts, cb) { cb('I GOT A PROBLEM'); });
-            userSvc.changeEmail(req, userColl).then(function(resp) {
+            userSvc.changeEmail(req, userColl, 'fakeSender').then(function(resp) {
                 expect(resp).not.toBeDefined();
                 done();
             }).catch(function(error) {

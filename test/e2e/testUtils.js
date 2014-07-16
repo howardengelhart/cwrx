@@ -3,6 +3,10 @@ var request     = require('request'),
     path        = require('path'),
     fs          = require('fs-extra'),
     aws         = require('aws-sdk'),
+    Imap        = require('imap'),
+    mailparser  = require('mailparser'),
+    events      = require('events'),
+    util        = require('util'),
     mongoUtils  = require('../../lib/mongoUtils'),
     s3util      = require('../../lib/s3util'),
     awsAuth     = process.env['awsAuth'] || path.join(process.env.HOME,'.aws.json'),
@@ -133,6 +137,114 @@ testUtils.removeS3File = function(bucket, key) {
     });
     
     return deferred.promise;
-}
+};
+
+
+/* Creates an agent that listens for new messages sent to a user from a given sender. The user defaults
+ * to c6e2eTester@gmail.com and the sender defaults to support@cinema6.com, these can be overriden through
+ * the constructor's optional parameters. Once created, call the (async) start() method. After this,
+ * 'message' events are emitted when an email is received from the sender; the data sent with these
+ * events is a JSON representation of an email. */
+testUtils.Mailman = function(imapOpts, sender) {
+    var self = this;
+    self._imapOpts = imapOpts || { user: 'c6e2eTester@gmail.com', password: 'bananas4bananas',
+                                   host: 'imap.gmail.com', port: 993, tls: true };
+    self.sender = sender || 'support@cinema6.com';
+    self._lastSeqId = -1; // sequence id of the latest message retrieved
+    
+    Object.defineProperty(self, 'state', {
+        get: function() {
+            return self._conn && self._conn.state || 'disconnected';
+        }
+    });
+    
+    events.EventEmitter.call(this);
+};
+
+util.inherits(testUtils.Mailman, events.EventEmitter);
+
+testUtils.Mailman.prototype.start = function() {
+    var self = this,
+        deferred = q.defer();
+        
+    if (self.state === 'authenticated') {
+        deferred.resolve('already connected');
+    }
+
+    self._conn = new Imap(self._imapOpts); // establish an IMAP connection to the mailbox
+
+    self._conn.on('error', function(error) {
+        self.emit('error', error);
+        deferred.reject(error);
+    });
+    
+    self._conn.once('ready', function() {
+        q.npost(self._conn, 'openBox', ['INBOX', true]).then(function(box) {
+            self._conn.on('mail', function(numMessages) {
+                self.getLatestEmail().then(function(msgObj) {
+                    self.emit('message', msgObj);
+                }).catch(function(error) {
+                    self.emit('error', error);
+                });
+            });
+            
+            deferred.resolve('success');
+        })
+        .catch(deferred.reject);
+    });
+
+    self._conn.connect();
+    
+    return deferred.promise;
+};
+
+/* This is used internally when the connection receives a new mail event to fetch the message.
+ * However, it can be called manually if needed. If oldEmailOk is not true, this will reject if the
+ * message that's fetched has been seen by the checker before (its seqId === self._lastSeqId) */
+testUtils.Mailman.prototype.getLatestEmail = function(oldEmailOk) {
+    if (this.state !== 'authenticated') {
+        return q.reject('You must call this.start() first');
+    }
+    
+    var parser = new mailparser.MailParser(), // will parse the raw message into a JSON object
+        deferred = q.defer(),
+        self = this;
+        
+    parser.on('end', deferred.resolve); // on end event, parser calls with object representing message
+    
+    q.npost(self._conn.seq, 'search', [[['FROM', self.sender]]])
+    .then(function(results) { // results is an array of message sequence numbers
+        if (results.length === 0) return q.reject('No messages from ' + self.sender + ' found');
+
+        var seqId = Math.max.apply(null, results); // gets the latest matching message
+        
+        // If we've already returned this message, reject (unless client ok with old emails)
+        if (seqId <= self._lastSeqId && !oldEmailOk) {
+            return deferred.reject('Checked for new email but got nothing new from ' + self.sender);
+        }
+        
+        var fetch = self._conn.seq.fetch(seqId, {bodies:''}).on('error', deferred.reject);
+        
+        fetch.once('message', function(msg, seqno) {
+            msg.on('body', function(stream, info) {
+                stream.pipe(parser);
+            });
+            
+            msg.on('end', function() {
+                self._lastSeqId = seqId;
+                parser.end();
+            });
+        });
+    })
+    .catch(deferred.reject);
+
+    return deferred.promise;
+};
+
+testUtils.Mailman.prototype.stop = function() {
+    this._conn.end();
+    this._conn = null;
+};
+
 
 module.exports = testUtils;
