@@ -13,7 +13,7 @@ describe('email', function() {
         q               = require('q');
     });
 
-    describe('_compileAndSend', function() {
+    describe('compileAndSend', function() {
         var compilerSpy, fakeTransport, sesTportSpy;
         beforeEach(function() {
             delete require.cache[require.resolve('../../lib/email')];
@@ -33,7 +33,7 @@ describe('email', function() {
         });
 
         it('should successfully compile the template and send an email', function(done) {
-            email._compileAndSend('sender','recip','subj','templ',{foo:'bar'}).then(function(resp) {
+            email.compileAndSend('sender','recip','subj','templ',{foo:'bar'}).then(function(resp) {
                 expect(resp).toBe('success');
                 expect(fs.readFile).toHaveBeenCalledWith(path.join(__dirname, '../../templates/templ'),
                                                          {encoding: 'utf8'}, jasmine.any(Function));
@@ -51,7 +51,7 @@ describe('email', function() {
         
         it('should fail if reading the template fails', function(done) {
             fs.readFile.andCallFake(function(path, opts, cb) { cb('I GOT A PROBLEM'); });
-            email._compileAndSend('sender','recip','subj','templ',{foo:'bar'}).then(function(resp) {
+            email.compileAndSend('sender','recip','subj','templ',{foo:'bar'}).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
@@ -66,7 +66,7 @@ describe('email', function() {
         
         it('should fail if sending the email fails', function(done) {
             fakeTransport.sendMail.andCallFake(function(opts, cb) { cb('I GOT A PROBLEM'); });
-            email._compileAndSend('sender','recip','subj','templ',{foo:'bar'}).then(function(resp) {
+            email.compileAndSend('sender','recip','subj','templ',{foo:'bar'}).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
