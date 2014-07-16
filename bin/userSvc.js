@@ -166,18 +166,20 @@
         if (!newUser.permissions) {
             newUser.permissions = {};
         }
-        var defaultPerms = { // ensure that every user at least has these permissions
+        // ensure that every user at least has these permissions; however, these can be overriden
+        // with lower levels (Scope.Own) if the requester specifies that in the request
+        var defaultPerms = {
             elections: {
-                read: Scope.Own,
-                create: Scope.Own,
-                edit: Scope.Own,
-                delete: Scope.Own
+                read: Scope.Org,
+                create: Scope.Org,
+                edit: Scope.Org,
+                delete: Scope.Org
             },
             experiences: {
-                read: Scope.Own,
-                create: Scope.Own,
-                edit: Scope.Own,
-                delete: Scope.Own
+                read: Scope.Org,
+                create: Scope.Org,
+                edit: Scope.Org,
+                delete: Scope.Org
             },
             users: {
                 read: Scope.Own,
