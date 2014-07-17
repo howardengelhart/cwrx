@@ -132,7 +132,7 @@
         return deferred.promise;
     };
     
-    auth.notifyForgotPassword = function(sender, recipient, url) {
+    auth.notifyPwdReset = function(sender, recipient, url) {
         var subject = 'Reset your Cinema6 Password',
             data = {url: url};
         return email.compileAndSend(sender, recipient, subject, 'pwdReset.html', data);
@@ -175,7 +175,7 @@
             .then(function() { //TODO: fix url to a link to frontend
                 log.info('[%1] Saved reset token for %2 to database', req.uuid, reqEmail);
                 var url = 'https://' + host + '/api/auth/reset/' + account.id + '/' + token;
-                return auth.notifyForgotPassword(emailSender, reqEmail, url);
+                return auth.notifyPwdReset(emailSender, reqEmail, url);
             })
             .then(function() {
                 log.info('[%1] Successfully sent reset email to %2', req.uuid, reqEmail);
@@ -188,7 +188,7 @@
         });
     };
     
-    auth.resetPassword = function(req, users, emailSender) {
+    auth.resetPassword = function(req, users, emailSender, cookieMaxAge) {
         var log = logger.getLog(),
             id = req.body && req.body.id || '', // TODO: decide exact source for all these params
             token = req.body && req.body.token || '',
@@ -231,8 +231,9 @@
                         $set: { password: hashed, lastUpdated: now },
                         $unset: { resetToken: 1 }
                     };
-                    return q.npost(users, 'update', [{id: id}, updates, {w: 1, journal: true}]);
-                }).then(function() {
+                    return q.npost(users, 'update', [{id:id},updates,{w:1,journal:true,new:true}]);
+                })
+                .then(function() {
                     log.info('[%1] User %2 successfully reset their password', req.uuid, id);
                     
                     email.notifyPwdChange(emailSender, account.email)
@@ -242,7 +243,13 @@
                         log.error('[%1] Error sending msg to %2: %3',req.uuid,account.email,error);
                     });
                     
-                    return q({code: 200, body: 'Successfully reset password'});
+                    return q.npost(req.session, 'regenerate');
+                })
+                .then(function() {
+                    var user = mongoUtils.safeUser(account);
+                    req.session.user = user.id;
+                    req.session.cookie.maxAge = cookieMaxAge;
+                    return q({ code: 200, body: user });
                 });
             });
         })
@@ -366,8 +373,9 @@
             });
         });
         
-        app.post('/api/auth/password/reset', function(req, res) {
-            auth.resetPassword(req, users, state.config.ses.sender).then(function(resp) {
+        app.post('/api/auth/password/reset', sessionsWrapper, function(req, res) {
+            auth.resetPassword(req, users, state.config.ses.sender, state.config.sessions.maxAge)
+            .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
                 res.send(500, {

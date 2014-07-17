@@ -1,16 +1,21 @@
 var flush = true;
 describe('auth (UT)', function() {
-    if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
-    var auth, mockLog, mockLogger, req, users,
-        uuid        = require('../../lib/uuid'),
-        logger      = require('../../lib/logger'),
-        mongoUtils  = require('../../lib/mongoUtils'),
-        auth        = require('../../bin/auth'),
-        enums       = require('../../lib/enums'),
-        Status      = enums.Status,
-        bcrypt      = require('bcrypt');
-    
+    var auth, mockLog, mockLogger, req, users, q, uuid, logger, mongoUtils, auth, email, enums,
+        Status, bcrypt, anyFunc;
+        
     beforeEach(function() {
+        if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
+        q           = require('q');
+        crypto      = require('crypto');
+        uuid        = require('../../lib/uuid');
+        logger      = require('../../lib/logger');
+        mongoUtils  = require('../../lib/mongoUtils');
+        auth        = require('../../bin/auth');
+        email       = require('../../lib/email');
+        enums       = require('../../lib/enums');
+        Status      = enums.Status;
+        bcrypt      = require('bcrypt');
+        
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
             error : jasmine.createSpy('log_error'),
@@ -23,10 +28,6 @@ describe('auth (UT)', function() {
         spyOn(logger, 'getLog').andReturn(mockLog);
         req = {
             uuid: '12345',
-            body: {
-                email: 'user',
-                password: 'pass'
-            },
             session: {
                 regenerate: jasmine.createSpy('regenerate_session').andCallFake(function(cb) {
                     req.session.cookie = {};
@@ -35,15 +36,18 @@ describe('auth (UT)', function() {
             }
         };
         users = {
-            findOne: jasmine.createSpy('users_findOne')
+            findOne: jasmine.createSpy('users_findOne'),
+            update: jasmine.createSpy('users_update')
         };
         spyOn(mongoUtils, 'safeUser').andCallThrough();
         spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
+        anyFunc = jasmine.any(Function);
     });
     
     describe('login', function() {
         var origUser;
         beforeEach(function() {
+            req.body = { email: 'user', password: 'pass' };
             origUser = {
                 id: 'u-123',
                 status: Status.Active,
@@ -59,7 +63,7 @@ describe('auth (UT)', function() {
         });
     
         it('should resolve with a 400 if not provided with the required parameters', function(done) {
-            req = {};
+            req.body = {};
             auth.login(req, users).then(function(resp) {
                 expect(resp.code).toBe(400);
                 expect(resp.body).toBeDefined();
@@ -260,5 +264,186 @@ describe('auth (UT)', function() {
                 done();
             });
         });
+    });
+    
+    describe('notifyPwdReset', function() {
+        beforeEach(function() {
+            spyOn(email, 'compileAndSend').andReturn(q('success'));
+        });
+        
+        it('should correctly call compileAndSend', function(done) {
+            auth.notifyPwdReset('send', 'recip', 'reset-pwd.com').then(function(resp) {
+                expect(resp).toBe('success');
+                expect(email.compileAndSend).toHaveBeenCalledWith('send','recip',
+                    'Reset your Cinema6 Password','pwdReset.html',{url:'reset-pwd.com'});
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should pass along errors from compileAndSend', function(done) {
+            email.compileAndSend.andReturn(q.reject('I GOT A PROBLEM'));
+            auth.notifyPwdReset('send', 'recip', 'reset-pwd.com').then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(email.compileAndSend).toHaveBeenCalled();
+            }).finally(done);
+        });
+    });
+    
+    describe('forgotPassword', function() {
+        var origUser;
+        beforeEach(function() {
+            req.body = {email: 'user@c6.com'};
+            origUser = {
+                id: 'u-1',
+                status: Status.Active,
+                email: 'user@c6.com',
+                password: 'hashpass'
+            };
+            users.findOne.andCallFake(function(query, cb) { cb(null, origUser); });
+            users.update.andCallFake(function(query, obj, opts, cb) { cb(null, 'updated'); });
+            spyOn(crypto, 'randomBytes').andCallFake(function(bytes, cb) { cb(null, new Buffer('HELLO')); });
+            spyOn(bcrypt, 'genSaltSync').andReturn('sodiumChloride');
+            spyOn(bcrypt, 'hash').andCallFake(function(txt, salt, cb) { cb(null, 'hashToken'); });
+            spyOn(auth, 'notifyPwdReset').andReturn('success');
+        });
+        
+        it('should fail with a 400 if no email is in the request', function(done) {
+            req.body = {};
+            auth.forgotPassword(req, users, 10000, 'test@c6.com', 'ut.c6.com').then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(400);
+                expect(resp.body).toBe('Need to provide email in the request');
+                expect(users.findOne).not.toHaveBeenCalled();
+                expect(users.update).not.toHaveBeenCalled();
+                expect(auth.notifyPwdReset).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should successfully create and mail a password reset token', function(done) {
+            var now = new Date();
+            auth.forgotPassword(req, users, 10000, 'test@c6.com', 'ut.c6.com').then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(200);
+                expect(resp.body).toBe('Successfully generated reset token');
+                expect(users.findOne).toHaveBeenCalledWith({email: 'user@c6.com'}, anyFunc);
+                expect(crypto.randomBytes).toHaveBeenCalledWith(24, anyFunc);
+                expect(bcrypt.genSaltSync).toHaveBeenCalled();
+                expect(bcrypt.hash).toHaveBeenCalledWith('48454c4c4f', 'sodiumChloride', anyFunc);
+                expect(users.update).toHaveBeenCalledWith({ email: 'user@c6.com' },
+                    { $set: { lastUpdated: jasmine.any(Date),
+                              resetToken: { token: 'hashToken', expires: jasmine.any(Date) } } },
+                    { w: 1, journal: true}, anyFunc);
+                expect((users.update.calls[0].args[1]['$set'].resetToken.expires - now) >= 10000).toBeTruthy();
+                expect(auth.notifyPwdReset).toHaveBeenCalledWith('test@c6.com', 'user@c6.com',
+                    'https://ut.c6.com/api/auth/reset/u-1/48454c4c4f');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should fail with a 404 if the user does not exist', function(done) {
+            users.findOne.andCallFake(function(query, cb) { cb(null, null); });
+            auth.forgotPassword(req, users, 10000, 'test@c6.com', 'ut.c6.com').then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(404);
+                expect(resp.body).toBe('That user does not exist');
+                expect(users.findOne).toHaveBeenCalled();
+                expect(crypto.randomBytes).not.toHaveBeenCalled();
+                expect(users.update).not.toHaveBeenCalled();
+                expect(auth.notifyPwdReset).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should overwrite a previous token if one exists', function(done) {
+            origUser.resetToken = { expires: new Date(), token: 'oldToken' };
+            auth.forgotPassword(req, users, 10000, 'test@c6.com', 'ut.c6.com').then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(200);
+                expect(resp.body).toBe('Successfully generated reset token');
+                expect(users.findOne).toHaveBeenCalled();
+                expect(users.update).toHaveBeenCalledWith({ email: 'user@c6.com' },
+                    { $set: { lastUpdated: jasmine.any(Date),
+                              resetToken: { token: 'hashToken', expires: jasmine.any(Date) } } },
+                    { w: 1, journal: true}, anyFunc);
+                expect(auth.notifyPwdReset).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should fail if looking up the user fails', function(done) {
+            users.findOne.andCallFake(function(query, cb) { cb('I GOT A PROBLEM', null); });
+            auth.forgotPassword(req, users, 10000, 'test@c6.com', 'ut.c6.com').then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(users.findOne).toHaveBeenCalled();
+                expect(crypto.randomBytes).not.toHaveBeenCalled();
+                expect(users.update).not.toHaveBeenCalled();
+                expect(auth.notifyPwdReset).not.toHaveBeenCalled();
+            }).finally(done);
+        });
+        
+        it('should fail if creating a random token fails', function(done) {
+            crypto.randomBytes.andCallFake(function(bytes, cb) { cb('I GOT A PROBLEM', null); });
+            auth.forgotPassword(req, users, 10000, 'test@c6.com', 'ut.c6.com').then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(users.findOne).toHaveBeenCalled();
+                expect(crypto.randomBytes).toHaveBeenCalled();
+                expect(bcrypt.hash).not.toHaveBeenCalled();
+                expect(users.update).not.toHaveBeenCalled();
+                expect(auth.notifyPwdReset).not.toHaveBeenCalled();
+            }).finally(done);
+        });
+        
+        it('should fail if hashing the token fails', function(done) {
+            bcrypt.hash.andCallFake(function(txt, salt, cb) { cb('I GOT A PROBLEM', null); });
+            auth.forgotPassword(req, users, 10000, 'test@c6.com', 'ut.c6.com').then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(users.findOne).toHaveBeenCalled();
+                expect(bcrypt.hash).toHaveBeenCalled();
+                expect(users.update).not.toHaveBeenCalled();
+                expect(auth.notifyPwdReset).not.toHaveBeenCalled();
+            }).finally(done);
+        });
+        
+        it('should fail if saving the token to the db fails', function(done) {
+            users.update.andCallFake(function(query, obj, opts, cb) { cb('I GOT A PROBLEM', null); });
+            auth.forgotPassword(req, users, 10000, 'test@c6.com', 'ut.c6.com').then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(users.findOne).toHaveBeenCalled();
+                expect(users.update).toHaveBeenCalled();
+                expect(auth.notifyPwdReset).not.toHaveBeenCalled();
+            }).finally(done);
+        });
+        
+        it('should fail if sending the email fails', function(done) {
+            auth.notifyPwdReset.andReturn(q.reject('I GOT A PROBLEM'));
+            auth.forgotPassword(req, users, 10000, 'test@c6.com', 'ut.c6.com').then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(users.findOne).toHaveBeenCalled();
+                expect(users.update).toHaveBeenCalled();
+                expect(auth.notifyPwdReset).toHaveBeenCalled();
+            }).finally(done);
+        });
+    });
+    
+    describe('resetPassword', function() {
+        //TODO
     });
 });  // end -- describe auth
