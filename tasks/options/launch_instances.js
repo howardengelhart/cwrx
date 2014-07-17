@@ -9,7 +9,7 @@ module.exports = {
         owner         : 'jenkins',
         ec2_templates : {
             'apiServer' : {
-                ImageId             : 'ami-f623c49e',
+                ImageId             : 'ami-fb8e9292',
                 IamInstanceProfile  : {
                     Name: 'apiServer-Dev'
                 },
