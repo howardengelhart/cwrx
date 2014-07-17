@@ -13,6 +13,32 @@ describe('email', function() {
         q               = require('q');
     });
 
+    describe('notifyPwdChange', function() {
+        beforeEach(function() {
+            spyOn(email, 'compileAndSend').andReturn(q('success'));
+        });
+        
+        it('should correctly call compileAndSend', function(done) {
+            email.notifyPwdChange('send', 'recip').then(function(resp) {
+                expect(resp).toBe('success');
+                expect(email.compileAndSend).toHaveBeenCalledWith('send','recip',
+                    'Your account password has been changed','pwdChange.html',{contact:'send'});
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should pass along errors from compileAndSend', function(done) {
+            email.compileAndSend.andReturn(q.reject('I GOT A PROBLEM'));
+            email.notifyPwdChange('send', 'recip').then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(email.compileAndSend).toHaveBeenCalled();
+            }).finally(done);
+        });
+    });
+
     describe('compileAndSend', function() {
         var compilerSpy, fakeTransport, sesTportSpy;
         beforeEach(function() {

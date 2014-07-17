@@ -333,12 +333,6 @@
         return deferred.promise;
     };
     
-    userSvc.notifyPwdChange = function(sender, recipient) {
-        var subject = 'Your account password has been changed',
-            data = { contact: sender };
-        return email.compileAndSend(sender, recipient, subject, 'pwdChange.html', data);
-    };
-    
     userSvc.changePassword = function(req, users, emailSender) {
         var log = logger.getLog(),
             now = new Date();
@@ -353,7 +347,7 @@
         }).then(function() {
             log.info('[%1] User %2 successfully changed their password', req.uuid, req.user.id);
             
-            userSvc.notifyPwdChange(emailSender, req.body.email)
+            email.notifyPwdChange(emailSender, req.body.email)
             .then(function() {
                 log.info('[%1] Notified user of change at %2', req.uuid, req.body.email);
             }).catch(function(error) {

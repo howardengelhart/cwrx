@@ -6,12 +6,15 @@
     var path        = require('path'),
         q           = require('q'),
         bcrypt      = require('bcrypt'),
+        crypto      = require('crypto'),
+        aws         = require('aws-sdk'),
         logger      = require('../lib/logger'),
         uuid        = require('../lib/uuid'),
         mongoUtils  = require('../lib/mongoUtils'),
         authUtils   = require('../lib/authUtils')(),
         service     = require('../lib/service'),
         enums       = require('../lib/enums'),
+        email       = require('../lib/email'),
         Status      = enums.Status,
 
         state       = {},
@@ -40,21 +43,27 @@
                 maxTTL: 10
             }
         },
-        secretsPath: path.join(process.env.HOME,'.auth.secrets.json'),
+        ses: {
+            region: 'us-east-1',
+            sender: 'support@cinema6.com'
+        },
         mongo: {
             c6Db: {
                 host: null,
                 port: null,
                 retryConnect : true
             }
-        }
+        },
+        host            : 'localhost',  // hostname of this api server, for constructing urls
+        resetTokenTTL   : 1*60*60*1000, // 1 hour; unit here is milliseconds
+        secretsPath     : path.join(process.env.HOME,'.auth.secrets.json')
     };
 
     auth.login = function(req, users, maxAge) {
         if (!req.body || !req.body.email || !req.body.password) {
             return q({
                 code: 400,
-                body: 'You need to provide a email and password in the body'
+                body: 'You need to provide an email and password in the body'
             });
         }
         var deferred = q.defer(),
@@ -65,8 +74,7 @@
         q.npost(users, 'findOne', [{email: req.body.email}])
         .then(function(account) {
             if (!account) {
-                log.info('[%1] Failed login for user %2: unknown email',
-                         req.uuid,req.body.email);
+                log.info('[%1] Failed login for user %2: unknown email', req.uuid, req.body.email);
                 return deferred.resolve({code: 401, body: 'Invalid email or password'});
             }
             userAccount = account;
@@ -123,6 +131,126 @@
         }
         return deferred.promise;
     };
+    
+    auth.notifyForgotPassword = function(sender, recipient, url) {
+        var subject = 'Reset your Cinema6 Password',
+            data = {url: url};
+        return email.compileAndSend(sender, recipient, subject, 'pwdReset.html', data);
+    };
+    
+    auth.forgotPassword = function(req, users, resetTokenTTL, emailSender, host) {
+        var log = logger.getLog(),
+            now = new Date(),
+            reqEmail = req.body && req.body.email || '',
+            token;
+        
+        if (!reqEmail) {
+            log.info('[%1] No email in the request body', req.uuid);
+            return q({code: 400, body: 'Need to provide email in the request'});
+        }
+        
+        log.info('[%1] User %2 forgot their password, sending reset code', req.uuid, reqEmail);
+        
+        return q.npost(users, 'findOne', [{email: reqEmail}])
+        .then(function(account) {
+            if (!account) {
+                log.info('[%1] No user with email %2 exists', req.uuid, reqEmail);
+                return q({code: 404, body: 'That user does not exist'});
+            }
+
+            return q.npost(crypto, 'randomBytes', [24])
+            .then(function(buff) {
+                token = buff.toString('hex');
+                return q.npost(bcrypt, 'hash', [token, bcrypt.genSaltSync()]);
+            })
+            .then(function(hashed) {
+                var updates = {
+                    $set: {
+                        lastUpdated: now,
+                        resetToken: {token:hashed, expires:new Date(now.valueOf() + resetTokenTTL)}
+                    }
+                };
+                return q.npost(users, 'update', [{email:reqEmail}, updates, {w:1, journal:true}]);
+            })
+            .then(function() { //TODO: fix url to a link to frontend
+                log.info('[%1] Saved reset token for %2 to database', req.uuid, reqEmail);
+                var url = 'https://' + host + '/api/auth/reset/' + account.id + '/' + token;
+                return auth.notifyForgotPassword(emailSender, reqEmail, url);
+            })
+            .then(function() {
+                log.info('[%1] Successfully sent reset email to %2', req.uuid, reqEmail);
+                return q({code: 200, body: 'Successfully generated reset token'});
+            });
+        })
+        .catch(function(error) {
+            log.error('[%1] Error generating reset token for %2: %3', req.uuid, reqEmail, error);
+            return q.reject(error);
+        });
+    };
+    
+    auth.resetPassword = function(req, users, emailSender) {
+        var log = logger.getLog(),
+            id = req.body && req.body.id || '', // TODO: decide exact source for all these params
+            token = req.body && req.body.token || '',
+            newPassword = req.body && req.body.newPassword || '',
+            now = new Date();
+        
+        if (!id || !token || !newPassword) {
+            log.info('[%1] Incomplete reset password request %2',
+                     req.uuid, id ? 'for user ' + id : '');
+            return q({code: 400, body: 'Must provide id, token, and newPassword'});
+        }
+        
+        log.info('[%1] User %2 attempting to reset their password', req.uuid, id);
+        
+        return q.npost(users, 'findOne', [{id: id}])
+        .then(function(account) {
+            if (!account) {
+                log.info('[%1] No user with id %2 exists', req.uuid, id);
+                return q({code: 404, body: 'That user does not exist'});
+            }
+            if (!account.resetToken || !account.resetToken.expires) {
+                log.info('[%1] User %2 has no reset token in the database', req.uuid, id);
+                return q({code: 403, body: 'No reset token found'});
+            }
+            if (now > account.resetToken.expires) {
+                log.info('[%1] Reset token for user %2 expired at %3',
+                         req.uuid, id, account.resetToken.expires);
+                return q({code: 403, body: 'Reset token expired'});
+            }
+            return q.npost(bcrypt, 'compare', [token, account.resetToken.token])
+            .then(function(matching) {
+                if (!matching) {
+                    log.info('[%1] Request token does not match reset token in db', req.uuid);
+                    return q({code: 403, body: 'Invalid reset token'});
+                }
+                
+                return q.npost(bcrypt, 'hash', [newPassword, bcrypt.genSaltSync()])
+                .then(function(hashed) {
+                    var updates = {
+                        $set: { password: hashed, lastUpdated: now },
+                        $unset: { resetToken: 1 }
+                    };
+                    return q.npost(users, 'update', [{id: id}, updates, {w: 1, journal: true}]);
+                }).then(function() {
+                    log.info('[%1] User %2 successfully reset their password', req.uuid, id);
+                    
+                    email.notifyPwdChange(emailSender, account.email)
+                    .then(function() {
+                        log.info('[%1] Notified user of change at %2', req.uuid, account.email);
+                    }).catch(function(error) {
+                        log.error('[%1] Error sending msg to %2: %3',req.uuid,account.email,error);
+                    });
+                    
+                    return q({code: 200, body: 'Successfully reset password'});
+                });
+            });
+        })
+        .catch(function(error) {
+            log.error('[%1] Error resetting password for user %2: %3', req.uuid, id, error);
+            return q.reject(error);
+        });
+    };
 
     auth.main = function(state) {
         var log = logger.getLog(),
@@ -138,6 +266,8 @@
             users       = state.dbs.c6Db.collection('users'),
             authTTLs    = state.config.cacheTTLs.auth;
         authUtils = require('../lib/authUtils')(authTTLs.freshTTL, authTTLs.maxTTL, users);
+        
+        aws.config.region = state.config.ses.region;
 
         app.use(express.bodyParser());
         app.use(express.cookieParser(state.secrets.cookieParser || ''));
@@ -222,6 +352,28 @@
         var authGetUser = authUtils.middlewarify({});
         app.get('/api/auth/status', sessionsWrapper, authGetUser, function(req, res) {
             res.send(200, req.user); // errors handled entirely by authGetUser
+        });
+        
+        app.post('/api/auth/password/forgot', function(req, res) { //TODO: put these in org service?
+            auth.forgotPassword(req, users, state.config.resetTokenTTL, state.config.ses.sender,
+                                state.config.host)
+            .then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(/*error*/) {
+                res.send(500, {
+                    error: 'Error generating reset code'
+                });
+            });
+        });
+        
+        app.post('/api/auth/password/reset', function(req, res) {
+            auth.resetPassword(req, users, state.config.ses.sender).then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(/*error*/) {
+                res.send(500, {
+                    error: 'Error resetting password'
+                });
+            });
         });
 
         app.get('/api/auth/meta', function(req, res){
