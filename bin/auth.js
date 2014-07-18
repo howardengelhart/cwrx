@@ -132,7 +132,7 @@
         return deferred.promise;
     };
     
-    auth.notifyPwdReset = function(sender, recipient, url) {
+    auth.mailResetToken = function(sender, recipient, url) {
         var subject = 'Reset your Cinema6 Password',
             data = {url: url};
         return email.compileAndSend(sender, recipient, subject, 'pwdReset.html', data);
@@ -175,7 +175,7 @@
             .then(function() { //TODO: fix url to a link to frontend
                 log.info('[%1] Saved reset token for %2 to database', req.uuid, reqEmail);
                 var url = 'https://' + host + '/api/auth/reset/' + account.id + '/' + token;
-                return auth.notifyPwdReset(emailSender, reqEmail, url);
+                return auth.mailResetToken(emailSender, reqEmail, url);
             })
             .then(function() {
                 log.info('[%1] Successfully sent reset email to %2', req.uuid, reqEmail);
@@ -222,7 +222,7 @@
             .then(function(matching) {
                 if (!matching) {
                     log.info('[%1] Request token does not match reset token in db', req.uuid);
-                    return q({code: 403, body: 'Invalid reset token'});
+                    return q({code: 403, body: 'Invalid request token'});
                 }
                 
                 return q.npost(bcrypt, 'hash', [newPassword, bcrypt.genSaltSync()])
@@ -233,7 +233,7 @@
                     };
                     return q.npost(users, 'update', [{id:id},updates,{w:1,journal:true,new:true}]);
                 })
-                .then(function() {
+                .then(function(results) {
                     log.info('[%1] User %2 successfully reset their password', req.uuid, id);
                     
                     email.notifyPwdChange(emailSender, account.email)
@@ -243,10 +243,10 @@
                         log.error('[%1] Error sending msg to %2: %3',req.uuid,account.email,error);
                     });
                     
-                    return q.npost(req.session, 'regenerate');
+                    return q.npost(req.session, 'regenerate').thenResolve(results[0]);
                 })
-                .then(function() {
-                    var user = mongoUtils.safeUser(account);
+                .then(function(updatedAccount) {
+                    var user = mongoUtils.safeUser(updatedAccount);
                     req.session.user = user.id;
                     req.session.cookie.maxAge = cookieMaxAge;
                     return q({ code: 200, body: user });
@@ -361,7 +361,7 @@
             res.send(200, req.user); // errors handled entirely by authGetUser
         });
         
-        app.post('/api/auth/password/forgot', function(req, res) { //TODO: put these in org service?
+        app.post('/api/auth/password/forgot', function(req, res) {
             auth.forgotPassword(req, users, state.config.resetTokenTTL, state.config.ses.sender,
                                 state.config.host)
             .then(function(resp) {
