@@ -37,7 +37,8 @@ describe('auth (UT)', function() {
         };
         users = {
             findOne: jasmine.createSpy('users_findOne'),
-            update: jasmine.createSpy('users_update')
+            update: jasmine.createSpy('users_update'),
+            findAndModify: jasmine.createSpy('users_findAndModify')
         };
         spyOn(mongoUtils, 'safeUser').andCallThrough();
         spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
@@ -453,7 +454,7 @@ describe('auth (UT)', function() {
                 resetToken: { token: 'hashed', expires: new Date(now.valueOf() + 10000) }
             };
             users.findOne.andCallFake(function(query, cb) { cb(null, origUser); });
-            users.update.andCallFake(function(query, obj, opts, cb) {
+            users.findAndModify.andCallFake(function(query, sort, obj, opts, cb) {
                 cb(null, [{ id: 'u-1', updated: true, password: 'hashPass' }]);
             });
             spyOn(bcrypt, 'compare').andCallFake(function(orig, hashed, cb) { cb(null, true); });
@@ -477,7 +478,7 @@ describe('auth (UT)', function() {
                     expect(resp.body).toBe('Must provide id, token, and newPassword');
                 });
                 expect(users.findOne).not.toHaveBeenCalled();
-                expect(users.update).not.toHaveBeenCalled();
+                expect(users.findAndModify).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
@@ -491,7 +492,7 @@ describe('auth (UT)', function() {
                 expect(bcrypt.compare).toHaveBeenCalledWith('qwer1234', 'hashed', anyFunc);
                 expect(bcrypt.genSaltSync).toHaveBeenCalled();
                 expect(bcrypt.hash).toHaveBeenCalledWith('newPass', 'sodiumChloride', anyFunc);
-                expect(users.update).toHaveBeenCalledWith({ id: 'u-1' },
+                expect(users.findAndModify).toHaveBeenCalledWith({ id: 'u-1' }, { id: 1 },
                     { $set : { password: 'hashPass', lastUpdated: jasmine.any(Date) },
                       $unset: { resetToken: 1 } },
                     { w: 1, journal: true, new: true }, anyFunc);
@@ -512,7 +513,7 @@ describe('auth (UT)', function() {
                 expect(resp.body).toBe('That user does not exist');
                 expect(users.findOne).toHaveBeenCalled();
                 expect(bcrypt.compare).not.toHaveBeenCalled();
-                expect(users.update).not.toHaveBeenCalled();
+                expect(users.findAndModify).not.toHaveBeenCalled();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -526,7 +527,7 @@ describe('auth (UT)', function() {
                 expect(resp.body).toBe('No reset token found');
                 expect(users.findOne).toHaveBeenCalled();
                 expect(bcrypt.compare).not.toHaveBeenCalled();
-                expect(users.update).not.toHaveBeenCalled();
+                expect(users.findAndModify).not.toHaveBeenCalled();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -540,7 +541,7 @@ describe('auth (UT)', function() {
                 expect(resp.body).toBe('Reset token expired');
                 expect(users.findOne).toHaveBeenCalled();
                 expect(bcrypt.compare).not.toHaveBeenCalled();
-                expect(users.update).not.toHaveBeenCalled();
+                expect(users.findAndModify).not.toHaveBeenCalled();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -554,7 +555,7 @@ describe('auth (UT)', function() {
                 expect(resp.body).toBe('Invalid request token');
                 expect(bcrypt.compare).toHaveBeenCalled();
                 expect(bcrypt.hash).not.toHaveBeenCalled();
-                expect(users.update).not.toHaveBeenCalled();
+                expect(users.findAndModify).not.toHaveBeenCalled();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -569,7 +570,7 @@ describe('auth (UT)', function() {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(users.findOne).toHaveBeenCalled();
                 expect(bcrypt.compare).not.toHaveBeenCalled();
-                expect(users.update).not.toHaveBeenCalled();
+                expect(users.findAndModify).not.toHaveBeenCalled();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
             }).finally(done);
@@ -583,7 +584,7 @@ describe('auth (UT)', function() {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(bcrypt.compare).toHaveBeenCalled();
                 expect(bcrypt.hash).not.toHaveBeenCalled();
-                expect(users.update).not.toHaveBeenCalled();
+                expect(users.findAndModify).not.toHaveBeenCalled();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
             }).finally(done);
@@ -596,20 +597,20 @@ describe('auth (UT)', function() {
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(bcrypt.hash).toHaveBeenCalled();
-                expect(users.update).not.toHaveBeenCalled();
+                expect(users.findAndModify).not.toHaveBeenCalled();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
             }).finally(done);
         });
         
         it('should fail if updating the user fails', function(done) {
-            users.update.andCallFake(function(query, obj, opts, cb) { cb('I GOT A PROBLEM', null); });
+            users.findAndModify.andCallFake(function(query, sort, obj, opts, cb) { cb('I GOT A PROBLEM', null); });
             auth.resetPassword(req, users, 'test@c6.com', 10000).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(bcrypt.hash).toHaveBeenCalled();
-                expect(users.update).toHaveBeenCalled();
+                expect(users.findAndModify).toHaveBeenCalled();
                 expect(email.notifyPwdChange).not.toHaveBeenCalled();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
@@ -622,7 +623,7 @@ describe('auth (UT)', function() {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({id: 'u-1', updated: true});
                 expect(users.findOne).toHaveBeenCalled();
-                expect(users.update).toHaveBeenCalled();
+                expect(users.findAndModify).toHaveBeenCalled();
                 expect(email.notifyPwdChange).toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(req.session.user).toBe('u-1');

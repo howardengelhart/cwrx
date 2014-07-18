@@ -196,8 +196,7 @@
             now = new Date();
         
         if (!id || !token || !newPassword) {
-            log.info('[%1] Incomplete reset password request %2',
-                     req.uuid, id ? 'for user ' + id : '');
+            log.info('[%1] Incomplete reset request %2', req.uuid, id ? 'for user ' + id : '');
             return q({code: 400, body: 'Must provide id, token, and newPassword'});
         }
         
@@ -227,11 +226,12 @@
                 
                 return q.npost(bcrypt, 'hash', [newPassword, bcrypt.genSaltSync()])
                 .then(function(hashed) {
-                    var updates = {
-                        $set: { password: hashed, lastUpdated: now },
-                        $unset: { resetToken: 1 }
-                    };
-                    return q.npost(users, 'update', [{id:id},updates,{w:1,journal:true,new:true}]);
+                    var opts = { w: 1, journal: true, new: true },
+                        updates = {
+                            $set: { password: hashed, lastUpdated: now },
+                            $unset: { resetToken: 1 }
+                        };
+                    return q.npost(users, 'findAndModify', [{id: id}, {id: 1}, updates, opts]);
                 })
                 .then(function(results) {
                     log.info('[%1] User %2 successfully reset their password', req.uuid, id);

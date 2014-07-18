@@ -624,14 +624,14 @@ describe('user (E2E):', function() {
         it('should change the user\'s email successfully', function(done) {
             var mailman = new testUtils.Mailman();
             mailman.start().then(function() {
-                mailman.on('error', done); // call done with error to throw it as an exception
-                mailman.on('message', function(msgObj) {
-                    expect(msgObj.from[0].address).toBe('support@cinema6.com');
-                    expect(msgObj.to[0].address).toBe('c6e2eTester@gmail.com');
-                    expect(msgObj.subject).toBe('Your account email address has been changed');
-                    expect(msgObj.text.match(/myNewEmail/)).toBeTruthy();
-                    expect(msgObj.html.match(/myNewEmail/)).toBeTruthy();
-                    expect((new Date() - msgObj.date)).toBeLessThan(30000); // message should be recent
+                mailman.once('error', done); // call done with error to throw it as an exception
+                mailman.once('message', function(msg) {
+                    expect(msg.from[0].address).toBe('support@cinema6.com');
+                    expect(msg.to[0].address).toBe('c6e2eTester@gmail.com');
+                    expect(msg.subject).toBe('Your account email address has been changed');
+                    expect(msg.text.match(/myNewEmail/)).toBeTruthy();
+                    expect(msg.html.match(/myNewEmail/)).toBeTruthy();
+                    expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
                     mailman.stop();
                     done();
                 });
@@ -723,14 +723,14 @@ describe('user (E2E):', function() {
         it('should change the user\'s password successfully', function(done) {
             var mailman = new testUtils.Mailman();
             mailman.start().then(function() {
-                mailman.on('error', done); // call done with error to throw it as an exception
-                mailman.on('message', function(msgObj) {
-                    expect(msgObj.from[0].address).toBe('support@cinema6.com');
-                    expect(msgObj.to[0].address).toBe('c6e2eTester@gmail.com');
-                    expect(msgObj.subject).toBe('Your account password has been changed');
-                    expect(msgObj.text).toBeDefined();
-                    expect(msgObj.html).toBeDefined();
-                    expect((new Date() - msgObj.date)).toBeLessThan(30000); // message should be recent
+                mailman.once('error', done); // call done with error to throw it as an exception
+                mailman.once('message', function(msg) {
+                    expect(msg.from[0].address).toBe('support@cinema6.com');
+                    expect(msg.to[0].address).toBe('c6e2eTester@gmail.com');
+                    expect(msg.subject).toBe('Your account password has been changed');
+                    expect(msg.text).toBeDefined();
+                    expect(msg.html).toBeDefined();
+                    expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
                     mailman.stop();
                     done();
                 });

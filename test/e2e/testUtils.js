@@ -168,7 +168,7 @@ testUtils.Mailman.prototype.start = function() {
         deferred = q.defer();
         
     if (self.state === 'authenticated') {
-        deferred.resolve('already connected');
+        return q('already connected');
     }
 
     self._conn = new Imap(self._imapOpts); // establish an IMAP connection to the mailbox
