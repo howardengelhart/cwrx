@@ -63,9 +63,11 @@ c6Api.createUser = function(params){
                 org      : params.orgId
             }
         };
-    if (params.branding){
-        opts.json.branding = params.branding;
-    }
+    ['firstName', 'lastName', 'branding'].forEach(function(key) {
+        if (params[key]) {
+            opts.json[key] = params[key];
+        }
+    });
 
     return this(opts);
 };
@@ -92,6 +94,8 @@ function NewUserModel () {
     var _email     = null,
         _password  = null,
         _password2 = null,
+        _firstName = null,
+        _lastName  = null,
         _orgId     = null,
         _branding  = null;
 
@@ -130,6 +134,18 @@ function NewUserModel () {
         get : function() { return _password2; }
     });
 
+    Object.defineProperty(this,'firstName',{
+        enumerable: true,
+        set : function(v){ _firstName = v; },
+        get : function() { return _firstName; }
+    });
+
+    Object.defineProperty(this,'lastName',{
+        enumerable: true,
+        set : function(v){ _lastName = v; },
+        get : function() { return _lastName; }
+    });
+
     Object.defineProperty(this,'orgId',{
         enumerable: true,
         set : function(v){ _orgId = v; },
@@ -164,6 +180,12 @@ function NewUserController(api){
                 label : 'confirm password',
                 alias : 'password2',
                 repeat: 1
+            },
+            {
+                label : 'firstName'
+            },
+            {
+                label : 'lastName'
             },
             {
                 label : 'organization',
