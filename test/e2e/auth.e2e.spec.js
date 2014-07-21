@@ -455,13 +455,20 @@ describe('auth (E2E):', function() {
                 expect(resp.body).toBeDefined();
                 expect(resp.response.headers['set-cookie'].length).toBe(1);
                 expect(resp.response.headers['set-cookie'][0].match(/^c6Auth=.+/)).toBeTruthy('cookie match');
-                return testUtils.qRequest('post', options);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(403);
-                expect(resp.body).toBe('No reset token found');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            });
+
+            mailman.once('message', function(msg) {
+                expect(msg.subject).toBe('Your account password has been changed');
+                expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
+                testUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(403);
+                    expect(resp.body).toBe('No reset token found');
+                }).catch(function(error) {
+                    expect(error).not.toBeDefined();
+                }).finally(done);
+            });
         });
         
         it('should work properly with /api/auth/password/forgot', function(done) {
