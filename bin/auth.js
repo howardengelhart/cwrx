@@ -47,6 +47,9 @@
             region: 'us-east-1',
             sender: 'support@cinema6.com'
         },
+        forgotTargets: {
+            portal: 'https://portal.cinema6.com/forgot'
+        },
         mongo: {
             c6Db: {
                 host: null,
@@ -54,8 +57,7 @@
                 retryConnect : true
             }
         },
-        host            : 'localhost',  // hostname of this api server, for constructing urls
-        resetTokenTTL   : 1*60*60*1000, // 1 hour; unit here is milliseconds
+        resetTokenTTL   : 1*30*60*1000, // 30 minutes; unit here is milliseconds
         secretsPath     : path.join(process.env.HOME,'.auth.secrets.json')
     };
 
@@ -138,15 +140,22 @@
         return email.compileAndSend(sender, recipient, subject, 'pwdReset.html', data);
     };
     
-    auth.forgotPassword = function(req, users, resetTokenTTL, emailSender, host) {
+    auth.forgotPassword = function(req, users, resetTokenTTL, emailSender, targets) {
         var log = logger.getLog(),
             now = new Date(),
             reqEmail = req.body && req.body.email || '',
+            targetName = req.body && req.body.target || '',
+            target = targets[targetName] || '',
             token;
         
-        if (!reqEmail) {
-            log.info('[%1] No email in the request body', req.uuid);
-            return q({code: 400, body: 'Need to provide email in the request'});
+        if (!reqEmail || !targetName) {
+            log.info('[%1] Incomplete forgot password request', req.uuid);
+            return q({code: 400, body: 'Need to provide email and target in the request'});
+        }
+        if (!target) {
+            log.info('[%1] Invalid target %2, only accept %3',
+                     req.uuid, targetName, Object.keys(targets));
+            return q({code: 400, body: 'Invalid target'});
         }
         
         log.info('[%1] User %2 forgot their password, sending reset code', req.uuid, reqEmail);
@@ -172,9 +181,9 @@
                 };
                 return q.npost(users, 'update', [{email:reqEmail}, updates, {w:1, journal:true}]);
             })
-            .then(function() { //TODO: fix url to a link to frontend
+            .then(function() {
                 log.info('[%1] Saved reset token for %2 to database', req.uuid, reqEmail);
-                var url = 'https://' + host + '/api/auth/reset/' + account.id + '/' + token;
+                var url = target + '?id=' + account.id + '&token=' + token;
                 return auth.mailResetToken(emailSender, reqEmail, url);
             })
             .then(function() {
@@ -190,7 +199,7 @@
     
     auth.resetPassword = function(req, users, emailSender, cookieMaxAge) {
         var log = logger.getLog(),
-            id = req.body && req.body.id || '', // TODO: decide exact source for all these params
+            id = req.body && req.body.id || '',
             token = req.body && req.body.token || '',
             newPassword = req.body && req.body.newPassword || '',
             now = new Date();
@@ -363,7 +372,7 @@
         
         app.post('/api/auth/password/forgot', function(req, res) {
             auth.forgotPassword(req, users, state.config.resetTokenTTL, state.config.ses.sender,
-                                state.config.host)
+                                state.config.forgotTargets)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {

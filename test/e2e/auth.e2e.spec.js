@@ -20,7 +20,7 @@ describe('auth (E2E):', function() {
             email : "c6e2eTester@gmail.com",
             password : "$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq" // hash of 'password'
         };
-        urlRegex = new RegExp('https:\/\/' + host + '\/api\/auth\/reset\/u-1\/[0-9a-f]{48}'); //TODO: update for correct URL
+        urlRegex = /https:\/\/.*cinema6.com.*id=u-1.*token=[0-9a-f]{48}/;
         if (!mailman || mailman.state !== 'authenticated') {
             mailman = new testUtils.Mailman();
             mailman.start().done(function() {
@@ -248,19 +248,37 @@ describe('auth (E2E):', function() {
         beforeEach(function(done) {
             options = {
                 url: config.authUrl + '/password/forgot',
-                json: { email: 'c6e2eTester@gmail.com' }
+                json: { email: 'c6e2eTester@gmail.com', target: 'portal' }
             };
             testUtils.resetCollection('users', mockUser).done(done);
         });
 
-        it('should fail with a 400 if no email is provided', function(done) {
-            delete options.json.email;
+        it('should fail with a 400 if the request is incomplete', function(done) {
+            mailman.once('message', function(msg) {
+                expect(msg).not.toBeDefined();
+            });
+            var bodies = [{email: 'c6e2eTester@gmail.com'}, {target: 'portal'}];
+            q.all(bodies.map(function(body) {
+                options.json = body;
+                return testUtils.qRequest('post', options);
+            })).then(function(results) {
+                results.forEach(function(resp) {
+                    expect(resp.response.statusCode).toBe(400);
+                    expect(resp.body).toBe('Need to provide email and target in the request');
+                });
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should fail with a 400 for an invalid target', function(done) {
+            options.json.target = 'someFakeTarget';
             mailman.once('message', function(msg) {
                 expect(msg).not.toBeDefined();
             });
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('Need to provide email in the request');
+                expect(resp.body).toBe('Invalid target');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).finally(done);
@@ -451,7 +469,7 @@ describe('auth (E2E):', function() {
             testUtils.resetCollection('users', mockUser).then(function() {
                 var forgotOpts = {
                     url: config.authUrl + '/password/forgot',
-                    json: {email: 'c6e2eTester@gmail.com'}
+                    json: {email: 'c6e2eTester@gmail.com', target: 'portal'}
                 };
                 return testUtils.qRequest('post', forgotOpts);
             }).then(function(resp) {
