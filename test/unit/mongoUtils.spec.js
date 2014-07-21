@@ -103,16 +103,19 @@ describe('mongoUtils', function() {
             var user = {
                 _id: "thisisamongo_id",
                 email: 'johnnyTestmonkey',
+                resetToken: { token: 'hashToken', expires: new Date() },
                 password: 'hashofasecret'
             };
             var newUser = mongoUtils.safeUser(user);
             expect(newUser.email).toBe('johnnyTestmonkey');
             expect(newUser._id).not.toBeDefined();
             expect(newUser.password).not.toBeDefined();
+            expect(newUser.resetToken).not.toBeDefined();
             // shouldn't edit existing user object
             expect(user._id).toBe('thisisamongo_id');
             expect(user.email).toBe('johnnyTestmonkey');
             expect(user.password).toBe('hashofasecret');
+            expect(user.resetToken).toEqual({token: 'hashToken', expires: jasmine.any(Date)});
             expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
         });
     });

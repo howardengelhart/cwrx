@@ -875,32 +875,6 @@ describe('userSvc (UT)', function() {
         });
     });
     
-    describe('notifyPwdChange', function() {
-        beforeEach(function() {
-            spyOn(email, 'compileAndSend').andReturn(q('success'));
-        });
-        
-        it('should correctly call compileAndSend', function(done) {
-            userSvc.notifyPwdChange('send', 'recip').then(function(resp) {
-                expect(resp).toBe('success');
-                expect(email.compileAndSend).toHaveBeenCalledWith('send','recip',
-                    'Your account password has been changed','pwdChange.html',{contact:'send'});
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).finally(done);
-        });
-        
-        it('should pass along errors from compileAndSend', function(done) {
-            email.compileAndSend.andReturn(q.reject('I GOT A PROBLEM'));
-            userSvc.notifyPwdChange('send', 'recip').then(function(resp) {
-                expect(resp).not.toBeDefined();
-            }).catch(function(error) {
-                expect(error).toBe('I GOT A PROBLEM');
-                expect(email.compileAndSend).toHaveBeenCalled();
-            }).finally(done);
-        });
-    });
-    
     describe('changePassword', function() {
         var req, userColl;
         beforeEach(function() {
@@ -916,7 +890,7 @@ describe('userSvc (UT)', function() {
                 cb(null, 'fakeHash');
             });
             spyOn(bcrypt, 'genSaltSync').andReturn('sodiumChloride');
-            spyOn(userSvc, 'notifyPwdChange').andReturn(q('success'));
+            spyOn(email, 'notifyPwdChange').andReturn(q('success'));
         });
 
         it('fails if there is no newPassword in req.body', function(done) {
@@ -945,7 +919,7 @@ describe('userSvc (UT)', function() {
                 expect(bcrypt.hash).toHaveBeenCalled();
                 expect(bcrypt.hash.calls[0].args[0]).toBe('crosby');
                 expect(bcrypt.hash.calls[0].args[1]).toBe('sodiumChloride');
-                expect(userSvc.notifyPwdChange).toHaveBeenCalledWith('fakeSender', 'johnny');
+                expect(email.notifyPwdChange).toHaveBeenCalledWith('fakeSender', 'johnny');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -954,13 +928,13 @@ describe('userSvc (UT)', function() {
         });
         
         it('should just log an error if sending a notification fails', function(done) {
-            userSvc.notifyPwdChange.andReturn(q.reject('I GOT A PROBLEM'));
+            email.notifyPwdChange.andReturn(q.reject('I GOT A PROBLEM'));
             userSvc.changePassword(req, userColl, 'fakeSender').then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toBe('Successfully changed password');
                 expect(userColl.update).toHaveBeenCalled();
                 expect(bcrypt.hash).toHaveBeenCalled();
-                expect(userSvc.notifyPwdChange).toHaveBeenCalled();
+                expect(email.notifyPwdChange).toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
