@@ -41,7 +41,7 @@ describe('user (E2E):', function() {
         });
     });
     
-    xdescribe('GET /api/account/user/:id', function() {
+    describe('GET /api/account/user/:id', function() {
         var mockUser;
         beforeEach(function() {
             mockUser = {
@@ -241,6 +241,7 @@ describe('user (E2E):', function() {
                 expect(resp.body[2].password).not.toBeDefined();
                 expect(resp.body[3].id).toBe('e2e-getOrg3');
                 expect(resp.body[3].password).not.toBeDefined();
+                delete cookieJar.cookies; // force reset and re-login of mockRequester in beforeEach
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -249,7 +250,7 @@ describe('user (E2E):', function() {
         });
     });
     
-    xdescribe('POST /api/account/user', function() {
+    describe('POST /api/account/user', function() {
         var mockUser;
         beforeEach(function(done) {
             mockUser = {
@@ -377,7 +378,7 @@ describe('user (E2E):', function() {
         });
     });
     
-    xdescribe('PUT /api/account/user/:id', function() {
+    describe('PUT /api/account/user/:id', function() {
         var start = new Date(),
             mockUsers, updates;
         beforeEach(function(done) {
@@ -486,7 +487,7 @@ describe('user (E2E):', function() {
         });
     });
     
-    xdescribe('DELETE /api/account/user/:id', function() {
+    describe('DELETE /api/account/user/:id', function() {
         var mockUsers;
         beforeEach(function(done) {
             mockUsers = [
@@ -543,8 +544,6 @@ describe('user (E2E):', function() {
         });
         
         it('should not allow a user to delete themselves', function(done) {
-            // var options = { url: config.userSvcUrl + '/user/e2e-user', jar: cookieJar };
-            // testUtils.qRequest('get', options).then(function(resp) {
             var options = { url: config.userSvcUrl + '/user/e2e-user', jar: cookieJar };
             testUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
@@ -586,7 +585,7 @@ describe('user (E2E):', function() {
         });
     });
     
-    xdescribe('POST /api/account/user/email', function() {
+    describe('POST /api/account/user/email', function() {
         var user, reqBody, options;
         beforeEach(function(done) {
             user = {
@@ -699,7 +698,7 @@ describe('user (E2E):', function() {
         });
     });
     
-    xdescribe('POST /api/account/user/password', function() {
+    describe('POST /api/account/user/password', function() {
         var user, reqBody, options;
         beforeEach(function(done) {
             user = {
