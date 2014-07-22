@@ -127,8 +127,18 @@
                 sortObj[sortParts[0]] = Number(sortParts[1]);
             }
         }
+
+        if (!query && !(req.user.permissions &&
+                        req.user.permissions.users &&
+                        req.user.permissions.users.read &&
+                        req.user.permissions.users.read === Scope.All)) {
+            log.info('[%1] User %2 is not authorized to read all users', req.uuid, req.user.id);
+            return q({code: 403, body: 'Not authorized to read all users'});
+        }
+        
         log.info('[%1] User %2 getting users with query %3, sort %4, limit %5, skip %6', req.uuid,
                  req.user.id, JSON.stringify(query), JSON.stringify(sortObj), limit, skip);
+
         return q.npost(users.find(query, {sort: sortObj, limit: limit, skip: skip}), 'toArray')
         .then(function(results) {
             log.trace('[%1] Retrieved %2 users', req.uuid, results.length);
@@ -539,11 +549,8 @@
         });
         
         app.get('/api/account/users', sessionsWrapper, authGetUser, function(req, res) {
-            if (!req.query || !req.query.org) {
-                log.info('[%1] Cannot GET /api/users without org specified',req.uuid);
-                return res.send(400, 'Must specify org param');
-            }
-            userSvc.getUsers({ org: req.query.org }, req, users)
+            var query = req.query && req.query.org ? { org: req.query.org } : null;
+            userSvc.getUsers(query, req, users)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
