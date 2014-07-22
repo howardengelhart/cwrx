@@ -200,7 +200,7 @@ describe('userSvc (UT)', function() {
     describe('getUsers', function() {
         var cache, query, userColl, fakeCursor;
         beforeEach(function() {
-            req.user = { id: 'u-1234' };
+            req.user = { id: 'u-1234', permissions: { users: { read: Scope.Own } } };
             req.query = {
                 sort: 'id,1',
                 limit: 20,
@@ -228,8 +228,8 @@ describe('userSvc (UT)', function() {
                                                            {sort: {id: 1}, limit: 20, skip: 10});
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(userSvc.checkScope.calls.length).toBe(2);
-                expect(userSvc.checkScope.calls[0].args).toEqual([{id: 'u-1234'}, {id:'1'}, 'read']);
-                expect(userSvc.checkScope.calls[1].args).toEqual([{id: 'u-1234'}, {id:'2'}, 'read']);
+                expect(userSvc.checkScope.calls[0].args).toEqual([req.user, {id:'1'}, 'read']);
+                expect(userSvc.checkScope.calls[1].args).toEqual([req.user, {id:'2'}, 'read']);
                 expect(mongoUtils.safeUser.calls.length).toBe(2);
                 expect(mongoUtils.safeUser.calls[0].args[0]).toEqual({id:'1'});
                 expect(mongoUtils.safeUser.calls[1].args[0]).toEqual({id:'2'});
@@ -257,6 +257,38 @@ describe('userSvc (UT)', function() {
             });
         });
         
+        it('should prevent non-admin users from getting all users', function(done) {
+            query = null;
+            userSvc.getUsers(query, req, userColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(403);
+                expect(resp.body).toBe('Not authorized to read all users');
+                expect(userColl.find).not.toHaveBeenCalled();
+                expect(fakeCursor.toArray).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should allow admin users to get all users', function(done) {
+            query = null;
+            req.user.permissions.users.read = Scope.All;
+            userSvc.getUsers(query, req, userColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual([{id:'1'}, {id:'2'}]);
+                expect(userColl.find).toHaveBeenCalledWith(null, {sort: {id: 1}, limit: 20, skip: 10});
+                expect(fakeCursor.toArray).toHaveBeenCalled();
+                expect(mongoUtils.safeUser.calls.length).toBe(2);
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
         it('should only show users the requester is allowed to see', function(done) {
             userSvc.checkScope.andCallFake(function(requester, target, verb) {
                 if (target.id === '1') return false;
@@ -268,8 +300,8 @@ describe('userSvc (UT)', function() {
                 expect(resp.body).toEqual([{id:'2'}]);
                 expect(userColl.find).toHaveBeenCalled();
                 expect(userSvc.checkScope.calls.length).toBe(2);
-                expect(userSvc.checkScope.calls[0].args).toEqual([{id: 'u-1234'}, {id:'1'}, 'read']);
-                expect(userSvc.checkScope.calls[1].args).toEqual([{id: 'u-1234'}, {id:'2'}, 'read']);
+                expect(userSvc.checkScope.calls[0].args).toEqual([req.user, {id:'1'}, 'read']);
+                expect(userSvc.checkScope.calls[1].args).toEqual([req.user, {id:'2'}, 'read']);
                 expect(mongoUtils.safeUser.calls.length).toBe(1);
                 expect(mongoUtils.safeUser.calls[0].args[0]).toEqual({id:'2'});
                 done();
