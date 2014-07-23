@@ -179,6 +179,7 @@
                 newOrg.waterfalls[key] = defaultWaterfalls[key];
             }
         });
+        newOrg.config = {};
         delete newOrg._id;
         newOrg = mongoUtils.escapeKeys(newOrg);
     };
