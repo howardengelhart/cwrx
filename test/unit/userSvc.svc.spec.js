@@ -397,6 +397,7 @@ describe('userSvc (UT)', function() {
                 expect(newUser.applications).toEqual(['e-51ae37625cb57f']);
                 expect(newUser.org).toBe('o-1234');
                 expect(newUser.status).toBe(Status.Active);
+                expect(newUser.config).toEqual({});
                 expect(newUser.permissions).toEqual({
                     experiences: { read: Scope.Org, create: Scope.Org, edit: Scope.Org, delete: Scope.Org },
                     elections: { read: Scope.Org, create: Scope.Org, edit: Scope.Org, delete: Scope.Org },
