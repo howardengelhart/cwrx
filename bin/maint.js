@@ -11,6 +11,7 @@
         path        = include('path'),
         q           = include('q'),
         aws         = include('aws-sdk'),
+        request     = include('request'),
         logger      = include('../lib/logger'),
         daemon      = include('../lib/daemon'),
         uuid        = include('../lib/uuid'),
@@ -28,6 +29,10 @@
                 video   : path.normalize('/usr/local/share/cwrx/dub/caches/video/'),
                 output  : path.normalize('/usr/local/share/cwrx/dub/caches/output/'),
                 jobs    : path.normalize('/usr/local/share/cwrx/dub/caches/jobs/'),
+            },
+            serviceRestart: {
+                checkInterval   : 500, // milliseconds
+                maxChecks       : 20
             },
             s3 : {
                 share   : {
@@ -129,11 +134,12 @@
         return deferred.promise;
     }
 
-    function restartService(serviceName) {
-        var log = logger.getLog(), exec = require('child_process').exec, child, deferred;
+    function restartService(serviceName, checkUrl, checkInterval, maxChecks) {
+        var log = logger.getLog(), exec = require('child_process').exec, checks = 0,
+            child, deferred;
         log.info('Will attempt to restart service: %1', serviceName);
         deferred = q.defer();
-
+        
         child = exec('service ' + serviceName + ' restart', function (error, stdout, stderr) {
             log.info('stdout: %1' , stdout);
             log.info('stderr: %2' , stderr);
@@ -141,8 +147,20 @@
                 log.error('exec error: %3' , error.message);
                 return deferred.reject(error);
             }
-
-            deferred.resolve(serviceName);
+            
+            (function checkRunning() {
+                log.info('Checking if service %1 is running', serviceName);
+                if (checks++ >= maxChecks) {
+                    return deferred.reject({message: 'Hit max call count for checking service'});
+                }
+                request.get({url: checkUrl}, function(error, response/*, body*/) {
+                    if (error || response.statusCode !== 200) {
+                        setTimeout(checkRunning, checkInterval);
+                    } else {
+                        deferred.resolve(serviceName);
+                    }
+                });
+            }());
         });
 
         return deferred.promise;
@@ -514,14 +532,15 @@
         });
 
         app.post('/maint/service/restart', function(req, res/*, next*/){
-            if (!req.body || !req.body.service) {
+            if (!req.body || !req.body.service || !req.body.checkUrl) {
                 res.send(400, {
                     error: 'Bad request',
-                    detail: 'You must include service parameter'
+                    detail: 'You must include service and checkUrl parameters'
                 });
                 return;
             }
-            restartService(req.body.service)
+            restartService(req.body.service, req.body.checkUrl,
+                           config.serviceRestart.checkInterval, config.serviceRestart.maxChecks)
                 .then(function(svcName){
                     log.info('Successfully restarted %1',svcName);
                     res.send(200);
