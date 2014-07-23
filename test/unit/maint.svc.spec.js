@@ -1,14 +1,17 @@
 var flush = true;
 describe('maint (UT)', function() {
-    var maint, traceSpy, errorSpy, warnSpy, infoSpy, fatalSpy, logSpy, mockLogger, mockAws,
+    var maint, traceSpy, errorSpy, warnSpy, infoSpy, fatalSpy, logSpy, mockLogger, mockAws, request,
         path, fs, q, cwrxConfig, sanitize, child_process;
     
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
 
+        jasmine.Clock.useMock();
+
         path            = require('path');
         fs              = require('fs-extra');
         q               = require('q');
+        request         = require('request');
         child_process   = require('child_process');
         cwrxConfig  = require('../../lib/config');
         sanitize    = require('../sanitize');
@@ -224,27 +227,50 @@ describe('maint (UT)', function() {
     });
    
     describe('restartService', function(){
-        it('will resolve a promise if succeds',function(done){
-            var resolveSpy = jasmine.createSpy('restartService.resolve'),
-                rejectSpy = jasmine.createSpy('restartService.reject');
+        var resolveSpy, rejectSpy;
+        beforeEach(function() {
+            spyOn(request, 'get').andCallFake(function(opts, cb) {
+                if (this.get.callCount > 3) cb(null, {statusCode: 200}, 'success');
+                else cb(null, {statusCode: 502}, 'Bad Gateway');
+            });
             spyOn(child_process,'exec').andCallFake(function(cmd,cb){
                 cb(null,'OK',null);
             });
+            resolveSpy = jasmine.createSpy('restartService.resolve');
+            rejectSpy = jasmine.createSpy('restartService.reject');
+        });
 
-            maint.restartService('abc')
-                .then(resolveSpy,rejectSpy)
+        it('will resolve a promise if it succeeds',function(done){
+            var promise = maint.restartService('abc', 'http://testUrl.com', 500, 4);
+            for (var i = 0; i < 4; i++) { jasmine.Clock.tick(501); }
+            promise.then(resolveSpy,rejectSpy)
                 .finally(function(){
                     expect(child_process.exec).toHaveBeenCalled();
+                    expect(request.get.calls.length).toBe(4);
+                    request.get.calls.forEach(function(callObj) {
+                        expect(callObj.args).toEqual([{url: 'http://testUrl.com'}, jasmine.any(Function)]);
+                    });
                     expect(resolveSpy).toHaveBeenCalledWith('abc'); 
                     expect(rejectSpy).not.toHaveBeenCalled(); 
                     done();
                 });
         });
+        
+        it('will fail if checking if the service is running times out', function(done) {
+            var promise = maint.restartService('abc', 'http://testUrl.com', 500, 3);
+            for (var i = 0; i < 4; i++) { jasmine.Clock.tick(501); }
+            promise.then(resolveSpy,rejectSpy)
+                .finally(function(){
+                    expect(child_process.exec).toHaveBeenCalled();
+                    expect(request.get.calls.length).toBe(3);
+                    expect(resolveSpy).not.toHaveBeenCalled(); 
+                    expect(rejectSpy).toHaveBeenCalledWith({message: 'Hit max call count for checking service'}); 
+                    done();
+                });
+        });
 
         it('will reject if exec fails',function(done){
-            var resolveSpy = jasmine.createSpy('restartService.resolve'),
-                rejectSpy = jasmine.createSpy('restartService.reject');
-            spyOn(child_process,'exec').andCallFake(function(cmd,cb){
+            child_process.exec.andCallFake(function(cmd,cb){
                 cb({ message : 'failed' },null,null);
             });
 
@@ -252,6 +278,7 @@ describe('maint (UT)', function() {
                 .then(resolveSpy,rejectSpy)
                 .finally(function(){
                     expect(child_process.exec).toHaveBeenCalled();
+                    expect(request.get).not.toHaveBeenCalled();
                     expect(resolveSpy).not.toHaveBeenCalled(); 
                     expect(rejectSpy).toHaveBeenCalledWith({ message : 'failed' }); 
                     done();

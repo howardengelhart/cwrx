@@ -5,7 +5,7 @@ describe('monitor (E2E)', function(){
         if (r) {
             var options = {
                 url : makeUrl('/maint/service/restart'),
-                json : { service : 'monitor' }
+                json : { service : 'monitor', checkUrl: makeUrl('/api/monitor/version') }
             };
             return testUtils.qRequest('post',options);
         }

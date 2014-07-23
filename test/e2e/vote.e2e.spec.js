@@ -1,6 +1,8 @@
+jasmine.getEnv().defaultTimeoutInterval = 10000;
+
 describe('vote (E2E)', function(){
     var testUtils, q, makeUrl, mockData, cookieJar, restart = true,
-        dbEnv = JSON.parse(process.env['mongo']);
+        dbEnv = JSON.parse(process.env['mongo'] || '{}');
     if (dbEnv && !dbEnv.db) {
         dbEnv.db = 'voteDb';
     }
@@ -67,7 +69,7 @@ describe('vote (E2E)', function(){
                 if (restart){
                     var options = {
                         url : makeUrl('/maint/service/restart'),
-                        json : { service : 'vote' }
+                        json : { service : 'vote', checkUrl: makeUrl('/api/vote/meta') }
                     };
                     return testUtils.qRequest('post',options);
                 }
@@ -315,7 +317,7 @@ describe('vote (E2E)', function(){
                     var deferred = q.defer();
                     testUtils.qRequest('post',{ 
                             url : makeUrl('/maint/service/restart'),
-                            json : { service : 'vote' } })
+                            json : { service : 'vote', checkUrl: makeUrl('/api/vote/meta') } })
                         .finally(function(){
                             setTimeout(function(){
                                 deferred.resolve(true);
