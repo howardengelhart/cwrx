@@ -540,7 +540,7 @@
                 return;
             }
             restartService(req.body.service, req.body.checkUrl,
-                           config.restartService.checkInterval, config.restartService.maxChecks)
+                           config.serviceRestart.checkInterval, config.serviceRestart.maxChecks)
                 .then(function(svcName){
                     log.info('Successfully restarted %1',svcName);
                     res.send(200);
