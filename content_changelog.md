@@ -1,5 +1,9 @@
 # Content Service Changelog
 
+### 1.5.0: Thu Jul 24 17:11:39 EDT 2014
+* [FEATURE]: Lookup adConfig from org for public GET experience endpoint: [#226](https://github.com/cinema6/cwrx/pull/226)
+* Extra deployment steps: Deploy new version of content cookbook
+
 ### 1.4.1: Tue Jul  8 11:23:33 EDT 2014
 * [FIX]: Prevent setting top-level versionId on PUTs: [#208](https://github.com/cinema6/cwrx/pull/208)
 * Extra deployment steps: None
