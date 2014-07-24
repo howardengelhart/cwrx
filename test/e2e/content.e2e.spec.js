@@ -45,23 +45,43 @@ describe('content (E2E):', function() {
     });
     
     describe('GET /api/public/content/experience/:id', function() {
+        var mockExps, mockOrg, options;
         beforeEach(function(done) {
-            var mockExp = {
-                id: "e2e-pubget1",
-                title: "test experience",
-                data: [ { data: { foo: 'bar' }, versionId: 'a5e744d0' } ],
-                access: "public",
-                user: 'e2e-user',
-                org: 'e2e-org',
-                status: "active"
-            };
-            testUtils.resetCollection('experiences', mockExp).done(done);
+            options = { url: config.contentUrl + '/public/content/experience/e2e-pubget1' };
+            mockExps = [
+                {
+                    id: "e2e-pubget1",
+                    title: "test experience",
+                    data: [ { data: { foo: 'bar' }, versionId: 'a5e744d0' } ],
+                    access: "public",
+                    user: 'e2e-user',
+                    org: 'e2e-org',
+                    status: "active"
+                },
+                {
+                    id: 'e2e-org-adConfig',
+                    data: [ { data: { foo: 'bar' }, versionId: 'a5e744d0' } ],
+                    access: 'public',
+                    status: 'active',
+                    user: 'e2e-user',
+                    org: 'e2e-active-org'
+                },
+                {
+                    id: 'e2e-adConfig',
+                    data: [ { data: { foo: 'bar', adConfig: { foo: 'baz' } }, versionId: 'a5e744d0' } ],
+                    access: 'public',
+                    status: 'active',
+                    user: 'e2e-user',
+                    org: 'e2e-active-org'
+                }
+            ];
+            mockOrg = { id: 'e2e-active-org', status: 'active', adConfig: { foo: 'bar' } };
+            testUtils.resetCollection('experiences', mockExps).then(function() {
+                return testUtils.resetCollection('orgs', mockOrg);
+            }).done(done);
         });
     
         it('should get an experience by id', function(done) {
-            var options = {
-                url: config.contentUrl + '/public/content/experience/e2e-pubget1'
-            };
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(typeof resp.body).toBe('object');
@@ -77,6 +97,30 @@ describe('content (E2E):', function() {
                 expect(error).not.toBeDefined();
                 done();
             });
+        });
+        
+        it('should properly get the experience\'s org\'s adConfig if it exists', function(done) {
+            options.url = options.url.replace('e2e-pubget1', 'e2e-org-adConfig');
+            testUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body._id).not.toBeDefined();
+                expect(resp.body.id).toBe('e2e-org-adConfig');
+                expect(resp.body.data).toEqual({foo: 'bar', adConfig: { foo: 'bar' }});
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should override the org\'s adConfig if it\'s defined on the experience', function(done) {
+            options.url = options.url.replace('e2e-pubget1', 'e2e-adConfig');
+            testUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body._id).not.toBeDefined();
+                expect(resp.body.id).toBe('e2e-adConfig');
+                expect(resp.body.data).toEqual({foo: 'bar', adConfig: { foo: 'baz' }});
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
         });
         
         it('should not get an experience that is private or inactive', function(done) {
@@ -167,6 +211,7 @@ describe('content (E2E):', function() {
                 expect(typeof resp.body).toBe('object');
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBe("e2e-getid1");
+                expect(resp.body.data).not.toBeDefined();
                 expect(resp.body.title).toBe("test experience");
                 expect(resp.body.user).toBe('e2e-user');
                 expect(resp.body.org).toBe('e2e-org');
@@ -276,8 +321,10 @@ describe('content (E2E):', function() {
                 expect(resp.body.length).toBe(2);
                 expect(resp.body[0]._id).not.toBeDefined();
                 expect(resp.body[0].id).toBe("e2e-getquery1");
+                expect(resp.body[0].data).not.toBeDefined();
                 expect(resp.body[1]._id).not.toBeDefined();
                 expect(resp.body[1].id).toBe("e2e-getquery3");
+                expect(resp.body[1].data).not.toBeDefined();
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();

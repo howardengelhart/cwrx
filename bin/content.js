@@ -32,6 +32,10 @@
                 freshTTL: 1,
                 maxTTL: 10
             },
+            orgs: {
+                freshTTL: 1,
+                maxTTL: 10
+            },
             cloudFront: 5,
             auth: {
                 freshTTL: 1,
@@ -113,7 +117,31 @@
         return mongoUtils.unescapeKeys(newExp);
     };
     
-    content.getExperiences = function(query, req, cache) {
+    content.getAdConfig = function(exp, orgId, orgCache) {
+        var log = logger.getLog();
+
+        if (!exp.data) {
+            log.warn('Experience %1 does not have data!', exp.id);
+            return q(exp);
+        }
+        if (exp.data.adConfig) {
+            return q(exp);
+        }
+        return orgCache.getPromise({id: orgId}).then(function(results) {
+            if (results.length === 0) {
+                log.warn('Org %1 not found', orgId);
+            } else if (!results[0].adConfig) {
+                log.info('Neither experience %1 nor org %2 have adConfig', exp.id, orgId);
+            } else {
+                exp.data.adConfig = results[0].adConfig;
+            }
+            return q(exp);
+        });
+    };
+    
+    // If orgCache is passed in, getAdConfig will be called to ensure adConfig is on the exp
+    // Thus orgCache SHOULD NOT be passed in except from the public get experience endpoint
+    content.getExperiences = function(query, req, expCache, orgCache) {
         var limit = req.query && req.query.limit || 0,
             skip = req.query && req.query.skip || 0,
             sort = req.query && req.query.sort,
@@ -135,30 +163,40 @@
                      req.uuid,req.user.id,JSON.stringify(query),JSON.stringify(sortObj),limit,skip);
                      
             var opts = {sort: sortObj, limit: limit, skip: skip};
-            promise = q.npost(cache._coll.find(query, opts), 'toArray');
+            promise = q.npost(expCache._coll.find(query, opts), 'toArray');
             
         } else { // use cached promise
             log.info('[%1] Guest user getting experiences with %2, sort %3, limit %4, skip %5',
                      req.uuid, JSON.stringify(query), JSON.stringify(sortObj), limit, skip);
                      
-            promise = cache.getPromise(query, sortObj, limit, skip);
+            promise = expCache.getPromise(query, sortObj, limit, skip);
         }
+
         return promise.then(function(results) {
             log.trace('[%1] Retrieved %2 experiences', req.uuid, results.length);
             
-            var experiences = results.map(function(exp) {
-                return content.formatOutput(exp, !req.user);
-            }).filter(function(result) {
+            return q.all(results.map(function(exp) {
+                var formatted = content.formatOutput(exp, !req.user);
+                if (orgCache) {
+                    return content.getAdConfig(formatted, exp.org, orgCache);
+                } else {
+                    return q(formatted);
+                }
+            }));
+        })
+        .then(function(results) {
+            var experiences = results.filter(function(result) {
                 return result.status !== Status.Deleted &&
                       (content.checkScope(req.user, result, 'experiences', 'read') ||
                        (result.status === Status.Active && result.access === Access.Public) ||
                        (req.user && req.user.applications &&
                                     req.user.applications.indexOf(result.id) >= 0));
             });
-            
+
             log.info('[%1] Showing the user %2 experiences', req.uuid, experiences.length);
             return q({code: 200, body: experiences});
-        }).catch(function(error) {
+        })
+        .catch(function(error) {
             log.error('[%1] Error getting experiences: %2', req.uuid, error);
             return q.reject(error);
         });
@@ -382,9 +420,12 @@
             app         = express(),
             experiences = state.dbs.c6Db.collection('experiences'),
             users       = state.dbs.c6Db.collection('users'),
+            orgs        = state.dbs.c6Db.collection('orgs'),
             authTTLs    = state.config.cacheTTLs.auth,
             expTTLs     = state.config.cacheTTLs.experiences,
-            expCache    = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences);
+            expCache    = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences),
+            orgTTLs     = state.config.cacheTTLs.orgs,
+            orgCache    = new QueryCache(orgTTLs.freshTTL, orgTTLs.maxTTL, orgs);
         authUtils = require('../lib/authUtils')(authTTLs.freshTTL, authTTLs.maxTTL, users);
 
         app.use(express.bodyParser());
@@ -402,6 +443,7 @@
         state.dbStatus.c6Db.on('reconnected', function() {
             experiences = state.dbs.c6Db.collection('experiences');
             users = state.dbs.c6Db.collection('users');
+            orgs = state.dbs.c6Db.collection('orgs');
             expCache._coll = experiences;
             authUtils._cache._coll = users;
             log.info('Recreated collections from restarted c6Db');
@@ -451,7 +493,7 @@
         
         // public get experience by id
         app.get('/api/public/content/experience/:id', function(req, res) {
-            content.getExperiences({id: req.params.id}, req, expCache)
+            content.getExperiences({id: req.params.id}, req, expCache, orgCache)
             .then(function(resp) {
                 res.header('cache-control', 'max-age=' + state.config.cacheTTLs.cloudFront*60);
                 if (resp.body && resp.body instanceof Array) {
