@@ -1,7 +1,7 @@
 # Org Service Changelog
 
 ### 1.0.2: Thu Jul 24 10:05:01 EDT 2014
-* [FIX]: Setup default config object on new users: [#224](https://github.com/cinema6/cwrx/pull/224)
+* [FIX]: Setup default config object on new orgs: [#224](https://github.com/cinema6/cwrx/pull/224)
 * Extra deployment steps: None
 
 ### 1.0.1: Fri Jun 13 09:54:09 EDT 2014
