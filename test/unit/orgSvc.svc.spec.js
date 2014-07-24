@@ -368,6 +368,7 @@ describe('orgSvc (UT)', function() {
             expect(newOrg.status).toBe(Status.Active);
             expect(newOrg.waterfalls.video).toEqual(['cinema6']);
             expect(newOrg.waterfalls.display).toEqual(['cinema6']);
+            expect(newOrg.config).toEqual({});
             expect(mongoUtils.escapeKeys).toHaveBeenCalled();
             done();
         });

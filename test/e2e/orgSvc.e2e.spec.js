@@ -292,6 +292,7 @@ describe('org (E2E):', function() {
                 expect(newOrg.name).toBe('e2e-org');
                 expect(newOrg.status).toBe('active');
                 expect(newOrg.waterfalls).toEqual({video: ['cinema6'], display: ['cinema6']});
+                expect(newOrg.config).toEqual({});
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
