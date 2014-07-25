@@ -93,7 +93,7 @@ describe('vote (E2E)', function(){
         var mockUser = {
             id: 'e2e-user',
             status: 'active',
-            email : 'voteE2EUser',
+            email : 'vote_e2e_user',
             password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
             org: 'e2e-org',
             permissions: {
@@ -109,7 +109,7 @@ describe('vote (E2E)', function(){
             url: makeUrl('/api/auth/login'),
             jar: cookieJar,
             json: {
-                email: 'voteE2EUser',
+                email: 'vote_e2e_user',
                 password: 'password'
             }
         };

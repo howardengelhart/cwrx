@@ -17,7 +17,7 @@ describe('auth (E2E):', function() {
             id : "u-1",
             status: Status.Active,
             created : now,
-            email : "c6e2eTester@gmail.com",
+            email : "c6e2etester@gmail.com",
             password : "$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq" // hash of 'password'
         };
         urlRegex = /https:\/\/.*cinema6.com.*id=u-1.*token=[0-9a-f]{48}/;
@@ -45,7 +45,7 @@ describe('auth (E2E):', function() {
             var options = {
                 url: config.authUrl + '/login',
                 json: {
-                    email: 'c6e2eTester@gmail.com',
+                    email: 'c6e2etester@gmail.com',
                     password: 'password'
                 }
             };
@@ -54,7 +54,7 @@ describe('auth (E2E):', function() {
                 expect(resp.body).toBeDefined();
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBe("u-1");
-                expect(resp.body.email).toBe("c6e2eTester@gmail.com");
+                expect(resp.body.email).toBe("c6e2etester@gmail.com");
                 expect(resp.body.password).not.toBeDefined();
                 expect(new Date(resp.body.created)).toEqual(now);
                 expect(resp.response.headers['set-cookie'].length).toBe(1);
@@ -66,11 +66,31 @@ describe('auth (E2E):', function() {
             });
         });
         
+        it('should convert the request email to lowercase', function(done) {
+            var options = {
+                url: config.authUrl + '/login',
+                json: {
+                    email: 'c6E2ETester@gmail.com',
+                    password: 'password'
+                }
+            };
+            testUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body._id).not.toBeDefined();
+                expect(resp.body.email).toBe("c6e2etester@gmail.com");
+                expect(resp.body.password).not.toBeDefined();
+                expect(resp.response.headers['set-cookie'].length).toBe(1);
+                expect(resp.response.headers['set-cookie'][0].match(/^c6Auth=.+/)).toBeTruthy('cookie match');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
         it('should fail for an invalid email', function(done) {
             var options = {
                 url: config.authUrl + '/login',
                 json: {
-                    email: 'randomUser',
+                    email: 'randomuser',
                     password: 'password'
                 }
             };
@@ -88,7 +108,7 @@ describe('auth (E2E):', function() {
             var options = {
                 url: config.authUrl + '/login',
                 json: {
-                    email: 'c6e2eTester@gmail.com',
+                    email: 'c6e2etester@gmail.com',
                     password: 'notpassword'
                 }
             };
@@ -106,7 +126,7 @@ describe('auth (E2E):', function() {
             var options = {
                 url: config.authUrl + '/login',
                 json: {
-                    email: 'c6e2eTester@gmail.com',
+                    email: 'c6e2etester@gmail.com',
                     password: 'password'
                 }
             };
@@ -127,7 +147,7 @@ describe('auth (E2E):', function() {
             var options = {
                 url: config.authUrl + '/login',
                 json: {
-                    email: 'c6e2eTester@gmail.com'
+                    email: 'c6e2etester@gmail.com'
                 }
             };
             testUtils.qRequest('post', options).then(function(resp) {
@@ -157,7 +177,7 @@ describe('auth (E2E):', function() {
                 url: config.authUrl + '/login',
                 jar: true,
                 json: {
-                    email: 'c6e2eTester@gmail.com',
+                    email: 'c6e2etester@gmail.com',
                     password: 'password'
                 }
             };
@@ -206,7 +226,7 @@ describe('auth (E2E):', function() {
                 url: config.authUrl + '/login',
                 jar: true,
                 json: {
-                    email: 'c6e2eTester@gmail.com',
+                    email: 'c6e2etester@gmail.com',
                     password: 'password'
                 }
             };
@@ -223,7 +243,7 @@ describe('auth (E2E):', function() {
                 expect(resp.body).toBeDefined();
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBeDefined();
-                expect(resp.body.email).toBe('c6e2eTester@gmail.com');
+                expect(resp.body.email).toBe('c6e2etester@gmail.com');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -248,7 +268,7 @@ describe('auth (E2E):', function() {
         beforeEach(function(done) {
             options = {
                 url: config.authUrl + '/password/forgot',
-                json: { email: 'c6e2eTester@gmail.com', target: 'portal' }
+                json: { email: 'c6e2etester@gmail.com', target: 'portal' }
             };
             testUtils.resetCollection('users', mockUser).done(done);
         });
@@ -257,7 +277,7 @@ describe('auth (E2E):', function() {
             mailman.once('message', function(msg) {
                 expect(msg).not.toBeDefined();
             });
-            var bodies = [{email: 'c6e2eTester@gmail.com'}, {target: 'portal'}];
+            var bodies = [{email: 'c6e2etester@gmail.com'}, {target: 'portal'}];
             q.all(bodies.map(function(body) {
                 options.json = body;
                 return testUtils.qRequest('post', options);
@@ -285,7 +305,7 @@ describe('auth (E2E):', function() {
         });
         
         it('should fail with a 404 if the user does not exist', function(done) {
-            options.json.email = 'someFakeEmail';
+            options.json.email = 'somefakeemail';
             mailman.once('message', function(msg) {
                 expect(msg).not.toBeDefined();
             });
@@ -307,10 +327,27 @@ describe('auth (E2E):', function() {
             });
             mailman.once('message', function(msg) {
                 expect(msg.from[0].address).toBe('support@cinema6.com');
-                expect(msg.to[0].address).toBe('c6e2eTester@gmail.com');
+                expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
                 expect(msg.subject).toBe('Reset your Cinema6 Password');
                 expect(msg.text.match(urlRegex)).toBeTruthy();
                 expect(msg.html.match(urlRegex)).toBeTruthy();
+                expect(new Date() - msg.date).toBeLessThan(30000); // message should be recent
+                done();
+            });
+        });
+        
+        it('should convert the request email to lowercase', function(done) {
+            options.json.email = 'c6E2ETester@gmail.com';
+            testUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBe('Successfully generated reset token');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+            mailman.once('message', function(msg) {
+                expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
+                expect(msg.subject).toBe('Reset your Cinema6 Password');
                 expect(new Date() - msg.date).toBeLessThan(30000); // message should be recent
                 done();
             });
@@ -358,7 +395,7 @@ describe('auth (E2E):', function() {
                 return testUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toEqual({id: 'u-1', email: 'c6e2eTester@gmail.com', status: 'active',
+                expect(resp.body).toEqual({id: 'u-1', email: 'c6e2etester@gmail.com', status: 'active',
                                            lastUpdated: jasmine.any(String), created: now.toISOString()});
                 expect(resp.response.headers['set-cookie'].length).toBe(1);
                 expect(resp.response.headers['set-cookie'][0].match(/^c6Auth=.+/)).toBeTruthy('cookie match');
@@ -369,7 +406,7 @@ describe('auth (E2E):', function() {
 
             mailman.once('message', function(msg) {
                 expect(msg.from[0].address).toBe('support@cinema6.com');
-                expect(msg.to[0].address).toBe('c6e2eTester@gmail.com');
+                expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
                 expect(msg.subject).toBe('Your account password has been changed');
                 expect(msg.text).toBeDefined();
                 expect(msg.html).toBeDefined();
@@ -377,7 +414,7 @@ describe('auth (E2E):', function() {
 
                 var loginOpts = {
                     url: config.authUrl + '/login',
-                    json: { email: 'c6e2eTester@gmail.com', password: 'newPass' }
+                    json: { email: 'c6e2etester@gmail.com', password: 'newPass' }
                 };
                 testUtils.qRequest('post', loginOpts).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
@@ -476,7 +513,7 @@ describe('auth (E2E):', function() {
             testUtils.resetCollection('users', mockUser).then(function() {
                 var forgotOpts = {
                     url: config.authUrl + '/password/forgot',
-                    json: {email: 'c6e2eTester@gmail.com', target: 'portal'}
+                    json: {email: 'c6e2etester@gmail.com', target: 'portal'}
                 };
                 return testUtils.qRequest('post', forgotOpts);
             }).then(function(resp) {
