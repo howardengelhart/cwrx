@@ -179,8 +179,81 @@ describe('content (UT)', function() {
         });
     });
     
+    describe('getAdConfig', function() {
+        var orgCache, exp;
+        beforeEach(function() {
+            orgCache = {
+                getPromise: jasmine.createSpy('orgCache.getPromise').andReturn(q([{id:'o-1',adConfig:{foo:'bar'}}]))
+            };
+            exp = { id: 'e-1', data: { good: 'yes' } };
+        });
+        
+        it('should do nothing if the experience has no data', function(done) {
+            delete exp.data;
+            content.getAdConfig(exp, 'o-1', orgCache).then(function(result) {
+                expect(result).toEqual({id: 'e-1'});
+                expect(orgCache.getPromise).not.toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should do nothing if the experience already has an adConfig property', function(done) {
+            exp.data.adConfig = { foo: 'baz' };
+            content.getAdConfig(exp, 'o-1', orgCache).then(function(result) {
+                expect(result).toEqual({ id: 'e-1', data: { good: 'yes', adConfig: { foo: 'baz' } } });
+                expect(orgCache.getPromise).not.toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should successfully put the org\'s adConfig on the experience', function(done) {
+            content.getAdConfig(exp, 'o-1', orgCache).then(function(result) {
+                expect(result).toEqual({ id: 'e-1', data: { good: 'yes', adConfig: { foo: 'bar' } } });
+                expect(orgCache.getPromise).toHaveBeenCalledWith({id: 'o-1'});
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should do nothing if the org could not be found', function(done) {
+            orgCache.getPromise.andReturn(q([]));
+            content.getAdConfig(exp, 'o-1', orgCache).then(function(result) {
+                expect(result).toEqual({ id: 'e-1', data: { good: 'yes' } });
+                expect(orgCache.getPromise).toHaveBeenCalledWith({id: 'o-1'});
+                expect(mockLog.warn).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should do nothing if the org has no adConfig', function(done) {
+            orgCache.getPromise.andReturn(q([{ id: 'o-1' }]))
+            content.getAdConfig(exp, 'o-1', orgCache).then(function(result) {
+                expect(result).toEqual({ id: 'e-1', data: { good: 'yes' } });
+                expect(orgCache.getPromise).toHaveBeenCalledWith({id: 'o-1'});
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should reject if getPromise returns a rejected promise', function(done) {
+            orgCache.getPromise.andReturn(q.reject('I GOT A PROBLEM'))
+            content.getAdConfig(exp, 'o-1', orgCache).then(function(result) {
+                expect(result).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(orgCache.getPromise).toHaveBeenCalledWith({id: 'o-1'});
+            }).finally(done);
+        });
+    });
+    
     describe('getExperiences', function() {
-        var req, cache, query, fakeCursor;
+        var req, expCache, orgCache, query, fakeCursor;
         beforeEach(function() {
             req = {
                 uuid: '1234',
@@ -197,30 +270,33 @@ describe('content (UT)', function() {
                     cb(null, q([{title: 'fake1'}]));
                 })
             };
-            cache = {
+            expCache = {
                 _coll: {
-                    find: jasmine.createSpy('cache._coll.find').andReturn(fakeCursor)
+                    find: jasmine.createSpy('expCache._coll.find').andReturn(fakeCursor)
                 },
-                getPromise: jasmine.createSpy('cache.getPromise').andReturn(q([{title: 'fake2'}]))
+                getPromise: jasmine.createSpy('expCache.getPromise').andReturn(q([{title: 'fake2', org: 'o-1'}]))
             };
+            orgCache = 'fakeOrgCache';
             spyOn(content, 'checkScope').andReturn(true);
-            spyOn(QueryCache, 'formatQuery').andReturn('formatted')
+            spyOn(QueryCache, 'formatQuery').andReturn('formatted');
+            spyOn(content, 'getAdConfig').andCallFake(function(exp, orgId, orgCache) { return q(exp); });
         });
         
-        it('should format the query and call cache._coll.find', function(done) {
-            content.getExperiences(query, req, cache).then(function(resp) {
+        it('should format the query and call expCache._coll.find', function(done) {
+            content.getExperiences(query, req, expCache).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual([{title: 'fake1'}]);
                 expect(QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery');
-                expect(cache._coll.find)
+                expect(expCache._coll.find)
                     .toHaveBeenCalledWith('formatted', {sort: {id: 1}, limit: 20, skip: 10});
                 expect(fakeCursor.toArray).toHaveBeenCalled();
-                expect(cache.getPromise).not.toHaveBeenCalled();
+                expect(expCache.getPromise).not.toHaveBeenCalled();
                 expect(content.checkScope)
                     .toHaveBeenCalledWith('fakeUser', {title: 'fake1'}, 'experiences', 'read');
                 expect(content.formatOutput).toHaveBeenCalledWith({title: 'fake1'}, false);
                 expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
+                expect(content.getAdConfig).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -230,12 +306,12 @@ describe('content (UT)', function() {
         
         it('should use defaults if some params are not defined', function(done) {
             req = { uuid: '1234', user: 'fakeUser' };
-            content.getExperiences(query, req, cache).then(function(resp) {
+            content.getExperiences(query, req, expCache).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual([{title: 'fake1'}]);
                 expect(QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery');
-                expect(cache._coll.find)
+                expect(expCache._coll.find)
                     .toHaveBeenCalledWith('formatted', {sort: {}, limit: 0, skip: 0});
                 expect(content.checkScope)
                     .toHaveBeenCalledWith('fakeUser', {title: 'fake1'}, 'experiences', 'read');
@@ -248,13 +324,13 @@ describe('content (UT)', function() {
         
         it('should just ignore the sort param if invalid', function(done) {
             req.query.sort = 'foo';
-            content.getExperiences(query, req, cache).then(function(resp) {
+            content.getExperiences(query, req, expCache).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual([{title: 'fake1'}]);
                 expect(mockLog.warn).toHaveBeenCalled();
                 expect(QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery');
-                expect(cache._coll.find)
+                expect(expCache._coll.find)
                     .toHaveBeenCalledWith('formatted', {sort: {}, limit: 20, skip: 10});
                 done();
             }).catch(function(error) {
@@ -263,18 +339,38 @@ describe('content (UT)', function() {
             });
         });
         
-        it('should use the cache if no user is logged in', function(done) {
+        it('should use the expCache if no user is logged in', function(done) {
             delete req.user;
-            content.getExperiences(query, req, cache).then(function(resp) {
+            content.getExperiences(query, req, expCache).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual([{title: 'fake2'}]);
                 expect(QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery');
-                expect(cache.getPromise).toHaveBeenCalledWith('formatted', {id: 1}, 20, 10);
-                expect(cache._coll.find).not.toHaveBeenCalled();
+                expect(expCache.getPromise).toHaveBeenCalledWith('formatted', {id: 1}, 20, 10);
+                expect(expCache._coll.find).not.toHaveBeenCalled();
                 expect(content.checkScope)
                     .toHaveBeenCalledWith(undefined, {title: 'fake2'}, 'experiences', 'read');
-                expect(content.formatOutput).toHaveBeenCalledWith({title: 'fake2'}, true);
+                expect(content.formatOutput).toHaveBeenCalledWith({title: 'fake2', org: 'o-1'}, true);
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should call getAdConfig if passed an orgCache', function(done) {
+            delete req.user;
+            content.getExperiences(query, req, expCache, orgCache).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual([{title: 'fake2'}]);
+                expect(QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery');
+                expect(expCache.getPromise).toHaveBeenCalledWith('formatted', {id: 1}, 20, 10);
+                expect(expCache._coll.find).not.toHaveBeenCalled();
+                expect(content.checkScope)
+                    .toHaveBeenCalledWith(undefined, {title: 'fake2'}, 'experiences', 'read');
+                expect(content.formatOutput).toHaveBeenCalledWith({title: 'fake2', org: 'o-1'}, true);
+                expect(content.getAdConfig).toHaveBeenCalledWith({title: 'fake2'}, 'o-1', 'fakeOrgCache');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -294,13 +390,13 @@ describe('content (UT)', function() {
             fakeCursor.toArray.andCallFake(function(cb) {
                 cb(null, exps);
             });
-            cache.getPromise.andReturn(q(exps));
+            expCache.getPromise.andReturn(q(exps));
             content.checkScope.andCallFake(function(user, experience, obj, verb) {
                 if (user && experience.id === 'e-4') return true;
                 else return false;
             });
             
-            content.getExperiences(query, req, cache).then(function(resp) {
+            content.getExperiences(query, req, expCache).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual([{ id: 'e-3', status: Status.Active, access: Access.Public },
@@ -308,7 +404,7 @@ describe('content (UT)', function() {
                                            { id: 'e-5', status: Status.Inactive, access: Access.Private }]);
                 expect(content.checkScope.calls.length).toBe(5);
                 expect(content.formatOutput.calls.length).toBe(5);
-                return content.getExperiences(query, { uuid: '1234' }, cache);
+                return content.getExperiences(query, { uuid: '1234' }, expCache);
             }).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
@@ -324,12 +420,12 @@ describe('content (UT)', function() {
             fakeCursor.toArray.andCallFake(function(cb) {
                 cb(null, [{id: 'e-del', status: [{status: Status.Deleted}], access: Access.Public}]);
             });
-            content.getExperiences(query, req, cache).then(function(resp) {
+            content.getExperiences(query, req, expCache).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual([]);
-                expect(cache.getPromise).not.toHaveBeenCalled();
-                expect(cache._coll.find).toHaveBeenCalled();
+                expect(expCache.getPromise).not.toHaveBeenCalled();
+                expect(expCache._coll.find).toHaveBeenCalled();
                 expect(content.formatOutput).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
@@ -342,12 +438,12 @@ describe('content (UT)', function() {
             fakeCursor.toArray.andCallFake(function(cb) {
                 cb(null, []);
             });
-            cache.getPromise.andReturn(q([]));
-            content.getExperiences(query, req, cache).then(function(resp) {
+            expCache.getPromise.andReturn(q([]));
+            content.getExperiences(query, req, expCache).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual([]);
-                return content.getExperiences(query, { uuid: '1234' }, cache);
+                return content.getExperiences(query, { uuid: '1234' }, expCache);
             }).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
@@ -363,20 +459,38 @@ describe('content (UT)', function() {
             fakeCursor.toArray.andCallFake(function(cb) {
                 cb('Error!');
             });
-            cache.getPromise.andReturn(q.reject('Other Error!'));
-            content.getExperiences(query, req, cache).catch(function(error) {
+            expCache.getPromise.andReturn(q.reject('Other Error!'));
+            content.getExperiences(query, req, expCache).catch(function(error) {
                 expect(error).toBe('Error!');
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery');
-                expect(cache._coll.find).toHaveBeenCalled();
-                return content.getExperiences(query, { uuid: '1234' }, cache);
+                expect(expCache._coll.find).toHaveBeenCalled();
+                return content.getExperiences(query, { uuid: '1234' }, expCache);
             }).catch(function(error) {
                 expect(error).toBe('Other Error!');
                 expect(mockLog.error).toHaveBeenCalled();
-                expect(cache.getPromise).toHaveBeenCalled();
+                expect(expCache.getPromise).toHaveBeenCalled();
                 done();
             }).then(function(resp) {
                 expect(resp).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should fail if calling getAdConfig fails', function(done) {
+            content.getAdConfig.andReturn(q.reject('I GOT A PROBLEM'));
+            delete req.user;
+            content.getExperiences(query, req, expCache, orgCache).then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(expCache.getPromise).toHaveBeenCalled();
+                expect(expCache._coll.find).not.toHaveBeenCalled();
+                expect(content.formatOutput).toHaveBeenCalled();
+                expect(content.getAdConfig).toHaveBeenCalled();
+                expect(content.checkScope).not.toHaveBeenCalled();
                 done();
             });
         });
