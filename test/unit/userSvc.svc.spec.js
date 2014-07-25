@@ -553,6 +553,24 @@ describe('userSvc (UT)', function() {
             });
         });
         
+        it('should convert the new email to lowercase', function(done) {
+            req.body.email = 'TEST';
+            userSvc.createUser(req, userColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(201);
+                expect(resp.body).toEqual({email: 'test', org: 'o-1234'});
+                expect(userColl.findOne).toHaveBeenCalledWith({email: 'test'}, jasmine.any(Function));
+                expect(userColl.findOne.calls[0].args[0]).toEqual({email: 'test'});
+                expect(userColl.insert).toHaveBeenCalledWith({email:'test',org:'o-1234',password:'hashPass'},
+                                                             {w:1,journal:true},jasmine.any(Function));
+                expect(mongoUtils.safeUser).toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
         it('should reject with a 400 if the new user contains illegal fields', function(done) {
             userSvc.createValidator.validate.andReturn(false);
             userSvc.createUser(req, userColl).then(function(resp) {
@@ -1083,6 +1101,22 @@ describe('userSvc (UT)', function() {
                 expect(userColl.update.calls[0].args[1].$set.email).toBe('otter');
                 expect(userColl.update.calls[0].args[1].$set.lastUpdated instanceof Date).toBe(true);
                 expect(userColl.update.calls[0].args[2]).toEqual({w: 1, journal: true});
+                expect(userSvc.notifyEmailChange).toHaveBeenCalledWith('fakeSender', 'johnny', 'otter');
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should convert the new email to lowercase', function(done) {
+            req.body.newEmail = 'OTTER';
+            userSvc.changeEmail(req, userColl, 'fakeSender').then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toBe('Successfully changed email');
+                expect(userColl.findOne).toHaveBeenCalledWith({email: 'otter'}, jasmine.any(Function));
+                expect(userColl.update).toHaveBeenCalled();
+                expect(userColl.update.calls[0].args[1].$set.email).toBe('otter');
                 expect(userSvc.notifyEmailChange).toHaveBeenCalledWith('fakeSender', 'johnny', 'otter');
                 done();
             }).catch(function(error) {

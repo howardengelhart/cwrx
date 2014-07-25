@@ -419,6 +419,24 @@ describe('authUtils', function() {
             });
         });
         
+        it('should convert the email to lowercase', function(done) {
+            req.body.email = 'OTTER';
+            res.send = function(code, body) {
+                expect(code).not.toBeDefined();
+                expect(body).not.toBeDefined();
+                done();
+            };
+            midWare(req, res, function() {
+                expect(req.user).toEqual({id: 'u-1', email: 'otter'});
+                expect(userColl.findOne).toHaveBeenCalled();
+                expect(userColl.findOne.calls[0].args[0]).toEqual({email: 'otter'});
+                expect(bcrypt.compare).toHaveBeenCalled();
+                expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
+                expect(mongoUtils.safeUser).toHaveBeenCalled();
+                done();
+            });
+        });
+        
         it('should fail with a 401 if the user does not exist', function(done) {
             userColl.findOne.andCallFake(function(query, cb) {
                 cb(null, null);

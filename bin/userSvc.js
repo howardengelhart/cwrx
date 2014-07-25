@@ -229,6 +229,8 @@
             return q({code: 400, body: 'New user object must have a email and password'});
         }
         
+        newUser.email = newUser.email.toLowerCase();
+        
         // check if a user already exists with that email
         q.npost(users, 'findOne', [{email: newUser.email}])
         .then(function(userAccount) {
@@ -385,6 +387,8 @@
             log.info('[%1] User %2 did not provide a new email', req.uuid, req.user.id);
             return q({code: 400, body: 'Must provide a new email'});
         }
+        
+        req.body.newEmail = req.body.newEmail.toLowerCase();
 
         // check if a user already exists with that email
         return q.npost(users, 'findOne', [{email: req.body.newEmail}])
