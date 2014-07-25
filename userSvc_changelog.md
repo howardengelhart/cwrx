@@ -2,7 +2,7 @@
 
 ### 1.5.1: Fri Jul 25 15:37:41 EDT 2014
 * [FIX]: Force emails to lowercase: [#228](https://github.com/cinema6/cwrx/pull/228)
-* Extra deployment steps: None
+* Extra deployment steps: Convert all existing user's email addresses to lowercase
 
 ### 1.5.0: Thu Jul 24 10:05:01 EDT 2014
 * [FIX]: Setup default config object on new users: [#224](https://github.com/cinema6/cwrx/pull/224)
