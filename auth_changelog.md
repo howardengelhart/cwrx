@@ -1,5 +1,9 @@
 # Auth Service Changelog
 
+### 1.3.1: Fri Jul 25 15:37:41 EDT 2014
+* [FIX]: Force emails to lowercase: [#228](https://github.com/cinema6/cwrx/pull/228)
+* Extra deployment steps: None
+
 ### 1.3.0: Thu Jul 24 10:05:01 EDT 2014
 * [FEATURE]: Forgotten password retrieval: [#215](https://github.com/cinema6/cwrx/pull/215)
 * Extra deployment steps: 

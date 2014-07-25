@@ -1,5 +1,9 @@
 # User Service Changelog
 
+### 1.5.1: Fri Jul 25 15:37:41 EDT 2014
+* [FIX]: Force emails to lowercase: [#228](https://github.com/cinema6/cwrx/pull/228)
+* Extra deployment steps: None
+
 ### 1.5.0: Thu Jul 24 10:05:01 EDT 2014
 * [FIX]: Setup default config object on new users: [#224](https://github.com/cinema6/cwrx/pull/224)
 * [FEATURE]: Allow admins to query for all users: [#219](https://github.com/cinema6/cwrx/pull/219)
