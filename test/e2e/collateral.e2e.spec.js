@@ -22,7 +22,7 @@ describe('collateral (E2E):', function() {
         mockUser = {
             id: 'e2e-user',
             status: 'active',
-            email : 'collateralE2EUser',
+            email : 'collaterale2euser',
             password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
             org: 'e2e-org',
             permissions: {
@@ -38,7 +38,7 @@ describe('collateral (E2E):', function() {
             url: config.authUrl + '/auth/login',
             jar: cookieJar,
             json: {
-                email: 'collateralE2EUser',
+                email: 'collaterale2euser',
                 password: 'password'
             }
         };
@@ -90,13 +90,13 @@ describe('collateral (E2E):', function() {
         it('should allow an admin to upload files to another org', function(done) {
             options.url += '?org=not-e2e-org';
             mockUser.id = 'not-e2e-user';
-            mockUser.email = 'adminE2EUser';
+            mockUser.email = 'admine2euser';
             mockUser.permissions.experiences.edit = 'all';
             var loginOpts = {
                 url: config.authUrl + '/auth/login',
                 jar: cookieJar,
                 json: {
-                    email: 'adminE2EUser',
+                    email: 'admine2euser',
                     password: 'password'
                 }
             };

@@ -91,12 +91,7 @@ describe('auth (UT)', function() {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
                 expect(resp.body).toBeDefined();
-                var safeUser = {
-                    id: 'u-123',
-                    email: 'user',
-                    status: Status.Active
-                };
-                expect(resp.body).toEqual(safeUser);
+                expect(resp.body).toEqual({id: 'u-123',email: 'user',status: Status.Active});
                 expect(req.session.user).toEqual('u-123');
                 expect(origUser.password).toBe('hashpass'); // shouldn't accidentally delete this
                 
@@ -105,6 +100,26 @@ describe('auth (UT)', function() {
                 expect(bcrypt.compare).toHaveBeenCalled();
                 expect(bcrypt.compare.calls[0].args[0]).toBe('pass');
                 expect(bcrypt.compare.calls[0].args[1]).toBe('hashpass');
+                expect(req.session.regenerate).toHaveBeenCalled();
+                expect(mongoUtils.safeUser).toHaveBeenCalledWith(origUser);
+                expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should convert the request email to lowercase', function(done) {
+            req.body.email = 'USER';
+            auth.login(req, users).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(200);
+                expect(resp.body).toBeDefined();
+                expect(resp.body).toEqual({id: 'u-123',email: 'user',status: Status.Active});
+                expect(req.session.user).toEqual('u-123');
+                expect(origUser.password).toBe('hashpass'); // shouldn't accidentally delete this
+                expect(users.findOne).toHaveBeenCalledWith({email: 'user'}, anyFunc);
                 expect(req.session.regenerate).toHaveBeenCalled();
                 expect(mongoUtils.safeUser).toHaveBeenCalledWith(origUser);
                 expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
@@ -359,6 +374,21 @@ describe('auth (UT)', function() {
                               resetToken: { token: 'hashToken', expires: jasmine.any(Date) } } },
                     { w: 1, journal: true}, anyFunc);
                 expect((users.update.calls[0].args[1]['$set'].resetToken.expires - now) >= 10000).toBeTruthy();
+                expect(auth.mailResetToken).toHaveBeenCalledWith('test@c6.com', 'user@c6.com',
+                    'https://c6.com/forgot?id=u-1&token=48454c4c4f');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+
+        it('should successfully create and mail a password reset token', function(done) {
+            req.body.email = 'USER@c6.Com';
+            auth.forgotPassword(req, users, 10000, 'test@c6.com', targets).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(200);
+                expect(resp.body).toBe('Successfully generated reset token');
+                expect(users.findOne).toHaveBeenCalledWith({email: 'user@c6.com'}, anyFunc);
+                expect(users.update.calls[0].args[0]).toEqual({ email: 'user@c6.com' });
                 expect(auth.mailResetToken).toHaveBeenCalledWith('test@c6.com', 'user@c6.com',
                     'https://c6.com/forgot?id=u-1&token=48454c4c4f');
             }).catch(function(error) {

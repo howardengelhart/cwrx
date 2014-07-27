@@ -23,7 +23,7 @@ cmdl
 
 dbserver = cmdl.dbServer;
 dbuser   = cmdl.dbUser;
-user     = cmdl.user;
+user     = cmdl.user.toLowerCase();
 password = bcrypt.hashSync(cmdl.password,bcrypt.genSaltSync());
 
 script = [  'c6Db=db.getSiblingDB("c6Db");',

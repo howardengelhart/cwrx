@@ -71,6 +71,8 @@
         var deferred = q.defer(),
             log = logger.getLog(),
             userAccount;
+            
+        req.body.email = req.body.email.toLowerCase();
 
         log.info('[%1] Starting login for user %2', req.uuid, req.body.email);
         q.npost(users, 'findOne', [{email: req.body.email}])
@@ -143,7 +145,7 @@
     auth.forgotPassword = function(req, users, resetTokenTTL, emailSender, targets) {
         var log = logger.getLog(),
             now = new Date(),
-            reqEmail = req.body && req.body.email || '',
+            reqEmail = (req.body && req.body.email || '').toLowerCase(),
             targetName = req.body && req.body.target || '',
             target = targets[targetName] || '',
             token;

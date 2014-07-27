@@ -11,11 +11,11 @@ describe('user-light (E2E):', function() {
         var currUser, origUser = {},
             cookieJar = require('request').jar(),
             testUser = {
-                email: 'johnnyTestmonkey@cinema6.com',
+                email: 'johnnytestmonkey@cinema6.com',
                 password: 'bananas4bananas'
             },
             newUser = {
-                email: 'userSvc-lightE2EUser#' + Math.round(Math.random() * 1000000000000),
+                email: 'usersvc-lighte2euser#' + Math.round(Math.random() * 1000000000000),
                 password: 'password',
                 org: 'e2e-org',
                 e2e: true
@@ -30,7 +30,7 @@ describe('user-light (E2E):', function() {
             testUtils.qRequest('post', options).done(function(resp) {
                 if (resp.response.statusCode !== 200) {
                     console.log('Could not log in the test user');
-                    console.log('Double check that the user johnnyTestmonkey@cinema6.com exists in the database');
+                    console.log('Double check that the user johnnytestmonkey@cinema6.com exists in the database');
                     return q.reject('Received response: code = ' + resp.response.statusCode +
                                     ', body = ' + resp.body);
                 }

@@ -14,7 +14,7 @@ describe('org (E2E):', function() {
         mockRequester = {
             id: 'e2e-user',
             status: 'active',
-            email : 'orgSvcE2EUser',
+            email : 'orgsvce2euser',
             password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
             org: 'o-1234',
             permissions: {
@@ -24,7 +24,7 @@ describe('org (E2E):', function() {
         noPermsUser = {
             id: 'e2e-noPermsUser',
             status: 'active',
-            email : 'orgSvcE2EnoPermsUser',
+            email : 'orgsvce2enopermsuser',
             password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
             org: 'o-1234',
             permissions: {
@@ -35,7 +35,7 @@ describe('org (E2E):', function() {
             url: config.authUrl + '/login',
             jar: cookieJar,
             json: {
-                email: 'orgSvcE2EUser',
+                email: 'orgsvce2euser',
                 password: 'password'
             }
         };
@@ -373,7 +373,7 @@ describe('org (E2E):', function() {
                 url: config.authUrl + '/login',
                 jar: cookieJar,
                 json: {
-                    email: 'orgSvcE2EnoPermsUser',
+                    email: 'orgsvce2enopermsuser',
                     password: 'password'
                 }
             };
@@ -489,7 +489,7 @@ describe('org (E2E):', function() {
                 url: config.authUrl + '/login',
                 jar: cookieJar,
                 json: {
-                    email: 'orgSvcE2EnoPermsUser',
+                    email: 'orgsvce2enopermsuser',
                     password: 'password'
                 }
             };
@@ -626,7 +626,7 @@ describe('org (E2E):', function() {
                 url: config.authUrl + '/login',
                 jar: cookieJar,
                 json: {
-                    email: 'orgSvcE2EnoPermsUser',
+                    email: 'orgsvce2enopermsuser',
                     password: 'password'
                 }
             };
