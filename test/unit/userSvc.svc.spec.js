@@ -174,8 +174,9 @@ describe('userSvc (UT)', function() {
     
     describe('updateValidator', function() {
         it('should have initialized correctly', function() {
-            expect(userSvc.updateValidator._forbidden).toEqual(['id', 'org', 'password', 'created', '_id', 'email']);
+            expect(userSvc.updateValidator._forbidden).toEqual(['id', 'password', 'created', '_id', 'email']);
             expect(userSvc.updateValidator._condForbidden.permissions).toBe(userSvc.permsCheck);
+            expect(typeof userSvc.updateValidator._condForbidden.org).toBe('function');
         });
         
         it('should prevent illegal updates', function() {
@@ -194,6 +195,28 @@ describe('userSvc (UT)', function() {
             updates = { a: 'b', permissions: 'foo' };
             userSvc.permsCheck.andReturn(false);
             expect(userSvc.updateValidator.validate(updates, {}, {})).toBe(false);
+        });
+
+        it('should conditionally prevent setting the org field', function() {
+            var requester = {
+                id: 'u-1234',
+                org: 'o-1234',
+                permissions: {
+                    users: { edit: Scope.Org }
+                }
+            };
+            var user = { a: 'b', org: 'o-1234' };
+            spyOn(FieldValidator, 'eqReqFieldFunc').andCallThrough();
+            spyOn(FieldValidator, 'scopeFunc').andCallThrough();
+            
+            expect(userSvc.updateValidator.validate(user, {}, requester)).toBe(true);
+            expect(FieldValidator.eqReqFieldFunc).toHaveBeenCalledWith('org');
+            expect(FieldValidator.scopeFunc).toHaveBeenCalledWith('users', 'edit', Scope.All);
+            
+            user.org = 'o-4567';
+            expect(userSvc.updateValidator.validate(user, {}, requester)).toBe(false);
+            requester.permissions.users.edit = Scope.All;
+            expect(userSvc.updateValidator.validate(user, {}, requester)).toBe(true);
         });
     });
     
@@ -419,6 +442,7 @@ describe('userSvc (UT)', function() {
         it('should intelligently merge the newUser fields with defaults', function(done) {
             newUser.org = 'o-4567';
             newUser.status = Status.Pending;
+            newUser.applications = ['e-1234', 'e-4567'];
             newUser.permissions = {
                 experiences: { read: Scope.All, create: Scope.Own },
                 users: { read: Scope.Org, delete: Scope.Own }
@@ -428,6 +452,7 @@ describe('userSvc (UT)', function() {
                 expect(newUser.email).toBe('testUser');
                 expect(newUser.created instanceof Date).toBeTruthy('created is a Date');
                 expect(newUser.lastUpdated).toEqual(newUser.created);
+                expect(newUser.applications).toEqual(['e-1234', 'e-4567']);
                 expect(newUser.org).toBe('o-4567');
                 expect(newUser.status).toBe(Status.Pending);
                 expect(newUser.permissions).toEqual({
