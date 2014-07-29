@@ -38,7 +38,7 @@
         log.trace('checkProcess - check pidPath %1 for %2',
                 params.checkProcess.pidPath, params.name);
         if (!fs.existsSync(params.checkProcess.pidPath)){
-            log.warn('Unable to locate pidPath %1 for %2',
+            log.error('Unable to locate pidPath %1 for %2',
                     params.checkProcess.pidPath, params.name);
             var err = new Error('Process unavailable.');
             err.httpCode = 503;
@@ -89,7 +89,7 @@
             res.on('end',function(){
                 log.trace('checkHttp - %1 responds: %2', params.name, res.statusCode);
                 if ((res.statusCode < 200) || (res.statusCode >= 300)){
-                    log.warn('checkHttp - %1 received: %2', params.name, res.statusCode);
+                    log.error('checkHttp - %1 received: %2', params.name, res.statusCode);
                     var err = new Error(data);
                     err.httpCode = 502;
                     deferred.reject(err);
@@ -109,7 +109,7 @@
         });
 
         req.on('error',function(e){
-            log.warn('checkHttp - %1 error: %2', params.name, e.message);
+            log.error('checkHttp - %1 error: %2', params.name, e.message);
             e.httpCode = 500;
             deferred.reject(e);
         });
@@ -199,9 +199,9 @@
                 if (e.message === 'ETIMEOUT'){
                     e.httpCode = 504;
                     e.message = 'Request timed out.';
-                    log.warn('[%1] - Request timed out.',req.uuid);
+                    log.error('[%1] - Request timed out.',req.uuid);
                 } else {
-                    log.warn('[%1] - One or more checks failed', req.uuid);
+                    log.error('[%1] - One or more checks failed', req.uuid);
                 }
                 res.send(e.httpCode || 500, e.message);
             });
@@ -244,7 +244,7 @@
     app.verifyConfiguration = function(state){
         var log = logger.getLog();
         if (!state.services || !state.services.length){
-            log.warn('monitor is not configured to monitor any services.');
+            log.error('monitor is not configured to monitor any services.');
             return q(state);
         }
 
