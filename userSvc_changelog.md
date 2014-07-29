@@ -1,8 +1,8 @@
 # User Service Changelog
 
 ### 1.5.2: Tue Jul 29 15:07:19 EDT 2014
-* [FIX]: Allow admins to change users' orgs: [#234](https://github.com/cinema6/cwrx/pull/235)
-* [FIX]: Properly allow overriding the default applications list: [#234](https://github.com/cinema6/cwrx/pull/235)
+* [FIX]: Allow admins to change users' orgs: [#235](https://github.com/cinema6/cwrx/pull/235)
+* [FIX]: Properly allow overriding the default applications list: [#235](https://github.com/cinema6/cwrx/pull/235)
 * Extra deployment steps: None
 
 ### 1.5.1: Fri Jul 25 15:37:41 EDT 2014
