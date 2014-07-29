@@ -309,12 +309,14 @@ describe('user (E2E):', function() {
             mockUser.permissions = {
                 users: { read: 'org', edit: 'org' }
             };
+            mockUser.applications = ['e-1234'];
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 var newUser = resp.body;
                 expect(newUser).toBeDefined();
                 expect(newUser.password).not.toBeDefined();
                 expect(newUser.status).toBe('pending');
+                expect(newUser.applications).toEqual(['e-1234']);
                 expect(newUser.permissions).toEqual({
                     experiences: { read: 'org', create: 'org', edit: 'org', delete: 'org' },
                     elections: { read: 'org', create: 'org', edit: 'org', delete: 'org' },

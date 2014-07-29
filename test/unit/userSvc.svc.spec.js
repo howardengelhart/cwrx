@@ -442,6 +442,7 @@ describe('userSvc (UT)', function() {
         it('should intelligently merge the newUser fields with defaults', function(done) {
             newUser.org = 'o-4567';
             newUser.status = Status.Pending;
+            newUser.applications = ['e-1234', 'e-4567'];
             newUser.permissions = {
                 experiences: { read: Scope.All, create: Scope.Own },
                 users: { read: Scope.Org, delete: Scope.Own }
@@ -451,6 +452,7 @@ describe('userSvc (UT)', function() {
                 expect(newUser.email).toBe('testUser');
                 expect(newUser.created instanceof Date).toBeTruthy('created is a Date');
                 expect(newUser.lastUpdated).toEqual(newUser.created);
+                expect(newUser.applications).toEqual(['e-1234', 'e-4567']);
                 expect(newUser.org).toBe('o-4567');
                 expect(newUser.status).toBe(Status.Pending);
                 expect(newUser.permissions).toEqual({
