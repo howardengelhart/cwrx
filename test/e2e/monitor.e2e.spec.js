@@ -1,15 +1,12 @@
 describe('monitor (E2E)', function(){
-    var testUtils, q, makeUrl, restart = true;
+    var testUtils, q, makeUrl;
 
-    function restartService(r){
-        if (r) {
-            var options = {
-                url : makeUrl('/maint/service/restart'),
-                json : { service : 'monitor', checkUrl: makeUrl('/api/monitor/version') }
-            };
-            return testUtils.qRequest('post',options);
-        }
-        return q(true);
+    function restartService(){
+        var options = {
+            url : makeUrl('/maint/service/restart'),
+            json : { service : 'monitor', checkUrl: makeUrl('/api/monitor/version') }
+        };
+        return testUtils.qRequest('post',options);
     }
 
     function getStatus() { 
@@ -59,8 +56,7 @@ describe('monitor (E2E)', function(){
     });
 
     it('returns 500 if nothing to monitor',function(done){
-        restartService(true)
-        .delay(5000)
+        restartService()
         .then(getStatus)
             .then(function(resp){
                 expect(resp.response.statusCode).toEqual(500);
@@ -78,8 +74,7 @@ describe('monitor (E2E)', function(){
                 pidPath : '/opt/sixxy/run/maint.pid' 
             }
         })
-        .then(restartService(true))
-        .delay(5000)
+        .then(restartService)
         .then(getStatus)
         .then(function(resp){
             expect(resp.response.statusCode).toEqual(200);
@@ -97,8 +92,7 @@ describe('monitor (E2E)', function(){
                 path : '/maint/meta' 
             }
         })
-        .then(restartService(true))
-        .delay(5000)
+        .then(restartService)
         .then(getStatus)
         .then(function(resp){
             expect(resp.response.statusCode).toEqual(200);
@@ -119,8 +113,7 @@ describe('monitor (E2E)', function(){
                 path : '/maint/meta' 
             }
         })
-        .then(restartService(true))
-        .delay(5000)
+        .then(restartService)
         .then(getStatus)
         .then(function(resp){
             expect(resp.response.statusCode).toEqual(200);
@@ -146,8 +139,7 @@ describe('monitor (E2E)', function(){
                 pidPath : '/opt/sixxy/run/phony.pid' 
             }
         }))
-        .then(restartService(true))
-        .delay(5000)
+        .then(restartService)
         .then(getStatus)
         .then(function(resp){
             expect(resp.response.statusCode).toEqual(503);
@@ -173,8 +165,7 @@ describe('monitor (E2E)', function(){
                 path : '/phoney/path' 
             }
         }))
-        .then(restartService(true))
-        .delay(5000)
+        .then(restartService)
         .then(getStatus)
         .then(function(resp){
             expect(resp.response.statusCode).toEqual(502);
@@ -200,8 +191,7 @@ describe('monitor (E2E)', function(){
                 pidPath : '/opt/sixxy/run/monitor.pid' 
             }
         }))
-        .then(restartService(true))
-        .delay(5000)
+        .then(restartService)
         .then(getStatus)
         .then(function(resp){
             expect(resp.response.statusCode).toEqual(200);
