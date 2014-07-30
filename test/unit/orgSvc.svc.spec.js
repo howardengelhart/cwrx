@@ -710,7 +710,7 @@ describe('orgSvc (UT)', function() {
     });
 
     describe('deleteOrg', function() {
-        var orgColl;
+        var orgColl, fakeCursor, userColl;
         beforeEach(function() {
             orgColl = {
                 findOne: jasmine.createSpy('orgs.findOne').andCallFake(function(query, cb) {
@@ -720,6 +720,14 @@ describe('orgSvc (UT)', function() {
                     cb(null, 1);
                 })
             };
+            fakeCursor = {
+                toArray: jasmine.createSpy('cursor.toArray').andCallFake(function(cb) {
+                    cb(null, []);
+                })
+            };
+            userColl = {
+                find: jasmine.createSpy('users.find').andReturn(fakeCursor)
+            };
             req.params = { id: 'o-4567' };
             req.user = { id: 'u-1234' , org: 'o-1234', permissions: {orgs: {delete: Scope.All}}};
             spyOn(orgSvc, 'checkScope').andReturn(true);
@@ -727,7 +735,7 @@ describe('orgSvc (UT)', function() {
         
         it('should fail if the user is trying to delete their own org', function(done) {
             req.params.id = 'o-1234';
-            orgSvc.deleteOrg(req, orgColl).then(function(resp) {
+            orgSvc.deleteOrg(req, orgColl, userColl).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(400);
                 expect(resp.body).toBe('You cannot delete your own org');
@@ -735,18 +743,20 @@ describe('orgSvc (UT)', function() {
                 expect(orgColl.update).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
         
         it('should successfully mark an org as deleted', function(done) {
-            orgSvc.deleteOrg(req, orgColl).then(function(resp) {
+            orgSvc.deleteOrg(req, orgColl, userColl).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(204);
                 expect(resp.body).not.toBeDefined();
                 expect(orgColl.findOne).toHaveBeenCalled();
                 expect(orgColl.findOne.calls[0].args[0]).toEqual({id: 'o-4567'});
+                expect(userColl.find).toHaveBeenCalledWith({org:'o-4567',status:'active'});
+                expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(orgColl.update).toHaveBeenCalled();
                 expect(orgColl.update.calls[0].args[0]).toEqual({id: 'o-4567'});
                 var updates = orgColl.update.calls[0].args[1];
@@ -756,22 +766,23 @@ describe('orgSvc (UT)', function() {
                 expect(orgColl.update.calls[0].args[2]).toEqual({w: 1, journal: true});
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
         
         it('should not delete a nonexistent org', function(done) {
             orgColl.findOne.andCallFake(function(query, cb) { cb(null, null); });
-            orgSvc.deleteOrg(req, orgColl).then(function(resp) {
+            orgSvc.deleteOrg(req, orgColl, userColl).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(204);
                 expect(resp.body).not.toBeDefined();
                 expect(orgColl.findOne).toHaveBeenCalled();
+                expect(userColl.find).not.toHaveBeenCalled();
                 expect(orgColl.update).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
@@ -779,15 +790,16 @@ describe('orgSvc (UT)', function() {
         it('should not delete an org the requester is not authorized to delete', function(done) {
             delete req.user.permissions;
             orgSvc.checkScope.andReturn(false);
-            orgSvc.deleteOrg(req, orgColl).then(function(resp) {
+            orgSvc.deleteOrg(req, orgColl, userColl).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(403);
                 expect(resp.body).toBe('Not authorized to delete this org');
                 expect(orgColl.findOne).not.toHaveBeenCalled();
+                expect(userColl.find).not.toHaveBeenCalled();
                 expect(orgColl.update).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
@@ -796,15 +808,32 @@ describe('orgSvc (UT)', function() {
             orgColl.findOne.andCallFake(function(query, cb) {
                 cb(null, {id: 'o-4567', status: Status.Deleted});
             });
-            orgSvc.deleteOrg(req, orgColl).then(function(resp) {
+            orgSvc.deleteOrg(req, orgColl, userColl).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(204);
                 expect(resp.body).not.toBeDefined();
                 expect(orgColl.findOne).toHaveBeenCalled();
+                expect(userColl.find).not.toHaveBeenCalled();
                 expect(orgColl.update).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should not delete the org if it still has active users', function(done) {
+            fakeCursor.toArray.andCallFake(function(cb) { cb(null, ['user1', 'user2']); });
+            orgSvc.deleteOrg(req, orgColl, userColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(400);
+                expect(resp.body).toBe('Org still has active users');
+                expect(orgColl.findOne).toHaveBeenCalled();
+                expect(userColl.find).toHaveBeenCalled();
+                expect(orgColl.update).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
@@ -813,12 +842,30 @@ describe('orgSvc (UT)', function() {
             orgColl.findOne.andCallFake(function(query, cb) {
                 cb('Error!', null);
             });
-            orgSvc.deleteOrg(req, orgColl).then(function(resp) {
+            orgSvc.deleteOrg(req, orgColl, userColl).then(function(resp) {
                 expect(resp).not.toBeDefined();
                 done();
             }).catch(function(error) {
                 expect(error).toBe('Error!');
                 expect(orgColl.findOne).toHaveBeenCalled();
+                expect(userColl.find).not.toHaveBeenCalled();
+                expect(orgColl.update).not.toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should fail with an error if users.find fails', function(done) {
+            fakeCursor.toArray.andCallFake(function(cb) {
+                cb('Error!', null);
+            });
+            orgSvc.deleteOrg(req, orgColl, userColl).then(function(resp) {
+                expect(resp).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).toBe('Error!');
+                expect(orgColl.findOne).toHaveBeenCalled();
+                expect(userColl.find).toHaveBeenCalled();
                 expect(orgColl.update).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
                 done();
@@ -829,12 +876,13 @@ describe('orgSvc (UT)', function() {
             orgColl.update.andCallFake(function(query, obj, ops, cb) {
                 cb('Error!', null);
             });
-            orgSvc.deleteOrg(req, orgColl).then(function(resp) {
+            orgSvc.deleteOrg(req, orgColl, userColl).then(function(resp) {
                 expect(resp).not.toBeDefined();
                 done();
             }).catch(function(error) {
                 expect(error).toBe('Error!');
                 expect(orgColl.findOne).toHaveBeenCalled();
+                expect(userColl.find).toHaveBeenCalled();
                 expect(orgColl.update).toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
                 done();

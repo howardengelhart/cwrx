@@ -176,7 +176,7 @@ describe('org (E2E):', function() {
             ];
             testUtils.resetCollection('users', [mockRequester, noPermsUser])
             .then(function(){
-	        return testUtils.resetCollection('orgs', mockOrgs);
+            return testUtils.resetCollection('orgs', mockOrgs);
             })
             .done(done);
         });
@@ -603,7 +603,7 @@ describe('org (E2E):', function() {
             var options = { url: config.orgSvcUrl + '/org/o-1234', jar: cookieJar };
             testUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-               expect(resp.body).toBe('You cannot delete your own org');
+                expect(resp.body).toBe('You cannot delete your own org');
                 options = { url: config.orgSvcUrl + '/org/o-1234', jar: cookieJar };
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
@@ -645,6 +645,48 @@ describe('org (E2E):', function() {
                 expect(error).not.toBeDefined();
                 done();
             });
+        });
+        
+        it('should prevent deleting an org with active users', function(done) {
+            var org = {id: 'o-del-1', status: 'active'},
+                user = {id: 'u-del-1', status: 'active', org: 'o-del-1'},
+                options = { url: config.orgSvcUrl + '/org/o-del-1', jar: cookieJar };
+            testUtils.resetCollection('orgs', org).then(function() {
+                return testUtils.resetCollection('users', [mockRequester, user]);
+            }).then(function() {
+                return testUtils.qRequest('delete', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Org still has active users');
+                options = { url: config.orgSvcUrl + '/org/o-del-1', jar: cookieJar };
+                return testUtils.qRequest('get', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.status).toBe('active');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should allow deleting an org with inactive users', function(done) {
+            var org = {id: 'o-del-1', status: 'active'},
+                user = {id: 'u-del-1', status: 'deleted', org: 'o-del-1'},
+                options = { url: config.orgSvcUrl + '/org/o-del-1', jar: cookieJar };
+            testUtils.resetCollection('orgs', org).then(function() {
+                return testUtils.resetCollection('users', [mockRequester, user]);
+            }).then(function() {
+                return testUtils.qRequest('delete', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
+                options = { url: config.orgSvcUrl + '/org/o-del-1', jar: cookieJar };
+                return testUtils.qRequest('get', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toBe('No orgs found');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
         });
     
         it('should throw a 401 error if the user is not authenticated', function(done) {

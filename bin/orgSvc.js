@@ -282,12 +282,13 @@
     };
 
     // Delete an org from mongo
-    orgSvc.deleteOrg = function(req, orgs) {
+    orgSvc.deleteOrg = function(req, orgs, users) {
         var id = req.params.id,
             requester = req.user,
             log = logger.getLog(),
             deferred = q.defer(),
             now;
+
         if (id === requester.org) {
             log.warn('[%1] User %2 tried to delete their own org', req.uuid, requester.id);
             return q({code: 400, body: 'You cannot delete your own org'});
@@ -311,11 +312,21 @@
                 log.info('[%1] Org %2 has already been deleted', req.uuid, id);
                 return deferred.resolve({code: 204});
             }
-            var updates = {$set: {lastUpdated: now, status: Status.Deleted}};
-            return q.npost(orgs, 'update', [{id:id}, updates, {w: 1, journal: true}])
-            .then(function() {
-                log.info('[%1] User %2 successfully deleted org %3', req.uuid, requester.id, id);
-                deferred.resolve({code: 204});
+            
+            return q.npost(users.find({org: id, status: Status.Active}), 'toArray')
+            .then(function(users) {
+                if (users.length > 0) {
+                    log.info('[%1] Can\'t delete org %2 since it still has %3 active users',
+                             req.uuid, id, users.length);
+                    return deferred.resolve({code: 400, body: 'Org still has active users'});
+                }
+                
+                var updates = {$set: {lastUpdated: now, status: Status.Deleted}};
+                return q.npost(orgs, 'update', [{id:id}, updates, {w: 1, journal: true}])
+                .then(function() {
+                    log.info('[%1] User %2 successfully deleted org %3',req.uuid,requester.id,id);
+                    deferred.resolve({code: 204});
+                });
             });
         }).catch(function(error) {
             log.error('[%1] Error deleting org %2 for user %3: %4',req.uuid,id,requester.id,error);
@@ -467,7 +478,7 @@
 
         var authDelUser = authUtils.middlewarify({orgs: 'delete'});
         app.delete('/api/account/org/:id', sessionsWrapper, authDelUser, function(req, res) {
-            orgSvc.deleteOrg(req, orgs)
+            orgSvc.deleteOrg(req, orgs, users)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
