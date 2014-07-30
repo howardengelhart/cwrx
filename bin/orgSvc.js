@@ -68,7 +68,7 @@
 
     // Validate fields when updating an org
     orgSvc.updateValidator = new FieldValidator({
-        forbidden: ['id', 'name', 'created', '_id'],
+        forbidden: ['id', 'created', '_id'],
     });
 
     // Get a single org from mongo
