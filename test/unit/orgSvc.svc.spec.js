@@ -100,14 +100,12 @@ describe('orgSvc (UT)', function() {
     describe('updateValidator', function() {
 
         it('should have initialized correctly', function() {
-            expect(orgSvc.updateValidator._forbidden).toEqual(['id', 'name', 'created', '_id']);
+            expect(orgSvc.updateValidator._forbidden).toEqual(['id', 'created', '_id']);
             expect(orgSvc.updateValidator._condForbidden).toEqual({});
         });
         
         it('should prevent illegal updates', function() {
             var updates = { a: 'b', id: 'o-4567'};
-            expect(orgSvc.updateValidator.validate(updates, {}, {})).toBe(false);
-            updates = { a: 'b', name: 'org-2'};
             expect(orgSvc.updateValidator.validate(updates, {}, {})).toBe(false);
             updates = { a: 'b', created: 'long, long ago'};
             expect(orgSvc.updateValidator.validate(updates, {}, {})).toBe(false);
