@@ -1,5 +1,9 @@
 # Org Service Changelog
 
+### 1.0.4: Mon Aug  4 12:40:36 EDT 2014
+* [FIX]: Fix hardcoding new orgs' config: [#242](https://github.com/cinema6/cwrx/pull/242)
+* Extra deployment steps: None
+
 ### 1.0.3: Wed Jul 30 13:51:13 EDT 2014
 * [FIX]: Allow changing name of orgs: [#237](https://github.com/cinema6/cwrx/pull/237)
 * [FIX]: Prevent deleting org with active users: [#239](https://github.com/cinema6/cwrx/pull/239)

@@ -303,6 +303,7 @@ describe('org (E2E):', function() {
         it('should be able to override default properties', function(done) {
             mockOrg.status = 'pending';
             mockOrg.waterfalls = {video: ['cinema6']};
+            mockOrg.config = {foo: 'bar'};
             var options = { url: config.orgSvcUrl + '/org', json: mockOrg, jar: cookieJar };
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
@@ -310,6 +311,7 @@ describe('org (E2E):', function() {
                 expect(newOrg).toBeDefined();
                 expect(newOrg.status).toBe('pending');
                 expect(newOrg.waterfalls).toEqual({video: ['cinema6'], display: ['cinema6']});
+                expect(newOrg.config).toEqual({foo: 'bar'});
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
