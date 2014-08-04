@@ -83,6 +83,51 @@ describe('content (UT)', function() {
         });
     });
     
+    describe('canGetExperience', function() {
+        var exp, user, origin;
+        beforeEach(function() {
+            exp = { id: 'e1', status: Status.Pending, access: Access.Private };
+            user = null;
+            origin = 'http://google.com';
+            spyOn(content, 'checkScope').andReturn(false);
+        });
+        
+        it('should let a guest see an active experience from outside cinema6.com', function() {
+            expect(content.canGetExperience(exp, user, origin)).toBe(false);
+            exp.status = Status.Active;
+            expect(content.canGetExperience(exp, user, origin)).toBe(true);
+            origin = 'http://staging.cinema6.com';
+            expect(content.canGetExperience(exp, user, origin)).toBe(false);
+        });
+        
+        it('should let a guest see a public experience from cinema6.com', function() {
+            exp.access = Access.Public;
+            expect(content.canGetExperience(exp, user, origin)).toBe(false);
+            origin = 'http://staging.cinema6.com';
+            expect(content.canGetExperience(exp, user, origin)).toBe(true);
+        });
+        
+        it('should let an authenticated user see an experience if their permissions are valid', function() {
+            user = { foo: 'bar' };
+            expect(content.canGetExperience(exp, user, origin)).toBe(false);
+            content.checkScope.andReturn(true);
+            expect(content.canGetExperience(exp, user, origin)).toBe(true);
+            expect(content.checkScope).toHaveBeenCalledWith({foo: 'bar'}, exp, 'experiences', 'read');
+        });
+        
+        it('should let a user see one of their authorized apps', function() {
+            user = { id: 'u1', applications: ['e1'] };
+            expect(content.canGetExperience(exp, user, origin)).toBe(true);
+        });
+        
+        it('should never let anyone see a deleted experience', function() {
+            exp = { id: 'e1', status: Status.Deleted, access: Access.Public };
+            origin = 'http://cinema6.com';
+            content.checkScope.andReturn(true);
+            expect(content.canGetExperience(exp, user, origin)).toBe(false);
+        });
+    });
+    
     describe('createValidator', function() {
         it('should have initialized correctly', function() {
             expect(content.createValidator._forbidden).toEqual(['id', 'created', 'versionId']);
@@ -256,6 +301,7 @@ describe('content (UT)', function() {
         var req, expCache, orgCache, query, fakeCursor;
         beforeEach(function() {
             req = {
+                headers: { origin: 'http://google.com' },
                 uuid: '1234',
                 query: {
                     sort: 'id,1',
@@ -277,7 +323,7 @@ describe('content (UT)', function() {
                 getPromise: jasmine.createSpy('expCache.getPromise').andReturn(q([{title: 'fake2', org: 'o-1'}]))
             };
             orgCache = 'fakeOrgCache';
-            spyOn(content, 'checkScope').andReturn(true);
+            spyOn(content, 'canGetExperience').andReturn(true);
             spyOn(QueryCache, 'formatQuery').andReturn('formatted');
             spyOn(content, 'getAdConfig').andCallFake(function(exp, orgId, orgCache) { return q(exp); });
         });
@@ -292,8 +338,7 @@ describe('content (UT)', function() {
                     .toHaveBeenCalledWith('formatted', {sort: {id: 1}, limit: 20, skip: 10});
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(expCache.getPromise).not.toHaveBeenCalled();
-                expect(content.checkScope)
-                    .toHaveBeenCalledWith('fakeUser', {title: 'fake1'}, 'experiences', 'read');
+                expect(content.canGetExperience).toHaveBeenCalledWith({title: 'fake1'}, 'fakeUser', 'http://google.com');
                 expect(content.formatOutput).toHaveBeenCalledWith({title: 'fake1'}, false);
                 expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                 expect(content.getAdConfig).not.toHaveBeenCalled();
@@ -313,8 +358,7 @@ describe('content (UT)', function() {
                 expect(QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery');
                 expect(expCache._coll.find)
                     .toHaveBeenCalledWith('formatted', {sort: {}, limit: 0, skip: 0});
-                expect(content.checkScope)
-                    .toHaveBeenCalledWith('fakeUser', {title: 'fake1'}, 'experiences', 'read');
+                expect(content.canGetExperience).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -348,8 +392,7 @@ describe('content (UT)', function() {
                 expect(QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery');
                 expect(expCache.getPromise).toHaveBeenCalledWith('formatted', {id: 1}, 20, 10);
                 expect(expCache._coll.find).not.toHaveBeenCalled();
-                expect(content.checkScope)
-                    .toHaveBeenCalledWith(undefined, {title: 'fake2'}, 'experiences', 'read');
+                expect(content.canGetExperience).toHaveBeenCalledWith({title: 'fake2'}, undefined, 'http://google.com');
                 expect(content.formatOutput).toHaveBeenCalledWith({title: 'fake2', org: 'o-1'}, true);
                 done();
             }).catch(function(error) {
@@ -367,8 +410,6 @@ describe('content (UT)', function() {
                 expect(QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery');
                 expect(expCache.getPromise).toHaveBeenCalledWith('formatted', {id: 1}, 20, 10);
                 expect(expCache._coll.find).not.toHaveBeenCalled();
-                expect(content.checkScope)
-                    .toHaveBeenCalledWith(undefined, {title: 'fake2'}, 'experiences', 'read');
                 expect(content.formatOutput).toHaveBeenCalledWith({title: 'fake2', org: 'o-1'}, true);
                 expect(content.getAdConfig).toHaveBeenCalledWith({title: 'fake2'}, 'o-1', 'fakeOrgCache');
                 done();
@@ -379,54 +420,19 @@ describe('content (UT)', function() {
         });
         
         it('should only return experiences the user is allowed to see', function(done) {
-            req.user = { id: 'u-1', applications: 'e-5' };
-            var exps = [
-                { id: 'e-1', status: Status.Active, access: Access.Private },
-                { id: 'e-2', status: Status.Inactive, access: Access.Public },
-                { id: 'e-3', status: Status.Active, access: Access.Public },
-                { id: 'e-4', status: Status.Inactive, access: Access.Private },
-                { id: 'e-5', status: Status.Inactive, access: Access.Private }
-            ];
-            fakeCursor.toArray.andCallFake(function(cb) {
-                cb(null, exps);
-            });
-            expCache.getPromise.andReturn(q(exps));
-            content.checkScope.andCallFake(function(user, experience, obj, verb) {
-                if (user && experience.id === 'e-4') return true;
+            var exps = [ { id: 'e-1' }, { id: 'e-2' } ];
+            fakeCursor.toArray.andCallFake(function(cb) { cb(null, exps); });
+            content.canGetExperience.andCallFake(function(exp, user, origin) {
+                if (exp.id === 'e-2') return true;
                 else return false;
             });
             
             content.getExperiences(query, req, expCache).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
-                expect(resp.body).toEqual([{ id: 'e-3', status: Status.Active, access: Access.Public },
-                                           { id: 'e-4', status: Status.Inactive, access: Access.Private },
-                                           { id: 'e-5', status: Status.Inactive, access: Access.Private }]);
-                expect(content.checkScope.calls.length).toBe(5);
-                expect(content.formatOutput.calls.length).toBe(5);
-                return content.getExperiences(query, { uuid: '1234' }, expCache);
-            }).then(function(resp) {
-                expect(resp).toBeDefined();
-                expect(resp.code).toBe(200);
-                expect(resp.body).toEqual([{ id: 'e-3', status: Status.Active, access: Access.Public }]);
-                done();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-                done();
-            });
-        });
-        
-        it('should not show any deleted experiences', function(done) {
-            fakeCursor.toArray.andCallFake(function(cb) {
-                cb(null, [{id: 'e-del', status: [{status: Status.Deleted}], access: Access.Public}]);
-            });
-            content.getExperiences(query, req, expCache).then(function(resp) {
-                expect(resp).toBeDefined();
-                expect(resp.code).toBe(200);
-                expect(resp.body).toEqual([]);
-                expect(expCache.getPromise).not.toHaveBeenCalled();
-                expect(expCache._coll.find).toHaveBeenCalled();
-                expect(content.formatOutput).toHaveBeenCalled();
+                expect(resp.body).toEqual([{ id: 'e-2' }]);
+                expect(content.canGetExperience.calls.length).toBe(2);
+                expect(content.formatOutput.calls.length).toBe(2);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -490,7 +496,7 @@ describe('content (UT)', function() {
                 expect(expCache._coll.find).not.toHaveBeenCalled();
                 expect(content.formatOutput).toHaveBeenCalled();
                 expect(content.getAdConfig).toHaveBeenCalled();
-                expect(content.checkScope).not.toHaveBeenCalled();
+                expect(content.canGetExperience).not.toHaveBeenCalled();
                 done();
             });
         });
@@ -531,11 +537,12 @@ describe('content (UT)', function() {
                 expect(resp.body.data).toEqual({foo: 'bar'});
                 expect(resp.body.user).toBe('u-1234');
                 expect(resp.body.org).toBe('o-1234');
-                expect(resp.body.status).toBe(Status.Active);
+                expect(resp.body.status).toBe(Status.Pending);
+                expect(resp.body.access).toBe(Access.Private);
                 expect(content.createValidator.validate).toHaveBeenCalledWith(req.body, {}, req.user);
                 expect(experiences.insert).toHaveBeenCalled();
-                expect(experiences.insert.calls[0].args[0].data[0]).toEqual({ user:'otter',userId:'u-1234',
-                    date:jasmine.any(Date),versionId:'fakeVers',data:{foo:'bar'}, active: true });
+                expect(experiences.insert.calls[0].args[0].data[0]).toEqual({user:'otter',userId:'u-1234',
+                    date:jasmine.any(Date),versionId:'fakeVers',data:{foo:'bar'}});
                 expect(experiences.insert.calls[0].args[1]).toEqual({w: 1, journal: true});
                 expect(content.formatOutput).toHaveBeenCalled();
                 expect(mongoUtils.escapeKeys).toHaveBeenCalled();
