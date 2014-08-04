@@ -375,12 +375,14 @@ describe('orgSvc (UT)', function() {
             newOrg.id = 'o-4567';
             newOrg.status = Status.Pending;
             newOrg.waterfalls = {video: ['publisher']};
+            newOrg.config = {foo: 'bar'};
             orgSvc.setupOrg(newOrg, requester);
             expect(newOrg.id).toBe('o-1234567890abcd');
             expect(newOrg.created instanceof Date).toBeTruthy('created is a Date');
             expect(newOrg.lastUpdated).toEqual(newOrg.created);
             expect(newOrg.status).toBe(Status.Pending);
             expect(newOrg.waterfalls.display).toEqual(['cinema6']);
+            expect(newOrg.config).toEqual({foo: 'bar'});
             expect(mongoUtils.escapeKeys).toHaveBeenCalled();
             done();
         });

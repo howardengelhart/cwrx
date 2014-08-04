@@ -219,7 +219,9 @@
                 });
             }
         });
-        newUser.config = {};
+        if (!newUser.config) {
+            newUser.config = {};
+        }
         return q.npost(bcrypt, 'hash', [newUser.password, bcrypt.genSaltSync()])
         .then(function(hashed) {
             newUser.password = hashed;

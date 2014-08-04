@@ -1,5 +1,9 @@
 # User Service Changelog
 
+### 1.5.3: Mon Aug  4 12:40:36 EDT 2014
+* [FIX]: Fix hardcoding new users' config: [#242](https://github.com/cinema6/cwrx/pull/242)
+* Extra deployment steps: None
+
 ### 1.5.2: Tue Jul 29 15:07:19 EDT 2014
 * [FIX]: Allow admins to change users' orgs: [#235](https://github.com/cinema6/cwrx/pull/235)
 * [FIX]: Properly allow overriding the default applications list: [#235](https://github.com/cinema6/cwrx/pull/235)

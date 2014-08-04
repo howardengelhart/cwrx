@@ -443,6 +443,7 @@ describe('userSvc (UT)', function() {
             newUser.org = 'o-4567';
             newUser.status = Status.Pending;
             newUser.applications = ['e-1234', 'e-4567'];
+            newUser.config = {foo: 'bar'};
             newUser.permissions = {
                 experiences: { read: Scope.All, create: Scope.Own },
                 users: { read: Scope.Org, delete: Scope.Own }
@@ -455,6 +456,7 @@ describe('userSvc (UT)', function() {
                 expect(newUser.applications).toEqual(['e-1234', 'e-4567']);
                 expect(newUser.org).toBe('o-4567');
                 expect(newUser.status).toBe(Status.Pending);
+                expect(newUser.config).toEqual({foo: 'bar'});
                 expect(newUser.permissions).toEqual({
                     elections: { read: Scope.Org, create: Scope.Org, edit: Scope.Org, delete: Scope.Org },
                     experiences: { read: Scope.All, create: Scope.Own, edit: Scope.Org, delete: Scope.Org },
