@@ -1,5 +1,9 @@
 # Content Service Changelog
 
+### 1.5.1: Mon Aug  4 12:04:17 EDT 2014
+* [FIX]: Update access control for experiences using access prop and request origin: [#241](https://github.com/cinema6/cwrx/pull/241)
+* Extra deployment steps: None
+
 ### 1.5.0: Thu Jul 24 17:11:39 EDT 2014
 * [FEATURE]: Lookup adConfig from org for public GET experience endpoint: [#226](https://github.com/cinema6/cwrx/pull/226)
 * Extra deployment steps: Deploy new version of content cookbook

@@ -72,6 +72,17 @@
              (user.permissions[object][verb] === Scope.Own && user.id === experience.user) ));
     };
     
+    // Check whether a user can retrieve an experience
+    content.canGetExperience = function(exp, user, origin) {
+        origin = origin || '';
+        user = user || {};
+        return exp.status !== Status.Deleted &&
+               !!( (exp.status === Status.Active && !origin.match('cinema6.com'))   ||
+                   (exp.access === Access.Public && origin.match('cinema6.com'))    ||
+                   content.checkScope(user, exp, 'experiences', 'read')             ||
+                   (user.applications && user.applications.indexOf(exp.id) >= 0)    );
+    };
+    
     content.createValidator = new FieldValidator({
         forbidden: ['id', 'created', 'versionId'],
         condForbidden: {
@@ -145,6 +156,7 @@
         var limit = req.query && req.query.limit || 0,
             skip = req.query && req.query.skip || 0,
             sort = req.query && req.query.sort,
+            origin = req.headers && req.headers.origin,
             sortObj = {},
             log = logger.getLog(),
             promise;
@@ -186,11 +198,7 @@
         })
         .then(function(results) {
             var experiences = results.filter(function(result) {
-                return result.status !== Status.Deleted &&
-                      (content.checkScope(req.user, result, 'experiences', 'read') ||
-                       (result.status === Status.Active && result.access === Access.Public) ||
-                       (req.user && req.user.applications &&
-                                    req.user.applications.indexOf(result.id) >= 0));
+                return content.canGetExperience(result, req.user, origin);
             });
 
             log.info('[%1] Showing the user %2 experiences', req.uuid, experiences.length);
@@ -224,11 +232,11 @@
             obj.org = user.org;
         }
         if (!obj.status) {
-            obj.status = Status.Active;
+            obj.status = Status.Pending;
         }
         obj.status = [ { user: user.email, userId: user.id, date: now, status: obj.status } ];
         if (!obj.access) {
-            obj.access = Access.Public;
+            obj.access = Access.Private;
         }
         if (obj.data) {
             var versionId = uuid.hashText(JSON.stringify(obj.data)).substr(0, 8);

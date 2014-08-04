@@ -43,7 +43,7 @@ describe('content (E2E):', function() {
             done();
         });
     });
-    
+
     describe('GET /api/public/content/experience/:id', function() {
         var mockExps, mockOrg, options;
         beforeEach(function(done) {
@@ -73,14 +73,16 @@ describe('content (E2E):', function() {
                     status: 'active',
                     user: 'e2e-user',
                     org: 'e2e-active-org'
-                }
+                },
+                { id: 'e2e-pubget2', status: 'pending', access: 'public' },
+                { id: 'e2e-pubget3', status: 'active', access: 'private' }
             ];
             mockOrg = { id: 'e2e-active-org', status: 'active', adConfig: { foo: 'bar' } };
             testUtils.resetCollection('experiences', mockExps).then(function() {
                 return testUtils.resetCollection('orgs', mockOrg);
             }).done(done);
         });
-    
+
         it('should get an experience by id', function(done) {
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -123,36 +125,34 @@ describe('content (E2E):', function() {
             }).finally(done);
         });
         
-        it('should not get an experience that is private or inactive', function(done) {
-            var mockExps = [
-                {
-                    id: "e2e-pubget2",
-                    status: "inactive",
-                    access: "public"
-                },
-                {
-                    id: "e2e-pubget3",
-                    status: "active",
-                    access: "private"
-                }
-            ];
-
-            testUtils.resetCollection('experiences', mockExps).then(function() {
-                var options = {url: config.contentUrl + '/public/content/experience/e2e-pubget2'};
-                return testUtils.qRequest('get', options);
-            }).then(function(resp) {
+        it('should only get pending, public experiences if the origin is cinema6.com', function(done) {
+            var options = {url: config.contentUrl + '/public/content/experience/e2e-pubget2'};
+            testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('Experience not found');
-                var options = {url: config.contentUrl + '/public/content/experience/e2e-pubget3'};
+                options.headers = { origin: 'https://staging.cinema6.com' };
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('Experience not found');
-                done();
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({id: 'e2e-pubget2', status: 'pending', access: 'public'});
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-                done();
-            });
+            }).finally(done);
+        });
+        
+        it('should only get active, private experiences if the origin is not cinema6.com', function(done) {
+            var options = {url: config.contentUrl + '/public/content/experience/e2e-pubget3'};
+            testUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({id: 'e2e-pubget3', status: 'active', access: 'private'});
+                options.headers = { origin: 'https://staging.cinema6.com' };
+                return testUtils.qRequest('get', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toBe('Experience not found');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
         });
         
         it('should return a 404 if nothing is found', function(done) {
@@ -222,14 +222,14 @@ describe('content (E2E):', function() {
             });
         });
 
-        it('should not get private or inactive experiences the user does not own', function(done) {
+        it('should treat the user as a guest for experiences they do not own', function(done) {
             var options = {
                 url: config.contentUrl + '/content/experience/e2e-getid2',
                 jar: cookieJar
             };
             testUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('Experience not found');
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBeDefined();
                 options.url = config.contentUrl + '/content/experience/e2e-getid3';
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
@@ -504,8 +504,8 @@ describe('content (E2E):', function() {
                 expect(resp.body.created).toBeDefined();
                 expect(new Date(resp.body.created).toString()).not.toEqual('Invalid Date');
                 expect(resp.body.lastUpdated).toEqual(resp.body.created);
-                expect(resp.body.status).toBe('active');
-                expect(resp.body.access).toBe('public');
+                expect(resp.body.status).toBe('pending');
+                expect(resp.body.access).toBe('private');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -513,8 +513,9 @@ describe('content (E2E):', function() {
             }); 
         });
         
-        it('should be able to create a private experience', function(done) {
-            mockExp.access = 'private';
+        it('should be able to create an active, public experience', function(done) {
+            mockExp.status = 'active';
+            mockExp.access = 'public';
             var options = {
                 url: config.contentUrl + '/content/experience',
                 jar: cookieJar,
@@ -524,9 +525,9 @@ describe('content (E2E):', function() {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toBeDefined();
                 expect(resp.body.id).toBeDefined();
-                expect(resp.body.title).toBe("testExp");
-                expect(resp.body.access).toBe('private');
+                expect(resp.body.title).toBe('testExp');
                 expect(resp.body.status).toBe('active');
+                expect(resp.body.access).toBe('public');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
