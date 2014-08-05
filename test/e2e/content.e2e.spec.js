@@ -94,6 +94,7 @@ describe('content (E2E):', function() {
                 expect(resp.body.user).not.toBeDefined();
                 expect(resp.body.org).not.toBeDefined();
                 expect(resp.body.versionId).toBe('a5e744d0');
+                expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -167,6 +168,66 @@ describe('content (E2E):', function() {
                 expect(error).not.toBeDefined();
                 done();
             });
+        });
+    });
+    
+    /* Currently, this endpoint is identical to GET /api/public/experience/:id, so only one test is
+     * included here as a sanity. If the endpoints diverge, additional tests should be written. */
+    describe('GET /api/public/experience/:id.json', function() {
+        var mockExps, mockOrg, options;
+        beforeEach(function(done) {
+            options = { url: config.contentUrl + '/public/content/experience/e2e-pubgetjson1.json' };
+            mockExp = { id: "e2e-pubgetjson1", access: "public", status: "active" };
+            testUtils.resetCollection('experiences', mockExp).done(done);
+        });
+
+        it('should get an experience by id', function(done) {
+            testUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(typeof resp.body).toBe('object');
+                expect(resp.body._id).not.toBeDefined();
+                expect(resp.body.id).toBe('e2e-pubgetjson1');
+                expect(resp.body.status).toBe('active');
+                expect(resp.body.access).toBe('public');
+                expect(resp.body.user).not.toBeDefined();
+                expect(resp.body.org).not.toBeDefined();
+                expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
+        });
+    });
+    
+    /* Currently this endpoint is mostly identical to GET /api/public/experience/:id, so two tests
+     * are included to verify that the output is formatted correctly. If the endpoints diverge,
+     * additional tests should be written. */
+    describe('GET /api/public/experience/:id.js', function() {
+        var mockExps, mockOrg, options;
+        beforeEach(function(done) {
+            options = { url: config.contentUrl + '/public/content/experience/e2e-pubgetjs1.js' };
+            mockExp = { id: "e2e-pubgetjs1", access: "public", status: "active" };
+            testUtils.resetCollection('experiences', mockExp).done(done);
+        });
+
+        it('should get an experience by id', function(done) {
+            testUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.match(/module\.exports = {.*"id":"e2e-pubgetjs1".*};/)).toBeTruthy();
+                expect(resp.response.headers['content-type']).toBe('application/javascript');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should return errors in normal format', function(done) {
+            options = { url: config.contentUrl + '/public/content/experience/e2e-fake.js' };
+            testUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toBe('Experience not found');
+                expect(resp.response.headers['content-type']).toBe('text/html; charset=utf-8');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
         });
     });
     
