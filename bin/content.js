@@ -156,7 +156,7 @@
         var limit = req.query && req.query.limit || 0,
             skip = req.query && req.query.skip || 0,
             sort = req.query && req.query.sort,
-            origin = req.headers && req.headers.origin,
+            origin = req.headers && (req.headers.origin || req.headers.referer),
             sortObj = {},
             log = logger.getLog(),
             promise;
