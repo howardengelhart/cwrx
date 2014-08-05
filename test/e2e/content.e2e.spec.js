@@ -156,6 +156,22 @@ describe('content (E2E):', function() {
             }).finally(done);
         });
         
+        it('should use the referer header for access control if origin is not defined', function(done) {
+            options.url = config.contentUrl + '/public/content/experience/e2e-pubget2';
+            options.headers = { referer: 'https://staging.cinema6.com' };
+            testUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({id: 'e2e-pubget2', status: 'pending', access: 'public'});
+                options.url = config.contentUrl + '/public/content/experience/e2e-pubget3';
+                return testUtils.qRequest('get', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toBe('Experience not found');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
+        });
+        
         it('should return a 404 if nothing is found', function(done) {
             var options = {
                 url: config.contentUrl + '/public/content/experience/e2e-getid5678'
