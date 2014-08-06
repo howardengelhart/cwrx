@@ -156,7 +156,7 @@
         var limit = req.query && req.query.limit || 0,
             skip = req.query && req.query.skip || 0,
             sort = req.query && req.query.sort,
-            origin = req.headers && req.headers.origin,
+            origin = req.headers && (req.headers.origin || req.headers.referer),
             sortObj = {},
             log = logger.getLog(),
             promise;
@@ -499,26 +499,52 @@
             next();
         });
         
-        // public get experience by id
-        app.get('/api/public/content/experience/:id', function(req, res) {
-            content.getExperiences({id: req.params.id}, req, expCache, orgCache)
+        // Used for handling public requests for experiences by id methods:
+        function handlePublicGet(req, res) {
+            return content.getExperiences({id: req.params.id}, req, expCache, orgCache)
             .then(function(resp) {
                 res.header('cache-control', 'max-age=' + state.config.cacheTTLs.cloudFront*60);
                 if (resp.body && resp.body instanceof Array) {
                     if (resp.body.length === 0) {
-                        res.send(404, 'Experience not found');
+                        return q({code: 404, body: 'Experience not found'});
                     } else {
-                        res.send(resp.code, resp.body[0]);
+                        return q({code: resp.code, body: resp.body[0]});
                     }
                 } else {
-                    res.send(resp.code, resp.body);
+                    return q({code: resp.code, body: resp.body});
                 }
             }).catch(function(error) {
                 res.header('cache-control', 'max-age=60');
-                res.send(500, {
+                return q({code: 500, body: {
                     error: 'Error retrieving content',
                     detail: error
-                });
+                }});
+            });
+        }
+        
+        // Retrieve a json representation of an experience
+        app.get('/api/public/content/experience/:id.json', function(req, res) {
+            handlePublicGet(req, res).then(function(resp) {
+                res.send(resp.code, resp.body);
+            });
+        });
+        
+        // Retrieve a CommonJS style representation of an experience
+        app.get('/api/public/content/experience/:id.js', function(req, res) {
+            handlePublicGet(req, res).then(function(resp) {
+                if (resp.code < 200 || resp.code >= 300) {
+                    res.send(resp.code, resp.body);
+                } else {
+                    res.header('content-type', 'application/javascript');
+                    res.send(resp.code, 'module.exports = ' + JSON.stringify(resp.body) + ';');
+                }
+            });
+        });
+
+        // Default for retrieving an experience, which returns JSON
+        app.get('/api/public/content/experience/:id', function(req, res) {
+            handlePublicGet(req, res).then(function(resp) {
+                res.send(resp.code, resp.body);
             });
         });
         

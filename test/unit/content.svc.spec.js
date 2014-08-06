@@ -461,6 +461,38 @@ describe('content (UT)', function() {
             });
         });
         
+        it('should pass the referer header to canGetExperience if the origin is not defined', function(done) {
+            req.headers = { referer: 'http://yahoo.com' };
+            content.getExperiences(query, req, expCache).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual([{title: 'fake1'}]);
+                expect(expCache._coll.find).toHaveBeenCalled();
+                expect(expCache.getPromise).not.toHaveBeenCalled();
+                expect(content.canGetExperience).toHaveBeenCalledWith({title: 'fake1'}, 'fakeUser', 'http://yahoo.com');
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should prefer the origin header if both are defined', function(done) {
+            req.headers = { referer: 'http://yahoo.com', origin: 'http://google.com' };
+            content.getExperiences(query, req, expCache).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual([{title: 'fake1'}]);
+                expect(expCache._coll.find).toHaveBeenCalled();
+                expect(expCache.getPromise).not.toHaveBeenCalled();
+                expect(content.canGetExperience).toHaveBeenCalledWith({title: 'fake1'}, 'fakeUser', 'http://google.com');
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
         it('should fail if the promise was rejected', function(done) {
             fakeCursor.toArray.andCallFake(function(cb) {
                 cb('Error!');

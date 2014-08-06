@@ -1,5 +1,10 @@
 # Content Service Changelog
 
+### 1.6.0: Tue Aug  5 15:52:33 EDT 2014
+* [FIX]: Use origin or referer header for access control: [#244](https://github.com/cinema6/cwrx/pull/244)
+* [FEATURE]: Add JSONP endpoint: [#244](https://github.com/cinema6/cwrx/pull/244)
+* Extra deployment steps: Ensure Cloudfront forwards Referer and Origin headers in staging/production
+
 ### 1.5.1: Mon Aug  4 12:04:17 EDT 2014
 * [FIX]: Update access control for experiences using access prop and request origin: [#241](https://github.com/cinema6/cwrx/pull/241)
 * Extra deployment steps: None
