@@ -7,14 +7,14 @@ var q           = require('q'),
     };
 
 describe('content (E2E):', function() {
-    var cookieJar;
+    var cookieJar, mockUser;
         
     beforeEach(function(done) {
         if (cookieJar && cookieJar.cookies) {
             return done();
         }
         cookieJar = require('request').jar();
-        var mockUser = {
+        mockUser = {
             id: "e2e-user",
             status: "active",
             email : "contente2euser",
@@ -605,11 +605,61 @@ describe('content (E2E):', function() {
                 expect(resp.body.title).toBe('testExp');
                 expect(resp.body.status).toBe('active');
                 expect(resp.body.access).toBe('public');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done); 
+        });
+        
+        it('should allow an admin to set a different user and org for the experience', function(done) {
+            mockUser.permissions.experiences.create = 'all';
+            mockUser.id = 'not-e2e-user';
+            mockUser.email = 'admine2euser';
+            testUtils.resetCollection('users', mockUser).then(function() {
+                var loginOpts = {
+                    url: config.authUrl + '/auth/login',
+                    json: {email: 'admine2euser', password: 'password'},
+                    jar: cookieJar
+                };
+                return testUtils.qRequest('post', loginOpts);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                mockExp.user = 'another-user';
+                mockExp.org = 'another-org';
+                var options = {
+                    url: config.contentUrl + '/content/experience',
+                    jar: cookieJar,
+                    json: mockExp
+                };
+                return testUtils.qRequest('post', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toBeDefined();
+                expect(resp.body.id).toBeDefined();
+                expect(resp.body.title).toBe('testExp');
+                expect(resp.body.user).toBe('another-user');
+                expect(resp.body.org).toBe('another-org');
+                delete cookieJar.cookies; // force reset and re-login of mockRequester in beforeEach
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should not allow a regular user to set a different user and org for the experience', function(done) {
+            mockExp.user = 'another-user';
+            mockExp.org = 'another-org';
+            var options = {
+                url: config.contentUrl + '/content/experience',
+                jar: cookieJar,
+                json: mockExp
+            };
+            testUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBeDefined('Illegal fields');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
                 done();
-            }); 
+            });
         });
         
         it('should throw a 401 error if the user is not authenticated', function(done) {

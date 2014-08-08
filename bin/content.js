@@ -97,6 +97,10 @@
     content.createValidator = new FieldValidator({
         forbidden: ['id', 'created', 'versionId'],
         condForbidden: {
+            user:    function(exp, orig, requester) {
+                        var scopeFunc = FieldValidator.scopeFunc('experiences','create',Scope.All);
+                        return requester.id === exp.user || scopeFunc(exp, orig, requester);
+                    },
             org:    function(exp, orig, requester) {
                         var eqFunc = FieldValidator.eqReqFieldFunc('org'),
                             scopeFunc = FieldValidator.scopeFunc('experiences','create',Scope.All);
@@ -238,8 +242,10 @@
         log.trace('[%1] User %2 is creating experience %3', req.uuid, user.id, obj.id);
         obj.created = now;
         obj.lastUpdated = now;
-        obj.user = user.id;
-        if (user.org) {
+        if (!obj.user) {
+            obj.user = user.id;
+        }
+        if (!obj.org) {
             obj.org = user.org;
         }
         if (!obj.status) {
