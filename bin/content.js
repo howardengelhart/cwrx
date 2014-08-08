@@ -52,6 +52,7 @@
                 retryConnect : true
             }
         },
+        publicC6Sites: ['www.cinema6.com', 'demo.cinema6.com'], // our sites that publish minireels
         secretsPath: path.join(process.env.HOME,'.content.secrets.json'),
         mongo: {
             c6Db: {
@@ -72,13 +73,23 @@
              (user.permissions[object][verb] === Scope.Own && user.id === experience.user) ));
     };
     
+    content.checkOrigin = function(origin, publicList) {
+        return origin.match('cinema6.com') && !publicList.some(function(site) {
+            return origin.match(site);
+        });
+    };
+    
     // Check whether a user can retrieve an experience
-    content.canGetExperience = function(exp, user, origin) {
+    content.canGetExperience = function(exp, user, origin, publicList) {
         origin = origin || '';
         user = user || {};
+        var isC6Origin = origin.match('cinema6.com') && !publicList.some(function(site) {
+            return origin.match(site);
+        });
+        
         return exp.status !== Status.Deleted &&
-               !!( (exp.status === Status.Active && !origin.match('cinema6.com'))   ||
-                   (exp.access === Access.Public && origin.match('cinema6.com'))    ||
+               !!( (exp.status === Status.Active && !isC6Origin)                    ||
+                   (exp.access === Access.Public && isC6Origin)                     ||
                    content.checkScope(user, exp, 'experiences', 'read')             ||
                    (user.applications && user.applications.indexOf(exp.id) >= 0)    );
     };
@@ -152,7 +163,7 @@
     
     // If orgCache is passed in, getAdConfig will be called to ensure adConfig is on the exp
     // Thus orgCache SHOULD NOT be passed in except from the public get experience endpoint
-    content.getExperiences = function(query, req, expCache, orgCache) {
+    content.getExperiences = function(query, req, expCache, publicList, orgCache) {
         var limit = req.query && req.query.limit || 0,
             skip = req.query && req.query.skip || 0,
             sort = req.query && req.query.sort,
@@ -198,7 +209,7 @@
         })
         .then(function(results) {
             var experiences = results.filter(function(result) {
-                return content.canGetExperience(result, req.user, origin);
+                return content.canGetExperience(result, req.user, origin, publicList);
             });
 
             log.info('[%1] Showing the user %2 experiences', req.uuid, experiences.length);
@@ -501,7 +512,8 @@
         
         // Used for handling public requests for experiences by id methods:
         function handlePublicGet(req, res) {
-            return content.getExperiences({id: req.params.id}, req, expCache, orgCache)
+            return content.getExperiences({id: req.params.id}, req, expCache,
+                                          state.config.publicC6Sites, orgCache)
             .then(function(resp) {
                 res.header('cache-control', 'max-age=' + state.config.cacheTTLs.cloudFront*60);
                 if (resp.body && resp.body instanceof Array) {
@@ -552,7 +564,7 @@
         
         // private get experience by id
         app.get('/api/content/experience/:id', sessionsWrapper, authGetExp, function(req, res) {
-            content.getExperiences({id: req.params.id}, req, expCache)
+            content.getExperiences({id: req.params.id}, req, expCache, state.config.publicC6Sites)
             .then(function(resp) {
                 if (resp.body && resp.body instanceof Array) {
                     if (resp.body.length === 0) {
@@ -594,7 +606,7 @@
             if (req.query.type) {
                 query.type = req.query.type;
             }
-            content.getExperiences(query, req, expCache)
+            content.getExperiences(query, req, expCache, state.config.publicC6Sites)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
