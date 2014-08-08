@@ -84,47 +84,57 @@ describe('content (UT)', function() {
     });
     
     describe('canGetExperience', function() {
-        var exp, user, origin;
+        var exp, user, origin, pubList;
         beforeEach(function() {
             exp = { id: 'e1', status: Status.Pending, access: Access.Private };
             user = null;
             origin = 'http://google.com';
+            pubList = ['www.cinema6.com', 'demo.cinema6.com'];
             spyOn(content, 'checkScope').andReturn(false);
         });
         
         it('should let a guest see an active experience from outside cinema6.com', function() {
-            expect(content.canGetExperience(exp, user, origin)).toBe(false);
+            expect(content.canGetExperience(exp, user, origin, pubList)).toBe(false);
             exp.status = Status.Active;
-            expect(content.canGetExperience(exp, user, origin)).toBe(true);
+            expect(content.canGetExperience(exp, user, origin, pubList)).toBe(true);
             origin = 'http://staging.cinema6.com';
-            expect(content.canGetExperience(exp, user, origin)).toBe(false);
+            expect(content.canGetExperience(exp, user, origin, pubList)).toBe(false);
         });
         
         it('should let a guest see a public experience from cinema6.com', function() {
             exp.access = Access.Public;
-            expect(content.canGetExperience(exp, user, origin)).toBe(false);
+            expect(content.canGetExperience(exp, user, origin, pubList)).toBe(false);
             origin = 'http://staging.cinema6.com';
-            expect(content.canGetExperience(exp, user, origin)).toBe(true);
+            expect(content.canGetExperience(exp, user, origin, pubList)).toBe(true);
+        });
+        
+        it('should not treat a site in the public list as part of cinema6.com', function() {
+            origin = 'http://demo.cinema6.com/foo/bar';
+            exp.access = Access.Public;
+            expect(content.canGetExperience(exp, user, origin, pubList)).toBe(false);
+            exp.access = Access.Private;
+            exp.status = Status.Active;
+            expect(content.canGetExperience(exp, user, origin, pubList)).toBe(true);
         });
         
         it('should let an authenticated user see an experience if their permissions are valid', function() {
             user = { foo: 'bar' };
-            expect(content.canGetExperience(exp, user, origin)).toBe(false);
+            expect(content.canGetExperience(exp, user, origin, pubList)).toBe(false);
             content.checkScope.andReturn(true);
-            expect(content.canGetExperience(exp, user, origin)).toBe(true);
+            expect(content.canGetExperience(exp, user, origin, pubList)).toBe(true);
             expect(content.checkScope).toHaveBeenCalledWith({foo: 'bar'}, exp, 'experiences', 'read');
         });
         
         it('should let a user see one of their authorized apps', function() {
             user = { id: 'u1', applications: ['e1'] };
-            expect(content.canGetExperience(exp, user, origin)).toBe(true);
+            expect(content.canGetExperience(exp, user, origin, pubList)).toBe(true);
         });
         
         it('should never let anyone see a deleted experience', function() {
             exp = { id: 'e1', status: Status.Deleted, access: Access.Public };
             origin = 'http://cinema6.com';
             content.checkScope.andReturn(true);
-            expect(content.canGetExperience(exp, user, origin)).toBe(false);
+            expect(content.canGetExperience(exp, user, origin, pubList)).toBe(false);
         });
     });
     
@@ -297,8 +307,8 @@ describe('content (UT)', function() {
         });
     });
     
-    describe('getExperiences', function() {
-        var req, expCache, orgCache, query, fakeCursor;
+    describe('getExperiences', function() { //TODO
+        var req, expCache, orgCache, query, fakeCursor, pubList;
         beforeEach(function() {
             req = {
                 headers: { origin: 'http://google.com' },
@@ -311,6 +321,7 @@ describe('content (UT)', function() {
                 user: 'fakeUser'
             };
             query = 'fakeQuery';
+            pubList = ['demo.cinema6.com'];
             fakeCursor = {
                 toArray: jasmine.createSpy('cursor.toArray').andCallFake(function(cb) {
                     cb(null, q([{title: 'fake1'}]));
@@ -329,7 +340,7 @@ describe('content (UT)', function() {
         });
         
         it('should format the query and call expCache._coll.find', function(done) {
-            content.getExperiences(query, req, expCache).then(function(resp) {
+            content.getExperiences(query, req, expCache, pubList).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual([{title: 'fake1'}]);
@@ -338,7 +349,8 @@ describe('content (UT)', function() {
                     .toHaveBeenCalledWith('formatted', {sort: {id: 1}, limit: 20, skip: 10});
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(expCache.getPromise).not.toHaveBeenCalled();
-                expect(content.canGetExperience).toHaveBeenCalledWith({title: 'fake1'}, 'fakeUser', 'http://google.com');
+                expect(content.canGetExperience).toHaveBeenCalledWith(
+                    {title: 'fake1'}, 'fakeUser', 'http://google.com', ['demo.cinema6.com']);
                 expect(content.formatOutput).toHaveBeenCalledWith({title: 'fake1'}, false);
                 expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                 expect(content.getAdConfig).not.toHaveBeenCalled();
@@ -351,7 +363,7 @@ describe('content (UT)', function() {
         
         it('should use defaults if some params are not defined', function(done) {
             req = { uuid: '1234', user: 'fakeUser' };
-            content.getExperiences(query, req, expCache).then(function(resp) {
+            content.getExperiences(query, req, expCache, pubList).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual([{title: 'fake1'}]);
@@ -368,7 +380,7 @@ describe('content (UT)', function() {
         
         it('should just ignore the sort param if invalid', function(done) {
             req.query.sort = 'foo';
-            content.getExperiences(query, req, expCache).then(function(resp) {
+            content.getExperiences(query, req, expCache, pubList).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual([{title: 'fake1'}]);
@@ -385,14 +397,15 @@ describe('content (UT)', function() {
         
         it('should use the expCache if no user is logged in', function(done) {
             delete req.user;
-            content.getExperiences(query, req, expCache).then(function(resp) {
+            content.getExperiences(query, req, expCache, pubList).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual([{title: 'fake2'}]);
                 expect(QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery');
                 expect(expCache.getPromise).toHaveBeenCalledWith('formatted', {id: 1}, 20, 10);
                 expect(expCache._coll.find).not.toHaveBeenCalled();
-                expect(content.canGetExperience).toHaveBeenCalledWith({title: 'fake2'}, undefined, 'http://google.com');
+                expect(content.canGetExperience).toHaveBeenCalledWith(
+                    {title: 'fake2'}, undefined, 'http://google.com', ['demo.cinema6.com']);
                 expect(content.formatOutput).toHaveBeenCalledWith({title: 'fake2', org: 'o-1'}, true);
                 done();
             }).catch(function(error) {
@@ -403,7 +416,7 @@ describe('content (UT)', function() {
 
         it('should call getAdConfig if passed an orgCache', function(done) {
             delete req.user;
-            content.getExperiences(query, req, expCache, orgCache).then(function(resp) {
+            content.getExperiences(query, req, expCache, pubList, orgCache).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual([{title: 'fake2'}]);
@@ -427,7 +440,7 @@ describe('content (UT)', function() {
                 else return false;
             });
             
-            content.getExperiences(query, req, expCache).then(function(resp) {
+            content.getExperiences(query, req, expCache, pubList).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual([{ id: 'e-2' }]);
@@ -445,7 +458,7 @@ describe('content (UT)', function() {
                 cb(null, []);
             });
             expCache.getPromise.andReturn(q([]));
-            content.getExperiences(query, req, expCache).then(function(resp) {
+            content.getExperiences(query, req, expCache, pubList).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual([]);
@@ -463,13 +476,14 @@ describe('content (UT)', function() {
         
         it('should pass the referer header to canGetExperience if the origin is not defined', function(done) {
             req.headers = { referer: 'http://yahoo.com' };
-            content.getExperiences(query, req, expCache).then(function(resp) {
+            content.getExperiences(query, req, expCache, pubList).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual([{title: 'fake1'}]);
                 expect(expCache._coll.find).toHaveBeenCalled();
                 expect(expCache.getPromise).not.toHaveBeenCalled();
-                expect(content.canGetExperience).toHaveBeenCalledWith({title: 'fake1'}, 'fakeUser', 'http://yahoo.com');
+                expect(content.canGetExperience).toHaveBeenCalledWith(
+                    {title: 'fake1'}, 'fakeUser', 'http://yahoo.com', ['demo.cinema6.com']);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -479,13 +493,14 @@ describe('content (UT)', function() {
         
         it('should prefer the origin header if both are defined', function(done) {
             req.headers = { referer: 'http://yahoo.com', origin: 'http://google.com' };
-            content.getExperiences(query, req, expCache).then(function(resp) {
+            content.getExperiences(query, req, expCache, pubList).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual([{title: 'fake1'}]);
                 expect(expCache._coll.find).toHaveBeenCalled();
                 expect(expCache.getPromise).not.toHaveBeenCalled();
-                expect(content.canGetExperience).toHaveBeenCalledWith({title: 'fake1'}, 'fakeUser', 'http://google.com');
+                expect(content.canGetExperience).toHaveBeenCalledWith(
+                    {title: 'fake1'}, 'fakeUser', 'http://google.com', ['demo.cinema6.com']);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -498,7 +513,7 @@ describe('content (UT)', function() {
                 cb('Error!');
             });
             expCache.getPromise.andReturn(q.reject('Other Error!'));
-            content.getExperiences(query, req, expCache).catch(function(error) {
+            content.getExperiences(query, req, expCache, pubList).catch(function(error) {
                 expect(error).toBe('Error!');
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(QueryCache.formatQuery).toHaveBeenCalledWith('fakeQuery');
@@ -518,7 +533,7 @@ describe('content (UT)', function() {
         it('should fail if calling getAdConfig fails', function(done) {
             content.getAdConfig.andReturn(q.reject('I GOT A PROBLEM'));
             delete req.user;
-            content.getExperiences(query, req, expCache, orgCache).then(function(resp) {
+            content.getExperiences(query, req, expCache, pubList, orgCache).then(function(resp) {
                 expect(resp).not.toBeDefined();
                 done();
             }).catch(function(error) {
