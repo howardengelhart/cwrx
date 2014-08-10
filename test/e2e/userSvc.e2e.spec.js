@@ -277,6 +277,7 @@ describe('user (E2E):', function() {
                 expect(newUser.config).toEqual({});
                 expect(newUser.org).toBe('o-1234');
                 expect(newUser.status).toBe('active');
+                expect(newUser.type).toBe('publisher');
                 expect(newUser.permissions).toEqual({
                     experiences: { read: 'org', create: 'org', edit: 'org', delete: 'org' },
                     elections: { read: 'org', create: 'org', edit: 'org', delete: 'org' },
@@ -311,6 +312,7 @@ describe('user (E2E):', function() {
             };
             mockUser.applications = ['e-1234'];
             mockUser.config = {foo: 'bar'};
+            mockUser.type = 'contentProvider';
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 var newUser = resp.body;
@@ -319,6 +321,7 @@ describe('user (E2E):', function() {
                 expect(newUser.status).toBe('pending');
                 expect(newUser.applications).toEqual(['e-1234']);
                 expect(newUser.config).toEqual({foo: 'bar'});
+                expect(newUser.type).toBe('contentProvider');
                 expect(newUser.permissions).toEqual({
                     experiences: { read: 'org', create: 'org', edit: 'org', delete: 'org' },
                     elections: { read: 'org', create: 'org', edit: 'org', delete: 'org' },

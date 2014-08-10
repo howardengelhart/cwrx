@@ -420,6 +420,7 @@ describe('userSvc (UT)', function() {
                 expect(newUser.applications).toEqual(['e-51ae37625cb57f']);
                 expect(newUser.org).toBe('o-1234');
                 expect(newUser.status).toBe(Status.Active);
+                expect(newUser.type).toBe('publisher');
                 expect(newUser.config).toEqual({});
                 expect(newUser.permissions).toEqual({
                     experiences: { read: Scope.Org, create: Scope.Org, edit: Scope.Org, delete: Scope.Org },
@@ -444,6 +445,7 @@ describe('userSvc (UT)', function() {
             newUser.status = Status.Pending;
             newUser.applications = ['e-1234', 'e-4567'];
             newUser.config = {foo: 'bar'};
+            newUser.type = 'contentProvider';
             newUser.permissions = {
                 experiences: { read: Scope.All, create: Scope.Own },
                 users: { read: Scope.Org, delete: Scope.Own }
@@ -456,6 +458,7 @@ describe('userSvc (UT)', function() {
                 expect(newUser.applications).toEqual(['e-1234', 'e-4567']);
                 expect(newUser.org).toBe('o-4567');
                 expect(newUser.status).toBe(Status.Pending);
+                expect(newUser.type).toBe('contentProvider');
                 expect(newUser.config).toEqual({foo: 'bar'});
                 expect(newUser.permissions).toEqual({
                     elections: { read: Scope.Org, create: Scope.Org, edit: Scope.Org, delete: Scope.Org },
