@@ -95,7 +95,7 @@
     };
     
     content.createValidator = new FieldValidator({
-        forbidden: ['id', 'created', 'versionId'],
+        forbidden: ['id', 'created'],
         condForbidden: {
             user:    function(exp, orig, requester) {
                         var scopeFunc = FieldValidator.scopeFunc('experiences','create',Scope.All);
@@ -240,6 +240,8 @@
         }
         obj.id = 'e-' + uuid.createUuid().substr(0,14);
         log.trace('[%1] User %2 is creating experience %3', req.uuid, user.id, obj.id);
+        delete obj.versionId; // only allow these properties to be set in the data
+        delete obj.title;
         obj.created = now;
         obj.lastUpdated = now;
         if (!obj.user) {

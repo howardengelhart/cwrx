@@ -1,6 +1,7 @@
 # Content Service Changelog
 
 ### 1.6.2: Mon Aug 11 10:09:05 EDT 2014
+* [FIX]: Trim off title and versionId fields when creating experiences: [#251](https://github.com/cinema6/cwrx/pull/251)
 * [FIX]: Allow admins to set different user and org when creating experiences: [#250](https://github.com/cinema6/cwrx/pull/250)
 * Extra deployment steps: None
 

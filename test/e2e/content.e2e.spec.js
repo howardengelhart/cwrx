@@ -552,28 +552,28 @@ describe('content (E2E):', function() {
     });
     
     describe('POST /api/content/experience', function() {
-        var mockExp;
+        var mockExp, options;
         beforeEach(function(done) {
             mockExp = {
-                title: 'testExp',
+                tag: 'testExp',
                 data: { foo: 'bar' },
                 org: 'e2e-org'
+            };
+            options = {
+                url: config.contentUrl + '/content/experience',
+                jar: cookieJar,
+                json: mockExp
             };
             testUtils.resetCollection('experiences').done(done);
         });
         
         it('should be able to create an experience', function(done) {
-            var options = {
-                url: config.contentUrl + '/content/experience',
-                jar: cookieJar,
-                json: mockExp
-            };
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toBeDefined();
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBeDefined();
-                expect(resp.body.title).toBe("testExp");
+                expect(resp.body.tag).toBe("testExp");
                 expect(resp.body.data).toEqual({foo: 'bar'});
                 expect(resp.body.versionId).toBe('a5e744d0');
                 expect(resp.body.user).toBe("e2e-user");
@@ -593,18 +593,28 @@ describe('content (E2E):', function() {
         it('should be able to create an active, public experience', function(done) {
             mockExp.status = 'active';
             mockExp.access = 'public';
-            var options = {
-                url: config.contentUrl + '/content/experience',
-                jar: cookieJar,
-                json: mockExp
-            };
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toBeDefined();
                 expect(resp.body.id).toBeDefined();
-                expect(resp.body.title).toBe('testExp');
+                expect(resp.body.tag).toBe('testExp');
                 expect(resp.body.status).toBe('active');
                 expect(resp.body.access).toBe('public');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done); 
+        });
+        
+        it('should trim off certain fields not allowed on the top level', function(done) {
+            mockExp.title = 'bad title location';
+            mockExp.versionId = 'tha best version';
+            mockExp.data.title = 'data title';
+            testUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body).toBeDefined();
+                expect(resp.body.id).toBeDefined();
+                expect(resp.body.title).toBe('data title');
+                expect(resp.body.versionId).toBe('14eb66c8');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).finally(done); 
@@ -625,17 +635,12 @@ describe('content (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 mockExp.user = 'another-user';
                 mockExp.org = 'another-org';
-                var options = {
-                    url: config.contentUrl + '/content/experience',
-                    jar: cookieJar,
-                    json: mockExp
-                };
                 return testUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toBeDefined();
                 expect(resp.body.id).toBeDefined();
-                expect(resp.body.title).toBe('testExp');
+                expect(resp.body.tag).toBe('testExp');
                 expect(resp.body.user).toBe('another-user');
                 expect(resp.body.org).toBe('another-org');
                 delete cookieJar.cookies; // force reset and re-login of mockRequester in beforeEach
@@ -647,11 +652,6 @@ describe('content (E2E):', function() {
         it('should not allow a regular user to set a different user and org for the experience', function(done) {
             mockExp.user = 'another-user';
             mockExp.org = 'another-org';
-            var options = {
-                url: config.contentUrl + '/content/experience',
-                jar: cookieJar,
-                json: mockExp
-            };
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBeDefined('Illegal fields');
@@ -663,10 +663,7 @@ describe('content (E2E):', function() {
         });
         
         it('should throw a 401 error if the user is not authenticated', function(done) {
-            var options = {
-                url: config.contentUrl + '/content/experience',
-                json: mockExp
-            };
+            delete options.jar;
             testUtils.qRequest('post', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
