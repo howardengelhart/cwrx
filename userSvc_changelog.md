@@ -1,5 +1,9 @@
 # User Service Changelog
 
+### 1.5.4: Mon Aug 11 10:09:05 EDT 2014
+* [FIX]: Default new users' type to 'Publisher': [#250](https://github.com/cinema6/cwrx/pull/250)
+* Extra deployment steps: None
+
 ### 1.5.3: Mon Aug  4 12:40:36 EDT 2014
 * [FIX]: Fix hardcoding new users' config: [#242](https://github.com/cinema6/cwrx/pull/242)
 * Extra deployment steps: None

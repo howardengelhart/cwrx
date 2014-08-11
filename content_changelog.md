@@ -1,5 +1,9 @@
 # Content Service Changelog
 
+### 1.6.2: Mon Aug 11 10:09:05 EDT 2014
+* [FIX]: Allow admins to set different user and org when creating experiences: [#250](https://github.com/cinema6/cwrx/pull/250)
+* Extra deployment steps: None
+
 ### 1.6.1: Fri Aug  8 10:09:35 EDT 2014
 * [FIX]: Whitelist public cinema6.com sites for experience access control: [#249](https://github.com/cinema6/cwrx/pull/249)
 * Extra deployment steps: None
