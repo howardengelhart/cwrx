@@ -182,6 +182,9 @@
         if (!newUser.status) {
             newUser.status = Status.Active;
         }
+        if (!newUser.type) {
+            newUser.type = 'Publisher';
+        }
         if (!newUser.permissions) {
             newUser.permissions = {};
         }
