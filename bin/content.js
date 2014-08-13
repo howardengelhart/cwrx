@@ -267,7 +267,7 @@
         }
         obj.status = [ { user: user.email, userId: user.id, date: now, status: obj.status } ];
         if (!obj.access) {
-            obj.access = Access.Private;
+            obj.access = Access.Public;
         }
         if (obj.data) {
             var versionId = uuid.hashText(JSON.stringify(obj.data)).substr(0, 8);

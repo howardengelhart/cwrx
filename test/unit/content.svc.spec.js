@@ -621,7 +621,7 @@ describe('content (UT)', function() {
                 expect(resp.body.user).toBe('u-1234');
                 expect(resp.body.org).toBe('o-1234');
                 expect(resp.body.status).toBe(Status.Pending);
-                expect(resp.body.access).toBe(Access.Private);
+                expect(resp.body.access).toBe(Access.Public);
                 expect(content.createValidator.validate).toHaveBeenCalledWith(req.body, {}, req.user);
                 expect(experiences.insert).toHaveBeenCalled();
                 expect(experiences.insert.calls[0].args[0].data[0]).toEqual({user:'otter',userId:'u-1234',
