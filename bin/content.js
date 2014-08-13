@@ -114,6 +114,14 @@
         var log = logger.getLog(),
             privateFields = ['user', 'org'],
             newExp = {};
+            
+        function statusReduce(a, b) {
+            if (b.status === Status.Active && (!a || b.date > a.date)) {
+                return b;
+            } else {
+                return a;
+            }
+        }
         
         for (var key in experience) {
             if (key === 'data') {
@@ -135,6 +143,10 @@
                     newExp.status = experience.status;
                 } else {
                     newExp.status = experience.status[0].status;
+                    var lastActive = experience.status.reduce(statusReduce, null);
+                    if (lastActive) {
+                        newExp.lastPublished = lastActive.date;
+                    }
                 }
             } else if (key !== '_id' && !(isGuest && privateFields.indexOf(key) >= 0)) {
                 newExp[key] = experience[key];

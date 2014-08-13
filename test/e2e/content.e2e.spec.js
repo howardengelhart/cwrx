@@ -599,6 +599,7 @@ describe('content (E2E):', function() {
                 expect(resp.body.id).toBeDefined();
                 expect(resp.body.tag).toBe('testExp');
                 expect(resp.body.status).toBe('active');
+                expect(new Date(resp.body.lastPublished).toString()).not.toEqual('Invalid Date');
                 expect(resp.body.access).toBe('public');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
