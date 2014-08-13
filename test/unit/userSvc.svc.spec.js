@@ -425,8 +425,8 @@ describe('userSvc (UT)', function() {
                 expect(newUser.permissions).toEqual({
                     experiences: { read: Scope.Org, create: Scope.Org, edit: Scope.Org, delete: Scope.Org },
                     elections: { read: Scope.Org, create: Scope.Org, edit: Scope.Org, delete: Scope.Org },
-                    users: { read: Scope.Own, edit: Scope.Own },
-                    orgs: { read: Scope.Own }
+                    users: { read: Scope.Org, edit: Scope.Own },
+                    orgs: { read: Scope.Own, edit: Scope.Own }
                 });
                 expect(bcrypt.hash).toHaveBeenCalled();
                 expect(bcrypt.hash.calls[0].args[0]).toBe('pass');
@@ -448,7 +448,7 @@ describe('userSvc (UT)', function() {
             newUser.type = 'ContentProvider';
             newUser.permissions = {
                 experiences: { read: Scope.All, create: Scope.Own },
-                users: { read: Scope.Org, delete: Scope.Own }
+                users: { read: Scope.All, delete: Scope.Own }
             };
             userSvc.setupUser(newUser, requester).then(function() {
                 expect(newUser.id).toBe('u-1234567890abcd');
@@ -463,8 +463,8 @@ describe('userSvc (UT)', function() {
                 expect(newUser.permissions).toEqual({
                     elections: { read: Scope.Org, create: Scope.Org, edit: Scope.Org, delete: Scope.Org },
                     experiences: { read: Scope.All, create: Scope.Own, edit: Scope.Org, delete: Scope.Org },
-                    users: { read: Scope.Org, edit: Scope.Own, delete: Scope.Own },
-                    orgs: { read: Scope.Own }
+                    users: { read: Scope.All, edit: Scope.Own, delete: Scope.Own },
+                    orgs: { read: Scope.Own, edit: Scope.Own }
                 });
                 expect(newUser.password).toBe('fakeHash');
                 expect(mongoUtils.escapeKeys).toHaveBeenCalled();
