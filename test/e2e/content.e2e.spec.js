@@ -254,15 +254,15 @@ describe('content (E2E):', function() {
                     id: "e2e-getid1",
                     title: "test experience",
                     access: "public",
-                    status: "inactive",
+                    status: [{status: "inactive", date: new Date()}],
                     user: "e2e-user",
                     org: 'e2e-org'
                 },
                 {
                     id: "e2e-getid2",
                     title: "test experience",
-                    access: "private",
-                    status: "active",
+                    access: "public",
+                    status: [{status: "active", date: new Date()}],
                     user: "not-e2e-user",
                     org: 'not-e2e-org'
                 },
@@ -270,7 +270,7 @@ describe('content (E2E):', function() {
                     id: "e2e-getid3",
                     title: "test experience",
                     access: "public",
-                    status: "inactive",
+                    status: [{status: "inactive", date: new Date()}],
                     user: "not-e2e-user",
                     org: 'not-e2e-org'
                 }
