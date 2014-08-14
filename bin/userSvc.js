@@ -204,11 +204,12 @@
                 delete: Scope.Org
             },
             users: {
-                read: Scope.Own,
+                read: Scope.Org,
                 edit: Scope.Own
             },
             orgs: {
-                read: Scope.Own
+                read: Scope.Own,
+                edit: Scope.Own
             }
         };
         Object.keys(defaultPerms).forEach(function(key) {

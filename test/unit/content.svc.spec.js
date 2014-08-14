@@ -241,11 +241,25 @@ describe('content (UT)', function() {
         it('should convert .status to .status[0].status for the client', function() {
             var now = new Date();
             experience = { id: 'e1', status: [
-                { email: 'otter', date: now, status: Status.Active },
+                { email: 'otter', date: now, status: Status.Deleted },
                 { email: 'crosby', date: now, status: Status.Pending }
             ]};
-            expect(content.formatOutput(experience)).toEqual({ id:'e1', status: Status.Active });
+            expect(content.formatOutput(experience)).toEqual({ id:'e1', status: Status.Deleted });
             expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
+        });
+        
+        it('should set the lastPublished date if the experience was active', function() {
+            var now = new Date();
+            experience = { id: 'e1', status: [
+                { date: new Date(now + 1000), status: Status.Active },
+                { date: now, status: Status.Pending }
+            ]};
+            expect(content.formatOutput(experience)).toEqual({id:'e1',status:Status.Active,
+                                                              lastPublished:new Date(now + 1000)});
+            experience.status.push({date: new Date(now + 2000), status: Status.Pending});
+            experience.status.push({date: new Date(now + 3000), status: Status.Active});
+            expect(content.formatOutput(experience)).toEqual({id:'e1',status:Status.Active,
+                                                              lastPublished:new Date(now + 3000)});
         });
         
         it('should prevent a guest user from seeing certain fields', function() {
@@ -607,7 +621,7 @@ describe('content (UT)', function() {
                 expect(resp.body.user).toBe('u-1234');
                 expect(resp.body.org).toBe('o-1234');
                 expect(resp.body.status).toBe(Status.Pending);
-                expect(resp.body.access).toBe(Access.Private);
+                expect(resp.body.access).toBe(Access.Public);
                 expect(content.createValidator.validate).toHaveBeenCalledWith(req.body, {}, req.user);
                 expect(experiences.insert).toHaveBeenCalled();
                 expect(experiences.insert.calls[0].args[0].data[0]).toEqual({user:'otter',userId:'u-1234',

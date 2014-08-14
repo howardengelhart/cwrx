@@ -281,8 +281,8 @@ describe('user (E2E):', function() {
                 expect(newUser.permissions).toEqual({
                     experiences: { read: 'org', create: 'org', edit: 'org', delete: 'org' },
                     elections: { read: 'org', create: 'org', edit: 'org', delete: 'org' },
-                    users: { read: 'own', edit: 'own' },
-                    orgs: { read: 'own' }
+                    users: { read: 'org', edit: 'own' },
+                    orgs: { read: 'own', edit: 'own' }
                 });
                 done();
             }).catch(function(error) {
@@ -308,7 +308,7 @@ describe('user (E2E):', function() {
         it('should be able to override default properties', function(done) {
             mockUser.status = 'pending';
             mockUser.permissions = {
-                users: { read: 'org', edit: 'org' }
+                users: { edit: 'org', delete: 'org' }
             };
             mockUser.applications = ['e-1234'];
             mockUser.config = {foo: 'bar'};
@@ -325,8 +325,8 @@ describe('user (E2E):', function() {
                 expect(newUser.permissions).toEqual({
                     experiences: { read: 'org', create: 'org', edit: 'org', delete: 'org' },
                     elections: { read: 'org', create: 'org', edit: 'org', delete: 'org' },
-                    users: { read: 'org', edit: 'org' },
-                    orgs: { read: 'own' }
+                    users: { read: 'org', edit: 'org', delete: 'org' },
+                    orgs: { read: 'own', edit: 'own' }
                 });
                 done();
             }).catch(function(error) {

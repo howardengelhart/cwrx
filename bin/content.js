@@ -114,6 +114,14 @@
         var log = logger.getLog(),
             privateFields = ['user', 'org'],
             newExp = {};
+            
+        function statusReduce(a, b) {
+            if (b.status === Status.Active && (!a || b.date > a.date)) {
+                return b;
+            } else {
+                return a;
+            }
+        }
         
         for (var key in experience) {
             if (key === 'data') {
@@ -135,6 +143,10 @@
                     newExp.status = experience.status;
                 } else {
                     newExp.status = experience.status[0].status;
+                    var lastActive = experience.status.reduce(statusReduce, null);
+                    if (lastActive) {
+                        newExp.lastPublished = lastActive.date;
+                    }
                 }
             } else if (key !== '_id' && !(isGuest && privateFields.indexOf(key) >= 0)) {
                 newExp[key] = experience[key];
@@ -255,7 +267,7 @@
         }
         obj.status = [ { user: user.email, userId: user.id, date: now, status: obj.status } ];
         if (!obj.access) {
-            obj.access = Access.Private;
+            obj.access = Access.Public;
         }
         if (obj.data) {
             var versionId = uuid.hashText(JSON.stringify(obj.data)).substr(0, 8);

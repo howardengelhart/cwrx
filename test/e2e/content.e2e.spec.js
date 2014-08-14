@@ -582,7 +582,7 @@ describe('content (E2E):', function() {
                 expect(new Date(resp.body.created).toString()).not.toEqual('Invalid Date');
                 expect(resp.body.lastUpdated).toEqual(resp.body.created);
                 expect(resp.body.status).toBe('pending');
-                expect(resp.body.access).toBe('private');
+                expect(resp.body.access).toBe('public');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -590,16 +590,17 @@ describe('content (E2E):', function() {
             }); 
         });
         
-        it('should be able to create an active, public experience', function(done) {
+        it('should be able to create an active, private experience', function(done) {
             mockExp.status = 'active';
-            mockExp.access = 'public';
+            mockExp.access = 'private';
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toBeDefined();
                 expect(resp.body.id).toBeDefined();
                 expect(resp.body.tag).toBe('testExp');
                 expect(resp.body.status).toBe('active');
-                expect(resp.body.access).toBe('public');
+                expect(new Date(resp.body.lastPublished).toString()).not.toEqual('Invalid Date');
+                expect(resp.body.access).toBe('private');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).finally(done); 
