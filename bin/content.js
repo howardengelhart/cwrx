@@ -158,6 +158,7 @@
     content.userPermQuery = function(query, user, origin, publicList) {
         var newQuery = JSON.parse(JSON.stringify(query)),
             readScope = user.permissions.experiences.read,
+            log = logger.getLog(),
             isC6Origin = origin.match('cinema6.com') && !publicList.some(function(site) {
                 return origin.match(site);
             });
@@ -165,7 +166,8 @@
         newQuery['status.0.status'] = {$ne: Status.Deleted}; // never show deleted exps
         
         if (!Scope.isScope(readScope)) {
-            throw new Error('User has invalid scope ' + readScope);
+            log.warn('User has invalid scope ' + readScope);
+            readScope = Scope.Own;
         }
         
         if (readScope === Scope.Own) {
@@ -282,14 +284,16 @@
             if (count !== undefined) {
                 resp.pagination = {
                     start: skip,
-                    end: limit ? skip + limit - 1 : count - 1,
+                    end: limit ? Math.min(skip + limit - 1, count - 1) : count - 1,
                     total: count
                 };
             }
             return q.npost(cursor, 'toArray');
         })
         .then(function(results) {
-            var exps = results.map(content.formatOutput);
+            var exps = results.map(function(exp) {
+                return content.formatOutput(exp, false);
+            });
             log.info('[%1] Showing the user %2 experiences', req.uuid, exps.length);
             resp.code = 200;
             resp.body = exps;
