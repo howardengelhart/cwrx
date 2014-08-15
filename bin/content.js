@@ -154,7 +154,8 @@
                    (user.applications && user.applications.indexOf(exp.id) >= 0)    );
     };
     
-    //TODO: comment here and inside function
+    /* Adds fields to a find query to filter out experiences the user can't see, effectively 
+     * replicating the logic of canGetExperience through the query */
     content.userPermQuery = function(query, user, origin, publicList) {
         var newQuery = JSON.parse(JSON.stringify(query)),
             readScope = user.permissions.experiences.read,
@@ -220,7 +221,7 @@
         log.info('[%1] Guest user trying to get experience %2', req.uuid, id);
         
         return expCache.getPromise(query).then(function(results) {
-            var experiences = results.map(function(result) { //TODO: test this well
+            var experiences = results.map(function(result) {
                 var formatted = content.formatOutput(result, true);
                 if (!content.canGetExperience(formatted, null, origin, publicList)) {
                     return null;
@@ -246,8 +247,8 @@
     };
     
     content.getExperiences = function(query, req, experiences, publicList, multiExp) {
-        var limit = req.query && req.query.limit || 0,
-            skip = req.query && req.query.skip || 0,
+        var limit = req.query && Number(req.query.limit) || 0,
+            skip = req.query && Number(req.query.skip) || 0,
             sort = req.query && req.query.sort,
             origin = req.headers && (req.headers.origin || req.headers.referer) || '',
             sortObj = {},
@@ -283,8 +284,8 @@
         return promise.then(function(count) {
             if (count !== undefined) {
                 resp.pagination = {
-                    start: skip,
-                    end: limit ? Math.min(skip + limit - 1, count - 1) : count - 1,
+                    start: count !== 0 ? skip + 1 : 0,
+                    end: limit ? Math.min(skip + limit , count) : count,
                     total: count
                 };
             }

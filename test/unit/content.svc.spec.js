@@ -577,7 +577,7 @@ describe('content (UT)', function() {
             content.getExperiences(query, req, expColl, pubList, true).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual(['formatted']);
-                expect(resp.pagination).toEqual({start: 10, end: 29, total: 50});
+                expect(resp.pagination).toEqual({start: 11, end: 30, total: 50});
                 expect(fakeCursor.count).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -589,7 +589,7 @@ describe('content (UT)', function() {
             content.getExperiences(query, req, expColl, pubList, true).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual(['formatted']);
-                expect(resp.pagination).toEqual({start: 45, end: 49, total: 50});
+                expect(resp.pagination).toEqual({start: 46, end: 50, total: 50});
                 expect(fakeCursor.count).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -598,10 +598,13 @@ describe('content (UT)', function() {
         
         it('should return a 200 and empty array if nothing was found', function(done) {
             fakeCursor.toArray.andCallFake(function(cb) { cb(null, []); });
-            content.getExperiences(query, req, expColl, pubList, false).then(function(resp) {
+            fakeCursor.count.andCallFake(function(cb) { cb(null, 0); });
+            content.getExperiences(query, req, expColl, pubList, true).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual([]);
+                expect(resp.pagination).toEqual({start: 0, end: 0, total: 0});
                 expect(fakeCursor.toArray).toHaveBeenCalled();
+                expect(fakeCursor.count).toHaveBeenCalled();
                 expect(content.formatOutput).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
