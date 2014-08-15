@@ -7,7 +7,7 @@ var q           = require('q'),
     };
 
 describe('content (E2E):', function() {
-    var cookieJar, mockUser;
+    var cookieJar, mockUser, adminUser;
         
     beforeEach(function(done) {
         if (cookieJar && cookieJar.cookies) {
@@ -30,6 +30,20 @@ describe('content (E2E):', function() {
                 }
             }
         };
+        adminUser = {
+            id: 'admin-e2e-user',
+            status: 'active',
+            email : 'admine2euser',
+            password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
+            org: 'admin-e2e-org',
+            applications: ['e2e-app1'],
+            permissions: {
+                experiences: {
+                    read: 'all',
+                    create: 'all'
+                }
+            }
+        };
         var loginOpts = {
             url: config.authUrl + '/auth/login',
             jar: cookieJar,
@@ -38,7 +52,7 @@ describe('content (E2E):', function() {
                 password: 'password'
             }
         };
-        testUtils.resetCollection('users', mockUser).then(function(resp) {
+        testUtils.resetCollection('users', [mockUser, adminUser]).then(function(resp) {
             return testUtils.qRequest('post', loginOpts);
         }).done(function(resp) {
             done();
@@ -381,6 +395,7 @@ describe('content (E2E):', function() {
                     access: 'private',
                     user: 'not-e2e-user',
                     org: 'not-e2e-org',
+                    type: 'foo'
                 },
                 {
                     id: 'e2e-getquery5',
@@ -472,6 +487,22 @@ describe('content (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).finally(done);
         });
+        
+        it('should be able to combine query params', function(done) {
+            var options = {
+                url: config.contentUrl + '/content/experiences?type=foo&org=e2e-org&sort=id,1',
+                jar: cookieJar
+            };
+            testUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body instanceof Array).toBeTruthy('body is array');
+                expect(resp.body.length).toBe(1);
+                expect(resp.body[0].id).toBe('e2e-getquery1');
+                expect(resp.response.headers['content-range']).toBe('items 1-1/1');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
+        });
 
         it('should not get experiences by any other query param', function(done) {
             var options = {
@@ -516,6 +547,34 @@ describe('content (E2E):', function() {
                 expect(resp.body[0].id).toBe('e2e-getquery1');
                 expect(resp.body[1].id).toBe('e2e-getquery5');
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
+        });
+
+        it('should allow an admin to see any non-deleted experience', function(done) {
+            var loginOpts = {
+                url: config.authUrl + '/auth/login',
+                json: {email: 'admine2euser', password: 'password'},
+                jar: cookieJar
+            };
+            testUtils.qRequest('post', loginOpts).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                var options = {
+                    url: config.contentUrl + '/content/experiences?type=foo&sort=id,1',
+                    jar: cookieJar
+                };
+                return testUtils.qRequest('get', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body instanceof Array).toBeTruthy('body is array');
+                expect(resp.body.length).toBe(4);
+                expect(resp.body[0].id).toBe('e2e-getquery1');
+                expect(resp.body[1].id).toBe('e2e-getquery3');
+                expect(resp.body[2].id).toBe('e2e-getquery4');
+                expect(resp.body[3].id).toBe('e2e-getquery5');
+                expect(resp.response.headers['content-range']).toBe('items 1-4/4');
+                delete cookieJar.cookies; // force reset and re-login of mockRequester in beforeEach
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).finally(done);
@@ -646,17 +705,12 @@ describe('content (E2E):', function() {
         });
         
         it('should allow an admin to set a different user and org for the experience', function(done) {
-            mockUser.permissions.experiences.create = 'all';
-            mockUser.id = 'not-e2e-user';
-            mockUser.email = 'admine2euser';
-            testUtils.resetCollection('users', mockUser).then(function() {
-                var loginOpts = {
-                    url: config.authUrl + '/auth/login',
-                    json: {email: 'admine2euser', password: 'password'},
-                    jar: cookieJar
-                };
-                return testUtils.qRequest('post', loginOpts);
-            }).then(function(resp) {
+            var loginOpts = {
+                url: config.authUrl + '/auth/login',
+                json: {email: 'admine2euser', password: 'password'},
+                jar: cookieJar
+            };
+            testUtils.qRequest('post', loginOpts).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 mockExp.user = 'another-user';
                 mockExp.org = 'another-org';
