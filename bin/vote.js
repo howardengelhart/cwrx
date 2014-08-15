@@ -184,10 +184,14 @@
         var self = this,
             foundElections = [],
             log = logger.getLog();
-
+            
         if (!(electionIds instanceof Array)) {
             log.warn('syncElections got %1 instead of an array of ids', typeof electionIds);
             return q.reject('Must pass an array of ids');
+        }
+        
+        if (electionIds.length === 0) {
+            return q([]);
         }
 
         return q.npost(self._coll.find({ id: { '$in': electionIds } }), 'toArray')

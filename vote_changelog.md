@@ -1,5 +1,9 @@
 # Vote Service Changelog
 
+### 1.3.5: Thu Aug 14 17:03:16 EDT 2014
+* [FIX]: Periodic sync shouldn't query mongo if no elections to sync: [#256](https://github.com/cinema6/cwrx/pull/256)
+* Extra deployment steps: None
+
 ### 1.3.4: Mon Jun  9 12:09:23 EDT 2014
 * [FIX]: Support Array ballot items; prevent modifying existing ballot items through PUT: [#182](https://github.com/cinema6/cwrx/pull/182)
 * [FIX]: Prevent creating empty elections; prevent adding items through voting: [#174](https://github.com/cinema6/cwrx/pull/174)
