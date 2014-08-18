@@ -1,5 +1,11 @@
 # Content Service Changelog
 
+### 1.7.0: Mon Aug 18 09:56:07 EDT 2014
+* [FEATURE]: Send Content-Range header when paginating experiences: [#257](https://github.com/cinema6/cwrx/pull/257)
+* [FEATURE]: Set `lastPublished` date on experiences when returning to client: [#255](https://github.com/cinema6/cwrx/pull/255)
+* [FIX]: Default experiences to public: [#255](https://github.com/cinema6/cwrx/pull/255)
+* Extra deployment steps: None
+
 ### 1.6.2: Mon Aug 11 10:09:05 EDT 2014
 * [FIX]: Trim off title and versionId fields when creating experiences: [#251](https://github.com/cinema6/cwrx/pull/251)
 * [FIX]: Allow admins to set different user and org when creating experiences: [#250](https://github.com/cinema6/cwrx/pull/250)

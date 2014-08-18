@@ -1,5 +1,9 @@
 # User Service Changelog
 
+### 1.5.5: Mon Aug 18 09:56:07 EDT 2014
+* [FIX]: By default, allow users to read org-level users and edit own org: [#255](https://github.com/cinema6/cwrx/pull/255)
+* Extra deployment steps: None
+
 ### 1.5.4: Mon Aug 11 10:09:05 EDT 2014
 * [FIX]: Default new users' type to 'Publisher': [#250](https://github.com/cinema6/cwrx/pull/250)
 * Extra deployment steps: None
