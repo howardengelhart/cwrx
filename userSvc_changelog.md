@@ -1,5 +1,9 @@
 # User Service Changelog
 
+### 1.6.0: Mon Aug 18 14:31:18 EDT 2014
+* [FEATURE]: Send Content-Range header when paginating orgs: [#257](https://github.com/cinema6/cwrx/pull/258)
+* Extra deployment steps: None
+
 ### 1.5.5: Mon Aug 18 09:56:07 EDT 2014
 * [FIX]: By default, allow users to read org-level users and edit own org: [#255](https://github.com/cinema6/cwrx/pull/255)
 * Extra deployment steps: None

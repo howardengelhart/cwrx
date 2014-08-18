@@ -1,14 +1,13 @@
 var flush = true;
 describe('orgSvc (UT)', function() {
-    var mockLog, mockLogger, req, uuid, logger, orgSvc, q, QueryCache, mongoUtils,
-        FieldValidator, enums, Status, Scope;
+    var mockLog, mockLogger, req, uuid, logger, orgSvc, q, mongoUtils, FieldValidator,
+        enums, Status, Scope;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         uuid            = require('../../lib/uuid');
         logger          = require('../../lib/logger');
-        orgSvc         = require('../../bin/orgSvc');
-        QueryCache      = require('../../lib/queryCache');
+        orgSvc          = require('../../bin/orgSvc');
         FieldValidator  = require('../../lib/fieldValidator');
         mongoUtils      = require('../../lib/mongoUtils'),
         q               = require('q');
@@ -117,7 +116,7 @@ describe('orgSvc (UT)', function() {
 
     describe('getOrg', function() {
 
-        var cache, query, orgColl, fakeCursor;
+        var query, orgColl, fakeCursor;
         beforeEach(function() {
             req.user = { id: 'u-1234', org: 'o-1234', permissions: {orgs: {read: Scope.All}}};
             req.params = { id: 'o-4567' };
@@ -209,144 +208,136 @@ describe('orgSvc (UT)', function() {
     });
 
     describe('getOrgs', function() {
-
-        var cache, query, orgColl, fakeCursor;
+        var query, orgColl, fakeCursor;
         beforeEach(function() {
-            req.user = { id: 'u-1234', permissions: {orgs: {read: Scope.All}}};
-            req.query = {
-                sort: 'id,1',
-                limit: 20,
-                skip: 10
-            };
+            req.user = { id: 'u-1234', permissions: { orgs: { read: Scope.All } } };
+            req.query = { sort: 'id,1', limit: 20, skip: 10 };
             fakeCursor = {
                 toArray: jasmine.createSpy('cursor.toArray').andCallFake(function(cb) {
-                    cb(null, q([ {id: '1'}, {id: '2'} ]));
+                    cb(null, q([{id: '1'}]));
+                }),
+                count: jasmine.createSpy('cursor.count').andCallFake(function(cb) {
+                    cb(null, 50);
                 })
             };
             orgColl = {
                 find: jasmine.createSpy('orgs.find').andReturn(fakeCursor)
             };
-            spyOn(orgSvc, 'checkScope').andReturn(true);
         });
 
         it('should sanity check the requester\'s permissions before checking them for the required scope', function(done) {
             delete req.user.permissions;
-            orgSvc.getOrgs(req,orgColl).then(function(resp) {
-                expect(resp).toBeDefined();
+            orgSvc.getOrgs(null, req, orgColl).then(function(resp) {
                 expect(resp.code).toBe(403);
                 expect(resp.body).toEqual('Not authorized to read all orgs');
-                done();
-            })
-            .catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(orgColl.find).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
         });
 
         it('should return a 403 if the requester doesn\'t have scope \'all\'', function(done) {
             req.user.permissions.orgs.read = Scope.Own;
-            orgSvc.getOrgs(req,orgColl).then(function(resp) {
-                expect(resp).toBeDefined();
+            orgSvc.getOrgs(null, req, orgColl).then(function(resp) {
                 expect(resp.code).toBe(403);
                 expect(resp.body).toEqual('Not authorized to read all orgs');
-                done();
-            })
-            .catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(orgColl.find).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
         });
         
         it('should call orgs.find to get orgs', function(done) {
-            orgSvc.getOrgs(req, orgColl).then(function(resp) {
-                expect(resp).toBeDefined();
+            orgSvc.getOrgs(null, req, orgColl).then(function(resp) {
                 expect(resp.code).toBe(200);
-                expect(resp.body).toEqual([{id:'1'}, {id:'2'}]);
-                expect(orgColl.find).toHaveBeenCalledWith({}, {sort: {id: 1}, limit: 20, skip: 10});
+                expect(resp.body).toEqual([{id:'1'}]);
+                expect(resp.pagination).toEqual({start: 11, end: 30, total: 50});
+                expect(orgColl.find).toHaveBeenCalledWith({status: {$ne: Status.Deleted}},
+                                                          {sort: {id: 1}, limit: 20, skip: 10});
+                expect(fakeCursor.count).toHaveBeenCalled();
                 expect(fakeCursor.toArray).toHaveBeenCalled();
-                done();
+                expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+
+        it('should handle end behavior properly when paginating', function(done) {
+            req.query.skip = 45;
+            orgSvc.getOrgs(null, req, orgColl).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual([{id:'1'}]);
+                expect(resp.pagination).toEqual({start: 46, end: 50, total: 50});
+                expect(fakeCursor.count).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
         });
         
         it('should use defaults for sorting/paginating options if not provided', function(done) {
             req.query = {};
-            orgSvc.getOrgs(req, orgColl).then(function(resp) {
-                expect(resp).toBeDefined();
+            orgSvc.getOrgs(null, req, orgColl).then(function(resp) {
                 expect(resp.code).toBe(200);
-                expect(resp.body).toEqual([{id:'1'}, {id:'2'}]);
-                expect(orgColl.find).toHaveBeenCalledWith({}, {sort: {}, limit: 0, skip: 0});
-                expect(fakeCursor.toArray).toHaveBeenCalled();
-                done();
+                expect(resp.body).toEqual([{id:'1'}]);
+                expect(resp.pagination).toEqual({start: 1, end: 50, total: 50});
+                expect(orgColl.find).toHaveBeenCalledWith({status: {$ne: Status.Deleted}},
+                                                          {sort: {}, limit: 0, skip: 0});
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
         });
 
-        it('should not show any deleted orgs', function(done) {
-            fakeCursor.toArray.andCallFake(function(cb) {
-                cb(null, q([{id: '1', status: Status.Deleted}]));
-            })
-            orgSvc.getOrgs(req, orgColl).then(function(resp) {
-                expect(resp.code).toBe(404);
-                expect(resp.body).toBe('No orgs found');
-                expect(orgColl.find).toHaveBeenCalled();
-                done();
+        it('should ignore the sort param if invalid', function(done) {
+            req.query.sort = 'foo';
+            orgSvc.getOrgs(null, req, orgColl).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual([{id:'1'}]);
+                expect(resp.pagination).toEqual({start: 11, end: 30, total: 50});
+                expect(mockLog.warn).toHaveBeenCalled();
+                expect(orgColl.find).toHaveBeenCalledWith({status: {$ne: Status.Deleted}},
+                                                          {sort: {}, limit: 20, skip: 10});
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
         });
-        
+
         it('should return a 404 if nothing was found', function(done) {
-            fakeCursor.toArray.andCallFake(function(cb) {
-                cb(null, []);
-            });
-            orgSvc.getOrgs(req, orgColl).then(function(resp) {
-                expect(resp).toBeDefined();
+            fakeCursor.toArray.andCallFake(function(cb) { cb(null, []); });
+            fakeCursor.count.andCallFake(function(cb) { cb(null, 0); });
+            orgSvc.getOrgs(null, req, orgColl).then(function(resp) {
                 expect(resp.code).toBe(404);
                 expect(resp.body).toBe('No orgs found');
-                done();
+                expect(resp.pagination).toEqual({start: 0, end: 0, total: 0});
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
         });
-        
-        it('should fail if the promise was rejected', function(done) {
-            fakeCursor.toArray.andCallFake(function(cb) {
-                cb('Error!');
-            });
-            orgSvc.getOrgs(req, orgColl).then(function(resp) {
+
+        it('should fail if cursor.count has an error', function(done) {
+            fakeCursor.count.andCallFake(function(cb) { cb('Error!'); });
+            orgSvc.getOrgs(null, req, orgColl).then(function(resp) {
                 expect(resp).not.toBeDefined();
-                done();
             }).catch(function(error) {
                 expect(error).toBe('Error!');
                 expect(mockLog.error).toHaveBeenCalled();
-                expect(orgColl.find).toHaveBeenCalledWith({}, {sort: { id: 1 }, limit: 20, skip: 10});
-                expect(orgSvc.checkScope).not.toHaveBeenCalled();
-                done();
-            });
+                expect(fakeCursor.count).toHaveBeenCalled();
+                expect(fakeCursor.toArray).not.toHaveBeenCalled();
+                expect(mongoUtils.unescapeKeys).not.toHaveBeenCalled();
+            }).finally(done);
         });
         
-        it('should ignore the sort param if invalid', function(done) {
-            req.query.sort = 'foo';
-            orgSvc.getOrgs(req, orgColl).then(function(resp) {
-                expect(resp).toBeDefined();
-                expect(resp.code).toBe(200);
-                expect(resp.body).toEqual([{id:'1'}, {id:'2'}]);
-                expect(mockLog.warn).toHaveBeenCalled();
-                expect(orgColl.find).toHaveBeenCalledWith({}, {sort: {}, limit: 20, skip: 10});
-                done();
+        it('should fail if cursor.toArray has an error', function(done) {
+            fakeCursor.toArray.andCallFake(function(cb) { cb('Error!'); });
+            orgSvc.getOrgs(null, req, orgColl).then(function(resp) {
+                expect(resp).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(error).toBe('Error!');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(fakeCursor.count).toHaveBeenCalled();
+                expect(fakeCursor.toArray).toHaveBeenCalled();
+                expect(mongoUtils.unescapeKeys).not.toHaveBeenCalled();
+            }).finally(done);
         });
-
     });
 
     describe('setupOrg', function() {

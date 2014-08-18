@@ -1,5 +1,9 @@
 # Org Service Changelog
 
+### 1.1.0: Mon Aug 18 14:31:18 EDT 2014
+* [FEATURE]: Send Content-Range header when paginating orgs: [#258](https://github.com/cinema6/cwrx/pull/258)
+* Extra deployment steps: None
+
 ### 1.0.4: Mon Aug  4 12:40:36 EDT 2014
 * [FIX]: Fix hardcoding new orgs' config: [#242](https://github.com/cinema6/cwrx/pull/242)
 * Extra deployment steps: None

@@ -633,7 +633,7 @@ describe('content (UT)', function() {
             }).finally(done);
         });
         
-        it('should fail if cursor.find has an error', function(done) {
+        it('should fail if cursor.toArray has an error', function(done) {
             fakeCursor.toArray.andCallFake(function(cb) { cb('Find Error!'); });
             fakeCursor.count.andCallFake(function(cb) { cb('Count Error!'); });
             content.getExperiences(query, req, expColl, pubList, false).then(function(resp) {
