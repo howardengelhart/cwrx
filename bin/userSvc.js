@@ -173,8 +173,7 @@
                  req.user.id, JSON.stringify(query), JSON.stringify(sortObj), limit, skip);
 
         var permQuery = userSvc.userPermQuery(query, req.user),
-            opts = {sort: sortObj, limit: limit, skip: skip},
-            cursor = users.find(permQuery, opts);
+            cursor = users.find(permQuery, {sort: sortObj, limit: limit, skip: skip});
         
         log.trace('[%1] permQuery = %2', req.uuid, JSON.stringify(permQuery));
         

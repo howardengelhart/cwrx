@@ -89,6 +89,7 @@ describe('org (E2E):', function() {
                 expect(resp.body.name).toBe('e2e-getId1');
                 expect(resp.body.status).toBe('active');
                 expect(resp.body.waterfalls).toEqual({video: ['cinema6'], display: ['cinema6']});
+                expect(resp.response.headers['content-range']).not.toBeDefined();
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -163,7 +164,6 @@ describe('org (E2E):', function() {
                 done();
             });
         });
-
     });
 
     describe('GET /api/account/orgs', function() {
@@ -197,6 +197,7 @@ describe('org (E2E):', function() {
                 expect(resp.body[2]._id).not.toBeDefined();
                 expect(resp.body[2].id).toBe('o-7890');
                 expect(resp.body[2].name).toBe('e2e-getOrg1');
+                expect(resp.response.headers['content-range']).toBe('items 1-3/3');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -217,6 +218,7 @@ describe('org (E2E):', function() {
                 expect(resp.body[0].id).toBe('o-7890');
                 expect(resp.body[0]._id).not.toBeDefined();
                 expect(resp.body[0].name).toBe('e2e-getOrg1');
+                expect(resp.response.headers['content-range']).toBe('items 1-1/3');
                 options.url += '&skip=1';
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
@@ -228,6 +230,7 @@ describe('org (E2E):', function() {
                 expect(resp.body[0]._id).not.toBeDefined();
                 expect(resp.body[0].name).toBe('e2e-getOrg2');
                 expect(resp.body[0].password).not.toBeDefined();
+                expect(resp.response.headers['content-range']).toBe('items 2-2/3');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -244,6 +247,28 @@ describe('org (E2E):', function() {
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('No orgs found');
+                expect(resp.response.headers['content-range']).toBe('items 0-0/0');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should not allow non-admins to use this endpoint', function(done) {
+            var loginOpts = {
+                url: config.authUrl + '/login',
+                jar: cookieJar,
+                json: { email: 'orgsvce2enopermsuser', password: 'password' }
+            };
+            testUtils.qRequest('post', loginOpts).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                var options = { url: config.orgSvcUrl + '/orgs', jar: cookieJar };
+                return testUtils.qRequest('get', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(403);
+                expect(resp.body).toBe('Not authorized to read all orgs');
+                expect(resp.response.headers['content-range']).not.toBeDefined();
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
