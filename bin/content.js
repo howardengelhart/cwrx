@@ -63,37 +63,6 @@
         }
     };
 
-    // Check whether the user can operate on the experience according to their scope
-    content.checkScope = function(user, experience, object, verb) {
-        return !!(user && user.permissions && user.permissions[object] &&
-                  user.permissions[object][verb] &&
-             (user.permissions[object][verb] === Scope.All ||
-             (user.permissions[object][verb] === Scope.Org && (user.org === experience.org ||
-                                                               user.id === experience.user)) ||
-             (user.permissions[object][verb] === Scope.Own && user.id === experience.user) ));
-    };
-    
-    content.checkOrigin = function(origin, publicList) {
-        return origin.match('cinema6.com') && !publicList.some(function(site) {
-            return origin.match(site);
-        });
-    };
-    
-    // Check whether a user can retrieve an experience
-    content.canGetExperience = function(exp, user, origin, publicList) {
-        origin = origin || '';
-        user = user || {};
-        var isC6Origin = origin.match('cinema6.com') && !publicList.some(function(site) {
-            return origin.match(site);
-        });
-        
-        return exp.status !== Status.Deleted &&
-               !!( (exp.status === Status.Active && !isC6Origin)                    ||
-                   (exp.access === Access.Public && isC6Origin)                     ||
-                   content.checkScope(user, exp, 'experiences', 'read')             ||
-                   (user.applications && user.applications.indexOf(exp.id) >= 0)    );
-    };
-    
     content.createValidator = new FieldValidator({
         forbidden: ['id', 'created'],
         condForbidden: {
@@ -109,7 +78,7 @@
         }
     });
     content.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created', '_id'] });
-    
+
     content.formatOutput = function(experience, isGuest) {
         var log = logger.getLog(),
             privateFields = ['user', 'org'],
@@ -154,6 +123,73 @@
         }
         return mongoUtils.unescapeKeys(newExp);
     };
+
+    // Check whether the user can operate on the experience according to their scope
+    content.checkScope = function(user, experience, object, verb) {
+        return !!(user && user.permissions && user.permissions[object] &&
+                  user.permissions[object][verb] &&
+             (user.permissions[object][verb] === Scope.All ||
+             (user.permissions[object][verb] === Scope.Org && (user.org === experience.org ||
+                                                               user.id === experience.user)) ||
+             (user.permissions[object][verb] === Scope.Own && user.id === experience.user) ));
+    };
+    
+    content.checkOrigin = function(origin, publicList) {
+        return origin.match('cinema6.com') && !publicList.some(function(site) {
+            return origin.match(site);
+        });
+    };
+    
+    // Check whether a user can retrieve an experience
+    content.canGetExperience = function(exp, user, origin, publicList) {
+        user = user || {};
+        var isC6Origin = origin.match('cinema6.com') && !publicList.some(function(site) {
+            return origin.match(site);
+        });
+        
+        return exp.status !== Status.Deleted &&
+               !!( (exp.status === Status.Active && !isC6Origin)                    ||
+                   (exp.access === Access.Public && isC6Origin)                     ||
+                   content.checkScope(user, exp, 'experiences', 'read')             ||
+                   (user.applications && user.applications.indexOf(exp.id) >= 0)    );
+    };
+    
+    /* Adds fields to a find query to filter out experiences the user can't see, effectively 
+     * replicating the logic of canGetExperience through the query */
+    content.userPermQuery = function(query, user, origin, publicList) {
+        var newQuery = JSON.parse(JSON.stringify(query)),
+            readScope = user.permissions.experiences.read,
+            log = logger.getLog(),
+            isC6Origin = origin.match('cinema6.com') && !publicList.some(function(site) {
+                return origin.match(site);
+            });
+        
+        newQuery['status.0.status'] = {$ne: Status.Deleted}; // never show deleted exps
+        
+        if (!Scope.isScope(readScope)) {
+            log.warn('User has invalid scope ' + readScope);
+            readScope = Scope.Own;
+        }
+        
+        if (readScope === Scope.Own) {
+            newQuery.$or = [ { user: user.id } ];
+        } else if (readScope === Scope.Org) {
+            newQuery.$or = [ { org: user.org }, { user: user.id } ];
+        }
+        
+        if (newQuery.$or) { // additional conditions where non-admins may be able to get exps
+            if (isC6Origin) {
+                newQuery.$or.push({access: Access.Public});
+            } else {
+                newQuery.$or.push({'status.0.status': Status.Active});
+            }
+            if (user.applications && user.applications instanceof Array) {
+                newQuery.$or.push({id: {$in: user.applications}});
+            }
+        }
+        
+        return newQuery;
+    };
     
     content.getAdConfig = function(exp, orgId, orgCache) {
         var log = logger.getLog();
@@ -177,14 +213,46 @@
         });
     };
     
-    // If orgCache is passed in, getAdConfig will be called to ensure adConfig is on the exp
-    // Thus orgCache SHOULD NOT be passed in except from the public get experience endpoint
-    content.getExperiences = function(query, req, expCache, publicList, orgCache) {
-        var limit = req.query && req.query.limit || 0,
-            skip = req.query && req.query.skip || 0,
+    content.getPublicExp = function(id, req, expCache, publicList, orgCache) {
+        var log = logger.getLog(),
+            origin = req.headers && (req.headers.origin || req.headers.referer) || '',
+            query = {id: id};
+        
+        log.info('[%1] Guest user trying to get experience %2', req.uuid, id);
+        
+        return expCache.getPromise(query).then(function(results) {
+            var experiences = results.map(function(result) {
+                var formatted = content.formatOutput(result, true);
+                if (!content.canGetExperience(formatted, null, origin, publicList)) {
+                    return null;
+                } else {
+                    return formatted;
+                }
+            });
+            
+            if (!experiences[0]) {
+                return q({code: 404, body: 'Experience not found'});
+            }
+            log.info('[%1] Retrieved experience %2', req.uuid, id);
+            
+            return content.getAdConfig(experiences[0], results[0].org, orgCache)
+            .then(function(exp) {
+                return q({code: 200, body: exp});
+            });
+        })
+        .catch(function(error) {
+            log.error('[%1] Error getting experiences: %2', req.uuid, error);
+            return q.reject(error);
+        });
+    };
+    
+    content.getExperiences = function(query, req, experiences, publicList, multiExp) {
+        var limit = req.query && Number(req.query.limit) || 0,
+            skip = req.query && Number(req.query.skip) || 0,
             sort = req.query && req.query.sort,
-            origin = req.headers && (req.headers.origin || req.headers.referer),
+            origin = req.headers && (req.headers.origin || req.headers.referer) || '',
             sortObj = {},
+            resp = {},
             log = logger.getLog(),
             promise;
         if (sort) {
@@ -195,47 +263,49 @@
                 sortObj[sortParts[0]] = Number(sortParts[1]);
             }
         }
-        query = QueryCache.formatQuery(query);
-        
-        if (req.user) { // don't use cache, access mongo collection directly
-            log.info('[%1] User %2 getting experiences with %3, sort %4, limit %5, skip %6',
-                     req.uuid,req.user.id,JSON.stringify(query),JSON.stringify(sortObj),limit,skip);
-                     
-            var opts = {sort: sortObj, limit: limit, skip: skip};
-            promise = q.npost(expCache._coll.find(query, opts), 'toArray');
-            
-        } else { // use cached promise
-            log.info('[%1] Guest user getting experiences with %2, sort %3, limit %4, skip %5',
-                     req.uuid, JSON.stringify(query), JSON.stringify(sortObj), limit, skip);
-                     
-            promise = expCache.getPromise(query, sortObj, limit, skip);
+        if (query.id instanceof Array) {
+            query.id = {$in: query.id};
         }
-
-        return promise.then(function(results) {
-            log.trace('[%1] Retrieved %2 experiences', req.uuid, results.length);
-            
-            return q.all(results.map(function(exp) {
-                var formatted = content.formatOutput(exp, !req.user);
-                if (orgCache) {
-                    return content.getAdConfig(formatted, exp.org, orgCache);
-                } else {
-                    return q(formatted);
-                }
-            }));
+        
+        log.info('[%1] User %2 getting experiences with %3, sort %4, limit %5, skip %6',
+                 req.uuid,req.user.id,JSON.stringify(query),JSON.stringify(sortObj),limit,skip);
+                 
+        var permQuery = content.userPermQuery(query, req.user, origin, publicList),
+            opts = {sort: sortObj, limit: limit, skip: skip},
+            cursor = experiences.find(permQuery, opts);
+        
+        log.trace('[%1] permQuery = %2', req.uuid, JSON.stringify(permQuery));
+        
+        if (multiExp) {
+            promise = q.npost(cursor, 'count');
+        } else {
+            promise = q();
+        }
+        return promise.then(function(count) {
+            if (count !== undefined) {
+                resp.pagination = {
+                    start: count !== 0 ? skip + 1 : 0,
+                    end: limit ? Math.min(skip + limit , count) : count,
+                    total: count
+                };
+            }
+            return q.npost(cursor, 'toArray');
         })
         .then(function(results) {
-            var experiences = results.filter(function(result) {
-                return content.canGetExperience(result, req.user, origin, publicList);
+            var exps = results.map(function(exp) {
+                return content.formatOutput(exp, false);
             });
-
-            log.info('[%1] Showing the user %2 experiences', req.uuid, experiences.length);
-            return q({code: 200, body: experiences});
+            log.info('[%1] Showing the user %2 experiences', req.uuid, exps.length);
+            resp.code = 200;
+            resp.body = exps;
+            return q(resp);
         })
         .catch(function(error) {
             log.error('[%1] Error getting experiences: %2', req.uuid, error);
             return q.reject(error);
         });
     };
+
 
     content.createExperience = function(req, experiences) {
         var obj = req.body,
@@ -250,10 +320,14 @@
             log.trace('exp: %1  |  requester: %2', JSON.stringify(obj), JSON.stringify(user));
             return q({code: 400, body: 'Illegal fields'});
         }
+        
         obj.id = 'e-' + uuid.createUuid().substr(0,14);
         log.trace('[%1] User %2 is creating experience %3', req.uuid, user.id, obj.id);
+        
         delete obj.versionId; // only allow these properties to be set in the data
         delete obj.title;
+        delete obj.lastPublished;
+        
         obj.created = now;
         obj.lastUpdated = now;
         if (!obj.user) {
@@ -357,9 +431,10 @@
             return q({code: 400, body: 'You must provide an object in the body'});
         }
         
-        // only update exp.title through exp.data.title, but trying to update exp.title shouldn't
-        // return a 400; same with versionId
+        // these props are copied from elsewhere when returning to the client, so don't allow them
+        // to be set here
         delete updates.title;
+        delete updates.lastPublished;
         delete updates.versionId;
         
         log.info('[%1] User %2 is attempting to update experience %3',req.uuid,user.id,id);
@@ -532,19 +607,11 @@
         
         // Used for handling public requests for experiences by id methods:
         function handlePublicGet(req, res) {
-            return content.getExperiences({id: req.params.id}, req, expCache,
-                                          state.config.publicC6Sites, orgCache)
+            return content.getPublicExp(req.params.id, req, expCache,
+                                        state.config.publicC6Sites, orgCache)
             .then(function(resp) {
                 res.header('cache-control', 'max-age=' + state.config.cacheTTLs.cloudFront*60);
-                if (resp.body && resp.body instanceof Array) {
-                    if (resp.body.length === 0) {
-                        return q({code: 404, body: 'Experience not found'});
-                    } else {
-                        return q({code: resp.code, body: resp.body[0]});
-                    }
-                } else {
-                    return q({code: resp.code, body: resp.body});
-                }
+                return q(resp);
             }).catch(function(error) {
                 res.header('cache-control', 'max-age=60');
                 return q({code: 500, body: {
@@ -584,7 +651,7 @@
         
         // private get experience by id
         app.get('/api/content/experience/:id', sessionsWrapper, authGetExp, function(req, res) {
-            content.getExperiences({id: req.params.id}, req, expCache, state.config.publicC6Sites)
+            content.getExperiences({id:req.params.id}, req, experiences, state.config.publicC6Sites)
             .then(function(resp) {
                 if (resp.body && resp.body instanceof Array) {
                     if (resp.body.length === 0) {
@@ -626,8 +693,13 @@
             if (req.query.type) {
                 query.type = req.query.type;
             }
-            content.getExperiences(query, req, expCache, state.config.publicC6Sites)
+            content.getExperiences(query, req, experiences, state.config.publicC6Sites, true)
             .then(function(resp) {
+                if (resp.pagination) {
+                    res.header('content-range', 'items ' + resp.pagination.start + '-' +
+                                                resp.pagination.end + '/' + resp.pagination.total);
+                    
+                }
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, {

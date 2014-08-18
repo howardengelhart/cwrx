@@ -50,4 +50,13 @@ describe('enums', function() {
             expect(enums.Scope.compare('all', 'bloop')).toBe(3);
         });
     });
+
+    describe('Scope.isScope', function() {
+        it('should check if the string is one of the enumerated scopes', function() {
+            expect(enums.Scope.isScope('own')).toBe(true);
+            expect(enums.Scope.isScope('org')).toBe(true);
+            expect(enums.Scope.isScope('all')).toBe(true);
+            expect(enums.Scope.isScope('fake')).toBe(false);
+        });
+    });
 });
