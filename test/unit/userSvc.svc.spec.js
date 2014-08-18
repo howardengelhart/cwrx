@@ -220,6 +220,38 @@ describe('userSvc (UT)', function() {
         });
     });
     
+    describe('userPermQuery', function() {
+        var query, requester;
+        beforeEach(function() {
+            query = { org: 'o-1' };
+            requester = { id: 'u-1', org: 'o-1', permissions: { users: { read: Scope.Own } } };
+        });
+        
+        it('should just check that the user is not deleted if the requester is an admin', function() {
+            requester.permissions.users.read = Scope.All;
+            expect(userSvc.userPermQuery(query, requester))
+                .toEqual({ org: 'o-1', status: { $ne: Status.Deleted } });
+            expect(query).toEqual({org: 'o-1'});
+        });
+        
+        it('should check that the ids match if the requester has Scope.Own', function() {
+            expect(userSvc.userPermQuery(query, requester))
+                .toEqual({ org: 'o-1', status: { $ne: Status.Deleted }, $or: [ { id: 'u-1' } ] });
+        });
+        
+        it('should check that the ids or orgs match if the requester has Scope.Org', function() {
+            requester.permissions.users.read = Scope.Org;
+            expect(userSvc.userPermQuery(query, requester))
+                .toEqual({org: 'o-1', status: {$ne: Status.Deleted}, $or: [{org: 'o-1'}, {id: 'u-1'}]});
+        });
+        
+        it('should log a warning if the requester has an invalid scope', function() {
+            requester.permissions.users.read = 'alfkjdf';
+            expect(userSvc.userPermQuery(query, requester))
+                .toEqual({ org: 'o-1', status: { $ne: Status.Deleted }, $or: [ { id: 'u-1' } ] });
+        });
+    });
+    
     describe('getUsers', function() {
         var cache, query, userColl, fakeCursor;
         beforeEach(function() {
@@ -232,170 +264,146 @@ describe('userSvc (UT)', function() {
             query = { org: 'o-1234' };
             fakeCursor = {
                 toArray: jasmine.createSpy('cursor.toArray').andCallFake(function(cb) {
-                    cb(null, q([ {id: '1'}, {id: '2'} ]));
+                    cb(null, q([{id: '1'}]));
+                }),
+                count: jasmine.createSpy('cursor.count').andCallFake(function(cb) {
+                    cb(null, 50);
                 })
             };
             userColl = {
                 find: jasmine.createSpy('users.find').andReturn(fakeCursor)
             };
-            spyOn(userSvc, 'checkScope').andReturn(true);
+            spyOn(userSvc, 'userPermQuery').andReturn('permQuery');
             spyOn(mongoUtils, 'safeUser').andCallThrough();
         });
         
         it('should call users.find to get users', function(done) {
-            userSvc.getUsers(query, req, userColl).then(function(resp) {
-                expect(resp).toBeDefined();
+            userSvc.getUsers(query, req, userColl, false).then(function(resp) {
                 expect(resp.code).toBe(200);
-                expect(resp.body).toEqual([{id:'1'}, {id:'2'}]);
-                expect(userColl.find).toHaveBeenCalledWith({org: 'o-1234'},
-                                                           {sort: {id: 1}, limit: 20, skip: 10});
+                expect(resp.body).toEqual([{id:'1'}]);
+                expect(resp.pagination).not.toBeDefined();
+                expect(userColl.find).toHaveBeenCalledWith('permQuery',{sort:{id:1},limit:20,skip:10});
                 expect(fakeCursor.toArray).toHaveBeenCalled();
-                expect(userSvc.checkScope.calls.length).toBe(2);
-                expect(userSvc.checkScope.calls[0].args).toEqual([req.user, {id:'1'}, 'read']);
-                expect(userSvc.checkScope.calls[1].args).toEqual([req.user, {id:'2'}, 'read']);
-                expect(mongoUtils.safeUser.calls.length).toBe(2);
-                expect(mongoUtils.safeUser.calls[0].args[0]).toEqual({id:'1'});
-                expect(mongoUtils.safeUser.calls[1].args[0]).toEqual({id:'2'});
-                done();
+                expect(fakeCursor.count).not.toHaveBeenCalled();
+                expect(userSvc.userPermQuery).toHaveBeenCalledWith({org: 'o-1234'},
+                    { id: 'u-1234', permissions: { users: { read: Scope.Own } } });
+                expect(mongoUtils.safeUser).toHaveBeenCalledWith({id: '1'});
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-                done();
-            });
+            }).finally(done);
         });
         
         it('should use defaults for sorting/paginating options if not provided', function(done) {
             req.query = { org: 'o-1234' };
-            userSvc.getUsers(query, req, userColl).then(function(resp) {
-                expect(resp).toBeDefined();
+            userSvc.getUsers(query, req, userColl, false).then(function(resp) {
                 expect(resp.code).toBe(200);
-                expect(resp.body).toEqual([{id:'1'}, {id:'2'}]);
-                expect(userColl.find).toHaveBeenCalledWith({org: 'o-1234'},
-                                                           {sort: {}, limit: 0, skip: 0});
-                expect(fakeCursor.toArray).toHaveBeenCalled();
-                expect(mongoUtils.safeUser.calls.length).toBe(2);
-                done();
+                expect(resp.body).toEqual([{id:'1'}]);
+                expect(userColl.find).toHaveBeenCalledWith('permQuery',{sort:{},limit:0,skip:0});
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-                done();
-            });
+            }).finally(done);
+        });
+
+        it('should ignore the sort param if invalid', function(done) {
+            req.query.sort = 'foo';
+            userSvc.getUsers(query, req, userColl, false).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual([{id:'1'}]);
+                expect(mockLog.warn).toHaveBeenCalled();
+                expect(userColl.find).toHaveBeenCalledWith('permQuery',{sort:{},limit:20,skip:10});
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
+        });
+
+        it('should set resp.pagination if multiGet is true', function(done) {
+            userSvc.getUsers(query, req, userColl, true).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual([{id:'1'}]);
+                expect(resp.pagination).toEqual({start: 11, end: 30, total: 50});
+                expect(fakeCursor.count).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should handle end behavior properly when paginating', function(done) {
+            req.query.skip = 45;
+            userSvc.getUsers(query, req, userColl, true).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual([{id:'1'}]);
+                expect(resp.pagination).toEqual({start: 46, end: 50, total: 50});
+                expect(fakeCursor.count).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
         });
         
         it('should prevent non-admin users from getting all users', function(done) {
             query = null;
-            userSvc.getUsers(query, req, userColl).then(function(resp) {
-                expect(resp).toBeDefined();
+            userSvc.getUsers(query, req, userColl, false).then(function(resp) {
                 expect(resp.code).toBe(403);
                 expect(resp.body).toBe('Not authorized to read all users');
                 expect(userColl.find).not.toHaveBeenCalled();
                 expect(fakeCursor.toArray).not.toHaveBeenCalled();
-                done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-                done();
-            });
+            }).finally(done);
         });
         
         it('should allow admin users to get all users', function(done) {
             query = null;
             req.user.permissions.users.read = Scope.All;
-            userSvc.getUsers(query, req, userColl).then(function(resp) {
-                expect(resp).toBeDefined();
+            userSvc.getUsers(query, req, userColl, false).then(function(resp) {
                 expect(resp.code).toBe(200);
-                expect(resp.body).toEqual([{id:'1'}, {id:'2'}]);
-                expect(userColl.find).toHaveBeenCalledWith(null, {sort: {id: 1}, limit: 20, skip: 10});
+                expect(resp.body).toEqual([{id:'1'}]);
+                expect(userColl.find).toHaveBeenCalled();
                 expect(fakeCursor.toArray).toHaveBeenCalled();
-                expect(mongoUtils.safeUser.calls.length).toBe(2);
-                done();
+                expect(mongoUtils.safeUser).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-                done();
-            });
-        });
-        
-        it('should only show users the requester is allowed to see', function(done) {
-            userSvc.checkScope.andCallFake(function(requester, target, verb) {
-                if (target.id === '1') return false;
-                else return true;
-            });
-            userSvc.getUsers(query, req, userColl).then(function(resp) {
-                expect(resp).toBeDefined();
-                expect(resp.code).toBe(200);
-                expect(resp.body).toEqual([{id:'2'}]);
-                expect(userColl.find).toHaveBeenCalled();
-                expect(userSvc.checkScope.calls.length).toBe(2);
-                expect(userSvc.checkScope.calls[0].args).toEqual([req.user, {id:'1'}, 'read']);
-                expect(userSvc.checkScope.calls[1].args).toEqual([req.user, {id:'2'}, 'read']);
-                expect(mongoUtils.safeUser.calls.length).toBe(1);
-                expect(mongoUtils.safeUser.calls[0].args[0]).toEqual({id:'2'});
-                done();
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
-        });
-        
-        it('should not show any deleted users', function(done) {
-            fakeCursor.toArray.andCallFake(function(cb) {
-                cb(null, q([{id: '1', status: Status.Deleted}]));
-            })
-            userSvc.getUsers(query, req, userColl).then(function(resp) {
-                expect(resp.code).toBe(404);
-                expect(resp.body).toBe('No users found');
-                expect(userColl.find).toHaveBeenCalled();
-                done();
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+            }).finally(done);
         });
         
         it('should return a 404 if nothing was found', function(done) {
-            fakeCursor.toArray.andCallFake(function(cb) {
-                cb(null, []);
-            });
-            userSvc.getUsers(query, req, userColl).then(function(resp) {
-                expect(resp).toBeDefined();
+            fakeCursor.toArray.andCallFake(function(cb) { cb(null, []); });
+            fakeCursor.count.andCallFake(function(cb) { cb(null, 0); });
+            userSvc.getUsers(query, req, userColl, true).then(function(resp) {
                 expect(resp.code).toBe(404);
                 expect(resp.body).toBe('No users found');
-                done();
+                expect(resp.pagination).toEqual({start: 0, end: 0, total: 0});
+                expect(fakeCursor.toArray).toHaveBeenCalled();
+                expect(fakeCursor.count).toHaveBeenCalled();
+                expect(mongoUtils.safeUser).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-                done();
-            });
+            }).finally(done);
         });
-        
-        it('should fail if the promise was rejected', function(done) {
-            fakeCursor.toArray.andCallFake(function(cb) {
-                cb('Error!');
-            });
-            userSvc.getUsers(query, req, userColl).then(function(resp) {
+
+        it('should fail if cursor.find has an error', function(done) {
+            fakeCursor.toArray.andCallFake(function(cb) { cb('Find Error!'); });
+            fakeCursor.count.andCallFake(function(cb) { cb('Count Error!'); });
+            userSvc.getUsers(query, req, userColl, false).then(function(resp) {
                 expect(resp).not.toBeDefined();
-                done();
             }).catch(function(error) {
-                expect(error).toBe('Error!');
+                expect(error).toBe('Find Error!');
                 expect(mockLog.error).toHaveBeenCalled();
-                expect(userColl.find).toHaveBeenCalledWith({org: 'o-1234'},
-                                                           {sort: { id: 1 }, limit: 20, skip: 10});
-                expect(userSvc.checkScope).not.toHaveBeenCalled();
-                done();
-            });
+                expect(fakeCursor.toArray).toHaveBeenCalled();
+                expect(fakeCursor.count).not.toHaveBeenCalled();
+            }).finally(done);
         });
-        
-        it('should ignore the sort param if invalid', function(done) {
-            req.query.sort = 'foo';
-            userSvc.getUsers(query, req, userColl).then(function(resp) {
-                expect(resp).toBeDefined();
-                expect(resp.code).toBe(200);
-                expect(resp.body).toEqual([{id:'1'}, {id:'2'}]);
-                expect(mockLog.warn).toHaveBeenCalled();
-                expect(userColl.find).toHaveBeenCalledWith({org: 'o-1234'},
-                                                           {sort: {}, limit: 20, skip: 10});
-                expect(mongoUtils.safeUser.calls.length).toBe(2);
-                done();
+
+        it('should fail if cursor.count has an error and multiGet is true', function(done) {
+            fakeCursor.toArray.andCallFake(function(cb) { cb('Find Error!'); });
+            fakeCursor.count.andCallFake(function(cb) { cb('Count Error!'); });
+            userSvc.getUsers(query, req, userColl, true).then(function(resp) {
+                expect(resp).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(error).toBe('Count Error!');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(fakeCursor.toArray).not.toHaveBeenCalled();
+                expect(fakeCursor.count).toHaveBeenCalled();
+            }).finally(done);
         });
     });
     
