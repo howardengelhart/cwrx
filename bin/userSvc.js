@@ -58,16 +58,6 @@
         }
     };
 
-    // Check whether the requester can operate on the target user according to their scope
-    userSvc.checkScope = function(requester, user, verb) {
-        return !!(requester && requester.permissions && requester.permissions.users &&
-                  requester.permissions.users[verb] &&
-             (requester.permissions.users[verb] === Scope.All ||
-             (requester.permissions.users[verb] === Scope.Org && (requester.org === user.org ||
-                                                                  requester.id === user.id)) ||
-             (requester.permissions.users[verb] === Scope.Own && requester.id === user.id) ));
-    };
-    
     // make sure requester can't edit own perms or set perms that are greater than their own
     userSvc.permsCheck = function(updates, orig, requester) {
         var log = logger.getLog();
@@ -120,12 +110,46 @@
         }
     });
 
-    userSvc.getUsers = function(query, req, users) {
-        var limit = req.query && req.query.limit || 0,
-            skip = req.query && req.query.skip || 0,
+    // Check whether the requester can operate on the target user according to their scope
+    userSvc.checkScope = function(requester, user, verb) {
+        return !!(requester && requester.permissions && requester.permissions.users &&
+                  requester.permissions.users[verb] &&
+             (requester.permissions.users[verb] === Scope.All ||
+             (requester.permissions.users[verb] === Scope.Org && (requester.org === user.org ||
+                                                                  requester.id === user.id)) ||
+             (requester.permissions.users[verb] === Scope.Own && requester.id === user.id) ));
+    };
+
+    // Adds fields to a find query to filter out users the requester can't see
+    userSvc.userPermQuery = function(query, requester) {
+        var newQuery = JSON.parse(JSON.stringify(query)),
+            readScope = requester.permissions.users.read,
+            log = logger.getLog();
+        
+        newQuery.status = {$ne: Status.Deleted}; // never show deleted users
+        
+        if (!Scope.isScope(readScope)) {
+            log.warn('User has invalid scope ' + readScope);
+            readScope = Scope.Own;
+        }
+        
+        if (readScope === Scope.Own) {
+            newQuery.$or = [ { id: requester.id } ];
+        } else if (readScope === Scope.Org) {
+            newQuery.$or = [ { org: requester.org }, { id: requester.id } ];
+        }
+        
+        return newQuery;
+    };
+    
+    userSvc.getUsers = function(query, req, users, multiGet) {
+        var limit = req.query && Number(req.query.limit) || 0,
+            skip = req.query && Number(req.query.skip) || 0,
             sort = req.query && req.query.sort,
             sortObj = {},
-            log = logger.getLog();
+            log = logger.getLog(),
+            resp = {},
+            promise;
         if (sort) {
             var sortParts = sort.split(',');
             if (sortParts.length !== 2 || (sortParts[1] !== '-1' && sortParts[1] !== '1' )) {
@@ -143,24 +167,44 @@
             return q({code: 403, body: 'Not authorized to read all users'});
         }
         
+        query = query || {};
+        
         log.info('[%1] User %2 getting users with query %3, sort %4, limit %5, skip %6', req.uuid,
                  req.user.id, JSON.stringify(query), JSON.stringify(sortObj), limit, skip);
 
-        return q.npost(users.find(query, {sort: sortObj, limit: limit, skip: skip}), 'toArray')
-        .then(function(results) {
-            log.trace('[%1] Retrieved %2 users', req.uuid, results.length);
-            var users = results.filter(function(result) {
-                return result.status !== Status.Deleted &&
-                       userSvc.checkScope(req.user, result, 'read');
-            });
-            users = users.map(mongoUtils.safeUser);
-            log.info('[%1] Showing the requester %2 user documents', req.uuid, users.length);
-            if (users.length === 0) {
-                return q({code: 404, body: 'No users found'});
-            } else {
-                return q({code: 200, body: users});
+        var permQuery = userSvc.userPermQuery(query, req.user),
+            cursor = users.find(permQuery, {sort: sortObj, limit: limit, skip: skip});
+        
+        log.trace('[%1] permQuery = %2', req.uuid, JSON.stringify(permQuery));
+        
+        if (multiGet) {
+            promise = q.npost(cursor, 'count');
+        } else {
+            promise = q();
+        }
+        return promise.then(function(count) {
+            if (count !== undefined) {
+                resp.pagination = {
+                    start: count !== 0 ? skip + 1 : 0,
+                    end: limit ? Math.min(skip + limit , count) : count,
+                    total: count
+                };
             }
-        }).catch(function(error) {
+            return q.npost(cursor, 'toArray');
+        })
+        .then(function(results) {
+            var userList = results.map(function(user) { return mongoUtils.safeUser(user); });
+            log.info('[%1] Showing the requester %2 user documents', req.uuid, userList.length);
+            if (userList.length === 0) {
+                resp.code = 404;
+                resp.body = 'No users found';
+            } else {
+                resp.code = 200;
+                resp.body = userList;
+            }
+            return q(resp);
+        })
+        .catch(function(error) {
             log.error('[%1] Error getting users: %2', req.uuid, error);
             return q.reject(error);
         });
@@ -182,6 +226,9 @@
         if (!newUser.status) {
             newUser.status = Status.Active;
         }
+        if (!newUser.type) {
+            newUser.type = 'Publisher';
+        }
         if (!newUser.permissions) {
             newUser.permissions = {};
         }
@@ -201,11 +248,12 @@
                 delete: Scope.Org
             },
             users: {
-                read: Scope.Own,
+                read: Scope.Org,
                 edit: Scope.Own
             },
             orgs: {
-                read: Scope.Own
+                read: Scope.Own,
+                edit: Scope.Own
             }
         };
         Object.keys(defaultPerms).forEach(function(key) {
@@ -219,7 +267,9 @@
                 });
             }
         });
-        newUser.config = {};
+        if (!newUser.config) {
+            newUser.config = {};
+        }
         return q.npost(bcrypt, 'hash', [newUser.password, bcrypt.genSaltSync()])
         .then(function(hashed) {
             newUser.password = hashed;
@@ -547,7 +597,7 @@
         
         var authGetUser = authUtils.middlewarify({users: 'read'});
         app.get('/api/account/user/:id', sessionsWrapper, authGetUser, function(req,res){
-            userSvc.getUsers({ id: req.params.id }, req, users)
+            userSvc.getUsers({ id: req.params.id }, req, users, false)
             .then(function(resp) {
                 if (resp.body && resp.body instanceof Array) {
                     res.send(resp.code, resp.body[0]);
@@ -564,8 +614,13 @@
         
         app.get('/api/account/users', sessionsWrapper, authGetUser, function(req, res) {
             var query = req.query && req.query.org ? { org: req.query.org } : null;
-            userSvc.getUsers(query, req, users)
+            userSvc.getUsers(query, req, users, true)
             .then(function(resp) {
+                if (resp.pagination) {
+                    res.header('content-range', 'items ' + resp.pagination.start + '-' +
+                                                resp.pagination.end + '/' + resp.pagination.total);
+                    
+                }
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, {

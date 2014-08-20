@@ -1,5 +1,29 @@
 # Content Service Changelog
 
+### 1.7.0: Mon Aug 18 09:56:07 EDT 2014
+* [FEATURE]: Send Content-Range header when paginating experiences: [#257](https://github.com/cinema6/cwrx/pull/257)
+* [FEATURE]: Set `lastPublished` date on experiences when returning to client: [#255](https://github.com/cinema6/cwrx/pull/255)
+* [FIX]: Default experiences to public: [#255](https://github.com/cinema6/cwrx/pull/255)
+* Extra deployment steps: None
+
+### 1.6.2: Mon Aug 11 10:09:05 EDT 2014
+* [FIX]: Trim off title and versionId fields when creating experiences: [#251](https://github.com/cinema6/cwrx/pull/251)
+* [FIX]: Allow admins to set different user and org when creating experiences: [#250](https://github.com/cinema6/cwrx/pull/250)
+* Extra deployment steps: None
+
+### 1.6.1: Fri Aug  8 10:09:35 EDT 2014
+* [FIX]: Whitelist public cinema6.com sites for experience access control: [#249](https://github.com/cinema6/cwrx/pull/249)
+* Extra deployment steps: None
+
+### 1.6.0: Tue Aug  5 15:52:33 EDT 2014
+* [FIX]: Use origin or referer header for access control: [#244](https://github.com/cinema6/cwrx/pull/244)
+* [FEATURE]: Add JSONP endpoint: [#244](https://github.com/cinema6/cwrx/pull/244)
+* Extra deployment steps: Ensure Cloudfront forwards Referer and Origin headers in staging/production
+
+### 1.5.1: Mon Aug  4 12:04:17 EDT 2014
+* [FIX]: Update access control for experiences using access prop and request origin: [#241](https://github.com/cinema6/cwrx/pull/241)
+* Extra deployment steps: None
+
 ### 1.5.0: Thu Jul 24 17:11:39 EDT 2014
 * [FEATURE]: Lookup adConfig from org for public GET experience endpoint: [#226](https://github.com/cinema6/cwrx/pull/226)
 * Extra deployment steps: Deploy new version of content cookbook

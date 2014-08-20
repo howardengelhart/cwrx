@@ -1,5 +1,21 @@
 # User Service Changelog
 
+### 1.6.0: Mon Aug 18 14:31:18 EDT 2014
+* [FEATURE]: Send Content-Range header when paginating orgs: [#257](https://github.com/cinema6/cwrx/pull/258)
+* Extra deployment steps: None
+
+### 1.5.5: Mon Aug 18 09:56:07 EDT 2014
+* [FIX]: By default, allow users to read org-level users and edit own org: [#255](https://github.com/cinema6/cwrx/pull/255)
+* Extra deployment steps: None
+
+### 1.5.4: Mon Aug 11 10:09:05 EDT 2014
+* [FIX]: Default new users' type to 'Publisher': [#250](https://github.com/cinema6/cwrx/pull/250)
+* Extra deployment steps: None
+
+### 1.5.3: Mon Aug  4 12:40:36 EDT 2014
+* [FIX]: Fix hardcoding new users' config: [#242](https://github.com/cinema6/cwrx/pull/242)
+* Extra deployment steps: None
+
 ### 1.5.2: Tue Jul 29 15:07:19 EDT 2014
 * [FIX]: Allow admins to change users' orgs: [#235](https://github.com/cinema6/cwrx/pull/235)
 * [FIX]: Properly allow overriding the default applications list: [#235](https://github.com/cinema6/cwrx/pull/235)

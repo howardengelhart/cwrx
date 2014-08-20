@@ -109,14 +109,13 @@
     };
 
     // Get a list of all orgs from mongo
-    orgSvc.getOrgs = function(req, orgs) {
-
-        var limit = req.query && req.query.limit || 0,
-            skip = req.query && req.query.skip || 0,
+    orgSvc.getOrgs = function(query, req, orgs) {
+        var limit = req.query && Number(req.query.limit) || 0,
+            skip = req.query && Number(req.query.skip) || 0,
             sort = req.query && req.query.sort,
             sortObj = {},
-            log = logger.getLog();
-
+            log = logger.getLog(),
+            resp = {};
         if (sort) {
             var sortParts = sort.split(',');
             if (sortParts.length !== 2 || (sortParts[1] !== '-1' && sortParts[1] !== '1' )) {
@@ -133,26 +132,40 @@
             log.info('[%1] User %2 is not authorized to read all orgs', req.uuid, req.user.id);
             return q({code: 403, body: 'Not authorized to read all orgs'});
         }
+        
+        query = query || {};
+        query.status = {$ne: Status.Deleted};
 
-        log.info('[%1] User %2 getting orgs with sort %3, limit %4, skip %5', req.uuid,
-                 req.user.id, JSON.stringify(sortObj), limit, skip);
-        return q.npost(orgs.find({}, {sort: sortObj, limit: limit, skip: skip}), 'toArray')
+        log.info('[%1] User %2 getting orgs with query %3, sort %4, limit %5, skip %6', req.uuid,
+                 req.user.id, JSON.stringify(query), JSON.stringify(sortObj), limit, skip);
+
+        var cursor = orgs.find(query, {sort: sortObj, limit: limit, skip: skip});
+        
+        return q.npost(cursor, 'count')
+        .then(function(count) {
+            resp.pagination = {
+                start: count !== 0 ? skip + 1 : 0,
+                end: limit ? Math.min(skip + limit , count) : count,
+                total: count
+            };
+            return q.npost(cursor, 'toArray');
+        })
         .then(function(results) {
-            log.trace('[%1] Retrieved %2 orgs', req.uuid, results.length);
-            var orgs = results.filter(function(result) {
-                return result.status !== Status.Deleted;
-            });
-            orgs = orgs.map(function(result){
+            var orgList = results.map(function(result){
                 delete result._id;
                 return mongoUtils.unescapeKeys(result);
             });
-            log.info('[%1] Showing the requester %2 org documents', req.uuid, orgs.length);
-            if (orgs.length === 0) {
-                return q({code: 404, body: 'No orgs found'});
+            log.info('[%1] Showing the requester %2 org documents', req.uuid, orgList.length);
+            if (orgList.length === 0) {
+                resp.code = 404;
+                resp.body = 'No orgs found';
             } else {
-                return q({code: 200, body: orgs});
+                resp.code = 200;
+                resp.body = orgList;
             }
-        }).catch(function(error) {
+            return q(resp);
+        })
+        .catch(function(error) {
             log.error('[%1] Error getting orgs: %2', req.uuid, error);
             return q.reject(error);
         });
@@ -179,7 +192,9 @@
                 newOrg.waterfalls[key] = defaultWaterfalls[key];
             }
         });
-        newOrg.config = {};
+        if (!newOrg.config) {
+            newOrg.config = {};
+        }
         delete newOrg._id;
         newOrg = mongoUtils.escapeKeys(newOrg);
     };
@@ -439,8 +454,13 @@
         });
 
         app.get('/api/account/orgs', sessionsWrapper, authGetUser, function(req, res) {
-            orgSvc.getOrgs(req, orgs)
+            orgSvc.getOrgs(null, req, orgs)
             .then(function(resp) {
+                if (resp.pagination) {
+                    res.header('content-range', 'items ' + resp.pagination.start + '-' +
+                                                resp.pagination.end + '/' + resp.pagination.total);
+                    
+                }
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, {

@@ -63,6 +63,7 @@ describe('user (E2E):', function() {
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.email).toBe('test');
                 expect(resp.body.password).not.toBeDefined();
+                expect(resp.response.headers['content-range']).not.toBeDefined();
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -143,6 +144,7 @@ describe('user (E2E):', function() {
                 expect(resp.body[2].id).toBe('e2e-user');
                 expect(resp.body[2].email).toBe('usersvce2euser');
                 expect(resp.body[2].password).not.toBeDefined();
+                expect(resp.response.headers['content-range']).toBe('items 1-3/3');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -163,6 +165,7 @@ describe('user (E2E):', function() {
                 expect(resp.body[0].id).toBe('e2e-getOrg2');
                 expect(resp.body[0].email).toBe('abcd');
                 expect(resp.body[0].password).not.toBeDefined();
+                expect(resp.response.headers['content-range']).toBe('items 1-1/3');
                 options.url += '&skip=1';
                 return testUtils.qRequest('get', options);
             }).then(function(resp) {
@@ -173,6 +176,7 @@ describe('user (E2E):', function() {
                 expect(resp.body[0].id).toBe('e2e-getOrg1');
                 expect(resp.body[0].email).toBe('defg');
                 expect(resp.body[0].password).not.toBeDefined();
+                expect(resp.response.headers['content-range']).toBe('items 2-2/3');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -185,6 +189,7 @@ describe('user (E2E):', function() {
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('No users found');
+                expect(resp.response.headers['content-range']).toBe('items 0-0/0');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -197,6 +202,7 @@ describe('user (E2E):', function() {
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe("Unauthorized");
+                expect(resp.response.headers['content-range']).not.toBeDefined();
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -209,6 +215,7 @@ describe('user (E2E):', function() {
             testUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toEqual('Not authorized to read all users');
+                expect(resp.response.headers['content-range']).not.toBeDefined();
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -241,6 +248,7 @@ describe('user (E2E):', function() {
                 expect(resp.body[2].password).not.toBeDefined();
                 expect(resp.body[3].id).toBe('e2e-getOrg3');
                 expect(resp.body[3].password).not.toBeDefined();
+                expect(resp.response.headers['content-range']).toBe('items 1-4/4');
                 delete cookieJar.cookies; // force reset and re-login of mockRequester in beforeEach
                 done();
             }).catch(function(error) {
@@ -277,11 +285,12 @@ describe('user (E2E):', function() {
                 expect(newUser.config).toEqual({});
                 expect(newUser.org).toBe('o-1234');
                 expect(newUser.status).toBe('active');
+                expect(newUser.type).toBe('Publisher');
                 expect(newUser.permissions).toEqual({
                     experiences: { read: 'org', create: 'org', edit: 'org', delete: 'org' },
                     elections: { read: 'org', create: 'org', edit: 'org', delete: 'org' },
-                    users: { read: 'own', edit: 'own' },
-                    orgs: { read: 'own' }
+                    users: { read: 'org', edit: 'own' },
+                    orgs: { read: 'own', edit: 'own' }
                 });
                 done();
             }).catch(function(error) {
@@ -307,9 +316,11 @@ describe('user (E2E):', function() {
         it('should be able to override default properties', function(done) {
             mockUser.status = 'pending';
             mockUser.permissions = {
-                users: { read: 'org', edit: 'org' }
+                users: { edit: 'org', delete: 'org' }
             };
             mockUser.applications = ['e-1234'];
+            mockUser.config = {foo: 'bar'};
+            mockUser.type = 'ContentProvider';
             testUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 var newUser = resp.body;
@@ -317,11 +328,13 @@ describe('user (E2E):', function() {
                 expect(newUser.password).not.toBeDefined();
                 expect(newUser.status).toBe('pending');
                 expect(newUser.applications).toEqual(['e-1234']);
+                expect(newUser.config).toEqual({foo: 'bar'});
+                expect(newUser.type).toBe('ContentProvider');
                 expect(newUser.permissions).toEqual({
                     experiences: { read: 'org', create: 'org', edit: 'org', delete: 'org' },
                     elections: { read: 'org', create: 'org', edit: 'org', delete: 'org' },
-                    users: { read: 'org', edit: 'org' },
-                    orgs: { read: 'own' }
+                    users: { read: 'org', edit: 'org', delete: 'org' },
+                    orgs: { read: 'own', edit: 'own' }
                 });
                 done();
             }).catch(function(error) {

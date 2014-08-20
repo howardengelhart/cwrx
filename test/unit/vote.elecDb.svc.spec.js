@@ -199,6 +199,17 @@ describe('vote.elecDb (UT)',function(){
                 });
             });
             
+            it('should not query mongo if no ids are provided', function(done) {
+                elDb.syncElections([])
+                    .then(resolveSpy, rejectSpy)
+                    .finally(function() {
+                        expect(resolveSpy).toHaveBeenCalledWith([]);
+                        expect(rejectSpy).not.toHaveBeenCalled();
+                        expect(mockDb.find).not.toHaveBeenCalled();
+                        expect(mockDb.findAndModify).not.toHaveBeenCalled();
+                    }).done(done);
+            });
+            
             it('should just return a clean election without writing anything', function(done) {
                 elDb.syncElections(['el-abc'])
                     .then(resolveSpy, rejectSpy)
