@@ -10,6 +10,7 @@
         uuid            = require('../lib/uuid'),
         authUtils       = require('../lib/authUtils')(),
         service         = require('../lib/service'),
+        util            = require('util'),
         
         state      = {},
         search = {}; // for exporting functions to unit tests
@@ -29,9 +30,9 @@
         },
         google: {
             apiUrl: 'https://www.googleapis.com/customsearch/v1',
-            engineId: '007281538304941793863:cbx8mzslyne',//TODO: reformat fields?
-            fields: 'queries,spelling,items(title,htmlTitle,link,snippet,htmlSnippet,' +
-                    'pagemap(videoobject,cse_image,cse_thumbnail))'
+            engineId: '007281538304941793863:cbx8mzslyne',
+            fields: 'queries,items(title,link,displayLink,pagemap(videoobject(description,' +
+                    'duration,height,videoid,thumbnailurl),cse_thumbnail))' //TODO: reformat fields?
         },
         sessions: {
             key: 'c6Auth',
@@ -53,24 +54,93 @@
         }
     };
     
-    search.findVideos = function(req, googleCfg, apiKey) {
-        var log = logger.getLog(),
-            limit = Math.min(Math.max(parseInt(req.query && req.query.limit) || 10, 1), 10),
-            start = Math.max(parseInt(req.query && req.query.skip) || 0, 0) + 1;
+    // Parse a duration string and return the total number of seconds
+    search.parseDuration = function(duration, link) {
+        var log = logger.getLog();
         
-        if (!req.query || !req.query.query) {
-            log.info('[%1] No query in request', req.uuid);
-            return q({code: 400, body: 'No query in request'});
+        if (!duration) {
+            log.warn('Video %1 has no duration', link);
+            return undefined;
+        }
+
+        duration = duration.trim();
+
+        // expect durs to look like 'PT1H1M1S', except some vimeo vids have durs like '90 mins'
+        if (duration.match(/^\d+ mins/)) {
+            return Number(duration.match(/^\d+/)[0])*60;
+        } else if(!duration.match(/^PT(\d+H)?(\d+M)?(\d+S)?$/)) {
+            log.warn('Video %1 has unknown duration format %2', link, duration);
+            return undefined;
         }
         
+        return 60*60*Number((duration.match(/\d+(?=H)/) || [])[0] || 0) + // hours
+                  60*Number((duration.match(/\d+(?=M)/) || [])[0] || 0) + // minutes
+                     Number((duration.match(/\d+(?=S)/) || [])[0] || 0);  // seconds
+    };
+    
+    search.formatGoogleResults = function(stats, items) {
+        var log = logger.getLog();
+        var respObj = {
+            meta: {
+                skipped         : stats.startIndex - 1,
+                numResults      : stats.count,
+                totalResults    : stats.totalResults
+            }
+        };
+        
+        respObj.items = items.map(function(item) {
+            if (!item.pagemap || !item.pagemap.videoobject instanceof Array || !item.link) {
+                log.warn('Invalid item: ' + JSON.stringify(item));
+                return undefined; //TODO: will this work?
+            }
+
+            /*jshint camelcase: false */
+            var formatted = {
+                title       : item.title,
+                link        : item.link,
+                siteLink    : item.displayLink,
+                description : item.pagemap.videoobject[0].description,
+                thumbnail   : item.pagemap.cse_thumbnail && item.pagemap.cse_thumbnail[0] ||
+                              { src: item.pagemap.videoobject[0].thumbnailurl },
+                site        : (item.displayLink || '').replace('www.', '').replace('.com', ''),
+                hd          : item.pagemap.videoobject[0].height >= 720,
+                duration    : search.parseDuration(item.pagemap.videoobject[0].duration, item.link)
+            };
+            /*jshint camelcase: true */
+            
+            switch (formatted.site) {
+                case 'youtube':
+                    formatted.videoId = (item.link.match(/[^\=]+$/) || [])[0];
+                    break;
+                case 'vimeo':
+                    formatted.videoId = (item.link.match(/[^\/]+$/) || [])[0];
+                    break;
+                case 'dailymotion':
+                    formatted.videoId = (item.link.match(/[^\/_]+(?=_)/) || [])[0];
+                    break;
+            }
+            
+            return formatted;
+        });
+        
+        return respObj;
+    };
+    
+    search.findVideosWithGoogle = function(req, opts, googleCfg, apiKey) {
+        var log = logger.getLog();
+
+        if (opts.sites) { //TODO: may need to change this back to single (non-array) site
+            opts.query += ' site:' + opts.sites.join(' OR site:');
+        }
+
         var reqOpts = {
             url: googleCfg.apiUrl,
             qs: {
-                q       : req.query.query,
+                q       : opts.query,
                 cx      : googleCfg.engineId,
                 key     : apiKey,
-                num     : limit,
-                start   : start,
+                num     : opts.limit,
+                start   : opts.start,
                 fields  : googleCfg.fields
             },
             headers : {
@@ -78,16 +148,46 @@
             }
         };
         
-        log.info('[%1] User %2 is searching for %3 videos with query: %4; starting at result %5',
-                 req.uuid, req.user.id, limit, req.query.query, start);
+        if (opts.hd) {
+            reqOpts.qs.sort = 'videoobject-height:r:720';
+        }
                  
         return requestUtils.qRequest('get', reqOpts).then(function(resp) {
             var stats = resp.body.queries.request[0];
             log.info('[%1] Received %2 results from %3 total results, starting at %4',
                     req.uuid, stats.count, stats.totalResults, stats.startIndex);
-            //TODO: transform/format results?
-            return q({code: resp.response.statusCode, body: resp.body.items});
+            return q(search.formatGoogleResults(stats, resp.body.items));
         });
+
+    };
+    
+    search.findVideos = function(req, config, secrets) {
+        var log = logger.getLog(),
+            query = req.query && req.query.query || null,
+            limit = Math.min(Math.max(parseInt(req.query && req.query.limit) || 10, 1), 10),
+            start = Math.max(parseInt(req.query && req.query.skip) || 0, 0) + 1,
+            sites = req.query && req.query.sites && req.query.sites.split(',') || null,
+            hd = req.query && req.query.hd || false,
+            opts = { query: query, limit: limit, start: start, sites: sites, hd: hd };
+        
+        if (!query) {
+            log.info('[%1] No query in request', req.uuid);
+            return q({code: 400, body: 'No query in request'});
+        }
+        
+        log.info('[%1] User %2 is searching for %3 videos %4with query: %5; starting at result %6',
+                 req.uuid, req.user.id, limit, sites ? 'from ' + sites.join(',') + ' ' : '',
+                 query, start);
+                 
+        return search.findVideosWithGoogle(req, opts, config.google, secrets.googleKey)
+        .then(function(respObj) {
+            return q({code: 200, body: respObj});
+        }).catch(function(error) {
+            //TODO: handle different error codes differently?
+            log.error('[%1] Error searching videos: %2', req.uuid, util.inspect(error));
+            return q.reject(error);
+        });
+
     };
 
     search.main = function(state) {
@@ -166,7 +266,7 @@
         
         var authSearch = authUtils.middlewarify({});
         app.get('/api/search/videos', sessionsWrapper, authSearch, function(req,res){
-            search.findVideos(req, state.config.google, state.secrets.googleKey)
+            search.findVideos(req, state.config, state.secrets)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
