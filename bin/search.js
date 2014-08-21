@@ -32,7 +32,7 @@
             apiUrl: 'https://www.googleapis.com/customsearch/v1',
             engineId: '007281538304941793863:cbx8mzslyne',
             fields: 'queries,items(title,link,displayLink,pagemap(videoobject(description,' +
-                    'duration,height,videoid,thumbnailurl),cse_thumbnail))' //TODO: reformat fields?
+                    'duration,height,thumbnailurl),cse_thumbnail))'
         },
         sessions: {
             key: 'c6Auth',
@@ -70,7 +70,7 @@
             return Number(duration.match(/^\d+/)[0])*60;
         } else if(!duration.match(/^PT(\d+H)?(\d+M)?(\d+S)?$/)) {
             log.warn('Video %1 has unknown duration format %2', link, duration);
-            return undefined;
+            return undefined; // are we sure about all the log.warns?
         }
         
         return 60*60*Number((duration.match(/\d+(?=H)/) || [])[0] || 0) + // hours
@@ -87,7 +87,7 @@
                 totalResults    : stats.totalResults
             }
         };
-        
+
         respObj.items = items.map(function(item) {
             if (!item.pagemap || !item.pagemap.videoobject instanceof Array || !item.link) {
                 log.warn('Invalid item: ' + JSON.stringify(item));
@@ -121,11 +121,14 @@
             }
             
             return formatted;
+        }).filter(function(item) {
+            return !!item;
         });
         
         return respObj;
     };
     
+    //TODO: comment all these funcs
     search.findVideosWithGoogle = function(req, opts, googleCfg, apiKey) {
         var log = logger.getLog();
 
@@ -152,11 +155,23 @@
             reqOpts.qs.sort = 'videoobject-height:r:720';
         }
                  
-        return requestUtils.qRequest('get', reqOpts).then(function(resp) {
+        return requestUtils.qRequest('get', reqOpts)
+        .then(function(resp) {
+            if (resp.response.statusCode < 200 || resp.response.statusCode >= 300) {
+                log.warn('[%1] Received error response from google: code %2, body = %3',
+                         req.uuid, resp.response.statusCode, util.inspect(resp.body));
+                return q({code: 500, body: 'Error querying google'}); //TODO: or more transparent?
+            } else if (!resp.body.queries || !resp.body.queries.request || !resp.body.items) {
+                log.warn('[%1] Received incomplete response body from google: %2',
+                         req.uuid, util.inspect(resp.body));
+                return q({code: 500, body: 'Error querying google'}); //TODO: or more transparent?
+            }
+            
             var stats = resp.body.queries.request[0];
             log.info('[%1] Received %2 results from %3 total results, starting at %4',
                     req.uuid, stats.count, stats.totalResults, stats.startIndex);
-            return q(search.formatGoogleResults(stats, resp.body.items));
+
+            return q({code: 200, body: search.formatGoogleResults(stats, resp.body.items)});
         });
 
     };
@@ -180,10 +195,7 @@
                  query, start);
                  
         return search.findVideosWithGoogle(req, opts, config.google, secrets.googleKey)
-        .then(function(respObj) {
-            return q({code: 200, body: respObj});
-        }).catch(function(error) {
-            //TODO: handle different error codes differently?
+        .catch(function(error) {
             log.error('[%1] Error searching videos: %2', req.uuid, util.inspect(error));
             return q.reject(error);
         });
@@ -285,7 +297,7 @@
             };
             res.send(200, data);
         });
-
+        
         app.get('/api/search/version',function(req, res) {
             res.send(200, state.config.appVersion);
         });
