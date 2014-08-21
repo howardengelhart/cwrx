@@ -1,15 +1,16 @@
-var request     = require('request'),
-    q           = require('q'),
-    path        = require('path'),
-    fs          = require('fs-extra'),
-    aws         = require('aws-sdk'),
-    Imap        = require('imap'),
-    mailparser  = require('mailparser'),
-    events      = require('events'),
-    util        = require('util'),
-    mongoUtils  = require('../../lib/mongoUtils'),
-    s3util      = require('../../lib/s3util'),
-    awsAuth     = process.env['awsAuth'] || path.join(process.env.HOME,'.aws.json'),
+var request         = require('request'),
+    q               = require('q'),
+    path            = require('path'),
+    fs              = require('fs-extra'),
+    aws             = require('aws-sdk'),
+    Imap            = require('imap'),
+    mailparser      = require('mailparser'),
+    events          = require('events'),
+    util            = require('util'),
+    requestUtils    = require('../../lib/requestUtils'),
+    mongoUtils      = require('../../lib/mongoUtils'),
+    s3util          = require('../../lib/s3util'),
+    awsAuth         = process.env['awsAuth'] || path.join(process.env.HOME,'.aws.json'),
     
     testUtils = {};
 
@@ -66,7 +67,7 @@ testUtils.checkStatus = function(jobId, host, statusUrl, statusTimeout, pollInte
         };
     
     interval = setInterval(function() {
-        qRequest('get', [options])
+        requestUtils.qRequest('get', [options])
         .then(function(resp) {
             if (resp.response.statusCode !== 202) {
                 clearInterval(interval);
