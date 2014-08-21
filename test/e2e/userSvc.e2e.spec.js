@@ -1,7 +1,8 @@
-var q           = require('q'),
-    testUtils   = require('./testUtils'),
-    host        = process.env['host'] || 'localhost',
-    config      = {
+var q               = require('q'),
+    testUtils       = require('./testUtils'),
+    requestUtils    = require('../../lib/requestUtils'),
+    host            = process.env['host'] || 'localhost',
+    config = {
         userSvcUrl  : 'http://' + (host === 'localhost' ? host + ':3500' : host) + '/api/account',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
@@ -35,7 +36,7 @@ describe('user (E2E):', function() {
             }
         };
         testUtils.resetCollection('users', mockRequester).then(function(resp) {
-            return testUtils.qRequest('post', loginOpts);
+            return requestUtils.qRequest('post', loginOpts);
         }).done(function(resp) {
             done();
         });
@@ -55,7 +56,7 @@ describe('user (E2E):', function() {
         it('should get a user by id', function(done) {
             var options = { url: config.userSvcUrl + '/user/e2e-getId1', jar: cookieJar };
             testUtils.resetCollection('users', [mockUser, mockRequester]).then(function() {
-                return testUtils.qRequest('get', options);
+                return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).not.toEqual(mockUser);
@@ -76,7 +77,7 @@ describe('user (E2E):', function() {
             mockUser.org = 'o-4567';
             mockUser.id = 'e2e-getId2';
             testUtils.resetCollection('users', [mockUser, mockRequester]).then(function() {
-                return testUtils.qRequest('get', options);
+                return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('No users found');
@@ -90,7 +91,7 @@ describe('user (E2E):', function() {
         it('should return a 404 if nothing is found', function(done) {
             var options = { url: config.userSvcUrl + '/user/e2e-fake1', jar: cookieJar };
             testUtils.resetCollection('users', [mockUser, mockRequester]).then(function() {
-                return testUtils.qRequest('get', options);
+                return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('No users found');
@@ -103,7 +104,7 @@ describe('user (E2E):', function() {
         
         it('should throw a 401 error if the user is not authenticated', function(done) {
             var options = { url: config.userSvcUrl + '/user/e2e-fake1' };
-            testUtils.qRequest('get', options).then(function(resp) {
+            requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe("Unauthorized");
                 done();
@@ -127,7 +128,7 @@ describe('user (E2E):', function() {
         
         it('should get users by org', function(done) {
             var options = { url: config.userSvcUrl + '/users?org=o-1234', jar: cookieJar };
-            testUtils.qRequest('get', options).then(function(resp) {
+            requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
                 expect(resp.body instanceof Array).toBeTruthy('body is array');
@@ -157,7 +158,7 @@ describe('user (E2E):', function() {
                 url: config.userSvcUrl + '/users?org=o-1234&sort=email,1&limit=1',
                 jar: cookieJar
             };
-            testUtils.qRequest('get', options).then(function(resp) {
+            requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
                 expect(resp.body instanceof Array).toBeTruthy('body is array');
@@ -167,7 +168,7 @@ describe('user (E2E):', function() {
                 expect(resp.body[0].password).not.toBeDefined();
                 expect(resp.response.headers['content-range']).toBe('items 1-1/3');
                 options.url += '&skip=1';
-                return testUtils.qRequest('get', options);
+                return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
@@ -186,7 +187,7 @@ describe('user (E2E):', function() {
         
         it('should not show users the requester cannot see', function(done) {
             var options = { url: config.userSvcUrl + '/users?org=o-4567', jar: cookieJar };
-            testUtils.qRequest('get', options).then(function(resp) {
+            requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('No users found');
                 expect(resp.response.headers['content-range']).toBe('items 0-0/0');
@@ -199,7 +200,7 @@ describe('user (E2E):', function() {
 
         it('should throw a 401 error if the user is not authenticated', function(done) {
             var options = { url: config.userSvcUrl + '/users?org=o-1234' };
-            testUtils.qRequest('get', options).then(function(resp) {
+            requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe("Unauthorized");
                 expect(resp.response.headers['content-range']).not.toBeDefined();
@@ -212,7 +213,7 @@ describe('user (E2E):', function() {
         
         it('should prevent a non-admin user from getting all users', function(done) {
             var options = { url: config.userSvcUrl + '/users', jar: cookieJar };
-            testUtils.qRequest('get', options).then(function(resp) {
+            requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toEqual('Not authorized to read all users');
                 expect(resp.response.headers['content-range']).not.toBeDefined();
@@ -233,10 +234,10 @@ describe('user (E2E):', function() {
                     jar: cookieJar,
                     json: { email: 'usersvce2euser', password: 'password' }
                 };
-                return testUtils.qRequest('post', loginOpts);
+                return requestUtils.qRequest('post', loginOpts);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                return testUtils.qRequest('get', options);
+                return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(4);
@@ -271,7 +272,7 @@ describe('user (E2E):', function() {
         });
         
         it('should be able to create a user', function(done) {
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 var newUser = resp.body;
                 expect(newUser).toBeDefined();
@@ -301,7 +302,7 @@ describe('user (E2E):', function() {
         
         it('should lowercase the new email', function(done) {
             options.json.email = 'TestPostUser';
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.email).toBe('testpostuser');
@@ -321,7 +322,7 @@ describe('user (E2E):', function() {
             mockUser.applications = ['e-1234'];
             mockUser.config = {foo: 'bar'};
             mockUser.type = 'ContentProvider';
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 var newUser = resp.body;
                 expect(newUser).toBeDefined();
@@ -345,16 +346,16 @@ describe('user (E2E):', function() {
 
         it('should throw a 400 error if the body is missing or incomplete', function(done) {
             options.json = {};
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('New user object must have a email and password');
                 options.json = { email: 'testpostuser' };
-                return testUtils.qRequest('post', options);
+                return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('New user object must have a email and password');
                 options.json = { password: 'password' };
-                return testUtils.qRequest('post', options);
+                return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('New user object must have a email and password');
@@ -366,10 +367,10 @@ describe('user (E2E):', function() {
         });
         
         it('should throw a 409 error if a user with that email exists', function(done) {
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toBeDefined();
-                return testUtils.qRequest('post', options);
+                return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(409);
                 expect(resp.body).toBe('A user with that email already exists');
@@ -382,7 +383,7 @@ describe('user (E2E):', function() {
         
         it('should throw a 400 if the new user is not in the requester\'s org', function(done) {
             mockUser.org = 'o-4567';
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Illegal fields');
                 done();
@@ -394,7 +395,7 @@ describe('user (E2E):', function() {
         
         it('should throw a 401 error if the user is not authenticated', function(done) {
             delete options.jar;
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe("Unauthorized");
                 done();
@@ -437,7 +438,7 @@ describe('user (E2E):', function() {
                 json: updates,
                 jar: cookieJar
             };
-            testUtils.qRequest('put', options).then(function(resp) {
+            requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 var user = resp.body;
                 expect(user._id).not.toBeDefined();
@@ -459,7 +460,7 @@ describe('user (E2E):', function() {
                 json: updates,
                 jar: cookieJar
             };
-            testUtils.qRequest('put', options).then(function(resp) {
+            requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('That user does not exist');
                 done();
@@ -475,7 +476,7 @@ describe('user (E2E):', function() {
                 json: updates,
                 jar: cookieJar
             };
-            testUtils.qRequest('put', options).then(function(resp) {
+            requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Not authorized to edit this user');
                 done();
@@ -491,7 +492,7 @@ describe('user (E2E):', function() {
                 json: { password: 'newpass' },
                 jar: cookieJar
             };
-            testUtils.qRequest('put', options).then(function(resp) {
+            requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Illegal fields');
                 done();
@@ -503,7 +504,7 @@ describe('user (E2E):', function() {
     
         it('should throw a 401 error if the user is not authenticated', function(done) {
             var options = { url: config.userSvcUrl + '/user/e2e-fake' };
-            testUtils.qRequest('put', options).then(function(resp) {
+            requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
                 done();
@@ -526,11 +527,11 @@ describe('user (E2E):', function() {
         
         it('should successfully mark a user as deleted', function(done) {
             var options = { url: config.userSvcUrl + '/user/e2e-delete1', jar: cookieJar };
-            testUtils.qRequest('delete', options).then(function(resp) {
+            requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 options = { url: config.userSvcUrl + '/user/e2e-delete1', jar: cookieJar };
-                return testUtils.qRequest('get', options);
+                return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('No users found');
@@ -543,7 +544,7 @@ describe('user (E2E):', function() {
         
         it('should still succeed if the user does not exist', function(done) {
             var options = { url: config.userSvcUrl + '/user/e2e-fake', jar: cookieJar };
-            testUtils.qRequest('delete', options).then(function(resp) {
+            requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 done();
@@ -555,11 +556,11 @@ describe('user (E2E):', function() {
         
         it('should still succeed if the user has already been deleted', function(done) {
             var options = { url: config.userSvcUrl + '/user/e2e-delete1', jar: cookieJar };
-            testUtils.qRequest('delete', options).then(function(resp) {
+            requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 options = { url: config.userSvcUrl + '/user/e2e-delete1', jar: cookieJar };
-                return testUtils.qRequest('delete', options);
+                return requestUtils.qRequest('delete', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -572,11 +573,11 @@ describe('user (E2E):', function() {
         
         it('should not allow a user to delete themselves', function(done) {
             var options = { url: config.userSvcUrl + '/user/e2e-user', jar: cookieJar };
-            testUtils.qRequest('delete', options).then(function(resp) {
+            requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('You cannot delete yourself');
                 options = { url: config.userSvcUrl + '/user/e2e-user', jar: cookieJar };
-                return testUtils.qRequest('get', options);
+                return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.status).toBe('active');
@@ -589,7 +590,7 @@ describe('user (E2E):', function() {
         
         it('should throw a 403 if the requester is not authorized to delete the user', function(done) {
             var options = { url: config.userSvcUrl + '/user/e2e-delete2', jar: cookieJar };
-            testUtils.qRequest('delete', options).then(function(resp) {
+            requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Not authorized to delete this user');
                 done();
@@ -601,7 +602,7 @@ describe('user (E2E):', function() {
     
         it('should throw a 401 error if the user is not authenticated', function(done) {
             var options = { url: config.userSvcUrl + '/user/e2e-fake' };
-            testUtils.qRequest('delete', options).then(function(resp) {
+            requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe("Unauthorized");
                 done();
@@ -629,18 +630,18 @@ describe('user (E2E):', function() {
         it('should fail if email, password, or newEmail are not provided', function(done) {
             reqBody = { password: 'password', newEmail: 'mynewemail' };
             options.json = reqBody;
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Must provide email and password');
                 reqBody = { email: 'c6e2etester@gmail.com', newEmail: 'mynewemail' };
                 options.json = reqBody;
-                return testUtils.qRequest('post', options);
+                return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Must provide email and password');
                 reqBody = { email: 'c6e2etester@gmail.com', password: 'password' };
                 options.json = reqBody;
-                return testUtils.qRequest('post', options);
+                return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Must provide a new email');
@@ -654,7 +655,7 @@ describe('user (E2E):', function() {
         it('should fail if the user\'s email is invalid', function(done) {
             reqBody.email = 'mynewemail';
             options.json = reqBody;
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Invalid email or password');
                 done();
@@ -667,7 +668,7 @@ describe('user (E2E):', function() {
         it('should fail if the user\'s password is invalid', function(done) {
             reqBody.password = 'thisisnotapassword';
             options.json = reqBody;
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Invalid email or password');
                 done();
@@ -680,7 +681,7 @@ describe('user (E2E):', function() {
         it('should fail if a user with that email already exists', function(done) {
             var altUser = { id: 'u-2', email: 'mynewemail' };
             testUtils.resetCollection('users', [user, altUser]).then(function() {
-                return testUtils.qRequest('post', options);
+                return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(409);
                 expect(resp.body).toBe('A user with that email already exists');
@@ -705,13 +706,13 @@ describe('user (E2E):', function() {
                     mailman.stop();
                     done();
                 });
-                return testUtils.qRequest('post', options);
+                return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBe('Successfully changed email');
                 var optionsA = {url:config.authUrl + '/login', json:{email:'c6e2etester@gmail.com',password:'password'}};
                 var optionsB = {url:config.authUrl + '/login', json:{email:'mynewemail',password:'password'}};
-                return q.all([testUtils.qRequest('post', optionsA), testUtils.qRequest('post', optionsB)]);
+                return q.all([requestUtils.qRequest('post', optionsA), requestUtils.qRequest('post', optionsB)]);
             }).then(function(resps) {
                 expect(resps[0].response.statusCode).toBe(401);
                 expect(resps[0].body).toBe('Invalid email or password');
@@ -737,13 +738,13 @@ describe('user (E2E):', function() {
                     mailman.stop();
                     done();
                 });
-                return testUtils.qRequest('post', options);
+                return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBe('Successfully changed email');
                 var optionsA = {url:config.authUrl + '/login', json:{email:'c6e2etester@gmail.com',password:'password'}};
                 var optionsB = {url:config.authUrl + '/login', json:{email:'mynewemail',password:'password'}};
-                return q.all([testUtils.qRequest('post', optionsA), testUtils.qRequest('post', optionsB)]);
+                return q.all([requestUtils.qRequest('post', optionsA), requestUtils.qRequest('post', optionsB)]);
             }).then(function(resps) {
                 expect(resps[0].response.statusCode).toBe(401);
                 expect(resps[0].body).toBe('Invalid email or password');
@@ -774,18 +775,18 @@ describe('user (E2E):', function() {
         it('should fail if email, password, or newPassword are not provided', function(done) {
             reqBody = { password: 'password', newPassword: 'foobar' };
             options.json = reqBody;
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Must provide email and password');
                 reqBody = { email: 'c6e2etester@gmail.com', newPassword: 'foobar' };
                 options.json = reqBody;
-                return testUtils.qRequest('post', options);
+                return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Must provide email and password');
                 reqBody = { email: 'c6e2etester@gmail.com', password: 'password' };
                 options.json = reqBody;
-                return testUtils.qRequest('post', options);
+                return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Must provide a new password');
@@ -799,7 +800,7 @@ describe('user (E2E):', function() {
         it('should fail if the email is invalid', function(done) {
             reqBody.email = 'mynewemail';
             options.json = reqBody;
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Invalid email or password');
                 done();
@@ -812,7 +813,7 @@ describe('user (E2E):', function() {
         it('should fail if the current password is invalid', function(done) {
             reqBody.password = 'thisisnotapassword';
             options.json = reqBody;
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Invalid email or password');
                 done();
@@ -836,12 +837,12 @@ describe('user (E2E):', function() {
                     mailman.stop();
                     done();
                 });
-                return testUtils.qRequest('post', options)
+                return requestUtils.qRequest('post', options)
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBe('Successfully changed password');
                 var loginOpts = {url:config.authUrl + '/login', json:{email:'c6e2etester@gmail.com',password:'foobar'}};
-                return testUtils.qRequest('post', loginOpts);
+                return requestUtils.qRequest('post', loginOpts);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
@@ -863,12 +864,12 @@ describe('user (E2E):', function() {
                     mailman.stop();
                     done();
                 });
-                return testUtils.qRequest('post', options)
+                return requestUtils.qRequest('post', options)
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBe('Successfully changed password');
                 var loginOpts = {url:config.authUrl + '/login', json:{email:'c6E2etester@gmail.com',password:'foobar'}};
-                return testUtils.qRequest('post', loginOpts);
+                return requestUtils.qRequest('post', loginOpts);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();

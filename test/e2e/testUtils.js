@@ -57,33 +57,6 @@ testUtils.resetCollection = function(collection,data,userCfg){
         });
 };
 
-// files should be { file1: path, file2: path, ... }. They get appended as multipart/form-data uploads
-testUtils.qRequest = function(method, opts, files) {
-    var deferred = q.defer();
-    opts.method = method;
-
-    var req = request(opts, function(error, response, body) {
-        if (error) return deferred.reject(error);
-        if (!response) return deferred.reject({error: 'Missing response'});
-        body = body || '';
-        try {
-            body = JSON.parse(body);
-        } catch(e) {
-        }
-        if (body.error) return deferred.reject(body);
-        deferred.resolve({response: response, body: body});
-    });
-    
-    if (files && typeof files === 'object' && Object.keys(files).length > 0) {
-        var form = req.form();
-        Object.keys(files).forEach(function(key) {
-            form.append(key, fs.createReadStream(files[key]));
-        });
-    }
-    
-    return deferred.promise;
-}
-
 testUtils.checkStatus = function(jobId, host, statusUrl, statusTimeout, pollInterval) {
     var interval, timeout,
         pollInterval = pollInterval || 5000,

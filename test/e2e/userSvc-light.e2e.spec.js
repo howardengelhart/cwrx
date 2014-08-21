@@ -1,7 +1,8 @@
-var q           = require('q'),
-    testUtils   = require('./testUtils'),
-    host        = process.env['host'] || 'localhost',
-    config      = {
+var q               = require('q'),
+    testUtils       = require('./testUtils'),
+    requestUtils    = require('../../lib/requestUtils'),
+    host            = process.env['host'] || 'localhost',
+    config = {
         userSvcUrl  : 'http://' + (host === 'localhost' ? host + ':3500' : host) + '/api/account',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
@@ -27,7 +28,7 @@ describe('user-light (E2E):', function() {
                 jar: cookieJar,
                 json: testUser
             };
-            testUtils.qRequest('post', options).done(function(resp) {
+            requestUtils.qRequest('post', options).done(function(resp) {
                 if (resp.response.statusCode !== 200) {
                     console.log('Could not log in the test user');
                     console.log('Double check that the user johnnytestmonkey@cinema6.com exists in the database');
@@ -48,7 +49,7 @@ describe('user-light (E2E):', function() {
                 jar: cookieJar,
                 json: newUser
             };
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 currUser = resp.body;
                 expect(currUser).toBeDefined();
@@ -74,7 +75,7 @@ describe('user-light (E2E):', function() {
                 url: config.userSvcUrl + '/user/' + currUser.id,
                 jar: cookieJar
             };
-            testUtils.qRequest('get', options).then(function(resp) {
+            requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual(currUser);
                 done();
@@ -93,7 +94,7 @@ describe('user-light (E2E):', function() {
                 jar: cookieJar,
                 json: { status: 'inactive' }
             };
-            testUtils.qRequest('put', options).then(function(resp) {
+            requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
                 expect(resp.body).not.toEqual(origUser);
@@ -114,7 +115,7 @@ describe('user-light (E2E):', function() {
                 url: config.userSvcUrl + '/user/' + currUser.id,
                 jar: cookieJar
             };
-            testUtils.qRequest('delete', options).then(function(resp) {
+            requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 done();
@@ -129,7 +130,7 @@ describe('user-light (E2E):', function() {
                 url: config.authUrl + '/logout',
                 jar: cookieJar
             };
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 done();
@@ -145,7 +146,7 @@ describe('user-light (E2E):', function() {
             var options = {
                 url: config.userSvcUrl + '/user/meta'
             };
-            testUtils.qRequest('get', options)
+            requestUtils.qRequest('get', options)
             .then(function(resp) {
                 expect(resp.body.version).toBeDefined();
                 expect(resp.body.started).toBeDefined();

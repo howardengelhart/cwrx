@@ -10,8 +10,9 @@ describe('vote (E2E)', function(){
     
     beforeEach(function(){
         var urlBase;
-        q           = require('q');
-        testUtils   = require('./testUtils');
+        q               = require('q');
+        testUtils       = require('./testUtils');
+        requestUtils    = require('../../lib/requestUtils'),
 
         urlBase = 'http://' + (process.env['host'] ? process.env['host'] : 'localhost');
         makeUrl = function(fragment){
@@ -71,7 +72,7 @@ describe('vote (E2E)', function(){
                         url : makeUrl('/maint/service/restart'),
                         json : { service : 'vote', checkUrl: makeUrl('/api/vote/meta') }
                     };
-                    return testUtils.qRequest('post',options);
+                    return requestUtils.qRequest('post',options);
                 }
                 return q(true);
             })
@@ -116,7 +117,7 @@ describe('vote (E2E)', function(){
         var userDbCfg = JSON.parse(JSON.stringify(dbEnv));
         userDbCfg.db = 'c6Db'
         testUtils.resetCollection('users', mockUser, userDbCfg).then(function(resp) {
-            return testUtils.qRequest('post', loginOpts);
+            return requestUtils.qRequest('post', loginOpts);
         }).done(function(resp) {
             done();
         });
@@ -125,7 +126,7 @@ describe('vote (E2E)', function(){
     describe('GET /api/public/election/:id',function(){
 
         it('gets an election if it exists',function(done){
-            testUtils.qRequest('get', { url : makeUrl('/api/public/election/e1')})
+            requestUtils.qRequest('get', { url : makeUrl('/api/public/election/e1')})
                 .then(function(resp){
                     expect(resp.response.headers['cache-control']).toEqual('max-age=300');
                     expect(resp.response.statusCode).toEqual(200);
@@ -143,7 +144,7 @@ describe('vote (E2E)', function(){
         });
 
         it('returns with a 404 if the election does not exist',function(done){
-            testUtils.qRequest('get', { url : makeUrl('/api/public/election/e1x')})
+            requestUtils.qRequest('get', { url : makeUrl('/api/public/election/e1x')})
                 .then(function(resp){
                     expect(resp.response.headers['cache-control']).toEqual('max-age=300');
                     expect(resp.response.statusCode).toEqual(404);
@@ -158,7 +159,7 @@ describe('vote (E2E)', function(){
         });
         
         it('returns a 404 if the user cannot read the election', function(done) {
-            testUtils.qRequest('get', { url : makeUrl('/api/public/election/e3')})
+            requestUtils.qRequest('get', { url : makeUrl('/api/public/election/e3')})
                 .then(function(resp){
                     expect(resp.response.headers['cache-control']).toEqual('max-age=300');
                     expect(resp.response.statusCode).toEqual(404);
@@ -174,7 +175,7 @@ describe('vote (E2E)', function(){
     
     describe('GET /api/election/:id', function() {
         it('gets an election if it exists', function(done) {
-            testUtils.qRequest('get', { url : makeUrl('/api/election/e1'), jar: cookieJar })
+            requestUtils.qRequest('get', { url : makeUrl('/api/election/e1'), jar: cookieJar })
                 .then(function(resp){
                     expect(resp.response.headers['cache-control']).toEqual('max-age=0');
                     expect(resp.response.statusCode).toEqual(200);
@@ -197,7 +198,7 @@ describe('vote (E2E)', function(){
         });
         
         it('gets normally private elections the user is allowed to see', function(done) {
-            testUtils.qRequest('get', { url : makeUrl('/api/election/e3'), jar: cookieJar })
+            requestUtils.qRequest('get', { url : makeUrl('/api/election/e3'), jar: cookieJar })
                 .then(function(resp){
                     expect(resp.response.headers['cache-control']).toEqual('max-age=0');
                     expect(resp.response.statusCode).toEqual(200);
@@ -217,10 +218,10 @@ describe('vote (E2E)', function(){
                 url: makeUrl('/api/vote'),
                 json: { election : 'e3', ballotItem: 'b1', vote: 0 }
             };
-            testUtils.qRequest('post', postOpts)
+            requestUtils.qRequest('post', postOpts)
                 .then(function(resp) {
                     expect(resp.response.statusCode).toEqual(200);
-                    return testUtils.qRequest('get', {url:makeUrl('/api/election/e3'),jar:cookieJar})
+                    return requestUtils.qRequest('get', {url:makeUrl('/api/election/e3'),jar:cookieJar})
                 }).then(function(resp) {
                     expect(resp.body.id).toEqual('e3');
                     expect(resp.body.ballot).toEqual({
@@ -246,7 +247,7 @@ describe('vote (E2E)', function(){
             };
         });
         it('fails with invalid request if body is invalid',function(done){
-            testUtils.qRequest('post', options)
+            requestUtils.qRequest('post', options)
                 .then(function(resp){
                     expect(resp.response.statusCode).toEqual(400);
                     expect(resp.body).toEqual('Invalid request.\n');
@@ -264,7 +265,7 @@ describe('vote (E2E)', function(){
                 vote:       '99 chicken'
             };
             
-            testUtils.qRequest('post', options)
+            requestUtils.qRequest('post', options)
                 .then(function(resp){
                     expect(resp.response.statusCode).toEqual(200);
                     expect(resp.body).toEqual('OK');
@@ -283,13 +284,13 @@ describe('vote (E2E)', function(){
                 vote:       0
             };
             
-            testUtils.qRequest('post', options)
+            requestUtils.qRequest('post', options)
                 .then(function(resp){
                     expect(resp.response.statusCode).toEqual(200);
                     expect(resp.body).toEqual('OK');
                 })
                 .then(function(){
-                    return testUtils.qRequest('get', {url: makeUrl('/api/public/election/e1'), jar: cookieJar});
+                    return requestUtils.qRequest('get', {url: makeUrl('/api/public/election/e1'), jar: cookieJar});
                 })
                 .then(function(resp){
                     expect(resp.body.ballot.b2[0]).toEqual(0.33);
@@ -308,14 +309,14 @@ describe('vote (E2E)', function(){
                 vote:       0
             };
             
-            testUtils.qRequest('post', options)
+            requestUtils.qRequest('post', options)
                 .then(function(resp){
                     expect(resp.response.statusCode).toEqual(200);
                     expect(resp.body).toEqual('OK');
                 })
                 .then(function(){
                     var deferred = q.defer();
-                    testUtils.qRequest('post',{ 
+                    requestUtils.qRequest('post',{ 
                             url : makeUrl('/maint/service/restart'),
                             json : { service : 'vote', checkUrl: makeUrl('/api/vote/meta') } })
                         .finally(function(){
@@ -326,7 +327,7 @@ describe('vote (E2E)', function(){
                     return deferred.promise;
                 })
                 .then(function(){
-                    return testUtils.qRequest('get', { url : makeUrl('/api/public/election/e1')});
+                    return requestUtils.qRequest('get', { url : makeUrl('/api/public/election/e1')});
                 })
                 .then(function(resp){
                     expect(resp.body.ballot.b2[0]).toEqual(0.50);
@@ -340,13 +341,13 @@ describe('vote (E2E)', function(){
         it('should not add items through voting on nonexistent choices/ballots', function(done) {
             var options1 = { url: options.url, json: { election: 'e1', ballotItem: 'b1', vote: 3 } },
                 options2 = { url: options.url, json: { election: 'e1', ballotItem: 'b8', vote: 'poop' } };
-            q.all([testUtils.qRequest('post', options1), testUtils.qRequest('post', options2)])
+            q.all([requestUtils.qRequest('post', options1), requestUtils.qRequest('post', options2)])
             .then(function(resps) {
                 resps.forEach(function(resp) {
                     expect(resp.response.statusCode).toEqual(200);
                     expect(resp.body).toEqual('OK');
                 });
-                return testUtils.qRequest('get', {url: makeUrl('/api/election/e1'), jar: cookieJar});
+                return requestUtils.qRequest('get', {url: makeUrl('/api/election/e1'), jar: cookieJar});
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.id).toBe('e1');
@@ -361,13 +362,13 @@ describe('vote (E2E)', function(){
         
         it('should still work if the ballot items are objects', function(done) {
             options.json = { election: 'e4', ballotItem: 'b1', vote: 'foo' };
-            testUtils.qRequest('post', options)
+            requestUtils.qRequest('post', options)
                 .then(function(resp){
                     expect(resp.response.statusCode).toEqual(200);
                     expect(resp.body).toEqual('OK');
                 })
                 .then(function(){
-                    return testUtils.qRequest('get', {url: makeUrl('/api/election/e4'), jar: cookieJar});
+                    return requestUtils.qRequest('get', {url: makeUrl('/api/election/e4'), jar: cookieJar});
                 })
                 .then(function(resp){
                     expect(resp.body.ballot).toEqual({ b1: { foo: 2, bar: 5 } });
@@ -394,7 +395,7 @@ describe('vote (E2E)', function(){
                 jar: cookieJar,
                 json: mockElec
             };
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toBeDefined();
                 expect(resp.body._id).not.toBeDefined();
@@ -420,7 +421,7 @@ describe('vote (E2E)', function(){
                 jar: cookieJar,
                 json: mockElec
             };
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toBeDefined();
                 expect(resp.body._id).not.toBeDefined();
@@ -437,8 +438,8 @@ describe('vote (E2E)', function(){
                 options2 = {url:makeUrl('/api/election'), json:{foo:'bar', ballot:{}}, jar:cookieJar};
             
             q.all([
-                testUtils.qRequest('post', options1),
-                testUtils.qRequest('post', options2)
+                requestUtils.qRequest('post', options1),
+                requestUtils.qRequest('post', options2)
             ]).then(function(resps) {
                 expect(resps[0].response.statusCode).toBe(400);
                 expect(resps[0].body).toBe('You must provide an object in the body');
@@ -456,7 +457,7 @@ describe('vote (E2E)', function(){
                 url: makeUrl('/api/election'),
                 json: mockElec
             };
-            testUtils.qRequest('post', options)
+            requestUtils.qRequest('post', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
@@ -476,7 +477,7 @@ describe('vote (E2E)', function(){
                 jar: cookieJar,
                 json: { tag: 'foo' }
             }, updatedElec;
-            testUtils.qRequest('put', options).then(function(resp) {
+            requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 updatedElec = resp.body;
                 expect(updatedElec).not.toEqual(mockData[0]);
@@ -501,7 +502,7 @@ describe('vote (E2E)', function(){
                 jar: cookieJar,
                 json: { ballot: { b1: [80, 90], b2: [0, 2, 3], b3: [33, 33] } }
             }, updatedElec;
-            testUtils.qRequest('put', options).then(function(resp) {
+            requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 updatedElec = resp.body;
                 expect(updatedElec).not.toEqual(mockData[0]);
@@ -523,7 +524,7 @@ describe('vote (E2E)', function(){
                 jar: cookieJar,
                 json: { ballot: 'fakeBallot' }
             };
-            testUtils.qRequest('put', options).then(function(resp) {
+            requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('That election does not exist');
                 done();
@@ -539,7 +540,7 @@ describe('vote (E2E)', function(){
                 jar: cookieJar,
                 json: { ballot: 'fakeBallot' }
             };
-            testUtils.qRequest('put', options).then(function(resp) {
+            requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Not authorized to edit this election');
                 done();
@@ -554,7 +555,7 @@ describe('vote (E2E)', function(){
                 url: makeUrl('/api/election/e1'),
                 json: { ballot: 'fakeBallot' }
             };
-            testUtils.qRequest('put', options).then(function(resp) {
+            requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
                 done();
@@ -569,7 +570,7 @@ describe('vote (E2E)', function(){
         
         it('should set the status of an election to deleted', function(done) {
             var options = {jar: cookieJar, url: makeUrl('/api/election/e1')};
-            testUtils.qRequest('delete', options).then(function(resp) {
+            requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 done();
@@ -581,7 +582,7 @@ describe('vote (E2E)', function(){
         
         it('should not delete an election the user does not own', function(done) {
             var options = {jar: cookieJar, url: makeUrl('/api/election/e2')};
-            testUtils.qRequest('delete', options).then(function(resp) {
+            requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Not authorized to delete this election');
                 done();
@@ -593,10 +594,10 @@ describe('vote (E2E)', function(){
         
         it('should still return a 200 if the election was already deleted', function(done) {
             var options = {jar: cookieJar, url: makeUrl('/api/election/e1')};
-            testUtils.qRequest('delete', options).then(function(resp) {
+            requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
-                return testUtils.qRequest('delete', options);
+                return requestUtils.qRequest('delete', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -609,7 +610,7 @@ describe('vote (E2E)', function(){
         
         it('should still return a 204 if the election does not exist', function(done) {
             var options = {jar: cookieJar, url: makeUrl('/api/election/fake')};
-            testUtils.qRequest('delete', options).then(function(resp) {
+            requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 done();
@@ -620,7 +621,7 @@ describe('vote (E2E)', function(){
         });
         
         it('should throw a 401 error if the user is not authenticated', function(done) {
-            testUtils.qRequest('delete', {url: makeUrl('/api/election/e1')})
+            requestUtils.qRequest('delete', {url: makeUrl('/api/election/e1')})
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');

@@ -1,7 +1,8 @@
-var q           = require('q'),
-    testUtils   = require('./testUtils'),
-    host        = process.env['host'] || 'localhost',
-    config      = {
+var q               = require('q'),
+    testUtils       = require('./testUtils'),
+    requestUtils    = require('../../lib/requestUtils'),
+    host            = process.env['host'] || 'localhost',
+    config = {
         orgSvcUrl  : 'http://' + (host === 'localhost' ? host + ':3700' : host) + '/api/account',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
@@ -40,7 +41,7 @@ describe('org (E2E):', function() {
             }
         };
         testUtils.resetCollection('users', [mockRequester, noPermsUser]).then(function(resp) {
-            return testUtils.qRequest('post', loginOpts);
+            return requestUtils.qRequest('post', loginOpts);
         }).done(function(resp) {
             done();
         });
@@ -51,7 +52,7 @@ describe('org (E2E):', function() {
             url: config.authUrl + '/logout',
             jar: cookieJar
         };
-       testUtils.qRequest('post',logoutOpts)
+       requestUtils.qRequest('post',logoutOpts)
         .done(function(){
             done();
         });
@@ -80,7 +81,7 @@ describe('org (E2E):', function() {
         
         it('should get an org by id', function(done) {
             var options = { url: config.orgSvcUrl + '/org/o-1234', jar: cookieJar };
-            testUtils.qRequest('get', options)
+            requestUtils.qRequest('get', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).not.toEqual(mockOrg);
@@ -100,7 +101,7 @@ describe('org (E2E):', function() {
         it('should get an org even when multiple with the same id exist', function(done) {
             var options = { url: config.orgSvcUrl + '/org/o-1234', jar: cookieJar };
             testUtils.resetCollection('orgs', [mockOrg, mockOrg2]).then(function() {
-                return testUtils.qRequest('get', options);
+                return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 done();
@@ -114,7 +115,7 @@ describe('org (E2E):', function() {
             var options = { url: config.orgSvcUrl + '/org/o-1234', jar: cookieJar };
             mockOrg.status = 'deleted';
             testUtils.resetCollection('orgs', mockOrg).then(function() {
-                return testUtils.qRequest('get', options);
+                return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('No orgs found');
@@ -129,7 +130,7 @@ describe('org (E2E):', function() {
             var options = { url: config.orgSvcUrl + '/org/o-4567', jar: cookieJar };
             mockOrg.id = 'e2e-getId2';
             testUtils.resetCollection('orgs', mockOrg).then(function() {
-                return testUtils.qRequest('get', options);
+                return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('No orgs found');
@@ -142,7 +143,7 @@ describe('org (E2E):', function() {
         
         it('should return a 404 if nothing is found', function(done) {
             var options = { url: config.orgSvcUrl + '/org/e2e-fake1', jar: cookieJar };
-            testUtils.qRequest('get', options)
+            requestUtils.qRequest('get', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('No orgs found');
@@ -155,7 +156,7 @@ describe('org (E2E):', function() {
         
         it('should throw a 401 error if the user is not authenticated', function(done) {
             var options = { url: config.orgSvcUrl + '/org/e2e-fake1' };
-            testUtils.qRequest('get', options).then(function(resp) {
+            requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe("Unauthorized");
                 done();
@@ -183,7 +184,7 @@ describe('org (E2E):', function() {
         
         it('should get orgs', function(done) {
             var options = { url: config.orgSvcUrl + '/orgs', jar: cookieJar };
-            testUtils.qRequest('get', options).then(function(resp) {
+            requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
                 expect(resp.body instanceof Array).toBeTruthy('body is array');
@@ -210,7 +211,7 @@ describe('org (E2E):', function() {
                 url: config.orgSvcUrl + '/orgs?sort=name,1&limit=1',
                 jar: cookieJar
             };
-            testUtils.qRequest('get', options).then(function(resp) {
+            requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
                 expect(resp.body instanceof Array).toBeTruthy('body is array');
@@ -220,7 +221,7 @@ describe('org (E2E):', function() {
                 expect(resp.body[0].name).toBe('e2e-getOrg1');
                 expect(resp.response.headers['content-range']).toBe('items 1-1/3');
                 options.url += '&skip=1';
-                return testUtils.qRequest('get', options);
+                return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
@@ -242,7 +243,7 @@ describe('org (E2E):', function() {
            var options = { url: config.orgSvcUrl + '/orgs', jar: cookieJar };
             testUtils.resetCollection('orgs')
             .then(function(){
-                return testUtils.qRequest('get', options);
+                return requestUtils.qRequest('get', options);
             })
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
@@ -261,10 +262,10 @@ describe('org (E2E):', function() {
                 jar: cookieJar,
                 json: { email: 'orgsvce2enopermsuser', password: 'password' }
             };
-            testUtils.qRequest('post', loginOpts).then(function(resp) {
+            requestUtils.qRequest('post', loginOpts).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 var options = { url: config.orgSvcUrl + '/orgs', jar: cookieJar };
-                return testUtils.qRequest('get', options);
+                return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Not authorized to read all orgs');
@@ -278,7 +279,7 @@ describe('org (E2E):', function() {
 
         it('should throw a 401 error if the user is not authenticated', function(done) {
             var options = { url: config.orgSvcUrl + '/orgs' };
-            testUtils.qRequest('get', options).then(function(resp) {
+            requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe("Unauthorized");
                 done();
@@ -306,7 +307,7 @@ describe('org (E2E):', function() {
         
         it('should be able to create an org', function(done) {
             var options = { url: config.orgSvcUrl + '/org', json: mockOrg, jar: cookieJar };
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 var newOrg = resp.body;
                 expect(newOrg).toBeDefined();
@@ -330,7 +331,7 @@ describe('org (E2E):', function() {
             mockOrg.waterfalls = {video: ['cinema6']};
             mockOrg.config = {foo: 'bar'};
             var options = { url: config.orgSvcUrl + '/org', json: mockOrg, jar: cookieJar };
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 var newOrg = resp.body;
                 expect(newOrg).toBeDefined();
@@ -347,7 +348,7 @@ describe('org (E2E):', function() {
         it('should throw a 400 error when trying to set forbidden properties', function(done) {
             mockOrg.id = 'o-1234';
             var options = { url: config.orgSvcUrl + '/org', json: mockOrg, jar: cookieJar };
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Illegal fields');
                 done();
@@ -359,11 +360,11 @@ describe('org (E2E):', function() {
 
         it('should throw a 400 error if the body is missing or incomplete', function(done) {
             var options = { url: config.orgSvcUrl + '/org', jar: cookieJar};
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('You must provide an object in the body');
                 options.json = { tag: 'foo' };
-                return testUtils.qRequest('post', options);
+                return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('New org object must have a name');
@@ -376,10 +377,10 @@ describe('org (E2E):', function() {
 
         it('should throw a 409 error if a user with that name exists', function(done) {
             var options = { url: config.orgSvcUrl + '/org', json: mockOrg, jar: cookieJar };
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toBeDefined();
-                return testUtils.qRequest('post', options);
+                return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(409);
                 expect(resp.body).toBe('An org with that name already exists');
@@ -404,12 +405,12 @@ describe('org (E2E):', function() {
                     password: 'password'
                 }
             };
-            testUtils.qRequest('post',logoutOpts)
+            requestUtils.qRequest('post',logoutOpts)
             .then(function(resp) {
-                return testUtils.qRequest('post', loginOpts);
+                return requestUtils.qRequest('post', loginOpts);
             })
             .then(function(){
-                return testUtils.qRequest('post', options);
+                return requestUtils.qRequest('post', options);
             })
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
@@ -423,7 +424,7 @@ describe('org (E2E):', function() {
 
         it('should throw a 401 error if the user is not authenticated', function(done) {
             var options = { url: config.orgSvcUrl + '/org' };
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe("Unauthorized");
                 done();
@@ -471,7 +472,7 @@ describe('org (E2E):', function() {
                 json: updates,
                 jar: cookieJar
             };
-            testUtils.qRequest('put', options).then(function(resp) {
+            requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 var org = resp.body;
                 expect(org._id).not.toBeDefined();
@@ -492,7 +493,7 @@ describe('org (E2E):', function() {
                 json: updates,
                 jar: cookieJar
             };
-            testUtils.qRequest('put', options).then(function(resp) {
+            requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('That org does not exist');
                 done();
@@ -520,11 +521,11 @@ describe('org (E2E):', function() {
                     password: 'password'
                 }
             };
-            testUtils.qRequest('post',logoutOpts)
+            requestUtils.qRequest('post',logoutOpts)
             .then(function(resp) {
-                return testUtils.qRequest('post', loginOpts);
+                return requestUtils.qRequest('post', loginOpts);
             }).then(function(){
-                return testUtils.qRequest('put', options);
+                return requestUtils.qRequest('put', options);
             })
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
@@ -542,7 +543,7 @@ describe('org (E2E):', function() {
                 json: { created: 'new_created' },
                 jar: cookieJar
             };
-            testUtils.qRequest('put', options).then(function(resp) {
+            requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Illegal fields');
                 done();
@@ -554,7 +555,7 @@ describe('org (E2E):', function() {
     
         it('should throw a 401 error if the user is not authenticated', function(done) {
             var options = { url: config.orgSvcUrl + '/org/org-fake' };
-            testUtils.qRequest('put', options).then(function(resp) {
+            requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
                 done();
@@ -582,11 +583,11 @@ describe('org (E2E):', function() {
         
         it('should successfully mark an org as deleted', function(done) {
             var options = { url: config.orgSvcUrl + '/org/org1', jar: cookieJar };
-            testUtils.qRequest('delete', options).then(function(resp) {
+            requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 options = { url: config.orgSvcUrl + '/org/e2e-delete1', jar: cookieJar };
-                return testUtils.qRequest('get', options);
+                return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('No orgs found');
@@ -599,7 +600,7 @@ describe('org (E2E):', function() {
         
         it('should still succeed if the org does not exist', function(done) {
             var options = { url: config.orgSvcUrl + '/org/org-fake', jar: cookieJar };
-            testUtils.qRequest('delete', options).then(function(resp) {
+            requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 done();
@@ -611,11 +612,11 @@ describe('org (E2E):', function() {
         
         it('should still succeed if the org has already been deleted', function(done) {
             var options = { url: config.orgSvcUrl + '/org/org1', jar: cookieJar };
-            testUtils.qRequest('delete', options).then(function(resp) {
+            requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 options = { url: config.orgSvcUrl + '/org/e2e-delete1', jar: cookieJar };
-                return testUtils.qRequest('delete', options);
+                return requestUtils.qRequest('delete', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -628,11 +629,11 @@ describe('org (E2E):', function() {
         
         it('should not allow a user to delete their own org', function(done) {
             var options = { url: config.orgSvcUrl + '/org/o-1234', jar: cookieJar };
-            testUtils.qRequest('delete', options).then(function(resp) {
+            requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('You cannot delete your own org');
                 options = { url: config.orgSvcUrl + '/org/o-1234', jar: cookieJar };
-                return testUtils.qRequest('get', options);
+                return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.status).toBe('active');
@@ -657,12 +658,12 @@ describe('org (E2E):', function() {
                     password: 'password'
                 }
             };
-            testUtils.qRequest('post',logoutOpts)
+            requestUtils.qRequest('post',logoutOpts)
             .then(function(resp) {
-                return testUtils.qRequest('post', loginOpts);
+                return requestUtils.qRequest('post', loginOpts);
             })
             .then(function(){
-                return testUtils.qRequest('delete', options);
+                return requestUtils.qRequest('delete', options);
             })
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
@@ -681,12 +682,12 @@ describe('org (E2E):', function() {
             testUtils.resetCollection('orgs', org).then(function() {
                 return testUtils.resetCollection('users', [mockRequester, user]);
             }).then(function() {
-                return testUtils.qRequest('delete', options);
+                return requestUtils.qRequest('delete', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Org still has active users');
                 options = { url: config.orgSvcUrl + '/org/o-del-1', jar: cookieJar };
-                return testUtils.qRequest('get', options);
+                return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.status).toBe('active');
@@ -702,12 +703,12 @@ describe('org (E2E):', function() {
             testUtils.resetCollection('orgs', org).then(function() {
                 return testUtils.resetCollection('users', [mockRequester, user]);
             }).then(function() {
-                return testUtils.qRequest('delete', options);
+                return requestUtils.qRequest('delete', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 options = { url: config.orgSvcUrl + '/org/o-del-1', jar: cookieJar };
-                return testUtils.qRequest('get', options);
+                return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('No orgs found');
@@ -718,7 +719,7 @@ describe('org (E2E):', function() {
     
         it('should throw a 401 error if the user is not authenticated', function(done) {
             var options = { url: config.orgSvcUrl + '/org/org-fake' };
-            testUtils.qRequest('delete', options).then(function(resp) {
+            requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe("Unauthorized");
                 done();

@@ -1,11 +1,12 @@
-var request     = require('request'),
-    q           = require('q'),
-    path        = require('path'),
-    fs          = require('fs-extra'),
-    testUtils   = require('./testUtils'),
-    host        = process.env['host'] || 'localhost',
-    statusHost  = process.env['statusHost'] || host,
-    config      = {
+var request         = require('request'),
+    q               = require('q'),
+    path            = require('path'),
+    fs              = require('fs-extra'),
+    testUtils       = require('./testUtils'),
+    requestUtils    = require('../../lib/requestUtils'),
+    host            = process.env['host'] || 'localhost',
+    statusHost      = process.env['statusHost'] || host,
+    config = {
         dubUrl    : 'http://' + (host === 'localhost' ? host + ':3000' : host) + '/dub',
         maintUrl  : 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint',
         statusUrl : 'http://' + (statusHost === 'localhost' ? statusHost + ':3000' : statusHost) + '/dub/status/'
@@ -44,7 +45,7 @@ describe('dub-light (E2E)', function() {
                 json: siriTemplate
             };
             siriTemplate.script[Math.floor(Math.random() * siriTemplate.script.length)].line += Math.round(Math.random() * 10000);
-            testUtils.qRequest('post', [options])
+            requestUtils.qRequest('post', [options])
             .then(function(resp) {
                 expect(resp.body.output).toBeDefined();
                 expect(typeof(resp.body.output)).toEqual('string');
@@ -65,7 +66,7 @@ describe('dub-light (E2E)', function() {
             siriTemplate.script[Math.floor(Math.random() * siriTemplate.script.length)].line +=
                                 Math.round(Math.random() * 10000);
             
-            testUtils.qRequest('post', [options])
+            requestUtils.qRequest('post', [options])
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(202);
                 expect(resp.body.jobId.match(/^v-\w{10}$/)).toBeTruthy();
@@ -97,7 +98,7 @@ describe('dub-light (E2E)', function() {
                 }
             };
             
-            testUtils.qRequest('post', [options])
+            requestUtils.qRequest('post', [options])
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(202);
                 expect(resp.body.jobId.match(/^t-\w{10}$/)).toBeTruthy();
@@ -125,7 +126,7 @@ describe('dub-light (E2E)', function() {
             var options = {
                 url: config.dubUrl + '/meta'
             };
-            testUtils.qRequest('get', [options])
+            requestUtils.qRequest('get', [options])
             .then(function(resp) {
                 expect(resp.body.version).toBeDefined();
                 expect(resp.body.version.match(/^.+\.build\d+-\d+-g\w+$/)).toBeTruthy('version match');

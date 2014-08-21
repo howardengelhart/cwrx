@@ -1,9 +1,10 @@
-var request     = require('request'),
-    path        = require('path'),
-    fs          = require('fs-extra'),
-    q           = require('q'),
-    testUtils   = require('./testUtils'),
-    host        = process.env['host'] || 'localhost',
+var request         = require('request'),
+    path            = require('path'),
+    fs              = require('fs-extra'),
+    q               = require('q'),
+    testUtils       = require('./testUtils'),
+    requestUtils    = require('../../lib/requestUtils'),
+    host            = process.env['host'] || 'localhost',
     config = {
         'shareUrl': 'http://' + (host === 'localhost' ? host + ':3100' : host) + '/share',
         'maintUrl': 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint',
@@ -22,7 +23,7 @@ describe('share-light (E2E)', function() {
                 }
             };
             
-            testUtils.qRequest('post', [options])
+            requestUtils.qRequest('post', [options])
             .then(function(resp) {
                 expect(resp.body.url).toBe('http://fake.cinema6.com/');
                 expect(resp.body.shortUrl.match(/http:\/\/ci6\.co\/(g6|i5)/)).toBeTruthy();
@@ -42,7 +43,7 @@ describe('share-light (E2E)', function() {
                      '&origin=' + encodeURIComponent('http://fake.cinema6.com') + '&staticLink=true'
             };
             
-            testUtils.qRequest('get', [options])
+            requestUtils.qRequest('get', [options])
             .then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.response.request.href.match(/^https:\/\/www\.facebook\.com/)).toBeTruthy();
@@ -62,7 +63,7 @@ describe('share-light (E2E)', function() {
                      '&origin=' + encodeURIComponent('http://fake.cinema6.com') + '&staticLink=true'
             };
             
-            testUtils.qRequest('get', [options])
+            requestUtils.qRequest('get', [options])
             .then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.response.request.href.match(
@@ -80,7 +81,7 @@ describe('share-light (E2E)', function() {
             var options = {
                 url: config.shareUrl + '/meta'
             };
-            testUtils.qRequest('get', [options])
+            requestUtils.qRequest('get', [options])
             .then(function(resp) {
                 expect(resp.body.version).toBeDefined();
                 expect(resp.body.version.match(/^.+\.build\d+-\d+-g\w+$/)).toBeTruthy('version match');

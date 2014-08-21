@@ -1,7 +1,7 @@
-var q           = require('q'),
-    testUtils   = require('./testUtils'),
-    host        = process.env['host'] || 'localhost',
-    config      = {
+var q               = require('q'),
+    requestUtils    = require('../../lib/requestUtils'),
+    host            = process.env['host'] || 'localhost',
+    config = {
         authUrl   : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
 
@@ -19,7 +19,7 @@ describe('auth-light (E2E):', function() {
                 jar: cookieJar,
                 json: testUser
             };
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
                 expect(resp.body._id).not.toBeDefined();
@@ -39,7 +39,7 @@ describe('auth-light (E2E):', function() {
                 url: config.authUrl + '/status',
                 jar: cookieJar
             };
-            testUtils.qRequest('get', options).then(function(resp) {
+            requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
                 expect(resp.body._id).not.toBeDefined();
@@ -57,7 +57,7 @@ describe('auth-light (E2E):', function() {
                 url: config.authUrl + '/logout',
                 jar: cookieJar
             };
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 done();
@@ -73,7 +73,7 @@ describe('auth-light (E2E):', function() {
             var options = {
                 url: config.authUrl + '/meta'
             };
-            testUtils.qRequest('get', options)
+            requestUtils.qRequest('get', options)
             .then(function(resp) {
                 expect(resp.body.version).toBeDefined();
                 expect(resp.body.started).toBeDefined();

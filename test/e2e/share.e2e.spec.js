@@ -1,9 +1,10 @@
-var request     = require('request'),
-    q           = require('q'),
-    path        = require('path'),
-    fs          = require('fs-extra'),
-    testUtils   = require('./testUtils'),
-    host        = process.env['host'] || 'localhost',
+var request         = require('request'),
+    q               = require('q'),
+    path            = require('path'),
+    fs              = require('fs-extra'),
+    testUtils       = require('./testUtils'),
+    requestUtils    = require('../../lib/requestUtils'),
+    host            = process.env['host'] || 'localhost',
     config = {
         'shareUrl': 'http://' + (host === 'localhost' ? host + ':3100' : host) + '/share',
         'maintUrl': 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint'
@@ -39,7 +40,7 @@ describe('share (E2E)', function() {
                 }
             };
 
-            testUtils.qRequest('post', [options])
+            requestUtils.qRequest('post', [options])
             .then(function(resp) {
                 var scriptId;
                 expect(resp.body.url).toBeDefined();
@@ -60,7 +61,7 @@ describe('share (E2E)', function() {
                         fname: scriptId[0] + '.json'
                     }
                 }
-                testUtils.qRequest('post', [options])
+                requestUtils.qRequest('post', [options])
                 .catch(function(error) {
                     console.log('Error removing S3 script: ' + error);
                 }).finally(function() {
@@ -82,7 +83,7 @@ describe('share (E2E)', function() {
                 }
             };
 
-            testUtils.qRequest('post', [options])
+            requestUtils.qRequest('post', [options])
             .then(function(resp) {
                 expect(resp.body.url).toBeDefined();
                 expect(resp.body.shortUrl).toBeDefined();
@@ -103,7 +104,7 @@ describe('share (E2E)', function() {
                         fname: scriptId[0] + '.json'
                     }
                 }
-                testUtils.qRequest('post', [options])
+                requestUtils.qRequest('post', [options])
                 .catch(function(error) {
                     console.log('Error removing S3 script: ' + error);
                 }).finally(function() {
@@ -125,7 +126,7 @@ describe('share (E2E)', function() {
             };
             delete shareItem.uri;
             
-            testUtils.qRequest('post', [options])
+            requestUtils.qRequest('post', [options])
             .then(function(resp) {
                 expect(resp).not.toBeDefined();
                 done();
@@ -146,7 +147,7 @@ describe('share (E2E)', function() {
             };
             shareItem.uri = 'fakeUri';
             
-            testUtils.qRequest('post', [options])
+            requestUtils.qRequest('post', [options])
             .then(function(resp) {
                 expect(resp).not.toBeDefined();
                 done();
@@ -166,7 +167,7 @@ describe('share (E2E)', function() {
                 }
             };
             
-            testUtils.qRequest('post', [options])
+            requestUtils.qRequest('post', [options])
             .then(function(resp) {
                 expect(resp).not.toBeDefined();
                 done();
@@ -184,15 +185,15 @@ describe('share (E2E)', function() {
                 url: config.shareUrl + '/facebook?'
             };
             
-            testUtils.qRequest('get', [options])
+            requestUtils.qRequest('get', [options])
             .catch(function(errorObj) {
                 expect(errorObj.error).toBe('Unable to complete request.');
                 options.url += '&fbUrl=http://facebook.com'
-                return testUtils.qRequest('get', [options]);
+                return requestUtils.qRequest('get', [options]);
             }).catch(function(errorObj) {
                 expect(errorObj.error).toBe('Unable to complete request.');
                 options.url = config.shareUrl + '/facebook?&origin=http://cinema6.com'
-                return testUtils.qRequest('get', [options]);
+                return requestUtils.qRequest('get', [options]);
             }).catch(function(errorObj) {
                 expect(errorObj.error).toBe('Unable to complete request.');
                 done();
@@ -209,15 +210,15 @@ describe('share (E2E)', function() {
                 url: config.shareUrl + '/twitter?'
             };
             
-            testUtils.qRequest('get', [options])
+            requestUtils.qRequest('get', [options])
             .catch(function(errorObj) {
                 expect(errorObj.error).toBe('Unable to complete request.');
                 options.url += '&twitUrl=http://twitter.com'
-                return testUtils.qRequest('get', [options]);
+                return requestUtils.qRequest('get', [options]);
             }).catch(function(errorObj) {
                 expect(errorObj.error).toBe('Unable to complete request.');
                 options.url = config.shareUrl + '/twitter?&origin=http://cinema6.com'
-                return testUtils.qRequest('get', [options]);
+                return requestUtils.qRequest('get', [options]);
             }).catch(function(errorObj) {
                 expect(errorObj.error).toBe('Unable to complete request.');
                 done();
