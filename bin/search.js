@@ -43,7 +43,7 @@
                 port: null,
                 retryConnect : true
             }
-        }, //TODO: make sure secrets gets google account key in cookbook
+        },
         secretsPath: path.join(process.env.HOME,'.search.secrets.json'),
         mongo: {
             c6Db: {
@@ -70,7 +70,7 @@
             return Number(duration.match(/^\d+/)[0])*60;
         } else if(!duration.match(/^PT(\d+H)?(\d+M)?(\d+S)?$/)) {
             log.warn('Video %1 has unknown duration format %2', link, duration);
-            return undefined; // TODO are we sure about all the log.warns?
+            return undefined;
         }
         
         return 60*60*Number((duration.match(/\d+(?=H)/) || [])[0] || 0) + // hours
@@ -78,6 +78,7 @@
                      Number((duration.match(/\d+(?=S)/) || [])[0] || 0);  // seconds
     };
     
+    // Properly format results returned from findVideosWithGoogle
     search.formatGoogleResults = function(stats, items) {
         var log = logger.getLog();
         var respObj = {
@@ -128,7 +129,7 @@
         return respObj;
     };
     
-    //TODO: comment all these funcs
+    // Use req params to find videos using Google's Custom Search API.
     search.findVideosWithGoogle = function(req, opts, googleCfg, apiKey) {
         var log = logger.getLog();
 
@@ -176,6 +177,7 @@
 
     };
     
+    // Parse request params and use 3rd party to find videos. Currently uses findVideosWithGoogle
     search.findVideos = function(req, config, secrets) {
         var log = logger.getLog(),
             query = req.query && req.query.query || null,
