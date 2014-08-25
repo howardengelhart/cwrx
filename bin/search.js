@@ -152,8 +152,10 @@
             }
         };
         
-        if (opts.hd) {
+        if (opts.hd === 'true') {
             reqOpts.qs.sort = 'videoobject-height:r:720';
+        } else if (opts.hd === 'false') {
+            reqOpts.qs.sort = 'videoobject-height:r::719';
         }
 
         return requestUtils.qRequest('get', reqOpts)
@@ -185,7 +187,7 @@
             start = Math.max(parseInt(req.query && req.query.skip) || 0, 0) + 1,
             sites = req.query && req.query.sites &&
                     req.query.sites.split(',').map(function(site){ return site + '.com'; }) || null,
-            hd = req.query && req.query.hd || false,
+            hd = req.query && req.query.hd || undefined,
             opts = { query: query, limit: limit, start: start, sites: sites, hd: hd };
         
         if (!query) {

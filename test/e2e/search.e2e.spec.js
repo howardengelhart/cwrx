@@ -93,6 +93,25 @@ describe('search (E2E):', function() {
             }).finally(done);
         });
         
+        it('should be able to restrict results to non-hd videos', function(done) {
+            options.qs.hd = 'false';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.meta).toBeDefined();
+                expect(resp.body.meta.skipped).toBe(0);
+                expect(resp.body.meta.numResults).toBe(10);
+                expect(resp.body.meta.totalResults >= 10).toBeTruthy();
+                expect(resp.body.items.length).toBe(10);
+                resp.body.items.forEach(function(item) {
+                    expect(item.title).toBeDefined();
+                    expect(item.link).toBeDefined();
+                    expect(item.hd).toBe(false);
+                });
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
+        });
+        
         it('should be able to restrict results to certain sites', function(done) {
             options.qs.sites = 'vimeo,dailymotion';
             requestUtils.qRequest('get', options).then(function(resp) {

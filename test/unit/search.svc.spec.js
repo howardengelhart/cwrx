@@ -147,11 +147,22 @@ describe('search (UT)', function() {
         });
         
         it('should be able to restrict results to only hd videos', function(done) {
-            opts.hd = true;
+            opts.hd = 'true';
             search.findVideosWithGoogle(req, opts, googleCfg, apiKey).then(function(resp) {
                 expect(resp).toEqual({code: 200, body: 'formatted'});
                 var reqOpts = requestUtils.qRequest.calls[0].args[1];
                 expect(reqOpts.qs.sort).toBe('videoobject-height:r:720');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+
+        it('should be able to restrict results to non hd videos', function(done) {
+            opts.hd = 'false';
+            search.findVideosWithGoogle(req, opts, googleCfg, apiKey).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                var reqOpts = requestUtils.qRequest.calls[0].args[1];
+                expect(reqOpts.qs.sort).toBe('videoobject-height:r::719');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
@@ -224,7 +235,7 @@ describe('search (UT)', function() {
             search.findVideos(req, config, secrets).then(function(resp) {
                 expect(resp).toBe('fakeResp');
                 expect(search.findVideosWithGoogle).toHaveBeenCalledWith(req,
-                    {query: 'foo', limit: 10, start: 1, sites: null, hd: false},
+                    {query: 'foo', limit: 10, start: 1, sites: null, hd: undefined},
                     'fakeGoogleCfg', 'asdf1234');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
