@@ -1,23 +1,23 @@
 describe('monitor (E2E)', function(){
-    var testUtils, q, makeUrl;
+    var requestUtils, q, makeUrl;
 
     function restartService(){
         var options = {
             url : makeUrl('/maint/service/restart'),
             json : { service : 'monitor', checkUrl: makeUrl('/api/monitor/version') }
         };
-        return testUtils.qRequest('post',options);
+        return requestUtils.qRequest('post',options);
     }
 
     function getStatus() { 
-        return testUtils.qRequest('get', { url : makeUrl('/api/status')});
+        return requestUtils.qRequest('get', { url : makeUrl('/api/status')});
     }
 
     function createMonitorProfile(name,data){
         if (!data.name){
             data.name = name;
         }
-        return testUtils.qRequest('post', { 
+        return requestUtils.qRequest('post', { 
             url  : makeUrl('/maint/create_file'),
             json : {
                 fpath : '/opt/sixxy/monitor/' + name,
@@ -35,15 +35,15 @@ describe('monitor (E2E)', function(){
             url : makeUrl('/maint/delete_file'),
             json : { fpath : fpath }
         };
-        return testUtils.qRequest('post',options);
+        return requestUtils.qRequest('post',options);
     }
 
 
 
     beforeEach(function(){
         var urlBase; 
-        q           = require('q');
-        testUtils   = require('./testUtils');
+        q               = require('q');
+        requestUtils    = require('./requestUtils');
 
         urlBase = 'http://' + (process.env['host'] ? process.env['host'] : 'localhost');
         makeUrl = function(fragment){

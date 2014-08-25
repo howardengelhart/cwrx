@@ -1,7 +1,8 @@
-var q           = require('q'),
-    testUtils   = require('./testUtils'),
-    host        = process.env['host'] || 'localhost',
-    config      = {
+var q               = require('q'),
+    testUtils       = require('./testUtils'),
+    requestUtils    = require('../../lib/requestUtils'),
+    host            = process.env['host'] || 'localhost',
+    config = {
         contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
     };
@@ -28,7 +29,7 @@ describe('content-light (E2E):', function() {
                 jar: cookieJar,
                 json: testUser
             };
-            testUtils.qRequest('post', options).done(function(resp) {
+            requestUtils.qRequest('post', options).done(function(resp) {
                 if (resp.response.statusCode !== 200) {
                     console.log('Could not log in the test user');
                     console.log('Double check that the user johnnyTestmonkey@cinema6.com exists in the database');
@@ -49,7 +50,7 @@ describe('content-light (E2E):', function() {
                 jar: cookieJar,
                 json: origExp
             };
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 currExp = resp.body;
                 expect(currExp).toBeDefined();
@@ -76,7 +77,7 @@ describe('content-light (E2E):', function() {
                 url: config.contentUrl + '/content/experience/' + currExp.id,
                 jar: cookieJar
             };
-            testUtils.qRequest('get', options).then(function(resp) {
+            requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual(currExp);
                 done();
@@ -95,7 +96,7 @@ describe('content-light (E2E):', function() {
                 jar: cookieJar,
                 json: { tag: 'newTag', data: { blah: 'bloop' }, status: 'active' }
             };
-            testUtils.qRequest('put', options).then(function(resp) {
+            requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
                 expect(resp.body).not.toEqual(origExp);
@@ -119,7 +120,7 @@ describe('content-light (E2E):', function() {
             var options = {
                 url: config.contentUrl + '/public/content/experience/' + currExp.id
             };
-            testUtils.qRequest('get', options).then(function(resp) {
+            requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 var expCopy = JSON.parse(JSON.stringify(currExp));
                 delete expCopy.user, delete expCopy.org;
@@ -136,7 +137,7 @@ describe('content-light (E2E):', function() {
                 url: config.contentUrl + '/content/experience/' + currExp.id,
                 jar: cookieJar
             };
-            testUtils.qRequest('delete', options).then(function(resp) {
+            requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 done();
@@ -151,7 +152,7 @@ describe('content-light (E2E):', function() {
                 url: config.authUrl + '/auth/logout',
                 jar: cookieJar
             };
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 done();
@@ -167,7 +168,7 @@ describe('content-light (E2E):', function() {
             var options = {
                 url: config.contentUrl + '/content/meta'
             };
-            testUtils.qRequest('get', options)
+            requestUtils.qRequest('get', options)
             .then(function(resp) {
                 expect(resp.body.version).toBeDefined();
                 expect(resp.body.started).toBeDefined();

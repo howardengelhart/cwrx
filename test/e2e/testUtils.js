@@ -1,15 +1,16 @@
-var request     = require('request'),
-    q           = require('q'),
-    path        = require('path'),
-    fs          = require('fs-extra'),
-    aws         = require('aws-sdk'),
-    Imap        = require('imap'),
-    mailparser  = require('mailparser'),
-    events      = require('events'),
-    util        = require('util'),
-    mongoUtils  = require('../../lib/mongoUtils'),
-    s3util      = require('../../lib/s3util'),
-    awsAuth     = process.env['awsAuth'] || path.join(process.env.HOME,'.aws.json'),
+var request         = require('request'),
+    q               = require('q'),
+    path            = require('path'),
+    fs              = require('fs-extra'),
+    aws             = require('aws-sdk'),
+    Imap            = require('imap'),
+    mailparser      = require('mailparser'),
+    events          = require('events'),
+    util            = require('util'),
+    requestUtils    = require('../../lib/requestUtils'),
+    mongoUtils      = require('../../lib/mongoUtils'),
+    s3util          = require('../../lib/s3util'),
+    awsAuth         = process.env['awsAuth'] || path.join(process.env.HOME,'.aws.json'),
     
     testUtils = {};
 
@@ -57,33 +58,6 @@ testUtils.resetCollection = function(collection,data,userCfg){
         });
 };
 
-// files should be { file1: path, file2: path, ... }. They get appended as multipart/form-data uploads
-testUtils.qRequest = function(method, opts, files) {
-    var deferred = q.defer();
-    opts.method = method;
-
-    var req = request(opts, function(error, response, body) {
-        if (error) return deferred.reject(error);
-        if (!response) return deferred.reject({error: 'Missing response'});
-        body = body || '';
-        try {
-            body = JSON.parse(body);
-        } catch(e) {
-        }
-        if (body.error) return deferred.reject(body);
-        deferred.resolve({response: response, body: body});
-    });
-    
-    if (files && typeof files === 'object' && Object.keys(files).length > 0) {
-        var form = req.form();
-        Object.keys(files).forEach(function(key) {
-            form.append(key, fs.createReadStream(files[key]));
-        });
-    }
-    
-    return deferred.promise;
-}
-
 testUtils.checkStatus = function(jobId, host, statusUrl, statusTimeout, pollInterval) {
     var interval, timeout,
         pollInterval = pollInterval || 5000,
@@ -93,7 +67,7 @@ testUtils.checkStatus = function(jobId, host, statusUrl, statusTimeout, pollInte
         };
     
     interval = setInterval(function() {
-        qRequest('get', [options])
+        requestUtils.qRequest('get', [options])
         .then(function(resp) {
             if (resp.response.statusCode !== 202) {
                 clearInterval(interval);

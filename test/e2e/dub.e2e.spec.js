@@ -1,11 +1,12 @@
-var q           = require('q'),
-    path        = require('path'),
-    fs          = require('fs-extra'),
-    testUtils   = require('./testUtils'),
-    id3Info     = require('../../lib/id3'),
-    host        = process.env['host'] || 'localhost',
-    statusHost  = process.env['statusHost'] || host,
-    config      = {
+var q               = require('q'),
+    path            = require('path'),
+    fs              = require('fs-extra'),
+    testUtils       = require('./testUtils'),
+    requestUtils    = require('../../lib/requestUtils'),
+    id3Info         = require('../../lib/id3'),
+    host            = process.env['host'] || 'localhost',
+    statusHost      = process.env['statusHost'] || host,
+    config = {
         dubUrl   : 'http://' + (host === 'localhost' ? host + ':3000' : host) + '/dub',
         maintUrl : 'http://' + (host === 'localhost' ? host + ':4000' : host) + '/maint',
         proxyUrl : 'http://' + (statusHost === 'localhost' ? statusHost + ':3000' : statusHost) + '/dub',
@@ -51,7 +52,7 @@ describe('dub (E2E)', function() {
                 json: screamTemplate
             }, reqFlag = false;
             
-            testUtils.qRequest('post', [options])
+            requestUtils.qRequest('post', [options])
             .then(function(resp) {
                 expect(resp.body.output).toBeDefined();
                 expect(typeof(resp.body.output)).toEqual('string');
@@ -65,7 +66,7 @@ describe('dub (E2E)', function() {
                     url : config.maintUrl + '/clean_cache',
                     json: screamTemplate
                 }
-                testUtils.qRequest('post', [options])
+                requestUtils.qRequest('post', [options])
                 .catch(function(error) {
                     console.log('Error cleaning caches: ' + error);
                 }).finally(function() {
@@ -87,7 +88,7 @@ describe('dub (E2E)', function() {
                 track.line += Math.round(Math.random() * 10000);
             });
 
-            testUtils.qRequest('post', [options])
+            requestUtils.qRequest('post', [options])
             .then(function(resp) {
                 expect(resp.body.output).toBeDefined();
                 expect(typeof(resp.body.output)).toEqual('string');
@@ -97,7 +98,7 @@ describe('dub (E2E)', function() {
                     url : config.maintUrl + '/clean_cache',
                     json: screamTemplate
                 }
-                testUtils.qRequest('post', [options])
+                requestUtils.qRequest('post', [options])
                 .catch(function(error) {
                     console.log('Error cleaning caches: ' + error);
                 }).finally(function() {
@@ -117,7 +118,7 @@ describe('dub (E2E)', function() {
             
             delete screamTemplate.script;
             
-            testUtils.qRequest('post', [options])
+            requestUtils.qRequest('post', [options])
             .then(function(resp) {
                 expect(resp).not.toBeDefined();
                 done();
@@ -138,14 +139,14 @@ describe('dub (E2E)', function() {
                 }
             };
             
-            testUtils.qRequest('post', [cacheOpts])
+            requestUtils.qRequest('post', [cacheOpts])
             .then(function(resp) {
                 var vidOpts = {
                     url: config.dubUrl + '/create',
                     json: screamTemplate
                 };
                 screamTemplate.video = 'invalid.mp4';
-                return testUtils.qRequest('post', [vidOpts]);
+                return requestUtils.qRequest('post', [vidOpts]);
             }).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
@@ -156,7 +157,7 @@ describe('dub (E2E)', function() {
                     url: config.maintUrl + '/clean_cache',
                     json: screamTemplate
                 }
-                testUtils.qRequest('post', [cleanOpts])
+                requestUtils.qRequest('post', [cleanOpts])
                 .catch(function(error) {
                     console.log('Error cleaning caches: ' + error);
                 }).finally(function() {
@@ -173,7 +174,7 @@ describe('dub (E2E)', function() {
             
             screamTemplate.video = 'fake_video.mp4';
             
-            testUtils.qRequest('post', [options])
+            requestUtils.qRequest('post', [options])
             .then(function(resp) {
                 expect(resp).not.toBeDefined();
                 done();
@@ -202,12 +203,12 @@ describe('dub (E2E)', function() {
                 }
             };
             
-            testUtils.qRequest('post', [fileOpts])
+            requestUtils.qRequest('post', [fileOpts])
             .then(function() {
                 var statOpts = {
                     url: config.dubUrl + '/status/e2eJob?host=' + host
                 };
-                return testUtils.qRequest('get', [statOpts]);
+                return requestUtils.qRequest('get', [statOpts]);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body.lastStatus).toBeDefined();
@@ -240,12 +241,12 @@ describe('dub (E2E)', function() {
                 }
             };
             
-            testUtils.qRequest('post', [fileOpts])
+            requestUtils.qRequest('post', [fileOpts])
             .then(function() {
                 var statOpts = {
                     url: config.proxyUrl + '/status/e2eJob?host=' + host
                 };
-                return testUtils.qRequest('get', [statOpts]);
+                return requestUtils.qRequest('get', [statOpts]);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body.lastStatus).toBeDefined();
@@ -263,7 +264,7 @@ describe('dub (E2E)', function() {
                 url: config.dubUrl + '/status/nonexistent?host=' + host
             };
             
-            testUtils.qRequest('get', [options])
+            requestUtils.qRequest('get', [options])
             .then(function(resp) {
                 expect(resp).not.toBeDefined();
                 done();
@@ -284,12 +285,12 @@ describe('dub (E2E)', function() {
                 }
             };
             
-            testUtils.qRequest('post', [fileOpts])
+            requestUtils.qRequest('post', [fileOpts])
             .then(function() {
                 var statOpts = {
                     url: config.dubUrl + '/status/invalid?host=' + host
                 };
-                return testUtils.qRequest('get', [statOpts]);
+                return requestUtils.qRequest('get', [statOpts]);
             }).then(function(resp) {
                 expect(resp).not.toBeDefined();
                 done();
@@ -326,7 +327,7 @@ describe('dub (E2E)', function() {
                     url: url
                 }, deferred = q.defer();
                 
-                testUtils.qRequest('get', [options])
+                requestUtils.qRequest('get', [options])
                 .then(function(resp) {
                     return q.npost(fs, 'writeFile', [path.join(__dirname, 'temp.mp3'), resp.body]);
                 }).then(function() {
@@ -338,7 +339,7 @@ describe('dub (E2E)', function() {
                 return deferred.promise;
             }
             
-            testUtils.qRequest('post', [options])
+            requestUtils.qRequest('post', [options])
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(202);
                 expect(resp.body.jobId.match(/^t-\w{10}$/)).toBeTruthy();
@@ -367,7 +368,7 @@ describe('dub (E2E)', function() {
                     json: options.json
                 };
                 
-                testUtils.qRequest('post', [cleanOpts])
+                requestUtils.qRequest('post', [cleanOpts])
                 .catch(function(error) {
                     console.log('Error removing track: ' + JSON.stringify(error));
                 }).finally(function() {
@@ -385,7 +386,7 @@ describe('dub (E2E)', function() {
                 json: {}
             };
         
-            testUtils.qRequest('post', [options])
+            requestUtils.qRequest('post', [options])
             .then(function(resp) {
                 expect(resp).not.toBeDefined();
                 done();
@@ -408,7 +409,7 @@ describe('dub (E2E)', function() {
                 }
             };
         
-            testUtils.qRequest('post', [options])
+            requestUtils.qRequest('post', [options])
             .then(function(resp) {
                 expect(resp).not.toBeDefined();
                 done();

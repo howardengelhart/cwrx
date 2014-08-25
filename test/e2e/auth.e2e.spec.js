@@ -1,9 +1,10 @@
-var q           = require('q'),
-    testUtils   = require('./testUtils'),
-    enums       = require('../../lib/enums'),
-    Status      = enums.Status,
-    host        = process.env['host'] || 'localhost',
-    config      = {
+var q               = require('q'),
+    testUtils       = require('./testUtils'),
+    requestUtils    = require('../../lib/requestUtils'),
+    enums           = require('../../lib/enums'),
+    Status          = enums.Status,
+    host            = process.env['host'] || 'localhost',
+    config = {
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
 
@@ -49,7 +50,7 @@ describe('auth (E2E):', function() {
                     password: 'password'
                 }
             };
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
                 expect(resp.body._id).not.toBeDefined();
@@ -74,7 +75,7 @@ describe('auth (E2E):', function() {
                     password: 'password'
                 }
             };
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.email).toBe("c6e2etester@gmail.com");
@@ -94,7 +95,7 @@ describe('auth (E2E):', function() {
                     password: 'password'
                 }
             };
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.response.body).toBe("Invalid email or password");
                 done();
@@ -112,7 +113,7 @@ describe('auth (E2E):', function() {
                     password: 'notpassword'
                 }
             };
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.response.body).toBe("Invalid email or password");
                 done();
@@ -132,7 +133,7 @@ describe('auth (E2E):', function() {
             };
             mockUser.status = Status.Inactive;
             testUtils.resetCollection('users', mockUser).then(function() {
-                return testUtils.qRequest('post', options);
+                return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.response.body).toBe("Account not active");
@@ -150,12 +151,12 @@ describe('auth (E2E):', function() {
                     email: 'c6e2etester@gmail.com'
                 }
             };
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.response.body).toBe('You need to provide an email and password in the body');
                 delete options.json.email;
                 options.json.password = 'password';
-                return testUtils.qRequest('post', options);
+                return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.response.body).toBe('You need to provide an email and password in the body');
@@ -181,14 +182,14 @@ describe('auth (E2E):', function() {
                     password: 'password'
                 }
             };
-            testUtils.qRequest('post', loginOpts).then(function(resp) {
+            requestUtils.qRequest('post', loginOpts).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.response.headers['set-cookie'].length).toBe(1);
                 var options = {
                     url: config.authUrl + '/logout',
                     jar: true
                 };
-                return testUtils.qRequest('post', options);
+                return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -205,7 +206,7 @@ describe('auth (E2E):', function() {
                 url: config.authUrl + '/logout',
                 jar: true
             };
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
                 done();
@@ -230,14 +231,14 @@ describe('auth (E2E):', function() {
                     password: 'password'
                 }
             };
-            testUtils.qRequest('post', loginOpts).then(function(resp) {
+            requestUtils.qRequest('post', loginOpts).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.response.headers['set-cookie'].length).toBe(1);
                 var getUserOpts = {
                     url: config.authUrl + '/status',
                     jar: true
                 };
-                return testUtils.qRequest('get', getUserOpts);
+                return requestUtils.qRequest('get', getUserOpts);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
@@ -252,7 +253,7 @@ describe('auth (E2E):', function() {
         });
         
         it('should fail with a 401 if the user is not logged in', function(done) {
-            testUtils.qRequest('get', {url: config.authUrl + '/status'}).then(function(resp) {
+            requestUtils.qRequest('get', {url: config.authUrl + '/status'}).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe("Unauthorized");
                 done();
@@ -280,7 +281,7 @@ describe('auth (E2E):', function() {
             var bodies = [{email: 'c6e2etester@gmail.com'}, {target: 'portal'}];
             q.all(bodies.map(function(body) {
                 options.json = body;
-                return testUtils.qRequest('post', options);
+                return requestUtils.qRequest('post', options);
             })).then(function(results) {
                 results.forEach(function(resp) {
                     expect(resp.response.statusCode).toBe(400);
@@ -296,7 +297,7 @@ describe('auth (E2E):', function() {
             mailman.once('message', function(msg) {
                 expect(msg).not.toBeDefined();
             });
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Invalid target');
             }).catch(function(error) {
@@ -309,7 +310,7 @@ describe('auth (E2E):', function() {
             mailman.once('message', function(msg) {
                 expect(msg).not.toBeDefined();
             });
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('That user does not exist');
             }).catch(function(error) {
@@ -318,7 +319,7 @@ describe('auth (E2E):', function() {
         });
         
         it('should successfully generate and send a reset token', function(done) {
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBe('Successfully generated reset token');
             }).catch(function(error) {
@@ -338,7 +339,7 @@ describe('auth (E2E):', function() {
         
         it('should convert the request email to lowercase', function(done) {
             options.json.email = 'c6E2ETester@gmail.com';
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBe('Successfully generated reset token');
             }).catch(function(error) {
@@ -379,7 +380,7 @@ describe('auth (E2E):', function() {
             ];
             q.all(bodies.map(function(body) {
                 options.json = body;
-                return testUtils.qRequest('post', options);
+                return requestUtils.qRequest('post', options);
             })).then(function(results) {
                 results.forEach(function(resp) {
                     expect(resp.response.statusCode).toBe(400);
@@ -392,7 +393,7 @@ describe('auth (E2E):', function() {
         
         it('should successfully reset a user\'s password', function(done) {
             testUtils.resetCollection('users', mockUser).then(function() {
-                return testUtils.qRequest('post', options);
+                return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual({id: 'u-1', email: 'c6e2etester@gmail.com', status: 'active',
@@ -416,7 +417,7 @@ describe('auth (E2E):', function() {
                     url: config.authUrl + '/login',
                     json: { email: 'c6e2etester@gmail.com', password: 'newPass' }
                 };
-                testUtils.qRequest('post', loginOpts).then(function(resp) {
+                requestUtils.qRequest('post', loginOpts).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body).toBeDefined();
                     expect(resp.response.headers['set-cookie'].length).toBe(1);
@@ -431,7 +432,7 @@ describe('auth (E2E):', function() {
                 expect(msg).not.toBeDefined();
             });
             options.json.id = 'u-fake';
-            testUtils.qRequest('post', options).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('That user does not exist');
             }).catch(function(error) {
@@ -445,7 +446,7 @@ describe('auth (E2E):', function() {
             });
             delete mockUser.resetToken;
             testUtils.resetCollection('users', mockUser).then(function() {
-                return testUtils.qRequest('post', options);
+                return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('No reset token found');
@@ -460,7 +461,7 @@ describe('auth (E2E):', function() {
             });
             mockUser.resetToken.expires = new Date(new Date().valueOf() - 10000);
             testUtils.resetCollection('users', mockUser).then(function() {
-                return testUtils.qRequest('post', options);
+                return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Reset token expired');
@@ -475,7 +476,7 @@ describe('auth (E2E):', function() {
             });
             options.json.token = 'theWrongToken';
             testUtils.resetCollection('users', mockUser).then(function() {
-                return testUtils.qRequest('post', options);
+                return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Invalid request token');
@@ -486,7 +487,7 @@ describe('auth (E2E):', function() {
         
         it('should fail if attempting to resend a valid request', function(done) {
             testUtils.resetCollection('users', mockUser).then(function() {
-                return testUtils.qRequest('post', options);
+                return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
@@ -499,7 +500,7 @@ describe('auth (E2E):', function() {
             mailman.once('message', function(msg) {
                 expect(msg.subject).toBe('Your account password has been changed');
                 expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
-                testUtils.qRequest('post', options).then(function(resp) {
+                requestUtils.qRequest('post', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(403);
                     expect(resp.body).toBe('No reset token found');
                 }).catch(function(error) {
@@ -515,7 +516,7 @@ describe('auth (E2E):', function() {
                     url: config.authUrl + '/password/forgot',
                     json: {email: 'c6e2etester@gmail.com', target: 'portal'}
                 };
-                return testUtils.qRequest('post', forgotOpts);
+                return requestUtils.qRequest('post', forgotOpts);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBe('Successfully generated reset token');
@@ -531,7 +532,7 @@ describe('auth (E2E):', function() {
                 expect(new Date() - msg.date).toBeLessThan(30000); // message should be recent
                 
                 options.json.token = token;
-                testUtils.qRequest('post', options).then(function(resp) {
+                requestUtils.qRequest('post', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body).toBeDefined();
                     expect(resp.response.headers['set-cookie'].length).toBe(1);
