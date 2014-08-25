@@ -70,7 +70,7 @@
             return Number(duration.match(/^\d+/)[0])*60;
         } else if(!duration.match(/^PT(\d+H)?(\d+M)?(\d+S)?$/)) {
             log.warn('Video %1 has unknown duration format %2', link, duration);
-            return undefined; // are we sure about all the log.warns?
+            return undefined; // TODO are we sure about all the log.warns?
         }
         
         return 60*60*Number((duration.match(/\d+(?=H)/) || [])[0] || 0) + // hours
@@ -91,7 +91,7 @@
         respObj.items = items.map(function(item) {
             if (!item.pagemap || !item.pagemap.videoobject instanceof Array || !item.link) {
                 log.warn('Invalid item: ' + JSON.stringify(item));
-                return undefined; //TODO: will this work?
+                return undefined;
             }
 
             /*jshint camelcase: false */
@@ -110,13 +110,13 @@
             
             switch (formatted.site) {
                 case 'youtube':
-                    formatted.videoId = (item.link.match(/[^\=]+$/) || [])[0];
+                    formatted.videoid = (item.link.match(/[^\=]+$/) || [])[0];
                     break;
                 case 'vimeo':
-                    formatted.videoId = (item.link.match(/[^\/]+$/) || [])[0];
+                    formatted.videoid = (item.link.match(/[^\/]+$/) || [])[0];
                     break;
                 case 'dailymotion':
-                    formatted.videoId = (item.link.match(/[^\/_]+(?=_)/) || [])[0];
+                    formatted.videoid = (item.link.match(/[^\/_]+(?=_)/) || [])[0];
                     break;
             }
             
@@ -132,7 +132,7 @@
     search.findVideosWithGoogle = function(req, opts, googleCfg, apiKey) {
         var log = logger.getLog();
 
-        if (opts.sites) { //TODO: may need to change this back to single (non-array) site
+        if (opts.sites) {
             opts.query += ' site:' + opts.sites.join(' OR site:');
         }
 
@@ -154,17 +154,17 @@
         if (opts.hd) {
             reqOpts.qs.sort = 'videoobject-height:r:720';
         }
-                 
+
         return requestUtils.qRequest('get', reqOpts)
         .then(function(resp) {
             if (resp.response.statusCode < 200 || resp.response.statusCode >= 300) {
                 log.warn('[%1] Received error response from google: code %2, body = %3',
                          req.uuid, resp.response.statusCode, util.inspect(resp.body));
-                return q({code: 500, body: 'Error querying google'}); //TODO: or more transparent?
+                return q({code: 500, body: 'Error querying google'});
             } else if (!resp.body.queries || !resp.body.queries.request || !resp.body.items) {
                 log.warn('[%1] Received incomplete response body from google: %2',
                          req.uuid, util.inspect(resp.body));
-                return q({code: 500, body: 'Error querying google'}); //TODO: or more transparent?
+                return q({code: 500, body: 'Error querying google'});
             }
             
             var stats = resp.body.queries.request[0];
@@ -181,7 +181,8 @@
             query = req.query && req.query.query || null,
             limit = Math.min(Math.max(parseInt(req.query && req.query.limit) || 10, 1), 10),
             start = Math.max(parseInt(req.query && req.query.skip) || 0, 0) + 1,
-            sites = req.query && req.query.sites && req.query.sites.split(',') || null,
+            sites = req.query && req.query.sites &&
+                    req.query.sites.split(',').map(function(site){ return site + '.com'; }) || null,
             hd = req.query && req.query.hd || false,
             opts = { query: query, limit: limit, start: start, sites: sites, hd: hd };
         

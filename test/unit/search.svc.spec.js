@@ -77,13 +77,13 @@ describe('search (UT)', function() {
                 meta: {skipped: 10, numResults: 20, totalResults: 12345},
                 items: [
                     { title: 'YT Test', link: 'http://www.youtube.com/watch?v=GdEKSyad_rk', siteLink: 'www.youtube.com',
-                      description: 'YT desc', site: 'youtube', hd: true, duration: 73, videoId: 'GdEKSyad_rk',
+                      description: 'YT desc', site: 'youtube', hd: true, duration: 73, videoid: 'GdEKSyad_rk',
                       thumbnail: { width: 300, height: 168, src: 'http://img.com' } },
                     { title: 'V Test', link: 'http://vimeo.com/77428778', siteLink: 'vimeo.com',
-                      description: 'V desc', site: 'vimeo', hd: true, duration: 120, videoId: '77428778',
+                      description: 'V desc', site: 'vimeo', hd: true, duration: 120, videoid: '77428778',
                       thumbnail: { width: 100, height: 100, src: 'http://img2.com' } },
                     { title: 'DM Test', link: 'http://www.dailymotion.com/video/x169luh_waterski-breakdancing-2013_sport', siteLink: 'www.dailymotion.com',
-                      description: 'DM desc', site: 'dailymotion', hd: false, duration: 72, videoId: 'x169luh',
+                      description: 'DM desc', site: 'dailymotion', hd: false, duration: 72, videoid: 'x169luh',
                       thumbnail: { src: 'http://img3.com' } }
                 ]
             });
@@ -202,7 +202,7 @@ describe('search (UT)', function() {
     describe('findVideos', function() {
         var config, secrets;
         beforeEach(function() {
-            req.query = {query: 'foo', limit: '10', skip: '20', sites: 'youtube.com,vimeo.com', hd: 'true'};
+            req.query = {query: 'foo', limit: '10', skip: '20', sites: 'youtube,vimeo', hd: 'true'};
             config = { google: 'fakeGoogleCfg', foo: 'bar' };
             secrets = { googleKey: 'asdf1234', other: 'yes' };
             spyOn(search, 'findVideosWithGoogle').andReturn(q('fakeResp'));
