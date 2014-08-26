@@ -1,7 +1,7 @@
-var path        = require('path'),
-    fs          = require('fs-extra'),
-    q           = require('q'),
-    testUtils   = require('../test/e2e/testUtils');
+var path            = require('path'),
+    fs              = require('fs-extra'),
+    q               = require('q'),
+    requestUtils    = require('../lib/requestUtils');
 
 module.exports = function(grunt) {
     function lookupIp(ec2Data, host,iface){
@@ -44,13 +44,13 @@ module.exports = function(grunt) {
             var dirPath = 'logs/test' + testNum;
             return q.npost(fs, 'mkdirs', [dirPath])
             .then(function() {
-                return testUtils.qRequest('get', getOpts)
+                return requestUtils.qRequest('get', getOpts)
             }).then(function(resp) {
                 var fpath = path.join(dirPath, logfile);
                 grunt.log.writeln("Remote log " + logfile + " stored in " + fpath);
                 return q.npost(fs, 'outputFile', [fpath, resp.body]);
             }).then(function() {
-                return testUtils.qRequest('post', clearOpts);
+                return requestUtils.qRequest('post', clearOpts);
             }).then(function(resp) {
                 console.log("Cleared remote log " + logfile);
                 return q();
@@ -58,7 +58,7 @@ module.exports = function(grunt) {
             return deferred.promise;
         })).catch(function(error) {
             grunt.log.errorlns("Error getting and clearing logs:");
-            grunt.log.errorlns(JSON.stringify(error));
+            grunt.log.errorlns(require('util').inspect(error));
             done(false);
         });
     });
