@@ -410,6 +410,21 @@ describe('auth (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
         });
+
+        it('should fail with a 403 if the user is not active', function(done) {
+            origUser.status = Status.Inactive;
+            auth.forgotPassword(req, users, 10000, 'test@c6.com', targets).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(403);
+                expect(resp.body).toBe('Account not active');
+                expect(users.findOne).toHaveBeenCalled();
+                expect(crypto.randomBytes).not.toHaveBeenCalled();
+                expect(users.update).not.toHaveBeenCalled();
+                expect(auth.mailResetToken).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
         
         it('should overwrite a previous token if one exists', function(done) {
             origUser.resetToken = { expires: new Date(), token: 'oldToken' };
@@ -499,7 +514,7 @@ describe('auth (UT)', function() {
             now = new Date();
             req.body = {id: 'u-1', token: 'qwer1234', newPassword: 'newPass'};
             origUser = {
-                id: 'u-1', email: 'user@c6.com', password: 'oldpass',
+                id: 'u-1', email: 'user@c6.com', password: 'oldpass', status: Status.Active,
                 resetToken: { token: 'hashed', expires: new Date(now.valueOf() + 10000) }
             };
             users.findOne.andCallFake(function(query, cb) { cb(null, origUser); });
@@ -560,6 +575,20 @@ describe('auth (UT)', function() {
             auth.resetPassword(req, users, 'test@c6.com', 10000).then(function(resp) {
                 expect(resp.code).toBe(404);
                 expect(resp.body).toBe('That user does not exist');
+                expect(users.findOne).toHaveBeenCalled();
+                expect(bcrypt.compare).not.toHaveBeenCalled();
+                expect(users.findAndModify).not.toHaveBeenCalled();
+                expect(req.session.regenerate).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+
+        it('should fail with a 403 if the user is not active', function(done) {
+            origUser.status = Status.Inactive;
+            auth.resetPassword(req, users, 'test@c6.com', 10000).then(function(resp) {
+                expect(resp.code).toBe(403);
+                expect(resp.body).toBe('Account not active');
                 expect(users.findOne).toHaveBeenCalled();
                 expect(bcrypt.compare).not.toHaveBeenCalled();
                 expect(users.findAndModify).not.toHaveBeenCalled();

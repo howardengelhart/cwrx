@@ -12,7 +12,7 @@
         logger          = require('../lib/logger'),
         mongoUtils      = require('../lib/mongoUtils'),
         FieldValidator  = require('../lib/fieldValidator'),
-        authUtils       = require('../lib/authUtils')(),
+        authUtils       = require('../lib/authUtils'),
         enums           = require('../lib/enums'),
         Status          = enums.Status,
         Scope           = enums.Scope,
@@ -548,9 +548,8 @@
             users       = state.dbs.c6Db.collection('users'),
             elDb        = new ElectionDb(elections, state.config.idleSyncTimeout),
             started     = new Date(),
-            authTTLs    = state.config.cacheTTLs.auth,
             webServer;
-        authUtils = require('../lib/authUtils')(authTTLs.freshTTL, authTTLs.maxTTL, users);
+        authUtils._coll = users;
         
 
         state.onSIGTERM = function(){
@@ -575,7 +574,7 @@
 
         state.dbStatus.c6Db.on('reconnected', function() {
             users = state.dbs.c6Db.collection('users');
-            authUtils._cache._coll = users;
+            authUtils._coll = users;
             log.info('Recreated collections from restarted c6Db');
         });
 

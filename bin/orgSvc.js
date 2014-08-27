@@ -9,7 +9,7 @@
         uuid            = require('../lib/uuid'),
         FieldValidator  = require('../lib/fieldValidator'),
         mongoUtils      = require('../lib/mongoUtils'),
-        authUtils       = require('../lib/authUtils')(),
+        authUtils       = require('../lib/authUtils'),
         service         = require('../lib/service'),
         enums           = require('../lib/enums'),
         Status          = enums.Status,
@@ -363,9 +363,8 @@
         var express     = require('express'),
             app         = express(),
             users       = state.dbs.c6Db.collection('users'),
-            orgs       = state.dbs.c6Db.collection('orgs'),
-            authTTLs    = state.config.cacheTTLs.auth;
-        authUtils = require('../lib/authUtils')(authTTLs.freshTTL, authTTLs.maxTTL, users);
+            orgs       = state.dbs.c6Db.collection('orgs');
+        authUtils._coll = users;
 
         app.use(express.bodyParser());
         app.use(express.cookieParser(state.secrets.cookieParser || ''));
@@ -382,7 +381,7 @@
         state.dbStatus.c6Db.on('reconnected', function() {
             users = state.dbs.c6Db.collection('users');
             orgs  = state.dbs.c6Db.collection('orgs');
-            authUtils._cache._coll = users;
+            authUtils._coll = users;
             log.info('Recreated collections from restarted c6Db');
         });
         

@@ -11,7 +11,7 @@
         uuid            = require('../lib/uuid'),
         FieldValidator  = require('../lib/fieldValidator'),
         mongoUtils      = require('../lib/mongoUtils'),
-        authUtils       = require('../lib/authUtils')(),
+        authUtils       = require('../lib/authUtils'),
         service         = require('../lib/service'),
         email           = require('../lib/email'),
         enums           = require('../lib/enums'),
@@ -481,6 +481,35 @@
             return q.reject(error);
         });
     };
+    
+    userSvc.forceLogoutUser = function(req, sessColl) {
+        var log = logger.getLog(),
+            id = req.params.id,
+            requester = req.user;
+        
+        /*TODO: explain better: requester can force logout themselves, but session store
+                auto-resaves their current session, so only deletes all their other sessions. */
+        
+        if (!(requester.permissions &&
+              requester.permissions.users &&
+              requester.permissions.users.edit &&
+              requester.permissions.users.edit === Scope.All)) {
+            log.info('[%1] User %2 not authorized to force logout users', req.uuid, requester.id);
+            return q({code: 403, body: 'Not authorized to force logout users'});
+        }
+        
+        log.info('[%1] Admin %2 is deleting all login sessions for %3', req.uuid, requester.id, id);
+        
+        return q.npost(sessColl, 'remove', [{'session.user': id}, {w: 1, journal: true}])
+        .then(function(count) {
+            log.info('[%1] Successfully deleted %2 session docs', req.uuid, count);
+            return q({code: 204}); //TODO: return count?
+        })
+        .catch(function(error) {
+            log.error('[%1] Error removing sessions for user %2: %3', req.uuid, id, error);
+            return q.reject(error);
+        });
+    };
 
     userSvc.main = function(state) {
         var log = logger.getLog(),
@@ -493,9 +522,8 @@
             
         var express     = require('express'),
             app         = express(),
-            users       = state.dbs.c6Db.collection('users'),
-            authTTLs    = state.config.cacheTTLs.auth;
-        authUtils = require('../lib/authUtils')(authTTLs.freshTTL, authTTLs.maxTTL, users);
+            users       = state.dbs.c6Db.collection('users');
+        authUtils._coll = users;
 
         // Nodemailer will automatically get SES creds, but need to set region here
         aws.config.region = state.config.ses.region;
@@ -514,7 +542,7 @@
 
         state.dbStatus.c6Db.on('reconnected', function() {
             users = state.dbs.c6Db.collection('users');
-            authUtils._cache._coll = users;
+            authUtils._coll = users;
             log.info('Recreated collections from restarted c6Db');
         });
         
@@ -664,6 +692,18 @@
             }).catch(function(error) {
                 res.send(500, {
                     error: 'Error deleting user',
+                    detail: error
+                });
+            });
+        });
+        
+        app.post('/api/account/user/logout/:id', sessionsWrapper, authPutUser, function(req, res) {
+            userSvc.forceLogoutUser(req, state.sessionStore.db.collection('sessions'))
+            .then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error logging out user\'s sessions',
                     detail: error
                 });
             });

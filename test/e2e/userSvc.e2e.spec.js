@@ -10,7 +10,7 @@ var q               = require('q'),
 jasmine.getEnv().defaultTimeoutInterval = 30000;
 
 describe('user (E2E):', function() {
-    var cookieJar, mockRequester;
+    var cookieJar, mockRequester, mockAdmin;
         
     beforeEach(function(done) {
         if (cookieJar && cookieJar.cookies) {
@@ -27,6 +27,16 @@ describe('user (E2E):', function() {
                 users: { read: 'org', create: 'org', edit: 'org', delete: 'org' }
             }
         };
+        mockAdmin = {
+            id: 'e2e-admin-user',
+            status: 'active',
+            email: 'admine2euser',
+            password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
+            org: 'o-4567',
+            permissions: {
+                users: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
+            }
+        };
         var loginOpts = {
             url: config.authUrl + '/login',
             jar: cookieJar,
@@ -35,7 +45,7 @@ describe('user (E2E):', function() {
                 password: 'password'
             }
         };
-        testUtils.resetCollection('users', mockRequester).then(function(resp) {
+        testUtils.resetCollection('users', [mockRequester, mockAdmin]).then(function(resp) {
             return requestUtils.qRequest('post', loginOpts);
         }).done(function(resp) {
             done();
@@ -106,7 +116,7 @@ describe('user (E2E):', function() {
             var options = { url: config.userSvcUrl + '/user/e2e-fake1' };
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
-                expect(resp.body).toBe("Unauthorized");
+                expect(resp.body).toBe('Unauthorized');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -123,7 +133,7 @@ describe('user (E2E):', function() {
                 { id: 'e2e-getOrg2', email: 'abcd', password: 'thisisasecret', org: 'o-1234' },
                 { id: 'e2e-getOrg3', email: 'hijk', password: 'thisisasecret', org: 'o-4567' }
             ];
-            testUtils.resetCollection('users', mockUsers.concat([mockRequester])).done(done);
+            testUtils.resetCollection('users', mockUsers.concat([mockRequester, mockAdmin])).done(done);
         });
         
         it('should get users by org', function(done) {
@@ -202,7 +212,7 @@ describe('user (E2E):', function() {
             var options = { url: config.userSvcUrl + '/users?org=o-1234' };
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
-                expect(resp.body).toBe("Unauthorized");
+                expect(resp.body).toBe('Unauthorized');
                 expect(resp.response.headers['content-range']).not.toBeDefined();
                 done();
             }).catch(function(error) {
@@ -226,21 +236,17 @@ describe('user (E2E):', function() {
         
         it('should allow admins to get all users', function(done) {
             var options = { url: config.userSvcUrl + '/users?sort=id,1', jar: cookieJar };
-            mockRequester.permissions.users.read = 'all';
-            mockRequester.id = 'e2e-admin-user';
-            testUtils.resetCollection('users', mockUsers.concat([mockRequester])).then(function() {
-                var loginOpts = {
-                    url: config.authUrl + '/login',
-                    jar: cookieJar,
-                    json: { email: 'usersvce2euser', password: 'password' }
-                };
-                return requestUtils.qRequest('post', loginOpts);
-            }).then(function(resp) {
+            var loginOpts = {
+                url: config.authUrl + '/login',
+                jar: cookieJar,
+                json: { email: 'admine2euser', password: 'password' }
+            };
+            requestUtils.qRequest('post', loginOpts).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.length).toBe(4);
+                expect(resp.body.length).toBe(5);
                 expect(resp.body[0].id).toBe('e2e-admin-user');
                 expect(resp.body[0].password).not.toBeDefined();
                 expect(resp.body[1].id).toBe('e2e-getOrg1');
@@ -249,7 +255,9 @@ describe('user (E2E):', function() {
                 expect(resp.body[2].password).not.toBeDefined();
                 expect(resp.body[3].id).toBe('e2e-getOrg3');
                 expect(resp.body[3].password).not.toBeDefined();
-                expect(resp.response.headers['content-range']).toBe('items 1-4/4');
+                expect(resp.body[4].id).toBe('e2e-user');
+                expect(resp.body[4].password).not.toBeDefined();
+                expect(resp.response.headers['content-range']).toBe('items 1-5/5');
                 delete cookieJar.cookies; // force reset and re-login of mockRequester in beforeEach
                 done();
             }).catch(function(error) {
@@ -268,7 +276,7 @@ describe('user (E2E):', function() {
                 org: 'o-1234'
             };
             options = { url: config.userSvcUrl + '/user', json: mockUser, jar: cookieJar };
-            testUtils.resetCollection('users', mockRequester).done(done);
+            testUtils.resetCollection('users', [mockRequester, mockAdmin]).done(done);
         });
         
         it('should be able to create a user', function(done) {
@@ -397,7 +405,7 @@ describe('user (E2E):', function() {
             delete options.jar;
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
-                expect(resp.body).toBe("Unauthorized");
+                expect(resp.body).toBe('Unauthorized');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -428,8 +436,8 @@ describe('user (E2E):', function() {
                     created: start
                 }
             ];
-            testUtils.resetCollection('users', mockUsers.concat([mockRequester])).done(done);
             updates = { tag: 'bar' };
+            testUtils.resetCollection('users', mockUsers.concat([mockRequester, mockAdmin])).done(done);
         });
         
         it('should successfully update a user', function(done) {
@@ -522,7 +530,7 @@ describe('user (E2E):', function() {
                 { id: 'e2e-delete1', email: 'abcd', password: 'thisisasecret', org: 'o-1234' },
                 { id: 'e2e-delete2', email: 'defg', password: 'thisisasecret', org: 'o-4567' }
             ];
-            testUtils.resetCollection('users', mockUsers.concat([mockRequester])).done(done);
+            testUtils.resetCollection('users', mockUsers.concat([mockRequester, mockAdmin])).done(done);
         });
         
         it('should successfully mark a user as deleted', function(done) {
@@ -604,7 +612,7 @@ describe('user (E2E):', function() {
             var options = { url: config.userSvcUrl + '/user/e2e-fake' };
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
-                expect(resp.body).toBe("Unauthorized");
+                expect(resp.body).toBe('Unauthorized');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -624,7 +632,7 @@ describe('user (E2E):', function() {
             };
             reqBody = { email: 'c6e2etester@gmail.com', password: 'password', newEmail: 'mynewemail' };
             options = { url: config.userSvcUrl + '/user/email', json: reqBody };
-            testUtils.resetCollection('users', user).done(done);
+            testUtils.resetCollection('users', [mockRequester, mockAdmin, user]).done(done);
         });
 
         it('should fail if email, password, or newEmail are not provided', function(done) {
@@ -769,7 +777,7 @@ describe('user (E2E):', function() {
             };
             reqBody = { email: 'c6e2etester@gmail.com', password: 'password', newPassword: 'foobar' };
             options = { url: config.userSvcUrl + '/user/password', json: reqBody };
-            testUtils.resetCollection('users', user).done(done);
+            testUtils.resetCollection('users', [mockRequester, mockAdmin, user]).done(done);
         });
 
         it('should fail if email, password, or newPassword are not provided', function(done) {
@@ -878,6 +886,88 @@ describe('user (E2E):', function() {
                 mailman.stop();
                 done();
             });
+        });
+    });
+    
+    describe('POST /api/account/user/logout/:id', function() {
+        var adminJar;
+        beforeEach(function(done) {
+            adminJar = require('request').jar();
+            var loginOpts = {
+                url: config.authUrl + '/login',
+                jar: adminJar,
+                json: {
+                    email: 'admine2euser',
+                    password: 'password'
+                }
+            };
+            requestUtils.qRequest('post', loginOpts).then(function(resp) {
+                loginOpts.jar = cookieJar;
+                loginOpts.json.email = 'usersvce2euser';
+                return requestUtils.qRequest('post', loginOpts);
+            }).done(function(resp) {
+                done();
+            });
+        });
+        
+        it('should logout another user\'s active sessions', function(done) {
+            var statusOpts = { url: config.authUrl + '/status', jar: cookieJar },
+                logoutOpts = { url: config.userSvcUrl + '/user/logout/e2e-user', jar: adminJar };
+            requestUtils.qRequest('get', statusOpts).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return requestUtils.qRequest('post', logoutOpts);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
+                return requestUtils.qRequest('get', statusOpts);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe('Unauthorized');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should let a user log themselves out, but preserve their current session', function(done) {
+            var statusOpts = { url: config.authUrl + '/status', jar: adminJar },
+                logoutOpts = { url: config.userSvcUrl + '/user/logout/e2e-admin-user', jar: adminJar };
+            requestUtils.qRequest('post', logoutOpts).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                expect(resp.body).toBe('');
+                return requestUtils.qRequest('get', statusOpts);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should not allow a non-admin to logout another user', function(done) {
+            var statusOpts = { url: config.authUrl + '/status', jar: adminJar },
+                logoutOpts = { url: config.userSvcUrl + '/user/logout/e2e-admin-user', jar: cookieJar };
+            requestUtils.qRequest('post', logoutOpts).then(function(resp) {
+                expect(resp.response.statusCode).toBe(403);
+                expect(resp.body).toBe('Not authorized to force logout users');
+                return requestUtils.qRequest('get', statusOpts);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should throw a 401 error if the user is not authenticated', function(done) {
+            var statusOpts = { url: config.authUrl + '/status', jar: cookieJar },
+                logoutOpts = { url: config.userSvcUrl + '/user/logout/e2e-user' };
+            requestUtils.qRequest('post', logoutOpts).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                expect(resp.body).toBe('Unauthorized');
+                return requestUtils.qRequest('get', statusOpts);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
         });
     });
 });

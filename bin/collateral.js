@@ -13,7 +13,7 @@
         util        = require('util'),
         logger      = require('../lib/logger'),
         uuid        = require('../lib/uuid'),
-        authUtils   = require('../lib/authUtils')(),
+        authUtils   = require('../lib/authUtils'),
         service     = require('../lib/service'),
         s3util      = require('../lib/s3util'),
         enums       = require('../lib/enums'),
@@ -604,9 +604,8 @@
             
         var express     = require('express'),
             app         = express(),
-            users       = state.dbs.c6Db.collection('users'),
-            authTTLs    = state.config.cacheTTLs.auth;
-        authUtils = require('../lib/authUtils')(authTTLs.freshTTL, authTTLs.maxTTL, users);
+            users       = state.dbs.c6Db.collection('users');
+        authUtils._coll = users;
         
         // If running locally, you need to put AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in env
         aws.config.region = state.config.s3.region;
@@ -626,7 +625,7 @@
 
         state.dbStatus.c6Db.on('reconnected', function() {
             users = state.dbs.c6Db.collection('users');
-            authUtils._cache._coll = users;
+            authUtils._coll = users;
             log.info('Recreated collections from restarted c6Db');
         });
         

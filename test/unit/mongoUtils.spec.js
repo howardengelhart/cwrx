@@ -118,6 +118,12 @@ describe('mongoUtils', function() {
             expect(user.resetToken).toEqual({token: 'hashToken', expires: jasmine.any(Date)});
             expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
         });
+        
+        it('should just return the user if the user is not a proper object', function() {
+            expect(mongoUtils.safeUser(null)).toBe(null);
+            expect(mongoUtils.safeUser(undefined)).toBe(undefined);
+            expect(mongoUtils.safeUser('fake')).toBe('fake');
+        });
     });
     
     describe('escapeKeys', function() {
