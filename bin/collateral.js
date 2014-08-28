@@ -32,12 +32,6 @@
         cacheControl: {
             default: 'max-age=15'
         },
-        cacheTTLs: {  // units here are minutes
-            auth: {
-                freshTTL: 1,
-                maxTTL: 10
-            }
-        },
         splash: {
             quality: 75,            // some integer between 0 and 100
             maxDimension: 1000,     // pixels, either height or width, to provide basic sane limit

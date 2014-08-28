@@ -36,11 +36,7 @@
                 freshTTL: 1,
                 maxTTL: 10
             },
-            cloudFront: 5,
-            auth: {
-                freshTTL: 1,
-                maxTTL: 10
-            }
+            cloudFront: 5
         },
         sessions: {
             key: 'c6Auth',

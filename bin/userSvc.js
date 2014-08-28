@@ -28,12 +28,6 @@
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/userSvc/caches/run/'),
         },
-        cacheTTLs: {  // units here are minutes
-            auth: {
-                freshTTL: 1,
-                maxTTL: 10
-            }
-        },
         ses: {
             region: 'us-east-1',
             sender: 'support@cinema6.com'
@@ -481,14 +475,14 @@
             return q.reject(error);
         });
     };
-    
+
+    /* Logs out a user by deleting all their sessions in the session db. A user can delete their
+     * own sessions, but express will automatically resave their session afterwards, so this would
+     * only delete all of their other active sessions. */
     userSvc.forceLogoutUser = function(req, sessColl) {
         var log = logger.getLog(),
             id = req.params.id,
             requester = req.user;
-        
-        /*TODO: explain better: requester can force logout themselves, but session store
-                auto-resaves their current session, so only deletes all their other sessions. */
         
         if (!(requester.permissions &&
               requester.permissions.users &&
@@ -503,7 +497,7 @@
         return q.npost(sessColl, 'remove', [{'session.user': id}, {w: 1, journal: true}])
         .then(function(count) {
             log.info('[%1] Successfully deleted %2 session docs', req.uuid, count);
-            return q({code: 204}); //TODO: return count?
+            return q({code: 204});
         })
         .catch(function(error) {
             log.error('[%1] Error removing sessions for user %2: %3', req.uuid, id, error);

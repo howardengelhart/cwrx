@@ -22,12 +22,6 @@
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/search/caches/run/'),
         },
-        cacheTTLs: {  // units here are minutes
-            auth: {
-                freshTTL: 1,
-                maxTTL: 10
-            }
-        },
         google: {
             apiUrl: 'https://www.googleapis.com/customsearch/v1',
             engineId: '007281538304941793863:cbx8mzslyne',

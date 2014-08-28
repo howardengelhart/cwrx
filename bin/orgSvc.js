@@ -26,12 +26,6 @@
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/orgSvc/caches/run/'),
         },
-        cacheTTLs: {  // units here are minutes
-            auth: {
-                freshTTL: 1,
-                maxTTL: 10
-            }
-        },
         sessions: {
             key: 'c6Auth',
             maxAge: 14*24*60*60*1000, // 14 days; unit here is milliseconds

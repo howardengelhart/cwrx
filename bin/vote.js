@@ -28,12 +28,6 @@
             getElection     : 'max-age=300',
             getBallotItem   : 'max-age=300'
         },
-        cacheTTLs: {
-            auth: {
-                freshTTL: 1,
-                maxTTL: 10
-            }
-        },
         log    : {
             logLevel : 'info',
             media    : [ { type : 'console' } ]

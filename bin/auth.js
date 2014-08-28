@@ -36,7 +36,7 @@
                 port: null,
                 retryConnect : true
             }
-        },//TODO: test that getting rid of cacheTTLs here is ok
+        },
         ses: {
             region: 'us-east-1',
             sender: 'support@cinema6.com'
