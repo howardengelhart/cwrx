@@ -252,6 +252,35 @@ describe('auth (E2E):', function() {
             });
         });
         
+        it('should fail if the user becomes inactive', function(done) {
+            var loginOpts = {
+                url: config.authUrl + '/login',
+                jar: true,
+                json: {
+                    email: 'c6e2etester@gmail.com',
+                    password: 'password'
+                }
+            };
+            requestUtils.qRequest('post', loginOpts).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                mockUser.status = Status.Inactive;
+                return testUtils.resetCollection('users', mockUser);
+            }).then(function() {
+                var getUserOpts = {
+                    url: config.authUrl + '/status',
+                    jar: true
+                };
+                return requestUtils.qRequest('get', getUserOpts);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(403);
+                expect(resp.body).toBe('Forbidden');
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
         it('should fail with a 401 if the user is not logged in', function(done) {
             requestUtils.qRequest('get', {url: config.authUrl + '/status'}).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);

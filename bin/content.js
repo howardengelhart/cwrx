@@ -10,14 +10,14 @@
         mongoUtils      = require('../lib/mongoUtils'),
         QueryCache      = require('../lib/queryCache'),
         FieldValidator  = require('../lib/fieldValidator'),
-        authUtils       = require('../lib/authUtils')(),
+        authUtils       = require('../lib/authUtils'),
         service         = require('../lib/service'),
         enums           = require('../lib/enums'),
         Status          = enums.Status,
         Access          = enums.Access,
         Scope           = enums.Scope,
         
-        state       = {},
+        state = {},
         content = {}; // for exporting functions to unit tests
 
     state.name = 'content';
@@ -36,11 +36,7 @@
                 freshTTL: 1,
                 maxTTL: 10
             },
-            cloudFront: 5,
-            auth: {
-                freshTTL: 1,
-                maxTTL: 10
-            }
+            cloudFront: 5
         },
         sessions: {
             key: 'c6Auth',
@@ -535,12 +531,11 @@
             experiences = state.dbs.c6Db.collection('experiences'),
             users       = state.dbs.c6Db.collection('users'),
             orgs        = state.dbs.c6Db.collection('orgs'),
-            authTTLs    = state.config.cacheTTLs.auth,
             expTTLs     = state.config.cacheTTLs.experiences,
             expCache    = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences),
             orgTTLs     = state.config.cacheTTLs.orgs,
             orgCache    = new QueryCache(orgTTLs.freshTTL, orgTTLs.maxTTL, orgs);
-        authUtils = require('../lib/authUtils')(authTTLs.freshTTL, authTTLs.maxTTL, users);
+        authUtils._coll = users;
 
         app.use(express.bodyParser());
         app.use(express.cookieParser(state.secrets.cookieParser || ''));
@@ -559,7 +554,7 @@
             users = state.dbs.c6Db.collection('users');
             orgs = state.dbs.c6Db.collection('orgs');
             expCache._coll = experiences;
-            authUtils._cache._coll = users;
+            authUtils._coll = users;
             log.info('Recreated collections from restarted c6Db');
         });
         
