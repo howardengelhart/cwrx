@@ -20,7 +20,8 @@ describe('mongoUtils', function() {
             mongoUtils.connect('10.0.0.1', '666', 'fakeDb').then(function(db) {
                 expect(db).toBe('fakeDb');
                 expect(mongodb.MongoClient.connect).toHaveBeenCalled();
-                expect(mongodb.MongoClient.connect.calls[0].args[0]).toBe('mongodb://10.0.0.1:666/fakeDb');
+                expect(mongodb.MongoClient.connect.calls[0].args[0])
+                    .toBe('mongodb://10.0.0.1:666/fakeDb?readPreference=primaryPreferred');
                 expect(mongodb.MongoClient.connect.calls[0].args[1]).toEqual({
                     server: { auto_reconnect: true },
                     db: { native_parser: true, bufferMaxEntries: 0 }
@@ -39,7 +40,7 @@ describe('mongoUtils', function() {
                 expect(db).toBe('fakeDb');
                 expect(mongodb.MongoClient.connect).toHaveBeenCalled();
                 expect(mongodb.MongoClient.connect.calls[0].args[0])
-                    .toBe('mongodb://10.0.1.1:123,10.0.1.2:456/fakeDb?replicaSet=devReplSet');
+                    .toBe('mongodb://10.0.1.1:123,10.0.1.2:456/fakeDb?readPreference=primaryPreferred&replicaSet=devReplSet');
                 expect(mongodb.MongoClient.connect.calls[0].args[1]).toEqual({
                     server: { auto_reconnect: true },
                     db: { native_parser: true, bufferMaxEntries: 0 }
@@ -57,7 +58,7 @@ describe('mongoUtils', function() {
                 expect(db).toBe('fakeDb');
                 expect(mongodb.MongoClient.connect).toHaveBeenCalled();
                 expect(mongodb.MongoClient.connect.calls[0].args[0])
-                    .toBe('mongodb://test:password@10.0.0.1:666/fakeDb');
+                    .toBe('mongodb://test:password@10.0.0.1:666/fakeDb?readPreference=primaryPreferred');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -88,7 +89,8 @@ describe('mongoUtils', function() {
             });
             mongoUtils.connect('10.0.0.1', '666', 'fakeDb').catch(function(error) {
                 expect(error).toBe('Error!');
-                expect(mongodb.MongoClient.connect.calls[0].args[0]).toBe('mongodb://10.0.0.1:666/fakeDb');
+                expect(mongodb.MongoClient.connect.calls[0].args[0])
+                    .toBe('mongodb://10.0.0.1:666/fakeDb?readPreference=primaryPreferred');
                 done();
             });
         });
