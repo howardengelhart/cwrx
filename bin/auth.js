@@ -11,10 +11,10 @@
         logger      = require('../lib/logger'),
         uuid        = require('../lib/uuid'),
         mongoUtils  = require('../lib/mongoUtils'),
-        authUtils   = require('../lib/authUtils')(),
+        authUtils   = require('../lib/authUtils'),
         service     = require('../lib/service'),
-        enums       = require('../lib/enums'),
         email       = require('../lib/email'),
+        enums       = require('../lib/enums'),
         Status      = enums.Status,
 
         state       = {},
@@ -35,12 +35,6 @@
                 host: null,
                 port: null,
                 retryConnect : true
-            }
-        },
-        cacheTTLs: {  // units here are minutes
-            auth: {
-                freshTTL: 1,
-                maxTTL: 10
             }
         },
         ses: {
@@ -168,6 +162,11 @@
                 log.info('[%1] No user with email %2 exists', req.uuid, reqEmail);
                 return q({code: 404, body: 'That user does not exist'});
             }
+            
+            if (account.status !== Status.Active) {
+                log.info('[%1] User %2 not active', req.uuid, reqEmail);
+                return q({code: 403, body: 'Account not active'});
+            }
 
             return q.npost(crypto, 'randomBytes', [24])
             .then(function(buff) {
@@ -218,6 +217,10 @@
             if (!account) {
                 log.info('[%1] No user with id %2 exists', req.uuid, id);
                 return q({code: 404, body: 'That user does not exist'});
+            }
+            if (account.status !== Status.Active) {
+                log.info('[%1] User %2 not active', req.uuid, id);
+                return q({code: 403, body: 'Account not active'});
             }
             if (!account.resetToken || !account.resetToken.expires) {
                 log.info('[%1] User %2 has no reset token in the database', req.uuid, id);
@@ -281,9 +284,8 @@
 
         var express     = require('express'),
             app         = express(),
-            users       = state.dbs.c6Db.collection('users'),
-            authTTLs    = state.config.cacheTTLs.auth;
-        authUtils = require('../lib/authUtils')(authTTLs.freshTTL, authTTLs.maxTTL, users);
+            users       = state.dbs.c6Db.collection('users');
+        authUtils._coll = users;
         
         aws.config.region = state.config.ses.region;
 
@@ -301,7 +303,7 @@
         
         state.dbStatus.c6Db.on('reconnected', function() {
             users = state.dbs.c6Db.collection('users');
-            authUtils._cache._coll = users;
+            authUtils._coll = users;
             log.info('Recreated collections from restarted c6Db');
         });
         

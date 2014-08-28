@@ -676,7 +676,7 @@ describe('service (UT)',function(){
                     'fakeUser', 'fakePass', ["h1:p1", "h2:p2"], "devRepl");
                 expect(msModule).toHaveBeenCalledWith('express');
                 expect(fakeMongoStore).toHaveBeenCalled();
-                expect(fakeMongoStore.calls[0].args[0]).toEqual({ db: fakeDb });
+                expect(fakeMongoStore.calls[0].args[0]).toEqual({ db: fakeDb, stringify: false });
                 expect(state.sessionStore).toBeDefined();
             }).done(done);
         });
