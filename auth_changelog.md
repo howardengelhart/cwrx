@@ -1,5 +1,11 @@
 # Auth Service Changelog
 
+### 1.3.2: Fri Aug 29 10:07:58 EDT 2014
+* [FIX]: Save session docs as JSON, not strings: [#261](https://github.com/cinema6/cwrx/pull/261)
+* [FIX]: Prevent users from using forgot/reset pwd endpoints if their account is not active: [#261](https://github.com/cinema6/cwrx/pull/261)
+* [FIX]: Change mongo read preference to primaryPreferred: [#262](https://github.com/cinema6/cwrx/pull/262)
+* Extra deployment steps: Delete/convert existing stringified sessions
+
 ### 1.3.1: Fri Jul 25 15:37:41 EDT 2014
 * [FIX]: Force emails to lowercase: [#228](https://github.com/cinema6/cwrx/pull/228)
 * Extra deployment steps: Convert all existing user's email addresses to lowercase

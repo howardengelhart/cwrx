@@ -1,5 +1,10 @@
 # Collateral Service Changelog
 
+### 1.3.3: Fri Aug 29 10:07:58 EDT 2014
+* [FIX]: Save session docs as JSON, not strings: [#261](https://github.com/cinema6/cwrx/pull/261)
+* [FIX]: Change mongo read preference to primaryPreferred: [#262](https://github.com/cinema6/cwrx/pull/262)
+* Extra deployment steps: Delete/convert existing stringified sessions
+
 ### 1.3.2: Mon Jun 23 08:03:00 EDT 2014
 * [FIX]: splash templates updated to prevent letterboxing of image: [#205](https://github.com/cinema6/cwrx/pull/205)
 * [FIX]: added mock for os.tmpdir to collateral unit tests to handle diffs between OSX and Linux return values
