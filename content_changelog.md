@@ -1,5 +1,10 @@
 # Content Service Changelog
 
+### 1.7.1: Fri Aug 29 10:07:58 EDT 2014
+* [FIX]: Save session docs as JSON, not strings: [#261](https://github.com/cinema6/cwrx/pull/261)
+* [FIX]: Change mongo read preference to primaryPreferred: [#262](https://github.com/cinema6/cwrx/pull/262)
+* Extra deployment steps: Delete/convert existing stringified sessions
+
 ### 1.7.0: Mon Aug 18 09:56:07 EDT 2014
 * [FEATURE]: Send Content-Range header when paginating experiences: [#257](https://github.com/cinema6/cwrx/pull/257)
 * [FEATURE]: Set `lastPublished` date on experiences when returning to client: [#255](https://github.com/cinema6/cwrx/pull/255)

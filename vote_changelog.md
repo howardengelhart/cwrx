@@ -1,5 +1,10 @@
 # Vote Service Changelog
 
+### 1.3.6: Fri Aug 29 10:07:58 EDT 2014
+* [FIX]: Save session docs as JSON, not strings: [#261](https://github.com/cinema6/cwrx/pull/261)
+* [FIX]: Change mongo read preference to primaryPreferred: [#262](https://github.com/cinema6/cwrx/pull/262)
+* Extra deployment steps: Delete/convert existing stringified sessions
+
 ### 1.3.5: Thu Aug 14 17:03:16 EDT 2014
 * [FIX]: Periodic sync shouldn't query mongo if no elections to sync: [#256](https://github.com/cinema6/cwrx/pull/256)
 * Extra deployment steps: None
