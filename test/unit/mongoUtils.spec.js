@@ -33,6 +33,20 @@ describe('mongoUtils', function() {
             });
         });
         
+        it('should be able to handle an empty hosts array', function(done) {
+            mongoUtils.connect('10.0.0.1', '666', 'fakeDb', null, null, [], '')
+            .then(function(db) {
+                expect(db).toBe('fakeDb');
+                expect(mongodb.MongoClient.connect).toHaveBeenCalled();
+                expect(mongodb.MongoClient.connect.calls[0].args[0])
+                    .toBe('mongodb://10.0.0.1:666/fakeDb?readPreference=primaryPreferred');
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
         it('should be able to connect to multiple hosts', function(done) {
             var hosts = [ '10.0.1.1:123', '10.0.1.2:456' ];
             mongoUtils.connect('10.0.0.1', '666', 'fakeDb', null, null, hosts, 'devReplSet')
