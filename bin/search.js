@@ -176,10 +176,10 @@
             })
             .catch(function(error) {
                 if (retried) {
-                    log.warn('[%1] Second fail querying google: %2', req.uuid, error);
+                    log.warn('[%1] Second fail querying google: %2', req.uuid, util.inspect(error));
                     deferred.resolve({code: 500, body: 'Error querying google'});
                 } else {
-                    log.warn('[%1] Error querying google: %2', req.uuid, error);
+                    log.warn('[%1] Error querying google: %2', req.uuid, util.inspect(error));
                     setTimeout(function() { return tryRequest(true); }, googleCfg.retryTimeout);
                 }
             });
