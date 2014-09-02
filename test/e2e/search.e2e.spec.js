@@ -33,7 +33,7 @@ describe('search (E2E):', function() {
             jar: cookieJar,
             json: { email: 'searche2euser', password: 'password' }
         };
-        testUtils.resetCollection('users', mockUser).then(function(resp) {
+        testUtils.resetCollection('users', mockUser).then(function() {
             return requestUtils.qRequest('post', loginOpts);
         }).done(function(resp) {
             done();

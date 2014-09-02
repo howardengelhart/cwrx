@@ -168,6 +168,27 @@ describe('search (UT)', function() {
             }).finally(done);
         });
         
+        it('should be able to retry failed requests to google', function(done) {
+            requestUtils.qRequest.andCallFake(function(method, opts) {
+                if (this.qRequest.callCount >= 2) {
+                    return q({
+                        response: { statusCode: 200 },
+                        body: { queries: { request: [{stats: 'yes'}] }, items: 'fakeItems' }
+                    });
+                } else {
+                    return q.reject({error: 'I GOT A PROBLEM'});
+                }
+            });
+            search.findVideosWithGoogle(req, opts, googleCfg, apiKey).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(mockLog.warn.callCount).toBe(1);
+                expect(requestUtils.qRequest.callCount).toBe(2);
+                expect(search.formatGoogleResults).toHaveBeenCalledWith({stats: 'yes'}, 'fakeItems');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
         it('should return a 500 code if google returns a non-2xx status code', function(done) {
             q.all([100, 300, 400, 500].map(function(code) {
                 requestUtils.qRequest.andReturn(q({response: {statusCode: code}, body: 'fake'}));
@@ -176,7 +197,8 @@ describe('search (UT)', function() {
                 results.forEach(function(result) {
                     expect(result).toEqual({code: 500, body: 'Error querying google'});
                 });
-                expect(mockLog.warn.callCount).toBe(4);
+                expect(mockLog.warn.callCount).toBe(8);
+                expect(requestUtils.qRequest.callCount).toBe(8);
                 expect(search.formatGoogleResults).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -192,20 +214,23 @@ describe('search (UT)', function() {
                 results.forEach(function(result) {
                     expect(result).toEqual({code: 500, body: 'Error querying google'});
                 });
-                expect(mockLog.warn.callCount).toBe(3);
+                expect(mockLog.warn.callCount).toBe(6);
+                expect(requestUtils.qRequest.callCount).toBe(6);
                 expect(search.formatGoogleResults).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
         });
         
-        it('should reject if the request fails', function(done) {
+        it('should return a 500 code if the request fails', function(done) {
             requestUtils.qRequest.andReturn(q.reject({error: 'I GOT A PROBLEM'}));
             search.findVideosWithGoogle(req, opts, googleCfg, apiKey).then(function(resp) {
-                expect(resp).not.toBeDefined();
-            }).catch(function(error) {
-                expect(error).toEqual({error: 'I GOT A PROBLEM'});
+                expect(resp).toEqual({code: 500, body: 'Error querying google'});
+                expect(mockLog.warn.callCount).toBe(2);
+                expect(requestUtils.qRequest.callCount).toBe(2);
                 expect(search.formatGoogleResults).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
             }).finally(done);
         });
     });

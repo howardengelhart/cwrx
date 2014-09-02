@@ -1,5 +1,9 @@
 # Search Service Changelog
 
+### 1.0.2: Tue Sep  2 11:10:04 EDT 2014
+* [FIX]: Retry requests to Google: [#266](https://github.com/cinema6/cwrx/pull/266)
+* Extra deployment steps: None
+
 ### 1.0.1: Fri Aug 29 10:07:58 EDT 2014
 * [FIX]: Save session docs as JSON, not strings: [#261](https://github.com/cinema6/cwrx/pull/261)
 * [FIX]: Change mongo read preference to primaryPreferred: [#262](https://github.com/cinema6/cwrx/pull/262)
