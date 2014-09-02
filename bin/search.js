@@ -26,7 +26,8 @@
             apiUrl: 'https://www.googleapis.com/customsearch/v1',
             engineId: '007281538304941793863:cbx8mzslyne',
             fields: 'queries,items(title,link,displayLink,pagemap(videoobject(description,' +
-                    'duration,height,thumbnailurl),cse_thumbnail))'
+                    'duration,height,thumbnailurl),cse_thumbnail))',
+            retryTimeout: 1000 // milliseconds to wait before retrying a failed request to Google
         },
         sessions: {
             key: 'c6Auth',
@@ -125,7 +126,8 @@
     
     // Use req params to find videos using Google's Custom Search API.
     search.findVideosWithGoogle = function(req, opts, googleCfg, apiKey) {
-        var log = logger.getLog();
+        var log = logger.getLog(),
+            deferred = q.defer();
 
         if (opts.sites) {
             opts.query += ' site:' + opts.sites.join(' OR site:');
@@ -151,26 +153,39 @@
         } else if (opts.hd === 'false') {
             reqOpts.qs.sort = 'videoobject-height:r::719';
         }
+        
+        (function tryRequest(retried) {
+            return requestUtils.qRequest('get', reqOpts)
+            .then(function(resp) {
+                if (resp.response.statusCode < 200 || resp.response.statusCode >= 300) {
+                    return q.reject('Received error response from google: code ' +
+                           resp.response.statusCode + ', body = ' + util.inspect(resp.body));
+                } else if (!resp.body.queries || !resp.body.queries.request || !resp.body.items) {
+                    return q.reject('Received incomplete response body from google: ' +
+                                    util.inspect(resp.body));
+                }
+                
+                var stats = resp.body.queries.request[0];
+                log.info('[%1] Received %2 results from %3 total results, starting at %4',
+                        req.uuid, stats.count, stats.totalResults, stats.startIndex);
 
-        return requestUtils.qRequest('get', reqOpts)
-        .then(function(resp) {
-            if (resp.response.statusCode < 200 || resp.response.statusCode >= 300) {
-                log.warn('[%1] Received error response from google: code %2, body = %3',
-                         req.uuid, resp.response.statusCode, util.inspect(resp.body));
-                return q({code: 500, body: 'Error querying google'});
-            } else if (!resp.body.queries || !resp.body.queries.request || !resp.body.items) {
-                log.warn('[%1] Received incomplete response body from google: %2',
-                         req.uuid, util.inspect(resp.body));
-                return q({code: 500, body: 'Error querying google'});
-            }
-            
-            var stats = resp.body.queries.request[0];
-            log.info('[%1] Received %2 results from %3 total results, starting at %4',
-                    req.uuid, stats.count, stats.totalResults, stats.startIndex);
-
-            return q({code: 200, body: search.formatGoogleResults(stats, resp.body.items)});
-        });
-
+                deferred.resolve({
+                    code: 200,
+                    body: search.formatGoogleResults(stats, resp.body.items)
+                });
+            })
+            .catch(function(error) {
+                if (retried) {
+                    log.warn('[%1] Second fail querying google: %2', req.uuid, util.inspect(error));
+                    deferred.resolve({code: 500, body: 'Error querying google'});
+                } else {
+                    log.warn('[%1] Error querying google: %2', req.uuid, util.inspect(error));
+                    setTimeout(function() { return tryRequest(true); }, googleCfg.retryTimeout);
+                }
+            });
+        })();
+        
+        return deferred.promise;
     };
     
     // Parse request params and use 3rd party to find videos. Currently uses findVideosWithGoogle

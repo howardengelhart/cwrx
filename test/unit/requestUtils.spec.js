@@ -99,12 +99,12 @@ describe('requestUtils', function() {
         
         it('should reject if the body contains an error property', function(done) {
             requestSpy.andCallFake(function(opts, cb) {
-                cb(null, {statusCode: 500}, '{"foo": "bar", "error": "Server is borked"}');
+                cb(null, {statusCode: 500, headers: 'fakeHeaders'}, '{"foo": "bar", "error": "Server is borked"}');
             });
             requestUtils.qRequest('get', opts, {}).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).toEqual({code: 500, body: {foo: 'bar', error: 'Server is borked'}});
+                expect(error).toEqual({code: 500, headers: 'fakeHeaders', body: {foo: 'bar', error: 'Server is borked'}});
             }).finally(done);
         });
         
