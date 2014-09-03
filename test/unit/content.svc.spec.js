@@ -358,6 +358,13 @@ describe('content (UT)', function() {
             expect(query).toEqual({type: 'minireel'});
         });
         
+        it('should not overwrite an existing query on the status field', function() {
+            query['status.0.status'] = Status.Active;
+            expect(content.userPermQuery(query, user, origin, publicList))
+                .toEqual({ type: 'minireel', 'status.0.status': Status.Active,
+                           $or: [ { user: 'u-1' }, { 'status.0.status': Status.Active } ] });
+        });
+        
         it('should check if the user owns the exp or if it\'s active if they have Scope.Own', function() {
             expect(content.userPermQuery(query, user, origin, publicList))
                 .toEqual({ type: 'minireel', 'status.0.status': { $ne: Status.Deleted },
@@ -522,7 +529,7 @@ describe('content (UT)', function() {
                 },
                 user: 'fakeUser'
             };
-            query = 'fakeQuery';
+            query = {type: 'minireel'};
             pubList = ['demo.c6.com'];
             fakeCursor = {
                 toArray: jasmine.createSpy('cursor.toArray').andCallFake(function(cb) {
@@ -541,7 +548,7 @@ describe('content (UT)', function() {
             content.getExperiences(query, req, expColl, pubList, false).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual(['formatted']);
-                expect(content.userPermQuery).toHaveBeenCalledWith('fakeQuery','fakeUser','google.com',['demo.c6.com']);
+                expect(content.userPermQuery).toHaveBeenCalledWith({type:'minireel'},'fakeUser','google.com',['demo.c6.com']);
                 expect(expColl.find).toHaveBeenCalledWith('userPermQuery', {sort: { id: 1 }, limit: 20, skip: 10});
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(fakeCursor.count).not.toHaveBeenCalled();
@@ -568,6 +575,32 @@ describe('content (UT)', function() {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual(['formatted']);
                 expect(expColl.find).toHaveBeenCalledWith('userPermQuery', {sort: {}, limit: 20, skip: 10});
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+
+        it('should not allow a user to query for deleted experiences', function(done) {
+            query.status = Status.Deleted;
+            content.getExperiences(query, req, expColl, pubList, false).then(function(resp) {
+                expect(resp.code).toBe(400);
+                expect(resp.body).toEqual('Cannot get deleted experiences');
+                expect(mockLog.warn).toHaveBeenCalled();
+                expect(content.userPermQuery).not.toHaveBeenCalled();
+                expect(expColl.find).not.toHaveBeenCalled();
+                expect(content.formatOutput).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should properly format a query on the status field', function(done) {
+            query.status = Status.Active;
+            content.getExperiences(query, req, expColl, pubList, false).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual(['formatted']);
+                expect(content.userPermQuery).toHaveBeenCalledWith({type: 'minireel',
+                    'status.0.status': Status.Active}, 'fakeUser', 'google.com', ['demo.c6.com']);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
@@ -616,7 +649,7 @@ describe('content (UT)', function() {
             content.getExperiences(query, req, expColl, pubList, false).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual(['formatted']);
-                expect(content.userPermQuery).toHaveBeenCalledWith('fakeQuery','fakeUser','yahoo.com',['demo.c6.com']);
+                expect(content.userPermQuery).toHaveBeenCalledWith({type:'minireel'},'fakeUser','yahoo.com',['demo.c6.com']);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
@@ -627,7 +660,7 @@ describe('content (UT)', function() {
             content.getExperiences(query, req, expColl, pubList, false).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual(['formatted']);
-                expect(content.userPermQuery).toHaveBeenCalledWith('fakeQuery','fakeUser','google.com',['demo.c6.com']);
+                expect(content.userPermQuery).toHaveBeenCalledWith({type:'minireel'},'fakeUser','google.com',['demo.c6.com']);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);

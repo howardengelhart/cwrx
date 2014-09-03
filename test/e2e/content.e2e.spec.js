@@ -363,7 +363,7 @@ describe('content (E2E):', function() {
         });
     });
     
-    describe('GET /api/content/experience', function() {
+    describe('GET /api/content/experiences', function() {
         beforeEach(function(done) {
             var mockExps = [
                 {
@@ -488,6 +488,37 @@ describe('content (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).finally(done);
         });
+                
+        it('should get experiences by status', function(done) {
+            var options = {
+                url: config.contentUrl + '/content/experiences?status=inactive&sort=id,1',
+                jar: cookieJar
+            };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body instanceof Array).toBeTruthy('body is array');
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0].id).toBe('e2e-getquery1');
+                expect(resp.body[1].id).toBe('e2e-getquery2');
+                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
+        });
+
+        it('should not allow a user to query for deleted experiences', function(done) {
+            var options = {
+                url: config.contentUrl + '/content/experiences?status=deleted&sort=id,1',
+                jar: cookieJar
+            };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Cannot get deleted experiences');
+                expect(resp.response.headers['content-range']).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
+        });
         
         it('should be able to combine query params', function(done) {
             var options = {
@@ -507,7 +538,7 @@ describe('content (E2E):', function() {
 
         it('should not get experiences by any other query param', function(done) {
             var options = {
-                url: config.contentUrl + '/content/experiences?status=active&sort=id,1',
+                url: config.contentUrl + '/content/experiences?tag=foo&sort=id,1',
                 jar: cookieJar
             };
             requestUtils.qRequest('get', options).then(function(resp) {
