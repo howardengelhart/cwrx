@@ -160,7 +160,9 @@
                 return origin.match(site);
             });
         
-        newQuery['status.0.status'] = {$ne: Status.Deleted}; // never show deleted exps
+        if (!newQuery['status.0.status']) {
+            newQuery['status.0.status'] = {$ne: Status.Deleted}; // never show deleted exps
+        }
         
         if (!Scope.isScope(readScope)) {
             log.warn('User has invalid scope ' + readScope);
@@ -261,6 +263,14 @@
         }
         if (query.id instanceof Array) {
             query.id = {$in: query.id};
+        }
+        if (query.status) {
+            if (query.status === Status.Deleted) {
+                log.warn('[%1] User %2 attempting to get deleted experiences',req.uuid,req.user.id);
+                return q({code: 400, body: 'Cannot get deleted experiences'});
+            }
+            query['status.0.status'] = query.status;
+            delete query.status;
         }
         
         log.info('[%1] User %2 getting experiences with %3, sort %4, limit %5, skip %6',
@@ -667,7 +677,7 @@
 
         // private get experience by query
         app.get('/api/content/experiences', sessionsWrapper, authGetExp, function(req, res) {
-            var queryFields = ['ids', 'user', 'org', 'type'];
+            var queryFields = ['ids', 'user', 'org', 'type', 'status'];
             function isKeyInFields(key) {
                 return queryFields.indexOf(key) >= 0;
             }
@@ -687,6 +697,9 @@
             }
             if (req.query.type) {
                 query.type = req.query.type;
+            }
+            if (req.query.status) {
+                query.status = req.query.status;
             }
             content.getExperiences(query, req, experiences, state.config.publicC6Sites, true)
             .then(function(resp) {
