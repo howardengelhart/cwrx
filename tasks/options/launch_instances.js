@@ -9,14 +9,14 @@ module.exports = {
         owner         : 'jenkins',
         ec2_templates : {
             'apiServer' : {
-                ImageId             : 'ami-fb8e9292',
+                ImageId             : 'ami-76817c1e',
                 IamInstanceProfile  : {
                     Name: 'apiServer-Dev'
                 },
                 MaxCount : 1,
                 MinCount : 1,
                 InstanceInitiatedShutdownBehavior : 'terminate',
-                InstanceType    : 'm1.small',
+                InstanceType    : 't2.small',
                 KeyName         : 'howardkey',
                 NetworkInterfaces : [
                     {
