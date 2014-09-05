@@ -169,9 +169,9 @@
             readScope = Scope.Own;
         }
         
-        if (readScope === Scope.Own) {
+        if (readScope === Scope.Own && !newQuery.user) { //TODO: test/reconsider the additions
             newQuery.$or = [ { user: user.id } ];
-        } else if (readScope === Scope.Org) {
+        } else if (readScope === Scope.Org && !newQuery.org && !newQuery.user) {
             newQuery.$or = [ { org: user.org }, { user: user.id } ];
         }
         
@@ -279,6 +279,12 @@
         var permQuery = content.userPermQuery(query, req.user, origin, publicList),
             opts = {sort: sortObj, limit: limit, skip: skip},
             cursor = experiences.find(permQuery, opts);
+        
+        if (permQuery.user) {
+            opts.hint = { user: 1 }; // These hints ensure mongo uses indices wisely when searching
+        } else if (permQuery.org) { //TODO: but they rely on the indexes existing, which may change
+            opts.hint = { org: 1 };
+        }
         
         log.trace('[%1] permQuery = %2', req.uuid, JSON.stringify(permQuery));
         
