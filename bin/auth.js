@@ -11,6 +11,7 @@
         logger      = require('../lib/logger'),
         uuid        = require('../lib/uuid'),
         mongoUtils  = require('../lib/mongoUtils'),
+        journal     = require('../lib/journal'),
         authUtils   = require('../lib/authUtils'),
         service     = require('../lib/service'),
         email       = require('../lib/email'),
@@ -49,13 +50,18 @@
                 host: null,
                 port: null,
                 retryConnect : true
-            }
+            },
+            c6Journal: {
+                host: null,
+                port: null,
+                retryConnect : true
+            },
         },
         resetTokenTTL   : 1*30*60*1000, // 30 minutes; unit here is milliseconds
         secretsPath     : path.join(process.env.HOME,'.auth.secrets.json')
     };
 
-    auth.login = function(req, users, maxAge) {
+    auth.login = function(req, users, maxAge, authJournal) {
         if (!req.body || !req.body.email || !req.body.password) {
             return q({
                 code: 400,
@@ -86,6 +92,9 @@
                     }
                     log.info('[%1] Successful login for user %2', req.uuid, req.body.email);
                     var user = mongoUtils.safeUser(userAccount);
+
+                    authJournal.write(user.id, { action: 'login' });
+
                     return q.npost(req.session, 'regenerate').then(function() {
                         req.session.user = user.id;
                         req.session.cookie.maxAge = maxAge;
@@ -108,7 +117,7 @@
         return deferred.promise;
     };
 
-    auth.logout = function(req) {
+    auth.logout = function(req, authJournal) {
         var deferred = q.defer(),
             log = logger.getLog();
         log.info('[%1] Starting logout for %2', req.uuid, req.sessionID);
@@ -117,9 +126,10 @@
                      req.uuid, req.sessionID);
             deferred.resolve({code: 204});
         } else {
-            log.info('[%1] Logging out user %2 with sessionID %3',
-                     req.uuid, req.session.user, req.sessionID);
+            var user = req.session.user;
+            log.info('[%1] Logging out user %2 with sessionID %3', req.uuid, user, req.sessionID);
             q.npost(req.session, 'destroy').then(function() {
+                authJournal.write(user, { action: 'logout' });
                 deferred.resolve({code: 204});
             }).catch(function(error) {
                 log.error('[%1] Error logging out user %2: %3',
@@ -282,9 +292,11 @@
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
 
-        var express     = require('express'),
-            app         = express(),
-            users       = state.dbs.c6Db.collection('users');
+        var express         = require('express'),
+            app             = express(),
+            users           = state.dbs.c6Db.collection('users'), //TODO: rename auths collection
+            authJournal     = new journal.Journal(state.dbs.c6Journal.collection('auths')),
+            auditJournal    = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'));
         authUtils._coll = users;
         
         aws.config.region = state.config.ses.region;
@@ -318,10 +330,22 @@
             });
             log.info('Recreated session store from restarted db');
         });
+        
+        state.dbStatus.c6Journal.on('reconnected', function() {
+            authJournal.resetColl(state.dbs.c6Journal.collection('auths'));
+            auditJournal.resetColl(state.dbs.c6Journal.collection('audit'));
+            log.info('Reset journals\' collection from restarted db');
+        });
 
         // Because we may recreate the session middleware, we need to wrap it in the route handlers
         function sessionsWrapper(req, res, next) {
-            sessions(req, res, next);
+            sessions(req, res, function(nextVal) {
+                if (nextVal) {
+                    next(nextVal);
+                } else {
+                    auditJournal.middleware(req, res, next);
+                }
+            });
         }
         
         app.all('*', function(req, res, next) {
@@ -349,8 +373,10 @@
             next();
         });
 
+        //TODO: this writes to the audit log only when a logged in user logs in again...
         app.post('/api/auth/login', sessionsWrapper, function(req, res) {
-            auth.login(req, users, state.config.sessions.maxAge).then(function(resp) {
+            auth.login(req, users, state.config.sessions.maxAge, authJournal)
+            .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
                 res.send(500, {
@@ -360,7 +386,7 @@
         });
 
         app.post('/api/auth/logout', sessionsWrapper, function(req, res) {
-            auth.logout(req).then(function(resp) {
+            auth.logout(req, authJournal).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
                 res.send(500, {
@@ -409,10 +435,9 @@
         app.get('/api/auth/version',function(req, res) {
             res.send(200, state.config.appVersion);
         });
-
+        
         app.use(function(err, req, res, next) {
             if (err) {
-                log.error('Error: %1', err);
                 res.send(500, 'Internal error');
             } else {
                 next();
