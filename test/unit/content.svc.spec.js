@@ -704,6 +704,7 @@ describe('content (UT)', function() {
             spyOn(uuid, 'createUuid').andReturn('1234');
             spyOn(content.createValidator, 'validate').andReturn(true);
             spyOn(uuid, 'hashText').andReturn('fakeVersion');
+            spyOn(content, 'checkScope').andReturn(false);
         });
         
         it('should fail with a 400 if no experience is provided', function(done) {
@@ -740,6 +741,7 @@ describe('content (UT)', function() {
                 expect(experiences.insert.calls[0].args[1]).toEqual({w: 1, journal: true});
                 expect(content.formatOutput).toHaveBeenCalled();
                 expect(mongoUtils.escapeKeys).toHaveBeenCalled();
+                expect(content.checkScope).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -762,6 +764,40 @@ describe('content (UT)', function() {
                 expect(experiences.insert).toHaveBeenCalled();
                 expect(content.formatOutput).toHaveBeenCalled();
                 expect(mongoUtils.escapeKeys).toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should prevent ordinary users from setting the adConfig', function(done) {
+            req.body.adConfig = {foo: 'bar'};
+            content.createExperience(req, experiences).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(403);
+                expect(resp.body).toBe('Not authorized to set adConfig');
+                expect(content.checkScope).toHaveBeenCalledWith(req.user, req.body, 'experiences', 'editAdConfig');
+                expect(experiences.insert).not.toHaveBeenCalled();
+                expect(content.formatOutput).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should let users set the adConfig if they have permission to do so', function(done) {
+            content.checkScope.andReturn(true);
+            req.body.adConfig = {foo: 'bar'};
+            content.createExperience(req, experiences).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(201);
+                expect(resp.body.id).toBe('e-1234');
+                expect(resp.body.adConfig).toEqual({foo: 'bar'});
+                expect(content.checkScope).toHaveBeenCalledWith(req.user, req.body, 'experiences', 'editAdConfig');
+                expect(experiences.insert).toHaveBeenCalled();
+                expect(experiences.insert.calls[0].args[0].adConfig).toEqual({foo: 'bar'});
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1005,6 +1041,8 @@ describe('content (UT)', function() {
                     .toEqual({w: 1, journal: true, new: true});
                 expect(content.formatOutput).toHaveBeenCalled();
                 expect(mongoUtils.escapeKeys).toHaveBeenCalled();
+                expect(content.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'edit');
+                expect(content.checkScope).not.toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'editAdConfig');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1056,6 +1094,43 @@ describe('content (UT)', function() {
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findAndModify).not.toHaveBeenCalled();
                 expect(content.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'edit');
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should prevent ordinary users from editing the adConfig', function(done) {
+            content.checkScope.andCallFake(function(user, orig, obj, verb) {
+                if (verb == 'editAdConfig') return false;
+                else return true;
+            });
+            req.body.adConfig = { foo: 'bar' };
+            content.updateExperience(req, experiences).then(function(resp) {
+                expect(resp.code).toBe(403);
+                expect(resp.body).toBe("Not authorized to edit adConfig of this experience");
+                expect(experiences.findOne).toHaveBeenCalled();
+                expect(experiences.findAndModify).not.toHaveBeenCalled();
+                expect(content.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'editAdConfig');
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should let users edit the adConfig if they have permission to do so', function(done) {
+            content.checkScope.andReturn(true);
+            req.body.adConfig = { foo: 'bar' };
+            content.updateExperience(req, experiences).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual({id: 'e-1234', data: {foo:'baz'}, versionId: 'fakeVers'});
+                expect(experiences.findOne).toHaveBeenCalled();
+                expect(experiences.findAndModify).toHaveBeenCalled();
+                var updates = experiences.findAndModify.calls[0].args[2];
+                expect(updates.$set.adConfig).toEqual({foo: 'bar'});
+                expect(content.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'editAdConfig');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

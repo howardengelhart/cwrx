@@ -357,6 +357,11 @@
                 obj.data[0].active = true;
             }
         }
+        
+        if (obj.adConfig && !content.checkScope(user, obj, 'experiences', 'editAdConfig')){
+            log.info('[%1] User %2 not authorized to set adConfig of new exp', req.uuid, user.id);
+            return q({ code: 403, body: 'Not authorized to set adConfig' });
+        }
 
         return q.npost(experiences, 'insert', [mongoUtils.escapeKeys(obj), {w: 1, journal: true}])
         .then(function() {
@@ -431,8 +436,7 @@
         var updates = req.body,
             id = req.params.id,
             user = req.user,
-            log = logger.getLog(),
-            deferred = q.defer();
+            log = logger.getLog();
         if (!updates || typeof updates !== 'object') {
             return q({code: 400, body: 'You must provide an object in the body'});
         }
@@ -444,28 +448,29 @@
         delete updates.versionId;
         
         log.info('[%1] User %2 is attempting to update experience %3',req.uuid,user.id,id);
-        q.npost(experiences, 'findOne', [{id: id}])
+        return q.npost(experiences, 'findOne', [{id: id}])
         .then(function(orig) {
             if (!orig) {
                 log.info('[%1] Experience %2 does not exist; not creating it', req.uuid, id);
-                return deferred.resolve({code: 404, body: 'That experience does not exist'});
+                return q({code: 404, body: 'That experience does not exist'});
             }
             if (orig.status && orig.status[0] && orig.status[0].status === Status.Deleted) {
                 log.info('[%1] User %2 trying to update deleted experience %3',req.uuid,user.id,id);
-                return deferred.resolve({code: 404, body: 'That experience does not exist'});
+                return q({code: 404, body: 'That experience does not exist'});
             }
             if (!content.updateValidator.validate(updates, orig, user)) {
                 log.warn('[%1] updates contain illegal fields', req.uuid);
                 log.trace('exp: %1  |  orig: %2  |  requester: %3',
                           JSON.stringify(updates), JSON.stringify(orig), JSON.stringify(user));
-                return deferred.resolve({code: 400, body: 'Illegal fields'});
+                return q({code: 400, body: 'Illegal fields'});
             }
             if (!content.checkScope(user, orig, 'experiences', 'edit')) {
                 log.info('[%1] User %2 is not authorized to edit %3', req.uuid, user.id, id);
-                return deferred.resolve({
-                    code: 403,
-                    body: 'Not authorized to edit this experience'
-                });
+                return q({ code: 403, body: 'Not authorized to edit this experience' });
+            }
+            if (updates.adConfig && !content.checkScope(user, orig, 'experiences', 'editAdConfig')){
+                log.info('[%1] User %2 not authorized to edit adConfig of %3',req.uuid,user.id,id);
+                return q({ code: 403, body: 'Not authorized to edit adConfig of this experience' });
             }
 
             updates = content.formatUpdates(req, orig, updates, user);
@@ -476,14 +481,13 @@
                 var updated = results[0];
                 log.info('[%1] User %2 successfully updated experience %3',
                          req.uuid, user.id, updated.id);
-                deferred.resolve({code: 200, body: content.formatOutput(updated)});
+                return q({code: 200, body: content.formatOutput(updated)});
             });
         }).catch(function(error) {
             log.error('[%1] Error updating experience %2 for user %3: %4',
                       req.uuid, id, user.id, error);
-            deferred.reject(error);
+            return q.reject(error);
         });
-        return deferred.promise;
     };
 
     content.deleteExperience = function(req, experiences) {

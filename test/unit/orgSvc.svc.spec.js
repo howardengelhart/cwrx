@@ -395,6 +395,7 @@ describe('orgSvc (UT)', function() {
             req.user = { id: 'u-1234', org: 'o-1234', permissions: {orgs: {create: Scope.All}}};
             spyOn(orgSvc, 'setupOrg');
             spyOn(orgSvc.createValidator, 'validate').andReturn(true);
+            spyOn(orgSvc, 'checkScope').andReturn(false);
         });
 
         it('should reject with a 400 if no org object is provided', function(done) {
@@ -509,6 +510,39 @@ describe('orgSvc (UT)', function() {
                 expect(orgColl.insert).toHaveBeenCalled();
                 expect(orgColl.insert.calls[0].args[0]).toBe(req.body);
                 expect(orgColl.insert.calls[0].args[1]).toEqual({w: 1, journal: true});
+                expect(orgSvc.checkScope).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should prevent ordinary users from setting the adConfig', function(done) {
+            req.body.adConfig = {foo: 'bar'};
+            orgSvc.createOrg(req, orgColl).then(function(resp) {
+                expect(resp.code).toBe(403);
+                expect(resp.body).toEqual('Not authorized to set adConfig');
+                expect(orgColl.findOne).not.toHaveBeenCalled();
+                expect(orgColl.insert).not.toHaveBeenCalled();
+                expect(orgSvc.checkScope).toHaveBeenCalledWith(req.user, {}, 'editAdConfig');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should let users set the adConfig if they have permission to do so', function(done) {
+            orgSvc.checkScope.andReturn(true);
+            req.body.adConfig = {foo: 'bar'};
+            orgSvc.createOrg(req, orgColl).then(function(resp) {
+                expect(resp.code).toBe(201);
+                expect(resp.body).toEqual({name: 'test', adConfig: {foo: 'bar'}});
+                expect(orgColl.findOne).toHaveBeenCalled();
+                expect(orgColl.insert).toHaveBeenCalled();
+                expect(orgColl.insert.calls[0].args[0]).toEqual({name: 'test', adConfig: {foo: 'bar'}});
+                expect(orgSvc.checkScope).toHaveBeenCalledWith(req.user, {}, 'editAdConfig');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -648,6 +682,44 @@ describe('orgSvc (UT)', function() {
                 expect(orgColl.findOne).not.toHaveBeenCalled();
                 expect(orgSvc.checkScope).toHaveBeenCalled();
                 expect(orgColl.findAndModify).not.toHaveBeenCalled();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should prevent ordinary users from editing the adConfig', function(done) {
+            orgSvc.checkScope.andCallFake(function(user, orig, verb) {
+                if (verb == 'editAdConfig') return false;
+                else return true;
+            });
+            req.body.adConfig = {foo: 'bar'};
+            orgSvc.updateOrg(req, orgColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(403);
+                expect(resp.body).toBe('Not authorized to edit adConfig of this org');
+                expect(orgColl.findOne).not.toHaveBeenCalled();
+                expect(orgColl.findAndModify).not.toHaveBeenCalled();
+                expect(orgSvc.checkScope).toHaveBeenCalledWith(req.user, {id: 'o-4567'}, 'editAdConfig');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should let users edit the adConfig if they have permission to do so', function(done) {
+            orgSvc.checkScope.andReturn(true);
+            req.body.adConfig = {foo: 'bar'};
+            orgSvc.updateOrg(req, orgColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual({ id: 'o-4567', updated: true });
+                expect(orgColl.findOne).toHaveBeenCalled();
+                expect(orgColl.findAndModify).toHaveBeenCalled();
+                expect(orgColl.findAndModify.calls[0].args[2].$set.adConfig).toEqual({foo: 'bar'});
+                expect(orgSvc.checkScope).toHaveBeenCalledWith(req.user, {id: 'o-4567'}, 'editAdConfig');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
