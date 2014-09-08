@@ -54,7 +54,10 @@
             c6Db: {
                 host: null,
                 port: null,
-                retryConnect : true
+                retryConnect : true,
+                requiredIndices: {
+                    experiences: ['user', 'org']
+                }
             }
         }
     };
@@ -280,9 +283,11 @@
             opts = {sort: sortObj, limit: limit, skip: skip},
             cursor = experiences.find(permQuery, opts);
         
+        //TODO: these won't work in e2e tests since collections being dropped;
+        //TODO: except they just did when I ran them, so investigate this...
         if (permQuery.user) {
             opts.hint = { user: 1 }; // These hints ensure mongo uses indices wisely when searching
-        } else if (permQuery.org) { //TODO: but they rely on the indexes existing, which may change
+        } else if (permQuery.org) {
             opts.hint = { org: 1 };
         }
         
@@ -799,6 +804,7 @@
         .then(service.cluster)
         .then(service.initMongo)
         .then(service.initSessionStore)
+        .then(service.ensureIndices)
         .then(content.main)
         .catch(function(err) {
             var log = logger.getLog();
