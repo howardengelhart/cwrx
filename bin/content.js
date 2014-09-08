@@ -8,6 +8,7 @@
         logger          = require('../lib/logger'),
         uuid            = require('../lib/uuid'),
         mongoUtils      = require('../lib/mongoUtils'),
+        journal         = require('../lib/journal'),
         QueryCache      = require('../lib/queryCache'),
         FieldValidator  = require('../lib/fieldValidator'),
         authUtils       = require('../lib/authUtils'),
@@ -52,6 +53,11 @@
         secretsPath: path.join(process.env.HOME,'.content.secrets.json'),
         mongo: {
             c6Db: {
+                host: null,
+                port: null,
+                retryConnect : true
+            },
+            c6Journal: {
                 host: null,
                 port: null,
                 retryConnect : true
@@ -536,15 +542,16 @@
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
             
-        var express     = require('express'),
-            app         = express(),
-            experiences = state.dbs.c6Db.collection('experiences'),
-            users       = state.dbs.c6Db.collection('users'),
-            orgs        = state.dbs.c6Db.collection('orgs'),
-            expTTLs     = state.config.cacheTTLs.experiences,
-            expCache    = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences),
-            orgTTLs     = state.config.cacheTTLs.orgs,
-            orgCache    = new QueryCache(orgTTLs.freshTTL, orgTTLs.maxTTL, orgs);
+        var express         = require('express'),
+            app             = express(),
+            experiences     = state.dbs.c6Db.collection('experiences'),
+            users           = state.dbs.c6Db.collection('users'),
+            orgs            = state.dbs.c6Db.collection('orgs'),
+            expTTLs         = state.config.cacheTTLs.experiences,
+            expCache        = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences),
+            orgTTLs         = state.config.cacheTTLs.orgs,
+            orgCache        = new QueryCache(orgTTLs.freshTTL, orgTTLs.maxTTL, orgs),
+            auditJournal    = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'));
         authUtils._coll = users;
 
         app.use(express.bodyParser());
@@ -579,9 +586,14 @@
             });
             log.info('Recreated session store from restarted db');
         });
+
+        state.dbStatus.c6Journal.on('reconnected', function() {
+            auditJournal.resetColl(state.dbs.c6Journal.collection('audit'));
+            log.info('Reset journal\'s collection from restarted db');
+        });
         
         // Because we may recreate the session middleware, we need to wrap it in the route handlers
-        function sessionsWrapper(req, res, next) {
+        function sessWrap(req, res, next) {
             sessions(req, res, next);
         }
 
@@ -652,10 +664,13 @@
             });
         });
         
-        var authGetExp = authUtils.middlewarify({experiences: 'read'});
+        var authGetExp = authUtils.middlewarify({experiences: 'read'}),
+            audit = function(req, res, next) {
+                auditJournal.middleware(req, res, next);
+            };
         
         // private get experience by id
-        app.get('/api/content/experience/:id', sessionsWrapper, authGetExp, function(req, res) {
+        app.get('/api/content/experience/:id', sessWrap, authGetExp, audit, function(req, res) {
             content.getExperiences({id:req.params.id}, req, experiences, state.config.publicC6Sites)
             .then(function(resp) {
                 if (resp.body && resp.body instanceof Array) {
@@ -676,7 +691,7 @@
         });
 
         // private get experience by query
-        app.get('/api/content/experiences', sessionsWrapper, authGetExp, function(req, res) {
+        app.get('/api/content/experiences', sessWrap, authGetExp, audit, function(req, res) {
             var queryFields = ['ids', 'user', 'org', 'type', 'status'];
             function isKeyInFields(key) {
                 return queryFields.indexOf(key) >= 0;
@@ -718,7 +733,7 @@
         });
         
         var authPostExp = authUtils.middlewarify({experiences: 'create'});
-        app.post('/api/content/experience', sessionsWrapper, authPostExp, function(req, res) {
+        app.post('/api/content/experience', sessWrap, authPostExp, audit, function(req, res) {
             content.createExperience(req, experiences)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -731,7 +746,7 @@
         });
         
         var authPutExp = authUtils.middlewarify({experiences: 'edit'});
-        app.put('/api/content/experience/:id', sessionsWrapper, authPutExp, function(req, res) {
+        app.put('/api/content/experience/:id', sessWrap, authPutExp, audit, function(req, res) {
             content.updateExperience(req, experiences)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -744,7 +759,7 @@
         });
         
         var authDelExp = authUtils.middlewarify({experiences: 'delete'});
-        app.delete('/api/content/experience/:id', sessionsWrapper, authDelExp, function(req, res) {
+        app.delete('/api/content/experience/:id', sessWrap, authDelExp, audit, function(req, res) {
             content.deleteExperience(req, experiences)
             .then(function(resp) {
                 res.send(resp.code, resp.body);

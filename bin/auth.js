@@ -55,7 +55,7 @@
                 host: null,
                 port: null,
                 retryConnect : true
-            },
+            }
         },
         resetTokenTTL   : 1*30*60*1000, // 30 minutes; unit here is milliseconds
         secretsPath     : path.join(process.env.HOME,'.auth.secrets.json')
@@ -295,8 +295,7 @@
         var express         = require('express'),
             app             = express(),
             users           = state.dbs.c6Db.collection('users'), //TODO: rename auths collection
-            authJournal     = new journal.Journal(state.dbs.c6Journal.collection('auths')),
-            auditJournal    = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'));
+            authJournal     = new journal.Journal(state.dbs.c6Journal.collection('auths'));
         authUtils._coll = users;
         
         aws.config.region = state.config.ses.region;
@@ -333,19 +332,12 @@
         
         state.dbStatus.c6Journal.on('reconnected', function() {
             authJournal.resetColl(state.dbs.c6Journal.collection('auths'));
-            auditJournal.resetColl(state.dbs.c6Journal.collection('audit'));
-            log.info('Reset journals\' collection from restarted db');
+            log.info('Reset journal\'s collection from restarted db');
         });
 
         // Because we may recreate the session middleware, we need to wrap it in the route handlers
         function sessionsWrapper(req, res, next) {
-            sessions(req, res, function(nextVal) {
-                if (nextVal) {
-                    next(nextVal);
-                } else {
-                    auditJournal.middleware(req, res, next);
-                }
-            });
+            sessions(req, res, next);
         }
         
         app.all('*', function(req, res, next) {
