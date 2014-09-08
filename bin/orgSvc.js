@@ -261,11 +261,6 @@
             return q({code: 400, body: 'You must provide an object in the body'});
         }
 
-        if (updates.adConfig && !orgSvc.checkScope(requester, {id: id}, 'editAdConfig')) {
-            log.info('[%1] User %2 not authorized to edit adConfig of %3',req.uuid,requester.id,id);
-            return q({ code: 403, body: 'Not authorized to edit adConfig of this org' });
-        }
-
         log.info('[%1] User %2 is attempting to update org %3', req.uuid, requester.id, id);
         if (!orgSvc.checkScope(requester, {id: id}, 'edit')) {
             log.info('[%1] User %2 is not authorized to edit %3', req.uuid, requester.id, id);
