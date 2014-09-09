@@ -61,7 +61,7 @@
         secretsPath     : path.join(process.env.HOME,'.auth.secrets.json')
     };
 
-    auth.login = function(req, users, maxAge, authJournal) {
+    auth.login = function(req, users, maxAge, authJournal, auditJournal) {
         if (!req.body || !req.body.email || !req.body.password) {
             return q({
                 code: 400,
@@ -93,6 +93,7 @@
                     log.info('[%1] Successful login for user %2', req.uuid, req.body.email);
                     var user = mongoUtils.safeUser(userAccount);
 
+                    auditJournal.writeAuditEntry(req, user.id); //TODO: only log here?
                     authJournal.write(user.id, { action: 'login' });
 
                     return q.npost(req.session, 'regenerate').then(function() {
@@ -117,7 +118,7 @@
         return deferred.promise;
     };
 
-    auth.logout = function(req, authJournal) {
+    auth.logout = function(req, authJournal, auditJournal) {
         var deferred = q.defer(),
             log = logger.getLog();
         log.info('[%1] Starting logout for %2', req.uuid, req.sessionID);
@@ -127,7 +128,10 @@
             deferred.resolve({code: 204});
         } else {
             var user = req.session.user;
+            
+            auditJournal.writeAuditEntry(req, user);
             log.info('[%1] Logging out user %2 with sessionID %3', req.uuid, user, req.sessionID);
+
             q.npost(req.session, 'destroy').then(function() {
                 authJournal.write(user, { action: 'logout' });
                 deferred.resolve({code: 204});
@@ -146,7 +150,7 @@
         return email.compileAndSend(sender, recipient, subject, 'pwdReset.html', data);
     };
     
-    auth.forgotPassword = function(req, users, resetTokenTTL, emailSender, targets) {
+    auth.forgotPassword = function(req, users, resetTokenTTL, emailSender, targets, auditJournal) {
         var log = logger.getLog(),
             now = new Date(),
             reqEmail = (req.body && req.body.email || '').toLowerCase(),
@@ -178,6 +182,8 @@
                 return q({code: 403, body: 'Account not active'});
             }
 
+            auditJournal.writeAuditEntry(req, account.id);
+
             return q.npost(crypto, 'randomBytes', [24])
             .then(function(buff) {
                 token = buff.toString('hex');
@@ -208,7 +214,7 @@
         });
     };
     
-    auth.resetPassword = function(req, users, emailSender, cookieMaxAge) {
+    auth.resetPassword = function(req, users, emailSender, cookieMaxAge, auditJournal) {
         var log = logger.getLog(),
             id = req.body && req.body.id || '',
             token = req.body && req.body.token || '',
@@ -220,6 +226,7 @@
             return q({code: 400, body: 'Must provide id, token, and newPassword'});
         }
         
+        auditJournal.writeAuditEntry(req, id); //TODO: rethink this placement
         log.info('[%1] User %2 attempting to reset their password', req.uuid, id);
         
         return q.npost(users, 'findOne', [{id: id}])
@@ -294,7 +301,8 @@
 
         var express         = require('express'),
             app             = express(),
-            users           = state.dbs.c6Db.collection('users'), //TODO: rename auths collection
+            users           = state.dbs.c6Db.collection('users'), //TODO: rename auth collection?
+            auditJournal    = new journal.AuditJournal(state.dbs.c6Journal.collection('audit')),
             authJournal     = new journal.Journal(state.dbs.c6Journal.collection('auths'));
         authUtils._coll = users;
         
@@ -332,7 +340,8 @@
         
         state.dbStatus.c6Journal.on('reconnected', function() {
             authJournal.resetColl(state.dbs.c6Journal.collection('auths'));
-            log.info('Reset journal\'s collection from restarted db');
+            auditJournal.resetColl(state.dbs.c6Journal.collection('audit'));
+            log.info('Reset journals\' collection from restarted db');
         });
 
         // Because we may recreate the session middleware, we need to wrap it in the route handlers
@@ -365,9 +374,8 @@
             next();
         });
 
-        //TODO: this writes to the audit log only when a logged in user logs in again...
         app.post('/api/auth/login', sessionsWrapper, function(req, res) {
-            auth.login(req, users, state.config.sessions.maxAge, authJournal)
+            auth.login(req, users, state.config.sessions.maxAge, authJournal, auditJournal)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
@@ -378,7 +386,7 @@
         });
 
         app.post('/api/auth/logout', sessionsWrapper, function(req, res) {
-            auth.logout(req, authJournal).then(function(resp) {
+            auth.logout(req, authJournal, auditJournal).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
                 res.send(500, {
@@ -387,14 +395,18 @@
             });
         });
 
-        var authGetUser = authUtils.middlewarify({});
-        app.get('/api/auth/status', sessionsWrapper, authGetUser, function(req, res) {
+        var authGetUser = authUtils.middlewarify({}),
+            audit = function(req, res, next) { //TODO: explain this weird wrapper?
+                auditJournal.middleware(req, res, next);
+            };
+
+        app.get('/api/auth/status', sessionsWrapper, authGetUser, audit, function(req, res) {
             res.send(200, req.user); // errors handled entirely by authGetUser
         });
         
         app.post('/api/auth/password/forgot', function(req, res) {
             auth.forgotPassword(req, users, state.config.resetTokenTTL, state.config.ses.sender,
-                                state.config.forgotTargets)
+                                state.config.forgotTargets, auditJournal)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
@@ -405,7 +417,8 @@
         });
         
         app.post('/api/auth/password/reset', sessionsWrapper, function(req, res) {
-            auth.resetPassword(req, users, state.config.ses.sender, state.config.sessions.maxAge)
+            auth.resetPassword(req, users, state.config.ses.sender, state.config.sessions.maxAge,
+                               auditJournal)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {

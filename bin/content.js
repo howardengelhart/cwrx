@@ -676,7 +676,7 @@
         });
         
         var authGetExp = authUtils.middlewarify({experiences: 'read'}),
-            audit = function(req, res, next) {
+            audit = function(req, res, next) { //TODO: explain this weird wrapper?
                 auditJournal.middleware(req, res, next);
             };
         
