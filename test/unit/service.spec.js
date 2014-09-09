@@ -775,4 +775,107 @@ describe('service (UT)',function(){
             });
         });
     });
+    
+    describe('ensureIndices', function() {
+        var collections;
+        beforeEach(function() {
+            state.config.mongo = {
+                db1: { host: 'h1', requiredIndices: { coll1: ['foo', 'bar'] } },
+                db2: { host: 'h2' },
+                db3: { requiredIndices: { coll2: ['blah'], coll3: ['bloop'] } }
+            };
+            collections = {};
+            state.dbs = {};
+            Object.keys(state.config.mongo).forEach(function(dbName) {
+                state.dbs[dbName] = {
+                    collection: jasmine.createSpy('db.collection').andCallFake(function(collName) {
+                        collections[collName] = {
+                            ensureIndex: jasmine.createSpy('coll.ensureIndex').andCallFake(function(field, cb) {
+                                cb(null, 'success');
+                            })
+                        };
+                        return collections[collName];
+                    })
+                }
+            });
+        });
+        
+        it('should skip if the process is the cluster master', function(done) {
+            state.clusterMaster = true;
+            service.ensureIndices(state).then(function(result) {
+                expect(result).toBe(state);
+                Object.keys(state.dbs).forEach(function(dbName) {
+                    expect(state.dbs[dbName].collection).not.toHaveBeenCalled();
+                });
+                expect(collections).toEqual({});
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should skip if there\'s no mongo config', function(done) {
+            delete state.config.mongo;
+            service.ensureIndices(state).then(function(result) {
+                expect(result).toBe(state);
+                Object.keys(state.dbs).forEach(function(dbName) {
+                    expect(state.dbs[dbName].collection).not.toHaveBeenCalled();
+                });
+                expect(collections).toEqual({});
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should call ensureIndex for each field in requiredIndices', function(done) {
+            service.ensureIndices(state).then(function(result) {
+                expect(result).toBe(state);
+                expect(state.dbs.db1.collection).toHaveBeenCalledWith('coll1');
+                expect(state.dbs.db2.collection).not.toHaveBeenCalled();
+                expect(state.dbs.db3.collection).toHaveBeenCalledWith('coll2');
+                expect(state.dbs.db3.collection).toHaveBeenCalledWith('coll3');
+                expect(Object.keys(collections)).toEqual(['coll1', 'coll2', 'coll3']);
+                expect(collections.coll1.ensureIndex).toHaveBeenCalledWith('foo', jasmine.any(Function));
+                expect(collections.coll1.ensureIndex).toHaveBeenCalledWith('bar', jasmine.any(Function));
+                expect(collections.coll2.ensureIndex).toHaveBeenCalledWith('blah', jasmine.any(Function));
+                expect(collections.coll3.ensureIndex).toHaveBeenCalledWith('bloop', jasmine.any(Function));
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+
+        it('should fail if one of the required dbs is missing', function(done) {
+            delete state.dbs.db2;
+            delete state.dbs.db3;
+            service.ensureIndices(state).then(function(result) {
+                expect(result).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('No db object created for db3');
+                expect(state.dbs.db1.collection).toHaveBeenCalledWith('coll1');
+                expect(Object.keys(collections)).toEqual(['coll1']);
+                expect(collections.coll1.ensureIndex).toHaveBeenCalled();
+            }).finally(done);
+        });
+        
+        it('should fail if even one ensureIndex call fails', function(done) {
+            state.dbs.db1.collection.andCallFake(function(collName) {
+                collections[collName] = {
+                    ensureIndex: jasmine.createSpy('coll.ensureIndex').andCallFake(function(field, cb) {
+                        if (field === 'bar') cb('I GOT A PROBLEM');
+                        else cb(null, 'success');
+                    })
+                };
+                return collections[collName];
+            });
+            service.ensureIndices(state).then(function(result) {
+                expect(result).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('Failed to create index for field bar on db1.coll1 : \'I GOT A PROBLEM\'');
+                expect(Object.keys(collections)).toEqual(['coll1', 'coll2', 'coll3']);
+                expect(collections.coll1.ensureIndex).toHaveBeenCalledWith('foo', jasmine.any(Function));
+                expect(collections.coll1.ensureIndex).toHaveBeenCalledWith('bar', jasmine.any(Function));
+                expect(collections.coll2.ensureIndex).toHaveBeenCalledWith('blah', jasmine.any(Function));
+                expect(collections.coll3.ensureIndex).toHaveBeenCalledWith('bloop', jasmine.any(Function));
+            }).finally(done);
+        });
+    });
 });
