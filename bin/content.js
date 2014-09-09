@@ -172,9 +172,9 @@
             readScope = Scope.Own;
         }
         
-        if (readScope === Scope.Own && !newQuery.user) { //TODO: test/reconsider the additions
+        if (readScope === Scope.Own) {
             newQuery.$or = [ { user: user.id } ];
-        } else if (readScope === Scope.Org && !newQuery.org && !newQuery.user) {
+        } else if (readScope === Scope.Org) {
             newQuery.$or = [ { org: user.org }, { user: user.id } ];
         }
         
@@ -278,20 +278,20 @@
         
         log.info('[%1] User %2 getting experiences with %3, sort %4, limit %5, skip %6',
                  req.uuid,req.user.id,JSON.stringify(query),JSON.stringify(sortObj),limit,skip);
-                 
+
         var permQuery = content.userPermQuery(query, req.user, origin, publicList),
             opts = {sort: sortObj, limit: limit, skip: skip},
-            cursor = experiences.find(permQuery, opts);
-        
-        //TODO: these won't work in e2e tests since collections being dropped;
-        //TODO: except they just did when I ran them, so investigate this...
+            cursor;
+
+        log.trace('[%1] permQuery = %2', req.uuid, JSON.stringify(permQuery));
+
         if (permQuery.user) {
             opts.hint = { user: 1 }; // These hints ensure mongo uses indices wisely when searching
         } else if (permQuery.org) {
             opts.hint = { org: 1 };
         }
-        
-        log.trace('[%1] permQuery = %2', req.uuid, JSON.stringify(permQuery));
+            
+        cursor = experiences.find(permQuery, opts);
         
         if (multiExp) {
             promise = q.npost(cursor, 'count');

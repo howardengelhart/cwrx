@@ -579,6 +579,34 @@ describe('content (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
         });
+        
+        it('should properly use hints if querying by user or org', function(done) {
+            content.userPermQuery.andCallFake(function(orig) { return orig; });
+            content.getExperiences({user: 'u-1'}, req, expColl, pubList, false).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual(['formatted']);
+                expect(expColl.find).toHaveBeenCalledWith({user: 'u-1'}, {sort: {id: 1}, limit: 20, skip: 10, hint: {user: 1}});
+                return content.getExperiences({org: 'o-1'}, req, expColl, pubList, false);
+            }).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual(['formatted']);
+                expect(expColl.find.calls[1].args).toEqual([{org: 'o-1'}, {sort: {id: 1}, limit: 20, skip: 10, hint: {org: 1}}]);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should prefer to hint on the user index if querying by user and org', function(done) {
+            content.userPermQuery.andCallFake(function(orig) { return orig; });
+            content.getExperiences({org: 'o-1', user: 'u-1'}, req, expColl, pubList, false).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual(['formatted']);
+                expect(expColl.find).toHaveBeenCalledWith({org: 'o-1', user: 'u-1'}, 
+                    {sort: {id: 1}, limit: 20, skip: 10, hint: {user: 1}});
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
 
         it('should not allow a user to query for deleted experiences', function(done) {
             query.status = Status.Deleted;
