@@ -54,7 +54,10 @@
             c6Db: {
                 host: null,
                 port: null,
-                retryConnect : true
+                retryConnect : true,
+                requiredIndices: {
+                    experiences: ['user', 'org']
+                }
             }
         }
     };
@@ -275,12 +278,20 @@
         
         log.info('[%1] User %2 getting experiences with %3, sort %4, limit %5, skip %6',
                  req.uuid,req.user.id,JSON.stringify(query),JSON.stringify(sortObj),limit,skip);
-                 
+
         var permQuery = content.userPermQuery(query, req.user, origin, publicList),
             opts = {sort: sortObj, limit: limit, skip: skip},
-            cursor = experiences.find(permQuery, opts);
-        
+            cursor;
+
         log.trace('[%1] permQuery = %2', req.uuid, JSON.stringify(permQuery));
+
+        if (permQuery.user) {
+            opts.hint = { user: 1 }; // These hints ensure mongo uses indices wisely when searching
+        } else if (permQuery.org) {
+            opts.hint = { org: 1 };
+        }
+            
+        cursor = experiences.find(permQuery, opts);
         
         if (multiExp) {
             promise = q.npost(cursor, 'count');
@@ -797,6 +808,7 @@
         .then(service.cluster)
         .then(service.initMongo)
         .then(service.initSessionStore)
+        .then(service.ensureIndices)
         .then(content.main)
         .catch(function(err) {
             var log = logger.getLog();
