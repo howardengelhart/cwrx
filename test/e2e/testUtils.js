@@ -44,7 +44,7 @@ testUtils.resetCollection = function(collection,data,userCfg){
             if (names.length === 0 ) {
                 return q();
             }
-            return q.npost(coll, 'drop');
+            return q.npost(coll, 'remove');
         })
         .then(function(){
             if (!data) {
