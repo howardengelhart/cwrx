@@ -591,6 +591,32 @@ describe('org (E2E):', function() {
                 done();
             });
         });
+
+        it('should allow the edit if the adConfig is unchanged', function(done) {
+            var altJar = request.jar();
+            var loginOpts = {
+                url: config.authUrl + '/login',
+                json: { email: 'orgsvce2enopermsuser', password: 'password' },
+                jar: altJar
+            };
+            requestUtils.qRequest('post', loginOpts).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                var options = {
+                    url: config.orgSvcUrl + '/org/o-1234',
+                    jar: cookieJar,
+                    json: { adConfig: { ads: 'good' }, updated: true }
+                };
+                return requestUtils.qRequest('put', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.adConfig).toEqual({ads: 'good'});
+                expect(resp.body.updated).toBe(true);
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
         
         it('should let users edit owned orgs\' adConfig if they have permission', function(done) {
             var options = {
