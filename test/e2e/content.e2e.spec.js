@@ -975,6 +975,23 @@ describe('content (E2E):', function() {
                 done();
             });
         });
+
+        it('should allow the edit if the adConfig is unchanged', function(done) {
+            var options = {
+                url: config.contentUrl + '/content/experience/e2e-put1',
+                jar: cookieJar,
+                json: { adConfig: { ads: 'good' }, updated: true }
+            }, updatedExp;
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.adConfig).toEqual({ads: 'good'});
+                expect(resp.body.updated).toBe(true);
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
         
         it('should let users edit owned experiences\' adConfig if they have permission', function(done) {
             var altJar = request.jar();

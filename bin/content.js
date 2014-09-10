@@ -78,6 +78,10 @@
     });
     content.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created', '_id'] });
 
+    content.compareObjects = function(a, b) {
+        return JSON.stringify(QueryCache.sortQuery(a)) === JSON.stringify(QueryCache.sortQuery(b));
+    };
+
     content.formatOutput = function(experience, isGuest) {
         var log = logger.getLog(),
             privateFields = ['user', 'org'],
@@ -385,10 +389,6 @@
         });
     };
     
-    content.compareData = function(a, b) {
-        return JSON.stringify(QueryCache.sortQuery(a)) === JSON.stringify(QueryCache.sortQuery(b));
-    };
-    
     content.formatUpdates = function(req, orig, updates, user) {
         var log = logger.getLog(),
             now = new Date();
@@ -405,7 +405,7 @@
         }
 
         if (updates.data) {
-            if (!content.compareData(orig.data[0].data, updates.data)) {
+            if (!content.compareObjects(orig.data[0].data, updates.data)) {
                 var versionId = uuid.hashText(JSON.stringify(updates.data)).substr(0, 8),
                     dataWrapper = { user: user.email, userId: user.id, date: now,
                                     data: updates.data, versionId: versionId };
@@ -479,7 +479,8 @@
                 log.info('[%1] User %2 is not authorized to edit %3', req.uuid, user.id, id);
                 return q({ code: 403, body: 'Not authorized to edit this experience' });
             }
-            if (updates.adConfig && !content.checkScope(user, orig, 'experiences', 'editAdConfig')){
+            if (updates.adConfig && !content.compareObjects(updates.adConfig, orig.adConfig) &&
+                !content.checkScope(user, orig, 'experiences', 'editAdConfig')) {
                 log.info('[%1] User %2 not authorized to edit adConfig of %3',req.uuid,user.id,id);
                 return q({ code: 403, body: 'Not authorized to edit adConfig of this experience' });
             }

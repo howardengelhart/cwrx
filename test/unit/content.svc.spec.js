@@ -34,6 +34,23 @@ describe('content (UT)', function() {
         experiences = {};
         req = {uuid: '1234'};
     });
+
+    describe('compareObjects', function() {
+        it('should perform a deep equality check on two objects', function() {
+            var a = { foo: 'bar', arr: [1, 3, 2] }, b = { foo: 'bar', arr: [1, 2, 2] };
+            expect(content.compareObjects(a, b)).toBe(false);
+            b.arr[1] = 3;
+            expect(content.compareObjects(a, b)).toBe(true);
+            a.foo = 'baz';
+            expect(content.compareObjects(a, b)).toBe(false);
+            a.foo = 'bar';
+            a.data = { user: 'otter' };
+            b.data = { user: 'otter', org: 'c6' };
+            expect(content.compareObjects(a, b)).toBe(false);
+            a.data.org = 'c6';
+            expect(content.compareObjects(a, b)).toBe(true);
+        });
+    });
     
     describe('checkScope', function() {
         it('should correctly handle the scopes', function() {
@@ -861,23 +878,6 @@ describe('content (UT)', function() {
         });
     });
 
-    describe('compareData', function() {
-        it('should perform a deep equality check on two objects', function() {
-            var a = { foo: 'bar', arr: [1, 3, 2] }, b = { foo: 'bar', arr: [1, 2, 2] };
-            expect(content.compareData(a, b)).toBe(false);
-            b.arr[1] = 3;
-            expect(content.compareData(a, b)).toBe(true);
-            a.foo = 'baz';
-            expect(content.compareData(a, b)).toBe(false);
-            a.foo = 'bar';
-            a.data = { user: 'otter' };
-            b.data = { user: 'otter', org: 'c6' };
-            expect(content.compareData(a, b)).toBe(false);
-            a.data.org = 'c6';
-            expect(content.compareData(a, b)).toBe(true);
-        });
-    });
-    
     describe('formatUpdates', function() {
         var req, orig, updates, user, start = new Date();
         
@@ -1027,6 +1027,7 @@ describe('content (UT)', function() {
                 function(query, sort, obj, opts, cb) {
                     cb(null, [{ id: 'e-1234', data: obj.$set.data }]);
                 });
+            spyOn(content, 'compareObjects').andCallThrough();
             spyOn(content, 'formatUpdates').andCallThrough();
             spyOn(content, 'checkScope').andReturn(true);
             spyOn(content.updateValidator, 'validate').andReturn(true);
@@ -1118,7 +1119,7 @@ describe('content (UT)', function() {
             content.checkScope.andReturn(false);
             content.updateExperience(req, experiences).then(function(resp) {
                 expect(resp.code).toBe(403);
-                expect(resp.body).toBe("Not authorized to edit this experience");
+                expect(resp.body).toBe('Not authorized to edit this experience');
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findAndModify).not.toHaveBeenCalled();
                 expect(content.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'edit');
@@ -1137,10 +1138,32 @@ describe('content (UT)', function() {
             req.body.adConfig = { foo: 'bar' };
             content.updateExperience(req, experiences).then(function(resp) {
                 expect(resp.code).toBe(403);
-                expect(resp.body).toBe("Not authorized to edit adConfig of this experience");
+                expect(resp.body).toBe('Not authorized to edit adConfig of this experience');
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findAndModify).not.toHaveBeenCalled();
                 expect(content.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'editAdConfig');
+                expect(content.compareObjects).toHaveBeenCalledWith({foo: 'bar'}, undefined);
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should allow the edit if the adConfig is unchanged', function(done) {
+            content.checkScope.andCallFake(function(user, orig, obj, verb) {
+                if (verb == 'editAdConfig') return false;
+                else return true;
+            });
+            req.body.adConfig = { foo: 'bar' };
+            oldExp.adConfig = { foo: 'bar' };
+            content.updateExperience(req, experiences).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual({id: 'e-1234', data: {foo:'baz'}, versionId: 'fakeVers'});
+                expect(experiences.findAndModify).toHaveBeenCalled();
+                expect(experiences.findAndModify.calls[0].args[2].$set.adConfig).toEqual({foo: 'bar'});
+                expect(content.compareObjects).toHaveBeenCalledWith({foo: 'bar'}, {foo: 'bar'});
+                expect(content.checkScope).not.toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'editAdConfig');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1299,7 +1322,7 @@ describe('content (UT)', function() {
             content.deleteExperience(req, experiences).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(403);
-                expect(resp.body).toBe("Not authorized to delete this experience");
+                expect(resp.body).toBe('Not authorized to delete this experience');
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(content.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'delete');
                 expect(experiences.update).not.toHaveBeenCalled();

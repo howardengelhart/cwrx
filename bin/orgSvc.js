@@ -12,6 +12,7 @@
         authUtils       = require('../lib/authUtils'),
         service         = require('../lib/service'),
         enums           = require('../lib/enums'),
+        QueryCache      = require('../lib/queryCache'),
         Status          = enums.Status,
         Scope           = enums.Scope,
         
@@ -64,6 +65,10 @@
     orgSvc.updateValidator = new FieldValidator({
         forbidden: ['id', 'created', '_id'],
     });
+
+    orgSvc.compareObjects = function(a, b) {
+        return JSON.stringify(QueryCache.sortQuery(a)) === JSON.stringify(QueryCache.sortQuery(b));
+    };
 
     // Get a single org from mongo
     orgSvc.getOrg = function(req, orgs) {
@@ -255,8 +260,7 @@
         var updates = req.body,
             id = req.params.id,
             requester = req.user,
-            log = logger.getLog(),
-            deferred = q.defer();
+            log = logger.getLog();
         if (!updates || typeof updates !== 'object') {
             return q({code: 400, body: 'You must provide an object in the body'});
         }
@@ -267,23 +271,25 @@
             return q({code: 403, body: 'Not authorized to edit this org'});
         }
 
-        if (updates.adConfig && !orgSvc.checkScope(requester, {id: id}, 'editAdConfig')) {
-            log.info('[%1] User %2 not authorized to edit adConfig of %3',req.uuid,requester.id,id);
-            return q({ code: 403, body: 'Not authorized to edit adConfig of this org' });
-        }
-
-        q.npost(orgs, 'findOne', [{id: id}])
+        return q.npost(orgs, 'findOne', [{id: id}])
         .then(function(orig) {
             if (!orig) {
                 log.info('[%1] Org %2 does not exist; not creating them', req.uuid, id);
-                return deferred.resolve({code: 404, body: 'That org does not exist'});
+                return q({code: 404, body: 'That org does not exist'});
             }
             if (!orgSvc.updateValidator.validate(updates, orig, requester)) {
                 log.warn('[%1] Updates contain illegal fields', req.uuid);
                 log.trace('updates: %1  |  orig: %2  |  requester: %3', JSON.stringify(updates),
                           JSON.stringify(orig), JSON.stringify(requester));
-                return deferred.resolve({code: 400, body: 'Illegal fields'});
+                return q({code: 400, body: 'Illegal fields'});
             }
+            if (updates.adConfig && !orgSvc.compareObjects(updates.adConfig, orig.adConfig) &&
+                !orgSvc.checkScope(requester, {id: id}, 'editAdConfig')) {
+                log.info('[%1] User %2 not authorized to edit adConfig of %3',
+                         req.uuid, requester.id, id);
+                return q({ code: 403, body: 'Not authorized to edit adConfig of this org' });
+            }
+
             updates.lastUpdated = new Date();
             var updateObj = { $set: mongoUtils.escapeKeys(updates) };
             var opts = {w: 1, journal: true, new: true};
@@ -294,13 +300,12 @@
                          req.uuid, requester.id, updated.id);
                 delete updated._id;
                 updated = mongoUtils.unescapeKeys(updated);
-                deferred.resolve({code: 200, body: updated});
+                return q({code: 200, body: updated});
             });
         }).catch(function(error) {
             log.error('[%1] Error updating org %2 for user %3: %4',req.uuid,id,requester.id,error);
-            deferred.reject(error);
+            return q.reject(error);
         });
-        return deferred.promise;
     };
 
     // Delete an org from mongo

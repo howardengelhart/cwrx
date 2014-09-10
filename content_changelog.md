@@ -1,5 +1,11 @@
 # Content Service Changelog
 
+### 1.8.1: Wed Sep 10 11:07:04 EDT 2014
+* [FIX]: Add permission for editing experiences' `adConfig`: [#272](https://github.com/cinema6/cwrx/pull/272)
+* [FIX]: Properly compare `adConfig` with existing `adConfig` on edit: [#275](https://github.com/cinema6/cwrx/pull/275)
+* [FIX]: Optimize queries using hints: [#273](https://github.com/cinema6/cwrx/pull/273)
+* Extra deployment steps: Update existing C6 admins with `editAdConfig` permission
+
 ### 1.8.0: Wed Sep  3 14:30:31 EDT 2014
 * [FIX]: Allow querying experiences by status: [#268](https://github.com/cinema6/cwrx/pull/268)
 * Extra deployment steps: Create database index on `status.0.status` field
