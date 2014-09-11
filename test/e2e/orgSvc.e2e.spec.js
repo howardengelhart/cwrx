@@ -1,4 +1,5 @@
 var q               = require('q'),
+    request         = require('request'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
     host            = process.env['host'] || 'localhost',
@@ -11,7 +12,7 @@ describe('org (E2E):', function() {
     var cookieJar, mockRequester, noPermsUser;
         
     beforeEach(function(done) {
-        cookieJar = require('request').jar();
+        cookieJar = request.jar();
         mockRequester = {
             id: 'e2e-user',
             status: 'active',
@@ -19,7 +20,7 @@ describe('org (E2E):', function() {
             password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
             org: 'o-1234',
             permissions: {
-                orgs: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
+                orgs: { read: 'all', create: 'all', edit: 'all', editAdConfig: 'all', delete: 'all' }
             }
         };
         noPermsUser = {
@@ -422,6 +423,32 @@ describe('org (E2E):', function() {
             });
         });
 
+        it('should only allow the adConfig to be set by users with permission', function(done) {
+            mockOrg.adConfig = {ads: 'good'};
+            var altJar = request.jar();
+            var loginOpts = {
+                url: config.authUrl + '/login',
+                json: { email: 'orgsvce2enopermsuser', password: 'password' },
+                jar: altJar
+            };
+            return requestUtils.qRequest('post', loginOpts).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return q.all([cookieJar, altJar].map(function(jar) {
+                    var options = { url: config.orgSvcUrl + '/org', json: mockOrg, jar: jar };
+                    return requestUtils.qRequest('post', options);
+                }));
+            }).then(function(results) {
+                expect(results[0].response.statusCode).toBe(201);
+                expect(results[0].body.adConfig).toEqual({ads: 'good'});
+                expect(results[1].response.statusCode).toBe(403);
+                expect(results[1].body).toBe('Not authorized to create orgs');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+
         it('should throw a 401 error if the user is not authenticated', function(done) {
             var options = { url: config.orgSvcUrl + '/org' };
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -446,6 +473,7 @@ describe('org (E2E):', function() {
                     name: 'e2e-put1',
                     tag: 'foo',
                     created: start,
+                    adConfig: { ads: 'good' },
                     waterfalls: {
                         video: ['cinema6', 'publisher'],
                         display: ['cinema6', 'publisher']
@@ -455,6 +483,7 @@ describe('org (E2E):', function() {
                     id: 'o-4567',
                     name: 'e2e-put2',
                     tag: 'baz',
+                    adConfig: { ads: 'ok' },
                     created: start
                 }
             ];
@@ -478,6 +507,7 @@ describe('org (E2E):', function() {
                 expect(org._id).not.toBeDefined();
                 expect(org.id).toBe('o-1234');
                 expect(org.tag).toBe('bar');
+                expect(org.adConfig).toEqual({ads: 'good'});
                 expect(org.waterfalls).toEqual({video: ['cinema6'], display: ['cinema6']});
                 expect(new Date(org.lastUpdated)).toBeGreaterThan(new Date(org.created));
                 done();
@@ -530,6 +560,73 @@ describe('org (E2E):', function() {
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Not authorized to edit this org');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should not let users edit orgs\' adConfig if they lack permission', function(done) {
+            var altJar = request.jar();
+            var loginOpts = {
+                url: config.authUrl + '/login',
+                json: { email: 'orgsvce2enopermsuser', password: 'password' },
+                jar: altJar
+            };
+            requestUtils.qRequest('post', loginOpts).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                var options = {
+                    url: config.orgSvcUrl + '/org/o-1234',
+                    jar: altJar,
+                    json: { adConfig: { ads: 'bad' } }
+                };
+                return requestUtils.qRequest('put', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(403);
+                expect(resp.body).toBe('Not authorized to edit adConfig of this org');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should allow the edit if the adConfig is unchanged', function(done) {
+            var altJar = request.jar();
+            var loginOpts = {
+                url: config.authUrl + '/login',
+                json: { email: 'orgsvce2enopermsuser', password: 'password' },
+                jar: altJar
+            };
+            requestUtils.qRequest('post', loginOpts).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                var options = {
+                    url: config.orgSvcUrl + '/org/o-1234',
+                    jar: cookieJar,
+                    json: { adConfig: { ads: 'good' }, updated: true }
+                };
+                return requestUtils.qRequest('put', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.adConfig).toEqual({ads: 'good'});
+                expect(resp.body.updated).toBe(true);
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should let users edit owned orgs\' adConfig if they have permission', function(done) {
+            var options = {
+                url: config.orgSvcUrl + '/org/o-1234',
+                jar: cookieJar,
+                json: { adConfig: { ads: 'bad' } }
+            };
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.adConfig).toEqual({ads: 'bad'});
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();

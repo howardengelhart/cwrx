@@ -1,5 +1,10 @@
 # Org Service Changelog
 
+### 1.1.2: Wed Sep 10 11:07:04 EDT 2014
+* [FIX]: Add permission for editing orgs' `adConfig`: [#272](https://github.com/cinema6/cwrx/pull/272)
+* [FIX]: Properly compare new `adConfig` with existing `adConfig` on edit: [#275](https://github.com/cinema6/cwrx/pull/275)
+* Extra deployment steps: Update existing C6 admins with `editAdConfig` permission
+
 ### 1.1.1: Fri Aug 29 10:07:58 EDT 2014
 * [FIX]: Save session docs as JSON, not strings: [#261](https://github.com/cinema6/cwrx/pull/261)
 * [FIX]: Change mongo read preference to primaryPreferred: [#262](https://github.com/cinema6/cwrx/pull/262)

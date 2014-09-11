@@ -9,7 +9,7 @@ describe('orgSvc (UT)', function() {
         logger          = require('../../lib/logger');
         orgSvc          = require('../../bin/orgSvc');
         FieldValidator  = require('../../lib/fieldValidator');
-        mongoUtils      = require('../../lib/mongoUtils'),
+        mongoUtils      = require('../../lib/mongoUtils');
         q               = require('q');
         enums           = require('../../lib/enums');
         Status          = enums.Status;
@@ -114,6 +114,23 @@ describe('orgSvc (UT)', function() {
 
     });
 
+    describe('compareObjects', function() {
+        it('should perform a deep equality check on two objects', function() {
+            var a = { foo: 'bar', arr: [1, 3, 2] }, b = { foo: 'bar', arr: [1, 2, 2] };
+            expect(orgSvc.compareObjects(a, b)).toBe(false);
+            b.arr[1] = 3;
+            expect(orgSvc.compareObjects(a, b)).toBe(true);
+            a.foo = 'baz';
+            expect(orgSvc.compareObjects(a, b)).toBe(false);
+            a.foo = 'bar';
+            a.data = { user: 'otter' };
+            b.data = { user: 'otter', org: 'c6' };
+            expect(orgSvc.compareObjects(a, b)).toBe(false);
+            a.data.org = 'c6';
+            expect(orgSvc.compareObjects(a, b)).toBe(true);
+        });
+    });
+
     describe('getOrg', function() {
 
         var query, orgColl, fakeCursor;
@@ -141,7 +158,7 @@ describe('orgSvc (UT)', function() {
                 expect(orgSvc.checkScope).toHaveBeenCalledWith({ id: 'u-1234', org: 'o-1234', permissions: {orgs: {read: Scope.All}}}, { id: 'o-4567' }, 'read');
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
@@ -156,7 +173,7 @@ describe('orgSvc (UT)', function() {
                 expect(orgColl.find).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
@@ -169,7 +186,7 @@ describe('orgSvc (UT)', function() {
                 expect(mockLog.warn).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
@@ -184,7 +201,7 @@ describe('orgSvc (UT)', function() {
                 expect(resp.body).toBe('No orgs found');
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
@@ -395,6 +412,7 @@ describe('orgSvc (UT)', function() {
             req.user = { id: 'u-1234', org: 'o-1234', permissions: {orgs: {create: Scope.All}}};
             spyOn(orgSvc, 'setupOrg');
             spyOn(orgSvc.createValidator, 'validate').andReturn(true);
+            spyOn(orgSvc, 'checkScope').andReturn(false);
         });
 
         it('should reject with a 400 if no org object is provided', function(done) {
@@ -407,7 +425,7 @@ describe('orgSvc (UT)', function() {
                 expect(orgColl.insert).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
                 done();
             });            
         });
@@ -423,7 +441,7 @@ describe('orgSvc (UT)', function() {
                 expect(orgColl.insert).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
@@ -475,7 +493,7 @@ describe('orgSvc (UT)', function() {
                 done();
             })
             .catch(function(error){
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
@@ -492,7 +510,7 @@ describe('orgSvc (UT)', function() {
                 expect(orgColl.insert).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
@@ -509,9 +527,42 @@ describe('orgSvc (UT)', function() {
                 expect(orgColl.insert).toHaveBeenCalled();
                 expect(orgColl.insert.calls[0].args[0]).toBe(req.body);
                 expect(orgColl.insert.calls[0].args[1]).toEqual({w: 1, journal: true});
+                expect(orgSvc.checkScope).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should prevent ordinary users from setting the adConfig', function(done) {
+            req.body.adConfig = {foo: 'bar'};
+            orgSvc.createOrg(req, orgColl).then(function(resp) {
+                expect(resp.code).toBe(403);
+                expect(resp.body).toEqual('Not authorized to set adConfig');
+                expect(orgColl.findOne).not.toHaveBeenCalled();
+                expect(orgColl.insert).not.toHaveBeenCalled();
+                expect(orgSvc.checkScope).toHaveBeenCalledWith(req.user, {}, 'editAdConfig');
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should let users set the adConfig if they have permission to do so', function(done) {
+            orgSvc.checkScope.andReturn(true);
+            req.body.adConfig = {foo: 'bar'};
+            orgSvc.createOrg(req, orgColl).then(function(resp) {
+                expect(resp.code).toBe(201);
+                expect(resp.body).toEqual({name: 'test', adConfig: {foo: 'bar'}});
+                expect(orgColl.findOne).toHaveBeenCalled();
+                expect(orgColl.insert).toHaveBeenCalled();
+                expect(orgColl.insert.calls[0].args[0]).toEqual({name: 'test', adConfig: {foo: 'bar'}});
+                expect(orgSvc.checkScope).toHaveBeenCalledWith(req.user, {}, 'editAdConfig');
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
@@ -527,7 +578,7 @@ describe('orgSvc (UT)', function() {
                 expect(orgColl.insert).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
@@ -561,11 +612,12 @@ describe('orgSvc (UT)', function() {
     });
 
     describe('updateOrg', function() {
-        var orgColl;
+        var orgColl, origOrg;
         beforeEach(function() {
+            origOrg = {orig: 'yes'};
             orgColl = {
                 findOne: jasmine.createSpy('orgs.findOne').andCallFake(function(query, cb) {
-                    cb(null, {orig: 'yes'});
+                    cb(null, origOrg);
                 }),
                 findAndModify: jasmine.createSpy('orgs.findAndModify').andCallFake(
                     function(query, sort, obj, opts, cb) {
@@ -577,6 +629,7 @@ describe('orgSvc (UT)', function() {
             req.user = { id: 'u-1234' };
             spyOn(orgSvc, 'checkScope').andReturn(true);
             spyOn(orgSvc.updateValidator, 'validate').andReturn(true);
+            spyOn(orgSvc, 'compareObjects').andCallThrough();
         });
         
         it('should fail immediately if no update object is provided', function(done) {
@@ -593,7 +646,7 @@ describe('orgSvc (UT)', function() {
                 expect(resp.body).toBe('You must provide an object in the body');
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
@@ -618,7 +671,7 @@ describe('orgSvc (UT)', function() {
                 expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
@@ -634,7 +687,7 @@ describe('orgSvc (UT)', function() {
                 expect(orgColl.findAndModify).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
-               expect(error).not.toBeDefined();
+               expect(error.toString()).not.toBeDefined();
                done();
             });
         });
@@ -650,7 +703,69 @@ describe('orgSvc (UT)', function() {
                 expect(orgColl.findAndModify).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should prevent ordinary users from editing the adConfig', function(done) {
+            orgSvc.checkScope.andCallFake(function(user, orig, verb) {
+                if (verb == 'editAdConfig') return false;
+                else return true;
+            });
+            req.body.adConfig = {foo: 'bar'};
+            orgSvc.updateOrg(req, orgColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(403);
+                expect(resp.body).toBe('Not authorized to edit adConfig of this org');
+                expect(orgColl.findOne).toHaveBeenCalled();
+                expect(orgColl.findAndModify).not.toHaveBeenCalled();
+                expect(orgSvc.checkScope).toHaveBeenCalledWith(req.user, {id: 'o-4567'}, 'editAdConfig');
+                expect(orgSvc.compareObjects).toHaveBeenCalledWith({foo: 'bar'}, undefined);
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+
+        it('should allow the edit if the adConfig is unchanged', function(done) {
+            orgSvc.checkScope.andCallFake(function(user, orig, verb) {
+                if (verb == 'editAdConfig') return false;
+                else return true;
+            });
+            req.body.adConfig = {foo: 'bar'};
+            origOrg.adConfig = {foo: 'bar'};
+            orgSvc.updateOrg(req, orgColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual({ id: 'o-4567', updated: true });
+                expect(orgColl.findOne).toHaveBeenCalled();
+                expect(orgColl.findAndModify).toHaveBeenCalled();
+                expect(orgColl.findAndModify.calls[0].args[2].$set.adConfig).toEqual({foo: 'bar'});
+                expect(orgSvc.checkScope).not.toHaveBeenCalledWith(req.user, {id: 'o-4567'}, 'editAdConfig');
+                expect(orgSvc.compareObjects).toHaveBeenCalledWith({foo: 'bar'}, {foo: 'bar'});
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should let users edit the adConfig if they have permission to do so', function(done) {
+            orgSvc.checkScope.andReturn(true);
+            req.body.adConfig = {foo: 'bar'};
+            orgSvc.updateOrg(req, orgColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual({ id: 'o-4567', updated: true });
+                expect(orgColl.findOne).toHaveBeenCalled();
+                expect(orgColl.findAndModify).toHaveBeenCalled();
+                expect(orgColl.findAndModify.calls[0].args[2].$set.adConfig).toEqual({foo: 'bar'});
+                expect(orgSvc.checkScope).toHaveBeenCalledWith(req.user, {id: 'o-4567'}, 'editAdConfig');
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
@@ -666,7 +781,7 @@ describe('orgSvc (UT)', function() {
                 expect(orgColl.findAndModify).not.toHaveBeenCalled();
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(error.toString()).not.toBeDefined();
                 done();
             });
         });
