@@ -168,6 +168,20 @@ describe('search (E2E):', function() {
             }).finally(done);
         });
         
+        it('should return an empty array if nothing is found', function(done) {
+            options.qs.query = 'fhoenfaefoajhweoucaeirycvnbaksdoiur' + Math.random() * 10000000;
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.meta).toBeDefined();
+                expect(resp.body.meta.skipped).toBe(0);
+                expect(resp.body.meta.numResults).toBe(0);
+                expect(resp.body.meta.totalResults).toBe(0);
+                expect(resp.body.items).toEqual([]);
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
+        });
+        
         it('should return a 400 if no query is provided', function(done) {
             delete options.qs.query;
             requestUtils.qRequest('get', options).then(function(resp) {

@@ -107,6 +107,14 @@ describe('search (UT)', function() {
             expect(results.items[2].title).toBe('DM Test');
             expect(mockLog.warn.callCount).toBe(3);
         });
+        
+        it('should handle the case where google returns no items', function() {
+            stats = { startIndex: 0, count: 0, totalResults: 0 };
+            expect(search.formatGoogleResults(stats)).toEqual({
+                meta: {skipped: 0, numResults: 0, totalResults: 0},
+                items: []
+            });
+        });
     });
     
     describe('findVideosWithGoogle', function() {
@@ -114,7 +122,10 @@ describe('search (UT)', function() {
         beforeEach(function() {
             spyOn(requestUtils, 'qRequest').andReturn(q({
                 response: { statusCode: 200 },
-                body: { queries: { request: [{stats: 'yes'}] }, items: 'fakeItems' }
+                body: {
+                    queries: { request: [{ startIndex:11, count:20, totalResults:12345 }] },
+                    items: 'fakeItems'
+                }
             }));
             opts = { query: 'foo', limit: 10, start: 20 };
             googleCfg = {apiUrl: 'http://google.com/cse', engineId: 'asdf1234', fields: 'fakeFields'};
@@ -128,7 +139,8 @@ describe('search (UT)', function() {
                 expect(requestUtils.qRequest).toHaveBeenCalledWith('get', {url: 'http://google.com/cse',
                     qs: {q: 'foo', cx: 'asdf1234', key: 'zxcv5678', num: 10, start: 20, fields: 'fakeFields'},
                     headers: {Referer: 'https://portal.cinema6.com/index.html'}});
-                expect(search.formatGoogleResults).toHaveBeenCalledWith({stats: 'yes'}, 'fakeItems');
+                expect(search.formatGoogleResults).toHaveBeenCalledWith(
+                    { startIndex: 11, count: 20, totalResults: 12345 }, 'fakeItems');
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -173,7 +185,10 @@ describe('search (UT)', function() {
                 if (this.qRequest.callCount >= 2) {
                     return q({
                         response: { statusCode: 200 },
-                        body: { queries: { request: [{stats: 'yes'}] }, items: 'fakeItems' }
+                        body: {
+                            queries: { request: [{startIndex:11, count:20, totalResults:12345 }] },
+                            items: 'fakeItems'
+                        }
                     });
                 } else {
                     return q.reject({error: 'I GOT A PROBLEM'});
@@ -183,7 +198,8 @@ describe('search (UT)', function() {
                 expect(resp).toEqual({code: 200, body: 'formatted'});
                 expect(mockLog.warn.callCount).toBe(1);
                 expect(requestUtils.qRequest.callCount).toBe(2);
-                expect(search.formatGoogleResults).toHaveBeenCalledWith({stats: 'yes'}, 'fakeItems');
+                expect(search.formatGoogleResults).toHaveBeenCalledWith(
+                    { startIndex: 11, count: 20, totalResults: 12345 }, 'fakeItems');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
@@ -206,7 +222,7 @@ describe('search (UT)', function() {
         });
         
         it('should return a 500 code if google returns an incomplete body', function(done) {
-            q.all([{items: 'fake'}, {queries: 'fake', items: 'fake'}, {queries: {request: 'fake'}}]
+            q.all([{items: []}, {queries: 'fake', items: []}]
             .map(function(body) {
                 requestUtils.qRequest.andReturn(q({response: {statusCode: 200}, body: body}));
                 return search.findVideosWithGoogle(req, opts, googleCfg, apiKey);
@@ -214,8 +230,8 @@ describe('search (UT)', function() {
                 results.forEach(function(result) {
                     expect(result).toEqual({code: 500, body: 'Error querying google'});
                 });
-                expect(mockLog.warn.callCount).toBe(6);
-                expect(requestUtils.qRequest.callCount).toBe(6);
+                expect(mockLog.warn.callCount).toBe(4);
+                expect(requestUtils.qRequest.callCount).toBe(4);
                 expect(search.formatGoogleResults).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
