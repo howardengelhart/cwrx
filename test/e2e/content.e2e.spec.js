@@ -792,7 +792,7 @@ describe('content (E2E):', function() {
         });
         
         it('should only allow the adConfig to be set by users with permission', function(done) {
-            mockExp.adConfig = {ads: 'good'};
+            mockExp.data.adConfig = {ads: 'good'};
             var altJar = request.jar();
             var loginOpts = {
                 url: config.authUrl + '/auth/login',
@@ -808,7 +808,7 @@ describe('content (E2E):', function() {
                 expect(results[0].response.statusCode).toBe(403);
                 expect(results[0].body).toBe('Not authorized to set adConfig');
                 expect(results[1].response.statusCode).toBe(201);
-                expect(results[1].body.adConfig).toEqual({ads: 'good'});
+                expect(results[1].body.data).toEqual({foo: 'bar', adConfig: {ads: 'good'}});
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -839,8 +839,7 @@ describe('content (E2E):', function() {
             mockExps = [
                 {
                     id: 'e2e-put1',
-                    data: [ { data: { foo: 'bar' }, versionId: 'a5e744d0' } ],
-                    adConfig: { ads: 'good' },
+                    data: [ { data: { foo: 'bar', adConfig: { ads: 'good' } }, versionId: 'a5e744d0' } ],
                     tag: 'origTag',
                     status: 'active',
                     access: 'public',
@@ -876,7 +875,7 @@ describe('content (E2E):', function() {
                 expect(updatedExp.tag).toBe('newTag');
                 expect(updatedExp.user).toBe('e2e-user');
                 expect(updatedExp.versionId).toBe('a5e744d0');
-                expect(updatedExp.adConfig).toEqual({ads: 'good'});
+                expect(updatedExp.data).toEqual({foo: 'bar', adConfig: {ads: 'good'}});
                 expect(new Date(updatedExp.created)).toEqual(now);
                 expect(new Date(updatedExp.lastUpdated)).toBeGreaterThan(now);
                 done();
@@ -885,7 +884,7 @@ describe('content (E2E):', function() {
                 done();
             });
         });
-        
+
         it('should properly update the data and versionId together', function(done) {
             var options = {
                 url: config.contentUrl + '/content/experience/e2e-put1',
@@ -964,7 +963,7 @@ describe('content (E2E):', function() {
             var options = {
                 url: config.contentUrl + '/content/experience/e2e-put1',
                 jar: cookieJar,
-                json: { adConfig: { ads: 'bad' } }
+                json: { data: { adConfig: { ads: 'bad' } } }
             }, updatedExp;
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
@@ -980,12 +979,11 @@ describe('content (E2E):', function() {
             var options = {
                 url: config.contentUrl + '/content/experience/e2e-put1',
                 jar: cookieJar,
-                json: { adConfig: { ads: 'good' }, updated: true }
+                json: { data: { foo: 'baz', adConfig: { ads: 'good' } } }
             }, updatedExp;
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.adConfig).toEqual({ads: 'good'});
-                expect(resp.body.updated).toBe(true);
+                expect(resp.body.data).toEqual({ foo: 'baz', adConfig: { ads: 'good' } });
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -1006,13 +1004,13 @@ describe('content (E2E):', function() {
                     var options = {
                         url: config.contentUrl + '/content/experience/' + id,
                         jar: altJar,
-                        json: { adConfig: { ads: 'bad' } }
+                        json: { data: { foo: 'baz', adConfig: { ads: 'bad' } } }
                     };
                     return requestUtils.qRequest('put', options);
                 }));
             }).then(function(results) {
                 expect(results[0].response.statusCode).toBe(200);
-                expect(results[0].body.adConfig).toEqual({ads: 'bad'});
+                expect(results[0].body.data).toEqual({ foo: 'baz', adConfig: { ads: 'bad' } });
                 expect(results[1].response.statusCode).toBe(403);
                 expect(results[1].body).toBe('Not authorized to edit adConfig of this experience');
                 done();

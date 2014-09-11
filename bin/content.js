@@ -364,7 +364,13 @@
         if (!obj.access) {
             obj.access = Access.Public;
         }
+
         if (obj.data) {
+            if (obj.data.adConfig && !content.checkScope(user, obj, 'experiences', 'editAdConfig')){
+                log.info('[%1] User %2 not authorized to set adConfig of new exp',req.uuid,user.id);
+                return q({ code: 403, body: 'Not authorized to set adConfig' });
+            }
+
             var versionId = uuid.hashText(JSON.stringify(obj.data)).substr(0, 8);
             obj.data = [ { user: user.email, userId: user.id, date: now,
                            data: obj.data, versionId: versionId } ];
@@ -373,11 +379,6 @@
             }
         }
         
-        if (obj.adConfig && !content.checkScope(user, obj, 'experiences', 'editAdConfig')){
-            log.info('[%1] User %2 not authorized to set adConfig of new exp', req.uuid, user.id);
-            return q({ code: 403, body: 'Not authorized to set adConfig' });
-        }
-
         return q.npost(experiences, 'insert', [mongoUtils.escapeKeys(obj), {w: 1, journal: true}])
         .then(function() {
             log.info('[%1] User %2 successfully created experience %3', req.uuid, user.id, obj.id);
@@ -479,7 +480,11 @@
                 log.info('[%1] User %2 is not authorized to edit %3', req.uuid, user.id, id);
                 return q({ code: 403, body: 'Not authorized to edit this experience' });
             }
-            if (updates.adConfig && !content.compareObjects(updates.adConfig, orig.adConfig) &&
+            
+            var origAdConfig = orig.data && orig.data[0] && orig.data[0].data.adConfig || null;
+            
+            if (updates.data && updates.data.adConfig &&
+                !content.compareObjects(updates.data.adConfig, origAdConfig) &&
                 !content.checkScope(user, orig, 'experiences', 'editAdConfig')) {
                 log.info('[%1] User %2 not authorized to edit adConfig of %3',req.uuid,user.id,id);
                 return q({ code: 403, body: 'Not authorized to edit adConfig of this experience' });
