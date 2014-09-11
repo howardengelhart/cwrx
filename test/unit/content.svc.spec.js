@@ -1161,7 +1161,8 @@ describe('content (UT)', function() {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({id:'e-1234',data:{foo:'baz',adConfig:{ads:'good'}},versionId:'fakeVers'});
                 expect(experiences.findAndModify).toHaveBeenCalled();
-                expect(experiences.findAndModify.calls[0].args[2].$set.data[0].data.adConfig).toEqual({ads:'good'});
+                var updates = experiences.findAndModify.calls[0].args[2];
+                expect(updates.$set.data[0].data.adConfig).toEqual({ ads: 'good' });
                 expect(content.compareObjects).toHaveBeenCalledWith({ads: 'good'}, {ads: 'good'});
                 expect(content.checkScope).not.toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'editAdConfig');
                 done();
@@ -1171,16 +1172,16 @@ describe('content (UT)', function() {
             });
         });
         
-        xit('should let users edit the adConfig if they have permission to do so', function(done) {
+        it('should let users edit the adConfig if they have permission to do so', function(done) {
             content.checkScope.andReturn(true);
-            req.body.adConfig = { foo: 'bar' };
+            req.body.data.adConfig = { ads: 'bad' };
             content.updateExperience(req, experiences).then(function(resp) {
                 expect(resp.code).toBe(200);
-                expect(resp.body).toEqual({id: 'e-1234', data: {foo:'baz'}, versionId: 'fakeVers'});
+                expect(resp.body).toEqual({id:'e-1234',data:{foo:'baz',adConfig:{ads:'bad'}},versionId:'fakeVers'});
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findAndModify).toHaveBeenCalled();
                 var updates = experiences.findAndModify.calls[0].args[2];
-                expect(updates.$set.adConfig).toEqual({foo: 'bar'});
+                expect(updates.$set.data[0].data.adConfig).toEqual({ ads: 'bad' });
                 expect(content.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'editAdConfig');
                 done();
             }).catch(function(error) {
