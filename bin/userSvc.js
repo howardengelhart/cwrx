@@ -11,6 +11,7 @@
         uuid            = require('../lib/uuid'),
         FieldValidator  = require('../lib/fieldValidator'),
         mongoUtils      = require('../lib/mongoUtils'),
+        journal         = require('../lib/journal'),
         authUtils       = require('../lib/authUtils'),
         service         = require('../lib/service'),
         email           = require('../lib/email'),
@@ -21,9 +22,9 @@
         state       = {},
         userSvc     = {}; // for exporting functions to unit tests
 
-    state.name = 'user';
     // This is the template for user's configuration
     state.defaultConfig = {
+        appName: 'userSvc',
         appDir: __dirname,
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/userSvc/caches/run/'),
@@ -45,6 +46,11 @@
         secretsPath: path.join(process.env.HOME,'.userSvc.secrets.json'),
         mongo: {
             c6Db: {
+                host: null,
+                port: null,
+                retryConnect : true
+            },
+            c6Journal: {
                 host: null,
                 port: null,
                 retryConnect : true
@@ -514,9 +520,11 @@
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
             
-        var express     = require('express'),
-            app         = express(),
-            users       = state.dbs.c6Db.collection('users');
+        var express      = require('express'),
+            app          = express(),
+            users        = state.dbs.c6Db.collection('users'),
+            auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
+                                                    state.config.appVersion, state.config.appName);
         authUtils._coll = users;
 
         // Nodemailer will automatically get SES creds, but need to set region here
@@ -552,9 +560,22 @@
             log.info('Recreated session store from restarted db');
         });
 
+        state.dbStatus.c6Journal.on('reconnected', function() {
+            auditJournal.resetColl(state.dbs.c6Journal.collection('audit'));
+            log.info('Reset journal\'s collection from restarted db');
+        });
+
+        state.dbStatus.c6Journal.on('reconnected', function() {
+            auditJournal.resetColl(state.dbs.c6Journal.collection('audit'));
+            log.info('Reset journal\'s collection from restarted db');
+        });
+
         // Because we may recreate the session middleware, we need to wrap it in the route handlers
-        function sessionsWrapper(req, res, next) {
+        function sessWrap(req, res, next) {
             sessions(req, res, next);
+        }
+        function audit(req, res, next) {
+            auditJournal.middleware(req, res, next);
         }
 
         app.all('*', function(req, res, next) {
@@ -595,7 +616,7 @@
         });
 
         var credsChecker = authUtils.userPassChecker(users);
-        app.post('/api/account/user/email', credsChecker, function(req, res) {
+        app.post('/api/account/user/email', credsChecker, audit, function(req, res) {
             userSvc.changeEmail(req, users, state.config.ses.sender).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
@@ -606,7 +627,7 @@
             });
         });
 
-        app.post('/api/account/user/password', credsChecker, function(req, res) {
+        app.post('/api/account/user/password', credsChecker, audit, function(req, res) {
             userSvc.changePassword(req, users, state.config.ses.sender).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
@@ -618,7 +639,7 @@
         });
         
         var authGetUser = authUtils.middlewarify({users: 'read'});
-        app.get('/api/account/user/:id', sessionsWrapper, authGetUser, function(req,res){
+        app.get('/api/account/user/:id', sessWrap, authGetUser, audit, function(req,res){
             userSvc.getUsers({ id: req.params.id }, req, users, false)
             .then(function(resp) {
                 if (resp.body && resp.body instanceof Array) {
@@ -634,7 +655,7 @@
             });
         });
         
-        app.get('/api/account/users', sessionsWrapper, authGetUser, function(req, res) {
+        app.get('/api/account/users', sessWrap, authGetUser, audit, function(req, res) {
             var query = req.query && req.query.org ? { org: req.query.org } : null;
             userSvc.getUsers(query, req, users, true)
             .then(function(resp) {
@@ -653,7 +674,7 @@
         });
         
         var authPostUser = authUtils.middlewarify({users: 'create'});
-        app.post('/api/account/user', sessionsWrapper, authPostUser, function(req, res) {
+        app.post('/api/account/user', sessWrap, authPostUser, audit, function(req, res) {
             userSvc.createUser(req, users)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -666,7 +687,7 @@
         });
         
         var authPutUser = authUtils.middlewarify({users: 'edit'});
-        app.put('/api/account/user/:id', sessionsWrapper, authPutUser, function(req, res) {
+        app.put('/api/account/user/:id', sessWrap, authPutUser, audit, function(req, res) {
             userSvc.updateUser(req, users)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -679,7 +700,7 @@
         });
         
         var authDelUser = authUtils.middlewarify({users: 'delete'});
-        app.delete('/api/account/user/:id', sessionsWrapper, authDelUser, function(req, res) {
+        app.delete('/api/account/user/:id', sessWrap, authDelUser, audit, function(req, res) {
             userSvc.deleteUser(req, users)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -691,7 +712,7 @@
             });
         });
         
-        app.post('/api/account/user/logout/:id', sessionsWrapper, authPutUser, function(req, res) {
+        app.post('/api/account/user/logout/:id', sessWrap, authPutUser, audit, function(req, res) {
             userSvc.forceLogoutUser(req, state.sessionStore.db.collection('sessions'))
             .then(function(resp) {
                 res.send(resp.code, resp.body);

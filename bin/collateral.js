@@ -14,6 +14,7 @@
         logger      = require('../lib/logger'),
         uuid        = require('../lib/uuid'),
         authUtils   = require('../lib/authUtils'),
+        journal     = require('../lib/journal'),
         service     = require('../lib/service'),
         s3util      = require('../lib/s3util'),
         enums       = require('../lib/enums'),
@@ -22,9 +23,9 @@
         state      = {},
         collateral = {}; // for exporting functions to unit tests
 
-    state.name = 'collateral';
     // This is the template for collateral's configuration
     state.defaultConfig = {
+        appName: 'collateral',
         appDir: __dirname,
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/collateral/caches/run/'),
@@ -59,6 +60,11 @@
         secretsPath: path.join(process.env.HOME,'.collateral.secrets.json'),
         mongo: {
             c6Db: {
+                host: null,
+                port: null,
+                retryConnect : true
+            },
+            c6Journal: {
                 host: null,
                 port: null,
                 retryConnect : true
@@ -596,9 +602,11 @@
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
             
-        var express     = require('express'),
-            app         = express(),
-            users       = state.dbs.c6Db.collection('users');
+        var express      = require('express'),
+            app          = express(),
+            users        = state.dbs.c6Db.collection('users'),
+            auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
+                                                    state.config.appVersion, state.config.appName);
         authUtils._coll = users;
         
         // If running locally, you need to put AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in env
@@ -635,9 +643,17 @@
             log.info('Recreated session store from restarted db');
         });
 
+        state.dbStatus.c6Journal.on('reconnected', function() {
+            auditJournal.resetColl(state.dbs.c6Journal.collection('audit'));
+            log.info('Reset journal\'s collection from restarted db');
+        });
+
         // Because we may recreate the session middleware, we need to wrap it in the route handlers
-        function sessionsWrapper(req, res, next) {
+        function sessWrap(req, res, next) {
             sessions(req, res, next);
+        }
+        function audit(req, res, next) {
+            auditJournal.middleware(req, res, next);
         }
 
         app.all('*', function(req, res, next) {
@@ -666,7 +682,7 @@
         
         var authUpload = authUtils.middlewarify({});
 
-        app.post('/api/collateral/files/:expId', sessionsWrapper, authUpload, function(req,res){
+        app.post('/api/collateral/files/:expId', sessWrap, authUpload, audit, function(req,res){
             collateral.uploadFiles(req, s3, state.config)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -678,7 +694,7 @@
             });
         });
         
-        app.post('/api/collateral/files', sessionsWrapper, authUpload, function(req,res){
+        app.post('/api/collateral/files', sessWrap, authUpload, audit, function(req,res){
             collateral.uploadFiles(req, s3, state.config)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -690,7 +706,7 @@
             });
         });
 
-        app.post('/api/collateral/splash/:expId', sessionsWrapper, authUpload, function(req, res) {
+        app.post('/api/collateral/splash/:expId', sessWrap, authUpload, audit, function(req, res) {
             collateral.createSplashes(req, s3, state.config)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -702,7 +718,7 @@
             });
         });
 
-        app.post('/api/collateral/setHeaders', sessionsWrapper, authUpload, function(req, res) {
+        app.post('/api/collateral/setHeaders', sessWrap, authUpload, audit, function(req, res) {
             collateral.setHeaders(req, s3, state.config)
             .then(function(resp) {
                 res.send(resp.code, resp.body);

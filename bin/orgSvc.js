@@ -9,6 +9,7 @@
         uuid            = require('../lib/uuid'),
         FieldValidator  = require('../lib/fieldValidator'),
         mongoUtils      = require('../lib/mongoUtils'),
+        journal         = require('../lib/journal'),
         authUtils       = require('../lib/authUtils'),
         service         = require('../lib/service'),
         enums           = require('../lib/enums'),
@@ -19,10 +20,9 @@
         state       = {},
         orgSvc     = {}; // for exporting functions to unit tests
 
-    state.name = 'org';
-
     // This is the template for user's configuration
     state.defaultConfig = {
+        appName: 'orgSvc',
         appDir: __dirname,
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/orgSvc/caches/run/'),
@@ -40,6 +40,11 @@
         secretsPath: path.join(process.env.HOME,'.orgSvc.secrets.json'),
         mongo: {
             c6Db: {
+                host: null,
+                port: null,
+                retryConnect : true
+            },
+            c6Journal: {
                 host: null,
                 port: null,
                 retryConnect : true
@@ -372,10 +377,12 @@
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
             
-        var express     = require('express'),
-            app         = express(),
-            users       = state.dbs.c6Db.collection('users'),
-            orgs       = state.dbs.c6Db.collection('orgs');
+        var express      = require('express'),
+            app          = express(),
+            users        = state.dbs.c6Db.collection('users'),
+            orgs         = state.dbs.c6Db.collection('orgs'),
+            auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
+                                                    state.config.appVersion, state.config.appName);
         authUtils._coll = users;
 
         app.use(express.bodyParser());
@@ -409,9 +416,17 @@
             log.info('Recreated session store from restarted db');
         });
 
+        state.dbStatus.c6Journal.on('reconnected', function() {
+            auditJournal.resetColl(state.dbs.c6Journal.collection('audit'));
+            log.info('Reset journal\'s collection from restarted db');
+        });
+
         // Because we may recreate the session middleware, we need to wrap it in the route handlers
-        function sessionsWrapper(req, res, next) {
+        function sessWrap(req, res, next) {
             sessions(req, res, next);
+        }
+        function audit(req, res, next) {
+            auditJournal.middleware(req, res, next);
         }
 
         app.all('*', function(req, res, next) {
@@ -452,7 +467,7 @@
         });
 
         var authGetUser = authUtils.middlewarify({orgs: 'read'});
-        app.get('/api/account/org/:id', sessionsWrapper, authGetUser, function(req,res){
+        app.get('/api/account/org/:id', sessWrap, authGetUser, audit, function(req, res) {
             orgSvc.getOrg(req, orgs)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -464,7 +479,7 @@
             });
         });
 
-        app.get('/api/account/orgs', sessionsWrapper, authGetUser, function(req, res) {
+        app.get('/api/account/orgs', sessWrap, authGetUser, audit, function(req, res) {
             orgSvc.getOrgs(null, req, orgs)
             .then(function(resp) {
                 if (resp.pagination) {
@@ -482,7 +497,7 @@
         });
 
         var authPostUser = authUtils.middlewarify({orgs: 'create'});
-        app.post('/api/account/org', sessionsWrapper, authPostUser, function(req, res) {
+        app.post('/api/account/org', sessWrap, authPostUser, audit, function(req, res) {
             orgSvc.createOrg(req, orgs)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -495,7 +510,7 @@
         });
 
         var authPutUser = authUtils.middlewarify({orgs: 'edit'});
-        app.put('/api/account/org/:id', sessionsWrapper, authPutUser, function(req, res) {
+        app.put('/api/account/org/:id', sessWrap, authPutUser, audit, function(req, res) {
             orgSvc.updateOrg(req, orgs)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -508,7 +523,7 @@
         });
 
         var authDelUser = authUtils.middlewarify({orgs: 'delete'});
-        app.delete('/api/account/org/:id', sessionsWrapper, authDelUser, function(req, res) {
+        app.delete('/api/account/org/:id', sessWrap, authDelUser, audit, function(req, res) {
             orgSvc.deleteOrg(req, orgs, users)
             .then(function(resp) {
                 res.send(resp.code, resp.body);

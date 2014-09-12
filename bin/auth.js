@@ -21,9 +21,9 @@
         state       = {},
         auth = {}; // for exporting functions to unit tests
 
-    state.name = 'auth';
     // This is the template for auth's configuration
     state.defaultConfig = {
+        appName: 'auth',
         appDir: __dirname,
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/auth/caches/run/'),
@@ -304,13 +304,13 @@
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
 
-        var express         = require('express'),
-            app             = express(),
-            users           = state.dbs.c6Db.collection('users'),
-            auditJournal    = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
-                                                       state.config.appVersion, state.name),
-            authJournal     = new journal.Journal(state.dbs.c6Journal.collection('auths'),
-                                                  state.config.appVersion, state.name);
+        var express      = require('express'),
+            app          = express(),
+            users        = state.dbs.c6Db.collection('users'),
+            auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
+                                                    state.config.appVersion, state.config.appName),
+            authJournal  = new journal.Journal(state.dbs.c6Journal.collection('auths'),
+                                               state.config.appVersion, state.config.appName);
         authUtils._coll = users;
         
         aws.config.region = state.config.ses.region;

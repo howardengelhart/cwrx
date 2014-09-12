@@ -21,9 +21,9 @@
         state = {},
         content = {}; // for exporting functions to unit tests
 
-    state.name = 'content';
     // This is the template for content's configuration
     state.defaultConfig = {
+        appName: 'content',
         appDir: __dirname,
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/content/caches/run/'),
@@ -563,17 +563,17 @@
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
             
-        var express         = require('express'),
-            app             = express(),
-            experiences     = state.dbs.c6Db.collection('experiences'),
-            users           = state.dbs.c6Db.collection('users'),
-            orgs            = state.dbs.c6Db.collection('orgs'),
-            expTTLs         = state.config.cacheTTLs.experiences,
-            expCache        = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences),
-            orgTTLs         = state.config.cacheTTLs.orgs,
-            orgCache        = new QueryCache(orgTTLs.freshTTL, orgTTLs.maxTTL, orgs),
-            auditJournal    = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
-                                                       state.config.appVersion, state.name);
+        var express      = require('express'),
+            app          = express(),
+            experiences  = state.dbs.c6Db.collection('experiences'),
+            users        = state.dbs.c6Db.collection('users'),
+            orgs         = state.dbs.c6Db.collection('orgs'),
+            expTTLs      = state.config.cacheTTLs.experiences,
+            expCache     = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences),
+            orgTTLs      = state.config.cacheTTLs.orgs,
+            orgCache     = new QueryCache(orgTTLs.freshTTL, orgTTLs.maxTTL, orgs),
+            auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
+                                                    state.config.appVersion, state.config.appName);
         authUtils._coll = users;
 
         app.use(express.bodyParser());
