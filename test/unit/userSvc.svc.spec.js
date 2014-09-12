@@ -1,7 +1,7 @@
 var flush = true;
 describe('userSvc (UT)', function() {
     var mockLog, mockLogger, req, uuid, logger, bcrypt, userSvc, q, QueryCache, mongoUtils,
-        FieldValidator, enums, Status, Scope;
+        objUtils, FieldValidator, enums, Status, Scope;
     
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -12,6 +12,7 @@ describe('userSvc (UT)', function() {
         QueryCache      = require('../../lib/queryCache');
         FieldValidator  = require('../../lib/fieldValidator');
         mongoUtils      = require('../../lib/mongoUtils');
+        objUtils        = require('../../lib/objUtils');
         email           = require('../../lib/email');
         q               = require('q');
         enums           = require('../../lib/enums');
@@ -94,6 +95,7 @@ describe('userSvc (UT)', function() {
                     }
                 }
             };
+            spyOn(objUtils, 'compareObjects').andCallThrough();
         });
         
         it('should return false if the requester has no perms', function() {
@@ -105,6 +107,13 @@ describe('userSvc (UT)', function() {
         it('should return false if the requester is trying to change their own perms', function() {
             orig.id = 'u-1';
             expect(userSvc.permsCheck(updates, orig, requester)).toBe(false);
+        });
+        
+        it('should always return true if the permissions are identical', function() {
+            updates.permissions.users = { read: Scope.Own, create: Scope.Org, edit: Scope.All };
+            expect(userSvc.permsCheck(updates, orig, requester)).toBe(true);
+            orig.id = 'u-1';
+            expect(userSvc.permsCheck(updates, orig, requester)).toBe(true);
         });
         
         it('should return false if the updates\' perms exceed the requester\'s', function() {

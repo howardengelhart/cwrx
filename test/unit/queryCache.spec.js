@@ -7,6 +7,7 @@ describe('QueryCache', function() {
         q           = require('q');
         uuid        = require('../../lib/uuid');
         promise     = require('../../lib/promise');
+        objUtils    = require('../../lib/objUtils');
         QueryCache  = require('../../lib/queryCache');
         
         fakeColl = { find: jasmine.createSpy('coll.find') };
@@ -33,45 +34,18 @@ describe('QueryCache', function() {
         });
     });
 
-    describe('sortQuery', function() {
-        it('should simply return the query if not an object', function() {
-            expect(QueryCache.sortQuery('abcd')).toBe('abcd');
-            expect(QueryCache.sortQuery(10)).toBe(10);
-        });
-        
-        it('should recursively sort an object by its keys', function() {
-            var query = {b: 1, a: 2, c: 5};
-            var sorted = QueryCache.sortQuery(query);
-            expect(JSON.stringify(sorted)).toBe(JSON.stringify({a: 2, b: 1, c: 5}));
-            
-            var query = {b: {f: 3, e: 8}, a: 2, c: [3, 2, 1]};
-            var sorted = QueryCache.sortQuery(query);
-            expect(JSON.stringify(sorted)).toBe(JSON.stringify({a: 2, b: {e: 8, f: 3}, c: [3, 2, 1]}));
-            
-            var query = {b: [{h: 1, g: 2}, {e: 5, f: 3}], a: 2};
-            var sorted = QueryCache.sortQuery(query);
-            expect(JSON.stringify(sorted)).toBe(JSON.stringify({a: 2, b: [{g: 2, h: 1}, {e: 5, f: 3}]}));
-        });
-        
-        it('should be able to handle null fields', function() {
-            var query = {b: 1, a: null}, sorted;
-            expect(function() {sorted = QueryCache.sortQuery(query);}).not.toThrow();
-            expect(sorted).toEqual({a: null, b: 1});
-        });
-    });
-    
     describe('formatQuery', function() {
         var query;
         beforeEach(function() {
             query = {};
-            spyOn(QueryCache, 'sortQuery').andCallThrough();
+            spyOn(objUtils, 'sortObject').andCallThrough();
         });
         
         it('should transform arrays into mongo-style $in objects', function() {
             query.id = ['e-1', 'e-2', 'e-3'];
             var newQuery = QueryCache.formatQuery(query);
             expect(newQuery).toEqual({id: { $in: ['e-1', 'e-2', 'e-3']}});
-            expect(QueryCache.sortQuery).toHaveBeenCalled();
+            expect(objUtils.sortObject).toHaveBeenCalled();
         });
     });
     
