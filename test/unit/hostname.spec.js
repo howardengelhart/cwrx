@@ -1,11 +1,15 @@
-var cp        = require('child_process'),
-    hostname  = require('../../lib/hostname');
-
+var flush = true;
 describe('hostname', function() {
+    var cp, hostname;
+    
     beforeEach(function() {
+        if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
+        hostname    = require('../../lib/hostname');
+        cp          = require('child_process');
+        
         spyOn(cp, 'exec');
     });
-    
+
     it('should spawn a process with the right command', function(done) {
         cp.exec.andCallFake(function(cmd, cb) {
             cb(null, 'fakeHost', null);
@@ -13,6 +17,22 @@ describe('hostname', function() {
         
         hostname().then(function(host) {
             expect(host).toBe('fakeHost');
+            expect(cp.exec).toHaveBeenCalled();
+            expect(cp.exec.calls[0].args[0]).toBe('hostname');
+            done();
+        }).catch(function(error) {
+            expect(error).not.toBeDefined();
+            done();
+        });
+    });
+    
+    it('should get the fqdn if called with full = true', function(done) {
+        cp.exec.andCallFake(function(cmd, cb) {
+            cb(null, 'fakeHost.com', null);
+        });
+        
+        hostname(true).then(function(host) {
+            expect(host).toBe('fakeHost.com');
             expect(cp.exec).toHaveBeenCalled();
             expect(cp.exec.calls[0].args[0]).toBe('hostname --fqdn');
             done();

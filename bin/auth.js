@@ -69,6 +69,7 @@
             });
         }
         var deferred = q.defer(),
+            origin = req.headers && (req.headers.origin || req.headers.referer) || '',
             log = logger.getLog(),
             userAccount;
             
@@ -93,8 +94,8 @@
                     log.info('[%1] Successful login for user %2', req.uuid, req.body.email);
                     var user = mongoUtils.safeUser(userAccount);
 
-                    auditJournal.writeAuditEntry(req, user.id); //TODO: only log here?
-                    authJournal.write(user.id, { action: 'login' });
+                    auditJournal.writeAuditEntry(req, user.id);
+                    authJournal.write(user.id, origin, { action: 'login' });
 
                     return q.npost(req.session, 'regenerate').then(function() {
                         req.session.user = user.id;
@@ -120,20 +121,22 @@
 
     auth.logout = function(req, authJournal, auditJournal) {
         var deferred = q.defer(),
+            origin = req.headers && (req.headers.origin || req.headers.referer) || '',
             log = logger.getLog();
+
         log.info('[%1] Starting logout for %2', req.uuid, req.sessionID);
+
         if (!req.session || !req.session.user) {
             log.info('[%1] User with sessionID %2 attempting to logout but is not logged in',
                      req.uuid, req.sessionID);
             deferred.resolve({code: 204});
         } else {
             var user = req.session.user;
-            
             auditJournal.writeAuditEntry(req, user);
             log.info('[%1] Logging out user %2 with sessionID %3', req.uuid, user, req.sessionID);
 
             q.npost(req.session, 'destroy').then(function() {
-                authJournal.write(user, { action: 'logout' });
+                authJournal.write(user, origin, { action: 'logout' });
                 deferred.resolve({code: 204});
             }).catch(function(error) {
                 log.error('[%1] Error logging out user %2: %3',
@@ -226,7 +229,6 @@
             return q({code: 400, body: 'Must provide id, token, and newPassword'});
         }
         
-        auditJournal.writeAuditEntry(req, id); //TODO: rethink this placement
         log.info('[%1] User %2 attempting to reset their password', req.uuid, id);
         
         return q.npost(users, 'findOne', [{id: id}])
@@ -239,6 +241,9 @@
                 log.info('[%1] User %2 not active', req.uuid, id);
                 return q({code: 403, body: 'Account not active'});
             }
+
+            auditJournal.writeAuditEntry(req, id);
+
             if (!account.resetToken || !account.resetToken.expires) {
                 log.info('[%1] User %2 has no reset token in the database', req.uuid, id);
                 return q({code: 403, body: 'No reset token found'});
@@ -301,9 +306,11 @@
 
         var express         = require('express'),
             app             = express(),
-            users           = state.dbs.c6Db.collection('users'), //TODO: rename auth collection?
-            auditJournal    = new journal.AuditJournal(state.dbs.c6Journal.collection('audit')),
-            authJournal     = new journal.Journal(state.dbs.c6Journal.collection('auths'));
+            users           = state.dbs.c6Db.collection('users'),
+            auditJournal    = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
+                                                       state.config.appVersion, state.name),
+            authJournal     = new journal.Journal(state.dbs.c6Journal.collection('auths'),
+                                                  state.config.appVersion, state.name);
         authUtils._coll = users;
         
         aws.config.region = state.config.ses.region;
@@ -396,7 +403,7 @@
         });
 
         var authGetUser = authUtils.middlewarify({}),
-            audit = function(req, res, next) { //TODO: explain this weird wrapper?
+            audit = function(req, res, next) {
                 auditJournal.middleware(req, res, next);
             };
 

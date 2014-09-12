@@ -572,7 +572,8 @@
             expCache        = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences),
             orgTTLs         = state.config.cacheTTLs.orgs,
             orgCache        = new QueryCache(orgTTLs.freshTTL, orgTTLs.maxTTL, orgs),
-            auditJournal    = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'));
+            auditJournal    = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
+                                                       state.config.appVersion, state.name);
         authUtils._coll = users;
 
         app.use(express.bodyParser());
@@ -686,7 +687,7 @@
         });
         
         var authGetExp = authUtils.middlewarify({experiences: 'read'}),
-            audit = function(req, res, next) { //TODO: explain this weird wrapper?
+            audit = function(req, res, next) {
                 auditJournal.middleware(req, res, next);
             };
         
