@@ -1,5 +1,9 @@
 # User Service Changelog
 
+### 1.6.2: Fri Sep 12 16:00:28 EDT 2014
+* [FIX]: Check equality of existing permissions before rejecting on PUT: [#280](https://github.com/cinema6/cwrx/pull/280)
+* Extra deployment steps: None
+
 ### 1.6.1: Fri Aug 29 10:07:58 EDT 2014
 * [FIX]: Save session docs as JSON, not strings: [#261](https://github.com/cinema6/cwrx/pull/261)
 * [FEATURE]: Add endpoint for deleting users' login sessions: [#261](https://github.com/cinema6/cwrx/pull/261)

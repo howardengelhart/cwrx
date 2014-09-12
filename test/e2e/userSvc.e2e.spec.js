@@ -493,7 +493,7 @@ describe('user (E2E):', function() {
                 done();
             });
         });
-
+        
         it('should throw a 400 if any of the update fields are illegal', function(done) {
             var options = {
                 url: config.userSvcUrl + '/user/e2e-put1',
@@ -510,6 +510,39 @@ describe('user (E2E):', function() {
             });
         });
     
+        it('should throw a 400 if the user is trying to update their own permissions', function(done) {
+            var options = {
+                url: config.userSvcUrl + '/user/e2e-user',
+                json: { permissions: { experiences: { read: 'org' } } },
+                jar: cookieJar
+            };
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Illegal fields');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should let a user PUT their own permissions if there\'s no change', function(done) {
+            var options = {
+                url: config.userSvcUrl + '/user/e2e-user',
+                json: { permissions: mockRequester.permissions },
+                jar: cookieJar
+            };
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toBe('e2e-user');
+                expect(resp.body.permissions).toEqual(mockRequester.permissions);
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+
         it('should throw a 401 error if the user is not authenticated', function(done) {
             var options = { url: config.userSvcUrl + '/user/e2e-fake' };
             requestUtils.qRequest('put', options).then(function(resp) {

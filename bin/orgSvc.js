@@ -9,10 +9,10 @@
         uuid            = require('../lib/uuid'),
         FieldValidator  = require('../lib/fieldValidator'),
         mongoUtils      = require('../lib/mongoUtils'),
+        objUtils        = require('../lib/objUtils'),
         authUtils       = require('../lib/authUtils'),
         service         = require('../lib/service'),
         enums           = require('../lib/enums'),
-        QueryCache      = require('../lib/queryCache'),
         Status          = enums.Status,
         Scope           = enums.Scope,
         
@@ -65,10 +65,6 @@
     orgSvc.updateValidator = new FieldValidator({
         forbidden: ['id', 'created', '_id'],
     });
-
-    orgSvc.compareObjects = function(a, b) {
-        return JSON.stringify(QueryCache.sortQuery(a)) === JSON.stringify(QueryCache.sortQuery(b));
-    };
 
     // Get a single org from mongo
     orgSvc.getOrg = function(req, orgs) {
@@ -283,7 +279,7 @@
                           JSON.stringify(orig), JSON.stringify(requester));
                 return q({code: 400, body: 'Illegal fields'});
             }
-            if (updates.adConfig && !orgSvc.compareObjects(updates.adConfig, orig.adConfig) &&
+            if (updates.adConfig && !objUtils.compareObjects(updates.adConfig, orig.adConfig) &&
                 !orgSvc.checkScope(requester, {id: id}, 'editAdConfig')) {
                 log.info('[%1] User %2 not authorized to edit adConfig of %3',
                          req.uuid, requester.id, id);
