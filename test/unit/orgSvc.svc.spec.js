@@ -1,6 +1,6 @@
 var flush = true;
 describe('orgSvc (UT)', function() {
-    var mockLog, mockLogger, req, uuid, logger, orgSvc, q, mongoUtils, FieldValidator,
+    var mockLog, mockLogger, req, uuid, logger, orgSvc, q, mongoUtils, FieldValidator, objUtils,
         enums, Status, Scope;
 
     beforeEach(function() {
@@ -10,6 +10,7 @@ describe('orgSvc (UT)', function() {
         orgSvc          = require('../../bin/orgSvc');
         FieldValidator  = require('../../lib/fieldValidator');
         mongoUtils      = require('../../lib/mongoUtils');
+        objUtils        = require('../../lib/objUtils');
         q               = require('q');
         enums           = require('../../lib/enums');
         Status          = enums.Status;
@@ -112,23 +113,6 @@ describe('orgSvc (UT)', function() {
             expect(orgSvc.updateValidator.validate(updates, {}, {})).toBe(false);
         });
 
-    });
-
-    describe('compareObjects', function() {
-        it('should perform a deep equality check on two objects', function() {
-            var a = { foo: 'bar', arr: [1, 3, 2] }, b = { foo: 'bar', arr: [1, 2, 2] };
-            expect(orgSvc.compareObjects(a, b)).toBe(false);
-            b.arr[1] = 3;
-            expect(orgSvc.compareObjects(a, b)).toBe(true);
-            a.foo = 'baz';
-            expect(orgSvc.compareObjects(a, b)).toBe(false);
-            a.foo = 'bar';
-            a.data = { user: 'otter' };
-            b.data = { user: 'otter', org: 'c6' };
-            expect(orgSvc.compareObjects(a, b)).toBe(false);
-            a.data.org = 'c6';
-            expect(orgSvc.compareObjects(a, b)).toBe(true);
-        });
     });
 
     describe('getOrg', function() {
@@ -629,7 +613,7 @@ describe('orgSvc (UT)', function() {
             req.user = { id: 'u-1234' };
             spyOn(orgSvc, 'checkScope').andReturn(true);
             spyOn(orgSvc.updateValidator, 'validate').andReturn(true);
-            spyOn(orgSvc, 'compareObjects').andCallThrough();
+            spyOn(objUtils, 'compareObjects').andCallThrough();
         });
         
         it('should fail immediately if no update object is provided', function(done) {
@@ -721,7 +705,7 @@ describe('orgSvc (UT)', function() {
                 expect(orgColl.findOne).toHaveBeenCalled();
                 expect(orgColl.findAndModify).not.toHaveBeenCalled();
                 expect(orgSvc.checkScope).toHaveBeenCalledWith(req.user, {id: 'o-4567'}, 'editAdConfig');
-                expect(orgSvc.compareObjects).toHaveBeenCalledWith({foo: 'bar'}, undefined);
+                expect(objUtils.compareObjects).toHaveBeenCalledWith({foo: 'bar'}, undefined);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -744,7 +728,7 @@ describe('orgSvc (UT)', function() {
                 expect(orgColl.findAndModify).toHaveBeenCalled();
                 expect(orgColl.findAndModify.calls[0].args[2].$set.adConfig).toEqual({foo: 'bar'});
                 expect(orgSvc.checkScope).not.toHaveBeenCalledWith(req.user, {id: 'o-4567'}, 'editAdConfig');
-                expect(orgSvc.compareObjects).toHaveBeenCalledWith({foo: 'bar'}, {foo: 'bar'});
+                expect(objUtils.compareObjects).toHaveBeenCalledWith({foo: 'bar'}, {foo: 'bar'});
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

@@ -1,5 +1,9 @@
 # Search Service Changelog
 
+### 1.0.3: Thu Sep 11 15:30:07 EDT 2014
+* [FIX]: Handle empty responses from Google: [#278](https://github.com/cinema6/cwrx/pull/278)
+* Extra deployment steps: None
+
 ### 1.0.2: Tue Sep  2 11:10:04 EDT 2014
 * [FIX]: Retry requests to Google: [#266](https://github.com/cinema6/cwrx/pull/266)
 * Extra deployment steps: None

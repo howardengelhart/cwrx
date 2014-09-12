@@ -12,6 +12,7 @@
         FieldValidator  = require('../lib/fieldValidator'),
         mongoUtils      = require('../lib/mongoUtils'),
         journal         = require('../lib/journal'),
+        objUtils        = require('../lib/objUtils'),
         authUtils       = require('../lib/authUtils'),
         service         = require('../lib/service'),
         email           = require('../lib/email'),
@@ -61,6 +62,10 @@
     // make sure requester can't edit own perms or set perms that are greater than their own
     userSvc.permsCheck = function(updates, orig, requester) {
         var log = logger.getLog();
+        if (objUtils.compareObjects(updates.permissions, requester.permissions)) {
+            return true;
+        }
+
         if (!requester.permissions) {
             log.trace('Requester has no permissions');
             return false;
@@ -69,6 +74,7 @@
             log.trace('Requester trying to change own permissions');
             return false;
         }
+
         return Object.keys(updates.permissions).every(function(key) {
             if (!requester.permissions[key]) {
                 log.trace('Can\'t set perms for %1 since requester has no perms for %1', key);
@@ -558,11 +564,6 @@
                 store: state.sessionStore
             });
             log.info('Recreated session store from restarted db');
-        });
-
-        state.dbStatus.c6Journal.on('reconnected', function() {
-            auditJournal.resetColl(state.dbs.c6Journal.collection('audit'));
-            log.info('Reset journal\'s collection from restarted db');
         });
 
         state.dbStatus.c6Journal.on('reconnected', function() {

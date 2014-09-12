@@ -84,11 +84,13 @@
         var log = logger.getLog();
         var respObj = {
             meta: {
-                skipped         : stats.startIndex - 1,
+                skipped         : Math.max(stats.startIndex - 1, 0),
                 numResults      : stats.count,
                 totalResults    : stats.totalResults
             }
         };
+        
+        items = items || [];
 
         respObj.items = items.map(function(item) {
             if (!item.pagemap || !item.pagemap.videoobject instanceof Array || !item.link) {
@@ -166,12 +168,15 @@
                 if (resp.response.statusCode < 200 || resp.response.statusCode >= 300) {
                     return q.reject('Received error response from google: code ' +
                            resp.response.statusCode + ', body = ' + util.inspect(resp.body));
-                } else if (!resp.body.queries || !resp.body.queries.request || !resp.body.items) {
+                } else if (!resp.body.queries || !resp.body.queries.request) {
                     return q.reject('Received incomplete response body from google: ' +
                                     util.inspect(resp.body));
                 }
                 
                 var stats = resp.body.queries.request[0];
+                stats.count = Math.min(stats.count, stats.totalResults);
+                stats.startIndex = stats.startIndex || 0;
+                stats.totalResults = Number(stats.totalResults);
                 log.info('[%1] Received %2 results from %3 total results, starting at %4',
                         req.uuid, stats.count, stats.totalResults, stats.startIndex);
 

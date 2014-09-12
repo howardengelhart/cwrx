@@ -9,6 +9,7 @@
         uuid            = require('../lib/uuid'),
         mongoUtils      = require('../lib/mongoUtils'),
         journal         = require('../lib/journal'),
+        objUtils        = require('../lib/objUtils'),
         QueryCache      = require('../lib/queryCache'),
         FieldValidator  = require('../lib/fieldValidator'),
         authUtils       = require('../lib/authUtils'),
@@ -83,10 +84,6 @@
         }
     });
     content.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created', '_id'] });
-
-    content.compareObjects = function(a, b) {
-        return JSON.stringify(QueryCache.sortQuery(a)) === JSON.stringify(QueryCache.sortQuery(b));
-    };
 
     content.formatOutput = function(experience, isGuest) {
         var log = logger.getLog(),
@@ -412,7 +409,7 @@
         }
 
         if (updates.data) {
-            if (!content.compareObjects(orig.data[0].data, updates.data)) {
+            if (!objUtils.compareObjects(orig.data[0].data, updates.data)) {
                 var versionId = uuid.hashText(JSON.stringify(updates.data)).substr(0, 8),
                     dataWrapper = { user: user.email, userId: user.id, date: now,
                                     data: updates.data, versionId: versionId };
@@ -490,7 +487,7 @@
             var origAdConfig = orig.data && orig.data[0] && orig.data[0].data.adConfig || null;
             
             if (updates.data && updates.data.adConfig &&
-                !content.compareObjects(updates.data.adConfig, origAdConfig) &&
+                !objUtils.compareObjects(updates.data.adConfig, origAdConfig) &&
                 !content.checkScope(user, orig, 'experiences', 'editAdConfig')) {
                 log.info('[%1] User %2 not authorized to edit adConfig of %3',req.uuid,user.id,id);
                 return q({ code: 403, body: 'Not authorized to edit adConfig of this experience' });

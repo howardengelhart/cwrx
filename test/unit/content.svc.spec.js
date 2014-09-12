@@ -1,6 +1,6 @@
 var flush = true;
 describe('content (UT)', function() {
-    var mockLog, mockLogger, experiences, req, uuid, logger, content, q, QueryCache, FieldValidator,
+    var mockLog, mockLogger, experiences, req, uuid, logger, content, q, objUtils, FieldValidator,
         mongoUtils, enums, Status, Scope, Access;
     
     beforeEach(function() {
@@ -9,7 +9,7 @@ describe('content (UT)', function() {
         logger          = require('../../lib/logger');
         content         = require('../../bin/content');
         mongoUtils      = require('../../lib/mongoUtils');
-        QueryCache      = require('../../lib/queryCache');
+        objUtils        = require('../../lib/objUtils');
         FieldValidator  = require('../../lib/fieldValidator');
         q               = require('q');
         enums           = require('../../lib/enums');
@@ -35,23 +35,6 @@ describe('content (UT)', function() {
         req = {uuid: '1234'};
     });
 
-    describe('compareObjects', function() {
-        it('should perform a deep equality check on two objects', function() {
-            var a = { foo: 'bar', arr: [1, 3, 2] }, b = { foo: 'bar', arr: [1, 2, 2] };
-            expect(content.compareObjects(a, b)).toBe(false);
-            b.arr[1] = 3;
-            expect(content.compareObjects(a, b)).toBe(true);
-            a.foo = 'baz';
-            expect(content.compareObjects(a, b)).toBe(false);
-            a.foo = 'bar';
-            a.data = { user: 'otter' };
-            b.data = { user: 'otter', org: 'c6' };
-            expect(content.compareObjects(a, b)).toBe(false);
-            a.data.org = 'c6';
-            expect(content.compareObjects(a, b)).toBe(true);
-        });
-    });
-    
     describe('checkScope', function() {
         it('should correctly handle the scopes', function() {
             var user = {
@@ -1027,7 +1010,7 @@ describe('content (UT)', function() {
                 function(query, sort, obj, opts, cb) {
                     cb(null, [{ id: 'e-1234', data: obj.$set.data }]);
                 });
-            spyOn(content, 'compareObjects').andCallThrough();
+            spyOn(objUtils, 'compareObjects').andCallThrough();
             spyOn(content, 'formatUpdates').andCallThrough();
             spyOn(content, 'checkScope').andReturn(true);
             spyOn(content.updateValidator, 'validate').andReturn(true);
@@ -1142,7 +1125,7 @@ describe('content (UT)', function() {
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findAndModify).not.toHaveBeenCalled();
                 expect(content.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'editAdConfig');
-                expect(content.compareObjects).toHaveBeenCalledWith({ ads: 'good' }, null);
+                expect(objUtils.compareObjects).toHaveBeenCalledWith({ ads: 'good' }, null);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -1163,7 +1146,7 @@ describe('content (UT)', function() {
                 expect(experiences.findAndModify).toHaveBeenCalled();
                 var updates = experiences.findAndModify.calls[0].args[2];
                 expect(updates.$set.data[0].data.adConfig).toEqual({ ads: 'good' });
-                expect(content.compareObjects).toHaveBeenCalledWith({ads: 'good'}, {ads: 'good'});
+                expect(objUtils.compareObjects).toHaveBeenCalledWith({ads: 'good'}, {ads: 'good'});
                 expect(content.checkScope).not.toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'editAdConfig');
                 done();
             }).catch(function(error) {
