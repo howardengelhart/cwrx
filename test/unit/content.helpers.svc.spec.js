@@ -368,12 +368,11 @@ describe('content (UT)', function() {
     });
     
     describe('getAdConfig', function() {
-        var orgCache, exp;
+        var orgCache, exp, mockOrg;
         beforeEach(function() {
-            orgCache = {
-                getPromise: jasmine.createSpy('orgCache.getPromise').andReturn(q([{id:'o-1',adConfig:{foo:'bar'}}]))
-            };
+            mockOrg = { id: 'o-1', status: Status.Active, adConfig: { foo: 'bar' } };
             exp = { id: 'e-1', data: { good: 'yes' } };
+            orgCache = { getPromise: jasmine.createSpy('orgCache.getPromise').andReturn(q([mockOrg])) };
         });
         
         it('should do nothing if the experience has no data', function(done) {
@@ -417,9 +416,20 @@ describe('content (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
         });
+
+        it('should do nothing if the org is not active', function(done) {
+            mockOrg.status = Status.Deleted;
+            content.getAdConfig(exp, 'o-1', orgCache).then(function(result) {
+                expect(result).toEqual({ id: 'e-1', data: { good: 'yes' } });
+                expect(orgCache.getPromise).toHaveBeenCalledWith({id: 'o-1'});
+                expect(mockLog.warn).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
         
         it('should do nothing if the org has no adConfig', function(done) {
-            orgCache.getPromise.andReturn(q([{ id: 'o-1' }]))
+            delete mockOrg.adConfig;
             content.getAdConfig(exp, 'o-1', orgCache).then(function(result) {
                 expect(result).toEqual({ id: 'e-1', data: { good: 'yes' } });
                 expect(orgCache.getPromise).toHaveBeenCalledWith({id: 'o-1'});
@@ -444,12 +454,10 @@ describe('content (UT)', function() {
         var exp, queryParams, host, siteCache, defaultSiteCfg;
         beforeEach(function() {
             exp = { id: 'e-1', data: { foo: 'bar' } };
+            mockSite = { id: 'w-1', status: Status.Active, branding: 'siteBrand', placementId: 456 };
             queryParams = { context: 'mr2', branding: 'widgetBrand', placementId: 123 };
             host = 'wired.com';
-            siteCache = {
-                getPromise: jasmine.createSpy('siteCache.getPromise')
-                            .andReturn(q([{id: 'w-1', branding: 'siteBrand', placementId: 456}]))
-            };
+            siteCache = { getPromise: jasmine.createSpy('siteCache.getPromise').andReturn(q([mockSite])) };
             defaultSiteCfg = { branding: 'c6', placementId: 789 };
         });
         
@@ -506,6 +514,17 @@ describe('content (UT)', function() {
         it('should handle the website object not having a branding or placementId', function(done) {
             queryParams.context = 'embed';
             siteCache.getPromise.andReturn(q([{id: 'w-1'}]));
+            content.getSiteConfig(exp, queryParams, host, siteCache, defaultSiteCfg).then(function(exp) {
+                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'c6', placementId: 789}});
+                expect(siteCache.getPromise).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+
+        it('should not use the website if it is not active', function(done) {
+            queryParams.context = 'embed';
+            mockSite.status = Status.Inactive;
             content.getSiteConfig(exp, queryParams, host, siteCache, defaultSiteCfg).then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'c6', placementId: 789}});
                 expect(siteCache.getPromise).toHaveBeenCalled();

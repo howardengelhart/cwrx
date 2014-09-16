@@ -210,7 +210,7 @@
             return q(exp);
         }
         return orgCache.getPromise({id: orgId}).then(function(results) {
-            if (results.length === 0) {
+            if (results.length === 0 || results[0].status !== Status.Active) {
                 log.warn('Org %1 not found', orgId);
             } else if (!results[0].adConfig) {
                 log.info('Neither experience %1 nor org %2 have adConfig', exp.id, orgId);
@@ -239,7 +239,7 @@
         }
         
         return siteCache.getPromise({host: host}).then(function(results) {
-            if (results.length === 0) {
+            if (results.length === 0 || results[0].status !== Status.Active) {
                 log.trace('Site %1 not found', host);
             } else {
                 exp.data.branding = exp.data.branding || results[0].branding;
