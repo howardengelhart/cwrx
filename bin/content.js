@@ -38,6 +38,10 @@
                 freshTTL: 1,
                 maxTTL: 10
             },
+            websites: {
+                freshTTL: 1,
+                maxTTL: 10
+            },
             cloudFront: 5
         },
         sessions: {
@@ -49,6 +53,10 @@
                 port: null,
                 retryConnect : true
             }
+        },
+        defaultSiteConfig: { //TODO: rename property?
+            branding: 'NOTREAL', //TODO
+            placementId: 'NOTREAL', //TODO
         },
         publicC6Sites: ['www.cinema6.com', 'demo.cinema6.com'], // our sites that publish minireels
         secretsPath: path.join(process.env.HOME,'.content.secrets.json'),
@@ -81,14 +89,12 @@
     content.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created', '_id'] });
     
     // Find and parse the origin, storing useful properties on the request
-    content.parseOrigin = function(req, publicList) { //TODO: prettyify!
+    content.parseOrigin = function(req, publicList) {
         req.origin = req.headers && (req.headers.origin || req.headers.referer) || '';
         req.shortOrigin = req.origin && urlUtils.parse(req.origin).hostname
                                         .replace(/([^\.]+\.)+(?=[^\.]+\.[^\.]+)/, '');
         req.isC6Origin = (req.origin && req.origin.match('cinema6.com') || false) &&
-            !publicList.some(function(site) {
-                return req.origin.match(site);
-            });
+                         !publicList.some(function(site) { return req.origin.match(site); });
     };
 
     content.formatOutput = function(experience, isGuest) {
@@ -216,7 +222,6 @@
     };
     
     //TODO: rename?
-    /*
     content.getSiteConfig = function(exp, queryParams, host, siteCache, defaultSiteCfg) {
         var log = logger.getLog();
 
@@ -225,7 +230,6 @@
             return q(exp);
         }
         
-        //TODO: recheck this logical flow
         if (queryParams && queryParams.context === 'mr2') {
             exp.data.branding = exp.data.branding || queryParams.branding;
             exp.data.placementId = exp.data.placementId || queryParams.placementId;
@@ -247,11 +251,11 @@
         });
         
     };
-    */
+
     
-    content.getPublicExp = function(id, req, expCache, orgCache/*, siteCache*/) {
+    content.getPublicExp = function(id, req, expCache, orgCache, siteCache, defaultSiteCfg) {
         var log = logger.getLog(),
-            //queryParams = req.query,
+            qps = req.query,
             query = {id: id};
         
         log.info('[%1] Guest user trying to get experience %2', req.uuid, id);
@@ -273,8 +277,7 @@
             
             return content.getAdConfig(experiences[0], results[0].org, orgCache)
             .then(function(exp) {
-                // return content.getSiteConfig(exp, queryParams, req.shortOrigin, siteCache);
-                return q(exp); //TODO
+                return content.getSiteConfig(exp, qps, req.shortOrigin, siteCache, defaultSiteCfg);
             })
             .then(function(exp) {
                 return q({code: 200, body: exp});
@@ -596,10 +599,13 @@
             experiences = state.dbs.c6Db.collection('experiences'),
             users       = state.dbs.c6Db.collection('users'),
             orgs        = state.dbs.c6Db.collection('orgs'),
+            websites    = state.dbs.c6Db.collection('websites'),
             expTTLs     = state.config.cacheTTLs.experiences,
             expCache    = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences),
             orgTTLs     = state.config.cacheTTLs.orgs,
-            orgCache    = new QueryCache(orgTTLs.freshTTL, orgTTLs.maxTTL, orgs);
+            orgCache    = new QueryCache(orgTTLs.freshTTL, orgTTLs.maxTTL, orgs),
+            siteTTLs    = state.config.cacheTTLs.websites,
+            siteCache   = new QueryCache(siteTTLs.freshTTL, siteTTLs.maxTTL, websites);
         authUtils._coll = users;
 
         app.use(express.bodyParser());
@@ -618,7 +624,10 @@
             experiences = state.dbs.c6Db.collection('experiences');
             users = state.dbs.c6Db.collection('users');
             orgs = state.dbs.c6Db.collection('orgs');
+            websites = state.dbs.c6Db.collection('websites');
             expCache._coll = experiences;
+            orgCache._coll = orgs;
+            siteCache._coll = websites;
             authUtils._coll = users;
             log.info('Recreated collections from restarted c6Db');
         });
@@ -672,7 +681,8 @@
         
         // Used for handling public requests for experiences by id methods:
         function handlePublicGet(req, res) {
-            return content.getPublicExp(req.params.id, req, expCache, orgCache)
+            return content.getPublicExp(req.params.id, req, expCache, orgCache, siteCache,
+                                        state.config.defaultSiteConfig)
             .then(function(resp) {
                 res.header('cache-control', 'max-age=' + state.config.cacheTTLs.cloudFront*60);
                 return q(resp);
