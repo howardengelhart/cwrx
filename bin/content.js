@@ -5,6 +5,7 @@
 
     var path            = require('path'),
         q               = require('q'),
+        urlUtils        = require('url'),
         logger          = require('../lib/logger'),
         uuid            = require('../lib/uuid'),
         mongoUtils      = require('../lib/mongoUtils'),
@@ -78,6 +79,17 @@
         }
     });
     content.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created', '_id'] });
+    
+    // Find and parse the origin, storing useful properties on the request
+    content.parseOrigin = function(req, publicList) { //TODO: prettyify!
+        req.origin = req.headers && (req.headers.origin || req.headers.referer) || '';
+        req.shortOrigin = req.origin && urlUtils.parse(req.origin).hostname
+                                        .replace(/([^\.]+\.)+(?=[^\.]+\.[^\.]+)/, '');
+        req.isC6Origin = (req.origin && req.origin.match('cinema6.com') || false) &&
+            !publicList.some(function(site) {
+                return req.origin.match(site);
+            });
+    };
 
     content.formatOutput = function(experience, isGuest) {
         var log = logger.getLog(),
@@ -134,18 +146,9 @@
              (user.permissions[object][verb] === Scope.Own && user.id === experience.user) ));
     };
     
-    content.checkOrigin = function(origin, publicList) {
-        return origin.match('cinema6.com') && !publicList.some(function(site) {
-            return origin.match(site);
-        });
-    };
-    
     // Check whether a user can retrieve an experience
-    content.canGetExperience = function(exp, user, origin, publicList) {
+    content.canGetExperience = function(exp, user, isC6Origin) {
         user = user || {};
-        var isC6Origin = origin.match('cinema6.com') && !publicList.some(function(site) {
-            return origin.match(site);
-        });
         
         return exp.status !== Status.Deleted &&
                !!( (exp.status === Status.Active && !isC6Origin)                    ||
@@ -156,13 +159,10 @@
     
     /* Adds fields to a find query to filter out experiences the user can't see, effectively 
      * replicating the logic of canGetExperience through the query */
-    content.userPermQuery = function(query, user, origin, publicList) {
+    content.userPermQuery = function(query, user, isC6Origin) {
         var newQuery = JSON.parse(JSON.stringify(query)),
             readScope = user.permissions.experiences.read,
-            log = logger.getLog(),
-            isC6Origin = origin.match('cinema6.com') && !publicList.some(function(site) {
-                return origin.match(site);
-            });
+            log = logger.getLog();
         
         if (!newQuery['status.0.status']) {
             newQuery['status.0.status'] = {$ne: Status.Deleted}; // never show deleted exps
@@ -215,9 +215,43 @@
         });
     };
     
-    content.getPublicExp = function(id, req, expCache, publicList, orgCache) {
+    //TODO: rename?
+    /*
+    content.getSiteConfig = function(exp, queryParams, host, siteCache, defaultSiteCfg) {
+        var log = logger.getLog();
+
+        if (!exp.data) {
+            log.warn('Experience %1 does not have data!', exp.id);
+            return q(exp);
+        }
+        
+        //TODO: recheck this logical flow
+        if (queryParams && queryParams.context === 'mr2') {
+            exp.data.branding = exp.data.branding || queryParams.branding;
+            exp.data.placementId = exp.data.placementId || queryParams.placementId;
+        }
+        if (exp.data.branding && exp.data.placementId) {
+            return q(exp);
+        }
+        
+        return siteCache.getPromise({host: host}).then(function(results) {
+            if (results.length === 0) {
+                log.trace('Site %1 not found', host);
+            } else {
+                exp.data.branding = exp.data.branding || results[0].branding;
+                exp.data.placementId = exp.data.placementId || results[0].placementId;
+            }
+            exp.data.branding = exp.data.branding || defaultSiteCfg.branding;
+            exp.data.placementId = exp.data.placementId || defaultSiteCfg.placementId;
+            return q(exp);
+        });
+        
+    };
+    */
+    
+    content.getPublicExp = function(id, req, expCache, orgCache/*, siteCache*/) {
         var log = logger.getLog(),
-            origin = req.headers && (req.headers.origin || req.headers.referer) || '',
+            //queryParams = req.query,
             query = {id: id};
         
         log.info('[%1] Guest user trying to get experience %2', req.uuid, id);
@@ -225,7 +259,7 @@
         return expCache.getPromise(query).then(function(results) {
             var experiences = results.map(function(result) {
                 var formatted = content.formatOutput(result, true);
-                if (!content.canGetExperience(formatted, null, origin, publicList)) {
+                if (!content.canGetExperience(formatted, null, req.isC6Origin)) {
                     return null;
                 } else {
                     return formatted;
@@ -239,6 +273,10 @@
             
             return content.getAdConfig(experiences[0], results[0].org, orgCache)
             .then(function(exp) {
+                // return content.getSiteConfig(exp, queryParams, req.shortOrigin, siteCache);
+                return q(exp); //TODO
+            })
+            .then(function(exp) {
                 return q({code: 200, body: exp});
             });
         })
@@ -248,11 +286,10 @@
         });
     };
     
-    content.getExperiences = function(query, req, experiences, publicList, multiExp) {
+    content.getExperiences = function(query, req, experiences, multiExp) {
         var limit = req.query && Number(req.query.limit) || 0,
             skip = req.query && Number(req.query.skip) || 0,
             sort = req.query && req.query.sort,
-            origin = req.headers && (req.headers.origin || req.headers.referer) || '',
             sortObj = {},
             resp = {},
             log = logger.getLog(),
@@ -280,7 +317,7 @@
         log.info('[%1] User %2 getting experiences with %3, sort %4, limit %5, skip %6',
                  req.uuid,req.user.id,JSON.stringify(query),JSON.stringify(sortObj),limit,skip);
 
-        var permQuery = content.userPermQuery(query, req.user, origin, publicList),
+        var permQuery = content.userPermQuery(query, req.user, req.isC6Origin),
             opts = {sort: sortObj, limit: limit, skip: skip},
             cursor;
 
@@ -602,6 +639,11 @@
         function sessionsWrapper(req, res, next) {
             sessions(req, res, next);
         }
+        
+        app.use(function(req, res, next) {
+            content.parseOrigin(req, state.config.publicC6Sites);
+            next();
+        });
 
         app.all('*', function(req, res, next) {
             res.header('Access-Control-Allow-Origin', '*');
@@ -630,8 +672,7 @@
         
         // Used for handling public requests for experiences by id methods:
         function handlePublicGet(req, res) {
-            return content.getPublicExp(req.params.id, req, expCache,
-                                        state.config.publicC6Sites, orgCache)
+            return content.getPublicExp(req.params.id, req, expCache, orgCache)
             .then(function(resp) {
                 res.header('cache-control', 'max-age=' + state.config.cacheTTLs.cloudFront*60);
                 return q(resp);
@@ -674,7 +715,7 @@
         
         // private get experience by id
         app.get('/api/content/experience/:id', sessionsWrapper, authGetExp, function(req, res) {
-            content.getExperiences({id:req.params.id}, req, experiences, state.config.publicC6Sites)
+            content.getExperiences({id:req.params.id}, req, experiences)
             .then(function(resp) {
                 if (resp.body && resp.body instanceof Array) {
                     if (resp.body.length === 0) {
@@ -719,7 +760,7 @@
             if (req.query.status) {
                 query.status = req.query.status;
             }
-            content.getExperiences(query, req, experiences, state.config.publicC6Sites, true)
+            content.getExperiences(query, req, experiences, true)
             .then(function(resp) {
                 if (resp.pagination) {
                     res.header('content-range', 'items ' + resp.pagination.start + '-' +
