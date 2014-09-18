@@ -1,6 +1,6 @@
 var flush = true;
 describe('userSvc (UT)', function() {
-    var mockLog, mockLogger, req, uuid, logger, bcrypt, userSvc, q, QueryCache, mongoUtils,
+    var mockLog, mockLogger, req, uuid, logger, bcrypt, userSvc, q, mongoUtils, email,
         objUtils, FieldValidator, enums, Status, Scope;
     
     beforeEach(function() {
@@ -9,7 +9,6 @@ describe('userSvc (UT)', function() {
         logger          = require('../../lib/logger');
         bcrypt          = require('bcrypt');
         userSvc         = require('../../bin/userSvc');
-        QueryCache      = require('../../lib/queryCache');
         FieldValidator  = require('../../lib/fieldValidator');
         mongoUtils      = require('../../lib/mongoUtils');
         objUtils        = require('../../lib/objUtils');
@@ -258,11 +257,12 @@ describe('userSvc (UT)', function() {
             requester.permissions.users.read = 'alfkjdf';
             expect(userSvc.userPermQuery(query, requester))
                 .toEqual({ org: 'o-1', status: { $ne: Status.Deleted }, $or: [ { id: 'u-1' } ] });
+            expect(mockLog.warn).toHaveBeenCalled();
         });
     });
     
     describe('getUsers', function() {
-        var cache, query, userColl, fakeCursor;
+        var query, userColl, fakeCursor;
         beforeEach(function() {
             req.user = { id: 'u-1234', permissions: { users: { read: Scope.Own } } };
             req.query = {
