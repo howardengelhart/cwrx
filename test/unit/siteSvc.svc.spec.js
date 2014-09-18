@@ -399,6 +399,7 @@ describe('siteSvc (UT)', function() {
                     cb(null, null);
                 }),
                 insert: jasmine.createSpy('sites.insert').andCallFake(function(obj, opts, cb) {
+                    obj._id = 'mongoId';
                     cb();
                 })
             };
@@ -523,7 +524,8 @@ describe('siteSvc (UT)', function() {
         beforeEach(function() {
             siteColl = {
                 findOne: jasmine.createSpy('sites.findOne').andCallFake(function(query, cb) {
-                    cb(null, {orig: 'yes'});
+                    if (query.host) cb(null, null);
+                    else cb(null, {orig: 'yes'});
                 }),
                 findAndModify: jasmine.createSpy('sites.findAndModify').andCallFake(
                     function(query, sort, obj, opts, cb) {
@@ -559,12 +561,44 @@ describe('siteSvc (UT)', function() {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({ id: 's-4567', updated: true });
                 expect(siteColl.findOne).toHaveBeenCalledWith({id: 's-4567'}, anyFunc);
+                expect(siteColl.findOne.callCount).toBe(1);
                 expect(siteSvc.checkScope).toHaveBeenCalledWith({id: 'u-1234'}, {orig: 'yes'}, 'edit');
                 expect(siteSvc.updateValidator.validate)
                     .toHaveBeenCalledWith(req.body, {orig: 'yes'}, {id: 'u-1234'});
                 expect(siteColl.findAndModify).toHaveBeenCalledWith({id: 's-4567'}, {id: 1},
                     {$set: {foo: 'bar', lastUpdated: jasmine.any(Date)}}, {w: 1, journal: true, new: true}, anyFunc);
                 expect(mongoUtils.escapeKeys).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+
+        it('should be able to update the host if no other site exists with that host', function(done) {
+            req.body.host = 'newHost';
+            siteSvc.updateSite(req, siteColl).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual({ id: 's-4567', updated: true });
+                expect(siteColl.findOne).toHaveBeenCalledWith({id: 's-4567'}, anyFunc);
+                expect(siteColl.findOne).toHaveBeenCalledWith({host: 'newHost', id: {$ne: 's-4567'}}, anyFunc);
+                expect(siteColl.findAndModify).toHaveBeenCalled();
+                expect(mongoUtils.escapeKeys).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should prevent updating the host if another site exists with that host', function(done) {
+            req.body.host = 'newHost';
+            siteColl.findOne.andCallFake(function(query, cb) {
+                if (query.host) cb(null, {existing: 'yes'});
+                else cb(null, {orig: 'yes'});
+            });
+            siteSvc.updateSite(req, siteColl).then(function(resp) {
+                expect(resp).toBeDefined();
+                expect(resp.code).toBe(409);
+                expect(resp.body).toBe('A site with that host already exists');
+                expect(siteColl.findOne.callCount).toBe(2);
+                expect(siteColl.findAndModify).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
@@ -612,13 +646,31 @@ describe('siteSvc (UT)', function() {
             }).finally(done);
         });
         
-        it('should fail with an error if findOne fails', function(done) {
+        it('should fail with an error if the first call to findOne fails', function(done) {
             siteColl.findOne.andCallFake(function(query, cb) { cb('Error!'); });
             siteSvc.updateSite(req, siteColl).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Error!');
-                expect(siteColl.findOne).toHaveBeenCalled();
+                expect(siteColl.findOne.callCount).toBe(1);
+                expect(siteColl.findAndModify).not.toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+            }).finally(done);
+        });
+
+        it('should fail with an error if the second call to findOne fails', function(done) {
+            req.body.host = 'newHost';
+            siteColl.findOne.andCallFake(function(query, cb) {
+                if (query.host) cb('Error!');
+                else cb(null, {orig: 'yes'});
+            });
+            siteSvc.updateSite(req, siteColl).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('Error!');
+                expect(siteColl.findOne.callCount).toBe(2);
+                expect(siteSvc.checkScope).toHaveBeenCalled();
+                expect(siteSvc.updateValidator.validate).toHaveBeenCalled();
                 expect(siteColl.findAndModify).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
             }).finally(done);

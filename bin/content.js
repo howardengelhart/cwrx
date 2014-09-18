@@ -54,7 +54,7 @@
                 retryConnect : true
             }
         },
-        defaultSiteConfig: { //TODO: rename property?
+        defaultSiteConfig: {
             branding: 'NOTREAL', //TODO
             placementId: 'NOTREAL', //TODO
         },
@@ -221,7 +221,6 @@
         });
     };
     
-    //TODO: rename?
     content.getSiteConfig = function(exp, queryParams, host, siteCache, defaultSiteCfg) {
         var log = logger.getLog();
 

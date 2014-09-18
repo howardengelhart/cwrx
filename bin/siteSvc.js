@@ -188,8 +188,7 @@
     siteSvc.createSite = function(req, sites) {
         var newSite = req.body,
             requester = req.user,
-            log = logger.getLog(),
-            deferred = q.defer();
+            log = logger.getLog();
         if (!newSite || typeof newSite !== 'object') {
             return q({code: 400, body: 'You must provide an object in the body'});
         } else if (!newSite.host) {
@@ -201,20 +200,17 @@
         }
         
         // check if a site already exists with that host
-        q.npost(sites, 'findOne', [{host: newSite.host}])
+        return q.npost(sites, 'findOne', [{host: newSite.host}])
         .then(function(site) {
             if (site) {
                 log.info('[%1] Site %2 already exists', req.uuid, req.body.host);
-                return deferred.resolve({
-                    code: 409,
-                    body: 'A site with that host already exists'
-                });
+                return q({ code: 409, body: 'A site with that host already exists' });
             }
             if (!siteSvc.createValidator.validate(newSite, {}, requester)) {
                 log.warn('[%1] newSite contains illegal fields', req.uuid);
                 log.trace('newSite: %1  |  requester: %2',
                           JSON.stringify(newSite), JSON.stringify(requester));
-                return deferred.resolve({code: 400, body: 'Illegal fields'});
+                return q({code: 400, body: 'Illegal fields'});
             }
             
             newSite = siteSvc.setupSite(newSite, requester);
@@ -222,16 +218,16 @@
 
             return q.npost(sites, 'insert', [newSite, {w: 1, journal: true}])
             .then(function() {
+                delete newSite._id;
                 log.info('[%1] User %2 successfully created site %3 with id: %4',
                          req.uuid, requester.id, newSite.host, newSite.id);
-                deferred.resolve({ code: 201, body: mongoUtils.unescapeKeys(newSite) });
+                return q({ code: 201, body: mongoUtils.unescapeKeys(newSite) });
             });
         }).catch(function(error) {
             log.error('[%1] Error creating site %2 for user %3: %4',
                       req.uuid, newSite.id, requester.id, error);
-            deferred.reject(error);
+            return q.reject(error);
         });
-        return deferred.promise;
     };
 
     siteSvc.updateSite = function(req, sites) {
@@ -239,80 +235,93 @@
             id = req.params.id,
             requester = req.user,
             log = logger.getLog(),
-            deferred = q.defer();
+            promise;
         if (!updates || typeof updates !== 'object') {
             return q({code: 400, body: 'You must provide an object in the body'});
         }
         
         log.info('[%1] User %2 is attempting to update site %3', req.uuid, requester.id, id);
-        q.npost(sites, 'findOne', [{id: id}])
+        return q.npost(sites, 'findOne', [{id: id}])
         .then(function(orig) {
             if (!orig) {
                 log.info('[%1] Site %2 does not exist; not creating them', req.uuid, id);
-                return deferred.resolve({code: 404, body: 'That site does not exist'});
+                return q({code: 404, body: 'That site does not exist'});
             }
             if (!siteSvc.checkScope(requester, orig, 'edit')) {
                 log.info('[%1] User %2 is not authorized to edit %3', req.uuid, requester.id, id);
-                return deferred.resolve({code: 403, body: 'Not authorized to edit this site'});
+                return q({code: 403, body: 'Not authorized to edit this site'});
             }
             if (!siteSvc.updateValidator.validate(updates, orig, requester)) {
                 log.warn('[%1] Updates contain illegal fields', req.uuid);
                 log.trace('updates: %1  |  orig: %2  |  requester: %3', JSON.stringify(updates),
                           JSON.stringify(orig), JSON.stringify(requester));
-                return deferred.resolve({code: 400, body: 'Illegal fields'});
+                return q({code: 400, body: 'Illegal fields'});
             }
-            updates.lastUpdated = new Date();
-            var updateObj = { $set: mongoUtils.escapeKeys(updates) };
-            var opts = {w: 1, journal: true, new: true};
-            return q.npost(sites, 'findAndModify', [{id: id}, {id: 1}, updateObj, opts])
-            .then(function(results) {
-                var updated = results[0];
-                delete updated._id;
-                log.info('[%1] User %2 successfully updated site %3',
-                         req.uuid, requester.id, updated.id);
-                deferred.resolve({code: 200, body: mongoUtils.unescapeKeys(updated)});
+            
+            if (updates.host) {
+                promise = q.npost(sites, 'findOne', [{ host: updates.host, id: { $ne: id } }]);
+            } else {
+                promise = q();
+            }
+            
+            return promise.then(function(existing) {
+                if (existing) {
+                    log.info('[%1] Trying to change host of %2 to %3, but %4 already has that host',
+                             req.uuid, id, updates.host, existing.id);
+                    return q({ code: 409, body: 'A site with that host already exists' });
+                }
+                
+                updates.lastUpdated = new Date();
+                var updateObj = { $set: mongoUtils.escapeKeys(updates) };
+                var opts = { w: 1, journal: true, new: true };
+
+                return q.npost(sites, 'findAndModify', [{id: id}, {id: 1}, updateObj, opts])
+                .then(function(results) {
+                    var updated = results[0];
+                    delete updated._id;
+                    log.info('[%1] User %2 successfully updated site %3',
+                             req.uuid, requester.id, updated.id);
+                    return q({code: 200, body: mongoUtils.unescapeKeys(updated)});
+                });
             });
         }).catch(function(error) {
             log.error('[%1] Error updating site %2 for user %3: %4',req.uuid,id,requester.id,error);
-            deferred.reject(error);
+            return q.reject(error);
         });
-        return deferred.promise;
     };
 
     siteSvc.deleteSite = function(req, sites) {
         var id = req.params.id,
             requester = req.user,
             log = logger.getLog(),
-            deferred = q.defer(),
             now;
 
         log.info('[%1] User %2 is attempting to delete site %3', req.uuid, requester.id, id);
-        q.npost(sites, 'findOne', [{id: id}])
+        return q.npost(sites, 'findOne', [{id: id}])
         .then(function(orig) {
             now = new Date();
             if (!orig) {
                 log.info('[%1] Site %2 does not exist', req.uuid, id);
-                return deferred.resolve({code: 204});
+                return q({code: 204});
             }
             if (!siteSvc.checkScope(requester, orig, 'delete')) {
                 log.info('[%1] User %2 is not authorized to delete %3', req.uuid, requester.id, id);
-                return deferred.resolve({code: 403, body: 'Not authorized to delete this site'});
+                return q({code: 403, body: 'Not authorized to delete this site'});
             }
             if (orig.status === Status.Deleted) {
                 log.info('[%1] Site %2 has already been deleted', req.uuid, id);
-                return deferred.resolve({code: 204});
+                return q({code: 204});
             }
             var updates = {$set: {lastUpdated: now, status: Status.Deleted}};
             return q.npost(sites, 'update', [{id:id}, updates, {w: 1, journal: true}])
             .then(function() {
                 log.info('[%1] User %2 successfully deleted site %3', req.uuid, requester.id, id);
-                deferred.resolve({code: 204});
+                return q({code: 204});
             });
         }).catch(function(error) {
             log.error('[%1] Error deleting site %2 for user %3: %4',req.uuid,id,requester.id,error);
-            deferred.reject(error);
+            return q.reject(error);
         });
-        return deferred.promise;
     };
     
     siteSvc.main = function(state) {
