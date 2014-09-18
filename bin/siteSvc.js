@@ -111,12 +111,18 @@
             }
         }
 
-        if (!Object.keys(query).length && !(req.user.permissions &&
-                                            req.user.permissions.sites &&
-                                            req.user.permissions.sites.read &&
-                                            req.user.permissions.sites.read === Scope.All)) {
-            log.info('[%1] User %2 is not authorized to read all sites', req.uuid, req.user.id);
-            return q({code: 403, body: 'Not authorized to read all sites'});
+        if (!(req.user.permissions &&
+              req.user.permissions.sites &&
+              req.user.permissions.sites.read &&
+              req.user.permissions.sites.read === Scope.All)) {
+            if (!Object.keys(query).length) {
+                log.info('[%1] User %2 is not authorized to read all sites', req.uuid, req.user.id);
+                return q({code: 403, body: 'Not authorized to read all sites'});
+            } else if (query.org && query.org !== req.user.org) {
+                log.info('[%1] User %2 is not authorized to read sites outside their org',
+                         req.uuid, req.user.id);
+                return q({code: 403, body: 'Not authorized to read non-org sites'});
+            }
         }
         
         query = query || {};
@@ -145,7 +151,10 @@
             return q.npost(cursor, 'toArray');
         })
         .then(function(results) {
-            var siteList = results.map(function(site) { return mongoUtils.unescapeKeys(site); });
+            var siteList = results.map(function(site) {
+                delete site._id;
+                return mongoUtils.unescapeKeys(site);
+            });
             log.info('[%1] Showing the requester %2 website documents', req.uuid, siteList.length);
             if (siteList.length === 0) {
                 resp.code = 404;
@@ -258,6 +267,7 @@
             return q.npost(sites, 'findAndModify', [{id: id}, {id: 1}, updateObj, opts])
             .then(function(results) {
                 var updated = results[0];
+                delete updated._id;
                 log.info('[%1] User %2 successfully updated site %3',
                          req.uuid, requester.id, updated.id);
                 deferred.resolve({code: 200, body: mongoUtils.unescapeKeys(updated)});
@@ -380,7 +390,7 @@
             next();
         });
         
-        app.get('/api/sites/meta', function(req, res) { //TODO: rename endpoints?
+        app.get('/api/sites/meta', function(req, res) {
             var data = {
                 version: state.config.appVersion,
                 started : started.toISOString(),
@@ -413,7 +423,7 @@
         app.get('/api/sites', sessionsWrapper, authGetSite, function(req, res) {
             var query = {};
             if (req.query && req.query.org) {
-                query.org = String(query.org);
+                query.org = String(req.query.org);
             }
             if (req.query && req.query.host) {
                 query.host = String(req.query.host);

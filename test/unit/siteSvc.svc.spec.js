@@ -188,16 +188,16 @@ describe('siteSvc (UT)', function() {
     describe('getSites', function() {
         var query, siteColl, fakeCursor;
         beforeEach(function() {
-            req.user = { id: 'u-1234', permissions: { sites: { read: Scope.Own } } };
+            req.user = { id: 'u-1234', org: 'o-1', permissions: { sites: { read: Scope.Own } } };
             req.query = {
                 sort: 'id,1',
                 limit: 20,
                 skip: 10
             };
-            query = { host: 'c6.com' };
+            query = { host: 'c6.com', org: 'o-1' };
             fakeCursor = {
                 toArray: jasmine.createSpy('cursor.toArray').andCallFake(function(cb) {
-                    cb(null, q([{id: '1'}]));
+                    cb(null, q([{id: '1', _id: 'mongoId'}]));
                 }),
                 count: jasmine.createSpy('cursor.count').andCallFake(function(cb) {
                     cb(null, 50);
@@ -217,8 +217,8 @@ describe('siteSvc (UT)', function() {
                 expect(siteColl.find).toHaveBeenCalledWith('permQuery',{sort:{id:1},limit:20,skip:10});
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(fakeCursor.count).not.toHaveBeenCalled();
-                expect(siteSvc.userPermQuery).toHaveBeenCalledWith({ host: 'c6.com' },
-                    { id: 'u-1234', permissions: { sites: { read: Scope.Own } } });
+                expect(siteSvc.userPermQuery).toHaveBeenCalledWith({ host: 'c6.com', org: 'o-1' },
+                    { id: 'u-1234', org: 'o-1', permissions: { sites: { read: Scope.Own } } });
                 expect(mongoUtils.unescapeKeys).toHaveBeenCalledWith({id: '1'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -284,8 +284,34 @@ describe('siteSvc (UT)', function() {
             }).finally(done);
         });
         
+        it('should prevent non-admin users from getting sites outside their org', function(done) {
+            query.org = 'o-2';
+            siteSvc.getSites(query, req, siteColl, false).then(function(resp) {
+                expect(resp.code).toBe(403);
+                expect(resp.body).toBe('Not authorized to read non-org sites');
+                expect(siteColl.find).not.toHaveBeenCalled();
+                expect(fakeCursor.toArray).not.toHaveBeenCalled();
+                expect(mongoUtils.unescapeKeys).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
         it('should allow admin users to get all sites', function(done) {
             query = {};
+            req.user.permissions.sites.read = Scope.All;
+            siteSvc.getSites(query, req, siteColl, false).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual([{id:'1'}]);
+                expect(siteColl.find).toHaveBeenCalled();
+                expect(fakeCursor.toArray).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should allow admin users to get sites outside their org', function(done) {
+            query.org = 'o-2';
             req.user.permissions.sites.read = Scope.All;
             siteSvc.getSites(query, req, siteColl, false).then(function(resp) {
                 expect(resp.code).toBe(200);
@@ -410,7 +436,7 @@ describe('siteSvc (UT)', function() {
         });
 
         it('should reject with a 400 if the host is in the wrong format', function(done) {
-            q.all(['foo.c6.com', 'c6', 'http://c6.com', 'c6.com/asdf'].map(function(host) {
+            q.all(['foo.c6.com', 'c6', 'http://c6.com', 'c6.com/qwer'].map(function(host) {
                 req.body.host = host;
                 return siteSvc.createSite(req, siteColl);
             })).then(function(results) {
@@ -501,7 +527,7 @@ describe('siteSvc (UT)', function() {
                 }),
                 findAndModify: jasmine.createSpy('sites.findAndModify').andCallFake(
                     function(query, sort, obj, opts, cb) {
-                        cb(null, [{ id: 's-4567', updated: true }]);
+                        cb(null, [{ id: 's-4567', updated: true, _id: 'mongoId' }]);
                     })
             };
             req.body = { foo: 'bar' };
