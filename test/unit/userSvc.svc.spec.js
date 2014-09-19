@@ -443,7 +443,8 @@ describe('userSvc (UT)', function() {
                     experiences: { read: Scope.Org, create: Scope.Org, edit: Scope.Org, delete: Scope.Org },
                     elections: { read: Scope.Org, create: Scope.Org, edit: Scope.Org, delete: Scope.Org },
                     users: { read: Scope.Org, edit: Scope.Own },
-                    orgs: { read: Scope.Own, edit: Scope.Own }
+                    orgs: { read: Scope.Own, edit: Scope.Own },
+                    sites: { read: Scope.Org }
                 });
                 expect(bcrypt.hash).toHaveBeenCalled();
                 expect(bcrypt.hash.calls[0].args[0]).toBe('pass');
@@ -481,7 +482,8 @@ describe('userSvc (UT)', function() {
                     elections: { read: Scope.Org, create: Scope.Org, edit: Scope.Org, delete: Scope.Org },
                     experiences: { read: Scope.All, create: Scope.Own, edit: Scope.Org, delete: Scope.Org },
                     users: { read: Scope.All, edit: Scope.Own, delete: Scope.Own },
-                    orgs: { read: Scope.Own, edit: Scope.Own }
+                    orgs: { read: Scope.Own, edit: Scope.Own },
+                    sites: { read: Scope.Org }
                 });
                 expect(newUser.password).toBe('fakeHash');
                 expect(mongoUtils.escapeKeys).toHaveBeenCalled();

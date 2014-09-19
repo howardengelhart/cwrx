@@ -299,7 +299,8 @@ describe('user (E2E):', function() {
                     experiences: { read: 'org', create: 'org', edit: 'org', delete: 'org' },
                     elections: { read: 'org', create: 'org', edit: 'org', delete: 'org' },
                     users: { read: 'org', edit: 'own' },
-                    orgs: { read: 'own', edit: 'own' }
+                    orgs: { read: 'own', edit: 'own' },
+                    sites: { read: 'org' }
                 });
                 done();
             }).catch(function(error) {
@@ -343,7 +344,8 @@ describe('user (E2E):', function() {
                     experiences: { read: 'org', create: 'org', edit: 'org', delete: 'org' },
                     elections: { read: 'org', create: 'org', edit: 'org', delete: 'org' },
                     users: { read: 'org', edit: 'org', delete: 'org' },
-                    orgs: { read: 'own', edit: 'own' }
+                    orgs: { read: 'own', edit: 'own' },
+                    sites: { read: 'org' }
                 });
                 done();
             }).catch(function(error) {

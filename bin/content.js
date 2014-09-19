@@ -55,8 +55,8 @@
             }
         },
         defaultSiteConfig: {
-            branding: 'NOTREAL', //TODO
-            placementId: 'NOTREAL', //TODO
+            branding: 'default',
+            placementId: null
         },
         publicC6Sites: ['www.cinema6.com', 'demo.cinema6.com'], // our sites that publish minireels
         secretsPath: path.join(process.env.HOME,'.content.secrets.json'),
