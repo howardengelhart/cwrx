@@ -90,9 +90,9 @@
     
     // Find and parse the origin, storing useful properties on the request
     content.parseOrigin = function(req, publicList) {
+        var regex = /^(\w+[\w-]+\.)*?(?=\w+[\w-]+\.[a-z]{2,4}(\.[a-z]{2})?$)/;
         req.origin = req.headers && (req.headers.origin || req.headers.referer) || '';
-        req.shortOrigin = req.origin && urlUtils.parse(req.origin).hostname
-                                        .replace(/([^\.]+\.)+(?=[^\.]+\.[^\.]+)/, '');
+        req.shortOrigin = req.origin && urlUtils.parse(req.origin).hostname.replace(regex, '');
         req.isC6Origin = (req.origin && req.origin.match('cinema6.com') || false) &&
                          !publicList.some(function(site) { return req.origin.match(site); });
     };

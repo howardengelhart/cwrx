@@ -64,6 +64,11 @@
                     }
         }
     });
+    
+    // Return true if host is a root followed by tld (with optional country-code extension)
+    siteSvc.validateHost = function(host) {
+        return !!host.match(/^\w+[\w-]+\.[a-z]{2,4}(\.[a-z]{2})?$/);
+    };
 
     // Check whether the requester can operate on the target site according to their scope
     siteSvc.checkScope = function(requester, site, verb) {
@@ -195,7 +200,8 @@
             return q({code: 400, body: 'New site object must have a host property'});
         }
         
-        if (!newSite.host.match(/^[^.\/]+\.[^.\/]+$/)) {
+        if (!siteSvc.validateHost(newSite.host)) {
+            log.info('[%1] New site object has invalid host %2', req.uuid, newSite.host);
             return q({code: 400, body: 'Host property must be the root domain'});
         }
         
@@ -238,6 +244,11 @@
             promise;
         if (!updates || typeof updates !== 'object') {
             return q({code: 400, body: 'You must provide an object in the body'});
+        }
+        
+        if (updates.host && !siteSvc.validateHost(updates.host)) {
+            log.info('[%1] Update object has invalid host %2', req.uuid, updates.host);
+            return q({code: 400, body: 'Host property must be the root domain'});
         }
         
         log.info('[%1] User %2 is attempting to update site %3', req.uuid, requester.id, id);

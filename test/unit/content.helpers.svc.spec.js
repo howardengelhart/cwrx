@@ -223,11 +223,17 @@ describe('content (UT)', function() {
         });
         
         it('should properly get the short version of the origin from the original', function() {
-            ['http://foo.com/', 'http://bar.foo.com/qwer', 'http://baz.bar.foo.com?foo=bar'].forEach(function(url) {
-                req = { headers: { origin: url } };
+            [
+                { url: 'http://foo.com/', shortOrigin: 'foo.com' },
+                { url: 'http://bar.foo.com/qwer', shortOrigin: 'foo.com' },
+                { url: 'http://baz.bar.foo.com?foo=bar', shortOrigin: 'foo.com' },
+                { url: 'http://foo.com.uk', shortOrigin: 'foo.com.uk' },
+                { url: 'http://video.games.foo.com.uk', shortOrigin: 'foo.com.uk'}
+            ].forEach(function(test) {
+                req = { headers: { origin: test.url } };
                 content.parseOrigin(req, pubList);
-                expect(req.origin).toBe(url);
-                expect(req.shortOrigin).toBe('foo.com');
+                expect(req.origin).toBe(test.url);
+                expect(req.shortOrigin).toBe(test.shortOrigin);
             });
         });
         

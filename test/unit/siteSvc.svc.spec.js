@@ -152,6 +152,25 @@ describe('siteSvc (UT)', function() {
         });
     });
     
+    describe('validateHost', function() {
+        it('should return true for valid hosts', function() {
+            [
+                { host: 'http://cinema6.com', result: false },
+                { host: 'cinema6.com/foo', result: false },
+                { host: 'cinema6.com?foo=bar', result: false },
+                { host: 'cinema6.com', result: true },
+                { host: 'staging.cinema6.com', result: false },
+                { host: 'foo.bar.cinema6.com', result: false },
+                { host: 'guardian.co.uk', result: true },
+                { host: 'guardian.uk.com', result: false },
+                { host: 'foo.wiki.uk', result: true },
+                { host: 'foo.wikis.uk', result: false },
+            ].map(function(test) {
+                expect(siteSvc.validateHost(test.host)).toBe(test.result);
+            });
+        });
+    });
+    
     describe('userPermQuery', function() {
         var query, requester;
         beforeEach(function() {
@@ -410,6 +429,7 @@ describe('siteSvc (UT)', function() {
                 return newSite;
             });
             spyOn(siteSvc.createValidator, 'validate').andReturn(true);
+            spyOn(siteSvc, 'validateHost').andReturn(true);
         });
         
         it('should reject with a 400 if no site object is provided', function(done) {
@@ -429,6 +449,7 @@ describe('siteSvc (UT)', function() {
             siteSvc.createSite(req, siteColl).then(function(resp) {
                 expect(resp.code).toBe(400);
                 expect(resp.body).toEqual('New site object must have a host property');
+                expect(siteSvc.validateHost).not.toHaveBeenCalled();
                 expect(siteColl.findOne).not.toHaveBeenCalled();
                 expect(siteColl.insert).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -437,14 +458,11 @@ describe('siteSvc (UT)', function() {
         });
 
         it('should reject with a 400 if the host is in the wrong format', function(done) {
-            q.all(['foo.c6.com', 'c6', 'http://c6.com', 'c6.com/qwer'].map(function(host) {
-                req.body.host = host;
-                return siteSvc.createSite(req, siteColl);
-            })).then(function(results) {
-                results.forEach(function(resp) {
-                    expect(resp.code).toBe(400);
-                    expect(resp.body).toEqual('Host property must be the root domain');
-                });
+            siteSvc.validateHost.andReturn(false);
+            siteSvc.createSite(req, siteColl).then(function(resp) {
+                expect(resp.code).toBe(400);
+                expect(resp.body).toEqual('Host property must be the root domain');
+                expect(siteSvc.validateHost).toHaveBeenCalled();
                 expect(siteColl.findOne).not.toHaveBeenCalled();
                 expect(siteColl.insert).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -472,6 +490,7 @@ describe('siteSvc (UT)', function() {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(201);
                 expect(resp.body).toEqual({id: 's-1', host: 'c6.com', branding: 'c6'});
+                expect(siteSvc.validateHost).toHaveBeenCalledWith('c6.com');
                 expect(siteColl.findOne).toHaveBeenCalledWith({host: 'c6.com'}, anyFunc);
                 expect(siteSvc.createValidator.validate).toHaveBeenCalledWith(req.body, {}, req.user);
                 expect(siteSvc.setupSite).toHaveBeenCalledWith(req.body, req.user);
@@ -537,6 +556,7 @@ describe('siteSvc (UT)', function() {
             req.user = { id: 'u-1234' };
             spyOn(siteSvc, 'checkScope').andReturn(true);
             spyOn(siteSvc.updateValidator, 'validate').andReturn(true);
+            spyOn(siteSvc, 'validateHost').andReturn(true);
         });
         
         it('should fail immediately if no update object is provided', function(done) {
@@ -560,6 +580,7 @@ describe('siteSvc (UT)', function() {
             siteSvc.updateSite(req, siteColl).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({ id: 's-4567', updated: true });
+                expect(siteSvc.validateHost).not.toHaveBeenCalled();
                 expect(siteColl.findOne).toHaveBeenCalledWith({id: 's-4567'}, anyFunc);
                 expect(siteColl.findOne.callCount).toBe(1);
                 expect(siteSvc.checkScope).toHaveBeenCalledWith({id: 'u-1234'}, {orig: 'yes'}, 'edit');
@@ -578,10 +599,25 @@ describe('siteSvc (UT)', function() {
             siteSvc.updateSite(req, siteColl).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({ id: 's-4567', updated: true });
+                expect(siteSvc.validateHost).toHaveBeenCalledWith('newHost');
                 expect(siteColl.findOne).toHaveBeenCalledWith({id: 's-4567'}, anyFunc);
                 expect(siteColl.findOne).toHaveBeenCalledWith({host: 'newHost', id: {$ne: 's-4567'}}, anyFunc);
                 expect(siteColl.findAndModify).toHaveBeenCalled();
                 expect(mongoUtils.escapeKeys).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+
+        it('should return a 400 if the new host is not valid', function(done) {
+            req.body.host = 'newHost';
+            siteSvc.validateHost.andReturn(false);
+            siteSvc.updateSite(req, siteColl).then(function(resp) {
+                expect(resp.code).toBe(400);
+                expect(resp.body).toBe('Host property must be the root domain');
+                expect(siteSvc.validateHost).toHaveBeenCalledWith('newHost');
+                expect(siteColl.findOne).not.toHaveBeenCalled();
+                expect(siteColl.findAndModify).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);

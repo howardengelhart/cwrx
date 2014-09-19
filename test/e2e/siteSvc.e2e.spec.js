@@ -303,6 +303,16 @@ describe('site (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).finally(done);
         });
+
+        it('should throw a 400 error if the host is invalid', function(done) {
+            mockSite.host = 'foo.c6.com';
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Host property must be the root domain');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
+        });
         
         it('should throw a 409 error if a site with that host exists', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -393,6 +403,16 @@ describe('site (E2E):', function() {
                 expect(resp.body.foo).toBe('bar');
                 expect(resp.body.host).toBe('c8.com');
                 expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(resp.body.created));
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should throw a 400 error if the new host is invalid', function(done) {
+            options.json.host = 'foo.c6.com';
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Host property must be the root domain');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).finally(done);
