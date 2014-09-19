@@ -507,7 +507,7 @@ describe('content (UT)', function() {
             }).finally(done);
         });
         
-        it('should fall back on the website\'s config', function(done) {
+        it('should fall back on the site\'s config', function(done) {
             queryParams.context = 'embed';
             content.getSiteConfig(exp, queryParams, host, siteCache, defaultSiteCfg).then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'siteBrand', placementId: 456}});
@@ -517,7 +517,7 @@ describe('content (UT)', function() {
             }).finally(done);
         });
         
-        it('should handle the website object not having a branding or placementId', function(done) {
+        it('should handle the site object not having a branding or placementId', function(done) {
             queryParams.context = 'embed';
             siteCache.getPromise.andReturn(q([{id: 'w-1'}]));
             content.getSiteConfig(exp, queryParams, host, siteCache, defaultSiteCfg).then(function(exp) {
@@ -528,7 +528,7 @@ describe('content (UT)', function() {
             }).finally(done);
         });
 
-        it('should not use the website if it is not active', function(done) {
+        it('should not use the site if it is not active', function(done) {
             queryParams.context = 'embed';
             mockSite.status = Status.Inactive;
             content.getSiteConfig(exp, queryParams, host, siteCache, defaultSiteCfg).then(function(exp) {

@@ -160,7 +160,7 @@
                 delete site._id;
                 return mongoUtils.unescapeKeys(site);
             });
-            log.info('[%1] Showing the requester %2 website documents', req.uuid, siteList.length);
+            log.info('[%1] Showing the requester %2 site documents', req.uuid, siteList.length);
             if (siteList.length === 0) {
                 resp.code = 404;
                 resp.body = 'No sites found';
@@ -471,7 +471,7 @@
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, {
-                    error: 'Error creating website',
+                    error: 'Error creating site',
                     detail: error
                 });
             });
@@ -484,7 +484,7 @@
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, {
-                    error: 'Error updating website',
+                    error: 'Error updating site',
                     detail: error
                 });
             });
@@ -497,7 +497,7 @@
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, {
-                    error: 'Error deleting website',
+                    error: 'Error deleting site',
                     detail: error
                 });
             });
