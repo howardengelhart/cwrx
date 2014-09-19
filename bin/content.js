@@ -38,7 +38,7 @@
                 freshTTL: 1,
                 maxTTL: 10
             },
-            websites: {
+            sites: {
                 freshTTL: 1,
                 maxTTL: 10
             },
@@ -199,6 +199,7 @@
         return newQuery;
     };
     
+    // Ensure experience has adConfig, getting from its org if necessary
     content.getAdConfig = function(exp, orgId, orgCache) {
         var log = logger.getLog();
 
@@ -221,6 +222,7 @@
         });
     };
     
+    // Ensure experience has branding and placementId, getting from current site if necessary
     content.getSiteConfig = function(exp, queryParams, host, siteCache, defaultSiteCfg) {
         var log = logger.getLog();
 
@@ -598,13 +600,13 @@
             experiences = state.dbs.c6Db.collection('experiences'),
             users       = state.dbs.c6Db.collection('users'),
             orgs        = state.dbs.c6Db.collection('orgs'),
-            websites    = state.dbs.c6Db.collection('websites'),
+            sites       = state.dbs.c6Db.collection('sites'),
             expTTLs     = state.config.cacheTTLs.experiences,
             expCache    = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences),
             orgTTLs     = state.config.cacheTTLs.orgs,
             orgCache    = new QueryCache(orgTTLs.freshTTL, orgTTLs.maxTTL, orgs),
-            siteTTLs    = state.config.cacheTTLs.websites,
-            siteCache   = new QueryCache(siteTTLs.freshTTL, siteTTLs.maxTTL, websites);
+            siteTTLs    = state.config.cacheTTLs.sites,
+            siteCache   = new QueryCache(siteTTLs.freshTTL, siteTTLs.maxTTL, sites);
         authUtils._coll = users;
 
         app.use(express.bodyParser());
@@ -623,10 +625,10 @@
             experiences = state.dbs.c6Db.collection('experiences');
             users = state.dbs.c6Db.collection('users');
             orgs = state.dbs.c6Db.collection('orgs');
-            websites = state.dbs.c6Db.collection('websites');
+            sites = state.dbs.c6Db.collection('sites');
             expCache._coll = experiences;
             orgCache._coll = orgs;
-            siteCache._coll = websites;
+            siteCache._coll = sites;
             authUtils._coll = users;
             log.info('Recreated collections from restarted c6Db');
         });

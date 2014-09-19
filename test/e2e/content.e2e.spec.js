@@ -119,7 +119,7 @@ describe('content (E2E):', function() {
             mockOrg = { id: 'e2e-active-org', status: 'active', adConfig: { foo: 'bar' } };
             q.all([testUtils.resetCollection('experiences', mockExps),
                    testUtils.resetCollection('orgs', mockOrg),
-                   testUtils.resetCollection('websites', mockSite)
+                   testUtils.resetCollection('sites', mockSite)
             ]).done(function() { done() });
         });
 
