@@ -1,5 +1,10 @@
 # Content Service Changelog
 
+### 1.9.0: Mon Sep 22 14:08:00 EDT 2014
+* [FIX]: Dynamically set `branding` and `placementId` for experiences retrieved from public endpoint: [#285](https://github.com/cinema6/cwrx/pull/285)
+* [FIX]: Set `data.mode` to `lightbox-ads` when context is `mr2`: [#291](https://github.com/cinema6/cwrx/pull/291)
+* Extra deployment steps: None
+
 ### 1.8.1: Wed Sep 10 11:07:04 EDT 2014
 * [FIX]: Add permission for editing experiences' `adConfig`: [#272](https://github.com/cinema6/cwrx/pull/272)
 * [FIX]: Properly compare `adConfig` with existing `adConfig` on edit: [#275](https://github.com/cinema6/cwrx/pull/275)

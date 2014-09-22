@@ -101,6 +101,18 @@ module.exports = {
         ],
         checkSsh : [ { host : 'mongo-dev-1' } ]
     },
+    siteSvc : {
+        startInstances : [ 'mongo-dev-1' ],
+        runInstances   : [ { name: 'test-siteSvc', params: 'apiServer' } ],
+        checkHttp : [
+            {
+                host    : 'test-siteSvc',
+                iface   : 'public',
+                path    : '/api/site/meta'
+            }
+        ],
+        checkSsh : [ { host : 'mongo-dev-1' } ]
+    },
     userSvc : {
         startInstances : [ 'mongo-dev-1' ],
         runInstances   : [ { name: 'test-userSvc', params: 'apiServer' } ],
@@ -146,6 +158,11 @@ module.exports = {
                 host    : 'nightly_build',
                 iface   : 'public',
                 path    : '/api/search/meta'
+            },
+            {
+                host    : 'nightly_build',
+                iface   : 'public',
+                path    : '/api/site/meta'
             },
             {
                 host    : 'nightly_build',

@@ -1,5 +1,9 @@
 # User Service Changelog
 
+### 1.6.3: Mon Sep 22 14:08:00 EDT 2014
+* [FIX]: Give default users permission to read org's sites: [#285](https://github.com/cinema6/cwrx/pull/285)
+* Extra deployment steps: Update existing users with site permissions
+
 ### 1.6.2: Fri Sep 12 16:00:28 EDT 2014
 * [FIX]: Check equality of existing permissions before rejecting on PUT: [#280](https://github.com/cinema6/cwrx/pull/280)
 * Extra deployment steps: None
