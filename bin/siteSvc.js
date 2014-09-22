@@ -419,7 +419,7 @@
             res.send(200, data);
         });
         
-        app.get('/api/sites/version',function(req, res) {
+        app.get('/api/site/version',function(req, res) {
             res.send(200, state.config.appVersion);
         });
 
