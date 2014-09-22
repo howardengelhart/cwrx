@@ -20,7 +20,7 @@ describe('search (UT)', function() {
         spyOn(logger, 'createLog').andReturn(mockLog);
         spyOn(logger, 'getLog').andReturn(mockLog);
         req = {
-            uuid: '12345',
+            uuid: '1234',
             user: { id: 'u1' }
         };
         anyFunc = jasmine.any(Function);
@@ -58,7 +58,7 @@ describe('search (UT)', function() {
     describe('formatGoogleResults', function() {
         var stats, items;
         beforeEach(function() {
-            stats = { startIndex: 11, count: 20, totalResults: 12345 };
+            stats = { startIndex: 11, count: 20, totalResults: 50 };
             items = [
                 { title: 'YT Test', link: 'http://www.youtube.com/watch?v=GdEKSyad_rk', displayLink: 'www.youtube.com',
                   pagemap: { videoobject: [{description: 'YT desc', duration: 'PT1M13S', height: 1080}],
@@ -74,7 +74,7 @@ describe('search (UT)', function() {
         
         it('should correctly format the results', function() {
             expect(search.formatGoogleResults(stats, items)).toEqual({
-                meta: {skipped: 10, numResults: 20, totalResults: 12345},
+                meta: {skipped: 10, numResults: 20, totalResults: 50},
                 items: [
                     { title: 'YT Test', link: 'http://www.youtube.com/watch?v=GdEKSyad_rk', siteLink: 'www.youtube.com',
                       description: 'YT desc', site: 'youtube', hd: true, duration: 73, videoid: 'GdEKSyad_rk',
@@ -100,7 +100,7 @@ describe('search (UT)', function() {
                 { title: 'Fake 3', displayLink: 'vimeo.com' }
             );
             var results = search.formatGoogleResults(stats, items);
-            expect(results.meta).toEqual({skipped: 10, numResults: 6, totalResults: 12345});
+            expect(results.meta).toEqual({skipped: 10, numResults: 6, totalResults: 50});
             expect(results.items.length).toBe(3);
             expect(results.items[0].title).toBe('YT Test');
             expect(results.items[1].title).toBe('V Test');
@@ -123,7 +123,7 @@ describe('search (UT)', function() {
             spyOn(requestUtils, 'qRequest').andReturn(q({
                 response: { statusCode: 200 },
                 body: {
-                    queries: { request: [{ startIndex:11, count:20, totalResults:12345 }] },
+                    queries: { request: [{ startIndex:11, count:20, totalResults:50 }] },
                     items: 'fakeItems'
                 }
             }));
@@ -131,6 +131,22 @@ describe('search (UT)', function() {
             googleCfg = {apiUrl: 'http://google.com/cse', engineId: 'asdf1234', fields: 'fakeFields'};
             apiKey = 'zxcv5678';
             spyOn(search, 'formatGoogleResults').andReturn('formatted');
+        });
+        
+        it('should return a 400 if the user is trying to query past the 100th result', function(done) {
+            q.all([{limit: 10, start: 92}, {limit: 5, start: 120}, {limit: 1, start: 101}].map(function(params) {
+                opts.limit = params.limit;
+                opts.start = params.start;
+                return search.findVideosWithGoogle(req, opts, googleCfg, apiKey);
+            })).then(function(results) {
+                results.forEach(function(resp) {
+                    expect(resp).toEqual({code: 400, body: 'Cannot query past first 100 results'});
+                });
+                expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                expect(search.formatGoogleResults).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
         });
 
         it('should query google for videos', function(done) {
@@ -140,7 +156,7 @@ describe('search (UT)', function() {
                     qs: {q: 'foo', cx: 'asdf1234', key: 'zxcv5678', num: 10, start: 20, fields: 'fakeFields'},
                     headers: {Referer: 'https://portal.cinema6.com/index.html'}});
                 expect(search.formatGoogleResults).toHaveBeenCalledWith(
-                    { startIndex: 11, count: 20, totalResults: 12345 }, 'fakeItems');
+                    { startIndex: 11, count: 20, totalResults: 50 }, 'fakeItems');
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -186,7 +202,7 @@ describe('search (UT)', function() {
                     return q({
                         response: { statusCode: 200 },
                         body: {
-                            queries: { request: [{startIndex:11, count:20, totalResults:12345 }] },
+                            queries: { request: [{startIndex:11, count:20, totalResults:50 }] },
                             items: 'fakeItems'
                         }
                     });
@@ -199,7 +215,25 @@ describe('search (UT)', function() {
                 expect(mockLog.warn.callCount).toBe(1);
                 expect(requestUtils.qRequest.callCount).toBe(2);
                 expect(search.formatGoogleResults).toHaveBeenCalledWith(
-                    { startIndex: 11, count: 20, totalResults: 12345 }, 'fakeItems');
+                    { startIndex: 11, count: 20, totalResults: 50 }, 'fakeItems');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should never report that it found more than 100 results', function(done) {
+            requestUtils.qRequest.andReturn(q({
+                response: { statusCode: 200 },
+                body: {
+                    queries: { request: [{ startIndex:11, count:20, totalResults:500 }] },
+                    items: 'fakeItems'
+                }
+            }));
+            search.findVideosWithGoogle(req, opts, googleCfg, apiKey).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(search.formatGoogleResults).toHaveBeenCalledWith(
+                    { startIndex: 11, count: 20, totalResults: 100 }, 'fakeItems');
+                expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);

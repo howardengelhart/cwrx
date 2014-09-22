@@ -57,6 +57,7 @@ describe('search (E2E):', function() {
                 expect(resp.body.meta.skipped).toBe(0);
                 expect(resp.body.meta.numResults).toBe(10);
                 expect(resp.body.meta.totalResults >= 10).toBeTruthy();
+                expect(resp.body.meta.totalResults <= 100).toBeTruthy();
                 expect(resp.body.items.length).toBe(10);
                 resp.body.items.forEach(function(item) {
                     expect(item.title).toBeDefined();
@@ -138,6 +139,7 @@ describe('search (E2E):', function() {
                 expect(resp.body.meta.skipped).toBe(0);
                 expect(resp.body.meta.numResults).toBe(10);
                 expect(resp.body.meta.totalResults >= 10).toBeTruthy();
+                expect(resp.body.meta.totalResults <= 100).toBeTruthy();
                 expect(resp.body.items.length).toBe(10);
                 options.qs.skip = 10;
                 options.qs.limit = 5;
@@ -147,6 +149,7 @@ describe('search (E2E):', function() {
                 expect(resp.body.meta.skipped).toBe(10);
                 expect(resp.body.meta.numResults).toBe(5);
                 expect(resp.body.meta.totalResults >= 15).toBeTruthy();
+                expect(resp.body.meta.totalResults <= 100).toBeTruthy();
                 expect(resp.body.items.length).toBe(5);
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -187,6 +190,21 @@ describe('search (E2E):', function() {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('No query in request');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should return a 400 if attempting to query past the 100th result', function(done) {
+            q.all([{skip: 91}, {limit: 1, skip: 100}].map(function(params) {
+                options.qs.skip = params.skip;
+                options.qs.limit = params.limit;
+                return requestUtils.qRequest('get', options);
+            })).then(function(results) {
+                results.forEach(function(resp) {
+                    expect(resp.response.statusCode).toBe(400);
+                    expect(resp.body).toBe('Cannot query past first 100 results');
+                });
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).finally(done);
