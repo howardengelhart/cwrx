@@ -131,6 +131,12 @@
         var log = logger.getLog(),
             deferred = q.defer();
 
+        if (opts.start + opts.limit > 101) {
+            log.info('[%1] Cannot query for results after the first 100; start = %2, limit = %3',
+                     req.uuid, opts.start, opts.limit);
+            return q({code: 400, body: 'Cannot query past first 100 results'});
+        }
+
         if (opts.sites) {
             opts.query += ' site:' + opts.sites.join(' OR site:');
         }
@@ -170,7 +176,7 @@
                 var stats = resp.body.queries.request[0];
                 stats.count = Math.min(stats.count, stats.totalResults);
                 stats.startIndex = stats.startIndex || 0;
-                stats.totalResults = Number(stats.totalResults);
+                stats.totalResults = Math.min(Number(stats.totalResults), 100);
                 log.info('[%1] Received %2 results from %3 total results, starting at %4',
                         req.uuid, stats.count, stats.totalResults, stats.startIndex);
 
