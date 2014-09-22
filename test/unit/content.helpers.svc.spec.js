@@ -461,7 +461,7 @@ describe('content (UT)', function() {
         beforeEach(function() {
             exp = { id: 'e-1', data: { foo: 'bar' } };
             mockSite = { id: 'w-1', status: Status.Active, branding: 'siteBrand', placementId: 456 };
-            queryParams = { context: 'mr2', branding: 'widgetBrand', placementId: 123 };
+            queryParams = { context: 'embed', branding: 'widgetBrand', placementId: 123 };
             host = 'wired.com';
             siteCache = { getPromise: jasmine.createSpy('siteCache.getPromise').andReturn(q([mockSite])) };
             defaultSiteCfg = { branding: 'c6', placementId: 789 };
@@ -488,9 +488,21 @@ describe('content (UT)', function() {
             }).finally(done);
         });
         
-        it('should return the queryParam properties if the context is mr2', function(done) {
+        it('should overwrite the existing mode if the context is mr2', function(done) {
+            queryParams.context = 'mr2';
+            exp.data = { branding: 'expBranding', placementId: 234, mode: 'not-lightbox' };
             content.getSiteConfig(exp, queryParams, host, siteCache, defaultSiteCfg).then(function(exp) {
-                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'widgetBrand', placementId: 123}});
+                expect(exp).toEqual({id: 'e-1', data: {branding: 'expBranding', placementId: 234, mode: 'lightbox-ads'}});
+                expect(siteCache.getPromise).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should return the queryParam properties if the context is mr2', function(done) {
+            queryParams.context = 'mr2';
+            content.getSiteConfig(exp, queryParams, host, siteCache, defaultSiteCfg).then(function(exp) {
+                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', mode: 'lightbox-ads', branding: 'widgetBrand', placementId: 123}});
                 expect(siteCache.getPromise).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -500,7 +512,7 @@ describe('content (UT)', function() {
         it('should handle the queryParams being incomplete', function(done) {
             queryParams = { context: 'mr2' };
             content.getSiteConfig(exp, queryParams, host, siteCache, defaultSiteCfg).then(function(exp) {
-                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'siteBrand', placementId: 456}});
+                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', mode: 'lightbox-ads', branding: 'siteBrand', placementId: 456}});
                 expect(siteCache.getPromise).toHaveBeenCalledWith({host: 'wired.com'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
