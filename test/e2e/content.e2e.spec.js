@@ -81,12 +81,16 @@ describe('content (E2E):', function() {
     describe('GET /api/public/content/experience/:id', function() {
         var mockExps, mockOrg, options;
         beforeEach(function(done) {
-            options = { url: config.contentUrl + '/public/content/experience/e2e-pubget1' };
+            options = {
+                url: config.contentUrl + '/public/content/experience/e2e-pubget1',
+                headers: { origin: 'http://test.c6.com' },
+                qs: { context: 'mr2', branding: 'reqBrand', placementId: '789' }
+            };
             mockExps = [
                 {
                     id: 'e2e-pubget1',
                     title: 'test experience',
-                    data: [ { data: { foo: 'bar' }, versionId: 'a5e744d0' } ],
+                    data: [{data: { foo: 'bar', branding: 'expBrand', placementId: '123' }, versionId: 'a5e744d0'}],
                     access: 'public',
                     user: 'e2e-user',
                     org: 'e2e-org',
@@ -94,7 +98,7 @@ describe('content (E2E):', function() {
                 },
                 {
                     id: 'e2e-org-adConfig',
-                    data: [ { data: { foo: 'bar' }, versionId: 'a5e744d0' } ],
+                    data: [ { data: {foo: 'bar' }, versionId: 'a5e744d0' } ],
                     access: 'public',
                     status: 'active',
                     user: 'e2e-user',
@@ -111,10 +115,12 @@ describe('content (E2E):', function() {
                 { id: 'e2e-pubget2', status: 'pending', access: 'public' },
                 { id: 'e2e-pubget3', status: 'active', access: 'private' }
             ];
+            mockSite = {id: 'e2e-site', status: 'active', host: 'c6.com', branding: 'siteBrand', placementId: '456'};
             mockOrg = { id: 'e2e-active-org', status: 'active', adConfig: { foo: 'bar' } };
-            testUtils.resetCollection('experiences', mockExps).then(function() {
-                return testUtils.resetCollection('orgs', mockOrg);
-            }).done(done);
+            q.all([testUtils.resetCollection('experiences', mockExps),
+                   testUtils.resetCollection('orgs', mockOrg),
+                   testUtils.resetCollection('sites', mockSite)
+            ]).done(function() { done() });
         });
 
         it('should get an experience by id', function(done) {
@@ -124,7 +130,7 @@ describe('content (E2E):', function() {
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBe('e2e-pubget1');
                 expect(resp.body.title).toBe('test experience');
-                expect(resp.body.data).toEqual({foo: 'bar'});
+                expect(resp.body.data).toEqual({foo: 'bar', branding: 'expBrand', placementId: '123'});
                 expect(resp.body.user).not.toBeDefined();
                 expect(resp.body.org).not.toBeDefined();
                 expect(resp.body.versionId).toBe('a5e744d0');
@@ -142,7 +148,7 @@ describe('content (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBe('e2e-org-adConfig');
-                expect(resp.body.data).toEqual({foo: 'bar', adConfig: { foo: 'bar' }});
+                expect(resp.body.data.adConfig).toEqual({foo: 'bar'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
@@ -154,9 +160,50 @@ describe('content (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBe('e2e-adConfig');
-                expect(resp.body.data).toEqual({foo: 'bar', adConfig: { foo: 'baz' }});
+                expect(resp.body.data.adConfig).toEqual({foo: 'baz'});
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should use the request branding and placementId if not on the exp', function(done) {
+            options.url = options.url.replace('e2e-pubget1', 'e2e-org-adConfig');
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toBe('e2e-org-adConfig');
+                expect(resp.body.data.branding).toBe('reqBrand');
+                expect(resp.body.data.placementId).toBe('789');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should fall back to the current site\'s branding and placementId', function(done) {
+            options.qs.context = 'embed';
+            options.url = options.url.replace('e2e-pubget1', 'e2e-org-adConfig');
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toBe('e2e-org-adConfig');
+                expect(resp.body.data.branding).toBe('siteBrand');
+                expect(resp.body.data.placementId).toBe('456');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should have some system level defaults for the branding and placementId', function(done) {
+            options.qs.context = 'embed';
+            options.url = options.url.replace('e2e-pubget1', 'e2e-org-adConfig');
+            options.headers.origin = 'http://cinema6.com';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toBe('e2e-org-adConfig');
+                expect(resp.body.data.branding).toBeDefined();
+                expect(resp.body.data.branding).not.toBe('siteBrand');
+                expect(resp.body.data.placementId).toBeDefined();
+                expect(resp.body.data.placementId).not.toBe('456');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
             }).finally(done);
         });
         
@@ -222,7 +269,7 @@ describe('content (E2E):', function() {
     });
     
     /* Currently, this endpoint is identical to GET /api/public/experience/:id, so only one test is
-     * included here as a sanity. If the endpoints diverge, additional tests should be written. */
+     * included here as a sanity check. If the endpoints diverge, additional tests should be written. */
     describe('GET /api/public/experience/:id.json', function() {
         var mockExps, mockOrg, options;
         beforeEach(function(done) {

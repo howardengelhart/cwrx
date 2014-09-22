@@ -254,6 +254,9 @@
             orgs: {
                 read: Scope.Own,
                 edit: Scope.Own
+            },
+            sites: {
+                read: Scope.Org
             }
         };
         Object.keys(defaultPerms).forEach(function(key) {
