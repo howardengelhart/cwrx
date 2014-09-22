@@ -137,7 +137,7 @@ describe('user (E2E):', function() {
         });
         
         it('should get users by org', function(done) {
-            var options = { url: config.userSvcUrl + '/users?org=o-1234', jar: cookieJar };
+            var options = { url: config.userSvcUrl + '/users?org=o-1234&sort=id,1', jar: cookieJar };
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();

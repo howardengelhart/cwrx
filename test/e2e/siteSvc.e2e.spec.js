@@ -115,7 +115,7 @@ describe('site (E2E):', function() {
         });
         
         it('should get sites by host', function(done) {
-            var options = { url: config.siteSvcUrl + '/sites?host=c6.com', jar: cookieJar };
+            var options = { url: config.siteSvcUrl + '/sites?host=c6.com&sort=id,1', jar: cookieJar };
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual([{id: 'e2e-get2', status: 'active', host: 'c6.com', org: 'o-1234'}]);
@@ -126,7 +126,7 @@ describe('site (E2E):', function() {
         });
         
         it('should get sites by org', function(done) {
-            var options = { url: config.siteSvcUrl + '/sites?org=o-1234', jar: cookieJar };
+            var options = { url: config.siteSvcUrl + '/sites?org=o-1234&sort=id,1', jar: cookieJar };
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual([
