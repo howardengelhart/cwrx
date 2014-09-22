@@ -410,7 +410,7 @@
             next();
         });
         
-        app.get('/api/sites/meta', function(req, res) {
+        app.get('/api/site/meta', function(req, res) {
             var data = {
                 version: state.config.appVersion,
                 started : started.toISOString(),
