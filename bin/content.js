@@ -232,6 +232,7 @@
         }
         
         if (queryParams && queryParams.context === 'mr2') {
+            exp.data.mode = 'lightbox-ads';
             exp.data.branding = exp.data.branding || queryParams.branding;
             exp.data.placementId = exp.data.placementId || queryParams.placementId;
         }
