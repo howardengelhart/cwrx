@@ -222,8 +222,8 @@
         });
     };
     
-    // Ensure experience has branding and placementId, getting from current site if necessary
-    content.getSiteConfig = function(exp, queryParams, host, siteCache, defaultSiteCfg) {
+    // Ensure experience has branding and placementId, getting from current site or org if necessary
+    content.getSiteConfig = function(exp, orgId, query, host, siteCache, orgCache, defaultSiteCfg) {
         var log = logger.getLog();
 
         if (!exp.data) {
@@ -231,21 +231,29 @@
             return q(exp);
         }
         
-        if (queryParams && queryParams.context === 'mr2') {
+        if (query && query.context === 'mr2') {
             exp.data.mode = 'lightbox-ads';
-            exp.data.branding = exp.data.branding || queryParams.branding;
-            exp.data.placementId = exp.data.placementId || queryParams.placementId;
+            exp.data.branding = exp.data.branding || query.branding;
+            exp.data.placementId = exp.data.placementId || query.placementId;
         }
         if (exp.data.branding && exp.data.placementId) {
             return q(exp);
         }
-        
+
         return siteCache.getPromise({host: host}).then(function(results) {
             if (results.length === 0 || results[0].status !== Status.Active) {
                 log.trace('Site %1 not found', host);
             } else {
                 exp.data.branding = exp.data.branding || results[0].branding;
                 exp.data.placementId = exp.data.placementId || results[0].placementId;
+            }
+            if (exp.data.branding) {
+                return q();
+            }
+            return orgCache.getPromise({id: orgId});
+        }).then(function(results) {
+            if (results && results.length !== 0 && results[0].status === Status.Active) {
+                exp.data.branding = exp.data.branding || results[0].branding;
             }
             exp.data.branding = exp.data.branding || defaultSiteCfg.branding;
             exp.data.placementId = exp.data.placementId || defaultSiteCfg.placementId;
@@ -279,7 +287,8 @@
             
             return content.getAdConfig(experiences[0], results[0].org, orgCache)
             .then(function(exp) {
-                return content.getSiteConfig(exp, qps, req.shortOrigin, siteCache, defaultSiteCfg);
+                return content.getSiteConfig(exp, results[0].org, qps, req.shortOrigin, siteCache,
+                                             orgCache, defaultSiteCfg);
             })
             .then(function(exp) {
                 return q({code: 200, body: exp});

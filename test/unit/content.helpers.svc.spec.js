@@ -457,19 +457,22 @@ describe('content (UT)', function() {
     });
 
     describe('getSiteConfig', function() {
-        var exp, queryParams, host, siteCache, defaultSiteCfg;
+        var exp, queryParams, host, mockSite, mockOrg, siteCache, orgCache, defaultSiteCfg;
         beforeEach(function() {
             exp = { id: 'e-1', data: { foo: 'bar' } };
             mockSite = { id: 'w-1', status: Status.Active, branding: 'siteBrand', placementId: 456 };
+            mockOrg = { id: 'o-1', status: Status.Active, branding: 'orgBrand' };
             queryParams = { context: 'embed', branding: 'widgetBrand', placementId: 123 };
             host = 'wired.com';
             siteCache = { getPromise: jasmine.createSpy('siteCache.getPromise').andReturn(q([mockSite])) };
+            orgCache = { getPromise: jasmine.createSpy('orgCache.getPromise').andReturn(q([mockOrg])) };
             defaultSiteCfg = { branding: 'c6', placementId: 789 };
         });
         
         it('should log a warning if the experience has no data', function(done) {
             delete exp.data;
-            content.getSiteConfig(exp, queryParams, host, siteCache, defaultSiteCfg).then(function(exp) {
+            content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            .then(function(exp) {
                 expect(exp).toEqual({ id: 'e-1' });
                 expect(siteCache.getPromise).not.toHaveBeenCalled();
                 expect(mockLog.warn).toHaveBeenCalled();
@@ -480,9 +483,11 @@ describe('content (UT)', function() {
         
         it('should return the experience\'s properties if they\'re defined', function(done) {
             exp.data = { branding: 'expBranding', placementId: 234 };
-            content.getSiteConfig(exp, queryParams, host, siteCache, defaultSiteCfg).then(function(exp) {
+            content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {branding: 'expBranding', placementId: 234}});
                 expect(siteCache.getPromise).not.toHaveBeenCalled();
+                expect(orgCache.getPromise).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
@@ -491,9 +496,11 @@ describe('content (UT)', function() {
         it('should overwrite the existing mode if the context is mr2', function(done) {
             queryParams.context = 'mr2';
             exp.data = { branding: 'expBranding', placementId: 234, mode: 'not-lightbox' };
-            content.getSiteConfig(exp, queryParams, host, siteCache, defaultSiteCfg).then(function(exp) {
+            content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {branding: 'expBranding', placementId: 234, mode: 'lightbox-ads'}});
                 expect(siteCache.getPromise).not.toHaveBeenCalled();
+                expect(orgCache.getPromise).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
@@ -501,9 +508,11 @@ describe('content (UT)', function() {
         
         it('should return the queryParam properties if the context is mr2', function(done) {
             queryParams.context = 'mr2';
-            content.getSiteConfig(exp, queryParams, host, siteCache, defaultSiteCfg).then(function(exp) {
+            content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', mode: 'lightbox-ads', branding: 'widgetBrand', placementId: 123}});
                 expect(siteCache.getPromise).not.toHaveBeenCalled();
+                expect(orgCache.getPromise).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
@@ -511,7 +520,8 @@ describe('content (UT)', function() {
         
         it('should handle the queryParams being incomplete', function(done) {
             queryParams = { context: 'mr2' };
-            content.getSiteConfig(exp, queryParams, host, siteCache, defaultSiteCfg).then(function(exp) {
+            content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', mode: 'lightbox-ads', branding: 'siteBrand', placementId: 456}});
                 expect(siteCache.getPromise).toHaveBeenCalledWith({host: 'wired.com'});
             }).catch(function(error) {
@@ -521,9 +531,24 @@ describe('content (UT)', function() {
         
         it('should fall back on the site\'s config', function(done) {
             queryParams.context = 'embed';
-            content.getSiteConfig(exp, queryParams, host, siteCache, defaultSiteCfg).then(function(exp) {
+            content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'siteBrand', placementId: 456}});
                 expect(siteCache.getPromise).toHaveBeenCalledWith({host: 'wired.com'});
+                expect(orgCache.getPromise).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should next fall back to the org\'s config', function(done) {
+            queryParams.context = 'embed';
+            siteCache.getPromise.andReturn(q([]));
+            content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            .then(function(exp) {
+                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'orgBrand', placementId: 789}});
+                expect(siteCache.getPromise).toHaveBeenCalled();
+                expect(orgCache.getPromise).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
@@ -532,18 +557,33 @@ describe('content (UT)', function() {
         it('should handle the site object not having a branding or placementId', function(done) {
             queryParams.context = 'embed';
             siteCache.getPromise.andReturn(q([{id: 'w-1'}]));
-            content.getSiteConfig(exp, queryParams, host, siteCache, defaultSiteCfg).then(function(exp) {
-                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'c6', placementId: 789}});
+            content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            .then(function(exp) {
+                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'orgBrand', placementId: 789}});
+                expect(siteCache.getPromise).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should not use the site if it is not active', function(done) {
+            queryParams.context = 'embed';
+            mockSite.status = Status.Inactive;
+            content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            .then(function(exp) {
+                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'orgBrand', placementId: 789}});
                 expect(siteCache.getPromise).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
         });
 
-        it('should not use the site if it is not active', function(done) {
+        it('should use the default config as a last resort', function(done) {
             queryParams.context = 'embed';
-            mockSite.status = Status.Inactive;
-            content.getSiteConfig(exp, queryParams, host, siteCache, defaultSiteCfg).then(function(exp) {
+            siteCache.getPromise.andReturn(q([]));
+            orgCache.getPromise.andReturn(q([]));
+            content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'c6', placementId: 789}});
                 expect(siteCache.getPromise).toHaveBeenCalled();
             }).catch(function(error) {
@@ -551,12 +591,27 @@ describe('content (UT)', function() {
             }).finally(done);
         });
         
-        it('should use the default config as a last resort', function(done) {
+        it('should handle the org object not having a branding', function(done) {
             queryParams.context = 'embed';
             siteCache.getPromise.andReturn(q([]));
-            content.getSiteConfig(exp, queryParams, host, siteCache, defaultSiteCfg).then(function(exp) {
+            orgCache.getPromise.andReturn(q([{id: 'o-1'}]));
+            content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'c6', placementId: 789}});
-                expect(siteCache.getPromise).toHaveBeenCalled();
+                expect(orgCache.getPromise).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should not use the org if it is not active', function(done) {
+            queryParams.context = 'embed';
+            siteCache.getPromise.andReturn(q([]));
+            mockOrg.status = Status.Deleted;
+            content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            .then(function(exp) {
+                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'c6', placementId: 789}});
+                expect(orgCache.getPromise).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
@@ -566,7 +621,8 @@ describe('content (UT)', function() {
             exp.data.branding = 'expBranding';
             queryParams.context = 'embed';
             siteCache.getPromise.andReturn(q([]));
-            content.getSiteConfig(exp, queryParams, host, siteCache, defaultSiteCfg).then(function(exp) {
+            content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'expBranding', placementId: 789}});
                 expect(siteCache.getPromise).toHaveBeenCalled();
             }).catch(function(error) {
@@ -574,14 +630,29 @@ describe('content (UT)', function() {
             }).finally(done);
         });
         
-        it('should reject if getPromise returns a rejected promise', function(done) {
+        it('should reject if siteCache.getPromise returns a rejected promise', function(done) {
             queryParams.context = 'embed';
             siteCache.getPromise.andReturn(q.reject('I GOT A PROBLEM'));
-            content.getSiteConfig(exp, queryParams, host, siteCache, defaultSiteCfg).then(function(exp) {
+            content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            .then(function(exp) {
                 expect(exp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(siteCache.getPromise).toHaveBeenCalled();
+            }).finally(done);
+        });
+
+        it('should reject if orgCache.getPromise returns a rejected promise', function(done) {
+            queryParams.context = 'embed';
+            siteCache.getPromise.andReturn(q([]));
+            orgCache.getPromise.andReturn(q.reject('I GOT A PROBLEM'));
+            content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            .then(function(exp) {
+                expect(exp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(siteCache.getPromise).toHaveBeenCalled();
+                expect(orgCache.getPromise).toHaveBeenCalled();
             }).finally(done);
         });
     });

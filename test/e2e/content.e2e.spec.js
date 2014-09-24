@@ -112,11 +112,12 @@ describe('content (E2E):', function() {
                     user: 'e2e-user',
                     org: 'e2e-active-org'
                 },
+                { id: 'e2e-no-org', status: 'active', org: 'fake', data: [{ data: { foo: 'bar' }, versionId: '1234' }] },
                 { id: 'e2e-pubget2', status: 'pending', access: 'public' },
                 { id: 'e2e-pubget3', status: 'active', access: 'private' }
             ];
             mockSite = {id: 'e2e-site', status: 'active', host: 'c6.com', branding: 'siteBrand', placementId: '456'};
-            mockOrg = { id: 'e2e-active-org', status: 'active', adConfig: { foo: 'bar' } };
+            mockOrg = { id: 'e2e-active-org', status: 'active', adConfig: { foo: 'bar' }, branding: 'orgBrand' };
             q.all([testUtils.resetCollection('experiences', mockExps),
                    testUtils.resetCollection('orgs', mockOrg),
                    testUtils.resetCollection('sites', mockSite)
@@ -206,12 +207,26 @@ describe('content (E2E):', function() {
             }).finally(done);
         });
         
-        it('should have some system level defaults for the branding and placementId', function(done) {
+        it('should then fall back to the org\'s branding', function(done) {
             options.url = options.url.replace('e2e-pubget1', 'e2e-org-adConfig');
             options.headers.origin = 'http://cinema6.com';
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.id).toBe('e2e-org-adConfig');
+                expect(resp.body.data.branding).toBe('orgBrand');
+                expect(resp.body.data.placementId).toBeDefined();
+                expect(resp.body.data.placementId).not.toBe('456');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should have some system level defaults for the branding and placementId', function(done) {
+            options.url = options.url.replace('e2e-pubget1', 'e2e-no-org');
+            options.headers.origin = 'http://fake.com';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toBe('e2e-no-org');
                 expect(resp.body.data.branding).toBeDefined();
                 expect(resp.body.data.branding).not.toBe('siteBrand');
                 expect(resp.body.data.placementId).toBeDefined();

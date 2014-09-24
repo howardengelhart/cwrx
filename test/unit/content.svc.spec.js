@@ -35,27 +35,32 @@ describe('content (UT)', function() {
     });
 
     describe('getPublicExp', function() {
-        var id, req, expCache, orgCache, pubList;
+        var id, req, expCache, orgCache, siteCache, pubList, siteCfg;
         beforeEach(function() {
             id = 'e-1';
-            req = { isC6Origin: false, uuid: '1234' };
+            req = { isC6Origin: false, shortOrigin: 'c6.com', uuid: '1234', query: {foo: 'bar'} };
+            siteCfg = { sites: 'good' };
             expCache = {
                 getPromise: jasmine.createSpy('expCache.getPromise').andReturn(q([{id: 'e-1', org: 'o-1'}]))
             };
             orgCache = 'fakeOrgCache';
+            siteCache = 'fakeSiteCache';
             spyOn(content, 'canGetExperience').andReturn(true);
             content.formatOutput.andReturn('formatted');
             spyOn(content, 'getAdConfig').andReturn(q('withAdConfig'));
+            spyOn(content, 'getSiteConfig').andReturn(q('withSiteConfig'));
         });
         
         it('should call cache.getPromise to get the experience', function(done) {
-            content.getPublicExp(id, req, expCache, orgCache).then(function(resp) {
+            content.getPublicExp(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
                 expect(resp.code).toBe(200);
-                expect(resp.body).toBe('withAdConfig');
+                expect(resp.body).toBe('withSiteConfig');
                 expect(expCache.getPromise).toHaveBeenCalledWith({id: 'e-1'});
                 expect(content.formatOutput).toHaveBeenCalledWith({id: 'e-1', org: 'o-1'}, true);
                 expect(content.canGetExperience).toHaveBeenCalledWith('formatted', null, false);
                 expect(content.getAdConfig).toHaveBeenCalledWith('formatted', 'o-1', 'fakeOrgCache');
+                expect(content.getSiteConfig).toHaveBeenCalledWith('withAdConfig', 'o-1', {foo: 'bar'},
+                    'c6.com', 'fakeSiteCache', 'fakeOrgCache', {sites: 'good'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
@@ -63,13 +68,14 @@ describe('content (UT)', function() {
         
         it('should return a 404 if nothing was found', function(done) {
             expCache.getPromise.andReturn(q([]));
-            content.getPublicExp(id, req, expCache, orgCache).then(function(resp) {
+            content.getPublicExp(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
                 expect(resp.code).toBe(404);
                 expect(resp.body).toBe('Experience not found');
                 expect(expCache.getPromise).toHaveBeenCalled();
                 expect(content.formatOutput).not.toHaveBeenCalled();
                 expect(content.canGetExperience).not.toHaveBeenCalled();
                 expect(content.getAdConfig).not.toHaveBeenCalled();
+                expect(content.getSiteConfig).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
@@ -77,13 +83,14 @@ describe('content (UT)', function() {
         
         it('should return a 404 if the user cannot see the experience', function(done) {
             content.canGetExperience.andReturn(false);
-            content.getPublicExp(id, req, expCache, orgCache).then(function(resp) {
+            content.getPublicExp(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
                 expect(resp.code).toBe(404);
                 expect(resp.body).toBe('Experience not found');
                 expect(expCache.getPromise).toHaveBeenCalled();
                 expect(content.formatOutput).toHaveBeenCalled();
                 expect(content.canGetExperience).toHaveBeenCalled();
                 expect(content.getAdConfig).not.toHaveBeenCalled();
+                expect(content.getSiteConfig).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
@@ -91,7 +98,7 @@ describe('content (UT)', function() {
         
         it('should fail if the promise was rejected', function(done) {
             expCache.getPromise.andReturn(q.reject('I GOT A PROBLEM'));
-            content.getPublicExp(id, req, expCache, orgCache).then(function(resp) {
+            content.getPublicExp(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
@@ -104,7 +111,7 @@ describe('content (UT)', function() {
         
         it('should fail if calling getAdConfig fails', function(done) {
             content.getAdConfig.andReturn(q.reject('I GOT A PROBLEM'));
-            content.getPublicExp(id, req, expCache, orgCache).then(function(resp) {
+            content.getPublicExp(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
@@ -112,6 +119,21 @@ describe('content (UT)', function() {
                 expect(content.formatOutput).toHaveBeenCalled();
                 expect(content.canGetExperience).toHaveBeenCalled();
                 expect(content.getAdConfig).toHaveBeenCalled();
+                expect(content.getSiteConfig).not.toHaveBeenCalled();
+            }).finally(done);
+        });
+
+        it('should fail if calling getSiteConfig fails', function(done) {
+            content.getSiteConfig.andReturn(q.reject('I GOT A PROBLEM'));
+            content.getPublicExp(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(expCache.getPromise).toHaveBeenCalled();
+                expect(content.formatOutput).toHaveBeenCalled();
+                expect(content.canGetExperience).toHaveBeenCalled();
+                expect(content.getAdConfig).toHaveBeenCalled();
+                expect(content.getSiteConfig).toHaveBeenCalled();
             }).finally(done);
         });
     });
