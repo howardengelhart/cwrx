@@ -387,24 +387,23 @@ describe('siteSvc (UT)', function() {
     });
     
     describe('setupSite', function() {
-        var newSite, requester;
+        var newSite;
         beforeEach(function() {
             newSite = { host: 'c6.com', branding: 'c6' };
-            requester = { id: 'u-4567', org: 'o-1234' };
             spyOn(uuid, 'createUuid').andReturn('1234567890abcdefg');
         });
 
         it('should setup some default fields', function() {
-            expect(siteSvc.setupSite(newSite, requester)).toEqual(
+            expect(siteSvc.setupSite(newSite)).toEqual(
                 { id: 's-1234567890abcd', created: jasmine.any(Date), host: 'c6.com', branding: 'c6',
-                  lastUpdated: jasmine.any(Date), status: Status.Active, org: 'o-1234'});
+                  lastUpdated: jasmine.any(Date), status: Status.Active});
             expect(mongoUtils.escapeKeys).toHaveBeenCalledWith(newSite);
         });
         
-        it('should allow the user to provide custom status and org properties', function() {
+        it('should allow the user to provide a custom status and org properties', function() {
             newSite.org = 'o-4567';
             newSite.status = Status.Pending;
-            expect(siteSvc.setupSite(newSite, requester)).toEqual(
+            expect(siteSvc.setupSite(newSite)).toEqual(
                 { id: 's-1234567890abcd', created: jasmine.any(Date), host: 'c6.com', branding: 'c6',
                   lastUpdated: jasmine.any(Date), status: Status.Pending, org: 'o-4567'});
         });
@@ -493,7 +492,7 @@ describe('siteSvc (UT)', function() {
                 expect(siteSvc.validateHost).toHaveBeenCalledWith('c6.com');
                 expect(siteColl.findOne).toHaveBeenCalledWith({host: 'c6.com'}, anyFunc);
                 expect(siteSvc.createValidator.validate).toHaveBeenCalledWith(req.body, {}, req.user);
-                expect(siteSvc.setupSite).toHaveBeenCalledWith(req.body, req.user);
+                expect(siteSvc.setupSite).toHaveBeenCalledWith(req.body);
                 expect(siteColl.insert).toHaveBeenCalledWith(resp.body, {w: 1, journal: true}, anyFunc);
                 expect(mongoUtils.unescapeKeys).toHaveBeenCalledWith(resp.body);
             }).catch(function(error) {
