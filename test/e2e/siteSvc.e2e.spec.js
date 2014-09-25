@@ -269,7 +269,7 @@ describe('site (E2E):', function() {
                 expect(resp.body.name).toBe('Test Site');
                 expect(new Date(resp.body.created).toString()).not.toEqual('Invalid Date');
                 expect(new Date(resp.body.lastUpdated).toString()).not.toEqual('Invalid Date');
-                expect(resp.body.org).toBe('o-1234');
+                expect(resp.body.org).not.toBeDefined();
                 expect(resp.body.status).toBe('active');
                 expect(resp.body.host).toBe('c6.com');
                 expect(resp.body._id).not.toBeDefined();
@@ -280,9 +280,11 @@ describe('site (E2E):', function() {
         
         it('should be able to override default properties', function(done) {
             mockSite.status = 'pending';
+            mockSite.org = 'o-1234';
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body.status).toBe('pending');
+                expect(resp.body.org).toBe('o-1234');
                 expect(resp.body._id).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
