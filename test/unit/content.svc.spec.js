@@ -38,7 +38,7 @@ describe('content (UT)', function() {
         var id, req, expCache, orgCache, siteCache, pubList, siteCfg;
         beforeEach(function() {
             id = 'e-1';
-            req = { isC6Origin: false, shortOrigin: 'c6.com', uuid: '1234', query: {foo: 'bar'} };
+            req = { isC6Origin: false, originHost: 'c6.com', uuid: '1234', query: {foo: 'bar'} };
             siteCfg = { sites: 'good' };
             expCache = {
                 getPromise: jasmine.createSpy('expCache.getPromise').andReturn(q([{id: 'e-1', org: 'o-1'}]))

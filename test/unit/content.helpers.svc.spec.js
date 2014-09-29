@@ -208,7 +208,7 @@ describe('content (UT)', function() {
         it('should parse the origin and setup various properties', function() {
             content.parseOrigin(req, pubList);
             expect(req.origin).toBe('http://staging.cinema6.com');
-            expect(req.shortOrigin).toBe('cinema6.com');
+            expect(req.originHost).toBe('staging.cinema6.com');
             expect(req.isC6Origin).toBe(true);
             expect(req.headers).toEqual({ origin: 'http://staging.cinema6.com' });
         });
@@ -224,16 +224,15 @@ describe('content (UT)', function() {
         
         it('should properly get the short version of the origin from the original', function() {
             [
-                { url: 'http://foo.com/', shortOrigin: 'foo.com' },
-                { url: 'http://bar.foo.com/qwer', shortOrigin: 'foo.com' },
-                { url: 'http://baz.bar.foo.com?foo=bar', shortOrigin: 'foo.com' },
-                { url: 'http://foo.com.uk', shortOrigin: 'foo.com.uk' },
-                { url: 'http://video.games.foo.com.uk', shortOrigin: 'foo.com.uk'}
+                { url: 'http://foo.com/', originHost: 'foo.com' },
+                { url: 'http://bar.foo.com/qwer', originHost: 'bar.foo.com' },
+                { url: 'http://bar.foo.com?foo=bar', originHost: 'bar.foo.com' },
+                { url: 'http://foo.com.uk', originHost: 'foo.com.uk' }
             ].forEach(function(test) {
                 req = { headers: { origin: test.url } };
                 content.parseOrigin(req, pubList);
                 expect(req.origin).toBe(test.url);
-                expect(req.shortOrigin).toBe(test.shortOrigin);
+                expect(req.originHost).toBe(test.originHost);
             });
         });
         
@@ -256,7 +255,7 @@ describe('content (UT)', function() {
             [{}, { headers: {} }, { headers: { origin: '' } }].forEach(function(testReq) {
                 content.parseOrigin(testReq, pubList);
                 expect(testReq.origin).toBe('');
-                expect(testReq.shortOrigin).toBe('');
+                expect(testReq.originHost).toBe('');
                 expect(testReq.isC6Origin).toBe(false);
             });
         });
@@ -455,6 +454,17 @@ describe('content (UT)', function() {
             }).finally(done);
         });
     });
+    
+    describe('buildHostQuery', function() {
+        it('should correctly build a query from a hostname', function() {
+            expect(content.buildHostQuery('foo.com')).toEqual({host:{$in:['foo.com']}});
+            expect(content.buildHostQuery('foo.bar.com')).toEqual({host:{$in:['foo.bar.com','bar.com']}});
+            expect(content.buildHostQuery('foo.bar.baz.com')).toEqual({host:{$in:['foo.bar.baz.com','bar.baz.com','baz.com']}});
+            expect(content.buildHostQuery('foo')).toEqual({host:{$in:[]}});
+            expect(content.buildHostQuery('')).toEqual({host:{$in:[]}});
+            expect(content.buildHostQuery('portal.cinema6.com')).toEqual({host:{$in:['portal.cinema6.com','cinema6.com']}});
+        });
+    });
 
     describe('getSiteConfig', function() {
         var exp, queryParams, host, mockSite, mockOrg, siteCache, orgCache, defaultSiteCfg;
@@ -463,10 +473,11 @@ describe('content (UT)', function() {
             mockSite = { id: 'w-1', status: Status.Active, branding: 'siteBrand', placementId: 456 };
             mockOrg = { id: 'o-1', status: Status.Active, branding: 'orgBrand' };
             queryParams = { context: 'embed', branding: 'widgetBrand', placementId: 123 };
-            host = 'wired.com';
+            host = 'games.wired.com';
             siteCache = { getPromise: jasmine.createSpy('siteCache.getPromise').andReturn(q([mockSite])) };
             orgCache = { getPromise: jasmine.createSpy('orgCache.getPromise').andReturn(q([mockOrg])) };
             defaultSiteCfg = { branding: 'c6', placementId: 789 };
+            spyOn(content, 'buildHostQuery').andCallThrough();
         });
         
         it('should log a warning if the experience has no data', function(done) {
@@ -523,7 +534,8 @@ describe('content (UT)', function() {
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', mode: 'lightbox-ads', branding: 'siteBrand', placementId: 456}});
-                expect(siteCache.getPromise).toHaveBeenCalledWith({host: 'wired.com'});
+                expect(siteCache.getPromise).toHaveBeenCalledWith({host: {$in: ['games.wired.com', 'wired.com']}});
+                expect(content.buildHostQuery).toHaveBeenCalledWith('games.wired.com');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
@@ -534,7 +546,7 @@ describe('content (UT)', function() {
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'siteBrand', placementId: 456}});
-                expect(siteCache.getPromise).toHaveBeenCalledWith({host: 'wired.com'});
+                expect(siteCache.getPromise).toHaveBeenCalledWith({host: {$in: ['games.wired.com', 'wired.com']}})
                 expect(orgCache.getPromise).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

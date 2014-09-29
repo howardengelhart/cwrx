@@ -67,7 +67,7 @@
     
     // Return true if host is a root followed by tld (with optional country-code extension)
     siteSvc.validateHost = function(host) {
-        return !!host.match(/^\w+[\w-]+\.[a-z]{2,4}(\.[a-z]{2})?$/);
+        return !!host.match(/^([\w-]+\.)+[\w-]+$/);
     };
 
     // Check whether the requester can operate on the target site according to their scope

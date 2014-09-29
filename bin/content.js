@@ -90,9 +90,8 @@
     
     // Find and parse the origin, storing useful properties on the request
     content.parseOrigin = function(req, publicList) {
-        var regex = /^(\w+[\w-]+\.)*?(?=\w+[\w-]+\.[a-z]{2,4}(\.[a-z]{2})?$)/;
         req.origin = req.headers && (req.headers.origin || req.headers.referer) || '';
-        req.shortOrigin = req.origin && urlUtils.parse(req.origin).hostname.replace(regex, '');
+        req.originHost = req.origin && urlUtils.parse(req.origin).hostname || '';
         req.isC6Origin = (req.origin && req.origin.match('cinema6.com') || false) &&
                          !publicList.some(function(site) { return req.origin.match(site); });
     };
@@ -222,25 +221,36 @@
         });
     };
     
+    content.buildHostQuery = function(host) {
+        var query = { host: { $in: [] } };
+        while (!!host.match(/\./)) {
+            query.host.$in.push(host);
+            host = host.substring(host.search(/\./) + 1);
+        }
+        return query;
+    };
+    
     // Ensure experience has branding and placementId, getting from current site or org if necessary
-    content.getSiteConfig = function(exp, orgId, query, host, siteCache, orgCache, defaultSiteCfg) {
-        var log = logger.getLog();
+    content.getSiteConfig = function(exp, orgId, qps, host, siteCache, orgCache, defaultSiteCfg) {
+        var log = logger.getLog(), query;
 
         if (!exp.data) {
             log.warn('Experience %1 does not have data!', exp.id);
             return q(exp);
         }
         
-        if (query && query.context === 'mr2') {
+        if (qps && qps.context === 'mr2') {
             exp.data.mode = 'lightbox-ads';
-            exp.data.branding = exp.data.branding || query.branding;
-            exp.data.placementId = exp.data.placementId || query.placementId;
+            exp.data.branding = exp.data.branding || qps.branding;
+            exp.data.placementId = exp.data.placementId || qps.placementId;
         }
         if (exp.data.branding && exp.data.placementId) {
             return q(exp);
         }
 
-        return siteCache.getPromise({host: host}).then(function(results) {
+        query = content.buildHostQuery(host);
+
+        return siteCache.getPromise(query).then(function(results) {
             if (results.length === 0 || results[0].status !== Status.Active) {
                 log.trace('Site %1 not found', host);
             } else {
@@ -287,7 +297,7 @@
             
             return content.getAdConfig(experiences[0], results[0].org, orgCache)
             .then(function(exp) {
-                return content.getSiteConfig(exp, results[0].org, qps, req.shortOrigin, siteCache,
+                return content.getSiteConfig(exp, results[0].org, qps, req.originHost, siteCache,
                                              orgCache, defaultSiteCfg);
             })
             .then(function(exp) {
