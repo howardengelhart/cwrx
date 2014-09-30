@@ -256,7 +256,7 @@ describe('site (E2E):', function() {
         beforeEach(function(done) {
             mockSite = {
                 name: 'Test Site',
-                host: 'c6.com'
+                host: 'test.c6.com'
             };
             options = { url: config.siteSvcUrl + '/site', json: mockSite, jar: cookieJar };
             testUtils.resetCollection('sites').done(done);
@@ -271,7 +271,7 @@ describe('site (E2E):', function() {
                 expect(new Date(resp.body.lastUpdated).toString()).not.toEqual('Invalid Date');
                 expect(resp.body.org).not.toBeDefined();
                 expect(resp.body.status).toBe('active');
-                expect(resp.body.host).toBe('c6.com');
+                expect(resp.body.host).toBe('test.c6.com');
                 expect(resp.body._id).not.toBeDefined();
            }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -307,7 +307,7 @@ describe('site (E2E):', function() {
         });
 
         it('should throw a 400 error if the host is invalid', function(done) {
-            mockSite.host = 'foo.c6.com';
+            mockSite.host = 'foo.c6.com/asdf';
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Host property must be the root domain');
@@ -397,13 +397,13 @@ describe('site (E2E):', function() {
         });
         
         it('should allow updating the host if no other site exists with that host', function(done) {
-            options.json.host = 'c8.com';
+            options.json.host = 'test.c8.com';
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBe('e2e-put1');
                 expect(resp.body.foo).toBe('bar');
-                expect(resp.body.host).toBe('c8.com');
+                expect(resp.body.host).toBe('test.c8.com');
                 expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(resp.body.created));
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -411,7 +411,7 @@ describe('site (E2E):', function() {
         });
         
         it('should throw a 400 error if the new host is invalid', function(done) {
-            options.json.host = 'foo.c6.com';
+            options.json.host = 'http://foo.c6.com';
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Host property must be the root domain');
