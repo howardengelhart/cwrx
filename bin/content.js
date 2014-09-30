@@ -230,6 +230,18 @@
         return query;
     };
     
+    content.chooseSite = function(results) {
+        return results.reduce(function(prev, curr) {
+            if (!curr || !curr.host || curr.status !== Status.Active) {
+                return prev;
+            }
+            if (prev && prev.host && prev.host.length > curr.host.length) {
+                return prev;
+            }
+            return curr;
+        }, null);
+    };
+    
     // Ensure experience has branding and placementId, getting from current site or org if necessary
     content.getSiteConfig = function(exp, orgId, qps, host, siteCache, orgCache, defaultSiteCfg) {
         var log = logger.getLog(), query;
@@ -251,11 +263,12 @@
         query = content.buildHostQuery(host);
 
         return siteCache.getPromise(query).then(function(results) {
-            if (results.length === 0 || results[0].status !== Status.Active) {
+            var site = content.chooseSite(results);
+            if (!site) {
                 log.trace('Site %1 not found', host);
             } else {
-                exp.data.branding = exp.data.branding || results[0].branding;
-                exp.data.placementId = exp.data.placementId || results[0].placementId;
+                exp.data.branding = exp.data.branding || site.branding;
+                exp.data.placementId = exp.data.placementId || site.placementId;
             }
             if (exp.data.branding) {
                 return q();

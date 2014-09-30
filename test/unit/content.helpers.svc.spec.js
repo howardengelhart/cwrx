@@ -465,6 +465,34 @@ describe('content (UT)', function() {
             expect(content.buildHostQuery('portal.cinema6.com')).toEqual({host:{$in:['portal.cinema6.com','cinema6.com']}});
         });
     });
+    
+    describe('chooseSite', function() {
+        var sites;
+        beforeEach(function() {
+            sites = [
+                { id: 's1', status: Status.Active, host: 'foo' },
+                { id: 's2', status: Status.Active, host: 'foobar' },
+                { id: 's3', status: Status.Active, host: 'foob' }
+            ];
+        });
+
+        it('should choose the site with the longest host property', function() {
+            expect(content.chooseSite(sites)).toEqual({id: 's2', status: Status.Active, host: 'foobar'});
+        });
+        
+        it('should not choose inactive sites', function() {
+            sites[1].status = Status.Inactive;
+            expect(content.chooseSite(sites)).toEqual({id: 's3', status: Status.Active, host: 'foob'});
+            sites[0].status = Status.Deleted;
+            sites[2].status = Status.Inactive;
+            expect(content.chooseSite(sites)).toBe(null);
+        });
+        
+        it('should handle arrays with 0 or 1 sites', function() {
+            expect(content.chooseSite([])).toBe(null);
+            expect(content.chooseSite([sites[0]])).toEqual({id: 's1', status: Status.Active, host: 'foo'});
+        });
+    });
 
     describe('getSiteConfig', function() {
         var exp, queryParams, host, mockSite, mockOrg, siteCache, orgCache, defaultSiteCfg;
@@ -474,10 +502,11 @@ describe('content (UT)', function() {
             mockOrg = { id: 'o-1', status: Status.Active, branding: 'orgBrand' };
             queryParams = { context: 'embed', branding: 'widgetBrand', placementId: 123 };
             host = 'games.wired.com';
-            siteCache = { getPromise: jasmine.createSpy('siteCache.getPromise').andReturn(q([mockSite])) };
+            siteCache = { getPromise: jasmine.createSpy('siteCache.getPromise').andReturn(q(['fake1', 'fake2'])) };
             orgCache = { getPromise: jasmine.createSpy('orgCache.getPromise').andReturn(q([mockOrg])) };
             defaultSiteCfg = { branding: 'c6', placementId: 789 };
             spyOn(content, 'buildHostQuery').andCallThrough();
+            spyOn(content, 'chooseSite').andReturn(mockSite);
         });
         
         it('should log a warning if the experience has no data', function(done) {
@@ -536,6 +565,7 @@ describe('content (UT)', function() {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', mode: 'lightbox-ads', branding: 'siteBrand', placementId: 456}});
                 expect(siteCache.getPromise).toHaveBeenCalledWith({host: {$in: ['games.wired.com', 'wired.com']}});
                 expect(content.buildHostQuery).toHaveBeenCalledWith('games.wired.com');
+                expect(content.chooseSite).toHaveBeenCalledWith(['fake1', 'fake2']);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
@@ -555,7 +585,7 @@ describe('content (UT)', function() {
         
         it('should next fall back to the org\'s config', function(done) {
             queryParams.context = 'embed';
-            siteCache.getPromise.andReturn(q([]));
+            content.chooseSite.andReturn([]);
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'orgBrand', placementId: 789}});
@@ -568,19 +598,7 @@ describe('content (UT)', function() {
         
         it('should handle the site object not having a branding or placementId', function(done) {
             queryParams.context = 'embed';
-            siteCache.getPromise.andReturn(q([{id: 'w-1'}]));
-            content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
-            .then(function(exp) {
-                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'orgBrand', placementId: 789}});
-                expect(siteCache.getPromise).toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).finally(done);
-        });
-        
-        it('should not use the site if it is not active', function(done) {
-            queryParams.context = 'embed';
-            mockSite.status = Status.Inactive;
+            content.chooseSite.andReturn([{id: 'w-1'}]);
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'orgBrand', placementId: 789}});
@@ -592,7 +610,7 @@ describe('content (UT)', function() {
 
         it('should use the default config as a last resort', function(done) {
             queryParams.context = 'embed';
-            siteCache.getPromise.andReturn(q([]));
+            content.chooseSite.andReturn([]);
             orgCache.getPromise.andReturn(q([]));
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
@@ -605,7 +623,7 @@ describe('content (UT)', function() {
         
         it('should handle the org object not having a branding', function(done) {
             queryParams.context = 'embed';
-            siteCache.getPromise.andReturn(q([]));
+            content.chooseSite.andReturn([]);
             orgCache.getPromise.andReturn(q([{id: 'o-1'}]));
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
@@ -618,7 +636,7 @@ describe('content (UT)', function() {
         
         it('should not use the org if it is not active', function(done) {
             queryParams.context = 'embed';
-            siteCache.getPromise.andReturn(q([]));
+            content.chooseSite.andReturn([]);
             mockOrg.status = Status.Deleted;
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
@@ -632,7 +650,7 @@ describe('content (UT)', function() {
         it('should be able to get branding and placementId from different sources', function(done) {
             exp.data.branding = 'expBranding';
             queryParams.context = 'embed';
-            siteCache.getPromise.andReturn(q([]));
+            content.chooseSite.andReturn([]);
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'expBranding', placementId: 789}});
@@ -656,7 +674,7 @@ describe('content (UT)', function() {
 
         it('should reject if orgCache.getPromise returns a rejected promise', function(done) {
             queryParams.context = 'embed';
-            siteCache.getPromise.andReturn(q([]));
+            content.chooseSite.andReturn([]);
             orgCache.getPromise.andReturn(q.reject('I GOT A PROBLEM'));
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
