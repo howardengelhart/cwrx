@@ -596,6 +596,31 @@
         return deferred.promise;
     };
 
+    content.generatePreviewLink = function(id, req, expCache, orgCache, siteCache, defaultSiteCfg) {
+        var log = logger.getLog();
+        log.trace();
+        return content.getPublicExp(id, req, expCache, orgCache, siteCache, defaultSiteCfg)
+        .then(function(resp) {
+            if(resp.body && resp.body.data && resp.body.data.splash) {
+                var splashData = resp.body.data.splash;
+                var urlObject = {
+                    query: {
+                        preload: '',
+                        exp: resp.body.id,
+                        title: resp.body.title,
+                        splash: splashData.theme + ':' + splashData.ratio.replace('-', '/')
+                    }
+                };
+                var url = '/#/preview/minireel' + urlUtils.format(urlObject);
+                return q({url: url});
+            } else {
+                return q({code: 500, body: 'Response does not have required fields.'});
+            }
+        }).catch(function(error) {
+            return q.reject(error);
+        });
+    };
+
     content.main = function(state) {
         var log = logger.getLog(),
             started = new Date();
@@ -734,25 +759,16 @@
 
         app.get('/preview/:id', function(req, res) {
             var log = logger.getLog();
-            handlePublicGet(req, res).then(function(resp) {
-                if(resp.body && resp.body.data && resp.body.data.splash) {
-                    var splashData = resp.body.data.splash;
-                    var urlObject = {
-                         query: {
-                             preload: '',
-                             exp: resp.body.id,
-                             title: resp.body.title,
-                             splash: splashData.theme + ':' + splashData.ratio.replace('-', '/')
-                         }
-                    }
-                    var url = '/#/preview/minireel' + urlUtils.format(urlObject)
-                    res.redirect(url);
+            content.generatePreviewLink(req.params.id, req, expCache, orgCache, siteCache,
+                state.config.defaultSiteConfig)
+            .then(function(resp) {
+                if(resp.url) {
+                    res.redirect(resp.url);
                 } else {
-                    res.send(500, 'Response does not have required fields.');
+                    res.send(resp.code, resp.body);
                 }
             }).catch(function(error) {
-                log.error('Error redirecting to preview url: %1',error);
-                return q.reject(error);
+                log.error(error);
             });
         });
 
