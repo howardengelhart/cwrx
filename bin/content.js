@@ -598,10 +598,12 @@
 
     content.generatePreviewLink = function(id, req, expCache, orgCache, siteCache, defaultSiteCfg) {
         var log = logger.getLog();
-        log.trace();
+        log.info('[%1] User attempting to generate preview link for experience %2', req.uuid, id);
         return content.getPublicExp(id, req, expCache, orgCache, siteCache, defaultSiteCfg)
         .then(function(resp) {
-            if(resp.body && resp.body.data && resp.body.data.splash) {
+            if(resp.body && resp.body.id && resp.body.title &&
+                resp.body.data && resp.body.data.splash &&
+                resp.body.data.splash.theme && resp.body.data.splash.ratio) {
                 var splashData = resp.body.data.splash;
                 var urlObject = {
                     query: {
@@ -769,6 +771,7 @@
                 }
             }).catch(function(error) {
                 log.error(error);
+                q.reject(error);
             });
         });
 
