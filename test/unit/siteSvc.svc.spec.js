@@ -159,12 +159,9 @@ describe('siteSvc (UT)', function() {
                 { host: 'cinema6.com/foo', result: false },
                 { host: 'cinema6.com?foo=bar', result: false },
                 { host: 'cinema6.com', result: true },
-                { host: 'staging.cinema6.com', result: false },
-                { host: 'foo.bar.cinema6.com', result: false },
-                { host: 'guardian.co.uk', result: true },
-                { host: 'guardian.uk.com', result: false },
-                { host: 'foo.wiki.uk', result: true },
-                { host: 'foo.wikis.uk', result: false },
+                { host: 'staging.cinema6.com', result: true },
+                { host: 'foo.bar.cinema6.com', result: true },
+                { host: 'guardian.co.uk', result: true }
             ].map(function(test) {
                 expect(siteSvc.validateHost(test.host)).toBe(test.result);
             });

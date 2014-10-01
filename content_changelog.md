@@ -1,7 +1,11 @@
 # Content Service Changelog
 
+### 1.9.1: Mon Sep 29 16:33:39 EDT 2014
+* [FIX]: Update site querying logic to allow greater flexibility in hosts: [#298](https://github.com/cinema6/cwrx/pull/298)
+* Extra deployment steps: None
+
 ### 1.9.0: Mon Sep 22 14:08:00 EDT 2014
-* [FIX]: Dynamically set `branding` and `placementId` for experiences retrieved from public endpoint: [#285](https://github.com/cinema6/cwrx/pull/285)
+* [FEATURE]: Dynamically set `branding` and `placementId` for experiences retrieved from public endpoint: [#285](https://github.com/cinema6/cwrx/pull/285)
 * [FIX]: Set `data.mode` to `lightbox-ads` when context is `mr2`: [#291](https://github.com/cinema6/cwrx/pull/291)
 * Extra deployment steps: None
 
@@ -12,7 +16,7 @@
 * Extra deployment steps: Update existing C6 admins with `editAdConfig` permission
 
 ### 1.8.0: Wed Sep  3 14:30:31 EDT 2014
-* [FIX]: Allow querying experiences by status: [#268](https://github.com/cinema6/cwrx/pull/268)
+* [FEATURE]: Allow querying experiences by status: [#268](https://github.com/cinema6/cwrx/pull/268)
 * Extra deployment steps: Create database index on `status.0.status` field
 
 ### 1.7.1: Fri Aug 29 10:07:58 EDT 2014

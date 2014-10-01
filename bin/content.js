@@ -90,9 +90,8 @@
     
     // Find and parse the origin, storing useful properties on the request
     content.parseOrigin = function(req, publicList) {
-        var regex = /^(\w+[\w-]+\.)*?(?=\w+[\w-]+\.[a-z]{2,4}(\.[a-z]{2})?$)/;
         req.origin = req.headers && (req.headers.origin || req.headers.referer) || '';
-        req.shortOrigin = req.origin && urlUtils.parse(req.origin).hostname.replace(regex, '');
+        req.originHost = req.origin && urlUtils.parse(req.origin).hostname || '';
         req.isC6Origin = (req.origin && req.origin.match('cinema6.com') || false) &&
                          !publicList.some(function(site) { return req.origin.match(site); });
     };
@@ -222,30 +221,54 @@
         });
     };
     
+    content.buildHostQuery = function(host) {
+        var query = { host: { $in: [] } };
+        while (!!host.match(/\./)) {
+            query.host.$in.push(host);
+            host = host.substring(host.search(/\./) + 1);
+        }
+        return query;
+    };
+    
+    content.chooseSite = function(results) {
+        return results.reduce(function(prev, curr) {
+            if (!curr || !curr.host || curr.status !== Status.Active) {
+                return prev;
+            }
+            if (prev && prev.host && prev.host.length > curr.host.length) {
+                return prev;
+            }
+            return curr;
+        }, null);
+    };
+    
     // Ensure experience has branding and placementId, getting from current site or org if necessary
-    content.getSiteConfig = function(exp, orgId, query, host, siteCache, orgCache, defaultSiteCfg) {
-        var log = logger.getLog();
+    content.getSiteConfig = function(exp, orgId, qps, host, siteCache, orgCache, defaultSiteCfg) {
+        var log = logger.getLog(), query;
 
         if (!exp.data) {
             log.warn('Experience %1 does not have data!', exp.id);
             return q(exp);
         }
         
-        if (query && query.context === 'mr2') {
+        if (qps && qps.context === 'mr2') {
             exp.data.mode = 'lightbox-ads';
-            exp.data.branding = exp.data.branding || query.branding;
-            exp.data.placementId = exp.data.placementId || query.placementId;
+            exp.data.branding = exp.data.branding || qps.branding;
+            exp.data.placementId = exp.data.placementId || qps.placementId;
         }
         if (exp.data.branding && exp.data.placementId) {
             return q(exp);
         }
 
-        return siteCache.getPromise({host: host}).then(function(results) {
-            if (results.length === 0 || results[0].status !== Status.Active) {
+        query = content.buildHostQuery(host);
+
+        return siteCache.getPromise(query).then(function(results) {
+            var site = content.chooseSite(results);
+            if (!site) {
                 log.trace('Site %1 not found', host);
             } else {
-                exp.data.branding = exp.data.branding || results[0].branding;
-                exp.data.placementId = exp.data.placementId || results[0].placementId;
+                exp.data.branding = exp.data.branding || site.branding;
+                exp.data.placementId = exp.data.placementId || site.placementId;
             }
             if (exp.data.branding) {
                 return q();
@@ -287,7 +310,7 @@
             
             return content.getAdConfig(experiences[0], results[0].org, orgCache)
             .then(function(exp) {
-                return content.getSiteConfig(exp, results[0].org, qps, req.shortOrigin, siteCache,
+                return content.getSiteConfig(exp, results[0].org, qps, req.originHost, siteCache,
                                              orgCache, defaultSiteCfg);
             })
             .then(function(exp) {
