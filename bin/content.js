@@ -58,7 +58,7 @@
             branding: 'default',
             placementId: null
         },
-        publicC6Sites: ['www.cinema6.com', 'demo.cinema6.com'], // our sites that publish minireels
+        publicC6Sites: ['www.cinema6.com', 'demo.cinema6.com', 'cinema6.com'],
         secretsPath: path.join(process.env.HOME,'.content.secrets.json'),
         mongo: {
             c6Db: {
@@ -93,7 +93,7 @@
         req.origin = req.headers && (req.headers.origin || req.headers.referer) || '';
         req.originHost = req.origin && urlUtils.parse(req.origin).hostname || '';
         req.isC6Origin = (req.origin && req.origin.match('cinema6.com') || false) &&
-                         !publicList.some(function(site) { return req.origin.match(site); });
+                         !publicList.some(function(site) { return req.originHost === site; });
     };
 
     content.formatOutput = function(experience, isGuest) {
