@@ -781,6 +781,20 @@ describe('content (E2E):', function() {
             }).finally(done);
         });
         
+        it('should prevent mongo query selector injection attacks', function(done) {
+            var options = {
+                url: config.contentUrl + '/content/experiences?user[$gt]=',
+                jar: cookieJar
+            };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([]);
+                expect(resp.response.headers['content-range']).toBe('items 0-0/0');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
+        });
+        
         it('should throw a 401 error if the user is not authenticated', function(done) {
             var options = {
                 url: config.contentUrl + '/content/experiences?user=e2e-user'

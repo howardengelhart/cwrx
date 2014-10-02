@@ -790,7 +790,7 @@
                     if (field === 'ids') {
                         query.id = req.query.ids.split(',');
                     } else {
-                        query[field] = req.query[field];
+                        query[field] = String(req.query[field]);
                     }
                 }
             });

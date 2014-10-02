@@ -353,6 +353,24 @@ describe('authUtils', function() {
                 midWare(req, res, next);
             });
             
+            it('should fail with a 400 if the email or password are not strings', function(done) {
+                res.send = function(code, body) {
+                    expect(code).toBe(400);
+                    expect(body).toBe('Must provide email and password');
+                    expect(mockColl.findOne).not.toHaveBeenCalled();
+                    expect(req.user).not.toBeDefined();
+                    done();
+                };
+                next = function() {
+                    expect('called next').toBe('should not have called next');
+                    done();
+                };
+                req.body = { email: { $gt: '' }, password: 'password' };
+                midWare(req, res, next);
+                req.body = { email: 'otter', password: { $exists: true } };
+                midWare(req, res, next);
+            });
+            
             it('should call next if the credentials are valid', function(done) {
                 res.send = function(code, body) {
                     expect(code).not.toBeDefined();
