@@ -1,5 +1,11 @@
 # Content Service Changelog
 
+### 1.10.0: Fri Oct  3 12:52:39 EDT 2014
+* [FEATURE]: Allow querying experiences by status: [#303](https://github.com/cinema6/cwrx/pull/303)
+* [FIX]: Allow cinema6.com to be added to the `publicC6Sites` list: [#303](https://github.com/cinema6/cwrx/pull/303)
+* [FIX]: Defend against query selector injection attacks: [#303](https://github.com/cinema6/cwrx/pull/303)
+* Extra deployment steps: None
+
 ### 1.9.1: Mon Sep 29 16:33:39 EDT 2014
 * [FIX]: Update site querying logic to allow greater flexibility in hosts: [#298](https://github.com/cinema6/cwrx/pull/298)
 * Extra deployment steps: None
