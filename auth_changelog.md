@@ -1,5 +1,9 @@
 # Auth Service Changelog
 
+### 1.3.3: Fri Oct  3 12:52:39 EDT 2014
+* [FIX]: Defend against query selector injection attacks: [#303](https://github.com/cinema6/cwrx/pull/303)
+* Extra deployment steps: None
+
 ### 1.3.2: Fri Aug 29 10:07:58 EDT 2014
 * [FIX]: Save session docs as JSON, not strings: [#261](https://github.com/cinema6/cwrx/pull/261)
 * [FIX]: Prevent users from using forgot/reset pwd endpoints if their account is not active: [#261](https://github.com/cinema6/cwrx/pull/261)
