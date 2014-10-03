@@ -1007,6 +1007,19 @@ describe('userSvc (UT)', function() {
             });
         });
         
+        it('fails if newPassword is not a string', function(done) {
+            req.body.newPassword = { malicious: 'yes' };
+            userSvc.changePassword(req, userColl, 'fakeSender').then(function(resp) {
+                expect(resp.code).toBe(400);
+                expect(resp.body).toBe('Must provide a new password');
+                expect(bcrypt.hash).not.toHaveBeenCalled();
+                expect(userColl.update).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
         it('should successfully hash and update a user\'s password', function(done) {
             userSvc.changePassword(req, userColl, 'fakeSender').then(function(resp) {
                 expect(resp.code).toBe(200);
@@ -1123,6 +1136,18 @@ describe('userSvc (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
                 done();
             });
+        });
+        
+        it('should fail if newEmail is not a string', function(done) {
+            req.body.newEmail = { malicious: 'yes' };
+            userSvc.changeEmail(req, userColl, 'fakeSender').then(function(resp) {
+                expect(resp.code).toBe(400);
+                expect(resp.body).toBe('Must provide a new email');
+                expect(userColl.findOne).not.toHaveBeenCalled();
+                expect(userColl.update).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
         });
         
         it('should fail if a user with newEmail already exists', function(done) {

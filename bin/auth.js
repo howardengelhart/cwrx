@@ -56,11 +56,9 @@
     };
 
     auth.login = function(req, users, maxAge) {
-        if (!req.body || !req.body.email || !req.body.password) {
-            return q({
-                code: 400,
-                body: 'You need to provide an email and password in the body'
-            });
+        if (!req.body || typeof req.body.email !== 'string' ||
+                         typeof req.body.password !== 'string') {
+            return q({ code: 400, body: 'You need to provide an email and password in the body' });
         }
         var deferred = q.defer(),
             log = logger.getLog(),
@@ -139,12 +137,12 @@
     auth.forgotPassword = function(req, users, resetTokenTTL, emailSender, targets) {
         var log = logger.getLog(),
             now = new Date(),
-            reqEmail = (req.body && req.body.email || '').toLowerCase(),
+            reqEmail = req.body && req.body.email,
             targetName = req.body && req.body.target || '',
             target = targets[targetName] || '',
             token;
         
-        if (!reqEmail || !targetName) {
+        if (typeof reqEmail !== 'string' || !targetName) {
             log.info('[%1] Incomplete forgot password request', req.uuid);
             return q({code: 400, body: 'Need to provide email and target in the request'});
         }
@@ -153,6 +151,8 @@
                      req.uuid, targetName, Object.keys(targets));
             return q({code: 400, body: 'Invalid target'});
         }
+        
+        reqEmail = reqEmail.toLowerCase();
         
         log.info('[%1] User %2 forgot their password, sending reset code', req.uuid, reqEmail);
         
@@ -200,12 +200,12 @@
     
     auth.resetPassword = function(req, users, emailSender, cookieMaxAge) {
         var log = logger.getLog(),
-            id = req.body && req.body.id || '',
-            token = req.body && req.body.token || '',
-            newPassword = req.body && req.body.newPassword || '',
+            id = req.body && req.body.id,
+            token = req.body && req.body.token,
+            newPassword = req.body && req.body.newPassword,
             now = new Date();
         
-        if (!id || !token || !newPassword) {
+        if (typeof id !== 'string' || typeof token !== 'string' || typeof newPassword !== 'string'){
             log.info('[%1] Incomplete reset request %2', req.uuid, id ? 'for user ' + id : '');
             return q({code: 400, body: 'Must provide id, token, and newPassword'});
         }

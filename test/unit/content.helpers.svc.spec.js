@@ -242,13 +242,19 @@ describe('content (UT)', function() {
             expect(req.isC6Origin).toBe(false);
             req = { headers: { origin: 'http://foo.demo.cinema6.com' } };
             content.parseOrigin(req, pubList);
-            expect(req.isC6Origin).toBe(false);
+            expect(req.isC6Origin).toBe(true);
             req = { headers: { origin: 'http://www.cinema6.com' } };
             content.parseOrigin(req, pubList);
             expect(req.isC6Origin).toBe(false);
             req = { headers: { origin: 'http://demo.foo.cinema6.com' } };
             content.parseOrigin(req, pubList);
             expect(req.isC6Origin).toBe(true);
+            req = { headers: { origin: 'http://cinema6.com' } };
+            content.parseOrigin(req, pubList);
+            expect(req.isC6Origin).toBe(true);
+            pubList.push('cinema6.com');
+            content.parseOrigin(req, pubList);
+            expect(req.isC6Origin).toBe(false);
         });
         
         it('should handle the case where the origin is not defined', function() {
