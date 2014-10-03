@@ -826,6 +826,8 @@ describe('content (UT)', function() {
             var getPublicExpResult = {"body":{"id":'fakeID',"title":'fakeTitle',"data":{"splash":{"ratio":"16-9","theme":"horizontal-stack"}}}};
             spyOn(content, 'getPublicExp').andReturn(q(getPublicExpResult));
             content.generatePreviewLink(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
+                expect(mockLog.info).toHaveBeenCalled();
+                expect(content.getPublicExp).toHaveBeenCalledWith(id, req, expCache, orgCache, siteCache, siteCfg);
                 expect(resp).toEqual({url: '/#/preview/minireel?preload=&exp=fakeID&title=fakeTitle&splash=horizontal-stack%3A16%2F9'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -837,11 +839,27 @@ describe('content (UT)', function() {
             var getPublicExpResult = {"body":{"title":'fakeTitle',"data":{"splash":{"ratio":"16-9","theme":"horizontal-stack"}}}};
             spyOn(content, 'getPublicExp').andReturn(q(getPublicExpResult));
             content.generatePreviewLink(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
+                expect(mockLog.info).toHaveBeenCalled();
+                expect(content.getPublicExp).toHaveBeenCalledWith(id, req, expCache, orgCache, siteCache, siteCfg);
+                expect(mockLog.warn).toHaveBeenCalled();
                 expect(resp).toEqual({code: 500, body: 'Response does not have required fields.'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
         });
+
+        it('shoud behave appropriately when getPublicExp rejects with an error', function(done) {
+            var getPublicExpResult = {"body":{"id":'fakeID',"title":'fakeTitle',"data":{"splash":{"ratio":"16-9","theme":"horizontal-stack"}}}};
+            spyOn(content, 'getPublicExp').andReturn(q.reject('Some error message.'));
+            content.generatePreviewLink(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(content.getPublicExp).toHaveBeenCalledWith(id, req, expCache, orgCache, siteCache, siteCfg);
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(error.toString()).toBe('Some error message.');
+            }).finally(done);
+        });
+
     }); // end --describe generatePreviewLink
 
 });  // end -- describe content

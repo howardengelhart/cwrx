@@ -616,9 +616,11 @@
                 var url = '/#/preview/minireel' + urlUtils.format(urlObject);
                 return q({url: url});
             } else {
+                log.warn('[%1] Experience %2 does not have required fields.', req.uuid, id);
                 return q({code: 500, body: 'Response does not have required fields.'});
             }
         }).catch(function(error) {
+            log.error('[%1] Error generating preview link for experience %2', req.uuid, id);
             return q.reject(error);
         });
     };
@@ -760,7 +762,6 @@
         });
 
         app.get('/preview/:id', function(req, res) {
-            var log = logger.getLog();
             content.generatePreviewLink(req.params.id, req, expCache, orgCache, siteCache,
                 state.config.defaultSiteConfig)
             .then(function(resp) {
@@ -770,8 +771,10 @@
                     res.send(resp.code, resp.body);
                 }
             }).catch(function(error) {
-                log.error(error);
-                q.reject(error);
+                res.send(500, {
+                    error: 'Error generating preview link',
+                    detail: error
+                });
             });
         });
 

@@ -337,17 +337,14 @@ describe('content (E2E):', function() {
                     org: 'e2e-active-org'
                 }
             ];
-            mockSite = {id: 'e2e-site', status: 'active', host: 'c6.com', branding: 'siteBrand', placementId: '456'};
-            mockOrg = { id: 'e2e-active-org', status: 'active', adConfig: { foo: 'bar' }, branding: 'orgBrand' };
-            q.all([testUtils.resetCollection('experiences', mockExps),
-                   testUtils.resetCollection('orgs', mockOrg),
-                   testUtils.resetCollection('sites', mockSite)
-            ]).done(function() { done() });
+            testUtils.resetCollection('experiences', mockExps).done(function() {
+                done();
+            });
         });
 
         it('should get an experience by id', function(done) {
             requestUtils.qRequest('get', options).then(function(resp) {
-                var req = resp.response.req.socket._httpMessage.res.request;
+                var req = resp.response.request;
                 expect(resp.response.statusCode).toBe(404);
                 expect(typeof req).toBe('object');
                 expect(req.href).toBeDefined();
