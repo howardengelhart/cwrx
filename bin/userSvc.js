@@ -411,7 +411,7 @@
     userSvc.changePassword = function(req, users, emailSender) {
         var log = logger.getLog(),
             now = new Date();
-        if (!req.body.newPassword) {
+        if (typeof req.body.newPassword !== 'string') {
             log.info('[%1] User %2 did not provide a new password', req.uuid, req.user.id);
             return q({code: 400, body: 'Must provide a new password'});
         }
@@ -445,7 +445,7 @@
     userSvc.changeEmail = function(req, users, emailSender) {
         var log = logger.getLog(),
             now = new Date();
-        if (!req.body.newEmail) {
+        if (typeof req.body.newEmail !== 'string') {
             log.info('[%1] User %2 did not provide a new email', req.uuid, req.user.id);
             return q({code: 400, body: 'Must provide a new email'});
         }
@@ -644,7 +644,7 @@
         });
         
         app.get('/api/account/users', sessionsWrapper, authGetUser, function(req, res) {
-            var query = req.query && req.query.org ? { org: req.query.org } : null;
+            var query = req.query && req.query.org ? { org: String(req.query.org) } : null;
             userSvc.getUsers(query, req, users, true)
             .then(function(resp) {
                 if (resp.pagination) {

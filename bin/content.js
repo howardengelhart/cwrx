@@ -58,7 +58,7 @@
             branding: 'default',
             placementId: null
         },
-        publicC6Sites: ['www.cinema6.com', 'demo.cinema6.com'], // our sites that publish minireels
+        publicC6Sites: ['www.cinema6.com', 'demo.cinema6.com', 'cinema6.com'],
         secretsPath: path.join(process.env.HOME,'.content.secrets.json'),
         mongo: {
             c6Db: {
@@ -93,7 +93,7 @@
         req.origin = req.headers && (req.headers.origin || req.headers.referer) || '';
         req.originHost = req.origin && urlUtils.parse(req.origin).hostname || '';
         req.isC6Origin = (req.origin && req.origin.match('cinema6.com') || false) &&
-                         !publicList.some(function(site) { return req.origin.match(site); });
+                         !publicList.some(function(site) { return req.originHost === site; });
     };
 
     content.formatOutput = function(experience, isGuest) {
@@ -349,6 +349,10 @@
             }
             query['status.0.status'] = query.status;
             delete query.status;
+        }
+        if (query.sponsoredType) {
+            query['data.0.data.sponsoredType'] = query.sponsoredType;
+            delete query.sponsoredType;
         }
         
         log.info('[%1] User %2 getting experiences with %3, sort %4, limit %5, skip %6',
@@ -780,30 +784,21 @@
 
         // private get experience by query
         app.get('/api/content/experiences', sessionsWrapper, authGetExp, function(req, res) {
-            var queryFields = ['ids', 'user', 'org', 'type', 'status'];
-            function isKeyInFields(key) {
-                return queryFields.indexOf(key) >= 0;
-            }
-            if (!req.query || !(Object.keys(req.query).some(isKeyInFields))) {
+            var query = {};
+            ['ids', 'user', 'org', 'type', 'sponsoredType', 'status'].forEach(function(field) {
+                if (req.query[field]) {
+                    if (field === 'ids') {
+                        query.id = req.query.ids.split(',');
+                    } else {
+                        query[field] = String(req.query[field]);
+                    }
+                }
+            });
+            if (!Object.keys(query).length) {
                 log.info('[%1] Cannot GET /content/experiences with no query params',req.uuid);
                 return res.send(400, 'Must specify at least one supported query param');
             }
-            var query = {};
-            if (req.query.ids) {
-                query.id = req.query.ids.split(',');
-            }
-            if (req.query.user) {
-                query.user = req.query.user;
-            }
-            if (req.query.org) {
-                query.org = req.query.org;
-            }
-            if (req.query.type) {
-                query.type = req.query.type;
-            }
-            if (req.query.status) {
-                query.status = req.query.status;
-            }
+            
             content.getExperiences(query, req, experiences, true)
             .then(function(resp) {
                 if (resp.pagination) {

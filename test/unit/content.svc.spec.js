@@ -255,6 +255,18 @@ describe('content (UT)', function() {
             }).finally(done);
         });
         
+        it('should properly format a query on the sponsoredType field', function(done) {
+            query.sponsoredType = 'card';
+            content.getExperiences(query, req, expColl, false).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual(['formatted']);
+                expect(content.userPermQuery).toHaveBeenCalledWith({type: 'minireel',
+                    'data.0.data.sponsoredType': 'card'}, 'fakeUser', false);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
         it('should set resp.pagination if multiExp is true', function(done) {
             content.getExperiences(query, req, expColl, true).then(function(resp) {
                 expect(resp.code).toBe(200);
