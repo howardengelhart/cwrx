@@ -220,10 +220,7 @@
             return q(exp);
         });
     };
-<<<<<<< HEAD
 
-=======
-    
     content.buildHostQuery = function(host) {
         var query = { host: { $in: [] } };
         while (!!host.match(/\./)) {
@@ -232,7 +229,7 @@
         }
         return query;
     };
-    
+
     content.chooseSite = function(results) {
         return results.reduce(function(prev, curr) {
             if (!curr || !curr.host || curr.status !== Status.Active) {
@@ -244,8 +241,7 @@
             return curr;
         }, null);
     };
-    
->>>>>>> master
+
     // Ensure experience has branding and placementId, getting from current site or org if necessary
     content.getSiteConfig = function(exp, orgId, qps, host, siteCache, orgCache, defaultSiteCfg) {
         var log = logger.getLog(), query;
@@ -254,13 +250,8 @@
             log.warn('Experience %1 does not have data!', exp.id);
             return q(exp);
         }
-<<<<<<< HEAD
 
-        if (query && query.context === 'mr2') {
-=======
-        
         if (qps && qps.context === 'mr2') {
->>>>>>> master
             exp.data.mode = 'lightbox-ads';
             exp.data.branding = exp.data.branding || qps.branding;
             exp.data.placementId = exp.data.placementId || qps.placementId;
@@ -359,15 +350,12 @@
             query['status.0.status'] = query.status;
             delete query.status;
         }
-<<<<<<< HEAD
 
-=======
         if (query.sponsoredType) {
             query['data.0.data.sponsoredType'] = query.sponsoredType;
             delete query.sponsoredType;
         }
-        
->>>>>>> master
+
         log.info('[%1] User %2 getting experiences with %3, sort %4, limit %5, skip %6',
                  req.uuid,req.user.id,JSON.stringify(query),JSON.stringify(sortObj),limit,skip);
 
@@ -857,7 +845,7 @@
                 log.info('[%1] Cannot GET /content/experiences with no query params',req.uuid);
                 return res.send(400, 'Must specify at least one supported query param');
             }
-            
+
             content.getExperiences(query, req, experiences, true)
             .then(function(resp) {
                 if (resp.pagination) {
