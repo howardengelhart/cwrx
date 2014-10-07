@@ -67,7 +67,7 @@
     
     // Return true if host is a root followed by tld (with optional country-code extension)
     siteSvc.validateHost = function(host) {
-        return !!host.match(/^\w+[\w-]+\.[a-z]{2,4}(\.[a-z]{2})?$/);
+        return !!host.match(/^([\w-]+\.)+[\w-]+$/);
     };
 
     // Check whether the requester can operate on the target site according to their scope
@@ -176,16 +176,13 @@
         });
     };
     
-    siteSvc.setupSite = function(newSite, requester) {
+    siteSvc.setupSite = function(newSite) {
         var now = new Date();
         newSite.id = 's-' + uuid.createUuid().substr(0,14);
         newSite.created = now;
         newSite.lastUpdated = now;
         if (!newSite.status) {
             newSite.status = Status.Active;
-        }
-        if (!newSite.org) {
-            newSite.org = requester.org;
         }
         return mongoUtils.escapeKeys(newSite);
     };
@@ -219,7 +216,7 @@
                 return q({code: 400, body: 'Illegal fields'});
             }
             
-            newSite = siteSvc.setupSite(newSite, requester);
+            newSite = siteSvc.setupSite(newSite);
             log.trace('[%1] User %2 is creating site %3', req.uuid, requester.id, newSite.id);
 
             return q.npost(sites, 'insert', [newSite, {w: 1, journal: true}])

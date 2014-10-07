@@ -159,12 +159,9 @@ describe('siteSvc (UT)', function() {
                 { host: 'cinema6.com/foo', result: false },
                 { host: 'cinema6.com?foo=bar', result: false },
                 { host: 'cinema6.com', result: true },
-                { host: 'staging.cinema6.com', result: false },
-                { host: 'foo.bar.cinema6.com', result: false },
-                { host: 'guardian.co.uk', result: true },
-                { host: 'guardian.uk.com', result: false },
-                { host: 'foo.wiki.uk', result: true },
-                { host: 'foo.wikis.uk', result: false },
+                { host: 'staging.cinema6.com', result: true },
+                { host: 'foo.bar.cinema6.com', result: true },
+                { host: 'guardian.co.uk', result: true }
             ].map(function(test) {
                 expect(siteSvc.validateHost(test.host)).toBe(test.result);
             });
@@ -387,24 +384,23 @@ describe('siteSvc (UT)', function() {
     });
     
     describe('setupSite', function() {
-        var newSite, requester;
+        var newSite;
         beforeEach(function() {
             newSite = { host: 'c6.com', branding: 'c6' };
-            requester = { id: 'u-4567', org: 'o-1234' };
             spyOn(uuid, 'createUuid').andReturn('1234567890abcdefg');
         });
 
         it('should setup some default fields', function() {
-            expect(siteSvc.setupSite(newSite, requester)).toEqual(
+            expect(siteSvc.setupSite(newSite)).toEqual(
                 { id: 's-1234567890abcd', created: jasmine.any(Date), host: 'c6.com', branding: 'c6',
-                  lastUpdated: jasmine.any(Date), status: Status.Active, org: 'o-1234'});
+                  lastUpdated: jasmine.any(Date), status: Status.Active});
             expect(mongoUtils.escapeKeys).toHaveBeenCalledWith(newSite);
         });
         
-        it('should allow the user to provide custom status and org properties', function() {
+        it('should allow the user to provide a custom status and org properties', function() {
             newSite.org = 'o-4567';
             newSite.status = Status.Pending;
-            expect(siteSvc.setupSite(newSite, requester)).toEqual(
+            expect(siteSvc.setupSite(newSite)).toEqual(
                 { id: 's-1234567890abcd', created: jasmine.any(Date), host: 'c6.com', branding: 'c6',
                   lastUpdated: jasmine.any(Date), status: Status.Pending, org: 'o-4567'});
         });
@@ -493,7 +489,7 @@ describe('siteSvc (UT)', function() {
                 expect(siteSvc.validateHost).toHaveBeenCalledWith('c6.com');
                 expect(siteColl.findOne).toHaveBeenCalledWith({host: 'c6.com'}, anyFunc);
                 expect(siteSvc.createValidator.validate).toHaveBeenCalledWith(req.body, {}, req.user);
-                expect(siteSvc.setupSite).toHaveBeenCalledWith(req.body, req.user);
+                expect(siteSvc.setupSite).toHaveBeenCalledWith(req.body);
                 expect(siteColl.insert).toHaveBeenCalledWith(resp.body, {w: 1, journal: true}, anyFunc);
                 expect(mongoUtils.unescapeKeys).toHaveBeenCalledWith(resp.body);
             }).catch(function(error) {

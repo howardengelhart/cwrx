@@ -38,7 +38,7 @@ describe('content (UT)', function() {
         var id, req, expCache, orgCache, siteCache, pubList, siteCfg;
         beforeEach(function() {
             id = 'e-1';
-            req = { isC6Origin: false, shortOrigin: 'c6.com', uuid: '1234', query: {foo: 'bar'} };
+            req = { isC6Origin: false, originHost: 'c6.com', uuid: '1234', query: {foo: 'bar'} };
             siteCfg = { sites: 'good' };
             expCache = {
                 getPromise: jasmine.createSpy('expCache.getPromise').andReturn(q([{id: 'e-1', org: 'o-1'}]))
@@ -254,7 +254,19 @@ describe('content (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
         });
-
+        
+        it('should properly format a query on the sponsoredType field', function(done) {
+            query.sponsoredType = 'card';
+            content.getExperiences(query, req, expColl, false).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual(['formatted']);
+                expect(content.userPermQuery).toHaveBeenCalledWith({type: 'minireel',
+                    'data.0.data.sponsoredType': 'card'}, 'fakeUser', false);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
         it('should set resp.pagination if multiExp is true', function(done) {
             content.getExperiences(query, req, expColl, true).then(function(resp) {
                 expect(resp.code).toBe(200);

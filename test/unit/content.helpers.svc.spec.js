@@ -208,7 +208,7 @@ describe('content (UT)', function() {
         it('should parse the origin and setup various properties', function() {
             content.parseOrigin(req, pubList);
             expect(req.origin).toBe('http://staging.cinema6.com');
-            expect(req.shortOrigin).toBe('cinema6.com');
+            expect(req.originHost).toBe('staging.cinema6.com');
             expect(req.isC6Origin).toBe(true);
             expect(req.headers).toEqual({ origin: 'http://staging.cinema6.com' });
         });
@@ -224,16 +224,15 @@ describe('content (UT)', function() {
         
         it('should properly get the short version of the origin from the original', function() {
             [
-                { url: 'http://foo.com/', shortOrigin: 'foo.com' },
-                { url: 'http://bar.foo.com/qwer', shortOrigin: 'foo.com' },
-                { url: 'http://baz.bar.foo.com?foo=bar', shortOrigin: 'foo.com' },
-                { url: 'http://foo.com.uk', shortOrigin: 'foo.com.uk' },
-                { url: 'http://video.games.foo.com.uk', shortOrigin: 'foo.com.uk'}
+                { url: 'http://foo.com/', originHost: 'foo.com' },
+                { url: 'http://bar.foo.com/qwer', originHost: 'bar.foo.com' },
+                { url: 'http://bar.foo.com?foo=bar', originHost: 'bar.foo.com' },
+                { url: 'http://foo.com.uk', originHost: 'foo.com.uk' }
             ].forEach(function(test) {
                 req = { headers: { origin: test.url } };
                 content.parseOrigin(req, pubList);
                 expect(req.origin).toBe(test.url);
-                expect(req.shortOrigin).toBe(test.shortOrigin);
+                expect(req.originHost).toBe(test.originHost);
             });
         });
         
@@ -243,20 +242,26 @@ describe('content (UT)', function() {
             expect(req.isC6Origin).toBe(false);
             req = { headers: { origin: 'http://foo.demo.cinema6.com' } };
             content.parseOrigin(req, pubList);
-            expect(req.isC6Origin).toBe(false);
+            expect(req.isC6Origin).toBe(true);
             req = { headers: { origin: 'http://www.cinema6.com' } };
             content.parseOrigin(req, pubList);
             expect(req.isC6Origin).toBe(false);
             req = { headers: { origin: 'http://demo.foo.cinema6.com' } };
             content.parseOrigin(req, pubList);
             expect(req.isC6Origin).toBe(true);
+            req = { headers: { origin: 'http://cinema6.com' } };
+            content.parseOrigin(req, pubList);
+            expect(req.isC6Origin).toBe(true);
+            pubList.push('cinema6.com');
+            content.parseOrigin(req, pubList);
+            expect(req.isC6Origin).toBe(false);
         });
         
         it('should handle the case where the origin is not defined', function() {
             [{}, { headers: {} }, { headers: { origin: '' } }].forEach(function(testReq) {
                 content.parseOrigin(testReq, pubList);
                 expect(testReq.origin).toBe('');
-                expect(testReq.shortOrigin).toBe('');
+                expect(testReq.originHost).toBe('');
                 expect(testReq.isC6Origin).toBe(false);
             });
         });
@@ -455,6 +460,45 @@ describe('content (UT)', function() {
             }).finally(done);
         });
     });
+    
+    describe('buildHostQuery', function() {
+        it('should correctly build a query from a hostname', function() {
+            expect(content.buildHostQuery('foo.com')).toEqual({host:{$in:['foo.com']}});
+            expect(content.buildHostQuery('foo.bar.com')).toEqual({host:{$in:['foo.bar.com','bar.com']}});
+            expect(content.buildHostQuery('foo.bar.baz.com')).toEqual({host:{$in:['foo.bar.baz.com','bar.baz.com','baz.com']}});
+            expect(content.buildHostQuery('foo')).toEqual({host:{$in:[]}});
+            expect(content.buildHostQuery('')).toEqual({host:{$in:[]}});
+            expect(content.buildHostQuery('portal.cinema6.com')).toEqual({host:{$in:['portal.cinema6.com','cinema6.com']}});
+        });
+    });
+    
+    describe('chooseSite', function() {
+        var sites;
+        beforeEach(function() {
+            sites = [
+                { id: 's1', status: Status.Active, host: 'foo' },
+                { id: 's2', status: Status.Active, host: 'foobar' },
+                { id: 's3', status: Status.Active, host: 'foob' }
+            ];
+        });
+
+        it('should choose the site with the longest host property', function() {
+            expect(content.chooseSite(sites)).toEqual({id: 's2', status: Status.Active, host: 'foobar'});
+        });
+        
+        it('should not choose inactive sites', function() {
+            sites[1].status = Status.Inactive;
+            expect(content.chooseSite(sites)).toEqual({id: 's3', status: Status.Active, host: 'foob'});
+            sites[0].status = Status.Deleted;
+            sites[2].status = Status.Inactive;
+            expect(content.chooseSite(sites)).toBe(null);
+        });
+        
+        it('should handle arrays with 0 or 1 sites', function() {
+            expect(content.chooseSite([])).toBe(null);
+            expect(content.chooseSite([sites[0]])).toEqual({id: 's1', status: Status.Active, host: 'foo'});
+        });
+    });
 
     describe('getSiteConfig', function() {
         var exp, queryParams, host, mockSite, mockOrg, siteCache, orgCache, defaultSiteCfg;
@@ -463,10 +507,12 @@ describe('content (UT)', function() {
             mockSite = { id: 'w-1', status: Status.Active, branding: 'siteBrand', placementId: 456 };
             mockOrg = { id: 'o-1', status: Status.Active, branding: 'orgBrand' };
             queryParams = { context: 'embed', branding: 'widgetBrand', placementId: 123 };
-            host = 'wired.com';
-            siteCache = { getPromise: jasmine.createSpy('siteCache.getPromise').andReturn(q([mockSite])) };
+            host = 'games.wired.com';
+            siteCache = { getPromise: jasmine.createSpy('siteCache.getPromise').andReturn(q(['fake1', 'fake2'])) };
             orgCache = { getPromise: jasmine.createSpy('orgCache.getPromise').andReturn(q([mockOrg])) };
             defaultSiteCfg = { branding: 'c6', placementId: 789 };
+            spyOn(content, 'buildHostQuery').andCallThrough();
+            spyOn(content, 'chooseSite').andReturn(mockSite);
         });
         
         it('should log a warning if the experience has no data', function(done) {
@@ -523,7 +569,9 @@ describe('content (UT)', function() {
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', mode: 'lightbox-ads', branding: 'siteBrand', placementId: 456}});
-                expect(siteCache.getPromise).toHaveBeenCalledWith({host: 'wired.com'});
+                expect(siteCache.getPromise).toHaveBeenCalledWith({host: {$in: ['games.wired.com', 'wired.com']}});
+                expect(content.buildHostQuery).toHaveBeenCalledWith('games.wired.com');
+                expect(content.chooseSite).toHaveBeenCalledWith(['fake1', 'fake2']);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
@@ -534,7 +582,7 @@ describe('content (UT)', function() {
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'siteBrand', placementId: 456}});
-                expect(siteCache.getPromise).toHaveBeenCalledWith({host: 'wired.com'});
+                expect(siteCache.getPromise).toHaveBeenCalledWith({host: {$in: ['games.wired.com', 'wired.com']}})
                 expect(orgCache.getPromise).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -543,7 +591,7 @@ describe('content (UT)', function() {
         
         it('should next fall back to the org\'s config', function(done) {
             queryParams.context = 'embed';
-            siteCache.getPromise.andReturn(q([]));
+            content.chooseSite.andReturn([]);
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'orgBrand', placementId: 789}});
@@ -556,19 +604,7 @@ describe('content (UT)', function() {
         
         it('should handle the site object not having a branding or placementId', function(done) {
             queryParams.context = 'embed';
-            siteCache.getPromise.andReturn(q([{id: 'w-1'}]));
-            content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
-            .then(function(exp) {
-                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'orgBrand', placementId: 789}});
-                expect(siteCache.getPromise).toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).finally(done);
-        });
-        
-        it('should not use the site if it is not active', function(done) {
-            queryParams.context = 'embed';
-            mockSite.status = Status.Inactive;
+            content.chooseSite.andReturn([{id: 'w-1'}]);
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'orgBrand', placementId: 789}});
@@ -580,7 +616,7 @@ describe('content (UT)', function() {
 
         it('should use the default config as a last resort', function(done) {
             queryParams.context = 'embed';
-            siteCache.getPromise.andReturn(q([]));
+            content.chooseSite.andReturn([]);
             orgCache.getPromise.andReturn(q([]));
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
@@ -593,7 +629,7 @@ describe('content (UT)', function() {
         
         it('should handle the org object not having a branding', function(done) {
             queryParams.context = 'embed';
-            siteCache.getPromise.andReturn(q([]));
+            content.chooseSite.andReturn([]);
             orgCache.getPromise.andReturn(q([{id: 'o-1'}]));
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
@@ -606,7 +642,7 @@ describe('content (UT)', function() {
         
         it('should not use the org if it is not active', function(done) {
             queryParams.context = 'embed';
-            siteCache.getPromise.andReturn(q([]));
+            content.chooseSite.andReturn([]);
             mockOrg.status = Status.Deleted;
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
@@ -620,7 +656,7 @@ describe('content (UT)', function() {
         it('should be able to get branding and placementId from different sources', function(done) {
             exp.data.branding = 'expBranding';
             queryParams.context = 'embed';
-            siteCache.getPromise.andReturn(q([]));
+            content.chooseSite.andReturn([]);
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'expBranding', placementId: 789}});
@@ -644,7 +680,7 @@ describe('content (UT)', function() {
 
         it('should reject if orgCache.getPromise returns a rejected promise', function(done) {
             queryParams.context = 'embed';
-            siteCache.getPromise.andReturn(q([]));
+            content.chooseSite.andReturn([]);
             orgCache.getPromise.andReturn(q.reject('I GOT A PROBLEM'));
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {

@@ -58,7 +58,7 @@
             branding: 'default',
             placementId: null
         },
-        publicC6Sites: ['www.cinema6.com', 'demo.cinema6.com'], // our sites that publish minireels
+        publicC6Sites: ['www.cinema6.com', 'demo.cinema6.com', 'cinema6.com'],
         secretsPath: path.join(process.env.HOME,'.content.secrets.json'),
         mongo: {
             c6Db: {
@@ -90,11 +90,10 @@
 
     // Find and parse the origin, storing useful properties on the request
     content.parseOrigin = function(req, publicList) {
-        var regex = /^(\w+[\w-]+\.)*?(?=\w+[\w-]+\.[a-z]{2,4}(\.[a-z]{2})?$)/;
         req.origin = req.headers && (req.headers.origin || req.headers.referer) || '';
-        req.shortOrigin = req.origin && urlUtils.parse(req.origin).hostname.replace(regex, '');
+        req.originHost = req.origin && urlUtils.parse(req.origin).hostname || '';
         req.isC6Origin = (req.origin && req.origin.match('cinema6.com') || false) &&
-                         !publicList.some(function(site) { return req.origin.match(site); });
+                         !publicList.some(function(site) { return req.originHost === site; });
     };
 
     content.formatOutput = function(experience, isGuest) {
@@ -221,31 +220,64 @@
             return q(exp);
         });
     };
+<<<<<<< HEAD
 
+=======
+    
+    content.buildHostQuery = function(host) {
+        var query = { host: { $in: [] } };
+        while (!!host.match(/\./)) {
+            query.host.$in.push(host);
+            host = host.substring(host.search(/\./) + 1);
+        }
+        return query;
+    };
+    
+    content.chooseSite = function(results) {
+        return results.reduce(function(prev, curr) {
+            if (!curr || !curr.host || curr.status !== Status.Active) {
+                return prev;
+            }
+            if (prev && prev.host && prev.host.length > curr.host.length) {
+                return prev;
+            }
+            return curr;
+        }, null);
+    };
+    
+>>>>>>> master
     // Ensure experience has branding and placementId, getting from current site or org if necessary
-    content.getSiteConfig = function(exp, orgId, query, host, siteCache, orgCache, defaultSiteCfg) {
-        var log = logger.getLog();
+    content.getSiteConfig = function(exp, orgId, qps, host, siteCache, orgCache, defaultSiteCfg) {
+        var log = logger.getLog(), query;
 
         if (!exp.data) {
             log.warn('Experience %1 does not have data!', exp.id);
             return q(exp);
         }
+<<<<<<< HEAD
 
         if (query && query.context === 'mr2') {
+=======
+        
+        if (qps && qps.context === 'mr2') {
+>>>>>>> master
             exp.data.mode = 'lightbox-ads';
-            exp.data.branding = exp.data.branding || query.branding;
-            exp.data.placementId = exp.data.placementId || query.placementId;
+            exp.data.branding = exp.data.branding || qps.branding;
+            exp.data.placementId = exp.data.placementId || qps.placementId;
         }
         if (exp.data.branding && exp.data.placementId) {
             return q(exp);
         }
 
-        return siteCache.getPromise({host: host}).then(function(results) {
-            if (results.length === 0 || results[0].status !== Status.Active) {
+        query = content.buildHostQuery(host);
+
+        return siteCache.getPromise(query).then(function(results) {
+            var site = content.chooseSite(results);
+            if (!site) {
                 log.trace('Site %1 not found', host);
             } else {
-                exp.data.branding = exp.data.branding || results[0].branding;
-                exp.data.placementId = exp.data.placementId || results[0].placementId;
+                exp.data.branding = exp.data.branding || site.branding;
+                exp.data.placementId = exp.data.placementId || site.placementId;
             }
             if (exp.data.branding) {
                 return q();
@@ -287,7 +319,7 @@
 
             return content.getAdConfig(experiences[0], results[0].org, orgCache)
             .then(function(exp) {
-                return content.getSiteConfig(exp, results[0].org, qps, req.shortOrigin, siteCache,
+                return content.getSiteConfig(exp, results[0].org, qps, req.originHost, siteCache,
                                              orgCache, defaultSiteCfg);
             })
             .then(function(exp) {
@@ -327,7 +359,15 @@
             query['status.0.status'] = query.status;
             delete query.status;
         }
+<<<<<<< HEAD
 
+=======
+        if (query.sponsoredType) {
+            query['data.0.data.sponsoredType'] = query.sponsoredType;
+            delete query.sponsoredType;
+        }
+        
+>>>>>>> master
         log.info('[%1] User %2 getting experiences with %3, sort %4, limit %5, skip %6',
                  req.uuid,req.user.id,JSON.stringify(query),JSON.stringify(sortObj),limit,skip);
 
@@ -803,30 +843,21 @@
 
         // private get experience by query
         app.get('/api/content/experiences', sessionsWrapper, authGetExp, function(req, res) {
-            var queryFields = ['ids', 'user', 'org', 'type', 'status'];
-            function isKeyInFields(key) {
-                return queryFields.indexOf(key) >= 0;
-            }
-            if (!req.query || !(Object.keys(req.query).some(isKeyInFields))) {
+            var query = {};
+            ['ids', 'user', 'org', 'type', 'sponsoredType', 'status'].forEach(function(field) {
+                if (req.query[field]) {
+                    if (field === 'ids') {
+                        query.id = req.query.ids.split(',');
+                    } else {
+                        query[field] = String(req.query[field]);
+                    }
+                }
+            });
+            if (!Object.keys(query).length) {
                 log.info('[%1] Cannot GET /content/experiences with no query params',req.uuid);
                 return res.send(400, 'Must specify at least one supported query param');
             }
-            var query = {};
-            if (req.query.ids) {
-                query.id = req.query.ids.split(',');
-            }
-            if (req.query.user) {
-                query.user = req.query.user;
-            }
-            if (req.query.org) {
-                query.org = req.query.org;
-            }
-            if (req.query.type) {
-                query.type = req.query.type;
-            }
-            if (req.query.status) {
-                query.status = req.query.status;
-            }
+            
             content.getExperiences(query, req, experiences, true)
             .then(function(resp) {
                 if (resp.pagination) {

@@ -123,6 +123,22 @@ describe('auth (E2E):', function() {
             });
         });
         
+        it('should prevent mongo query selector injection attacks', function(done) {
+            var options = {
+                url: config.authUrl + '/login',
+                json: {
+                    email: { $gt: '' },
+                    password: 'password'
+                }
+            };
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.response.body).toBe('You need to provide an email and password in the body');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
         it('should fail if the user account is not active', function(done) {
             var options = {
                 url: config.authUrl + '/login',
@@ -321,6 +337,19 @@ describe('auth (E2E):', function() {
             }).finally(done);
         });
         
+        it('should prevent mongo query selector injection attacks', function(done) {
+            options.json.email = { $gt: '' };
+            mailman.once('message', function(msg) {
+                expect(msg).not.toBeDefined();
+            });
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Need to provide email and target in the request');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
+        });
+        
         it('should fail with a 400 for an invalid target', function(done) {
             options.json.target = 'someFakeTarget';
             mailman.once('message', function(msg) {
@@ -415,6 +444,19 @@ describe('auth (E2E):', function() {
                     expect(resp.response.statusCode).toBe(400);
                     expect(resp.body).toBe('Must provide id, token, and newPassword');
                 });
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should prevent mongo query selector injection attacks', function(done) {
+            mailman.once('message', function(msg) {
+                expect(msg).not.toBeDefined();
+            });
+            options.json.id = { $gt: '' };
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Must provide id, token, and newPassword');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).finally(done);
