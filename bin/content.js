@@ -18,7 +18,7 @@
         Status          = enums.Status,
         Access          = enums.Access,
         Scope           = enums.Scope,
-        
+
         state = {},
         content = {}; // for exporting functions to unit tests
 
@@ -87,7 +87,7 @@
         }
     });
     content.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created', '_id'] });
-    
+
     // Find and parse the origin, storing useful properties on the request
     content.parseOrigin = function(req, publicList) {
         req.origin = req.headers && (req.headers.origin || req.headers.referer) || '';
@@ -100,7 +100,7 @@
         var log = logger.getLog(),
             privateFields = ['user', 'org'],
             newExp = {};
-            
+
         function statusReduce(a, b) {
             if (b.status === Status.Active && (!a || b.date > a.date)) {
                 return b;
@@ -108,7 +108,7 @@
                 return a;
             }
         }
-        
+
         for (var key in experience) {
             if (key === 'data') {
                 if (!(experience.data instanceof Array)) {
@@ -150,40 +150,40 @@
                                                                user.id === experience.user)) ||
              (user.permissions[object][verb] === Scope.Own && user.id === experience.user) ));
     };
-    
+
     // Check whether a user can retrieve an experience
     content.canGetExperience = function(exp, user, isC6Origin) {
         user = user || {};
-        
+
         return exp.status !== Status.Deleted &&
                !!( (exp.status === Status.Active && !isC6Origin)                    ||
                    (exp.access === Access.Public && isC6Origin)                     ||
                    content.checkScope(user, exp, 'experiences', 'read')             ||
                    (user.applications && user.applications.indexOf(exp.id) >= 0)    );
     };
-    
-    /* Adds fields to a find query to filter out experiences the user can't see, effectively 
+
+    /* Adds fields to a find query to filter out experiences the user can't see, effectively
      * replicating the logic of canGetExperience through the query */
     content.userPermQuery = function(query, user, isC6Origin) {
         var newQuery = JSON.parse(JSON.stringify(query)),
             readScope = user.permissions.experiences.read,
             log = logger.getLog();
-        
+
         if (!newQuery['status.0.status']) {
             newQuery['status.0.status'] = {$ne: Status.Deleted}; // never show deleted exps
         }
-        
+
         if (!Scope.isScope(readScope)) {
             log.warn('User has invalid scope ' + readScope);
             readScope = Scope.Own;
         }
-        
+
         if (readScope === Scope.Own) {
             newQuery.$or = [ { user: user.id } ];
         } else if (readScope === Scope.Org) {
             newQuery.$or = [ { org: user.org }, { user: user.id } ];
         }
-        
+
         if (newQuery.$or) { // additional conditions where non-admins may be able to get exps
             if (isC6Origin) {
                 newQuery.$or.push({access: Access.Public});
@@ -194,10 +194,10 @@
                 newQuery.$or.push({id: {$in: user.applications}});
             }
         }
-        
+
         return newQuery;
     };
-    
+
     // Ensure experience has adConfig, getting from its org if necessary
     content.getAdConfig = function(exp, orgId, orgCache) {
         var log = logger.getLog();
@@ -220,7 +220,7 @@
             return q(exp);
         });
     };
-    
+
     content.buildHostQuery = function(host) {
         var query = { host: { $in: [] } };
         while (!!host.match(/\./)) {
@@ -229,7 +229,7 @@
         }
         return query;
     };
-    
+
     content.chooseSite = function(results) {
         return results.reduce(function(prev, curr) {
             if (!curr || !curr.host || curr.status !== Status.Active) {
@@ -241,7 +241,7 @@
             return curr;
         }, null);
     };
-    
+
     // Ensure experience has branding and placementId, getting from current site or org if necessary
     content.getSiteConfig = function(exp, orgId, qps, host, siteCache, orgCache, defaultSiteCfg) {
         var log = logger.getLog(), query;
@@ -250,7 +250,7 @@
             log.warn('Experience %1 does not have data!', exp.id);
             return q(exp);
         }
-        
+
         if (qps && qps.context === 'mr2') {
             exp.data.mode = 'lightbox-ads';
             exp.data.branding = exp.data.branding || qps.branding;
@@ -282,17 +282,17 @@
             exp.data.placementId = exp.data.placementId || defaultSiteCfg.placementId;
             return q(exp);
         });
-        
+
     };
 
-    
+
     content.getPublicExp = function(id, req, expCache, orgCache, siteCache, defaultSiteCfg) {
         var log = logger.getLog(),
             qps = req.query,
             query = {id: id};
-        
+
         log.info('[%1] Guest user trying to get experience %2', req.uuid, id);
-        
+
         return expCache.getPromise(query).then(function(results) {
             var experiences = results.map(function(result) {
                 var formatted = content.formatOutput(result, true);
@@ -302,12 +302,12 @@
                     return formatted;
                 }
             });
-            
+
             if (!experiences[0]) {
                 return q({code: 404, body: 'Experience not found'});
             }
             log.info('[%1] Retrieved experience %2', req.uuid, id);
-            
+
             return content.getAdConfig(experiences[0], results[0].org, orgCache)
             .then(function(exp) {
                 return content.getSiteConfig(exp, results[0].org, qps, req.originHost, siteCache,
@@ -322,7 +322,7 @@
             return q.reject(error);
         });
     };
-    
+
     content.getExperiences = function(query, req, experiences, multiExp) {
         var limit = req.query && Number(req.query.limit) || 0,
             skip = req.query && Number(req.query.skip) || 0,
@@ -350,11 +350,12 @@
             query['status.0.status'] = query.status;
             delete query.status;
         }
+
         if (query.sponsoredType) {
             query['data.0.data.sponsoredType'] = query.sponsoredType;
             delete query.sponsoredType;
         }
-        
+
         log.info('[%1] User %2 getting experiences with %3, sort %4, limit %5, skip %6',
                  req.uuid,req.user.id,JSON.stringify(query),JSON.stringify(sortObj),limit,skip);
 
@@ -369,9 +370,9 @@
         } else if (permQuery.org) {
             opts.hint = { org: 1 };
         }
-            
+
         cursor = experiences.find(permQuery, opts);
-        
+
         if (multiExp) {
             promise = q.npost(cursor, 'count');
         } else {
@@ -416,14 +417,14 @@
             log.trace('exp: %1  |  requester: %2', JSON.stringify(obj), JSON.stringify(user));
             return q({code: 400, body: 'Illegal fields'});
         }
-        
+
         obj.id = 'e-' + uuid.createUuid().substr(0,14);
         log.trace('[%1] User %2 is creating experience %3', req.uuid, user.id, obj.id);
-        
+
         delete obj.versionId; // only allow these properties to be set in the data
         delete obj.title;
         delete obj.lastPublished;
-        
+
         obj.created = now;
         obj.lastUpdated = now;
         if (!obj.user) {
@@ -453,7 +454,7 @@
                 obj.data[0].active = true;
             }
         }
-        
+
         return q.npost(experiences, 'insert', [mongoUtils.escapeKeys(obj), {w: 1, journal: true}])
         .then(function() {
             log.info('[%1] User %2 successfully created experience %3', req.uuid, user.id, obj.id);
@@ -464,7 +465,7 @@
             return q.reject(error);
         });
     };
-    
+
     content.formatUpdates = function(req, orig, updates, user) {
         var log = logger.getLog(),
             now = new Date();
@@ -498,7 +499,7 @@
                 delete updates.data;
             }
         }
-        
+
         if (updates.status) {
             if (updates.status !== orig.status[0].status) {
                 var statWrapper = {user:user.email,userId:user.id,date:now,status:updates.status};
@@ -514,7 +515,7 @@
                 delete updates.status;
             }
         }
-        
+
         updates.lastUpdated = now;
         return mongoUtils.escapeKeys(updates);
     };
@@ -527,13 +528,13 @@
         if (!updates || typeof updates !== 'object') {
             return q({code: 400, body: 'You must provide an object in the body'});
         }
-        
+
         // these props are copied from elsewhere when returning to the client, so don't allow them
         // to be set here
         delete updates.title;
         delete updates.lastPublished;
         delete updates.versionId;
-        
+
         log.info('[%1] User %2 is attempting to update experience %3',req.uuid,user.id,id);
         return q.npost(experiences, 'findOne', [{id: id}])
         .then(function(orig) {
@@ -555,9 +556,9 @@
                 log.info('[%1] User %2 is not authorized to edit %3', req.uuid, user.id, id);
                 return q({ code: 403, body: 'Not authorized to edit this experience' });
             }
-            
+
             var origAdConfig = orig.data && orig.data[0] && orig.data[0].data.adConfig || null;
-            
+
             if (updates.data && updates.data.adConfig &&
                 !objUtils.compareObjects(updates.data.adConfig, origAdConfig) &&
                 !content.checkScope(user, orig, 'experiences', 'editAdConfig')) {
@@ -606,7 +607,7 @@
                 log.info('[%1] Experience %2 has already been deleted', req.uuid, id);
                 return deferred.resolve({code: 204});
             }
-            
+
             var updates = { status: Status.Deleted };
             content.formatUpdates(req, orig, updates, user);
 
@@ -623,6 +624,35 @@
         return deferred.promise;
     };
 
+    content.generatePreviewLink = function(id, req, expCache, orgCache, siteCache, defaultSiteCfg) {
+        var log = logger.getLog();
+        log.info('[%1] User attempting to generate preview link for experience %2', req.uuid, id);
+        return content.getPublicExp(id, req, expCache, orgCache, siteCache, defaultSiteCfg)
+        .then(function(resp) {
+            if(resp.body && resp.body.id && resp.body.title &&
+                resp.body.data && resp.body.data.splash &&
+                resp.body.data.splash.theme && resp.body.data.splash.ratio) {
+                var splashData = resp.body.data.splash;
+                var urlObject = {
+                    query: {
+                        preload: '',
+                        exp: resp.body.id,
+                        title: resp.body.title,
+                        splash: splashData.theme + ':' + splashData.ratio.replace('-', '/')
+                    }
+                };
+                var url = '/#/preview/minireel' + urlUtils.format(urlObject);
+                return q({url: url});
+            } else {
+                log.warn('[%1] Experience %2 does not have required fields.', req.uuid, id);
+                return q({code: 500, body: 'Response does not have required fields.'});
+            }
+        }).catch(function(error) {
+            log.error('[%1] Error generating preview link for experience %2', req.uuid, id);
+            return q.reject(error);
+        });
+    };
+
     content.main = function(state) {
         var log = logger.getLog(),
             started = new Date();
@@ -631,7 +661,7 @@
             return state;
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
-            
+
         var express     = require('express'),
             app         = express(),
             experiences = state.dbs.c6Db.collection('experiences'),
@@ -648,7 +678,7 @@
 
         app.use(express.bodyParser());
         app.use(express.cookieParser(state.secrets.cookieParser || ''));
-        
+
         var sessions = express.session({
             key: state.config.sessions.key,
             cookie: {
@@ -657,7 +687,7 @@
             },
             store: state.sessionStore
         });
-        
+
         state.dbStatus.c6Db.on('reconnected', function() {
             experiences = state.dbs.c6Db.collection('experiences');
             users = state.dbs.c6Db.collection('users');
@@ -669,7 +699,7 @@
             authUtils._coll = users;
             log.info('Recreated collections from restarted c6Db');
         });
-        
+
         state.dbStatus.sessions.on('reconnected', function() {
             sessions = express.session({
                 key: state.config.sessions.key,
@@ -681,12 +711,12 @@
             });
             log.info('Recreated session store from restarted db');
         });
-        
+
         // Because we may recreate the session middleware, we need to wrap it in the route handlers
         function sessionsWrapper(req, res, next) {
             sessions(req, res, next);
         }
-        
+
         app.use(function(req, res, next) {
             content.parseOrigin(req, state.config.publicC6Sites);
             next();
@@ -716,7 +746,7 @@
             }
             next();
         });
-        
+
         // Used for handling public requests for experiences by id methods:
         function handlePublicGet(req, res) {
             return content.getPublicExp(req.params.id, req, expCache, orgCache, siteCache,
@@ -732,14 +762,14 @@
                 }});
             });
         }
-        
+
         // Retrieve a json representation of an experience
         app.get('/api/public/content/experience/:id.json', function(req, res) {
             handlePublicGet(req, res).then(function(resp) {
                 res.send(resp.code, resp.body);
             });
         });
-        
+
         // Retrieve a CommonJS style representation of an experience
         app.get('/api/public/content/experience/:id.js', function(req, res) {
             handlePublicGet(req, res).then(function(resp) {
@@ -758,9 +788,26 @@
                 res.send(resp.code, resp.body);
             });
         });
-        
+
+        app.get('/preview/:id', function(req, res) {
+            content.generatePreviewLink(req.params.id, req, expCache, orgCache, siteCache,
+                state.config.defaultSiteConfig)
+            .then(function(resp) {
+                if(resp.url) {
+                    res.redirect(resp.url);
+                } else {
+                    res.send(resp.code, resp.body);
+                }
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error generating preview link',
+                    detail: error
+                });
+            });
+        });
+
         var authGetExp = authUtils.middlewarify({experiences: 'read'});
-        
+
         // private get experience by id
         app.get('/api/content/experience/:id', sessionsWrapper, authGetExp, function(req, res) {
             content.getExperiences({id:req.params.id}, req, experiences)
@@ -798,13 +845,13 @@
                 log.info('[%1] Cannot GET /content/experiences with no query params',req.uuid);
                 return res.send(400, 'Must specify at least one supported query param');
             }
-            
+
             content.getExperiences(query, req, experiences, true)
             .then(function(resp) {
                 if (resp.pagination) {
                     res.header('content-range', 'items ' + resp.pagination.start + '-' +
                                                 resp.pagination.end + '/' + resp.pagination.total);
-                    
+
                 }
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
@@ -814,7 +861,7 @@
                 });
             });
         });
-        
+
         var authPostExp = authUtils.middlewarify({experiences: 'create'});
         app.post('/api/content/experience', sessionsWrapper, authPostExp, function(req, res) {
             content.createExperience(req, experiences)
@@ -827,7 +874,7 @@
                 });
             });
         });
-        
+
         var authPutExp = authUtils.middlewarify({experiences: 'edit'});
         app.put('/api/content/experience/:id', sessionsWrapper, authPutExp, function(req, res) {
             content.updateExperience(req, experiences)
@@ -840,7 +887,7 @@
                 });
             });
         });
-        
+
         var authDelExp = authUtils.middlewarify({experiences: 'delete'});
         app.delete('/api/content/experience/:id', sessionsWrapper, authDelExp, function(req, res) {
             content.deleteExperience(req, experiences)
@@ -875,7 +922,7 @@
                 next();
             }
         });
-        
+
         app.listen(state.cmdl.port);
         log.info('Service is listening on port: ' + state.cmdl.port);
 

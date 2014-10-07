@@ -2,7 +2,7 @@ var flush = true;
 describe('content (UT)', function() {
     var mockLog, mockLogger, experiences, req, uuid, logger, content, q, objUtils,
         mongoUtils, enums, Status, Scope, Access;
-    
+
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         uuid            = require('../../lib/uuid');
@@ -15,7 +15,7 @@ describe('content (UT)', function() {
         Status          = enums.Status;
         Access          = enums.Access;
         Scope           = enums.Scope;
-        
+
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
             error : jasmine.createSpy('log_error'),
@@ -29,7 +29,7 @@ describe('content (UT)', function() {
         spyOn(content, 'formatOutput').andCallThrough();
         spyOn(mongoUtils, 'escapeKeys').andCallThrough();
         spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
-        
+
         experiences = {};
         req = {uuid: '1234'};
     });
@@ -50,7 +50,7 @@ describe('content (UT)', function() {
             spyOn(content, 'getAdConfig').andReturn(q('withAdConfig'));
             spyOn(content, 'getSiteConfig').andReturn(q('withSiteConfig'));
         });
-        
+
         it('should call cache.getPromise to get the experience', function(done) {
             content.getPublicExp(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
                 expect(resp.code).toBe(200);
@@ -65,7 +65,7 @@ describe('content (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
         });
-        
+
         it('should return a 404 if nothing was found', function(done) {
             expCache.getPromise.andReturn(q([]));
             content.getPublicExp(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
@@ -80,7 +80,7 @@ describe('content (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
         });
-        
+
         it('should return a 404 if the user cannot see the experience', function(done) {
             content.canGetExperience.andReturn(false);
             content.getPublicExp(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
@@ -95,7 +95,7 @@ describe('content (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
         });
-        
+
         it('should fail if the promise was rejected', function(done) {
             expCache.getPromise.andReturn(q.reject('I GOT A PROBLEM'));
             content.getPublicExp(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
@@ -108,7 +108,7 @@ describe('content (UT)', function() {
                 expect(content.getAdConfig).not.toHaveBeenCalled();
             }).finally(done);
         });
-        
+
         it('should fail if calling getAdConfig fails', function(done) {
             content.getAdConfig.andReturn(q.reject('I GOT A PROBLEM'));
             content.getPublicExp(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
@@ -137,7 +137,7 @@ describe('content (UT)', function() {
             }).finally(done);
         });
     });
-    
+
     describe('getExperiences', function() {
         var req, expColl, query, pubList;
         beforeEach(function() {
@@ -164,7 +164,7 @@ describe('content (UT)', function() {
             spyOn(content, 'userPermQuery').andReturn('userPermQuery');
             content.formatOutput.andReturn('formatted');
         });
-        
+
         it('should format the query and call expColl.find', function(done) {
             content.getExperiences(query, req, expColl, false).then(function(resp) {
                 expect(resp.code).toBe(200);
@@ -178,7 +178,7 @@ describe('content (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
         });
-        
+
         it('should use defaults if some params are not defined', function(done) {
             req = { uuid: '1234', user: 'fakeUser' };
             content.getExperiences(query, req, expColl, false).then(function(resp) {
@@ -189,7 +189,7 @@ describe('content (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
         });
-        
+
         it('should just ignore the sort param if invalid', function(done) {
             req.query.sort = 'foo';
             content.getExperiences(query, req, expColl, false).then(function(resp) {
@@ -200,7 +200,7 @@ describe('content (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
         });
-        
+
         it('should properly use hints if querying by user or org', function(done) {
             content.userPermQuery.andCallFake(function(orig) { return orig; });
             content.getExperiences({user: 'u-1'}, req, expColl, false).then(function(resp) {
@@ -216,13 +216,13 @@ describe('content (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
         });
-        
+
         it('should prefer to hint on the user index if querying by user and org', function(done) {
             content.userPermQuery.andCallFake(function(orig) { return orig; });
             content.getExperiences({org: 'o-1', user: 'u-1'}, req, expColl, false).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual(['formatted']);
-                expect(expColl.find).toHaveBeenCalledWith({org: 'o-1', user: 'u-1'}, 
+                expect(expColl.find).toHaveBeenCalledWith({org: 'o-1', user: 'u-1'},
                     {sort: {id: 1}, limit: 20, skip: 10, hint: {user: 1}});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -242,7 +242,7 @@ describe('content (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
         });
-        
+
         it('should properly format a query on the status field', function(done) {
             query.status = Status.Active;
             content.getExperiences(query, req, expColl, false).then(function(resp) {
@@ -277,7 +277,7 @@ describe('content (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
         });
-        
+
         it('should handle end behavior properly when paginating', function(done) {
             req.query.skip = 45;
             content.getExperiences(query, req, expColl, true).then(function(resp) {
@@ -289,7 +289,7 @@ describe('content (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
         });
-        
+
         it('should return a 200 and empty array if nothing was found', function(done) {
             fakeCursor.toArray.andCallFake(function(cb) { cb(null, []); });
             fakeCursor.count.andCallFake(function(cb) { cb(null, 0); });
@@ -304,7 +304,7 @@ describe('content (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
         });
-        
+
         it('should fail if cursor.toArray has an error', function(done) {
             fakeCursor.toArray.andCallFake(function(cb) { cb('Find Error!'); });
             fakeCursor.count.andCallFake(function(cb) { cb('Count Error!'); });
@@ -333,7 +333,7 @@ describe('content (UT)', function() {
             }).finally(done);
         });
     });
-    
+
     describe('createExperience', function() {
         beforeEach(function() {
             req.body = {tag: 'fakeExp', data: { foo: 'bar' } };
@@ -345,7 +345,7 @@ describe('content (UT)', function() {
             spyOn(uuid, 'hashText').andReturn('fakeVersion');
             spyOn(content, 'checkScope').andReturn(false);
         });
-        
+
         it('should fail with a 400 if no experience is provided', function(done) {
             delete req.body;
             content.createExperience(req, experiences).then(function(resp) {
@@ -358,7 +358,7 @@ describe('content (UT)', function() {
                 done();
             });
         });
-        
+
         it('should successfully create an experience', function(done) {
             content.createExperience(req, experiences).then(function(resp) {
                 expect(resp).toBeDefined();
@@ -387,7 +387,7 @@ describe('content (UT)', function() {
                 done();
             });
         });
-        
+
         it('should trim off certain fields not allowed on the top-level', function(done) {
             req.body.title = 'this is a title';
             req.body.versionId = 'thabestversion';
@@ -409,7 +409,7 @@ describe('content (UT)', function() {
                 done();
             });
         });
-        
+
         it('should prevent ordinary users from setting the adConfig', function(done) {
             req.body.data.adConfig = {ads: 'good'};
             content.createExperience(req, experiences).then(function(resp) {
@@ -425,7 +425,7 @@ describe('content (UT)', function() {
                 done();
             });
         });
-        
+
         it('should let users set the adConfig if they have permission to do so', function(done) {
             content.checkScope.andReturn(true);
             req.body.data.adConfig = {ads: 'good'};
@@ -443,7 +443,7 @@ describe('content (UT)', function() {
                 done();
             });
         });
-        
+
         it('should fail with a 400 if the request body contains illegal fields', function(done) {
             content.createValidator.validate.andReturn(false);
             content.createExperience(req, experiences).then(function(resp) {
@@ -457,7 +457,7 @@ describe('content (UT)', function() {
                 done();
             });
         });
-        
+
         it('should fail with an error if inserting the record fails', function(done) {
             experiences.insert.andCallFake(function(obj, opts, cb) { cb('Error!'); });
             content.createExperience(req, experiences).then(function(resp) {
@@ -507,7 +507,7 @@ describe('content (UT)', function() {
                 done();
             });
         });
-        
+
         it('should successfully update an experience', function(done) {
             content.updateExperience(req, experiences).then(function(resp) {
                 expect(resp.code).toBe(200);
@@ -539,7 +539,7 @@ describe('content (UT)', function() {
                 done();
             });
         });
-        
+
         it('should prevent improper direct edits to some properties', function(done) {
             req.body.title = 'a title';
             req.body.versionId = 'qwer1234';
@@ -561,7 +561,7 @@ describe('content (UT)', function() {
                 done();
             });
         });
-        
+
         it('should not edit the experience if the updates contain illegal fields', function(done) {
             content.updateValidator.validate.andReturn(false);
             content.updateExperience(req, experiences).then(function(resp) {
@@ -575,7 +575,7 @@ describe('content (UT)', function() {
                 done();
             });
         });
-        
+
         it('should only let a user edit experiences they are authorized to edit', function(done) {
             content.checkScope.andReturn(false);
             content.updateExperience(req, experiences).then(function(resp) {
@@ -590,7 +590,7 @@ describe('content (UT)', function() {
                 done();
             });
         });
-        
+
         it('should prevent ordinary users from editing the adConfig', function(done) {
             content.checkScope.andCallFake(function(user, orig, obj, verb) {
                 if (verb == 'editAdConfig') return false;
@@ -632,7 +632,7 @@ describe('content (UT)', function() {
                 done();
             });
         });
-        
+
         it('should let users edit the adConfig if they have permission to do so', function(done) {
             content.checkScope.andReturn(true);
             req.body.data.adConfig = { ads: 'bad' };
@@ -650,7 +650,7 @@ describe('content (UT)', function() {
                 done();
             });
         });
-        
+
         it('should not create an experience if it does not already exist', function(done) {
             experiences.findOne.andCallFake(function(query, cb) { cb(); });
             content.updateExperience(req, experiences).then(function(resp) {
@@ -678,7 +678,7 @@ describe('content (UT)', function() {
                 done();
             });
         });
-        
+
         it('should fail with an error if modifying the record fails', function(done) {
             experiences.findAndModify.andCallFake(function(query, sort, obj, opts, cb) { cb('Error!'); });
             content.updateExperience(req, experiences).then(function(resp) {
@@ -690,7 +690,7 @@ describe('content (UT)', function() {
                 done();
             });
         });
-        
+
         it('should fail with an error if looking up the record fails', function(done) {
             experiences.findOne.andCallFake(function(query, cb) { cb('Error!'); });
             content.updateExperience(req, experiences).then(function(resp) {
@@ -704,7 +704,7 @@ describe('content (UT)', function() {
             });
         });
     });
-    
+
     describe('deleteExperience', function() {
         var start = new Date(),
             oldExp;
@@ -721,7 +721,7 @@ describe('content (UT)', function() {
             spyOn(content, 'formatUpdates').andCallThrough();
             spyOn(content, 'checkScope').andReturn(true);
         });
-        
+
         it('should successfully delete an experience', function(done) {
             content.deleteExperience(req, experiences).then(function(resp) {
                 expect(resp).toBeDefined();
@@ -748,7 +748,7 @@ describe('content (UT)', function() {
                 done();
             });
         });
-        
+
         it('should not do anything if the experience does not exist', function(done) {
             experiences.findOne.andCallFake(function(query, cb) { cb(); });
             content.deleteExperience(req, experiences).then(function(resp) {
@@ -763,7 +763,7 @@ describe('content (UT)', function() {
                 done();
             });
         });
-        
+
         it('should not do anything if the experience has been deleted', function(done) {
             oldExp.status[0].status = Status.Deleted;
             content.deleteExperience(req, experiences).then(function(resp) {
@@ -778,7 +778,7 @@ describe('content (UT)', function() {
                 done();
             });
         });
-        
+
         it('should only let a user delete experiences they are authorized to delete', function(done) {
             content.checkScope.andReturn(false);
             content.deleteExperience(req, experiences).then(function(resp) {
@@ -794,7 +794,7 @@ describe('content (UT)', function() {
                 done();
             });
         });
-        
+
         it('should fail with an error if modifying the record fails', function(done) {
             experiences.update.andCallFake(function(query, obj, opts, cb) { cb('Error!'); });
             content.deleteExperience(req, experiences).then(function(resp) {
@@ -806,7 +806,7 @@ describe('content (UT)', function() {
                 done();
             });
         });
-        
+
         it('should fail with an error if looking up the record fails', function(done) {
             experiences.findOne.andCallFake(function(query, cb) { cb('Error!'); });
             content.deleteExperience(req, experiences).then(function(resp) {
@@ -820,4 +820,58 @@ describe('content (UT)', function() {
             });
         });
     });  // end -- describe deleteExperience
+
+    describe('generatePreviewLink', function() {
+        var id, req, expCache, orgCache, siteCache, siteCfg;
+        beforeEach(function() {
+            id = 'e-1';
+            req = { isC6Origin: false, shortOrigin: 'c6.com', uuid: '1234', query: {foo: 'bar'} };
+            siteCfg = { sites: 'good' };
+            expCache = {
+                getPromise: jasmine.createSpy('expCache.getPromise').andReturn(q([{id: 'e-1', org: 'o-1'}]))
+            };
+            orgCache = 'fakeOrgCache';
+            siteCache = 'fakeSiteCache';
+        });
+
+        it('should return a generated url', function(done) {
+            var getPublicExpResult = {"body":{"id":'fakeID',"title":'fakeTitle',"data":{"splash":{"ratio":"16-9","theme":"horizontal-stack"}}}};
+            spyOn(content, 'getPublicExp').andReturn(q(getPublicExpResult));
+            content.generatePreviewLink(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
+                expect(mockLog.info).toHaveBeenCalled();
+                expect(content.getPublicExp).toHaveBeenCalledWith(id, req, expCache, orgCache, siteCache, siteCfg);
+                expect(resp).toEqual({url: '/#/preview/minireel?preload=&exp=fakeID&title=fakeTitle&splash=horizontal-stack%3A16%2F9'});
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+
+        it('should return the proper 500 response if there is a missing field', function(done) {
+            // This document doesn't have an id
+            var getPublicExpResult = {"body":{"title":'fakeTitle',"data":{"splash":{"ratio":"16-9","theme":"horizontal-stack"}}}};
+            spyOn(content, 'getPublicExp').andReturn(q(getPublicExpResult));
+            content.generatePreviewLink(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
+                expect(mockLog.info).toHaveBeenCalled();
+                expect(content.getPublicExp).toHaveBeenCalledWith(id, req, expCache, orgCache, siteCache, siteCfg);
+                expect(mockLog.warn).toHaveBeenCalled();
+                expect(resp).toEqual({code: 500, body: 'Response does not have required fields.'});
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+
+        it('shoud behave appropriately when getPublicExp rejects with an error', function(done) {
+            var getPublicExpResult = {"body":{"id":'fakeID',"title":'fakeTitle',"data":{"splash":{"ratio":"16-9","theme":"horizontal-stack"}}}};
+            spyOn(content, 'getPublicExp').andReturn(q.reject('Some error message.'));
+            content.generatePreviewLink(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(content.getPublicExp).toHaveBeenCalledWith(id, req, expCache, orgCache, siteCache, siteCfg);
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(error.toString()).toBe('Some error message.');
+            }).finally(done);
+        });
+
+    }); // end --describe generatePreviewLink
+
 });  // end -- describe content
