@@ -360,7 +360,6 @@ describe('content (E2E):', function() {
         it('should get an experience by id', function(done) {
             requestUtils.qRequest('get', options).then(function(resp) {
                 var req = resp.response.request;
-                expect(resp.response.statusCode).toBe(404);
                 expect(typeof req).toBe('object');
                 expect(req.href).toBeDefined();
                 var urlParts = req.href.split('?');
@@ -382,6 +381,16 @@ describe('content (E2E):', function() {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(500);
                 expect(resp.body).toBe('Response does not have required fields.');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should respond with a 404 if the experience does not exist', function(done) {
+            options.url = config.previewUrl + '/preview/fake-exp';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toBe('Experience not found');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).finally(done);

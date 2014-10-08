@@ -822,7 +822,7 @@ describe('content (UT)', function() {
     });  // end -- describe deleteExperience
 
     describe('generatePreviewLink', function() {
-        var id, req, expCache, orgCache, siteCache, siteCfg;
+        var id, req, expCache, orgCache, siteCache, siteCfg, publicGetResult;
         beforeEach(function() {
             id = 'e-1';
             req = { isC6Origin: false, shortOrigin: 'c6.com', uuid: '1234', query: {foo: 'bar'} };
@@ -832,11 +832,12 @@ describe('content (UT)', function() {
             };
             orgCache = 'fakeOrgCache';
             siteCache = 'fakeSiteCache';
+            publicGetResult = { code: 200, body: { id: 'fakeID', title: 'fakeTitle', data: {
+                                splash: { ratio: '16-9', theme: 'horizontal-stack' } } } };
+            spyOn(content, 'getPublicExp').andCallFake(function() { return q(publicGetResult); });
         });
 
         it('should return a generated url', function(done) {
-            var getPublicExpResult = {"body":{"id":'fakeID',"title":'fakeTitle',"data":{"splash":{"ratio":"16-9","theme":"horizontal-stack"}}}};
-            spyOn(content, 'getPublicExp').andReturn(q(getPublicExpResult));
             content.generatePreviewLink(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
                 expect(mockLog.info).toHaveBeenCalled();
                 expect(content.getPublicExp).toHaveBeenCalledWith(id, req, expCache, orgCache, siteCache, siteCfg);
@@ -847,9 +848,7 @@ describe('content (UT)', function() {
         });
 
         it('should return the proper 500 response if there is a missing field', function(done) {
-            // This document doesn't have an id
-            var getPublicExpResult = {"body":{"title":'fakeTitle',"data":{"splash":{"ratio":"16-9","theme":"horizontal-stack"}}}};
-            spyOn(content, 'getPublicExp').andReturn(q(getPublicExpResult));
+            delete publicGetResult.body.id;
             content.generatePreviewLink(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
                 expect(mockLog.info).toHaveBeenCalled();
                 expect(content.getPublicExp).toHaveBeenCalledWith(id, req, expCache, orgCache, siteCache, siteCfg);
@@ -859,10 +858,21 @@ describe('content (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);
         });
+        
+        it('should behave appropriately when getPublicExp returns a non-200 response', function(done) {
+            content.getPublicExp.andReturn(q({code: 404, body: 'Experience not found'}));
+            content.generatePreviewLink(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
+                expect(mockLog.info).toHaveBeenCalled();
+                expect(content.getPublicExp).toHaveBeenCalledWith(id, req, expCache, orgCache, siteCache, siteCfg);
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(resp).toEqual({code: 404, body: 'Experience not found'});
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
 
         it('shoud behave appropriately when getPublicExp rejects with an error', function(done) {
-            var getPublicExpResult = {"body":{"id":'fakeID',"title":'fakeTitle',"data":{"splash":{"ratio":"16-9","theme":"horizontal-stack"}}}};
-            spyOn(content, 'getPublicExp').andReturn(q.reject('Some error message.'));
+            content.getPublicExp.andReturn(q.reject('Some error message.'));
             content.generatePreviewLink(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
@@ -871,7 +881,5 @@ describe('content (UT)', function() {
                 expect(error.toString()).toBe('Some error message.');
             }).finally(done);
         });
-
     }); // end --describe generatePreviewLink
-
 });  // end -- describe content

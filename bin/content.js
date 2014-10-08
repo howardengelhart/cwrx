@@ -629,6 +629,10 @@
         log.info('[%1] User attempting to generate preview link for experience %2', req.uuid, id);
         return content.getPublicExp(id, req, expCache, orgCache, siteCache, defaultSiteCfg)
         .then(function(resp) {
+            if (resp.code !== 200) {
+                return q(resp);
+            }
+
             if(resp.body && resp.body.id && resp.body.title &&
                 resp.body.data && resp.body.data.splash &&
                 resp.body.data.splash.theme && resp.body.data.splash.ratio) {

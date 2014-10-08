@@ -1,5 +1,11 @@
 # Content Service Changelog
 
+### 1.11.0: Wed Oct  8 14:59:44 EDT 2014
+* [FEATURE]: Add `/preview/:id` endpoint for generating full preview links: [#299](https://github.com/cinema6/cwrx/pull/299)
+* Extra deployment steps: 
+    * Deploy new content cookbook with nginx config change
+    * Ensure Cloudfront behaviors and new DNS records properly setup
+
 ### 1.10.0: Fri Oct  3 12:52:39 EDT 2014
 * [FEATURE]: Allow querying experiences by status: [#303](https://github.com/cinema6/cwrx/pull/303)
 * [FIX]: Allow cinema6.com to be added to the `publicC6Sites` list: [#303](https://github.com/cinema6/cwrx/pull/303)
