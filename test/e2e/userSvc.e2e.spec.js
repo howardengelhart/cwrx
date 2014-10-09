@@ -137,7 +137,7 @@ describe('user (E2E):', function() {
         });
         
         it('should get users by org', function(done) {
-            var options = { url: config.userSvcUrl + '/users?org=o-1234', jar: cookieJar };
+            var options = { url: config.userSvcUrl + '/users?org=o-1234&sort=id,1', jar: cookieJar };
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
@@ -265,6 +265,17 @@ describe('user (E2E):', function() {
                 done();
             });
         });
+        
+        it('should prevent mongo query selector injection attacks', function(done) {
+            var options = { url: config.userSvcUrl + '/users?org[$gt]=', jar: cookieJar };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toEqual('No users found');
+                expect(resp.response.headers['content-range']).toBe('items 0-0/0');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
+        });
     });
     
     describe('POST /api/account/user', function() {
@@ -299,7 +310,8 @@ describe('user (E2E):', function() {
                     experiences: { read: 'org', create: 'org', edit: 'org', delete: 'org' },
                     elections: { read: 'org', create: 'org', edit: 'org', delete: 'org' },
                     users: { read: 'org', edit: 'own' },
-                    orgs: { read: 'own', edit: 'own' }
+                    orgs: { read: 'own', edit: 'own' },
+                    sites: { read: 'org' }
                 });
                 done();
             }).catch(function(error) {
@@ -343,7 +355,8 @@ describe('user (E2E):', function() {
                     experiences: { read: 'org', create: 'org', edit: 'org', delete: 'org' },
                     elections: { read: 'org', create: 'org', edit: 'org', delete: 'org' },
                     users: { read: 'org', edit: 'org', delete: 'org' },
-                    orgs: { read: 'own', edit: 'own' }
+                    orgs: { read: 'own', edit: 'own' },
+                    sites: { read: 'org' }
                 });
                 done();
             }).catch(function(error) {
@@ -719,6 +732,17 @@ describe('user (E2E):', function() {
             });
         });
         
+        it('should prevent mongo query selector injection attacks', function(done) {
+            reqBody.email = { $gt: '' };
+            options.json = reqBody;
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Must provide email and password');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
+        });
+        
         it('should fail if a user with that email already exists', function(done) {
             var altUser = { id: 'u-2', email: 'mynewemail' };
             testUtils.resetCollection('users', [user, altUser]).then(function() {
@@ -862,6 +886,17 @@ describe('user (E2E):', function() {
                 expect(error).not.toBeDefined();
                 done();
             });
+        });
+
+        it('should prevent mongo query selector injection attacks', function(done) {
+            reqBody.email = { $gt: '' };
+            options.json = reqBody;
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Must provide email and password');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
         });
         
         it('should change the user\'s password successfully', function(done) {

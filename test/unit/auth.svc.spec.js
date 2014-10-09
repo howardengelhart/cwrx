@@ -89,6 +89,22 @@ describe('auth (UT)', function() {
             }).finally(done);
         });
         
+        it('should resolve with a 400 if the email or password are not strings', function(done) {
+            q.all([ { email: { $gt: '' }, password: 'pass'},
+                    { email: 'user', password: { $gt: '' } } ].map(function(body) {
+                req.body = body;
+                return auth.login(req, users);
+            })).then(function(results) {
+                results.forEach(function(resp) {
+                    expect(resp).toEqual({code: 400, body: 'You need to provide an email and password in the body'});
+                });
+                expect(users.findOne).not.toHaveBeenCalled();
+                expect(req.session.regenerate).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
         it('should log a user in successfully', function(done) {
             auth.login(req, users, 1000, authJournal, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(200);
@@ -372,6 +388,19 @@ describe('auth (UT)', function() {
             }).finally(done);
         });
         
+        it('should fail with a 400 if the email is not a string', function(done) {
+            req.body.email = { $gt: '' };
+            auth.forgotPassword(req, users, 10000, 'test@c6.com', targets).then(function(resp) {
+                expect(resp.code).toBe(400);
+                expect(resp.body).toBe('Need to provide email and target in the request');
+                expect(users.findOne).not.toHaveBeenCalled();
+                expect(users.update).not.toHaveBeenCalled();
+                expect(auth.mailResetToken).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
         it('should fail with a 400 if the target is invalid', function(done) {
             req.body.target = 'fake';
             auth.forgotPassword(req, users, 10000, 'test@c6.com', targets, auditJournal).then(function(resp) {
@@ -583,6 +612,27 @@ describe('auth (UT)', function() {
                 expect(users.findOne).not.toHaveBeenCalled();
                 expect(users.findAndModify).not.toHaveBeenCalled();
                 expect(auditJournal.writeAuditEntry).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should fail with a 400 if any of the parameters are not strings', function(done) {
+            var bodies = [
+                {id: { $gt: '' }, token: 'qwer1234', newPassword: 'newPass'},
+                {id: 'u-1', token: { $gt: '' }, newPassword: 'newPass'},
+                {id: 'u-1', token: 'qwer1234', newPassword: { $gt: '' }}
+            ];
+            q.all(bodies.map(function(body) {
+                req.body = body;
+                return auth.resetPassword(req, users, 'test@c6.com', 10000);
+            })).then(function(results) {
+                results.forEach(function(resp) {
+                    expect(resp.code).toBe(400);
+                    expect(resp.body).toBe('Must provide id, token, and newPassword');
+                });
+                expect(users.findOne).not.toHaveBeenCalled();
+                expect(users.findAndModify).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).finally(done);

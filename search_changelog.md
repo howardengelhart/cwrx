@@ -1,5 +1,9 @@
 # Search Service Changelog
 
+### 1.0.4: Mon Sep 22 12:41:39 EDT 2014
+* [FIX]: Prevent client from seeing or querying for more than 100 results: [#289](https://github.com/cinema6/cwrx/pull/289)
+* Extra deployment steps: None
+
 ### 1.0.3: Thu Sep 11 15:30:07 EDT 2014
 * [FIX]: Handle empty responses from Google: [#278](https://github.com/cinema6/cwrx/pull/278)
 * Extra deployment steps: None

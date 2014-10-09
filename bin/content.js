@@ -5,6 +5,7 @@
 
     var path            = require('path'),
         q               = require('q'),
+        urlUtils        = require('url'),
         logger          = require('../lib/logger'),
         uuid            = require('../lib/uuid'),
         mongoUtils      = require('../lib/mongoUtils'),
@@ -18,7 +19,7 @@
         Status          = enums.Status,
         Access          = enums.Access,
         Scope           = enums.Scope,
-        
+
         state = {},
         content = {}; // for exporting functions to unit tests
 
@@ -38,6 +39,10 @@
                 freshTTL: 1,
                 maxTTL: 10
             },
+            sites: {
+                freshTTL: 1,
+                maxTTL: 10
+            },
             cloudFront: 5
         },
         sessions: {
@@ -50,7 +55,11 @@
                 retryConnect : true
             }
         },
-        publicC6Sites: ['www.cinema6.com', 'demo.cinema6.com'], // our sites that publish minireels
+        defaultSiteConfig: {
+            branding: 'default',
+            placementId: null
+        },
+        publicC6Sites: ['www.cinema6.com', 'demo.cinema6.com', 'cinema6.com'],
         secretsPath: path.join(process.env.HOME,'.content.secrets.json'),
         mongo: {
             c6Db: {
@@ -85,11 +94,19 @@
     });
     content.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created', '_id'] });
 
+    // Find and parse the origin, storing useful properties on the request
+    content.parseOrigin = function(req, publicList) {
+        req.origin = req.headers && (req.headers.origin || req.headers.referer) || '';
+        req.originHost = req.origin && urlUtils.parse(req.origin).hostname || '';
+        req.isC6Origin = (req.origin && req.origin.match('cinema6.com') || false) &&
+                         !publicList.some(function(site) { return req.originHost === site; });
+    };
+
     content.formatOutput = function(experience, isGuest) {
         var log = logger.getLog(),
             privateFields = ['user', 'org'],
             newExp = {};
-            
+
         function statusReduce(a, b) {
             if (b.status === Status.Active && (!a || b.date > a.date)) {
                 return b;
@@ -97,7 +114,7 @@
                 return a;
             }
         }
-        
+
         for (var key in experience) {
             if (key === 'data') {
                 if (!(experience.data instanceof Array)) {
@@ -139,52 +156,40 @@
                                                                user.id === experience.user)) ||
              (user.permissions[object][verb] === Scope.Own && user.id === experience.user) ));
     };
-    
-    content.checkOrigin = function(origin, publicList) {
-        return origin.match('cinema6.com') && !publicList.some(function(site) {
-            return origin.match(site);
-        });
-    };
-    
+
     // Check whether a user can retrieve an experience
-    content.canGetExperience = function(exp, user, origin, publicList) {
+    content.canGetExperience = function(exp, user, isC6Origin) {
         user = user || {};
-        var isC6Origin = origin.match('cinema6.com') && !publicList.some(function(site) {
-            return origin.match(site);
-        });
-        
+
         return exp.status !== Status.Deleted &&
                !!( (exp.status === Status.Active && !isC6Origin)                    ||
                    (exp.access === Access.Public && isC6Origin)                     ||
                    content.checkScope(user, exp, 'experiences', 'read')             ||
                    (user.applications && user.applications.indexOf(exp.id) >= 0)    );
     };
-    
-    /* Adds fields to a find query to filter out experiences the user can't see, effectively 
+
+    /* Adds fields to a find query to filter out experiences the user can't see, effectively
      * replicating the logic of canGetExperience through the query */
-    content.userPermQuery = function(query, user, origin, publicList) {
+    content.userPermQuery = function(query, user, isC6Origin) {
         var newQuery = JSON.parse(JSON.stringify(query)),
             readScope = user.permissions.experiences.read,
-            log = logger.getLog(),
-            isC6Origin = origin.match('cinema6.com') && !publicList.some(function(site) {
-                return origin.match(site);
-            });
-        
+            log = logger.getLog();
+
         if (!newQuery['status.0.status']) {
             newQuery['status.0.status'] = {$ne: Status.Deleted}; // never show deleted exps
         }
-        
+
         if (!Scope.isScope(readScope)) {
             log.warn('User has invalid scope ' + readScope);
             readScope = Scope.Own;
         }
-        
+
         if (readScope === Scope.Own) {
             newQuery.$or = [ { user: user.id } ];
         } else if (readScope === Scope.Org) {
             newQuery.$or = [ { org: user.org }, { user: user.id } ];
         }
-        
+
         if (newQuery.$or) { // additional conditions where non-admins may be able to get exps
             if (isC6Origin) {
                 newQuery.$or.push({access: Access.Public});
@@ -195,10 +200,11 @@
                 newQuery.$or.push({id: {$in: user.applications}});
             }
         }
-        
+
         return newQuery;
     };
-    
+
+    // Ensure experience has adConfig, getting from its org if necessary
     content.getAdConfig = function(exp, orgId, orgCache) {
         var log = logger.getLog();
 
@@ -210,7 +216,7 @@
             return q(exp);
         }
         return orgCache.getPromise({id: orgId}).then(function(results) {
-            if (results.length === 0) {
+            if (results.length === 0 || results[0].status !== Status.Active) {
                 log.warn('Org %1 not found', orgId);
             } else if (!results[0].adConfig) {
                 log.info('Neither experience %1 nor org %2 have adConfig', exp.id, orgId);
@@ -220,30 +226,99 @@
             return q(exp);
         });
     };
-    
-    content.getPublicExp = function(id, req, expCache, publicList, orgCache) {
+
+    content.buildHostQuery = function(host) {
+        var query = { host: { $in: [] } };
+        while (!!host.match(/\./)) {
+            query.host.$in.push(host);
+            host = host.substring(host.search(/\./) + 1);
+        }
+        return query;
+    };
+
+    content.chooseSite = function(results) {
+        return results.reduce(function(prev, curr) {
+            if (!curr || !curr.host || curr.status !== Status.Active) {
+                return prev;
+            }
+            if (prev && prev.host && prev.host.length > curr.host.length) {
+                return prev;
+            }
+            return curr;
+        }, null);
+    };
+
+    // Ensure experience has branding and placementId, getting from current site or org if necessary
+    content.getSiteConfig = function(exp, orgId, qps, host, siteCache, orgCache, defaultSiteCfg) {
+        var log = logger.getLog(), query;
+
+        if (!exp.data) {
+            log.warn('Experience %1 does not have data!', exp.id);
+            return q(exp);
+        }
+
+        if (qps && qps.context === 'mr2') {
+            exp.data.mode = 'lightbox-ads';
+            exp.data.branding = exp.data.branding || qps.branding;
+            exp.data.placementId = exp.data.placementId || qps.placementId;
+        }
+        if (exp.data.branding && exp.data.placementId) {
+            return q(exp);
+        }
+
+        query = content.buildHostQuery(host);
+
+        return siteCache.getPromise(query).then(function(results) {
+            var site = content.chooseSite(results);
+            if (!site) {
+                log.trace('Site %1 not found', host);
+            } else {
+                exp.data.branding = exp.data.branding || site.branding;
+                exp.data.placementId = exp.data.placementId || site.placementId;
+            }
+            if (exp.data.branding) {
+                return q();
+            }
+            return orgCache.getPromise({id: orgId});
+        }).then(function(results) {
+            if (results && results.length !== 0 && results[0].status === Status.Active) {
+                exp.data.branding = exp.data.branding || results[0].branding;
+            }
+            exp.data.branding = exp.data.branding || defaultSiteCfg.branding;
+            exp.data.placementId = exp.data.placementId || defaultSiteCfg.placementId;
+            return q(exp);
+        });
+
+    };
+
+
+    content.getPublicExp = function(id, req, expCache, orgCache, siteCache, defaultSiteCfg) {
         var log = logger.getLog(),
-            origin = req.headers && (req.headers.origin || req.headers.referer) || '',
+            qps = req.query,
             query = {id: id};
-        
+
         log.info('[%1] Guest user trying to get experience %2', req.uuid, id);
-        
+
         return expCache.getPromise(query).then(function(results) {
             var experiences = results.map(function(result) {
                 var formatted = content.formatOutput(result, true);
-                if (!content.canGetExperience(formatted, null, origin, publicList)) {
+                if (!content.canGetExperience(formatted, null, req.isC6Origin)) {
                     return null;
                 } else {
                     return formatted;
                 }
             });
-            
+
             if (!experiences[0]) {
                 return q({code: 404, body: 'Experience not found'});
             }
             log.info('[%1] Retrieved experience %2', req.uuid, id);
-            
+
             return content.getAdConfig(experiences[0], results[0].org, orgCache)
+            .then(function(exp) {
+                return content.getSiteConfig(exp, results[0].org, qps, req.originHost, siteCache,
+                                             orgCache, defaultSiteCfg);
+            })
             .then(function(exp) {
                 return q({code: 200, body: exp});
             });
@@ -253,12 +328,11 @@
             return q.reject(error);
         });
     };
-    
-    content.getExperiences = function(query, req, experiences, publicList, multiExp) {
+
+    content.getExperiences = function(query, req, experiences, multiExp) {
         var limit = req.query && Number(req.query.limit) || 0,
             skip = req.query && Number(req.query.skip) || 0,
             sort = req.query && req.query.sort,
-            origin = req.headers && (req.headers.origin || req.headers.referer) || '',
             sortObj = {},
             resp = {},
             log = logger.getLog(),
@@ -282,11 +356,16 @@
             query['status.0.status'] = query.status;
             delete query.status;
         }
-        
+
+        if (query.sponsoredType) {
+            query['data.0.data.sponsoredType'] = query.sponsoredType;
+            delete query.sponsoredType;
+        }
+
         log.info('[%1] User %2 getting experiences with %3, sort %4, limit %5, skip %6',
                  req.uuid,req.user.id,JSON.stringify(query),JSON.stringify(sortObj),limit,skip);
 
-        var permQuery = content.userPermQuery(query, req.user, origin, publicList),
+        var permQuery = content.userPermQuery(query, req.user, req.isC6Origin),
             opts = {sort: sortObj, limit: limit, skip: skip},
             cursor;
 
@@ -297,9 +376,9 @@
         } else if (permQuery.org) {
             opts.hint = { org: 1 };
         }
-            
+
         cursor = experiences.find(permQuery, opts);
-        
+
         if (multiExp) {
             promise = q.npost(cursor, 'count');
         } else {
@@ -344,14 +423,14 @@
             log.trace('exp: %1  |  requester: %2', JSON.stringify(obj), JSON.stringify(user));
             return q({code: 400, body: 'Illegal fields'});
         }
-        
+
         obj.id = 'e-' + uuid.createUuid().substr(0,14);
         log.trace('[%1] User %2 is creating experience %3', req.uuid, user.id, obj.id);
-        
+
         delete obj.versionId; // only allow these properties to be set in the data
         delete obj.title;
         delete obj.lastPublished;
-        
+
         obj.created = now;
         obj.lastUpdated = now;
         if (!obj.user) {
@@ -381,7 +460,7 @@
                 obj.data[0].active = true;
             }
         }
-        
+
         return q.npost(experiences, 'insert', [mongoUtils.escapeKeys(obj), {w: 1, journal: true}])
         .then(function() {
             log.info('[%1] User %2 successfully created experience %3', req.uuid, user.id, obj.id);
@@ -392,7 +471,7 @@
             return q.reject(error);
         });
     };
-    
+
     content.formatUpdates = function(req, orig, updates, user) {
         var log = logger.getLog(),
             now = new Date();
@@ -426,7 +505,7 @@
                 delete updates.data;
             }
         }
-        
+
         if (updates.status) {
             if (updates.status !== orig.status[0].status) {
                 var statWrapper = {user:user.email,userId:user.id,date:now,status:updates.status};
@@ -442,7 +521,7 @@
                 delete updates.status;
             }
         }
-        
+
         updates.lastUpdated = now;
         return mongoUtils.escapeKeys(updates);
     };
@@ -455,13 +534,13 @@
         if (!updates || typeof updates !== 'object') {
             return q({code: 400, body: 'You must provide an object in the body'});
         }
-        
+
         // these props are copied from elsewhere when returning to the client, so don't allow them
         // to be set here
         delete updates.title;
         delete updates.lastPublished;
         delete updates.versionId;
-        
+
         log.info('[%1] User %2 is attempting to update experience %3',req.uuid,user.id,id);
         return q.npost(experiences, 'findOne', [{id: id}])
         .then(function(orig) {
@@ -483,9 +562,9 @@
                 log.info('[%1] User %2 is not authorized to edit %3', req.uuid, user.id, id);
                 return q({ code: 403, body: 'Not authorized to edit this experience' });
             }
-            
+
             var origAdConfig = orig.data && orig.data[0] && orig.data[0].data.adConfig || null;
-            
+
             if (updates.data && updates.data.adConfig &&
                 !objUtils.compareObjects(updates.data.adConfig, origAdConfig) &&
                 !content.checkScope(user, orig, 'experiences', 'editAdConfig')) {
@@ -534,7 +613,7 @@
                 log.info('[%1] Experience %2 has already been deleted', req.uuid, id);
                 return deferred.resolve({code: 204});
             }
-            
+
             var updates = { status: Status.Deleted };
             content.formatUpdates(req, orig, updates, user);
 
@@ -551,6 +630,39 @@
         return deferred.promise;
     };
 
+    content.generatePreviewLink = function(id, req, expCache, orgCache, siteCache, defaultSiteCfg) {
+        var log = logger.getLog();
+        log.info('[%1] User attempting to generate preview link for experience %2', req.uuid, id);
+        return content.getPublicExp(id, req, expCache, orgCache, siteCache, defaultSiteCfg)
+        .then(function(resp) {
+            if (resp.code !== 200) {
+                return q(resp);
+            }
+
+            if(resp.body && resp.body.id && resp.body.title &&
+                resp.body.data && resp.body.data.splash &&
+                resp.body.data.splash.theme && resp.body.data.splash.ratio) {
+                var splashData = resp.body.data.splash;
+                var urlObject = {
+                    query: {
+                        preload: '',
+                        exp: resp.body.id,
+                        title: resp.body.title,
+                        splash: splashData.theme + ':' + splashData.ratio.replace('-', '/')
+                    }
+                };
+                var url = '/#/preview/minireel' + urlUtils.format(urlObject);
+                return q({url: url});
+            } else {
+                log.warn('[%1] Experience %2 does not have required fields.', req.uuid, id);
+                return q({code: 500, body: 'Response does not have required fields.'});
+            }
+        }).catch(function(error) {
+            log.error('[%1] Error generating preview link for experience %2', req.uuid, id);
+            return q.reject(error);
+        });
+    };
+
     content.main = function(state) {
         var log = logger.getLog(),
             started = new Date();
@@ -559,23 +671,26 @@
             return state;
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
-            
+
         var express      = require('express'),
             app          = express(),
             experiences  = state.dbs.c6Db.collection('experiences'),
             users        = state.dbs.c6Db.collection('users'),
             orgs         = state.dbs.c6Db.collection('orgs'),
+            sites        = state.dbs.c6Db.collection('sites'),
             expTTLs      = state.config.cacheTTLs.experiences,
             expCache     = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences),
             orgTTLs      = state.config.cacheTTLs.orgs,
             orgCache     = new QueryCache(orgTTLs.freshTTL, orgTTLs.maxTTL, orgs),
+            siteTTLs     = state.config.cacheTTLs.sites,
+            siteCache    = new QueryCache(siteTTLs.freshTTL, siteTTLs.maxTTL, sites),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._coll = users;
 
         app.use(express.bodyParser());
         app.use(express.cookieParser(state.secrets.cookieParser || ''));
-        
+
         var sessions = express.session({
             key: state.config.sessions.key,
             cookie: {
@@ -584,16 +699,19 @@
             },
             store: state.sessionStore
         });
-        
+
         state.dbStatus.c6Db.on('reconnected', function() {
             experiences = state.dbs.c6Db.collection('experiences');
             users = state.dbs.c6Db.collection('users');
             orgs = state.dbs.c6Db.collection('orgs');
+            sites = state.dbs.c6Db.collection('sites');
             expCache._coll = experiences;
+            orgCache._coll = orgs;
+            siteCache._coll = sites;
             authUtils._coll = users;
             log.info('Recreated collections from restarted c6Db');
         });
-        
+
         state.dbStatus.sessions.on('reconnected', function() {
             sessions = express.session({
                 key: state.config.sessions.key,
@@ -615,6 +733,11 @@
         function sessWrap(req, res, next) {
             sessions(req, res, next);
         }
+
+        app.use(function(req, res, next) {
+            content.parseOrigin(req, state.config.publicC6Sites);
+            next();
+        });
 
         app.all('*', function(req, res, next) {
             res.header('Access-Control-Allow-Origin', '*');
@@ -640,11 +763,11 @@
             }
             next();
         });
-        
+
         // Used for handling public requests for experiences by id methods:
         function handlePublicGet(req, res) {
-            return content.getPublicExp(req.params.id, req, expCache,
-                                        state.config.publicC6Sites, orgCache)
+            return content.getPublicExp(req.params.id, req, expCache, orgCache, siteCache,
+                                        state.config.defaultSiteConfig)
             .then(function(resp) {
                 res.header('cache-control', 'max-age=' + state.config.cacheTTLs.cloudFront*60);
                 return q(resp);
@@ -656,14 +779,14 @@
                 }});
             });
         }
-        
+
         // Retrieve a json representation of an experience
         app.get('/api/public/content/experience/:id.json', function(req, res) {
             handlePublicGet(req, res).then(function(resp) {
                 res.send(resp.code, resp.body);
             });
         });
-        
+
         // Retrieve a CommonJS style representation of an experience
         app.get('/api/public/content/experience/:id.js', function(req, res) {
             handlePublicGet(req, res).then(function(resp) {
@@ -682,7 +805,24 @@
                 res.send(resp.code, resp.body);
             });
         });
-        
+
+        app.get('/preview/:id', function(req, res) {
+            content.generatePreviewLink(req.params.id, req, expCache, orgCache, siteCache,
+                state.config.defaultSiteConfig)
+            .then(function(resp) {
+                if(resp.url) {
+                    res.redirect(resp.url);
+                } else {
+                    res.send(resp.code, resp.body);
+                }
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error generating preview link',
+                    detail: error
+                });
+            });
+        });
+
         var authGetExp = authUtils.middlewarify({experiences: 'read'}),
             audit = function(req, res, next) {
                 auditJournal.middleware(req, res, next);
@@ -690,7 +830,7 @@
         
         // private get experience by id
         app.get('/api/content/experience/:id', sessWrap, authGetExp, audit, function(req, res) {
-            content.getExperiences({id:req.params.id}, req, experiences, state.config.publicC6Sites)
+            content.getExperiences({id:req.params.id}, req, experiences)
             .then(function(resp) {
                 if (resp.body && resp.body instanceof Array) {
                     if (resp.body.length === 0) {
@@ -711,36 +851,27 @@
 
         // private get experience by query
         app.get('/api/content/experiences', sessWrap, authGetExp, audit, function(req, res) {
-            var queryFields = ['ids', 'user', 'org', 'type', 'status'];
-            function isKeyInFields(key) {
-                return queryFields.indexOf(key) >= 0;
-            }
-            if (!req.query || !(Object.keys(req.query).some(isKeyInFields))) {
+            var query = {};
+            ['ids', 'user', 'org', 'type', 'sponsoredType', 'status'].forEach(function(field) {
+                if (req.query[field]) {
+                    if (field === 'ids') {
+                        query.id = req.query.ids.split(',');
+                    } else {
+                        query[field] = String(req.query[field]);
+                    }
+                }
+            });
+            if (!Object.keys(query).length) {
                 log.info('[%1] Cannot GET /content/experiences with no query params',req.uuid);
                 return res.send(400, 'Must specify at least one supported query param');
             }
-            var query = {};
-            if (req.query.ids) {
-                query.id = req.query.ids.split(',');
-            }
-            if (req.query.user) {
-                query.user = req.query.user;
-            }
-            if (req.query.org) {
-                query.org = req.query.org;
-            }
-            if (req.query.type) {
-                query.type = req.query.type;
-            }
-            if (req.query.status) {
-                query.status = req.query.status;
-            }
-            content.getExperiences(query, req, experiences, state.config.publicC6Sites, true)
+
+            content.getExperiences(query, req, experiences, true)
             .then(function(resp) {
                 if (resp.pagination) {
                     res.header('content-range', 'items ' + resp.pagination.start + '-' +
                                                 resp.pagination.end + '/' + resp.pagination.total);
-                    
+
                 }
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
@@ -750,7 +881,7 @@
                 });
             });
         });
-        
+
         var authPostExp = authUtils.middlewarify({experiences: 'create'});
         app.post('/api/content/experience', sessWrap, authPostExp, audit, function(req, res) {
             content.createExperience(req, experiences)
@@ -763,7 +894,7 @@
                 });
             });
         });
-        
+
         var authPutExp = authUtils.middlewarify({experiences: 'edit'});
         app.put('/api/content/experience/:id', sessWrap, authPutExp, audit, function(req, res) {
             content.updateExperience(req, experiences)
@@ -776,7 +907,7 @@
                 });
             });
         });
-        
+
         var authDelExp = authUtils.middlewarify({experiences: 'delete'});
         app.delete('/api/content/experience/:id', sessWrap, authDelExp, audit, function(req, res) {
             content.deleteExperience(req, experiences)
@@ -811,7 +942,7 @@
                 next();
             }
         });
-        
+
         app.listen(state.cmdl.port);
         log.info('Service is listening on port: ' + state.cmdl.port);
 

@@ -1,5 +1,26 @@
 # Content Service Changelog
 
+### 1.11.0: Wed Oct  8 14:59:44 EDT 2014
+* [FEATURE]: Add `/preview/:id` endpoint for generating full preview links: [#299](https://github.com/cinema6/cwrx/pull/299)
+* Extra deployment steps: 
+    * Deploy new content cookbook with nginx config change
+    * Ensure Cloudfront behaviors and new DNS records properly setup
+
+### 1.10.0: Fri Oct  3 12:52:39 EDT 2014
+* [FEATURE]: Allow querying experiences by status: [#303](https://github.com/cinema6/cwrx/pull/303)
+* [FIX]: Allow cinema6.com to be added to the `publicC6Sites` list: [#303](https://github.com/cinema6/cwrx/pull/303)
+* [FIX]: Defend against query selector injection attacks: [#303](https://github.com/cinema6/cwrx/pull/303)
+* Extra deployment steps: None
+
+### 1.9.1: Mon Sep 29 16:33:39 EDT 2014
+* [FIX]: Update site querying logic to allow greater flexibility in hosts: [#298](https://github.com/cinema6/cwrx/pull/298)
+* Extra deployment steps: None
+
+### 1.9.0: Mon Sep 22 14:08:00 EDT 2014
+* [FEATURE]: Dynamically set `branding` and `placementId` for experiences retrieved from public endpoint: [#285](https://github.com/cinema6/cwrx/pull/285)
+* [FIX]: Set `data.mode` to `lightbox-ads` when context is `mr2`: [#291](https://github.com/cinema6/cwrx/pull/291)
+* Extra deployment steps: None
+
 ### 1.8.1: Wed Sep 10 11:07:04 EDT 2014
 * [FIX]: Add permission for editing experiences' `adConfig`: [#272](https://github.com/cinema6/cwrx/pull/272)
 * [FIX]: Properly compare `adConfig` with existing `adConfig` on edit: [#275](https://github.com/cinema6/cwrx/pull/275)
@@ -7,7 +28,7 @@
 * Extra deployment steps: Update existing C6 admins with `editAdConfig` permission
 
 ### 1.8.0: Wed Sep  3 14:30:31 EDT 2014
-* [FIX]: Allow querying experiences by status: [#268](https://github.com/cinema6/cwrx/pull/268)
+* [FEATURE]: Allow querying experiences by status: [#268](https://github.com/cinema6/cwrx/pull/268)
 * Extra deployment steps: Create database index on `status.0.status` field
 
 ### 1.7.1: Fri Aug 29 10:07:58 EDT 2014

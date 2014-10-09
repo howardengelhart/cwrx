@@ -1,6 +1,6 @@
 var flush = true;
 describe('userSvc (UT)', function() {
-    var mockLog, mockLogger, req, uuid, logger, bcrypt, userSvc, q, QueryCache, mongoUtils,
+    var mockLog, mockLogger, req, uuid, logger, bcrypt, userSvc, q, mongoUtils, email,
         objUtils, FieldValidator, enums, Status, Scope;
     
     beforeEach(function() {
@@ -9,7 +9,6 @@ describe('userSvc (UT)', function() {
         logger          = require('../../lib/logger');
         bcrypt          = require('bcrypt');
         userSvc         = require('../../bin/userSvc');
-        QueryCache      = require('../../lib/queryCache');
         FieldValidator  = require('../../lib/fieldValidator');
         mongoUtils      = require('../../lib/mongoUtils');
         objUtils        = require('../../lib/objUtils');
@@ -258,11 +257,12 @@ describe('userSvc (UT)', function() {
             requester.permissions.users.read = 'alfkjdf';
             expect(userSvc.userPermQuery(query, requester))
                 .toEqual({ org: 'o-1', status: { $ne: Status.Deleted }, $or: [ { id: 'u-1' } ] });
+            expect(mockLog.warn).toHaveBeenCalled();
         });
     });
     
     describe('getUsers', function() {
-        var cache, query, userColl, fakeCursor;
+        var query, userColl, fakeCursor;
         beforeEach(function() {
             req.user = { id: 'u-1234', permissions: { users: { read: Scope.Own } } };
             req.query = {
@@ -443,7 +443,8 @@ describe('userSvc (UT)', function() {
                     experiences: { read: Scope.Org, create: Scope.Org, edit: Scope.Org, delete: Scope.Org },
                     elections: { read: Scope.Org, create: Scope.Org, edit: Scope.Org, delete: Scope.Org },
                     users: { read: Scope.Org, edit: Scope.Own },
-                    orgs: { read: Scope.Own, edit: Scope.Own }
+                    orgs: { read: Scope.Own, edit: Scope.Own },
+                    sites: { read: Scope.Org }
                 });
                 expect(bcrypt.hash).toHaveBeenCalled();
                 expect(bcrypt.hash.calls[0].args[0]).toBe('pass');
@@ -481,7 +482,8 @@ describe('userSvc (UT)', function() {
                     elections: { read: Scope.Org, create: Scope.Org, edit: Scope.Org, delete: Scope.Org },
                     experiences: { read: Scope.All, create: Scope.Own, edit: Scope.Org, delete: Scope.Org },
                     users: { read: Scope.All, edit: Scope.Own, delete: Scope.Own },
-                    orgs: { read: Scope.Own, edit: Scope.Own }
+                    orgs: { read: Scope.Own, edit: Scope.Own },
+                    sites: { read: Scope.Org }
                 });
                 expect(newUser.password).toBe('fakeHash');
                 expect(mongoUtils.escapeKeys).toHaveBeenCalled();
@@ -1005,6 +1007,19 @@ describe('userSvc (UT)', function() {
             });
         });
         
+        it('fails if newPassword is not a string', function(done) {
+            req.body.newPassword = { malicious: 'yes' };
+            userSvc.changePassword(req, userColl, 'fakeSender').then(function(resp) {
+                expect(resp.code).toBe(400);
+                expect(resp.body).toBe('Must provide a new password');
+                expect(bcrypt.hash).not.toHaveBeenCalled();
+                expect(userColl.update).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+        
         it('should successfully hash and update a user\'s password', function(done) {
             userSvc.changePassword(req, userColl, 'fakeSender').then(function(resp) {
                 expect(resp.code).toBe(200);
@@ -1121,6 +1136,18 @@ describe('userSvc (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
                 done();
             });
+        });
+        
+        it('should fail if newEmail is not a string', function(done) {
+            req.body.newEmail = { malicious: 'yes' };
+            userSvc.changeEmail(req, userColl, 'fakeSender').then(function(resp) {
+                expect(resp.code).toBe(400);
+                expect(resp.body).toBe('Must provide a new email');
+                expect(userColl.findOne).not.toHaveBeenCalled();
+                expect(userColl.update).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
         });
         
         it('should fail if a user with newEmail already exists', function(done) {

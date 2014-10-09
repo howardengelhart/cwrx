@@ -184,7 +184,7 @@ describe('org (E2E):', function() {
         });
         
         it('should get orgs', function(done) {
-            var options = { url: config.orgSvcUrl + '/orgs', jar: cookieJar };
+            var options = { url: config.orgSvcUrl + '/orgs?sort=id,1', jar: cookieJar };
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
