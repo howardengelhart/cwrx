@@ -652,9 +652,7 @@
         function sessWrap(req, res, next) {
             sessions(req, res, next);
         }
-        function audit(req, res, next) {
-            auditJournal.middleware(req, res, next);
-        }
+        var audit = auditJournal.middleware.bind(auditJournal);
 
         app.all('*', function(req, res, next) {
             res.header('Access-Control-Allow-Headers',

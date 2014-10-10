@@ -66,6 +66,35 @@ describe('auth (E2E):', function() {
                 done();
             });
         });
+
+        it('should write journal entries', function(done) {
+            var options = { url: config.authUrl + '/login',
+                            json: { email: 'c6e2etester@gmail.com', password: 'password' } };
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('u-1');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].service).toBe('auth');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'POST /api/auth/login',
+                                                 params: {}, query: {} });
+                return testUtils.mongoFind('auths', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('u-1');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].service).toBe('auth');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({action: 'login'});
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
         
         it('should convert the request email to lowercase', function(done) {
             var options = {
@@ -216,6 +245,39 @@ describe('auth (E2E):', function() {
                 done();
             });
         });
+
+        it('should write journal entries', function(done) {
+            var loginOpts = { url: config.authUrl + '/login', jar: true,
+                              json: { email: 'c6e2etester@gmail.com', password: 'password' } };
+            requestUtils.qRequest('post', loginOpts).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                var options = { url: config.authUrl + '/logout', jar: true };
+                return requestUtils.qRequest('post', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('u-1');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].service).toBe('auth');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'POST /api/auth/logout',
+                                                 params: {}, query: {} });
+                return testUtils.mongoFind('auths', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('u-1');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].service).toBe('auth');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({action: 'logout'});
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
         
         it('should still succeed if the user is not logged in', function(done) {
             var options = {
@@ -266,6 +328,30 @@ describe('auth (E2E):', function() {
                 expect(error.toString()).not.toBeDefined();
                 done();
             });
+        });
+
+        it('should write an entry to the audit collection', function(done) {
+            var loginOpts = { url: config.authUrl + '/login', jar: true,
+                              json: { email: 'c6e2etester@gmail.com', password: 'password' } };
+            requestUtils.qRequest('post', loginOpts).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                var options = { url: config.authUrl + '/status', jar: true };
+                return requestUtils.qRequest('get', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('u-1');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].service).toBe('auth');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'GET /api/auth/status',
+                                                 params: {}, query: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
         });
         
         it('should fail if the user becomes inactive', function(done) {
@@ -394,6 +480,24 @@ describe('auth (E2E):', function() {
                 done();
             });
         });
+
+        it('should write an entry to the audit collection', function(done) {
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('u-1');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].service).toBe('auth');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'POST /api/auth/password/forgot',
+                                                 params: {}, query: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
         
         it('should convert the request email to lowercase', function(done) {
             options.json.email = 'c6E2ETester@gmail.com';
@@ -496,6 +600,26 @@ describe('auth (E2E):', function() {
                     expect(error).not.toBeDefined();
                 }).finally(done);
             });
+        });
+
+        it('should write an entry to the audit collection', function(done) {
+            testUtils.resetCollection('users', mockUser).then(function() {
+                return requestUtils.qRequest('post', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('u-1');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].service).toBe('auth');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'POST /api/auth/password/reset',
+                                                 params: {}, query: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
         });
         
         it('should fail with a 404 if the user is not found', function(done) {

@@ -71,6 +71,25 @@ describe('site (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).finally(done);
         });
+
+        it('should write an entry to the audit collection', function(done) {
+            var options = { url: config.siteSvcUrl + '/site/e2e-getId1', jar: cookieJar };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].service).toBe('siteSvc');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'GET /api/site/:id',
+                                                 params: { id: 'e2e-getId1' }, query: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
         
         it('should return a 404 if the requester cannot see the site', function(done) {
             var options = { url: config.siteSvcUrl + '/site/e2e-getId2', jar: cookieJar };
@@ -122,6 +141,25 @@ describe('site (E2E):', function() {
                 expect(resp.response.headers['content-range']).toBe('items 1-1/1');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
+            }).finally(done);
+        });
+
+        it('should write an entry to the audit collection', function(done) {
+            var options = { url: config.siteSvcUrl + '/sites?host=c6.com&sort=id,1', jar: cookieJar };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].service).toBe('siteSvc');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'GET /api/sites',
+                                                 params: {}, query: { host: 'c6.com', sort: 'id,1' } });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
             }).finally(done);
         });
         
@@ -277,6 +315,24 @@ describe('site (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).finally(done);
         });
+
+        it('should write an entry to the audit collection', function(done) {
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].service).toBe('siteSvc');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'POST /api/site',
+                                                 params: {}, query: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
         
         it('should be able to override default properties', function(done) {
             mockSite.status = 'pending';
@@ -395,6 +451,24 @@ describe('site (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).finally(done);
         });
+
+        it('should write an entry to the audit collection', function(done) {
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].service).toBe('siteSvc');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'PUT /api/site/:id',
+                                                 params: { id: 'e2e-put1' }, query: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
         
         it('should allow updating the host if no other site exists with that host', function(done) {
             options.json.host = 'test.c8.com';
@@ -493,6 +567,25 @@ describe('site (E2E):', function() {
                 expect(resp.body).toBe('No sites found');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
+            }).finally(done);
+        });
+
+        it('should write an entry to the audit collection', function(done) {
+            var options = { url: config.siteSvcUrl + '/site/e2e-delete1', jar: cookieJar };
+            requestUtils.qRequest('delete', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].service).toBe('siteSvc');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'DELETE /api/site/:id',
+                                                 params: { id: 'e2e-delete1' }, query: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
             }).finally(done);
         });
         

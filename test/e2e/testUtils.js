@@ -13,15 +13,13 @@ var request         = require('request'),
     awsAuth         = process.env['awsAuth'] || path.join(process.env.HOME,'.aws.json'),
     
     testUtils = {};
-
-testUtils.resetCollection = function(collection,data,userCfg){
-    var dbEnv, db, coll, dbConfig;
-    if (!userCfg){
+  
+testUtils._getDb = function(userCfg) {
+    if (!userCfg) {
         userCfg = process.env['mongo'] ? JSON.parse(process.env['mongo']) : {};
     }
-    dbConfig = {
+    var dbConfig = {
         host : userCfg.host ? userCfg.host : '33.33.33.100',
-        // host : userCfg.host ? userCfg.host : 'localhost',
         port : userCfg.port ? userCfg.port : 27017,
         db   : userCfg.db   ? userCfg.db   : 'c6Db',
         user : userCfg.user ? userCfg.user : 'e2eTests',
@@ -29,15 +27,25 @@ testUtils.resetCollection = function(collection,data,userCfg){
     };
     
     return mongoUtils.connect(dbConfig.host,dbConfig.port,dbConfig.db,dbConfig.user,dbConfig.pass)
+};
+
+testUtils.mongoFind = function(collection, query, sort, limit, skip, userCfg) {
+    var db, coll;
+    return testUtils._getDb(userCfg)
         .then(function(database){
             db      = database;
             coll    = db.collection(collection);
-            if  (dbConfig.user){
-                return q.npost(db, 'authenticate', [ dbConfig.user, dbConfig.pass]);
-            }
-            return q();
-        })
-        .then(function(){
+            var cursor = coll.find(query, {sort: sort, limit: limit, skip: skip});
+            return q.npost(cursor, 'toArray');
+        }).finally(function() { db.close(); });
+};
+
+testUtils.resetCollection = function(collection,data,userCfg){
+    var db, coll;
+    return testUtils._getDb(userCfg)
+        .then(function(database){
+            db      = database;
+            coll    = db.collection(collection);
             return q.npost(db, 'collectionNames', [collection]);
         })
         .then(function(names){

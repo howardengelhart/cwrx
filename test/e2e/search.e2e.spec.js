@@ -74,6 +74,24 @@ describe('search (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).finally(done);
         });
+
+        it('should write an entry to the audit collection', function(done) {
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].service).toBe('search');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'GET /api/search/videos',
+                                                 params: {}, query: { query: 'cats' } });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
         
         it('should be able to restrict results to only hd videos', function(done) {
             options.qs.hd = 'true';

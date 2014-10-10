@@ -18,8 +18,8 @@
         enums       = require('../lib/enums'),
         Status      = enums.Status,
 
-        state       = {},
-        auth = {}; // for exporting functions to unit tests
+        state   = {},
+        auth    = {}; // for exporting functions to unit tests
 
     // This is the template for auth's configuration
     state.defaultConfig = {
@@ -403,9 +403,7 @@
         });
 
         var authGetUser = authUtils.middlewarify({}),
-            audit = function(req, res, next) {
-                auditJournal.middleware(req, res, next);
-            };
+            audit = auditJournal.middleware.bind(auditJournal);
 
         app.get('/api/auth/status', sessionsWrapper, authGetUser, audit, function(req, res) {
             res.send(200, req.user); // errors handled entirely by authGetUser

@@ -508,6 +508,25 @@ describe('content (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).finally(done);
         });
+        
+        it('should write an entry to the audit collection', function(done) {
+            var options = {url: config.contentUrl + '/content/experience/e2e-getid1', jar: cookieJar};
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].service).toBe('content');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'GET /api/content/experience/:id',
+                                                 params: { 'id': 'e2e-getid1' }, query: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
 
         it('should treat the user as a guest for experiences they do not own', function(done) {
             var options = {url: config.contentUrl + '/content/experience/e2e-getid2', jar: cookieJar};
@@ -634,6 +653,25 @@ describe('content (E2E):', function() {
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
+            }).finally(done);
+        });
+
+        it('should write an entry to the audit collection', function(done) {
+            var options = {url: config.contentUrl + '/content/experiences?ids=e2e-getquery1&sort=id,1', jar: cookieJar};
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].service).toBe('content');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'GET /api/content/experiences',
+                                                 params: {}, query: { ids: 'e2e-getquery1', sort: 'id,1' } });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
             }).finally(done);
         });
 
@@ -934,6 +972,23 @@ describe('content (E2E):', function() {
             });
         });
 
+        it('should write an entry to the audit collection', function(done) {
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].service).toBe('content');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'POST /api/content/experience', params: {}, query: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
+        });
+
         it('should be able to create an active, private experience', function(done) {
             mockExp.status = 'active';
             mockExp.access = 'private';
@@ -1094,6 +1149,29 @@ describe('content (E2E):', function() {
                 expect(error).not.toBeDefined();
                 done();
             });
+        });
+
+        it('should write an entry to the audit collection', function(done) {
+            var options = {
+                url: config.contentUrl + '/content/experience/e2e-put1',
+                jar: cookieJar,
+                json: { tag: 'newTag' }
+            };
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].service).toBe('content');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'PUT /api/content/experience/:id',
+                                                 params: { id: 'e2e-put1' }, query: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
         });
 
         it('should properly update the data and versionId together', function(done) {
@@ -1281,6 +1359,25 @@ describe('content (E2E):', function() {
                 expect(error).not.toBeDefined();
                 done();
             });
+        });
+
+        it('should write an entry to the audit collection', function(done) {
+            var options = {jar: cookieJar, url: config.contentUrl + '/content/experience/e2e-del1'};
+            requestUtils.qRequest('delete', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].service).toBe('content');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'DELETE /api/content/experience/:id',
+                                                 params: { id: 'e2e-del1' }, query: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
         });
 
         it('should not delete an experience the user does not own', function(done) {

@@ -20,7 +20,7 @@
         Access          = enums.Access,
         Scope           = enums.Scope,
 
-        state = {},
+        state   = {},
         content = {}; // for exporting functions to unit tests
 
     // This is the template for content's configuration
@@ -824,9 +824,7 @@
         });
 
         var authGetExp = authUtils.middlewarify({experiences: 'read'}),
-            audit = function(req, res, next) {
-                auditJournal.middleware(req, res, next);
-            };
+            audit = auditJournal.middleware.bind(auditJournal);
         
         // private get experience by id
         app.get('/api/content/experience/:id', sessWrap, authGetExp, audit, function(req, res) {
