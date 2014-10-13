@@ -234,7 +234,7 @@ describe('orgSvc (UT)', function() {
                 expect(orgColl.find).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should return a 403 if the requester doesn\'t have scope \'all\'', function(done) {
@@ -245,7 +245,7 @@ describe('orgSvc (UT)', function() {
                 expect(orgColl.find).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should call orgs.find to get orgs', function(done) {
@@ -260,7 +260,7 @@ describe('orgSvc (UT)', function() {
                 expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should handle end behavior properly when paginating', function(done) {
@@ -272,7 +272,7 @@ describe('orgSvc (UT)', function() {
                 expect(fakeCursor.count).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should use defaults for sorting/paginating options if not provided', function(done) {
@@ -285,7 +285,7 @@ describe('orgSvc (UT)', function() {
                                                           {sort: {}, limit: 0, skip: 0});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should ignore the sort param if invalid', function(done) {
@@ -299,7 +299,7 @@ describe('orgSvc (UT)', function() {
                                                           {sort: {}, limit: 20, skip: 10});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should return a 404 if nothing was found', function(done) {
@@ -311,7 +311,7 @@ describe('orgSvc (UT)', function() {
                 expect(resp.pagination).toEqual({start: 0, end: 0, total: 0});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should fail if cursor.count has an error', function(done) {
@@ -324,7 +324,7 @@ describe('orgSvc (UT)', function() {
                 expect(fakeCursor.count).toHaveBeenCalled();
                 expect(fakeCursor.toArray).not.toHaveBeenCalled();
                 expect(mongoUtils.unescapeKeys).not.toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail if cursor.toArray has an error', function(done) {
@@ -337,7 +337,7 @@ describe('orgSvc (UT)', function() {
                 expect(fakeCursor.count).toHaveBeenCalled();
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(mongoUtils.unescapeKeys).not.toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
     });
 

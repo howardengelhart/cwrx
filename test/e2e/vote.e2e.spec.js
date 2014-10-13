@@ -212,7 +212,7 @@ describe('vote (E2E)', function(){
                                                  params: { electionId: 'e1' }, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('gets normally private elections the user is allowed to see', function(done) {
@@ -273,7 +273,7 @@ describe('vote (E2E)', function(){
                 .catch(function(err){
                     expect(err).not.toBeDefined();
                 })
-                .finally(done);
+                .done(done);
         });
         
         it('returns success if request is valid, but has bad election',function(done){
@@ -291,7 +291,7 @@ describe('vote (E2E)', function(){
                 .catch(function(err){
                     expect(err).not.toBeDefined();
                 })
-                .finally(done);
+                .done(done);
 
         });
 
@@ -316,7 +316,7 @@ describe('vote (E2E)', function(){
                 .catch(function(err){
                     expect(err).not.toBeDefined();
                 })
-                .finally(done);
+                .done(done);
 
         });
 
@@ -353,7 +353,7 @@ describe('vote (E2E)', function(){
                 .catch(function(err){
                     expect(err).not.toBeDefined();
                 })
-                .finally(done);
+                .done(done);
         });
         
         it('should not add items through voting on nonexistent choices/ballots', function(done) {
@@ -394,7 +394,7 @@ describe('vote (E2E)', function(){
                 .catch(function(err){
                     expect(err).not.toBeDefined();
                 })
-                .finally(done);
+                .done(done);
         });
     });
 
@@ -448,7 +448,7 @@ describe('vote (E2E)', function(){
                                                  params: {}, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should be able to create an election that has special characters in its keys', function(done) {
@@ -549,7 +549,7 @@ describe('vote (E2E)', function(){
                                                  params: { id: 'e1' }, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should be able to add new ballot items, but not modify existing ones', function(done) {
@@ -652,7 +652,7 @@ describe('vote (E2E)', function(){
                                                  params: { id: 'e1' }, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should not delete an election the user does not own', function(done) {

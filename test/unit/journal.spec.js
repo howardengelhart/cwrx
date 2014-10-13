@@ -170,7 +170,7 @@ describe('requestUtils', function() {
                     expect(mockColl.insert.calls[0].args[1]).toEqual({w: 1, journal: true});
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
-                }).finally(done);
+                }).done(done);
             });
             
             it('should reject if it fails to write to the journal', function(done) {
@@ -181,7 +181,7 @@ describe('requestUtils', function() {
                     expect(error).toBe('I GOT A PROBLEM');
                     expect(mockColl.insert).toHaveBeenCalled();
                     expect(mockLog.warn).toHaveBeenCalled();
-                }).finally(done);
+                }).done(done);
             });
         });
     });
@@ -235,7 +235,7 @@ describe('requestUtils', function() {
                         {route: 'GET /jiggy/with/it', params: {id: 'e-1'}, query: {foo: 'bar'}});
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
-                }).finally(done);
+                }).done(done);
             });
 
             it('should use the referer header if the origin is not defined', function(done) {
@@ -245,7 +245,7 @@ describe('requestUtils', function() {
                         {route: 'GET /jiggy/with/it', params: {id: 'e-1'}, query: {foo: 'bar'}});
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
-                }).finally(done);
+                }).done(done);
             });
             
             it('should prefer the origin header if both are defined', function(done) {
@@ -255,7 +255,7 @@ describe('requestUtils', function() {
                         {route: 'GET /jiggy/with/it', params: {id: 'e-1'}, query: {foo: 'bar'}});
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
-                }).finally(done);
+                }).done(done);
             });
             
             it('should reject if write rejects', function(done) {
@@ -265,7 +265,7 @@ describe('requestUtils', function() {
                 }).catch(function(error) {
                     expect(error).toBe('I GOT A PROBLEM');
                     expect(journ.write).toHaveBeenCalled();
-                }).finally(done);
+                }).done(done);
             });
         });
         

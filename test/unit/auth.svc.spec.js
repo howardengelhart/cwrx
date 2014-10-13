@@ -86,7 +86,7 @@ describe('auth (UT)', function() {
                 expect(auditJournal.writeAuditEntry).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should resolve with a 400 if the email or password are not strings', function(done) {
@@ -102,7 +102,7 @@ describe('auth (UT)', function() {
                 expect(req.session.regenerate).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should log a user in successfully', function(done) {
@@ -124,7 +124,7 @@ describe('auth (UT)', function() {
                 expect(auditJournal.writeAuditEntry).toHaveBeenCalledWith(req, 'u-123');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should convert the request email to lowercase', function(done) {
@@ -141,7 +141,7 @@ describe('auth (UT)', function() {
                 expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should resolve with a 401 code if the passwords do not match', function(done) {
@@ -156,7 +156,7 @@ describe('auth (UT)', function() {
                 expect(bcrypt.compare).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should resolve with a 401 code if the user does not exist', function(done) {
@@ -172,7 +172,7 @@ describe('auth (UT)', function() {
                 expect(bcrypt.compare).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should resolve with a 401 code if the user is inactive', function(done) {
@@ -188,7 +188,7 @@ describe('auth (UT)', function() {
                 expect(auditJournal.writeAuditEntry).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should not reject if writing to the journals fail', function(done) {
@@ -203,7 +203,7 @@ describe('auth (UT)', function() {
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should reject with an error if session.regenerate fails with an error', function(done) {
@@ -217,7 +217,7 @@ describe('auth (UT)', function() {
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(req.session.user).not.toBeDefined();
                 expect(req.session.regenerate).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should reject with an error if bcrypt.compare fails with an error', function(done) {
@@ -232,7 +232,7 @@ describe('auth (UT)', function() {
                 expect(req.session.user).not.toBeDefined();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
                 expect(bcrypt.compare).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should reject with an error if users.findOne fails with an error', function(done) {
@@ -248,7 +248,7 @@ describe('auth (UT)', function() {
                 expect(req.session.regenerate).not.toHaveBeenCalled();
                 expect(users.findOne).toHaveBeenCalled();
                 expect(bcrypt.compare).not.toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
     });
     
@@ -274,7 +274,7 @@ describe('auth (UT)', function() {
                 expect(auditJournal.writeAuditEntry).toHaveBeenCalledWith(req, 'u-123');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should still respond with a 204 if the user is not logged in', function(done) {
@@ -289,7 +289,7 @@ describe('auth (UT)', function() {
                 expect(auditJournal.writeAuditEntry).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should not reject if writing to the journals fail', function(done) {
@@ -305,7 +305,7 @@ describe('auth (UT)', function() {
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should pass along errors from req.session.destroy', function(done) {
@@ -320,7 +320,7 @@ describe('auth (UT)', function() {
                 expect(mockLog.error).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
     });
     
@@ -336,7 +336,7 @@ describe('auth (UT)', function() {
                     'Reset your Cinema6 Password','pwdReset.html',{url:'reset-pwd.com'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should pass along errors from compileAndSend', function(done) {
@@ -346,7 +346,7 @@ describe('auth (UT)', function() {
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(email.compileAndSend).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
     });
     
@@ -385,7 +385,7 @@ describe('auth (UT)', function() {
                 expect(auditJournal.writeAuditEntry).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail with a 400 if the email is not a string', function(done) {
@@ -398,7 +398,7 @@ describe('auth (UT)', function() {
                 expect(auth.mailResetToken).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail with a 400 if the target is invalid', function(done) {
@@ -412,7 +412,7 @@ describe('auth (UT)', function() {
                 expect(auth.mailResetToken).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should successfully create and mail a password reset token', function(done) {
@@ -434,7 +434,7 @@ describe('auth (UT)', function() {
                 expect(auditJournal.writeAuditEntry).toHaveBeenCalledWith(req, 'u-1');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should convert the request email to lowercase', function(done) {
@@ -448,7 +448,7 @@ describe('auth (UT)', function() {
                     'https://c6.com/forgot?id=u-1&token=48454c4c4f');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail with a 404 if the user does not exist', function(done) {
@@ -463,7 +463,7 @@ describe('auth (UT)', function() {
                 expect(auditJournal.writeAuditEntry).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should fail with a 403 if the user is not active', function(done) {
@@ -478,7 +478,7 @@ describe('auth (UT)', function() {
                 expect(auditJournal.writeAuditEntry).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should overwrite a previous token if one exists', function(done) {
@@ -494,7 +494,7 @@ describe('auth (UT)', function() {
                 expect(auth.mailResetToken).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should not reject if writing to the journal fails', function(done) {
@@ -508,7 +508,7 @@ describe('auth (UT)', function() {
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail if looking up the user fails', function(done) {
@@ -521,7 +521,7 @@ describe('auth (UT)', function() {
                 expect(crypto.randomBytes).not.toHaveBeenCalled();
                 expect(users.update).not.toHaveBeenCalled();
                 expect(auth.mailResetToken).not.toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail if creating a random token fails', function(done) {
@@ -535,7 +535,7 @@ describe('auth (UT)', function() {
                 expect(bcrypt.hash).not.toHaveBeenCalled();
                 expect(users.update).not.toHaveBeenCalled();
                 expect(auth.mailResetToken).not.toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail if hashing the token fails', function(done) {
@@ -548,7 +548,7 @@ describe('auth (UT)', function() {
                 expect(bcrypt.hash).toHaveBeenCalled();
                 expect(users.update).not.toHaveBeenCalled();
                 expect(auth.mailResetToken).not.toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail if saving the token to the db fails', function(done) {
@@ -560,7 +560,7 @@ describe('auth (UT)', function() {
                 expect(users.findOne).toHaveBeenCalled();
                 expect(users.update).toHaveBeenCalled();
                 expect(auth.mailResetToken).not.toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail if sending the email fails', function(done) {
@@ -572,7 +572,7 @@ describe('auth (UT)', function() {
                 expect(users.findOne).toHaveBeenCalled();
                 expect(users.update).toHaveBeenCalled();
                 expect(auth.mailResetToken).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
     });
     
@@ -614,7 +614,7 @@ describe('auth (UT)', function() {
                 expect(auditJournal.writeAuditEntry).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail with a 400 if any of the parameters are not strings', function(done) {
@@ -635,7 +635,7 @@ describe('auth (UT)', function() {
                 expect(users.findAndModify).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should successfully reset a user\'s password', function(done) {
@@ -658,7 +658,7 @@ describe('auth (UT)', function() {
                 expect(auditJournal.writeAuditEntry).toHaveBeenCalledWith(req, 'u-1');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail with a 404 if the user does not exist', function(done) {
@@ -673,7 +673,7 @@ describe('auth (UT)', function() {
                 expect(auditJournal.writeAuditEntry).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should fail with a 403 if the user is not active', function(done) {
@@ -688,7 +688,7 @@ describe('auth (UT)', function() {
                 expect(auditJournal.writeAuditEntry).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail with a 403 if no reset token is found', function(done) {
@@ -702,7 +702,7 @@ describe('auth (UT)', function() {
                 expect(req.session.regenerate).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail with a 403 if the reset token has expired', function(done) {
@@ -716,7 +716,7 @@ describe('auth (UT)', function() {
                 expect(req.session.regenerate).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail with a 403 if the request token does not match the reset token', function(done) {
@@ -730,7 +730,7 @@ describe('auth (UT)', function() {
                 expect(req.session.regenerate).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should not reject if writing to the journal fails', function(done) {
@@ -747,7 +747,7 @@ describe('auth (UT)', function() {
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail if finding the user fails', function(done) {
@@ -761,7 +761,7 @@ describe('auth (UT)', function() {
                 expect(users.findAndModify).not.toHaveBeenCalled();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail if checking the reset token fails', function(done) {
@@ -775,7 +775,7 @@ describe('auth (UT)', function() {
                 expect(users.findAndModify).not.toHaveBeenCalled();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail if hashing the new password fails', function(done) {
@@ -788,7 +788,7 @@ describe('auth (UT)', function() {
                 expect(users.findAndModify).not.toHaveBeenCalled();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail if updating the user fails', function(done) {
@@ -802,7 +802,7 @@ describe('auth (UT)', function() {
                 expect(email.notifyPwdChange).not.toHaveBeenCalled();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should just log an error if sending a notification fails', function(done) {
@@ -819,7 +819,7 @@ describe('auth (UT)', function() {
                 expect(mongoUtils.safeUser).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
     });  // end -- describe resetPassword
 });  // end -- describe auth

@@ -69,7 +69,7 @@ describe('site (E2E):', function() {
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should write an entry to the audit collection', function(done) {
@@ -88,7 +88,7 @@ describe('site (E2E):', function() {
                                                  params: { id: 'e2e-getId1' }, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should return a 404 if the requester cannot see the site', function(done) {
@@ -98,7 +98,7 @@ describe('site (E2E):', function() {
                 expect(resp.body).toEqual('No sites found');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should return a 404 if nothing is found', function(done) {
@@ -108,7 +108,7 @@ describe('site (E2E):', function() {
                 expect(resp.body).toBe('No sites found');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should throw a 401 error if the user is not authenticated', function(done) {
@@ -118,7 +118,7 @@ describe('site (E2E):', function() {
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
     });
     
@@ -141,7 +141,7 @@ describe('site (E2E):', function() {
                 expect(resp.response.headers['content-range']).toBe('items 1-1/1');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should write an entry to the audit collection', function(done) {
@@ -160,7 +160,7 @@ describe('site (E2E):', function() {
                                                  params: {}, query: { host: 'c6.com', sort: 'id,1' } });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should get sites by org', function(done) {
@@ -174,7 +174,7 @@ describe('site (E2E):', function() {
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should be able to sort and paginate the results', function(done) {
@@ -194,7 +194,7 @@ describe('site (E2E):', function() {
                 expect(resp.response.headers['content-range']).toBe('items 2-2/2');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should not show sites the requester cannot see', function(done) {
@@ -205,7 +205,7 @@ describe('site (E2E):', function() {
                 expect(resp.response.headers['content-range']).toBe('items 0-0/0');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should prevent a non-admin user from getting all sites', function(done) {
@@ -216,7 +216,7 @@ describe('site (E2E):', function() {
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should not let a non-admin user search for sites outside their org', function(done) {
@@ -227,7 +227,7 @@ describe('site (E2E):', function() {
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should allow admins to get all sites', function(done) {
@@ -251,7 +251,7 @@ describe('site (E2E):', function() {
                 expect(resp.response.headers['content-range']).toBe('items 1-3/3');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should allow an admin to search or sites outside their org', function(done) {
@@ -274,7 +274,7 @@ describe('site (E2E):', function() {
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should throw a 401 error if the user is not authenticated', function(done) {
@@ -285,7 +285,7 @@ describe('site (E2E):', function() {
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
     });
     
@@ -313,7 +313,7 @@ describe('site (E2E):', function() {
                 expect(resp.body._id).not.toBeDefined();
            }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should write an entry to the audit collection', function(done) {
@@ -331,7 +331,7 @@ describe('site (E2E):', function() {
                                                  params: {}, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should be able to override default properties', function(done) {
@@ -344,7 +344,7 @@ describe('site (E2E):', function() {
                 expect(resp.body._id).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should throw a 400 error if the body is missing or incomplete', function(done) {
@@ -359,7 +359,7 @@ describe('site (E2E):', function() {
                 expect(resp.body).toBe('New site object must have a host property');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should throw a 400 error if the host is invalid', function(done) {
@@ -369,7 +369,7 @@ describe('site (E2E):', function() {
                 expect(resp.body).toBe('Host property must be the root domain');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should throw a 409 error if a site with that host exists', function(done) {
@@ -382,7 +382,7 @@ describe('site (E2E):', function() {
                 expect(resp.body).toBe('A site with that host already exists');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should throw a 400 if the new site is not in the requester\'s org', function(done) {
@@ -392,7 +392,7 @@ describe('site (E2E):', function() {
                 expect(resp.body).toBe('Illegal fields');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should allow an admin to create a site in another org', function(done) {
@@ -414,7 +414,7 @@ describe('site (E2E):', function() {
                 expect(resp.body._id).not.toBeDefined();
            }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should throw a 401 error if the user is not authenticated', function(done) {
@@ -424,7 +424,7 @@ describe('site (E2E):', function() {
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
     });
     
@@ -449,7 +449,7 @@ describe('site (E2E):', function() {
                 expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(resp.body.created));
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should write an entry to the audit collection', function(done) {
@@ -467,7 +467,7 @@ describe('site (E2E):', function() {
                                                  params: { id: 'e2e-put1' }, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should allow updating the host if no other site exists with that host', function(done) {
@@ -481,7 +481,7 @@ describe('site (E2E):', function() {
                 expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(resp.body.created));
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should throw a 400 error if the new host is invalid', function(done) {
@@ -491,7 +491,7 @@ describe('site (E2E):', function() {
                 expect(resp.body).toBe('Host property must be the root domain');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should prevent updating the host if another site exists with that host', function(done) {
@@ -501,7 +501,7 @@ describe('site (E2E):', function() {
                 expect(resp.body).toBe('A site with that host already exists');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should throw a 404 if the site does not exist', function(done) {
@@ -511,7 +511,7 @@ describe('site (E2E):', function() {
                 expect(resp.body).toBe('That site does not exist');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should throw a 403 if the requester is not authorized to edit the site', function(done) {
@@ -521,7 +521,7 @@ describe('site (E2E):', function() {
                 expect(resp.body).toBe('Not authorized to edit this site');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should throw a 400 if any of the update fields are illegal', function(done) {
@@ -531,7 +531,7 @@ describe('site (E2E):', function() {
                 expect(resp.body).toBe('Illegal fields');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
     
         it('should throw a 401 error if the user is not authenticated', function(done) {
@@ -541,7 +541,7 @@ describe('site (E2E):', function() {
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
     });
     
@@ -567,7 +567,7 @@ describe('site (E2E):', function() {
                 expect(resp.body).toBe('No sites found');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should write an entry to the audit collection', function(done) {
@@ -586,7 +586,7 @@ describe('site (E2E):', function() {
                                                  params: { id: 'e2e-delete1' }, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should still succeed if the site does not exist', function(done) {
@@ -596,7 +596,7 @@ describe('site (E2E):', function() {
                 expect(resp.body).toBe('');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should still succeed if the site has already been deleted', function(done) {
@@ -611,7 +611,7 @@ describe('site (E2E):', function() {
                 expect(resp.body).toBe('');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should throw a 403 if the requester is not authorized to delete the site', function(done) {
@@ -621,7 +621,7 @@ describe('site (E2E):', function() {
                 expect(resp.body).toBe('Not authorized to delete this site');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
     
         it('should throw a 401 error if the site is not authenticated', function(done) {
@@ -631,7 +631,7 @@ describe('site (E2E):', function() {
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
     });
 });

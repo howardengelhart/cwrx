@@ -72,7 +72,7 @@ describe('search (E2E):', function() {
                 });
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should write an entry to the audit collection', function(done) {
@@ -90,7 +90,7 @@ describe('search (E2E):', function() {
                                                  params: {}, query: { query: 'cats' } });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should be able to restrict results to only hd videos', function(done) {
@@ -109,7 +109,7 @@ describe('search (E2E):', function() {
                 });
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should be able to restrict results to non-hd videos', function(done) {
@@ -128,7 +128,7 @@ describe('search (E2E):', function() {
                 });
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should be able to restrict results to certain sites', function(done) {
@@ -147,7 +147,7 @@ describe('search (E2E):', function() {
                 });
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should be able to paginate through results', function(done) {
@@ -171,7 +171,7 @@ describe('search (E2E):', function() {
                 expect(resp.body.items.length).toBe(5);
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should impose sensible defaults on the skip and limit params', function(done) {
@@ -186,7 +186,7 @@ describe('search (E2E):', function() {
                 expect(resp.body.items.length).toBe(10);
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should return an empty array if nothing is found', function(done) {
@@ -200,7 +200,7 @@ describe('search (E2E):', function() {
                 expect(resp.body.items).toEqual([]);
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should return a 400 if no query is provided', function(done) {
@@ -210,7 +210,7 @@ describe('search (E2E):', function() {
                 expect(resp.body).toBe('No query in request');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should return a 400 if attempting to query past the 100th result', function(done) {
@@ -225,7 +225,7 @@ describe('search (E2E):', function() {
                 });
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should return a 401 if no user is logged in', function(done) {
@@ -235,7 +235,7 @@ describe('search (E2E):', function() {
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
     });
 });

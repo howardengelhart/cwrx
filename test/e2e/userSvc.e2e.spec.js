@@ -100,7 +100,7 @@ describe('user (E2E):', function() {
                                                  params: { id: 'e2e-getId1' }, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should return a 404 if the requester cannot see the user', function(done) {
@@ -200,7 +200,7 @@ describe('user (E2E):', function() {
                                                  params: {}, query: { org: 'o-1234', sort: 'id,1' } });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should be able to sort and paginate the results', function(done) {
@@ -314,7 +314,7 @@ describe('user (E2E):', function() {
                 expect(resp.response.headers['content-range']).toBe('items 0-0/0');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
     });
     
@@ -375,7 +375,7 @@ describe('user (E2E):', function() {
                                                  params: {}, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should lowercase the new email', function(done) {
@@ -549,7 +549,7 @@ describe('user (E2E):', function() {
                                                  params: { id: 'e2e-put1' }, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should throw a 404 if the user does not exist', function(done) {
@@ -689,7 +689,7 @@ describe('user (E2E):', function() {
                                                  params: { id: 'e2e-delete1' }, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should still succeed if the user does not exist', function(done) {
@@ -836,7 +836,7 @@ describe('user (E2E):', function() {
                 expect(resp.body).toBe('Must provide email and password');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail if a user with that email already exists', function(done) {
@@ -901,7 +901,7 @@ describe('user (E2E):', function() {
                                                  params: {}, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should lowercase the new and old emails in the request', function(done) {
@@ -1010,7 +1010,7 @@ describe('user (E2E):', function() {
                 expect(resp.body).toBe('Must provide email and password');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should change the user\'s password successfully', function(done) {
@@ -1058,7 +1058,7 @@ describe('user (E2E):', function() {
                                                  params: {}, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should lowercase the request email', function(done) {
@@ -1125,7 +1125,7 @@ describe('user (E2E):', function() {
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should write an entry to the audit collection', function(done) {
@@ -1144,7 +1144,7 @@ describe('user (E2E):', function() {
                                                  params: { id: 'e2e-delete1' }, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should let a user log themselves out, but preserve their current session', function(done) {
@@ -1158,7 +1158,7 @@ describe('user (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should not allow a non-admin to logout another user', function(done) {
@@ -1172,7 +1172,7 @@ describe('user (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should throw a 401 error if the user is not authenticated', function(done) {
@@ -1186,7 +1186,7 @@ describe('user (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
     });
 });

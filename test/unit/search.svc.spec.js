@@ -146,7 +146,7 @@ describe('search (UT)', function() {
                 expect(search.formatGoogleResults).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should query google for videos', function(done) {
@@ -160,7 +160,7 @@ describe('search (UT)', function() {
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should be able to restrict results to certain sites', function(done) {
@@ -171,7 +171,7 @@ describe('search (UT)', function() {
                 expect(reqOpts.qs.q).toBe('foo site:youtube.com OR site:vimeo.com');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should be able to restrict results to only hd videos', function(done) {
@@ -182,7 +182,7 @@ describe('search (UT)', function() {
                 expect(reqOpts.qs.sort).toBe('videoobject-height:r:720');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should be able to restrict results to non hd videos', function(done) {
@@ -193,7 +193,7 @@ describe('search (UT)', function() {
                 expect(reqOpts.qs.sort).toBe('videoobject-height:r::719');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should be able to retry failed requests to google', function(done) {
@@ -218,7 +218,7 @@ describe('search (UT)', function() {
                     { startIndex: 11, count: 20, totalResults: 50 }, 'fakeItems');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should never report that it found more than 100 results', function(done) {
@@ -236,7 +236,7 @@ describe('search (UT)', function() {
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should return a 500 code if google returns a non-2xx status code', function(done) {
@@ -252,7 +252,7 @@ describe('search (UT)', function() {
                 expect(search.formatGoogleResults).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should return a 500 code if google returns an incomplete body', function(done) {
@@ -269,7 +269,7 @@ describe('search (UT)', function() {
                 expect(search.formatGoogleResults).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should return a 500 code if the request fails', function(done) {
@@ -281,7 +281,7 @@ describe('search (UT)', function() {
                 expect(search.formatGoogleResults).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
     });
     
@@ -302,7 +302,7 @@ describe('search (UT)', function() {
                     'fakeGoogleCfg', 'asdf1234');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should use defaults for some opts if not provided', function(done) {
@@ -314,7 +314,7 @@ describe('search (UT)', function() {
                     'fakeGoogleCfg', 'asdf1234');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should guard against invalid values for the limit and skip params', function(done) {
@@ -331,7 +331,7 @@ describe('search (UT)', function() {
                 });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should return a 400 if there\'s no query string in the request', function(done) {
@@ -341,7 +341,7 @@ describe('search (UT)', function() {
                 expect(search.findVideosWithGoogle).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should reject if findVideosWithGoogle fails', function(done) {
@@ -352,7 +352,7 @@ describe('search (UT)', function() {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(search.findVideosWithGoogle).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
     });
 });

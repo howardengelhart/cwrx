@@ -59,7 +59,7 @@ describe('authUtils', function() {
                 expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should resolve with nothing if no results are found', function(done) {
@@ -69,7 +69,7 @@ describe('authUtils', function() {
                 expect(mongoUtils.safeUser).toHaveBeenCalledWith(undefined);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should throw an error if no collection exists on authUtils', function() {
@@ -85,7 +85,7 @@ describe('authUtils', function() {
             }).catch(function(error) {
                 expect(error).toBe(JSON.stringify({error: 'Error looking up user', detail: 'I GOT A PROBLEM'}));
                 expect(mockColl.findOne).toHaveBeenCalledWith({id: 'u-1234'}, anyFunc);
-            }).finally(done);
+            }).done(done);
         });
     });
     
@@ -143,7 +143,7 @@ describe('authUtils', function() {
                 expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should return a fail message if the permissions do not match', function(done) {
@@ -153,7 +153,7 @@ describe('authUtils', function() {
                 expect(result.user).not.toBeDefined();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should return a fail message if the user is not active', function(done) {
@@ -165,7 +165,7 @@ describe('authUtils', function() {
                 expect(authUtils.compare).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail if getting the user fails', function(done) {
@@ -176,7 +176,7 @@ describe('authUtils', function() {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(authUtils.getUser).toHaveBeenCalled();
                 expect(authUtils.compare).not.toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
     });
     

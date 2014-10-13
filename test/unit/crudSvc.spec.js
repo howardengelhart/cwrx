@@ -455,7 +455,7 @@ describe('CrudSvc', function() {
                 expect(svc.formatOutput).toHaveBeenCalledWith({id: 't1'}, 0, [{id: 't1'}]);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should use defaults if some params are not defined', function(done) {
@@ -465,7 +465,7 @@ describe('CrudSvc', function() {
                 expect(mockColl.find).toHaveBeenCalledWith('userPermQuery', {sort: {}, limit: 0, skip: 0});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should just ignore the sort param if invalid', function(done) {
@@ -475,7 +475,7 @@ describe('CrudSvc', function() {
                 expect(mockColl.find).toHaveBeenCalledWith('userPermQuery', {sort: {}, limit: 20, skip: 10});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
                 
         it('should set resp.pagination if multiExp is true', function(done) {
@@ -484,7 +484,7 @@ describe('CrudSvc', function() {
                 expect(fakeCursor.count).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should handle end behavior properly when paginating', function(done) {
@@ -494,7 +494,7 @@ describe('CrudSvc', function() {
                 expect(fakeCursor.count).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should not call mongo if a middleware function breaks out early', function(done) {
@@ -505,7 +505,7 @@ describe('CrudSvc', function() {
                 expect(svc.formatOutput).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should not call mongo if a middleware function rejects', function(done) {
@@ -515,7 +515,7 @@ describe('CrudSvc', function() {
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(mockColl.find).not.toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should return a 404 if nothing was found', function(done) {
@@ -530,7 +530,7 @@ describe('CrudSvc', function() {
                 expect(svc.formatOutput).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail if cursor.toArray has an error', function(done) {
@@ -543,7 +543,7 @@ describe('CrudSvc', function() {
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(fakeCursor.count).not.toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should fail if cursor.count has an error and multiExp is true', function(done) {
@@ -556,7 +556,7 @@ describe('CrudSvc', function() {
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(fakeCursor.toArray).not.toHaveBeenCalled();
                 expect(fakeCursor.count).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
     });
     
@@ -581,7 +581,7 @@ describe('CrudSvc', function() {
                 expect(svc.formatOutput).toHaveBeenCalledWith({ id: 't1', setup: true });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should not call mongo if a middleware function breaks out early', function(done) {
@@ -592,7 +592,7 @@ describe('CrudSvc', function() {
                 expect(mockColl.insert).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should not call mongo if a middleware function rejects', function(done) {
@@ -605,7 +605,7 @@ describe('CrudSvc', function() {
                 expect(svc.runMiddleware.callCount).toBe(2);
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(mockColl.insert).not.toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail if coll.insert fails', function(done) {
@@ -617,7 +617,7 @@ describe('CrudSvc', function() {
                 expect(svc.runMiddleware.callCount).toBe(2);
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(mockColl.insert).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
     });
     
@@ -642,7 +642,7 @@ describe('CrudSvc', function() {
                 expect(svc.formatOutput).toHaveBeenCalledWith({ id: 't1', updated: true });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should not call mongo if a middleware function breaks out early', function(done) {
@@ -654,7 +654,7 @@ describe('CrudSvc', function() {
                 expect(mockColl.findAndModify).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should not call mongo if a middleware function rejects', function(done) {
@@ -667,7 +667,7 @@ describe('CrudSvc', function() {
                 expect(svc.runMiddleware.callCount).toBe(1);
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(mockColl.findAndModify).not.toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail if coll.findAndModify fails', function(done) {
@@ -679,7 +679,7 @@ describe('CrudSvc', function() {
                 expect(svc.runMiddleware.callCount).toBe(2);
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(mockColl.findAndModify).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
     });
     
@@ -703,7 +703,7 @@ describe('CrudSvc', function() {
                     {$set: {lastUpdated: jasmine.any(Date), status: Status.Deleted}},{w:1,journal:true},anyFunc);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should not update the object if it is already deleted', function(done) {
@@ -717,7 +717,7 @@ describe('CrudSvc', function() {
                 expect(mockColl.update).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should not call mongo if a middleware function breaks out early', function(done) {
@@ -729,7 +729,7 @@ describe('CrudSvc', function() {
                 expect(mockColl.update).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should not call mongo if a middleware function rejects', function(done) {
@@ -742,7 +742,7 @@ describe('CrudSvc', function() {
                 expect(svc.runMiddleware.callCount).toBe(1);
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(mockColl.update).not.toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail if coll.update fails', function(done) {
@@ -754,7 +754,7 @@ describe('CrudSvc', function() {
                 expect(svc.runMiddleware.callCount).toBe(2);
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(mockColl.update).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
     });
 });

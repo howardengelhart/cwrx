@@ -115,7 +115,7 @@ describe('org (E2E):', function() {
                                                  params: { id: 'o-1234' }, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should get an org even when multiple with the same id exist', function(done) {
@@ -242,7 +242,7 @@ describe('org (E2E):', function() {
                                                  params: {}, query: { sort: 'id,1' } });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should be able to sort and paginate the results', function(done) {
@@ -381,7 +381,7 @@ describe('org (E2E):', function() {
                                                  params: {}, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should be able to override default properties', function(done) {
@@ -590,7 +590,7 @@ describe('org (E2E):', function() {
                                                  params: { id: 'o-1234' }, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should throw a 404 if the org does not exist', function(done) {
@@ -787,7 +787,7 @@ describe('org (E2E):', function() {
                                                  params: { id: 'org1' }, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should still succeed if the org does not exist', function(done) {
@@ -885,7 +885,7 @@ describe('org (E2E):', function() {
                 expect(resp.body.status).toBe('active');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should allow deleting an org with inactive users', function(done) {
@@ -906,7 +906,7 @@ describe('org (E2E):', function() {
                 expect(resp.body).toBe('No orgs found');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
     
         it('should throw a 401 error if the user is not authenticated', function(done) {

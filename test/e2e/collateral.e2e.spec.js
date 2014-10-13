@@ -199,7 +199,7 @@ describe('collateral (E2E):', function() {
                                                  params: { 'expId': 'e-1234' }, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should set CacheControl to max-age=0 if noCache is true', function(done) {
@@ -464,7 +464,7 @@ describe('collateral (E2E):', function() {
                                                  params: { expId: 'e-1234' }, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should work if regenerating a splash image', function(done) {
@@ -688,7 +688,7 @@ describe('collateral (E2E):', function() {
                                                  params: {}, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should use a default CacheControl if not provided', function(done) {

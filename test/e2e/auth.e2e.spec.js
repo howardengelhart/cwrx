@@ -93,7 +93,7 @@ describe('auth (E2E):', function() {
                 expect(results[0].data).toEqual({action: 'login'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should convert the request email to lowercase', function(done) {
@@ -113,7 +113,7 @@ describe('auth (E2E):', function() {
                 expect(resp.response.headers['set-cookie'][0].match(/^c6Auth=.+/)).toBeTruthy('cookie match');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail for an invalid email', function(done) {
@@ -165,7 +165,7 @@ describe('auth (E2E):', function() {
                 expect(resp.response.body).toBe('You need to provide an email and password in the body');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail if the user account is not active', function(done) {
@@ -276,7 +276,7 @@ describe('auth (E2E):', function() {
                 expect(results[0].data).toEqual({action: 'logout'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should still succeed if the user is not logged in', function(done) {
@@ -351,7 +351,7 @@ describe('auth (E2E):', function() {
                                                  params: {}, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail if the user becomes inactive', function(done) {
@@ -420,7 +420,7 @@ describe('auth (E2E):', function() {
                 });
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should prevent mongo query selector injection attacks', function(done) {
@@ -433,7 +433,7 @@ describe('auth (E2E):', function() {
                 expect(resp.body).toBe('Need to provide email and target in the request');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail with a 400 for an invalid target', function(done) {
@@ -446,7 +446,7 @@ describe('auth (E2E):', function() {
                 expect(resp.body).toBe('Invalid target');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail with a 404 if the user does not exist', function(done) {
@@ -459,7 +459,7 @@ describe('auth (E2E):', function() {
                 expect(resp.body).toBe('That user does not exist');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should successfully generate and send a reset token', function(done) {
@@ -496,7 +496,7 @@ describe('auth (E2E):', function() {
                                                  params: {}, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should convert the request email to lowercase', function(done) {
@@ -550,7 +550,7 @@ describe('auth (E2E):', function() {
                 });
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should prevent mongo query selector injection attacks', function(done) {
@@ -563,7 +563,7 @@ describe('auth (E2E):', function() {
                 expect(resp.body).toBe('Must provide id, token, and newPassword');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should successfully reset a user\'s password', function(done) {
@@ -598,7 +598,7 @@ describe('auth (E2E):', function() {
                     expect(resp.response.headers['set-cookie'].length).toBe(1);
                 }).catch(function(error) {
                     expect(error).not.toBeDefined();
-                }).finally(done);
+                }).done(done);
             });
         });
 
@@ -619,7 +619,7 @@ describe('auth (E2E):', function() {
                                                  params: {}, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail with a 404 if the user is not found', function(done) {
@@ -632,7 +632,7 @@ describe('auth (E2E):', function() {
                 expect(resp.body).toBe('That user does not exist');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail with a 403 if the user has no reset token', function(done) {
@@ -647,7 +647,7 @@ describe('auth (E2E):', function() {
                 expect(resp.body).toBe('No reset token found');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail with a 403 if the reset token has expired', function(done) {
@@ -662,7 +662,7 @@ describe('auth (E2E):', function() {
                 expect(resp.body).toBe('Reset token expired');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail with a 403 if the reset token is invalid', function(done) {
@@ -677,7 +677,7 @@ describe('auth (E2E):', function() {
                 expect(resp.body).toBe('Invalid request token');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail if attempting to resend a valid request', function(done) {
@@ -700,7 +700,7 @@ describe('auth (E2E):', function() {
                     expect(resp.body).toBe('No reset token found');
                 }).catch(function(error) {
                     expect(error).not.toBeDefined();
-                }).finally(done);
+                }).done(done);
             });
         });
         
@@ -734,7 +734,7 @@ describe('auth (E2E):', function() {
                     expect(resp.response.headers['set-cookie'][0].match(/^c6Auth=.+/)).toBeTruthy('cookie match');
                 }).catch(function(error) {
                     expect(error).not.toBeDefined();
-                }).finally(done);
+                }).done(done);
             });
         });
     });  // end describe /api/auth/password/reset
