@@ -197,6 +197,16 @@
 
         return newQuery;
     };
+    
+    //TODO: comment
+    content.formatTextQuery = function(query) {
+        var newQuery = JSON.parse(JSON.stringify(query)),
+            textParts = newQuery.text.trim().split(/\s+/);
+            
+        newQuery['data.0.data.title'] = {$regex: '.*' + textParts.join('.*') + '.*', $options: 'i'};
+        delete newQuery.text;
+        return newQuery;
+    };
 
     // Ensure experience has adConfig, getting from its org if necessary
     content.getAdConfig = function(exp, orgId, orgCache) {
@@ -350,10 +360,12 @@
             query['status.0.status'] = query.status;
             delete query.status;
         }
-
         if (query.sponsoredType) {
             query['data.0.data.sponsoredType'] = query.sponsoredType;
             delete query.sponsoredType;
+        }
+        if (query.text) {
+            query = content.formatTextQuery(query);
         }
 
         log.info('[%1] User %2 getting experiences with %3, sort %4, limit %5, skip %6',
@@ -836,7 +848,8 @@
         // private get experience by query
         app.get('/api/content/experiences', sessionsWrapper, authGetExp, function(req, res) {
             var query = {};
-            ['ids', 'user', 'org', 'type', 'sponsoredType', 'status'].forEach(function(field) {
+            ['ids', 'user', 'org', 'type', 'sponsoredType', 'status', 'text']
+            .forEach(function(field) {
                 if (req.query[field]) {
                     if (field === 'ids') {
                         query.id = req.query.ids.split(',');

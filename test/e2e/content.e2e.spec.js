@@ -564,7 +564,7 @@ describe('content (E2E):', function() {
                 {
                     id: 'e2e-getquery1',
                     status: [{status: 'inactive', date: new Date()}],
-                    data: [{ data: { foo: 'bar', sponsoredType: 'card' } }],
+                    data: [{ data: { foo: 'bar', title: 'foo bar Baz', sponsoredType: 'card' } }],
                     access: 'private',
                     user: 'e2e-user',
                     org: 'e2e-org',
@@ -573,7 +573,7 @@ describe('content (E2E):', function() {
                 {
                     id: 'e2e-getquery2',
                     status: [{status: 'inactive', date: new Date()}],
-                    data: [{ data: { foo: 'bar', sponsoredType: 'minireel' } }],
+                    data: [{ data: { foo: 'bar', title: 'bar Foo baz', sponsoredType: 'minireel' } }],
                     access: 'private',
                     user: 'not-e2e-user',
                     org: 'e2e-org',
@@ -582,7 +582,7 @@ describe('content (E2E):', function() {
                 {
                     id: 'e2e-getquery3',
                     status: [{status: 'active', date: new Date()}],
-                    data: [{ data: { foo: 'bar', sponsoredType: 'card' } }],
+                    data: [{ data: { foo: 'bar', title: 'foo Bar', sponsoredType: 'card' } }],
                     access: 'private',
                     user: 'not-e2e-user',
                     org: 'not-e2e-org',
@@ -627,10 +627,10 @@ describe('content (E2E):', function() {
                 expect(resp.body.length).toBe(2);
                 expect(resp.body[0]._id).not.toBeDefined();
                 expect(resp.body[0].id).toBe('e2e-getquery1');
-                expect(resp.body[0].data).toEqual({foo: 'bar', sponsoredType: 'card'});
+                expect(resp.body[0].data).toEqual({foo: 'bar', title: 'foo bar Baz', sponsoredType: 'card'});
                 expect(resp.body[1]._id).not.toBeDefined();
                 expect(resp.body[1].id).toBe('e2e-getquery3');
-                expect(resp.body[0].data).toEqual({foo: 'bar', sponsoredType: 'card'});
+                expect(resp.body[1].data).toEqual({foo: 'bar', title: 'foo Bar', sponsoredType: 'card'});
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -715,6 +715,34 @@ describe('content (E2E):', function() {
                 expect(resp.body.length).toBe(2);
                 expect(resp.body[0].id).toBe('e2e-getquery1');
                 expect(resp.body[1].id).toBe('e2e-getquery3');
+                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).finally(done);
+        });
+        
+        it('should get experiences by title', function(done) {
+            var options = {
+                url: config.contentUrl + '/content/experiences',
+                qs: { text: 'foo bar', sort: 'id,1' },
+                jar: cookieJar
+            };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body instanceof Array).toBeTruthy('body is array');
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0].id).toBe('e2e-getquery1');
+                expect(resp.body[1].id).toBe('e2e-getquery3');
+                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
+
+                options.qs.text = 'baz';
+                return requestUtils.qRequest('get', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body instanceof Array).toBeTruthy('body is array');
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0].id).toBe('e2e-getquery1');
+                expect(resp.body[1].id).toBe('e2e-getquery2');
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();

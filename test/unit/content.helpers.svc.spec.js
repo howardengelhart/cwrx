@@ -378,6 +378,17 @@ describe('content (UT)', function() {
         });
     });
     
+    describe('formatTextQuery', function() {
+        it('should split up the text string and format it into a regex', function() {
+            expect(content.formatTextQuery({text: 'foo'}))
+                .toEqual({'data.0.data.title': {$regex: '.*foo.*', $options: 'i'}});
+            expect(content.formatTextQuery({text: ' foo bar.qwer '}))
+                .toEqual({'data.0.data.title': {$regex: '.*foo.*bar.qwer.*', $options: 'i'}});
+            expect(content.formatTextQuery({text: 'foo\tbar\nqwer '}))
+                .toEqual({'data.0.data.title': {$regex: '.*foo.*bar.*qwer.*', $options: 'i'}});
+        });
+    });
+    
     describe('getAdConfig', function() {
         var orgCache, exp, mockOrg;
         beforeEach(function() {
