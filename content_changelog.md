@@ -1,5 +1,9 @@
 # Content Service Changelog
 
+### 1.12.0: Wed Oct 15 09:59:07 EDT 2014
+* [FEATURE]: Allow querying for experiences by title: [#308](https://github.com/cinema6/cwrx/pull/308)
+* Extra deployment steps: None
+
 ### 1.11.0: Wed Oct  8 14:59:44 EDT 2014
 * [FEATURE]: Add `/preview/:id` endpoint for generating full preview links: [#299](https://github.com/cinema6/cwrx/pull/299)
 * Extra deployment steps: 
