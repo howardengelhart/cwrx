@@ -206,6 +206,8 @@ describe('vote (E2E)', function(){
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('vote');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'GET /api/election/:electionId',
@@ -442,6 +444,8 @@ describe('vote (E2E)', function(){
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('vote');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'POST /api/election',
@@ -543,6 +547,8 @@ describe('vote (E2E)', function(){
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('vote');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'PUT /api/election/:id',
@@ -646,6 +652,8 @@ describe('vote (E2E)', function(){
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('vote');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'DELETE /api/election/:id',

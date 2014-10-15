@@ -94,6 +94,8 @@ describe('user (E2E):', function() {
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('userSvc');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'GET /api/account/user/:id',
@@ -194,6 +196,8 @@ describe('user (E2E):', function() {
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('userSvc');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'GET /api/account/users',
@@ -369,6 +373,8 @@ describe('user (E2E):', function() {
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('userSvc');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'POST /api/account/user',
@@ -543,6 +549,8 @@ describe('user (E2E):', function() {
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('userSvc');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'PUT /api/account/user/:id',
@@ -683,6 +691,8 @@ describe('user (E2E):', function() {
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('userSvc');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'DELETE /api/account/user/:id',
@@ -895,6 +905,8 @@ describe('user (E2E):', function() {
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toBe(null);
                 expect(results[0].service).toBe('userSvc');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'POST /api/account/user/email',
@@ -1052,6 +1064,8 @@ describe('user (E2E):', function() {
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toBe(null);
                 expect(results[0].service).toBe('userSvc');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'POST /api/account/user/password',
@@ -1138,6 +1152,8 @@ describe('user (E2E):', function() {
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('userSvc');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'DELETE /api/account/user/:id',

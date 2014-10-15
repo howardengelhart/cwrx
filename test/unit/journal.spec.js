@@ -1,5 +1,5 @@
 var flush = true;
-describe('requestUtils', function() {
+describe('journal lib: ', function() {
     var q, mockLog, mockLogger, mockHostname, mongoUtils, logger, mockColl, journal;
     
     beforeEach(function() {
@@ -154,18 +154,19 @@ describe('requestUtils', function() {
         });
         
         describe('write', function() {
-            var journ;
+            var journ, req;
             beforeEach(function(done) {
                 journ = new journal.Journal(mockColl, 'v1', 'ut');
+                req = { uuid: '1234', sessionID: 's1', headers: { origin: 'c6.com' } };
                 process.nextTick(done);
             });
             
             it('should write an entry to the journal', function(done) {
-                journ.write('u-1', 'c6.com', {foo: 'bar'}).then(function() {
+                journ.write('u-1', req, {foo: 'bar'}).then(function() {
                     expect(mockColl.insert).toHaveBeenCalled();
                     expect(mockColl.insert.calls[0].args[0]).toEqual({
                         user: 'u-1', created: jasmine.any(Date), host: 'fakeHost', pid: process.pid,
-                        service: 'ut', version: 'v1', origin: 'c6.com', data: {foo: 'bar'}
+                        uuid: '1234', sessionID: 's1', service: 'ut', version: 'v1', origin: 'c6.com', data: {foo: 'bar'}
                     });
                     expect(mockColl.insert.calls[0].args[1]).toEqual({w: 1, journal: true});
                 }).catch(function(error) {
@@ -173,9 +174,45 @@ describe('requestUtils', function() {
                 }).done(done);
             });
             
+            it('should not set the origin header if not defined', function(done) {
+                req.headers = {};
+                journ.write('u-1', req, {foo: 'bar'}).then(function() {
+                    expect(mockColl.insert.calls[0].args[0].origin).toBe(undefined);
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+
+            it('should prevent spoofing the origin with an object', function(done) {
+                req.headers.origin = { $set: { key: 'malicious' } };
+                journ.write('u-1', req, {foo: 'bar'}).then(function() {
+                    expect(mockColl.insert.calls[0].args[0].origin).toBe('[object Object]');
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+
+            it('should use the referer header if the origin is not defined', function(done) {
+                req.headers = { referer: 'not.c6.com' };
+                journ.write('u-1', req, {foo: 'bar'}).then(function() {
+                    expect(mockColl.insert.calls[0].args[0].origin).toBe('not.c6.com');
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should prefer the origin header if both are defined', function(done) {
+                req.headers = { referer: 'not.c6.com', origin: 'c6.com' };
+                journ.write('u-1', req, {foo: 'bar'}).then(function() {
+                    expect(mockColl.insert.calls[0].args[0].origin).toBe('c6.com');
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
             it('should reject if it fails to write to the journal', function(done) {
                 mockColl.insert.andCallFake(function(obj, opts, cb) { cb('I GOT A PROBLEM'); });
-                journ.write('u-1', 'c6.com', {foo: 'bar'}).then(function() {
+                journ.write('u-1', req, {foo: 'bar'}).then(function() {
                     expect('resolved').not.toBe('resolved');
                 }).catch(function(error) {
                     expect(error).toBe('I GOT A PROBLEM');
@@ -220,7 +257,6 @@ describe('requestUtils', function() {
             beforeEach(function() {
                 journ = new journal.AuditJournal(mockColl, 'v1', 'ut');
                 req = {
-                    headers: { origin: 'c6.com' },
                     params: [],
                     query: { foo: 'bar' },
                     route: { method: 'get', path: '/jiggy/with/it' }
@@ -231,33 +267,13 @@ describe('requestUtils', function() {
 
             it('should call write with the proper data', function(done) {
                 journ.writeAuditEntry(req, 'u-1').then(function() {
-                    expect(journ.write).toHaveBeenCalledWith('u-1', 'c6.com',
+                    expect(journ.write).toHaveBeenCalledWith('u-1', req,
                         {route: 'GET /jiggy/with/it', params: {id: 'e-1'}, query: {foo: 'bar'}});
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);
             });
 
-            it('should use the referer header if the origin is not defined', function(done) {
-                req.headers = { referer: 'not.c6.com' };
-                journ.writeAuditEntry(req, 'u-1').then(function() {
-                    expect(journ.write).toHaveBeenCalledWith('u-1', 'not.c6.com',
-                        {route: 'GET /jiggy/with/it', params: {id: 'e-1'}, query: {foo: 'bar'}});
-                }).catch(function(error) {
-                    expect(error.toString()).not.toBeDefined();
-                }).done(done);
-            });
-            
-            it('should prefer the origin header if both are defined', function(done) {
-                req.headers = { referer: 'not.c6.com', origin: 'c6.com' };
-                journ.writeAuditEntry(req, 'u-1').then(function() {
-                    expect(journ.write).toHaveBeenCalledWith('u-1', 'c6.com',
-                        {route: 'GET /jiggy/with/it', params: {id: 'e-1'}, query: {foo: 'bar'}});
-                }).catch(function(error) {
-                    expect(error.toString()).not.toBeDefined();
-                }).done(done);
-            });
-            
             it('should reject if write rejects', function(done) {
                 journ.write.andReturn(q.reject('I GOT A PROBLEM'));
                 journ.writeAuditEntry(req, 'u-1').then(function() {

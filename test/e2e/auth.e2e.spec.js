@@ -78,6 +78,8 @@ describe('auth (E2E):', function() {
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('auth');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'POST /api/auth/login',
@@ -88,6 +90,8 @@ describe('auth (E2E):', function() {
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('auth');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({action: 'login'});
@@ -261,6 +265,8 @@ describe('auth (E2E):', function() {
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('auth');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'POST /api/auth/logout',
@@ -271,6 +277,8 @@ describe('auth (E2E):', function() {
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('auth');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({action: 'logout'});
@@ -345,6 +353,8 @@ describe('auth (E2E):', function() {
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('auth');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'GET /api/auth/status',
@@ -490,6 +500,8 @@ describe('auth (E2E):', function() {
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toBe(null);
                 expect(results[0].service).toBe('auth');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'POST /api/auth/password/forgot',
@@ -613,6 +625,8 @@ describe('auth (E2E):', function() {
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('auth');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'POST /api/auth/password/reset',

@@ -50,7 +50,6 @@ describe('auth (UT)', function() {
     describe('login', function() {
         var origUser;
         beforeEach(function() {
-            req.headers = { referer: 'not.c6.com', origin: 'c6.com' };
             req.body = { email: 'user', password: 'pass' };
             origUser = {
                 id: 'u-123',
@@ -120,7 +119,7 @@ describe('auth (UT)', function() {
                 expect(req.session.regenerate).toHaveBeenCalled();
                 expect(mongoUtils.safeUser).toHaveBeenCalledWith(origUser);
                 expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
-                expect(authJournal.write).toHaveBeenCalledWith('u-123', 'c6.com', {action: 'login'});
+                expect(authJournal.write).toHaveBeenCalledWith('u-123', req, {action: 'login'});
                 expect(auditJournal.writeAuditEntry).toHaveBeenCalledWith(req, 'u-123');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -253,14 +252,10 @@ describe('auth (UT)', function() {
     });
     
     describe('logout', function() {
-        var req;
         beforeEach(function() {
-            req = {
-                headers: { referer: 'not.c6.com', origin: 'c6.com' },
-                session: {
-                    user: 'u-123',
-                    destroy: jasmine.createSpy('session_destroy').andCallFake(function(cb) { cb(); })
-                }
+            req.session = {
+                user: 'u-123',
+                destroy: jasmine.createSpy('session_destroy').andCallFake(function(cb) { cb(); })
             };
         });
         
@@ -270,7 +265,7 @@ describe('auth (UT)', function() {
                 expect(resp.code).toBe(204);
                 expect(resp.body).not.toBeDefined();
                 expect(req.session.destroy).toHaveBeenCalled();
-                expect(authJournal.write).toHaveBeenCalledWith('u-123', 'c6.com', {action: 'logout'});
+                expect(authJournal.write).toHaveBeenCalledWith('u-123', req, {action: 'logout'});
                 expect(auditJournal.writeAuditEntry).toHaveBeenCalledWith(req, 'u-123');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

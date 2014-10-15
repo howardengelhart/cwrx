@@ -67,7 +67,6 @@
             return q({ code: 400, body: 'You need to provide an email and password in the body' });
         }
         var deferred = q.defer(),
-            origin = req.headers && (req.headers.origin || req.headers.referer) || '',
             log = logger.getLog(),
             userAccount;
             
@@ -92,10 +91,10 @@
                     log.info('[%1] Successful login for user %2', req.uuid, req.body.email);
                     var user = mongoUtils.safeUser(userAccount);
 
-                    auditJournal.writeAuditEntry(req, user.id);
-                    authJournal.write(user.id, origin, { action: 'login' });
-
                     return q.npost(req.session, 'regenerate').then(function() {
+                        auditJournal.writeAuditEntry(req, user.id);
+                        authJournal.write(user.id, req, { action: 'login' });
+
                         req.session.user = user.id;
                         req.session.cookie.maxAge = maxAge;
                         return deferred.resolve({
@@ -119,7 +118,6 @@
 
     auth.logout = function(req, authJournal, auditJournal) {
         var deferred = q.defer(),
-            origin = req.headers && (req.headers.origin || req.headers.referer) || '',
             log = logger.getLog();
 
         log.info('[%1] Starting logout for %2', req.uuid, req.sessionID);
@@ -134,7 +132,7 @@
             log.info('[%1] Logging out user %2 with sessionID %3', req.uuid, user, req.sessionID);
 
             q.npost(req.session, 'destroy').then(function() {
-                authJournal.write(user, origin, { action: 'logout' });
+                authJournal.write(user, req, { action: 'logout' });
                 deferred.resolve({code: 204});
             }).catch(function(error) {
                 log.error('[%1] Error logging out user %2: %3',
