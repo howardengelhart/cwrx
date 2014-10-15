@@ -198,7 +198,7 @@
         return newQuery;
     };
     
-    //TODO: comment
+    // Format a 'text' query. Currently, turns this into a regex search on the title field.
     content.formatTextQuery = function(query) {
         var newQuery = JSON.parse(JSON.stringify(query)),
             textParts = newQuery.text.trim().split(/\s+/);
