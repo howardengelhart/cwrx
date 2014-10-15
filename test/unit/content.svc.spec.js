@@ -162,6 +162,7 @@ describe('content (UT)', function() {
             };
             expColl = { find: jasmine.createSpy('expColl.find').andReturn(fakeCursor) };
             spyOn(content, 'userPermQuery').andReturn('userPermQuery');
+            spyOn(content, 'formatTextQuery').andCallThrough();
             content.formatOutput.andReturn('formatted');
         });
 
@@ -265,6 +266,19 @@ describe('content (UT)', function() {
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
+        });
+        
+        it('should format a text query', function(done) {
+            query.text = 'foo bar';
+            content.getExperiences(query, req, expColl, false).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual(['formatted']);
+                expect(content.formatTextQuery).toHaveBeenCalledWith({type: 'minireel', text: 'foo bar'});
+                expect(content.userPermQuery).toHaveBeenCalledWith({type: 'minireel',
+                    'data.0.data.title': {$regex: '.*foo.*bar.*', $options: 'i'}}, 'fakeUser', false);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).finally(done);
         });
         
         it('should set resp.pagination if multiExp is true', function(done) {
