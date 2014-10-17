@@ -1,5 +1,11 @@
 # Org Service Changelog
 
+### 1.2.0: Fri Oct 17 14:28:44 EDT 2014
+* [FEATURE]: Add journaling: [#309](https://github.com/cinema6/cwrx/pull/309)
+* Extra deployment steps:
+    * Deploy new c6mongo and create capped audit collection
+    * Deploy new cookbook and update environment with c6Journal config
+
 ### 1.1.2: Wed Sep 10 11:07:04 EDT 2014
 * [FIX]: Add permission for editing orgs' `adConfig`: [#272](https://github.com/cinema6/cwrx/pull/272)
 * [FIX]: Properly compare new `adConfig` with existing `adConfig` on edit: [#275](https://github.com/cinema6/cwrx/pull/275)
