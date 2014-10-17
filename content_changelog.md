@@ -1,5 +1,11 @@
 # Content Service Changelog
 
+### 1.13.0: Fri Oct 17 14:28:44 EDT 2014
+* [FEATURE]: Add journaling: [#309](https://github.com/cinema6/cwrx/pull/309)
+* Extra deployment steps:
+    * Deploy new c6mongo and create capped audit collection
+    * Deploy new cookbook and update environment with c6Journal config
+
 ### 1.12.0: Wed Oct 15 09:59:07 EDT 2014
 * [FEATURE]: Allow querying for experiences by title: [#308](https://github.com/cinema6/cwrx/pull/308)
 * Extra deployment steps: None

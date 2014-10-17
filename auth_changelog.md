@@ -1,5 +1,11 @@
 # Auth Service Changelog
 
+### 1.4.0: Fri Oct 17 14:28:44 EDT 2014
+* [FEATURE]: Add journaling: [#309](https://github.com/cinema6/cwrx/pull/309)
+* Extra deployment steps:
+    * Deploy new c6mongo and create capped audit collection
+    * Deploy new cookbook and update environment with c6Journal config
+
 ### 1.3.3: Fri Oct  3 12:52:39 EDT 2014
 * [FIX]: Defend against query selector injection attacks: [#303](https://github.com/cinema6/cwrx/pull/303)
 * Extra deployment steps: None

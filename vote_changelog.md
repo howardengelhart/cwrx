@@ -1,5 +1,11 @@
 # Vote Service Changelog
 
+### 1.4.0: Fri Oct 17 14:28:44 EDT 2014
+* [FEATURE]: Add journaling: [#309](https://github.com/cinema6/cwrx/pull/309)
+* Extra deployment steps:
+    * Deploy new c6mongo and create capped audit collection
+    * Deploy new cookbook and update environment with c6Journal config
+
 ### 1.3.6: Fri Aug 29 10:07:58 EDT 2014
 * [FIX]: Save session docs as JSON, not strings: [#261](https://github.com/cinema6/cwrx/pull/261)
 * [FIX]: Change mongo read preference to primaryPreferred: [#262](https://github.com/cinema6/cwrx/pull/262)
