@@ -15,15 +15,14 @@ var request         = require('request'),
     testUtils = {};
   
 testUtils._getDb = function(userCfg) {
-    if (!userCfg) {
-        userCfg = process.env['mongo'] ? JSON.parse(process.env['mongo']) : {};
-    }
+    userCfg = userCfg || {};
+    var procCfg = process.env['mongo'] ? JSON.parse(process.env['mongo']) : {};
     var dbConfig = {
-        host : userCfg.host ? userCfg.host : '33.33.33.100',
-        port : userCfg.port ? userCfg.port : 27017,
-        db   : userCfg.db   ? userCfg.db   : 'c6Db',
-        user : userCfg.user ? userCfg.user : 'e2eTests',
-        pass : userCfg.pass ? userCfg.pass : 'password'
+        host : userCfg.host ? userCfg.host : procCfg.host || '33.33.33.100',
+        port : userCfg.port ? userCfg.port : procCfg.port || 27017,
+        db   : userCfg.db   ? userCfg.db   : procCfg.db || 'c6Db',
+        user : userCfg.user ? userCfg.user : procCfg.user || 'e2eTests',
+        pass : userCfg.pass ? userCfg.pass : procCfg.pass || 'password'
     };
     
     return mongoUtils.connect(dbConfig.host,dbConfig.port,dbConfig.db,dbConfig.user,dbConfig.pass)
