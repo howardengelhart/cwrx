@@ -7,6 +7,7 @@
         q               = require('q'),
         logger          = require('../lib/logger'),
         uuid            = require('../lib/uuid'),
+        journal         = require('../lib/journal'),
         FieldValidator  = require('../lib/fieldValidator'),
         mongoUtils      = require('../lib/mongoUtils'),
         authUtils       = require('../lib/authUtils'),
@@ -18,8 +19,8 @@
         state   = {},
         siteSvc = {}; // for exporting functions to unit tests
 
-    state.name = 'siteSvc';
     state.defaultConfig = {
+        appName: 'siteSvc',
         appDir: __dirname,
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/' + state.name + '/caches/run/'),
@@ -37,6 +38,11 @@
         secretsPath: path.join(process.env.HOME,'.siteSvc.secrets.json'),
         mongo: {
             c6Db: {
+                host: null,
+                port: null,
+                retryConnect : true
+            },
+            c6Journal: {
                 host: null,
                 port: null,
                 retryConnect : true
@@ -341,10 +347,12 @@
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
             
-        var express     = require('express'),
-            app         = express(),
-            users       = state.dbs.c6Db.collection('users'),
-            sites    = state.dbs.c6Db.collection('sites');
+        var express      = require('express'),
+            app          = express(),
+            users        = state.dbs.c6Db.collection('users'),
+            sites        = state.dbs.c6Db.collection('sites'),
+            auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
+                                                    state.config.appVersion, state.config.appName);
         authUtils._coll = users;
 
         app.use(express.bodyParser());
@@ -378,10 +386,16 @@
             log.info('Recreated session store from restarted db');
         });
 
+        state.dbStatus.c6Journal.on('reconnected', function() {
+            auditJournal.resetColl(state.dbs.c6Journal.collection('audit'));
+            log.info('Reset journal\'s collection from restarted db');
+        });
+
         // Because we may recreate the session middleware, we need to wrap it in the route handlers
-        function sessionsWrapper(req, res, next) {
+        function sessWrap(req, res, next) {
             sessions(req, res, next);
         }
+        var audit = auditJournal.middleware.bind(auditJournal);
 
         app.all('*', function(req, res, next) {
             res.header('Access-Control-Allow-Headers',
@@ -421,7 +435,7 @@
         });
 
         var authGetSite = authUtils.middlewarify({sites: 'read'});
-        app.get('/api/site/:id', sessionsWrapper, authGetSite, function(req,res){
+        app.get('/api/site/:id', sessWrap, authGetSite, audit, function(req,res){
             siteSvc.getSites({ id: req.params.id }, req, sites, false)
             .then(function(resp) {
                 if (resp.body && resp.body instanceof Array) {
@@ -437,7 +451,7 @@
             });
         });
         
-        app.get('/api/sites', sessionsWrapper, authGetSite, function(req, res) {
+        app.get('/api/sites', sessWrap, authGetSite, audit, function(req, res) {
             var query = {};
             if (req.query && req.query.org) {
                 query.org = String(req.query.org);
@@ -462,7 +476,7 @@
         });
         
         var authPostSite = authUtils.middlewarify({sites: 'create'});
-        app.post('/api/site', sessionsWrapper, authPostSite, function(req, res) {
+        app.post('/api/site', sessWrap, authPostSite, audit, function(req, res) {
             siteSvc.createSite(req, sites)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -475,7 +489,7 @@
         });
         
         var authPutSite = authUtils.middlewarify({sites: 'edit'});
-        app.put('/api/site/:id', sessionsWrapper, authPutSite, function(req, res) {
+        app.put('/api/site/:id', sessWrap, authPutSite, audit, function(req, res) {
             siteSvc.updateSite(req, sites)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -488,7 +502,7 @@
         });
         
         var authDelSite = authUtils.middlewarify({sites: 'delete'});
-        app.delete('/api/site/:id', sessionsWrapper, authDelSite, function(req, res) {
+        app.delete('/api/site/:id', sessWrap, authDelSite, audit, function(req, res) {
             siteSvc.deleteSite(req, sites)
             .then(function(resp) {
                 res.send(resp.code, resp.body);

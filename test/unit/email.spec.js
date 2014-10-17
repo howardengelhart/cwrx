@@ -25,7 +25,7 @@ describe('email', function() {
                     'Your account password has been changed','pwdChange.html',{contact:'send'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should pass along errors from compileAndSend', function(done) {
@@ -35,7 +35,7 @@ describe('email', function() {
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(email.compileAndSend).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
     });
 
@@ -72,7 +72,7 @@ describe('email', function() {
                     subject:'subj',html:'compiledHtml',text:'compiledText'}, jasmine.any(Function));
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail if reading the template fails', function(done) {
@@ -87,7 +87,7 @@ describe('email', function() {
                 expect(sesTportSpy).not.toHaveBeenCalled();
                 expect(nodemailer.createTransport).not.toHaveBeenCalled();
                 expect(fakeTransport.sendMail).not.toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail if sending the email fails', function(done) {
@@ -102,7 +102,7 @@ describe('email', function() {
                 expect(sesTportSpy).toHaveBeenCalledWith();
                 expect(nodemailer.createTransport).toHaveBeenCalled();
                 expect(fakeTransport.sendMail).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
     });
 });

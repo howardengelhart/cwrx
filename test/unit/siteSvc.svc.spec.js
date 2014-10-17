@@ -238,7 +238,7 @@ describe('siteSvc (UT)', function() {
                 expect(mongoUtils.unescapeKeys).toHaveBeenCalledWith({id: '1'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should use defaults for sorting/paginating options if not provided', function(done) {
@@ -249,7 +249,7 @@ describe('siteSvc (UT)', function() {
                 expect(siteColl.find).toHaveBeenCalledWith('permQuery',{sort:{},limit:0,skip:0});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should ignore the sort param if invalid', function(done) {
@@ -261,7 +261,7 @@ describe('siteSvc (UT)', function() {
                 expect(siteColl.find).toHaveBeenCalledWith('permQuery',{sort:{},limit:20,skip:10});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should set resp.pagination if multiGet is true', function(done) {
@@ -272,7 +272,7 @@ describe('siteSvc (UT)', function() {
                 expect(fakeCursor.count).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should handle end behavior properly when paginating', function(done) {
@@ -284,7 +284,7 @@ describe('siteSvc (UT)', function() {
                 expect(fakeCursor.count).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should prevent non-admin users from getting all sites', function(done) {
@@ -297,7 +297,7 @@ describe('siteSvc (UT)', function() {
                 expect(mongoUtils.unescapeKeys).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should prevent non-admin users from getting sites outside their org', function(done) {
@@ -310,7 +310,7 @@ describe('siteSvc (UT)', function() {
                 expect(mongoUtils.unescapeKeys).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should allow admin users to get all sites', function(done) {
@@ -323,7 +323,7 @@ describe('siteSvc (UT)', function() {
                 expect(fakeCursor.toArray).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should allow admin users to get sites outside their org', function(done) {
@@ -336,7 +336,7 @@ describe('siteSvc (UT)', function() {
                 expect(fakeCursor.toArray).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should return a 404 if nothing was found', function(done) {
@@ -351,7 +351,7 @@ describe('siteSvc (UT)', function() {
                 expect(mongoUtils.unescapeKeys).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should fail if cursor.toArray has an error', function(done) {
@@ -365,7 +365,7 @@ describe('siteSvc (UT)', function() {
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(fakeCursor.count).not.toHaveBeenCalled();
                 expect(mongoUtils.unescapeKeys).not.toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should fail if cursor.count has an error and multiGet is true', function(done) {
@@ -379,7 +379,7 @@ describe('siteSvc (UT)', function() {
                 expect(fakeCursor.toArray).not.toHaveBeenCalled();
                 expect(fakeCursor.count).toHaveBeenCalled();
                 expect(mongoUtils.unescapeKeys).not.toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
     });
     
@@ -437,7 +437,7 @@ describe('siteSvc (UT)', function() {
                 expect(siteColl.insert).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should reject with a 400 if the host is unspecified', function(done) {
@@ -450,7 +450,7 @@ describe('siteSvc (UT)', function() {
                 expect(siteColl.insert).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should reject with a 400 if the host is in the wrong format', function(done) {
@@ -463,7 +463,7 @@ describe('siteSvc (UT)', function() {
                 expect(siteColl.insert).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should reject with a 409 if the site already exists', function(done) {
@@ -478,7 +478,7 @@ describe('siteSvc (UT)', function() {
                 expect(siteColl.insert).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should successfully create a new site', function(done) {
@@ -494,7 +494,7 @@ describe('siteSvc (UT)', function() {
                 expect(mongoUtils.unescapeKeys).toHaveBeenCalledWith(resp.body);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should reject with a 400 if the new site contains illegal fields', function(done) {
@@ -507,7 +507,7 @@ describe('siteSvc (UT)', function() {
                 expect(siteColl.insert).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail with an error if finding the existing site fails', function(done) {
@@ -519,7 +519,7 @@ describe('siteSvc (UT)', function() {
                 expect(siteColl.findOne).toHaveBeenCalled();
                 expect(siteColl.insert).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail with an error if inserting the site fails', function(done) {
@@ -530,7 +530,7 @@ describe('siteSvc (UT)', function() {
                 expect(error).toBe('Error!');
                 expect(siteColl.insert).toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
     });
     
@@ -569,7 +569,7 @@ describe('siteSvc (UT)', function() {
                 expect(resp.body).toBe('You must provide an object in the body');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should successfully update a site', function(done) {
@@ -587,7 +587,7 @@ describe('siteSvc (UT)', function() {
                 expect(mongoUtils.escapeKeys).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should be able to update the host if no other site exists with that host', function(done) {
@@ -602,7 +602,7 @@ describe('siteSvc (UT)', function() {
                 expect(mongoUtils.escapeKeys).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should return a 400 if the new host is not valid', function(done) {
@@ -616,7 +616,7 @@ describe('siteSvc (UT)', function() {
                 expect(siteColl.findAndModify).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should prevent updating the host if another site exists with that host', function(done) {
@@ -633,7 +633,7 @@ describe('siteSvc (UT)', function() {
                 expect(siteColl.findAndModify).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should not create a site if they do not exist', function(done) {
@@ -647,7 +647,7 @@ describe('siteSvc (UT)', function() {
                 expect(siteColl.findAndModify).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should not edit a site the requester is not authorized to edit', function(done) {
@@ -661,7 +661,7 @@ describe('siteSvc (UT)', function() {
                 expect(siteColl.findAndModify).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should not edit the site if the updates contain illegal fields', function(done) {
@@ -675,7 +675,7 @@ describe('siteSvc (UT)', function() {
                 expect(siteColl.findAndModify).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail with an error if the first call to findOne fails', function(done) {
@@ -687,7 +687,7 @@ describe('siteSvc (UT)', function() {
                 expect(siteColl.findOne.callCount).toBe(1);
                 expect(siteColl.findAndModify).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should fail with an error if the second call to findOne fails', function(done) {
@@ -705,7 +705,7 @@ describe('siteSvc (UT)', function() {
                 expect(siteSvc.updateValidator.validate).toHaveBeenCalled();
                 expect(siteColl.findAndModify).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail with an error if findAndModify fails', function(done) {
@@ -719,7 +719,7 @@ describe('siteSvc (UT)', function() {
                 expect(siteColl.findOne).toHaveBeenCalled();
                 expect(siteColl.findAndModify).toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
     });
     
@@ -749,7 +749,7 @@ describe('siteSvc (UT)', function() {
                     {$set: {status: Status.Deleted, lastUpdated: jasmine.any(Date)}}, {w: 1, journal: true}, anyFunc);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should not delete a nonexistent site', function(done) {
@@ -762,7 +762,7 @@ describe('siteSvc (UT)', function() {
                 expect(siteColl.update).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should not delete a site the requester is not authorized to delete', function(done) {
@@ -775,7 +775,7 @@ describe('siteSvc (UT)', function() {
                 expect(siteColl.update).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should not edit the site if it has already been deleted', function(done) {
@@ -789,7 +789,7 @@ describe('siteSvc (UT)', function() {
                 expect(siteColl.update).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail with an error if findOne fails', function(done) {
@@ -803,7 +803,7 @@ describe('siteSvc (UT)', function() {
                 expect(siteColl.findOne).toHaveBeenCalled();
                 expect(siteColl.update).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail with an error if findAndModify fails', function(done) {
@@ -817,7 +817,7 @@ describe('siteSvc (UT)', function() {
                 expect(siteColl.findOne).toHaveBeenCalled();
                 expect(siteColl.update).toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
     });
 });

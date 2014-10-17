@@ -183,6 +183,26 @@ describe('collateral (E2E):', function() {
                 done();
             });
         });
+
+        it('should write an entry to the audit collection', function(done) {
+            requestUtils.qRequest('post', options, files).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
+                expect(results[0].service).toBe('collateral');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'POST /api/collateral/files/:expId',
+                                                 params: { 'expId': 'e-1234' }, query: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
         
         it('should set CacheControl to max-age=0 if noCache is true', function(done) {
             options.url += '?noCache=true';
@@ -431,6 +451,26 @@ describe('collateral (E2E):', function() {
             });
         });
 
+        it('should write an entry to the audit collection', function(done) {
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
+                expect(results[0].service).toBe('collateral');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'POST /api/collateral/splash/:expId',
+                                                 params: { expId: 'e-1234' }, query: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
         it('should work if regenerating a splash image', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
@@ -635,6 +675,26 @@ describe('collateral (E2E):', function() {
                 expect(error).not.toBeDefined();
                 done();
             });
+        });
+
+        it('should write an entry to the audit collection', function(done) {
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
+                expect(results[0].service).toBe('collateral');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'POST /api/collateral/setHeaders',
+                                                 params: {}, query: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
         });
         
         it('should use a default CacheControl if not provided', function(done) {

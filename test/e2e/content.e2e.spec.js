@@ -139,7 +139,7 @@ describe('content (E2E):', function() {
                 expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should overwrite the existing mode if the context is mr2', function(done) {
@@ -152,7 +152,7 @@ describe('content (E2E):', function() {
                 expect(resp.body.data).toEqual({foo: 'bar', branding: 'expBrand', placementId: '123', mode: 'lightbox-ads'});
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should properly get the experience\'s org\'s adConfig if it exists', function(done) {
@@ -164,7 +164,7 @@ describe('content (E2E):', function() {
                 expect(resp.body.data.adConfig).toEqual({foo: 'bar'});
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should override the org\'s adConfig if it\'s defined on the experience', function(done) {
@@ -176,7 +176,7 @@ describe('content (E2E):', function() {
                 expect(resp.body.data.adConfig).toEqual({foo: 'baz'});
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should use the request branding and placementId if not on the exp', function(done) {
@@ -189,7 +189,7 @@ describe('content (E2E):', function() {
                 expect(resp.body.data.placementId).toBe('789');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should fall back to the current site\'s branding and placementId', function(done) {
@@ -201,7 +201,7 @@ describe('content (E2E):', function() {
                 expect(resp.body.data.placementId).toBe('456');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should then fall back to the org\'s branding', function(done) {
@@ -215,7 +215,7 @@ describe('content (E2E):', function() {
                 expect(resp.body.data.placementId).not.toBe('456');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should have some system level defaults for the branding and placementId', function(done) {
@@ -230,7 +230,7 @@ describe('content (E2E):', function() {
                 expect(resp.body.data.placementId).not.toBe('456');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should get the active site that most closely matches the origin', function(done) {
@@ -251,7 +251,7 @@ describe('content (E2E):', function() {
                 expect(resp.body.data.placementId).toBeDefined();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should only get pending, public experiences if the origin is cinema6.com', function(done) {
@@ -266,7 +266,7 @@ describe('content (E2E):', function() {
                 expect(resp.body).toEqual({id: 'e2e-pubget2', status: 'pending', access: 'public'});
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should only get active, private experiences if the origin is not cinema6.com', function(done) {
@@ -281,7 +281,7 @@ describe('content (E2E):', function() {
                 expect(resp.body).toBe('Experience not found');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should use the referer header for access control if origin is not defined', function(done) {
@@ -297,7 +297,7 @@ describe('content (E2E):', function() {
                 expect(resp.body).toBe('Experience not found');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should return a 404 if nothing is found', function(done) {
@@ -309,7 +309,7 @@ describe('content (E2E):', function() {
                 expect(resp.body).toEqual('Experience not found');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
     });
 
@@ -373,7 +373,7 @@ describe('content (E2E):', function() {
                 expect(query.splash).toBe('horizontal-stack:16/9');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should respond with a 500 error code if required fields are missing', function(done) {
@@ -383,7 +383,7 @@ describe('content (E2E):', function() {
                 expect(resp.body).toBe('Response does not have required fields.');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should respond with a 404 if the experience does not exist', function(done) {
@@ -393,7 +393,7 @@ describe('content (E2E):', function() {
                 expect(resp.body).toBe('Experience not found');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
     });
@@ -421,7 +421,7 @@ describe('content (E2E):', function() {
                 expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
     });
 
@@ -443,7 +443,7 @@ describe('content (E2E):', function() {
                 expect(resp.response.headers['content-type']).toBe('application/javascript');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should return errors in normal format', function(done) {
@@ -454,7 +454,7 @@ describe('content (E2E):', function() {
                 expect(resp.response.headers['content-type']).toBe('text/html; charset=utf-8');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
     });
 
@@ -506,7 +506,28 @@ describe('content (E2E):', function() {
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
+        });
+        
+        it('should write an entry to the audit collection', function(done) {
+            var options = {url: config.contentUrl + '/content/experience/e2e-getid1', jar: cookieJar};
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
+                expect(results[0].service).toBe('content');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'GET /api/content/experience/:id',
+                                                 params: { 'id': 'e2e-getid1' }, query: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
         });
 
         it('should treat the user as a guest for experiences they do not own', function(done) {
@@ -521,7 +542,7 @@ describe('content (E2E):', function() {
                 expect(resp.body).toBe('Experience not found');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should let a user get a private experience in their applications list', function(done) {
@@ -534,7 +555,7 @@ describe('content (E2E):', function() {
                 expect(resp.body.org).toBe('admin');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should throw a 401 error if the user is not authenticated', function(done) {
@@ -544,7 +565,7 @@ describe('content (E2E):', function() {
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should return a 404 if nothing is found', function(done) {
@@ -554,7 +575,7 @@ describe('content (E2E):', function() {
                 expect(resp.body).toEqual('Experience not found');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
     });
 
@@ -634,7 +655,28 @@ describe('content (E2E):', function() {
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
+        });
+
+        it('should write an entry to the audit collection', function(done) {
+            var options = {url: config.contentUrl + '/content/experiences?ids=e2e-getquery1&sort=id,1', jar: cookieJar};
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
+                expect(results[0].service).toBe('content');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'GET /api/content/experiences',
+                                                 params: {}, query: { ids: 'e2e-getquery1', sort: 'id,1' } });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
         });
 
         it('should get experiences by user', function(done) {
@@ -650,7 +692,7 @@ describe('content (E2E):', function() {
                 expect(resp.response.headers['content-range']).toBe('items 1-1/1');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should get experiences by type', function(done) {
@@ -667,7 +709,7 @@ describe('content (E2E):', function() {
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should get experiences by org', function(done) {
@@ -684,7 +726,7 @@ describe('content (E2E):', function() {
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should get experiences by status', function(done) {
@@ -701,7 +743,7 @@ describe('content (E2E):', function() {
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should get experiences by sponsoredType', function(done) {
@@ -718,7 +760,7 @@ describe('content (E2E):', function() {
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should get experiences by title', function(done) {
@@ -760,7 +802,7 @@ describe('content (E2E):', function() {
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should be able to combine query params', function(done) {
@@ -776,7 +818,7 @@ describe('content (E2E):', function() {
                 expect(resp.response.headers['content-range']).toBe('items 1-1/1');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should not get experiences by any other query param', function(done) {
@@ -790,7 +832,7 @@ describe('content (E2E):', function() {
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should only get private or inactive experiences the user owns', function(done) {
@@ -806,7 +848,7 @@ describe('content (E2E):', function() {
                 expect(resp.response.headers['content-range']).toBe('items 1-1/1');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should use the origin header for access control', function(done) {
@@ -824,7 +866,7 @@ describe('content (E2E):', function() {
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should allow an admin to see any non-deleted experience', function(done) {
@@ -852,7 +894,7 @@ describe('content (E2E):', function() {
                 delete cookieJar.cookies; // force reset and re-login of mockRequester in beforeEach
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should return a 200 and empty array if nothing is found', function(done) {
@@ -866,7 +908,7 @@ describe('content (E2E):', function() {
                 expect(resp.response.headers['content-range']).toBe('items 0-0/0');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should be able to sort and paginate the results', function(done) {
@@ -892,7 +934,7 @@ describe('content (E2E):', function() {
                 expect(resp.response.headers['content-range']).toBe('items 3-3/3');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should prevent mongo query selector injection attacks', function(done) {
@@ -906,7 +948,7 @@ describe('content (E2E):', function() {
                 expect(resp.response.headers['content-range']).toBe('items 0-0/0');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should throw a 401 error if the user is not authenticated', function(done) {
@@ -919,7 +961,7 @@ describe('content (E2E):', function() {
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
     });
 
@@ -962,6 +1004,25 @@ describe('content (E2E):', function() {
             });
         });
 
+        it('should write an entry to the audit collection', function(done) {
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
+                expect(results[0].service).toBe('content');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'POST /api/content/experience', params: {}, query: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
         it('should be able to create an active, private experience', function(done) {
             mockExp.status = 'active';
             mockExp.access = 'private';
@@ -975,7 +1036,7 @@ describe('content (E2E):', function() {
                 expect(resp.body.access).toBe('private');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should trim off certain fields not allowed on the top level', function(done) {
@@ -990,7 +1051,7 @@ describe('content (E2E):', function() {
                 expect(resp.body.versionId).toBe('14eb66c8');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should allow an admin to set a different user and org for the experience', function(done) {
@@ -1014,7 +1075,7 @@ describe('content (E2E):', function() {
                 delete cookieJar.cookies; // force reset and re-login of mockRequester in beforeEach
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should not allow a regular user to set a different user and org for the experience', function(done) {
@@ -1122,6 +1183,31 @@ describe('content (E2E):', function() {
                 expect(error).not.toBeDefined();
                 done();
             });
+        });
+
+        it('should write an entry to the audit collection', function(done) {
+            var options = {
+                url: config.contentUrl + '/content/experience/e2e-put1',
+                jar: cookieJar,
+                json: { tag: 'newTag' }
+            };
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
+                expect(results[0].service).toBe('content');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'PUT /api/content/experience/:id',
+                                                 params: { id: 'e2e-put1' }, query: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
         });
 
         it('should properly update the data and versionId together', function(done) {
@@ -1309,6 +1395,27 @@ describe('content (E2E):', function() {
                 expect(error).not.toBeDefined();
                 done();
             });
+        });
+
+        it('should write an entry to the audit collection', function(done) {
+            var options = {jar: cookieJar, url: config.contentUrl + '/content/experience/e2e-del1'};
+            requestUtils.qRequest('delete', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
+                expect(results[0].service).toBe('content');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'DELETE /api/content/experience/:id',
+                                                 params: { id: 'e2e-del1' }, query: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
         });
 
         it('should not delete an experience the user does not own', function(done) {

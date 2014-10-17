@@ -362,7 +362,7 @@ describe('service (UT)',function(){
             rejectSpy  = jasmine.createSpy('prepareServer.reject');
             q.fcall(service.prepareServer,state)
                 .then(resolveSpy,rejectSpy)
-                .finally(done);
+                .done(done);
         });
 
         describe('SIGHUP',function(){
@@ -810,7 +810,7 @@ describe('service (UT)',function(){
                 expect(collections).toEqual({});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should skip if there\'s no mongo config', function(done) {
@@ -823,7 +823,7 @@ describe('service (UT)',function(){
                 expect(collections).toEqual({});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should call ensureIndex for each field in requiredIndices', function(done) {
@@ -840,7 +840,7 @@ describe('service (UT)',function(){
                 expect(collections.coll3.ensureIndex).toHaveBeenCalledWith('bloop', jasmine.any(Function));
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should fail if one of the required dbs is missing', function(done) {
@@ -853,7 +853,7 @@ describe('service (UT)',function(){
                 expect(state.dbs.db1.collection).toHaveBeenCalledWith('coll1');
                 expect(Object.keys(collections)).toEqual(['coll1']);
                 expect(collections.coll1.ensureIndex).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail if even one ensureIndex call fails', function(done) {
@@ -875,7 +875,7 @@ describe('service (UT)',function(){
                 expect(collections.coll1.ensureIndex).toHaveBeenCalledWith('bar', jasmine.any(Function));
                 expect(collections.coll2.ensureIndex).toHaveBeenCalledWith('blah', jasmine.any(Function));
                 expect(collections.coll3.ensureIndex).toHaveBeenCalledWith('bloop', jasmine.any(Function));
-            }).finally(done);
+            }).done(done);
         });
     });
 });

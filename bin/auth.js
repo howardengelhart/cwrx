@@ -11,18 +11,19 @@
         logger      = require('../lib/logger'),
         uuid        = require('../lib/uuid'),
         mongoUtils  = require('../lib/mongoUtils'),
+        journal     = require('../lib/journal'),
         authUtils   = require('../lib/authUtils'),
         service     = require('../lib/service'),
         email       = require('../lib/email'),
         enums       = require('../lib/enums'),
         Status      = enums.Status,
 
-        state       = {},
-        auth = {}; // for exporting functions to unit tests
+        state   = {},
+        auth    = {}; // for exporting functions to unit tests
 
-    state.name = 'auth';
     // This is the template for auth's configuration
     state.defaultConfig = {
+        appName: 'auth',
         appDir: __dirname,
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/auth/caches/run/'),
@@ -49,13 +50,18 @@
                 host: null,
                 port: null,
                 retryConnect : true
+            },
+            c6Journal: {
+                host: null,
+                port: null,
+                retryConnect : true
             }
         },
         resetTokenTTL   : 1*30*60*1000, // 30 minutes; unit here is milliseconds
         secretsPath     : path.join(process.env.HOME,'.auth.secrets.json')
     };
 
-    auth.login = function(req, users, maxAge) {
+    auth.login = function(req, users, maxAge, auditJournal) {
         if (!req.body || typeof req.body.email !== 'string' ||
                          typeof req.body.password !== 'string') {
             return q({ code: 400, body: 'You need to provide an email and password in the body' });
@@ -84,7 +90,10 @@
                     }
                     log.info('[%1] Successful login for user %2', req.uuid, req.body.email);
                     var user = mongoUtils.safeUser(userAccount);
+
                     return q.npost(req.session, 'regenerate').then(function() {
+                        auditJournal.writeAuditEntry(req, user.id);
+
                         req.session.user = user.id;
                         req.session.cookie.maxAge = maxAge;
                         return deferred.resolve({
@@ -106,17 +115,21 @@
         return deferred.promise;
     };
 
-    auth.logout = function(req) {
+    auth.logout = function(req, auditJournal) {
         var deferred = q.defer(),
             log = logger.getLog();
+
         log.info('[%1] Starting logout for %2', req.uuid, req.sessionID);
+
         if (!req.session || !req.session.user) {
             log.info('[%1] User with sessionID %2 attempting to logout but is not logged in',
                      req.uuid, req.sessionID);
             deferred.resolve({code: 204});
         } else {
-            log.info('[%1] Logging out user %2 with sessionID %3',
-                     req.uuid, req.session.user, req.sessionID);
+            var user = req.session.user;
+            auditJournal.writeAuditEntry(req, user);
+            log.info('[%1] Logging out user %2 with sessionID %3', req.uuid, user, req.sessionID);
+
             q.npost(req.session, 'destroy').then(function() {
                 deferred.resolve({code: 204});
             }).catch(function(error) {
@@ -134,7 +147,7 @@
         return email.compileAndSend(sender, recipient, subject, 'pwdReset.html', data);
     };
     
-    auth.forgotPassword = function(req, users, resetTokenTTL, emailSender, targets) {
+    auth.forgotPassword = function(req, users, resetTokenTTL, emailSender, targets, auditJournal) {
         var log = logger.getLog(),
             now = new Date(),
             reqEmail = req.body && req.body.email,
@@ -168,6 +181,8 @@
                 return q({code: 403, body: 'Account not active'});
             }
 
+            auditJournal.writeAuditEntry(req, account.id);
+
             return q.npost(crypto, 'randomBytes', [24])
             .then(function(buff) {
                 token = buff.toString('hex');
@@ -198,7 +213,7 @@
         });
     };
     
-    auth.resetPassword = function(req, users, emailSender, cookieMaxAge) {
+    auth.resetPassword = function(req, users, emailSender, cookieMaxAge, auditJournal) {
         var log = logger.getLog(),
             id = req.body && req.body.id,
             token = req.body && req.body.token,
@@ -222,6 +237,9 @@
                 log.info('[%1] User %2 not active', req.uuid, id);
                 return q({code: 403, body: 'Account not active'});
             }
+
+            auditJournal.writeAuditEntry(req, id);
+
             if (!account.resetToken || !account.resetToken.expires) {
                 log.info('[%1] User %2 has no reset token in the database', req.uuid, id);
                 return q({code: 403, body: 'No reset token found'});
@@ -282,9 +300,11 @@
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
 
-        var express     = require('express'),
-            app         = express(),
-            users       = state.dbs.c6Db.collection('users');
+        var express      = require('express'),
+            app          = express(),
+            users        = state.dbs.c6Db.collection('users'),
+            auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
+                                                    state.config.appVersion, state.config.appName);
         authUtils._coll = users;
         
         aws.config.region = state.config.ses.region;
@@ -318,6 +338,11 @@
             });
             log.info('Recreated session store from restarted db');
         });
+        
+        state.dbStatus.c6Journal.on('reconnected', function() {
+            auditJournal.resetColl(state.dbs.c6Journal.collection('audit'));
+            log.info('Reset journals\' collection from restarted db');
+        });
 
         // Because we may recreate the session middleware, we need to wrap it in the route handlers
         function sessionsWrapper(req, res, next) {
@@ -350,7 +375,8 @@
         });
 
         app.post('/api/auth/login', sessionsWrapper, function(req, res) {
-            auth.login(req, users, state.config.sessions.maxAge).then(function(resp) {
+            auth.login(req, users, state.config.sessions.maxAge, auditJournal)
+            .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
                 res.send(500, {
@@ -360,7 +386,7 @@
         });
 
         app.post('/api/auth/logout', sessionsWrapper, function(req, res) {
-            auth.logout(req).then(function(resp) {
+            auth.logout(req, auditJournal).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
                 res.send(500, {
@@ -369,14 +395,16 @@
             });
         });
 
-        var authGetUser = authUtils.middlewarify({});
-        app.get('/api/auth/status', sessionsWrapper, authGetUser, function(req, res) {
+        var authGetUser = authUtils.middlewarify({}),
+            audit = auditJournal.middleware.bind(auditJournal);
+
+        app.get('/api/auth/status', sessionsWrapper, authGetUser, audit, function(req, res) {
             res.send(200, req.user); // errors handled entirely by authGetUser
         });
         
         app.post('/api/auth/password/forgot', function(req, res) {
             auth.forgotPassword(req, users, state.config.resetTokenTTL, state.config.ses.sender,
-                                state.config.forgotTargets)
+                                state.config.forgotTargets, auditJournal)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
@@ -387,7 +415,8 @@
         });
         
         app.post('/api/auth/password/reset', sessionsWrapper, function(req, res) {
-            auth.resetPassword(req, users, state.config.ses.sender, state.config.sessions.maxAge)
+            auth.resetPassword(req, users, state.config.ses.sender, state.config.sessions.maxAge,
+                               auditJournal)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {

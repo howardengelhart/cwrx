@@ -299,7 +299,7 @@ describe('userSvc (UT)', function() {
                 expect(mongoUtils.safeUser).toHaveBeenCalledWith({id: '1'});
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should use defaults for sorting/paginating options if not provided', function(done) {
@@ -310,7 +310,7 @@ describe('userSvc (UT)', function() {
                 expect(userColl.find).toHaveBeenCalledWith('permQuery',{sort:{},limit:0,skip:0});
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should ignore the sort param if invalid', function(done) {
@@ -322,7 +322,7 @@ describe('userSvc (UT)', function() {
                 expect(userColl.find).toHaveBeenCalledWith('permQuery',{sort:{},limit:20,skip:10});
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should set resp.pagination if multiGet is true', function(done) {
@@ -333,7 +333,7 @@ describe('userSvc (UT)', function() {
                 expect(fakeCursor.count).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should handle end behavior properly when paginating', function(done) {
@@ -345,7 +345,7 @@ describe('userSvc (UT)', function() {
                 expect(fakeCursor.count).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should prevent non-admin users from getting all users', function(done) {
@@ -357,7 +357,7 @@ describe('userSvc (UT)', function() {
                 expect(fakeCursor.toArray).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should allow admin users to get all users', function(done) {
@@ -371,7 +371,7 @@ describe('userSvc (UT)', function() {
                 expect(mongoUtils.safeUser).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should return a 404 if nothing was found', function(done) {
@@ -386,7 +386,7 @@ describe('userSvc (UT)', function() {
                 expect(mongoUtils.safeUser).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should fail if cursor.toArray has an error', function(done) {
@@ -399,7 +399,7 @@ describe('userSvc (UT)', function() {
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(fakeCursor.count).not.toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should fail if cursor.count has an error and multiGet is true', function(done) {
@@ -412,7 +412,7 @@ describe('userSvc (UT)', function() {
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(fakeCursor.toArray).not.toHaveBeenCalled();
                 expect(fakeCursor.count).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
     });
     
@@ -1017,7 +1017,7 @@ describe('userSvc (UT)', function() {
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should successfully hash and update a user\'s password', function(done) {
@@ -1097,7 +1097,7 @@ describe('userSvc (UT)', function() {
                     'Your account email address has been changed','emailChange.html',{newEmail:'new',contact:'send'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should pass along errors from compileAndSend', function(done) {
@@ -1107,7 +1107,7 @@ describe('userSvc (UT)', function() {
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(email.compileAndSend).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
     });
     
@@ -1147,7 +1147,7 @@ describe('userSvc (UT)', function() {
                 expect(userColl.update).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fail if a user with newEmail already exists', function(done) {

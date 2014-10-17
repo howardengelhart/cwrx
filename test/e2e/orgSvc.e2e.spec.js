@@ -99,6 +99,27 @@ describe('org (E2E):', function() {
             });
         });
 
+        it('should write an entry to the audit collection', function(done) {
+            var options = { url: config.orgSvcUrl + '/org/o-1234', jar: cookieJar };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
+                expect(results[0].service).toBe('orgSvc');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'GET /api/account/org/:id',
+                                                 params: { id: 'o-1234' }, query: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
         it('should get an org even when multiple with the same id exist', function(done) {
             var options = { url: config.orgSvcUrl + '/org/o-1234', jar: cookieJar };
             testUtils.resetCollection('orgs', [mockOrg, mockOrg2]).then(function() {
@@ -205,6 +226,27 @@ describe('org (E2E):', function() {
                 expect(error).not.toBeDefined();
                 done();
             });
+        });
+
+        it('should write an entry to the audit collection', function(done) {
+            var options = { url: config.orgSvcUrl + '/orgs?sort=id,1', jar: cookieJar };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
+                expect(results[0].service).toBe('orgSvc');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'GET /api/account/orgs',
+                                                 params: {}, query: { sort: 'id,1' } });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
         });
         
         it('should be able to sort and paginate the results', function(done) {
@@ -325,6 +367,27 @@ describe('org (E2E):', function() {
                 expect(error).not.toBeDefined();
                 done();
             });
+        });
+
+        it('should write an entry to the audit collection', function(done) {
+            var options = { url: config.orgSvcUrl + '/org', json: mockOrg, jar: cookieJar };
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
+                expect(results[0].service).toBe('orgSvc');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'POST /api/account/org',
+                                                 params: {}, query: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
         });
 
         it('should be able to override default properties', function(done) {
@@ -516,6 +579,27 @@ describe('org (E2E):', function() {
                 done();
             });
         });
+
+        it('should write an entry to the audit collection', function(done) {
+            var options = { url: config.orgSvcUrl + '/org/o-1234', json: updates, jar: cookieJar };
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
+                expect(results[0].service).toBe('orgSvc');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'PUT /api/account/org/:id',
+                                                 params: { id: 'o-1234' }, query: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
         
         it('should throw a 404 if the org does not exist', function(done) {
             var options = {
@@ -694,6 +778,27 @@ describe('org (E2E):', function() {
                 done();
             });
         });
+
+        it('should write an entry to the audit collection', function(done) {
+            var options = { url: config.orgSvcUrl + '/org/org1', jar: cookieJar };
+            requestUtils.qRequest('delete', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
+                expect(results[0].service).toBe('orgSvc');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'DELETE /api/account/org/:id',
+                                                 params: { id: 'org1' }, query: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
         
         it('should still succeed if the org does not exist', function(done) {
             var options = { url: config.orgSvcUrl + '/org/org-fake', jar: cookieJar };
@@ -790,7 +895,7 @@ describe('org (E2E):', function() {
                 expect(resp.body.status).toBe('active');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should allow deleting an org with inactive users', function(done) {
@@ -811,7 +916,7 @@ describe('org (E2E):', function() {
                 expect(resp.body).toBe('No orgs found');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
     
         it('should throw a 401 error if the user is not authenticated', function(done) {
@@ -826,5 +931,4 @@ describe('org (E2E):', function() {
             });
         });
     });
-
 });

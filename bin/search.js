@@ -9,15 +9,16 @@
         logger          = require('../lib/logger'),
         uuid            = require('../lib/uuid'),
         authUtils       = require('../lib/authUtils'),
+        journal         = require('../lib/journal'),
         service         = require('../lib/service'),
         util            = require('util'),
         
-        state      = {},
-        search = {}; // for exporting functions to unit tests
+        state   = {},
+        search  = {}; // for exporting functions to unit tests
 
-    state.name = 'search';
     // This is the template for search's configuration
     state.defaultConfig = {
+        appName: 'search',
         appDir: __dirname,
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/search/caches/run/'),
@@ -42,6 +43,11 @@
         secretsPath: path.join(process.env.HOME,'.search.secrets.json'),
         mongo: {
             c6Db: {
+                host: null,
+                port: null,
+                retryConnect : true
+            },
+            c6Journal: {
                 host: null,
                 port: null,
                 retryConnect : true
@@ -236,9 +242,11 @@
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
             
-        var express     = require('express'),
-            app         = express(),
-            users       = state.dbs.c6Db.collection('users');
+        var express      = require('express'),
+            app          = express(),
+            users        = state.dbs.c6Db.collection('users'),
+            auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
+                                                    state.config.appVersion, state.config.appName);
         authUtils._coll = users;
         
         app.use(express.bodyParser());
@@ -271,10 +279,16 @@
             log.info('Recreated session store from restarted db');
         });
 
+        state.dbStatus.c6Journal.on('reconnected', function() {
+            auditJournal.resetColl(state.dbs.c6Journal.collection('audit'));
+            log.info('Reset journal\'s collection from restarted db');
+        });
+
         // Because we may recreate the session middleware, we need to wrap it in the route handlers
-        function sessionsWrapper(req, res, next) {
+        function sessWrap(req, res, next) {
             sessions(req, res, next);
         }
+        var audit = auditJournal.middleware.bind(auditJournal);
 
         app.all('*', function(req, res, next) {
             res.header('Access-Control-Allow-Headers',
@@ -301,7 +315,7 @@
         });
         
         var authSearch = authUtils.middlewarify({});
-        app.get('/api/search/videos', sessionsWrapper, authSearch, function(req,res){
+        app.get('/api/search/videos', sessWrap, authSearch, audit, function(req,res){
             search.findVideos(req, state.config, state.secrets)
             .then(function(resp) {
                 res.send(resp.code, resp.body);

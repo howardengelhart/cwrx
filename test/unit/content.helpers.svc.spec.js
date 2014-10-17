@@ -405,7 +405,7 @@ describe('content (UT)', function() {
                 expect(mockLog.warn).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should do nothing if the experience already has an adConfig property', function(done) {
@@ -416,7 +416,7 @@ describe('content (UT)', function() {
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should successfully put the org\'s adConfig on the experience', function(done) {
@@ -425,7 +425,7 @@ describe('content (UT)', function() {
                 expect(orgCache.getPromise).toHaveBeenCalledWith({id: 'o-1'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should do nothing if the org could not be found', function(done) {
@@ -436,7 +436,7 @@ describe('content (UT)', function() {
                 expect(mockLog.warn).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should do nothing if the org is not active', function(done) {
@@ -447,7 +447,7 @@ describe('content (UT)', function() {
                 expect(mockLog.warn).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should do nothing if the org has no adConfig', function(done) {
@@ -458,7 +458,7 @@ describe('content (UT)', function() {
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should reject if getPromise returns a rejected promise', function(done) {
@@ -468,7 +468,7 @@ describe('content (UT)', function() {
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(orgCache.getPromise).toHaveBeenCalledWith({id: 'o-1'});
-            }).finally(done);
+            }).done(done);
         });
     });
     
@@ -535,7 +535,7 @@ describe('content (UT)', function() {
                 expect(mockLog.warn).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should return the experience\'s properties if they\'re defined', function(done) {
@@ -547,7 +547,7 @@ describe('content (UT)', function() {
                 expect(orgCache.getPromise).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should overwrite the existing mode if the context is mr2', function(done) {
@@ -560,7 +560,7 @@ describe('content (UT)', function() {
                 expect(orgCache.getPromise).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should return the queryParam properties if the context is mr2', function(done) {
@@ -572,7 +572,7 @@ describe('content (UT)', function() {
                 expect(orgCache.getPromise).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should handle the queryParams being incomplete', function(done) {
@@ -585,7 +585,7 @@ describe('content (UT)', function() {
                 expect(content.chooseSite).toHaveBeenCalledWith(['fake1', 'fake2']);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should fall back on the site\'s config', function(done) {
@@ -597,7 +597,7 @@ describe('content (UT)', function() {
                 expect(orgCache.getPromise).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should next fall back to the org\'s config', function(done) {
@@ -610,7 +610,7 @@ describe('content (UT)', function() {
                 expect(orgCache.getPromise).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should handle the site object not having a branding or placementId', function(done) {
@@ -622,7 +622,7 @@ describe('content (UT)', function() {
                 expect(siteCache.getPromise).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should use the default config as a last resort', function(done) {
@@ -635,7 +635,7 @@ describe('content (UT)', function() {
                 expect(siteCache.getPromise).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should handle the org object not having a branding', function(done) {
@@ -648,7 +648,7 @@ describe('content (UT)', function() {
                 expect(orgCache.getPromise).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should not use the org if it is not active', function(done) {
@@ -661,7 +661,7 @@ describe('content (UT)', function() {
                 expect(orgCache.getPromise).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should be able to get branding and placementId from different sources', function(done) {
@@ -674,7 +674,7 @@ describe('content (UT)', function() {
                 expect(siteCache.getPromise).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should reject if siteCache.getPromise returns a rejected promise', function(done) {
@@ -686,7 +686,7 @@ describe('content (UT)', function() {
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(siteCache.getPromise).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should reject if orgCache.getPromise returns a rejected promise', function(done) {
@@ -700,7 +700,7 @@ describe('content (UT)', function() {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(siteCache.getPromise).toHaveBeenCalled();
                 expect(orgCache.getPromise).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
     });
     

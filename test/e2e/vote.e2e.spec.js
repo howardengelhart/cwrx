@@ -196,6 +196,26 @@ describe('vote (E2E)', function(){
                     done();
                 });
         });
+
+        it('should write an entry to the audit collection', function(done) {
+            requestUtils.qRequest('get', { url : makeUrl('/api/election/e1'), jar: cookieJar }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
+                expect(results[0].service).toBe('vote');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'GET /api/election/:electionId',
+                                                 params: { electionId: 'e1' }, query: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
         
         it('gets normally private elections the user is allowed to see', function(done) {
             requestUtils.qRequest('get', { url : makeUrl('/api/election/e3'), jar: cookieJar })
@@ -255,7 +275,7 @@ describe('vote (E2E)', function(){
                 .catch(function(err){
                     expect(err).not.toBeDefined();
                 })
-                .finally(done);
+                .done(done);
         });
         
         it('returns success if request is valid, but has bad election',function(done){
@@ -273,7 +293,7 @@ describe('vote (E2E)', function(){
                 .catch(function(err){
                     expect(err).not.toBeDefined();
                 })
-                .finally(done);
+                .done(done);
 
         });
 
@@ -298,7 +318,7 @@ describe('vote (E2E)', function(){
                 .catch(function(err){
                     expect(err).not.toBeDefined();
                 })
-                .finally(done);
+                .done(done);
 
         });
 
@@ -335,7 +355,7 @@ describe('vote (E2E)', function(){
                 .catch(function(err){
                     expect(err).not.toBeDefined();
                 })
-                .finally(done);
+                .done(done);
         });
         
         it('should not add items through voting on nonexistent choices/ballots', function(done) {
@@ -376,7 +396,7 @@ describe('vote (E2E)', function(){
                 .catch(function(err){
                     expect(err).not.toBeDefined();
                 })
-                .finally(done);
+                .done(done);
         });
     });
 
@@ -412,6 +432,27 @@ describe('vote (E2E)', function(){
                 expect(error).not.toBeDefined();
                 done();
             }); 
+        });
+
+        it('should write an entry to the audit collection', function(done) {
+            var options = { url: makeUrl('/api/election'), jar: cookieJar, json: mockElec };
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
+                expect(results[0].service).toBe('vote');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'POST /api/election',
+                                                 params: {}, query: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
         });
         
         it('should be able to create an election that has special characters in its keys', function(done) {
@@ -496,6 +537,27 @@ describe('vote (E2E)', function(){
             });
         });
 
+        it('should write an entry to the audit collection', function(done) {
+            var options = { url: makeUrl('/api/election/e1'), jar: cookieJar, json: { tag: 'foo' } };
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
+                expect(results[0].service).toBe('vote');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'PUT /api/election/:id',
+                                                 params: { id: 'e1' }, query: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
         it('should be able to add new ballot items, but not modify existing ones', function(done) {
             var options = {
                 url: makeUrl('/api/election/e1'),
@@ -578,6 +640,27 @@ describe('vote (E2E)', function(){
                 expect(error).not.toBeDefined();
                 done();
             });
+        });
+
+        it('should write an entry to the audit collection', function(done) {
+            var options = { url: makeUrl('/api/election/e1'), jar: cookieJar };
+            requestUtils.qRequest('delete', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+            }).then(function(results) {
+                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].created).toEqual(jasmine.any(Date));
+                expect(results[0].host).toEqual(jasmine.any(String));
+                expect(results[0].pid).toEqual(jasmine.any(Number));
+                expect(results[0].uuid).toEqual(jasmine.any(String));
+                expect(results[0].sessionID).toEqual(jasmine.any(String));
+                expect(results[0].service).toBe('vote');
+                expect(results[0].version).toEqual(jasmine.any(String));
+                expect(results[0].data).toEqual({route: 'DELETE /api/election/:id',
+                                                 params: { id: 'e1' }, query: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
         });
         
         it('should not delete an election the user does not own', function(done) {

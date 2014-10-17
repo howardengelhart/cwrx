@@ -11,6 +11,7 @@
         promise         = require('../lib/promise'),
         logger          = require('../lib/logger'),
         mongoUtils      = require('../lib/mongoUtils'),
+        journal         = require('../lib/journal'),
         FieldValidator  = require('../lib/fieldValidator'),
         authUtils       = require('../lib/authUtils'),
         enums           = require('../lib/enums'),
@@ -54,6 +55,11 @@
                 retryConnect : true
             },
             c6Db: {
+                host: null,
+                port: null,
+                retryConnect : true
+            },
+            c6Journal: {
                 host: null,
                 port: null,
                 retryConnect : true
@@ -538,10 +544,12 @@
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
         
-        var elections   = state.dbs.voteDb.collection('elections'),
-            users       = state.dbs.c6Db.collection('users'),
-            elDb        = new ElectionDb(elections, state.config.idleSyncTimeout),
-            started     = new Date(),
+        var elections    = state.dbs.voteDb.collection('elections'),
+            users        = state.dbs.c6Db.collection('users'),
+            elDb         = new ElectionDb(elections, state.config.idleSyncTimeout),
+            started      = new Date(),
+            auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
+                                                    state.config.appVersion, state.config.appName),
             webServer;
         authUtils._coll = users;
         
@@ -590,10 +598,16 @@
             log.info('Recreated session store from restarted db');
         });
 
+        state.dbStatus.c6Journal.on('reconnected', function() {
+            auditJournal.resetColl(state.dbs.c6Journal.collection('audit'));
+            log.info('Reset journal\'s collection from restarted db');
+        });
+
         // Because we may recreate the session middleware, we need to wrap it in the route handlers
-        function sessionsWrapper(req, res, next) {
+        function sessWrap(req, res, next) {
             sessions(req, res, next);
         }
+        var audit = auditJournal.middleware.bind(auditJournal);
 
         webServer.all('*', function(req, res, next) {
             res.header('Access-Control-Allow-Origin', '*');
@@ -670,7 +684,7 @@
         });
 
         var authGetElec = authUtils.middlewarify({elections: 'read'});
-        webServer.get('/api/election/:electionId', sessionsWrapper, authGetElec, function(req,res){
+        webServer.get('/api/election/:electionId', sessWrap, authGetElec, audit, function(req,res){
             if (!req.params || !req.params.electionId ) {
                 res.send(400, 'You must provide the electionId in the request url.\n');
                 return;
@@ -698,7 +712,7 @@
         });
 
         var authPostElec = authUtils.middlewarify({elections: 'create'});
-        webServer.post('/api/election', sessionsWrapper, authPostElec, function(req, res) {
+        webServer.post('/api/election', sessWrap, authPostElec, audit, function(req, res) {
             app.createElection(req, elections)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -711,7 +725,7 @@
         });
         
         var authPutElec = authUtils.middlewarify({elections: 'edit'});
-        webServer.put('/api/election/:id', sessionsWrapper, authPutElec, function(req, res) {
+        webServer.put('/api/election/:id', sessWrap, authPutElec, audit, function(req, res) {
             app.updateElection(req, elections)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -724,7 +738,7 @@
         });
         
         var authDelElec = authUtils.middlewarify({elections: 'delete'});
-        webServer.delete('/api/election/:id', sessionsWrapper, authDelElec, function(req, res) {
+        webServer.delete('/api/election/:id', sessWrap, authDelElec, audit, function(req, res) {
             app.deleteElection(req, elections)
             .then(function(resp) {
                 res.send(resp.code, resp.body);

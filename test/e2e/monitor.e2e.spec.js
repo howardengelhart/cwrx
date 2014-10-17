@@ -43,7 +43,7 @@ describe('monitor (E2E)', function(){
     beforeEach(function(){
         var urlBase; 
         q               = require('q');
-        requestUtils    = require('./requestUtils');
+        requestUtils    = require('../../lib/requestUtils');
 
         urlBase = 'http://' + (process.env['host'] ? process.env['host'] : 'localhost');
         makeUrl = function(fragment){
@@ -52,7 +52,7 @@ describe('monitor (E2E)', function(){
     });
 
     beforeEach(function(done){
-        deleteMonitorProfile().finally(done);
+        deleteMonitorProfile().done(function() { done(); });
     });
 
     it('returns 500 if nothing to monitor',function(done){
@@ -65,7 +65,7 @@ describe('monitor (E2E)', function(){
             .catch(function(err){
                 expect(err).not.toBeDefined();
             })
-            .finally(done);
+            .done(done);
     }, 10000);
 
     it('returns 200 if checkProcess succeeds',function(done){
@@ -83,7 +83,7 @@ describe('monitor (E2E)', function(){
         .catch(function(err){
             expect(err).not.toBeDefined();
         })
-        .finally(done);
+        .done(done);
     },10000);
 
     it('returns 200 if checkHttp succeeds',function(done){
@@ -101,7 +101,7 @@ describe('monitor (E2E)', function(){
         .catch(function(err){
             expect(err).not.toBeDefined();
         })
-        .finally(done);
+        .done(done);
     },10000);
 
     it('returns 200 if checkHttp && checkProcess succeeds on same service',function(done){
@@ -122,7 +122,7 @@ describe('monitor (E2E)', function(){
         .catch(function(err){
             expect(err).not.toBeDefined();
         })
-        .finally(done);
+        .done(done);
     },10000);
 
     it('returns 503 if one service good one fails checkProcess',function(done){
@@ -148,7 +148,7 @@ describe('monitor (E2E)', function(){
         .catch(function(err){
             expect(err).not.toBeDefined();
         })
-        .finally(done);
+        .done(done);
     },10000);
 
     it('returns 502 if one service good one fails checkHttp',function(done){
@@ -174,7 +174,7 @@ describe('monitor (E2E)', function(){
         .catch(function(err){
             expect(err).not.toBeDefined();
         })
-        .finally(done);
+        .done(done);
     },10000);
 
     it('returns 200 if two services pass',function(done){
@@ -200,7 +200,7 @@ describe('monitor (E2E)', function(){
         .catch(function(err){
             expect(err).not.toBeDefined();
         })
-        .finally(done);
+        .done(done);
     },10000);
 
 });

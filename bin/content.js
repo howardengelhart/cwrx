@@ -9,6 +9,7 @@
         logger          = require('../lib/logger'),
         uuid            = require('../lib/uuid'),
         mongoUtils      = require('../lib/mongoUtils'),
+        journal         = require('../lib/journal'),
         objUtils        = require('../lib/objUtils'),
         QueryCache      = require('../lib/queryCache'),
         FieldValidator  = require('../lib/fieldValidator'),
@@ -19,12 +20,12 @@
         Access          = enums.Access,
         Scope           = enums.Scope,
 
-        state = {},
+        state   = {},
         content = {}; // for exporting functions to unit tests
 
-    state.name = 'content';
     // This is the template for content's configuration
     state.defaultConfig = {
+        appName: 'content',
         appDir: __dirname,
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/content/caches/run/'),
@@ -68,6 +69,11 @@
                 requiredIndices: {
                     experiences: ['user', 'org']
                 }
+            },
+            c6Journal: {
+                host: null,
+                port: null,
+                retryConnect : true
             }
         }
     };
@@ -678,18 +684,20 @@
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
 
-        var express     = require('express'),
-            app         = express(),
-            experiences = state.dbs.c6Db.collection('experiences'),
-            users       = state.dbs.c6Db.collection('users'),
-            orgs        = state.dbs.c6Db.collection('orgs'),
-            sites       = state.dbs.c6Db.collection('sites'),
-            expTTLs     = state.config.cacheTTLs.experiences,
-            expCache    = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences),
-            orgTTLs     = state.config.cacheTTLs.orgs,
-            orgCache    = new QueryCache(orgTTLs.freshTTL, orgTTLs.maxTTL, orgs),
-            siteTTLs    = state.config.cacheTTLs.sites,
-            siteCache   = new QueryCache(siteTTLs.freshTTL, siteTTLs.maxTTL, sites);
+        var express      = require('express'),
+            app          = express(),
+            experiences  = state.dbs.c6Db.collection('experiences'),
+            users        = state.dbs.c6Db.collection('users'),
+            orgs         = state.dbs.c6Db.collection('orgs'),
+            sites        = state.dbs.c6Db.collection('sites'),
+            expTTLs      = state.config.cacheTTLs.experiences,
+            expCache     = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences),
+            orgTTLs      = state.config.cacheTTLs.orgs,
+            orgCache     = new QueryCache(orgTTLs.freshTTL, orgTTLs.maxTTL, orgs),
+            siteTTLs     = state.config.cacheTTLs.sites,
+            siteCache    = new QueryCache(siteTTLs.freshTTL, siteTTLs.maxTTL, sites),
+            auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
+                                                    state.config.appVersion, state.config.appName);
         authUtils._coll = users;
 
         app.use(express.bodyParser());
@@ -728,8 +736,13 @@
             log.info('Recreated session store from restarted db');
         });
 
+        state.dbStatus.c6Journal.on('reconnected', function() {
+            auditJournal.resetColl(state.dbs.c6Journal.collection('audit'));
+            log.info('Reset journal\'s collection from restarted db');
+        });
+        
         // Because we may recreate the session middleware, we need to wrap it in the route handlers
-        function sessionsWrapper(req, res, next) {
+        function sessWrap(req, res, next) {
             sessions(req, res, next);
         }
 
@@ -822,10 +835,11 @@
             });
         });
 
-        var authGetExp = authUtils.middlewarify({experiences: 'read'});
-
+        var authGetExp = authUtils.middlewarify({experiences: 'read'}),
+            audit = auditJournal.middleware.bind(auditJournal);
+        
         // private get experience by id
-        app.get('/api/content/experience/:id', sessionsWrapper, authGetExp, function(req, res) {
+        app.get('/api/content/experience/:id', sessWrap, authGetExp, audit, function(req, res) {
             content.getExperiences({id:req.params.id}, req, experiences)
             .then(function(resp) {
                 if (resp.body && resp.body instanceof Array) {
@@ -846,7 +860,7 @@
         });
 
         // private get experience by query
-        app.get('/api/content/experiences', sessionsWrapper, authGetExp, function(req, res) {
+        app.get('/api/content/experiences', sessWrap, authGetExp, audit, function(req, res) {
             var query = {};
             ['ids', 'user', 'org', 'type', 'sponsoredType', 'status', 'text']
             .forEach(function(field) {
@@ -880,7 +894,7 @@
         });
 
         var authPostExp = authUtils.middlewarify({experiences: 'create'});
-        app.post('/api/content/experience', sessionsWrapper, authPostExp, function(req, res) {
+        app.post('/api/content/experience', sessWrap, authPostExp, audit, function(req, res) {
             content.createExperience(req, experiences)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -893,7 +907,7 @@
         });
 
         var authPutExp = authUtils.middlewarify({experiences: 'edit'});
-        app.put('/api/content/experience/:id', sessionsWrapper, authPutExp, function(req, res) {
+        app.put('/api/content/experience/:id', sessWrap, authPutExp, audit, function(req, res) {
             content.updateExperience(req, experiences)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -906,7 +920,7 @@
         });
 
         var authDelExp = authUtils.middlewarify({experiences: 'delete'});
-        app.delete('/api/content/experience/:id', sessionsWrapper, authDelExp, function(req, res) {
+        app.delete('/api/content/experience/:id', sessWrap, authDelExp, audit, function(req, res) {
             content.deleteExperience(req, experiences)
             .then(function(resp) {
                 res.send(resp.code, resp.body);

@@ -63,7 +63,7 @@ describe('content (UT)', function() {
                     'c6.com', 'fakeSiteCache', 'fakeOrgCache', {sites: 'good'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should return a 404 if nothing was found', function(done) {
@@ -78,7 +78,7 @@ describe('content (UT)', function() {
                 expect(content.getSiteConfig).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should return a 404 if the user cannot see the experience', function(done) {
@@ -93,7 +93,7 @@ describe('content (UT)', function() {
                 expect(content.getSiteConfig).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should fail if the promise was rejected', function(done) {
@@ -106,7 +106,7 @@ describe('content (UT)', function() {
                 expect(content.formatOutput).not.toHaveBeenCalled();
                 expect(content.canGetExperience).not.toHaveBeenCalled();
                 expect(content.getAdConfig).not.toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should fail if calling getAdConfig fails', function(done) {
@@ -120,7 +120,7 @@ describe('content (UT)', function() {
                 expect(content.canGetExperience).toHaveBeenCalled();
                 expect(content.getAdConfig).toHaveBeenCalled();
                 expect(content.getSiteConfig).not.toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should fail if calling getSiteConfig fails', function(done) {
@@ -134,7 +134,7 @@ describe('content (UT)', function() {
                 expect(content.canGetExperience).toHaveBeenCalled();
                 expect(content.getAdConfig).toHaveBeenCalled();
                 expect(content.getSiteConfig).toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
     });
 
@@ -177,7 +177,7 @@ describe('content (UT)', function() {
                 expect(content.formatOutput).toHaveBeenCalledWith({id: 'e1'}, false);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should use defaults if some params are not defined', function(done) {
@@ -188,7 +188,7 @@ describe('content (UT)', function() {
                 expect(expColl.find).toHaveBeenCalledWith('userPermQuery', {sort: {}, limit: 0, skip: 0});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should just ignore the sort param if invalid', function(done) {
@@ -199,7 +199,7 @@ describe('content (UT)', function() {
                 expect(expColl.find).toHaveBeenCalledWith('userPermQuery', {sort: {}, limit: 20, skip: 10});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should properly use hints if querying by user or org', function(done) {
@@ -215,7 +215,7 @@ describe('content (UT)', function() {
                 expect(expColl.find.calls[1].args).toEqual([{org: 'o-1'}, {sort: {id: 1}, limit: 20, skip: 10, hint: {org: 1}}]);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should prefer to hint on the user index if querying by user and org', function(done) {
@@ -227,7 +227,7 @@ describe('content (UT)', function() {
                     {sort: {id: 1}, limit: 20, skip: 10, hint: {user: 1}});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should not allow a user to query for deleted experiences', function(done) {
@@ -241,7 +241,7 @@ describe('content (UT)', function() {
                 expect(content.formatOutput).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should properly format a query on the status field', function(done) {
@@ -253,7 +253,7 @@ describe('content (UT)', function() {
                     'status.0.status': Status.Active}, 'fakeUser', false);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should properly format a query on the sponsoredType field', function(done) {
@@ -265,7 +265,7 @@ describe('content (UT)', function() {
                     'data.0.data.sponsoredType': 'card'}, 'fakeUser', false);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should format a text query', function(done) {
@@ -289,7 +289,7 @@ describe('content (UT)', function() {
                 expect(fakeCursor.count).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should handle end behavior properly when paginating', function(done) {
@@ -301,7 +301,7 @@ describe('content (UT)', function() {
                 expect(fakeCursor.count).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should return a 200 and empty array if nothing was found', function(done) {
@@ -316,7 +316,7 @@ describe('content (UT)', function() {
                 expect(content.formatOutput).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should fail if cursor.toArray has an error', function(done) {
@@ -330,7 +330,7 @@ describe('content (UT)', function() {
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(fakeCursor.count).not.toHaveBeenCalled();
                 expect(content.formatOutput).not.toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should fail if cursor.count has an error and multiExp is true', function(done) {
@@ -344,7 +344,7 @@ describe('content (UT)', function() {
                 expect(fakeCursor.toArray).not.toHaveBeenCalled();
                 expect(fakeCursor.count).toHaveBeenCalled();
                 expect(content.formatOutput).not.toHaveBeenCalled();
-            }).finally(done);
+            }).done(done);
         });
     });
 
@@ -858,7 +858,7 @@ describe('content (UT)', function() {
                 expect(resp).toEqual({url: '/#/preview/minireel?preload=&exp=fakeID&title=fakeTitle&splash=horizontal-stack%3A16%2F9'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should return the proper 500 response if there is a missing field', function(done) {
@@ -870,7 +870,7 @@ describe('content (UT)', function() {
                 expect(resp).toEqual({code: 500, body: 'Response does not have required fields.'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should behave appropriately when getPublicExp returns a non-200 response', function(done) {
@@ -882,7 +882,7 @@ describe('content (UT)', function() {
                 expect(resp).toEqual({code: 404, body: 'Experience not found'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('shoud behave appropriately when getPublicExp rejects with an error', function(done) {
@@ -893,7 +893,7 @@ describe('content (UT)', function() {
                 expect(content.getPublicExp).toHaveBeenCalledWith(id, req, expCache, orgCache, siteCache, siteCfg);
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(error.toString()).toBe('Some error message.');
-            }).finally(done);
+            }).done(done);
         });
     }); // end --describe generatePreviewLink
 });  // end -- describe content

@@ -34,7 +34,7 @@ describe('requestUtils', function() {
                 expect(fs.createReadStream).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should parse the body as JSON if possible', function(done) {
@@ -46,7 +46,7 @@ describe('requestUtils', function() {
                 expect(requestSpy).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should allow files to be uploaded with the request', function(done) {
@@ -61,7 +61,7 @@ describe('requestUtils', function() {
                 expect(fs.createReadStream).toHaveBeenCalledWith('path2');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should not upload any files if the files param is empty', function(done) {
@@ -72,7 +72,7 @@ describe('requestUtils', function() {
                 expect(fakeForm.append).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should reject if request calls back with an error', function(done) {
@@ -83,7 +83,7 @@ describe('requestUtils', function() {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toEqual({error: 'I GOT A PROBLEM'});
-            }).finally(done);
+            }).done(done);
         });
         
         it('should reject if the response is not defined', function(done) {
@@ -94,7 +94,7 @@ describe('requestUtils', function() {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toEqual({error: 'Missing response'});
-            }).finally(done);
+            }).done(done);
         });
         
         it('should reject if the body contains an error property', function(done) {
@@ -105,7 +105,7 @@ describe('requestUtils', function() {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toEqual({code: 500, headers: 'fakeHeaders', body: {foo: 'bar', error: 'Server is borked'}});
-            }).finally(done);
+            }).done(done);
         });
         
         it('should not necessarily reject if the status code is not 2xx', function(done) {
@@ -116,7 +116,7 @@ describe('requestUtils', function() {
                 expect(resp).toEqual({response: {statusCode: 500}, body: {foo: 'bar'}});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
     });
 });
