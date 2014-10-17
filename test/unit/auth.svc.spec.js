@@ -1,7 +1,7 @@
 var flush = true;
 describe('auth (UT)', function() {
     var auth, mockLog, req, users, q, uuid, logger, mongoUtils, auth, email, enums,
-        Status, bcrypt, anyFunc, authJournal, auditJournal;
+        Status, bcrypt, anyFunc, auditJournal;
         
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -40,7 +40,6 @@ describe('auth (UT)', function() {
             update: jasmine.createSpy('users_update'),
             findAndModify: jasmine.createSpy('users_findAndModify')
         };
-        authJournal = { write: jasmine.createSpy('authJournal.write').andReturn(q()) };
         auditJournal = { writeAuditEntry: jasmine.createSpy('auditJournal.writeAuditEntry').andReturn(q()) };
         spyOn(mongoUtils, 'safeUser').andCallThrough();
         spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
@@ -67,7 +66,7 @@ describe('auth (UT)', function() {
     
         it('should resolve with a 400 if not provided with the required parameters', function(done) {
             req.body = {};
-            auth.login(req, users, 1000, authJournal, auditJournal).then(function(resp) {
+            auth.login(req, users, 1000, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(400);
                 expect(resp.body).toBeDefined();
                 req.body = {email: 'user'};
@@ -81,7 +80,6 @@ describe('auth (UT)', function() {
                 expect(resp.code).toBe(400);
                 expect(resp.body).toBeDefined();
                 expect(users.findOne).not.toHaveBeenCalled();
-                expect(authJournal.write).not.toHaveBeenCalled();
                 expect(auditJournal.writeAuditEntry).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -105,7 +103,7 @@ describe('auth (UT)', function() {
         });
         
         it('should log a user in successfully', function(done) {
-            auth.login(req, users, 1000, authJournal, auditJournal).then(function(resp) {
+            auth.login(req, users, 1000, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toBeDefined();
                 expect(resp.body).toEqual({id: 'u-123',email: 'user',status: Status.Active});
@@ -119,7 +117,6 @@ describe('auth (UT)', function() {
                 expect(req.session.regenerate).toHaveBeenCalled();
                 expect(mongoUtils.safeUser).toHaveBeenCalledWith(origUser);
                 expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
-                expect(authJournal.write).toHaveBeenCalledWith('u-123', req, {action: 'login'});
                 expect(auditJournal.writeAuditEntry).toHaveBeenCalledWith(req, 'u-123');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -128,7 +125,7 @@ describe('auth (UT)', function() {
         
         it('should convert the request email to lowercase', function(done) {
             req.body.email = 'USER';
-            auth.login(req, users, 1000, authJournal, auditJournal).then(function(resp) {
+            auth.login(req, users, 1000, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toBeDefined();
                 expect(resp.body).toEqual({id: 'u-123',email: 'user',status: Status.Active});
@@ -147,7 +144,7 @@ describe('auth (UT)', function() {
             bcrypt.compare.andCallFake(function(pass, hashed, cb) {
                 cb(null, false);
             });
-            auth.login(req, users, 1000, authJournal, auditJournal).then(function(resp) {
+            auth.login(req, users, 1000, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(401);
                 expect(resp.body).toBe('Invalid email or password');
                 expect(req.session.user).not.toBeDefined();
@@ -162,7 +159,7 @@ describe('auth (UT)', function() {
             users.findOne.andCallFake(function(query, cb) {
                 cb(null, null);
             });
-            auth.login(req, users, 1000, authJournal, auditJournal).then(function(resp) {
+            auth.login(req, users, 1000, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(401);
                 expect(resp.body).toBe('Invalid email or password');
                 expect(req.session.user).not.toBeDefined();
@@ -176,14 +173,13 @@ describe('auth (UT)', function() {
 
         it('should resolve with a 401 code if the user is inactive', function(done) {
             origUser.status = 'deleted';
-            auth.login(req, users, 1000, authJournal, auditJournal).then(function(resp) {
+            auth.login(req, users, 1000, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(403);
                 expect(resp.body).toBe('Account not active');
                 expect(req.session.user).not.toBeDefined();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
                 expect(users.findOne).toHaveBeenCalled();
                 expect(bcrypt.compare).toHaveBeenCalled();
-                expect(authJournal.write).not.toHaveBeenCalled();
                 expect(auditJournal.writeAuditEntry).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -191,12 +187,10 @@ describe('auth (UT)', function() {
         });
         
         it('should not reject if writing to the journals fail', function(done) {
-            authJournal.write.andReturn(q.reject('auth journal fail'));
             auditJournal.writeAuditEntry.andReturn(q.reject('audit journal fail'));
-            auth.login(req, users, 1000, authJournal, auditJournal).then(function(resp) {
+            auth.login(req, users, 1000, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({id: 'u-123',email: 'user',status: Status.Active});
-                expect(authJournal.write).toHaveBeenCalled();
                 expect(auditJournal.writeAuditEntry).toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
@@ -209,7 +203,7 @@ describe('auth (UT)', function() {
             req.session.regenerate.andCallFake(function(cb) {
                 cb('Error!');
             });
-            auth.login(req, users, 1000, authJournal, auditJournal).then(function(resp) {
+            auth.login(req, users, 1000, auditJournal).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Error!');
@@ -223,7 +217,7 @@ describe('auth (UT)', function() {
             bcrypt.compare.andCallFake(function(pass, hashed, cb) {
                 cb('Error!', null);
             });
-            auth.login(req, users, 1000, authJournal, auditJournal).then(function(resp) {
+            auth.login(req, users, 1000, auditJournal).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Error!');
@@ -238,7 +232,7 @@ describe('auth (UT)', function() {
             users.findOne.andCallFake(function(query, cb) {
                 cb('Error!', null);
             });
-            auth.login(req, users, 1000, authJournal, auditJournal).then(function(resp) {
+            auth.login(req, users, 1000, auditJournal).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Error!');
@@ -260,12 +254,11 @@ describe('auth (UT)', function() {
         });
         
         it('should correctly call req.session.destroy to log a user out', function(done) {
-            auth.logout(req, authJournal, auditJournal).then(function(resp) {
+            auth.logout(req, auditJournal).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(204);
                 expect(resp.body).not.toBeDefined();
                 expect(req.session.destroy).toHaveBeenCalled();
-                expect(authJournal.write).toHaveBeenCalledWith('u-123', req, {action: 'logout'});
                 expect(auditJournal.writeAuditEntry).toHaveBeenCalledWith(req, 'u-123');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -274,27 +267,24 @@ describe('auth (UT)', function() {
         
         it('should still respond with a 204 if the user is not logged in', function(done) {
             delete req.session.user;
-            auth.logout(req, authJournal, auditJournal).then(function(resp) {
+            auth.logout(req, auditJournal).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(204);
                 expect(resp.body).not.toBeDefined();
                 expect(mockLog.error).not.toHaveBeenCalled();
                 expect(req.session.destroy).not.toHaveBeenCalled();
-                expect(authJournal.write).not.toHaveBeenCalled();
                 expect(auditJournal.writeAuditEntry).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
 
-        it('should not reject if writing to the journals fail', function(done) {
-            authJournal.write.andReturn(q.reject('auth journal fail'));
+        it('should not reject if writing to the journal fails', function(done) {
             auditJournal.writeAuditEntry.andReturn(q.reject('audit journal fail'));
-            auth.logout(req, authJournal, auditJournal).then(function(resp) {
+            auth.logout(req, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(204);
                 expect(resp.body).not.toBeDefined();
                 expect(req.session.destroy).toHaveBeenCalled();
-                expect(authJournal.write).toHaveBeenCalled();
                 expect(auditJournal.writeAuditEntry).toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
@@ -307,7 +297,7 @@ describe('auth (UT)', function() {
             req.session.destroy.andCallFake(function(cb) {
                 cb('Error!');
             });
-            auth.logout(req, authJournal, auditJournal).then(function(resp) {
+            auth.logout(req, auditJournal).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Error!');

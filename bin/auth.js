@@ -61,7 +61,7 @@
         secretsPath     : path.join(process.env.HOME,'.auth.secrets.json')
     };
 
-    auth.login = function(req, users, maxAge, authJournal, auditJournal) {
+    auth.login = function(req, users, maxAge, auditJournal) {
         if (!req.body || typeof req.body.email !== 'string' ||
                          typeof req.body.password !== 'string') {
             return q({ code: 400, body: 'You need to provide an email and password in the body' });
@@ -93,7 +93,6 @@
 
                     return q.npost(req.session, 'regenerate').then(function() {
                         auditJournal.writeAuditEntry(req, user.id);
-                        authJournal.write(user.id, req, { action: 'login' });
 
                         req.session.user = user.id;
                         req.session.cookie.maxAge = maxAge;
@@ -116,7 +115,7 @@
         return deferred.promise;
     };
 
-    auth.logout = function(req, authJournal, auditJournal) {
+    auth.logout = function(req, auditJournal) {
         var deferred = q.defer(),
             log = logger.getLog();
 
@@ -132,7 +131,6 @@
             log.info('[%1] Logging out user %2 with sessionID %3', req.uuid, user, req.sessionID);
 
             q.npost(req.session, 'destroy').then(function() {
-                authJournal.write(user, req, { action: 'logout' });
                 deferred.resolve({code: 204});
             }).catch(function(error) {
                 log.error('[%1] Error logging out user %2: %3',
@@ -306,9 +304,7 @@
             app          = express(),
             users        = state.dbs.c6Db.collection('users'),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
-                                                    state.config.appVersion, state.config.appName),
-            authJournal  = new journal.Journal(state.dbs.c6Journal.collection('auths'),
-                                               state.config.appVersion, state.config.appName);
+                                                    state.config.appVersion, state.config.appName);
         authUtils._coll = users;
         
         aws.config.region = state.config.ses.region;
@@ -344,7 +340,6 @@
         });
         
         state.dbStatus.c6Journal.on('reconnected', function() {
-            authJournal.resetColl(state.dbs.c6Journal.collection('auths'));
             auditJournal.resetColl(state.dbs.c6Journal.collection('audit'));
             log.info('Reset journals\' collection from restarted db');
         });
@@ -380,7 +375,7 @@
         });
 
         app.post('/api/auth/login', sessionsWrapper, function(req, res) {
-            auth.login(req, users, state.config.sessions.maxAge, authJournal, auditJournal)
+            auth.login(req, users, state.config.sessions.maxAge, auditJournal)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
@@ -391,7 +386,7 @@
         });
 
         app.post('/api/auth/logout', sessionsWrapper, function(req, res) {
-            auth.logout(req, authJournal, auditJournal).then(function(resp) {
+            auth.logout(req, auditJournal).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
                 res.send(500, {

@@ -67,7 +67,7 @@ describe('auth (E2E):', function() {
             });
         });
 
-        it('should write journal entries', function(done) {
+        it('should write an entry to the audit collection', function(done) {
             var options = { url: config.authUrl + '/login',
                             json: { email: 'c6e2etester@gmail.com', password: 'password' } };
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -84,17 +84,6 @@ describe('auth (E2E):', function() {
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'POST /api/auth/login',
                                                  params: {}, query: {} });
-                return testUtils.mongoFind('auths', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
-            }).then(function(results) {
-                expect(results[0].user).toBe('u-1');
-                expect(results[0].created).toEqual(jasmine.any(Date));
-                expect(results[0].host).toEqual(jasmine.any(String));
-                expect(results[0].pid).toEqual(jasmine.any(Number));
-                expect(results[0].uuid).toEqual(jasmine.any(String));
-                expect(results[0].sessionID).toEqual(jasmine.any(String));
-                expect(results[0].service).toBe('auth');
-                expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({action: 'login'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -250,7 +239,7 @@ describe('auth (E2E):', function() {
             });
         });
 
-        it('should write journal entries', function(done) {
+        it('should write an entry to the audit collection', function(done) {
             var loginOpts = { url: config.authUrl + '/login', jar: true,
                               json: { email: 'c6e2etester@gmail.com', password: 'password' } };
             requestUtils.qRequest('post', loginOpts).then(function(resp) {
@@ -271,17 +260,6 @@ describe('auth (E2E):', function() {
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'POST /api/auth/logout',
                                                  params: {}, query: {} });
-                return testUtils.mongoFind('auths', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
-            }).then(function(results) {
-                expect(results[0].user).toBe('u-1');
-                expect(results[0].created).toEqual(jasmine.any(Date));
-                expect(results[0].host).toEqual(jasmine.any(String));
-                expect(results[0].pid).toEqual(jasmine.any(Number));
-                expect(results[0].uuid).toEqual(jasmine.any(String));
-                expect(results[0].sessionID).toEqual(jasmine.any(String));
-                expect(results[0].service).toBe('auth');
-                expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({action: 'logout'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
