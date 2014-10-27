@@ -281,6 +281,7 @@ describe('collateral (E2E):', function() {
             files.newFile = samples[1].path;
             requestUtils.qRequest('post', options, files).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
+                resp.body.sort(function(a, b) { return a.path < b.path ? -1 : 1 });
                 expect(resp.body).toEqual([
                     {name: 'testFile', code: 201, path: 'collateral/e-1234/sample1.jpg'},
                     {name: 'newFile', code: 201, path: 'collateral/e-1234/sample2.jpg'}
@@ -571,6 +572,7 @@ describe('collateral (E2E):', function() {
             ];
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
+                resp.body.sort(function(a, b) { return a.name < b.name ? -1 : 1 });
                 return q.all(resp.body.map(function(respObj, index) {
                     var imgSpec = options.json.imageSpecs[index];
                     expect(respObj).toEqual({code: 201, name: imgSpec.name, ratio: '__e2e',
