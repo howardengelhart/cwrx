@@ -159,7 +159,6 @@ describe('maint (UT)', function() {
 
     describe('removeFiles', function() {
         var removeSpy, existsSpy,
-            doneFlag = false,
             files = ['abc.mp3', 'line/ghi.json'];
         
         beforeEach(function() {
@@ -171,40 +170,36 @@ describe('maint (UT)', function() {
             expect(maint.removeFiles).toBeDefined();
         });
         
-        it('should remove a list of files', function() {
+        it('should remove a list of files', function(done) {
             existsSpy.andReturn(true);
             removeSpy.andCallFake(function(fpath, cb) {
                 cb(null, 'Success!');
             });
-            runs(function() {
-                maint.removeFiles(files).then(function(count) {
-                    expect(count).toBe(2);
-                    expect(removeSpy.calls.length).toBe(2);
-                    expect(existsSpy.calls.length).toBe(2);
-                    expect(removeSpy.calls[0].args[0]).toBe('abc.mp3');
-                    expect(removeSpy.calls[1].args[0]).toBe('line/ghi.json');
-                    expect(existsSpy).toHaveBeenCalledWith('abc.mp3');
-                    expect(existsSpy).toHaveBeenCalledWith('line/ghi.json');
-                    doneFlag = true;
-                });
-            });
-            waitsFor(function() { return doneFlag; }, 3000);
+            maint.removeFiles(files).then(function(count) {
+                expect(count).toBe(2);
+                expect(removeSpy.calls.length).toBe(2);
+                expect(existsSpy.calls.length).toBe(2);
+                expect(removeSpy.calls[0].args[0]).toBe('abc.mp3');
+                expect(removeSpy.calls[1].args[0]).toBe('line/ghi.json');
+                expect(existsSpy).toHaveBeenCalledWith('abc.mp3');
+                expect(existsSpy).toHaveBeenCalledWith('line/ghi.json');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
         });
         
-        it('should not remove non-existent files', function() {
+        it('should not remove non-existent files', function(done) {
             existsSpy.andReturn(false);
-            runs(function() {
-                maint.removeFiles(files).then(function(count) {
-                    expect(count).toBe(0);
-                    expect(existsSpy.calls.length).toBe(2);
-                    expect(removeSpy).not.toHaveBeenCalled();
-                    doneFlag = true;
-                });
-            });
-            waitsFor(function() { return doneFlag; }, 3000);
+            maint.removeFiles(files).then(function(count) {
+                expect(count).toBe(0);
+                expect(existsSpy.calls.length).toBe(2);
+                expect(removeSpy).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
         });
         
-        it('should handle errors from deleting files correctly', function() {
+        it('should handle errors from deleting files correctly', function(done) {
             existsSpy.andReturn(true);
             removeSpy.andCallFake(function(fpath, cb) {
                 if (fpath === 'abc.mp3') {
@@ -213,16 +208,15 @@ describe('maint (UT)', function() {
                     cb(null, 'Success!');
                 }
             });
-            runs(function() {
-                maint.removeFiles(files).catch(function(error) {
-                    expect(count).toBe(0);
-                    expect(existsSpy.calls.length).toBe(2);
-                    expect(removeSpy.calls.length).toBe(2);
-                    expect(error).toBe('Error on abc.mp3');
-                    doneFlag = true;
-                });
-            });
-            waitsFor(function() { return doneFlag; }, 3000);
+            maint.removeFiles(files).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(existsSpy.calls.length).toBe(2);
+                expect(removeSpy.calls.length).toBe(2);
+                expect(error).toBe('Error on abc.mp3');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
         });
     });
    
