@@ -57,7 +57,8 @@
         },
         defaultSiteConfig: {
             branding: 'default',
-            placementId: null
+            placementId: null,
+            wildCardPlacement: null
         },
         publicC6Sites: ['www.cinema6.com', 'demo.cinema6.com', 'cinema6.com'],
         secretsPath: path.join(process.env.HOME,'.content.secrets.json'),
@@ -237,6 +238,8 @@
         });
     };
 
+    /* Build a mongo query for a site by host. This transforms the host 'foo.bar.baz.com' into a 
+     * query for sites with host 'foo.bar.baz.com', 'bar.baz.com', or 'baz.com' */
     content.buildHostQuery = function(host) {
         var query = { host: { $in: [] } };
         while (!!host.match(/\./)) {
@@ -246,6 +249,8 @@
         return query;
     };
 
+    /* Choose a site to return from a list of multiple sites with similar hostnames. It returns an
+     * active site with the longest host, which will be the closest match to the request host */
     content.chooseSite = function(results) {
         return results.reduce(function(prev, curr) {
             if (!curr || !curr.host || curr.status !== Status.Active) {
@@ -258,9 +263,14 @@
         }, null);
     };
 
-    // Ensure experience has branding and placementId, getting from current site or org if necessary
+    // Ensure experience has branding and placements, getting from current site or org if necessary
     content.getSiteConfig = function(exp, orgId, qps, host, siteCache, orgCache, defaultSiteCfg) {
-        var log = logger.getLog(), query;
+        var log = logger.getLog(),
+            props = ['branding', 'placementId', 'wildCardPlacement'],
+            setProps = function(exp, obj) {
+                props.forEach(function(prop) { exp.data[prop] = exp.data[prop] || obj[prop]; });
+            },
+            query;
 
         if (!exp.data) {
             log.warn('Experience %1 does not have data!', exp.id);
@@ -269,10 +279,9 @@
 
         if (qps && qps.context === 'mr2') {
             exp.data.mode = 'lightbox-ads';
-            exp.data.branding = exp.data.branding || qps.branding;
-            exp.data.placementId = exp.data.placementId || qps.placementId;
+            setProps(exp, qps);
         }
-        if (exp.data.branding && exp.data.placementId) {
+        if (props.every(function(prop) { return !!exp.data[prop]; })) {
             return q(exp);
         }
 
@@ -281,10 +290,9 @@
         return siteCache.getPromise(query).then(function(results) {
             var site = content.chooseSite(results);
             if (!site) {
-                log.trace('Site %1 not found', host);
+                log.warn('Site %1 not found', host);
             } else {
-                exp.data.branding = exp.data.branding || site.branding;
-                exp.data.placementId = exp.data.placementId || site.placementId;
+                setProps(exp, site);
             }
             if (exp.data.branding) {
                 return q();
@@ -294,8 +302,7 @@
             if (results && results.length !== 0 && results[0].status === Status.Active) {
                 exp.data.branding = exp.data.branding || results[0].branding;
             }
-            exp.data.branding = exp.data.branding || defaultSiteCfg.branding;
-            exp.data.placementId = exp.data.placementId || defaultSiteCfg.placementId;
+            setProps(exp, defaultSiteCfg);
             return q(exp);
         });
 
