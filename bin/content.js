@@ -238,6 +238,8 @@
         });
     };
 
+    /* Build a mongo query for a site by host. This transforms the host 'foo.bar.baz.com' into a 
+     * query for sites with host 'foo.bar.baz.com', 'bar.baz.com', or 'baz.com' */
     content.buildHostQuery = function(host) {
         var query = { host: { $in: [] } };
         while (!!host.match(/\./)) {
@@ -247,6 +249,8 @@
         return query;
     };
 
+    /* Choose a site to return from a list of multiple sites with similar hostnames. It returns an
+     * active site with the longest host, which will be the closest match to the request host */
     content.chooseSite = function(results) {
         return results.reduce(function(prev, curr) {
             if (!curr || !curr.host || curr.status !== Status.Active) {
@@ -259,7 +263,7 @@
         }, null);
     };
 
-    // Ensure experience has branding and placementId, getting from current site or org if necessary
+    // Ensure experience has branding and placements, getting from current site or org if necessary
     content.getSiteConfig = function(exp, orgId, qps, host, siteCache, orgCache, defaultSiteCfg) {
         var log = logger.getLog(),
             props = ['branding', 'placementId', 'wildCardPlacement'],
@@ -286,7 +290,7 @@
         return siteCache.getPromise(query).then(function(results) {
             var site = content.chooseSite(results);
             if (!site) {
-                log.trace('Site %1 not found', host);
+                log.warn('Site %1 not found', host);
             } else {
                 setProps(exp, site);
             }

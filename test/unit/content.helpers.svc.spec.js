@@ -599,6 +599,7 @@ describe('content (UT)', function() {
                                      branding: 'siteBrand', placementId: 456, wildCardPlacement: 654}});
                 expect(siteCache.getPromise).toHaveBeenCalledWith({host: {$in: ['games.wired.com', 'wired.com']}})
                 expect(orgCache.getPromise).not.toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -606,13 +607,14 @@ describe('content (UT)', function() {
         
         it('should next fall back to the org\'s config', function(done) {
             queryParams.context = 'embed';
-            content.chooseSite.andReturn([]);
+            content.chooseSite.andReturn(null);
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar',
                                      branding: 'orgBrand', placementId: 789, wildCardPlacement: 987}});
                 expect(siteCache.getPromise).toHaveBeenCalled();
                 expect(orgCache.getPromise).toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -701,7 +703,7 @@ describe('content (UT)', function() {
 
         it('should reject if orgCache.getPromise returns a rejected promise', function(done) {
             queryParams.context = 'embed';
-            content.chooseSite.andReturn([]);
+            content.chooseSite.andReturn(null);
             orgCache.getPromise.andReturn(q.reject('I GOT A PROBLEM'));
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
