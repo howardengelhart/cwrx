@@ -278,7 +278,7 @@
         }
 
         if (qps && qps.context === 'mr2') {
-            exp.data.mode = 'lightbox-ads';
+            exp.data.mode = 'lightbox';
             setProps(exp, qps);
         }
         if (props.every(function(prop) { return !!exp.data[prop]; })) {

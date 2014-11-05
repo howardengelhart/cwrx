@@ -556,7 +556,7 @@ describe('content (UT)', function() {
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {branding: 'expBranding', placementId: 234,
-                                     wildCardPlacement: 543, mode: 'lightbox-ads'}});
+                                     wildCardPlacement: 543, mode: 'lightbox'}});
                 expect(siteCache.getPromise).not.toHaveBeenCalled();
                 expect(orgCache.getPromise).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -568,7 +568,7 @@ describe('content (UT)', function() {
             queryParams.context = 'mr2';
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
-                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', mode: 'lightbox-ads',
+                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', mode: 'lightbox',
                                     branding: 'widgetBrand', placementId: 123, wildCardPlacement: 321 }});
                 expect(siteCache.getPromise).not.toHaveBeenCalled();
                 expect(orgCache.getPromise).not.toHaveBeenCalled();
@@ -581,7 +581,7 @@ describe('content (UT)', function() {
             queryParams = { context: 'mr2' };
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
-                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', mode: 'lightbox-ads',
+                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', mode: 'lightbox',
                                      branding: 'siteBrand', placementId: 456, wildCardPlacement: 654}});
                 expect(siteCache.getPromise).toHaveBeenCalledWith({host: {$in: ['games.wired.com', 'wired.com']}});
                 expect(content.buildHostQuery).toHaveBeenCalledWith('games.wired.com');

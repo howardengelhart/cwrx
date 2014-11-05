@@ -1,5 +1,11 @@
 # Content Service Changelog
 
+### 1.13.1: Wed Nov  5 17:08:20 EST 2014
+* [FIX]: Set exp mode to 'lightbox' when content is 'mr2': [#318](https://github.com/cinema6/cwrx/pull/318)
+* [FIX]: Add `wildCardPlacement` to site lookup: [#316](https://github.com/cinema6/cwrx/pull/316)
+* Extra deployment steps: None
+    * Deploy new content cookbook and update environments with default `wildCardPlacement`
+
 ### 1.13.0: Fri Oct 17 14:28:44 EDT 2014
 * [FEATURE]: Add journaling: [#309](https://github.com/cinema6/cwrx/pull/309)
 * Extra deployment steps:
