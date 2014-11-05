@@ -153,7 +153,7 @@ describe('content (E2E):', function() {
                 expect(resp.body.id).toBe('e2e-pubget1');
                 expect(resp.body.title).toBe('test experience');
                 expect(resp.body.data).toEqual({foo: 'bar', branding: 'expBrand', placementId: '123',
-                                                wildCardPlacement: '321', mode: 'lightbox-ads'});
+                                                wildCardPlacement: '321', mode: 'lightbox'});
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
