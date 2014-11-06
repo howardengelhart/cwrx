@@ -605,6 +605,21 @@ describe('content (UT)', function() {
             }).done(done);
         });
         
+        it('should not try to get the site if the host is not defined', function(done) {
+            queryParams.context = 'embed';
+            content.chooseSite.andReturn(null);
+            content.getSiteConfig(exp, 'o-1', queryParams, '', siteCache, orgCache, defaultSiteCfg)
+            .then(function(exp) {
+                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar',
+                                     branding: 'orgBrand', placementId: 789, wildCardPlacement: 987}});
+                expect(siteCache.getPromise).not.toHaveBeenCalled();
+                expect(orgCache.getPromise).toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
         it('should next fall back to the org\'s config', function(done) {
             queryParams.context = 'embed';
             content.chooseSite.andReturn(null);

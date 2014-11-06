@@ -287,10 +287,12 @@
 
         query = content.buildHostQuery(host);
 
-        return siteCache.getPromise(query).then(function(results) {
+        return (!!host ? siteCache.getPromise(query) : q([])).then(function(results) {
             var site = content.chooseSite(results);
             if (!site) {
-                log.warn('Site %1 not found', host);
+                if (!!host) {
+                    log.warn('Site %1 not found', host);
+                }
             } else {
                 setProps(exp, site);
             }
