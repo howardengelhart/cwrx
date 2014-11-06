@@ -477,8 +477,8 @@ describe('content (UT)', function() {
             expect(content.buildHostQuery('foo.com')).toEqual({host:{$in:['foo.com']}});
             expect(content.buildHostQuery('foo.bar.com')).toEqual({host:{$in:['foo.bar.com','bar.com']}});
             expect(content.buildHostQuery('foo.bar.baz.com')).toEqual({host:{$in:['foo.bar.baz.com','bar.baz.com','baz.com']}});
-            expect(content.buildHostQuery('foo')).toEqual({host:{$in:[]}});
-            expect(content.buildHostQuery('')).toEqual({host:{$in:[]}});
+            expect(content.buildHostQuery('localhost')).toEqual({host:{$in:['localhost']}});
+            expect(content.buildHostQuery('')).toEqual({host:{$in:['']}});
             expect(content.buildHostQuery('portal.cinema6.com')).toEqual({host:{$in:['portal.cinema6.com','cinema6.com']}});
         });
     });
