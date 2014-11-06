@@ -246,9 +246,6 @@
             query.host.$in.push(host);
             host = host.substring(host.search(/\./) + 1);
         } while (!!host.match(/\./));
-        /*if (query.host.$in.length === 0) {
-            query.host.$in.push(host);
-        }*/
         return query;
     };
 
