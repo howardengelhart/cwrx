@@ -246,10 +246,17 @@
      * query for sites with host 'foo.bar.baz.com', 'bar.baz.com', or 'baz.com' */
     content.buildHostQuery = function(host) {
         var query = { host: { $in: [] } };
+
+        // Treat all requests from Googlebots in different countries the same
+        if (host.match(/google.co/)) {
+            query.host.$in.push('google.com');
+        }
+
         do {
             query.host.$in.push(host);
             host = host.substring(host.search(/\./) + 1);
         } while (!!host.match(/\./));
+
         return query;
     };
 
