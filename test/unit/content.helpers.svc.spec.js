@@ -487,6 +487,13 @@ describe('content (UT)', function() {
             expect(content.buildHostQuery('')).toEqual({host:{$in:['']}});
             expect(content.buildHostQuery('portal.cinema6.com')).toEqual({host:{$in:['portal.cinema6.com','cinema6.com']}});
         });
+        
+        it('should include extra logic for google sites', function() {
+            ['google.co', 'google.com', 'news.google.com', 'google.co.in', 'google.com.uk'].forEach(function(host) {
+                var query = content.buildHostQuery(host);
+                expect(query.host.$in).toContain('google.com');
+            });
+        });
     });
     
     describe('chooseSite', function() {
