@@ -60,7 +60,10 @@
             placementId: null,
             wildCardPlacement: null
         },
-        publicC6Sites: ['www.cinema6.com', 'demo.cinema6.com', 'cinema6.com'],
+        siteExceptions: {
+            public: ['www.cinema6.com', 'demo.cinema6.com', 'cinema6.com'],
+            cinema6: ['c-6.co', 'ci6.co']
+        },
         secretsPath: path.join(process.env.HOME,'.content.secrets.json'),
         mongo: {
             c6Db: {
@@ -96,11 +99,12 @@
     content.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created', '_id'] });
 
     // Find and parse the origin, storing useful properties on the request
-    content.parseOrigin = function(req, publicList) {
+    content.parseOrigin = function(req, siteExceptions) {
         req.origin = req.headers && (req.headers.origin || req.headers.referer) || '';
         req.originHost = req.origin && String(urlUtils.parse(req.origin).hostname) || '';
         req.isC6Origin = (req.origin && req.origin.match('cinema6.com') || false) &&
-                         !publicList.some(function(site) { return req.originHost === site; });
+                         !siteExceptions.public.some(function(s) { return req.originHost === s;}) ||
+                         siteExceptions.cinema6.some(function(s) { return req.originHost === s;});
     };
 
     content.formatOutput = function(experience, isGuest) {
@@ -756,7 +760,7 @@
         }
 
         app.use(function(req, res, next) {
-            content.parseOrigin(req, state.config.publicC6Sites);
+            content.parseOrigin(req, state.config.siteExceptions);
             next();
         });
 
