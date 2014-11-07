@@ -80,7 +80,7 @@ describe('content (E2E):', function() {
     });
 
     describe('GET /api/public/content/experience/:id', function() {
-        var mockExps, mockOrg, options;
+        var mockExps, mockOrg, mockSite, options;
         beforeEach(function(done) {
             options = {
                 url: config.contentUrl + '/public/content/experience/e2e-pubget1',
@@ -183,7 +183,7 @@ describe('content (E2E):', function() {
             }).done(done);
         });
 
-        it('should use the request site config props if not on the exp', function(done) {
+        it('should use the request config props if not on the exp', function(done) {
             options.url = options.url.replace('e2e-pubget1', 'e2e-org-adConfig');
             options.qs.context = 'mr2';
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -205,6 +205,24 @@ describe('content (E2E):', function() {
                 expect(resp.body.data.branding).toBe('siteBrand');
                 expect(resp.body.data.placementId).toBe('456');
                 expect(resp.body.data.wildCardPlacement).toBe('654');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should be able to use localhost as a site', function(done) {
+            options.url = options.url.replace('e2e-pubget1', 'e2e-org-adConfig');
+            options.headers.origin = 'http://localhost:9000';
+            var localSite = { id: 's-2', status: 'active', host: 'localhost', branding: 'local',
+                              placementId: '246', wildCardPlacement: '642' };
+            testUtils.resetCollection('sites', localSite).then(function() {
+                return requestUtils.qRequest('get', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toBe('e2e-org-adConfig');
+                expect(resp.body.data.branding).toBe('local');
+                expect(resp.body.data.placementId).toBe('246');
+                expect(resp.body.data.wildCardPlacement).toBe('642');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);

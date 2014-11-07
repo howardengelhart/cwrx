@@ -98,7 +98,7 @@
     // Find and parse the origin, storing useful properties on the request
     content.parseOrigin = function(req, publicList) {
         req.origin = req.headers && (req.headers.origin || req.headers.referer) || '';
-        req.originHost = req.origin && urlUtils.parse(req.origin).hostname || '';
+        req.originHost = req.origin && String(urlUtils.parse(req.origin).hostname) || '';
         req.isC6Origin = (req.origin && req.origin.match('cinema6.com') || false) &&
                          !publicList.some(function(site) { return req.originHost === site; });
     };
@@ -242,10 +242,10 @@
      * query for sites with host 'foo.bar.baz.com', 'bar.baz.com', or 'baz.com' */
     content.buildHostQuery = function(host) {
         var query = { host: { $in: [] } };
-        while (!!host.match(/\./)) {
+        do {
             query.host.$in.push(host);
             host = host.substring(host.search(/\./) + 1);
-        }
+        } while (!!host.match(/\./));
         return query;
     };
 
@@ -287,7 +287,7 @@
 
         query = content.buildHostQuery(host);
 
-        return (!!host ? siteCache.getPromise(query) : q([])).then(function(results) {
+        return ( !!host ? siteCache.getPromise(query) : q([]) ).then(function(results) {
             var site = content.chooseSite(results);
             if (!site) {
                 if (!!host) {
