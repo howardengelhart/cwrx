@@ -248,7 +248,7 @@
         var query = { host: { $in: [] } };
 
         // Treat all requests from Googlebots in different countries the same
-        if (host.match(/google.co/)) {
+        if (host.match(/google\.co/)) {
             query.host.$in.push('google.com');
         }
 
