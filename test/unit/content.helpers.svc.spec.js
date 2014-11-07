@@ -199,14 +199,17 @@ describe('content (UT)', function() {
     });
     
     describe('parseOrigin', function() {
-        var req, pubList;
+        var req, siteExceptions;
         beforeEach(function() {
             req = { headers: { origin: 'http://staging.cinema6.com' } };
-            pubList = ['demo.cinema6.com', 'www.cinema6.com'];
+            siteExceptions = {
+                public: ['demo.cinema6.com', 'www.cinema6.com'],
+                cinema6: ['c-6.co', 'ci6.co']
+            };
         });
         
         it('should parse the origin and setup various properties', function() {
-            content.parseOrigin(req, pubList);
+            content.parseOrigin(req, siteExceptions);
             expect(req.origin).toBe('http://staging.cinema6.com');
             expect(req.originHost).toBe('staging.cinema6.com');
             expect(req.isC6Origin).toBe(true);
@@ -215,10 +218,10 @@ describe('content (UT)', function() {
         
         it('should use the referer header as a fallback', function() {
             req = { headers: { referer: 'http://portal.cinema6.com' } };
-            content.parseOrigin(req, pubList);
+            content.parseOrigin(req, siteExceptions);
             expect(req.origin).toBe('http://portal.cinema6.com');
             req = { headers: { referer: 'http://portal.cinema6.com', origin: 'http://staging.cinema6.com' } };
-            content.parseOrigin(req, pubList);
+            content.parseOrigin(req, siteExceptions);
             expect(req.origin).toBe('http://staging.cinema6.com');
         });
         
@@ -230,36 +233,39 @@ describe('content (UT)', function() {
                 { url: 'http://foo.com.uk', originHost: 'foo.com.uk' }
             ].forEach(function(test) {
                 req = { headers: { origin: test.url } };
-                content.parseOrigin(req, pubList);
+                content.parseOrigin(req, siteExceptions);
                 expect(req.origin).toBe(test.url);
                 expect(req.originHost).toBe(test.originHost);
             });
         });
         
-        it('should properly decide if the origin is a cinema6 site using the public list', function() {
+        it('should properly decide if the origin is a cinema6 site using the siteExceptions', function() {
             req = { headers: { origin: 'http://google.com' } };
-            content.parseOrigin(req, pubList);
+            content.parseOrigin(req, siteExceptions);
             expect(req.isC6Origin).toBe(false);
             req = { headers: { origin: 'http://foo.demo.cinema6.com' } };
-            content.parseOrigin(req, pubList);
+            content.parseOrigin(req, siteExceptions);
             expect(req.isC6Origin).toBe(true);
             req = { headers: { origin: 'http://www.cinema6.com' } };
-            content.parseOrigin(req, pubList);
+            content.parseOrigin(req, siteExceptions);
             expect(req.isC6Origin).toBe(false);
             req = { headers: { origin: 'http://demo.foo.cinema6.com' } };
-            content.parseOrigin(req, pubList);
+            content.parseOrigin(req, siteExceptions);
             expect(req.isC6Origin).toBe(true);
-            req = { headers: { origin: 'http://cinema6.com' } };
-            content.parseOrigin(req, pubList);
+            req = { headers: { origin: 'http://ci6.co/foo' } };
+            content.parseOrigin(req, siteExceptions);
             expect(req.isC6Origin).toBe(true);
-            pubList.push('cinema6.com');
-            content.parseOrigin(req, pubList);
+            req = { headers: { origin: 'http://c-6.co/foo' } };
+            content.parseOrigin(req, siteExceptions);
+            expect(req.isC6Origin).toBe(true);
+            req = { headers: { origin: 'http://ca6.co/foo' } };
+            content.parseOrigin(req, siteExceptions);
             expect(req.isC6Origin).toBe(false);
         });
         
         it('should handle the case where the origin is not defined', function() {
             [{}, { headers: {} }, { headers: { origin: '' } }].forEach(function(testReq) {
-                content.parseOrigin(testReq, pubList);
+                content.parseOrigin(testReq, siteExceptions);
                 expect(testReq.origin).toBe('');
                 expect(testReq.originHost).toBe('');
                 expect(testReq.isC6Origin).toBe(false);
