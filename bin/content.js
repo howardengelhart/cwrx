@@ -287,7 +287,7 @@
 
         query = content.buildHostQuery(host);
 
-        return (!!host ? siteCache.getPromise(query) : q([])).then(function(results) {
+        return ( !!host ? siteCache.getPromise(query) : q([]) ).then(function(results) {
             var site = content.chooseSite(results);
             if (!site) {
                 if (!!host) {
