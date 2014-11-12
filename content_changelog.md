@@ -1,5 +1,9 @@
 # Content Service Changelog
 
+### 1.13.3: Wed Nov 12 16:35:55 EST 2014
+* [FIX]: Remove default values for site exceptions: [#326](https://github.com/cinema6/cwrx/pull/326)
+* Extra deployment steps: Deploy new content cookbook
+
 ### 1.13.2: Fri Nov  7 11:46:54 EST 2014
 * [FIX]: Whitelist certain public sites as `cinema6.com` sites: [#323](https://github.com/cinema6/cwrx/pull/323)
 * [FIX]: Allow localhost to be set as a site: [#322](https://github.com/cinema6/cwrx/pull/322)
