@@ -23,7 +23,11 @@ describe('config', function() {
             
             a = { arr: [ 'foo', 'bar', { key: 'val', a: true } ] };
             b = { arr: [ 'bar', 'foo', { key: 'notval' } ] };
-            expect(config.mergeObjects(a, b)).toEqual({arr:['bar','foo',{key:'notval',a:true}]});
+            expect(config.mergeObjects(a, b)).toEqual({arr:['bar','foo',{key:'notval'}]});
+            
+            a = { arr: [ 'foo', 'bar', 'baz' ] };
+            b = { arr: [ 'bluh' ] };
+            expect(config.mergeObjects(a, b)).toEqual({ arr: ['bluh'] });
 
             a = { arr: [ 'foo', 'bar', 'baz' ] };
             b = { arr: { foo: 'bar' } };
