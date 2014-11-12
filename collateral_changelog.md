@@ -1,5 +1,9 @@
 # Collateral Service Changelog
 
+### 1.4.1: Wed Nov 12 14:47:10 EST 2014
+* [FIX]: Default thumbnail urls to http to fix issue with vimeo + dailymotion: [#325](https://github.com/cinema6/cwrx/pull/325)
+* Extra deployment steps: None
+
 ### 1.4.0: Fri Oct 17 14:28:44 EDT 2014
 * [FEATURE]: Add journaling: [#309](https://github.com/cinema6/cwrx/pull/309)
 * Extra deployment steps:
