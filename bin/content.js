@@ -61,8 +61,8 @@
             wildCardPlacement: null
         },
         siteExceptions: {
-            public: [],
-            cinema6: []
+            public: ['www.cinema6.com', 'demo.cinema6.com'],
+            cinema6: ['c-6.co', 'ci6.co']
         },
         secretsPath: path.join(process.env.HOME,'.content.secrets.json'),
         mongo: {
