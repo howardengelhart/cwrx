@@ -29,14 +29,26 @@ describe('search (UT)', function() {
     describe('parseDuration', function() {
         it('should return undefined if no duration string is passed in', function() {
             expect(search.parseDuration(null, 'yt.com/asdf')).toBe(undefined);
-            expect(mockLog.warn).toHaveBeenCalled();
+            expect(mockLog.warn).not.toHaveBeenCalled();
         });
         
-        it('should properly parse strings of the format "PT#H#M#S"', function() {
-            expect(search.parseDuration('PT1H1M1S')).toBe(3661);
-            expect(search.parseDuration('PT13H34M23S')).toBe(48863);
-            expect(search.parseDuration('PT03M0012S')).toBe(192);
-            expect(search.parseDuration('PT349S')).toBe(349);
+        it('should properly parse strings of the format "P#Y#M#DT#H#M#S"', function() {
+            var durs = [ {str: 'PT1H1M11.23S', val: 3671.23}, {str: 'PT13H34M23S', val: 48863},
+                         {str: 'P1Y12M2DT1H23M02S', val: 62817782}, {str: 'P3M', val: 7776000},
+                         {str: 'PT3M', val: 180}, {str: 'PT2.45H', val: 8820} ];
+            durs.forEach(function(durObj) {
+                expect(search.parseDuration(durObj.str)).toBe(durObj.val);
+            });
+            expect(mockLog.warn).not.toHaveBeenCalled();
+        });
+
+        it('should properly parse yahoo\'s strings of the format "PY#M#D#TH#M#S#"', function() {
+            var durs = [ {str: 'PTH1M1S11.23', val: 3671.23}, {str: 'PTH13M34S23', val: 48863},
+                         {str: 'PY1M12D2TH1M23S02', val: 62817782}, {str: 'PM3', val: 7776000},
+                         {str: 'PTM3', val: 180}, {str: 'PTH2.45', val: 8820} ];
+            durs.forEach(function(durObj) {
+                expect(search.parseDuration(durObj.str)).toBe(durObj.val);
+            });
             expect(mockLog.warn).not.toHaveBeenCalled();
         });
         
@@ -47,44 +59,104 @@ describe('search (UT)', function() {
         });
         
         it('should return undefined if the duration is in an unknown format', function() {
-            expect(search.parseDuration('qoiwuradf')).toBe(undefined);
-            expect(search.parseDuration('P1H1M1S')).toBe(undefined);
-            expect(search.parseDuration('PT1HM1S')).toBe(undefined);
-            expect(search.parseDuration('some mins')).toBe(undefined);
-            expect(mockLog.warn.callCount).toBe(4);
+            var durs = ['aslkd', 'some mins', 'T3M1S', '4Y', 'TS32', 'P1..3Y', 'PT1HM3S', 'P1YTS3'];
+            durs.forEach(function(dur) {
+                expect(search.parseDuration(dur)).toBe(undefined);
+            });
+            expect(mockLog.warn.callCount).toBe(durs.length);
         });
     });
     
     describe('formatGoogleResults', function() {
-        var stats, items;
+        var stats;
         beforeEach(function() {
             stats = { startIndex: 11, count: 20, totalResults: 50 };
-            items = [
-                { title: 'YT Test', link: 'http://www.youtube.com/watch?v=GdEKSyad_rk', displayLink: 'www.youtube.com',
-                  pagemap: { videoobject: [{description: 'YT desc', duration: 'PT1M13S', height: 1080}],
-                             cse_thumbnail: [{width: 300, height: 168, src: 'http://img.com'}] } },
-                { title: 'V Test', link: 'http://vimeo.com/77428778', displayLink: 'vimeo.com',
-                  pagemap: { videoobject: [{description: 'V desc', duration: '2 mins', height: 720, thumbnailurl: 'http://thumb.com'}],
-                             cse_thumbnail: [{width: 100, height: 100, src: 'http://img2.com'}] } },
-                { title: 'DM Test', link: 'http://www.dailymotion.com/video/x169luh_waterski-breakdancing-2013_sport', displayLink: 'www.dailymotion.com',
-                  pagemap: { videoobject: [{description: 'DM desc', duration: 'PT0H1M12S', height: 564, thumbnailurl: 'http://img3.com'}] } }
-            ];
             spyOn(search, 'parseDuration').andCallThrough();
         });
         
-        it('should correctly format the results', function() {
+        it('should correctly format youtube results', function() {
+            var items = [
+                { title: 'YT Test', link: 'http://www.youtube.com/watch?v=GdEKSyad_rk', displayLink: 'www.youtube.com',
+                  pagemap: { videoobject: [{description: 'YT desc', duration: 'PT1M13S', height: 1080}],
+                             cse_thumbnail: [{width: 300, height: 168, src: 'http://img.com'}] } }
+            ];
+
             expect(search.formatGoogleResults(stats, items)).toEqual({
                 meta: {skipped: 10, numResults: 20, totalResults: 50},
                 items: [
                     { title: 'YT Test', link: 'http://www.youtube.com/watch?v=GdEKSyad_rk', siteLink: 'www.youtube.com',
                       description: 'YT desc', site: 'youtube', hd: true, duration: 73, videoid: 'GdEKSyad_rk',
-                      thumbnail: { width: 300, height: 168, src: 'http://img.com' } },
+                      thumbnail: { width: 300, height: 168, src: 'http://img.com' } }
+                ]
+            });
+            expect(mockLog.warn).not.toHaveBeenCalled();
+        });
+        
+        it('should correctly format vimeo results', function() {
+            var items = [
+                { title: 'V Test', link: 'http://vimeo.com/77428778', displayLink: 'vimeo.com',
+                  pagemap: { videoobject: [{description: 'V desc', duration: '2 mins', height: 720, thumbnailurl: 'http://thumb.com'}],
+                             cse_thumbnail: [{width: 100, height: 100, src: 'http://img2.com'}] } }
+            ];
+
+            expect(search.formatGoogleResults(stats, items)).toEqual({
+                meta: { skipped: 10, numResults: 20, totalResults: 50 },
+                items: [
                     { title: 'V Test', link: 'http://vimeo.com/77428778', siteLink: 'vimeo.com',
                       description: 'V desc', site: 'vimeo', hd: true, duration: 120, videoid: '77428778',
-                      thumbnail: { width: 100, height: 100, src: 'http://img2.com' } },
-                    { title: 'DM Test', link: 'http://www.dailymotion.com/video/x169luh_waterski-breakdancing-2013_sport', siteLink: 'www.dailymotion.com',
+                      thumbnail: { width: 100, height: 100, src: 'http://img2.com' } }
+                ]
+            });
+            expect(mockLog.warn).not.toHaveBeenCalled();
+        });
+
+        it('should correctly format dailymotion results', function() {
+            var items = [
+                { title: 'DM Test', link: 'http://www.dailymotion.com/video/x169luh_waterski', displayLink: 'www.dailymotion.com',
+                  pagemap: { videoobject: [{description: 'DM desc', duration: 'PT0H1M12S', height: 564, thumbnailurl: 'http://img3.com'}] } }
+            ];
+
+            expect(search.formatGoogleResults(stats, items)).toEqual({
+                meta: { skipped: 10, numResults: 20, totalResults: 50 },
+                items: [
+                    { title: 'DM Test', link: 'http://www.dailymotion.com/video/x169luh_waterski', siteLink: 'www.dailymotion.com',
                       description: 'DM desc', site: 'dailymotion', hd: false, duration: 72, videoid: 'x169luh',
                       thumbnail: { src: 'http://img3.com' } }
+                ]
+            });
+            expect(mockLog.warn).not.toHaveBeenCalled();
+        });
+
+        it('should correctly format AOL results', function() {
+            var items = [
+                { title: 'AOL Test', link: 'http://on.aol.com/video/cat-51', displayLink: 'on.aol.com',
+                  pagemap: { videoobject: [{name: 'AOL Name'}], cse_thumbnail: [{width: 300, height: 168, src: 'http://img.com'}] } }
+            ];
+
+            expect(search.formatGoogleResults(stats, items)).toEqual({
+                meta: { skipped: 10, numResults: 20, totalResults: 50 },
+                items: [
+                    { title: 'AOL Test', link: 'http://on.aol.com/video/cat-51', siteLink: 'on.aol.com',
+                      description: undefined, site: 'aol', hd: false, duration: undefined, videoid: 'cat-51',
+                      thumbnail: { width: 300, height: 168, src: 'http://img.com' } }
+                ]
+            });
+            expect(mockLog.warn).not.toHaveBeenCalled();
+        });
+
+        it('should correctly format yahoo results', function() {
+            var items = [
+                { title: 'YH Test', link: 'https://screen.yahoo.com/laser-cats.html', displayLink: 'screen.yahoo.com',
+                  pagemap: { videoobject: [{description: 'YH desc', duration: 'PTM1S13'}],
+                             cse_thumbnail: [{width: 300, height: 168, src: 'http://img.com'}] } }
+            ];
+
+            expect(search.formatGoogleResults(stats, items)).toEqual({
+                meta: {skipped: 10, numResults: 20, totalResults: 50},
+                items: [
+                    { title: 'YH Test', link: 'https://screen.yahoo.com/laser-cats.html', siteLink: 'screen.yahoo.com',
+                      description: 'YH desc', site: 'yahoo', hd: false, duration: 73, videoid: 'laser-cats',
+                      thumbnail: { width: 300, height: 168, src: 'http://img.com' } }
                 ]
             });
             expect(mockLog.warn).not.toHaveBeenCalled();
@@ -92,19 +164,16 @@ describe('search (UT)', function() {
         
         it('should filter out invalid items received from google', function() {
             stats.count = 6;
-            items.push(
+            var items = [
                 { title: 'Fake 1', displayLink: 'vimeo.com',
                   pagemap: { videoobject: [{description: 'Fake desc', duration: 'PT0H1M12S', height: 564}] } },
                 { title: 'Fake 2', displayLink: 'vimeo.com',
                   pagemap: { videoobject: {description: 'Fake desc', duration: 'PT0H1M12S', height: 564} } },
                 { title: 'Fake 3', displayLink: 'vimeo.com' }
-            );
+            ];
             var results = search.formatGoogleResults(stats, items);
             expect(results.meta).toEqual({skipped: 10, numResults: 6, totalResults: 50});
-            expect(results.items.length).toBe(3);
-            expect(results.items[0].title).toBe('YT Test');
-            expect(results.items[1].title).toBe('V Test');
-            expect(results.items[2].title).toBe('DM Test');
+            expect(results.items).toEqual([]);
             expect(mockLog.warn.callCount).toBe(3);
         });
         
@@ -299,6 +368,18 @@ describe('search (UT)', function() {
                 expect(resp).toBe('fakeResp');
                 expect(search.findVideosWithGoogle).toHaveBeenCalledWith(req,
                     {query: 'foo', limit: 10, start: 21, sites: ['youtube.com', 'vimeo.com'], hd: 'true'},
+                    'fakeGoogleCfg', 'asdf1234');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should handle aol and yahoo properly for the sites param', function(done) {
+            req.query.sites = 'yahoo,aol';
+            search.findVideos(req, config, secrets).then(function(resp) {
+                expect(resp).toBe('fakeResp');
+                expect(search.findVideosWithGoogle).toHaveBeenCalledWith(req,
+                    {query: 'foo', limit: 10, start: 21, sites: ['screen.yahoo.com', 'on.aol.com'], hd: 'true'},
                     'fakeGoogleCfg', 'asdf1234');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
