@@ -26,8 +26,8 @@
         google: {
             apiUrl: 'https://www.googleapis.com/customsearch/v1',
             engineId: '007281538304941793863:cbx8mzslyne',
-            fields: 'queries,items(title,link,displayLink,pagemap(videoobject(description,' +
-                    'duration,height,thumbnailurl),cse_thumbnail))',
+            fields: 'queries,items(title,link,snippet,displayLink,' +
+                    'pagemap(videoobject,cse_thumbnail))',
             retryTimeout: 1000 // milliseconds to wait before retrying a failed request to Google
         },
         sessions: {
@@ -56,27 +56,42 @@
     };
     
     // Parse a duration string and return the total number of seconds
-    search.parseDuration = function(duration, link) {
-        var log = logger.getLog();
+    search.parseDuration = function(dur, link) {
+        var log = logger.getLog(),
+            isYahoo = false,
+            timeParts = [ // for parsing duration strings in ISO 8601 format; years thru seconds
+                { rgx: /(\d+\.?\d*)Y/,        yrgx: /Y(\d+\.?\d*)/,        factor: 365*24*60*60 },
+                { rgx: /P[^T]*?(\d+\.?\d*)M/, yrgx: /P[^T]*?M(\d+\.?\d*)/, factor: 30*24*60*60 },
+                { rgx: /(\d+\.?\d*)D/,        yrgx: /D(\d+\.?\d*)/,        factor: 24*60*60 },
+                { rgx: /(\d+\.?\d*)H/,        yrgx: /H(\d+\.?\d*)/,        factor: 60*60 },
+                { rgx: /T.*?(\d+\.?\d*)M/,    yrgx: /T.*?M(\d+\.?\d*)/,    factor: 60 },
+                { rgx: /(\d+\.?\d*)S/,        yrgx: /S(\d+\.?\d*)/,        factor: 1 },
+            ];
         
-        if (!duration) {
-            log.warn('Video %1 has no duration', link);
+        if (!dur) {
+            log.info('Video %1 has no duration', link); // AOL vids have no duration, for example
             return undefined;
         }
 
-        duration = duration.trim();
-
-        // expect durs to look like 'PT1H1M1S', except some vimeo vids have durs like '90 mins'
-        if (duration.match(/^\d+ mins/)) {
-            return Number(duration.match(/^\d+/)[0])*60;
-        } else if(!duration.match(/^PT(\d+H)?(\d+M)?(\d+S)?$/)) {
-            log.warn('Video %1 has unknown duration format %2', link, duration);
+        dur = dur.trim();
+        
+        // some vimeo vids have durs like '90 mins'
+        if (dur.match(/^\d+ mins/)) {
+            return Number(dur.match(/^\d+/)[0])*60;
+        }
+        
+        // Yahoo incorrectly implements ISO 8601 duration format, so need different regexes
+        if (dur.match(/^P([A-S,U-Z]\d+\.?\d*)*T?([A-S,U-Z]\d+\.?\d*)*$/)) {
+            isYahoo = true;
+        } else if (!dur.match(/^P(\d+\.?\d*[A-S,U-Z])*T?(\d+\.?\d*[A-S,U-Z])*$/)) {
+            log.warn('Video %1 has unknown duration format %2', link, dur);
             return undefined;
         }
         
-        return 60*60*Number((duration.match(/\d+(?=H)/) || [])[0] || 0) + // hours
-                  60*Number((duration.match(/\d+(?=M)/) || [])[0] || 0) + // minutes
-                     Number((duration.match(/\d+(?=S)/) || [])[0] || 0);  // seconds
+        return timeParts.reduce(function(total, part) {
+            var regex = isYahoo ? part.yrgx : part.rgx;
+            return total += part.factor * Number( ( dur.match(regex) || [0, 0] )[1] );
+        }, 0);
     };
     
     // Properly format results returned from findVideosWithGoogle
@@ -103,7 +118,7 @@
                 title       : item.title,
                 link        : item.link,
                 siteLink    : item.displayLink,
-                description : item.pagemap.videoobject[0].description,
+                description : item.pagemap.videoobject[0].description || item.snippet,
                 thumbnail   : item.pagemap.cse_thumbnail && item.pagemap.cse_thumbnail[0] ||
                               { src: item.pagemap.videoobject[0].thumbnailurl },
                 site        : (item.displayLink || '').replace('www.', '').replace('.com', ''),
@@ -111,6 +126,12 @@
                 duration    : search.parseDuration(item.pagemap.videoobject[0].duration, item.link)
             };
             /*jshint camelcase: true */
+            
+            if (formatted.site.match('aol')) { // Transform 'on.aol' to just 'aol'
+                formatted.site = 'aol';
+            } else if (formatted.site.match('yahoo')) { // Transform 'screen.yahoo' to just 'yahoo'
+                formatted.site = 'yahoo';
+            }
             
             switch (formatted.site) {
                 case 'youtube':
@@ -121,6 +142,12 @@
                     break;
                 case 'dailymotion':
                     formatted.videoid = (item.link.match(/[^\/_]+(?=_)/) || [])[0];
+                    break;
+                case 'aol':
+                    formatted.videoid = (item.link.match(/[^\/]+$/) || [])[0];
+                    break;
+                case 'yahoo':
+                    formatted.videoid = (item.link.match(/[^\/]+(?=(\.html))/) || [])[0];
                     break;
             }
             
@@ -211,8 +238,15 @@
             query = req.query && req.query.query || null,
             limit = Math.min(Math.max(parseInt(req.query && req.query.limit) || 10, 1), 10),
             start = Math.max(parseInt(req.query && req.query.skip) || 0, 0) + 1,
-            sites = req.query && req.query.sites &&
-                    req.query.sites.split(',').map(function(site){ return site + '.com'; }) || null,
+            sites = req.query && req.query.sites && req.query.sites.split(',').map(
+                function(site) {
+                    if (site === 'yahoo') {
+                        site = 'screen.' + site;
+                    } else if (site === 'aol') {
+                        site = 'on.' + site;
+                    }
+                    return site + '.com';
+                }) || null,
             hd = req.query && req.query.hd || undefined,
             opts = { query: query, limit: limit, start: start, sites: sites, hd: hd };
         

@@ -1,5 +1,9 @@
 # Search Service Changelog
 
+### 1.2.0: Tue Nov 18 14:31:36 EST 2014
+* [FEATURE]: Add support for AOL and Yahoo videos: [#329](https://github.com/cinema6/cwrx/pull/329)
+* Extra deployment steps: Deploy new search service cookbook
+
 ### 1.1.0: Fri Oct 17 14:28:44 EDT 2014
 * [FEATURE]: Add journaling: [#309](https://github.com/cinema6/cwrx/pull/309)
 * Extra deployment steps:
