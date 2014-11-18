@@ -152,6 +152,46 @@ describe('search (E2E):', function() {
             }).done(done);
         });
         
+        it('should handle yahoo videos', function(done) {
+            options.qs.sites = 'yahoo';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.meta).toBeDefined();
+                expect(resp.body.meta.skipped).toBe(0);
+                expect(resp.body.meta.numResults).toBe(10);
+                expect(resp.body.meta.totalResults >= 10).toBeTruthy();
+                expect(resp.body.items.length).toBe(10);
+                resp.body.items.forEach(function(item) {
+                    expect(item.site).toBe('yahoo');
+                    expect(item.siteLink).toBe('screen.yahoo.com');
+                    expect(item.duration).toBeDefined();
+                    expect(!!item.link.match('screen.yahoo.com')).toBe(true);
+                });
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should handle aol videos', function(done) {
+            options.qs.sites = 'aol';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.meta).toBeDefined();
+                expect(resp.body.meta.skipped).toBe(0);
+                expect(resp.body.meta.numResults).toBe(10);
+                expect(resp.body.meta.totalResults >= 10).toBeTruthy();
+                expect(resp.body.items.length).toBe(10);
+                resp.body.items.forEach(function(item) {
+                    expect(item.site).toBe('aol');
+                    expect(item.siteLink).toBe('on.aol.com');
+                    expect(item.duration).not.toBeDefined();
+                    expect(!!item.link.match('on.aol.com')).toBe(true);
+                });
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+        
         it('should be able to paginate through results', function(done) {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);

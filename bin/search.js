@@ -26,7 +26,7 @@
         google: {
             apiUrl: 'https://www.googleapis.com/customsearch/v1',
             engineId: '007281538304941793863:cbx8mzslyne',
-            fields: 'queries,items(title,link,displayLink,pagemap(videoobject(description,' +
+            fields: 'queries,items(title,link,displayLink,pagemap(videoobject(name,description,' +
                     'duration,height,thumbnailurl),cse_thumbnail))',
             retryTimeout: 1000 // milliseconds to wait before retrying a failed request to Google
         },
