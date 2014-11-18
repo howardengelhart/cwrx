@@ -26,8 +26,8 @@
         google: {
             apiUrl: 'https://www.googleapis.com/customsearch/v1',
             engineId: '007281538304941793863:cbx8mzslyne',
-            fields: 'queries,items(title,link,displayLink,pagemap(videoobject(name,description,' +
-                    'duration,height,thumbnailurl),cse_thumbnail))',
+            fields: 'queries,items(title,link,snippet,displayLink,' +
+                    'pagemap(videoobject,cse_thumbnail))',
             retryTimeout: 1000 // milliseconds to wait before retrying a failed request to Google
         },
         sessions: {
@@ -118,7 +118,7 @@
                 title       : item.title,
                 link        : item.link,
                 siteLink    : item.displayLink,
-                description : item.pagemap.videoobject[0].description,
+                description : item.pagemap.videoobject[0].description || item.snippet,
                 thumbnail   : item.pagemap.cse_thumbnail && item.pagemap.cse_thumbnail[0] ||
                               { src: item.pagemap.videoobject[0].thumbnailurl },
                 site        : (item.displayLink || '').replace('www.', '').replace('.com', ''),

@@ -61,6 +61,7 @@ describe('search (E2E):', function() {
                 expect(resp.body.items.length).toBe(10);
                 resp.body.items.forEach(function(item) {
                     expect(item.title).toBeDefined();
+                    expect(item.description).toBeDefined();
                     expect(!!item.site.match(/^((youtube)|(vimeo)|(dailymotion))$/)).toBe(true);
                     expect(!!item.siteLink.match(item.site)).toBe(true);
                     expect(!!item.link.match(item.site)).toBe(true);
@@ -146,6 +147,7 @@ describe('search (E2E):', function() {
                     expect(!!item.site.match(/^((vimeo)|(dailymotion))$/)).toBe(true);
                     expect(!!item.siteLink.match(item.site)).toBe(true);
                     expect(!!item.link.match(item.site)).toBe(true);
+                    expect(item.description).toBeDefined();
                 });
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -164,8 +166,9 @@ describe('search (E2E):', function() {
                 resp.body.items.forEach(function(item) {
                     expect(item.site).toBe('yahoo');
                     expect(item.siteLink).toBe('screen.yahoo.com');
-                    expect(item.duration).toBeDefined();
                     expect(!!item.link.match('screen.yahoo.com')).toBe(true);
+                    expect(item.description).toBeDefined();
+                    expect(item.duration).toBeDefined();
                 });
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -184,8 +187,9 @@ describe('search (E2E):', function() {
                 resp.body.items.forEach(function(item) {
                     expect(item.site).toBe('aol');
                     expect(item.siteLink).toBe('on.aol.com');
-                    expect(item.duration).not.toBeDefined();
                     expect(!!item.link.match('on.aol.com')).toBe(true);
+                    expect(item.duration).not.toBeDefined();
+                    expect(item.description).toBeDefined();
                 });
             }).catch(function(error) {
                 expect(error).not.toBeDefined();

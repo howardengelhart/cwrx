@@ -129,7 +129,7 @@ describe('search (UT)', function() {
 
         it('should correctly format AOL results', function() {
             var items = [
-                { title: 'AOL Test', link: 'http://on.aol.com/video/cat-51', displayLink: 'on.aol.com',
+                { title: 'AOL Test', snippet: 'AOL Desc', link: 'http://on.aol.com/video/cat-51', displayLink: 'on.aol.com',
                   pagemap: { videoobject: [{name: 'AOL Name'}], cse_thumbnail: [{width: 300, height: 168, src: 'http://img.com'}] } }
             ];
 
@@ -137,7 +137,7 @@ describe('search (UT)', function() {
                 meta: { skipped: 10, numResults: 20, totalResults: 50 },
                 items: [
                     { title: 'AOL Test', link: 'http://on.aol.com/video/cat-51', siteLink: 'on.aol.com',
-                      description: undefined, site: 'aol', hd: false, duration: undefined, videoid: 'cat-51',
+                      description: 'AOL Desc', site: 'aol', hd: false, duration: undefined, videoid: 'cat-51',
                       thumbnail: { width: 300, height: 168, src: 'http://img.com' } }
                 ]
             });
