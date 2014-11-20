@@ -1,5 +1,9 @@
 # Collateral Service Changelog
 
+### 1.4.2: Thu Nov 20 16:33:11 EST 2014
+* [FIX]: Don't switch protocol for yahoo img urls: [#331](https://github.com/cinema6/cwrx/pull/331)
+* Extra deployment steps: None
+
 ### 1.4.1: Wed Nov 12 14:47:10 EST 2014
 * [FIX]: Default thumbnail urls to http to fix issue with vimeo + dailymotion: [#325](https://github.com/cinema6/cwrx/pull/325)
 * Extra deployment steps: None

@@ -523,6 +523,9 @@
                  
         // default urls to http so phantom will handle properly
         req.body.thumbs = req.body.thumbs.map(function(thumb) {
+            if (thumb.match(/yimg\.com/)) { // except yahoo, since their images only work in https
+                return thumb;
+            }
             if (thumb.match(/^\/\/.*/)) {
                 return 'http:' + thumb;
             }
