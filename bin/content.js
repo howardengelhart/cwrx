@@ -9,7 +9,6 @@
         logger          = require('../lib/logger'),
         uuid            = require('../lib/uuid'),
         mongoUtils      = require('../lib/mongoUtils'),
-        CrudSvc         = require('../lib/crudSvc'),
         journal         = require('../lib/journal'),
         objUtils        = require('../lib/objUtils'),
         QueryCache      = require('../lib/queryCache'),
@@ -17,6 +16,8 @@
         authUtils       = require('../lib/authUtils'),
         service         = require('../lib/service'),
         enums           = require('../lib/enums'),
+        cardModule      = require('./content-cards'),
+        categoryModule  = require('./content-categories'),
         Status          = enums.Status,
         Access          = enums.Access,
         Scope           = enums.Scope,
@@ -83,36 +84,6 @@
         }
     };
     
-    ///////////////////////////////////////////////////////////////////////////
-    // Cards:
-    
-    content.setupCardSvc = function(cardColl) {
-        var cardSvc = new CrudSvc(cardColl, 'rc');
-        cardSvc.createValidator._required.push('campaignId');
-        cardSvc.createValidator._condForbidden.user = FieldValidator.userFunc('cards', 'create');
-        cardSvc.createValidator._condForbidden.org = FieldValidator.orgFunc('cards', 'create');
-        cardSvc.editValidator._condForbidden.user = FieldValidator.userFunc('cards', 'edit');
-        cardSvc.editValidator._condForbidden.org = FieldValidator.orgFunc('cards', 'edit');
-        //TODO: implement (and decide on...) public card endpoint
-        
-        return cardSvc;
-    };
-
-    ///////////////////////////////////////////////////////////////////////////
-    // Categories:
-    
-    //TODO: decide on access control for categories. Should all be public to read?
-    content.setupCategorySvc = function(catColl) { //TODO: what should prefix be?
-        var catSvc = new CrudSvc(catColl, 'cat', { userProp: false, orgProp: false });
-        catSvc.createValidator._required.push('name');
-        catSvc.editValidator._forbidden.push('name');
-        
-        return catSvc;
-    };
-    
-    ///////////////////////////////////////////////////////////////////////////
-    // Experiences:
-
     content.createValidator = new FieldValidator({
         forbidden: ['id', 'created'],
         condForbidden: {
@@ -702,8 +673,8 @@
             users        = state.dbs.c6Db.collection('users'),
             orgs         = state.dbs.c6Db.collection('orgs'),
             sites        = state.dbs.c6Db.collection('sites'),
-            cardSvc      = content.setupCardSvc(state.dbs.c6Db.collection('cards')),
-            catSvc       = content.setupCategorySvc(state.dbs.c6Db.collection('categories')),
+            cardSvc      = cardModule.setupCardSvc(state.dbs.c6Db.collection('cards')),
+            catSvc       = categoryModule.setupCategorySvc(state.dbs.c6Db.collection('categories')),
             expTTLs      = state.config.cacheTTLs.experiences,
             expCache     = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences),
             orgTTLs      = state.config.cacheTTLs.orgs,
@@ -794,9 +765,6 @@
             next();
         });
         
-        ///////////////////////////////////////////////////////////////////////
-        // Experiences:
-
         // Used for handling public requests for experiences by id methods:
         function handlePublicGet(req, res) {
             return content.getPublicExp(req.params.id, req, expCache, orgCache, siteCache,
@@ -917,125 +885,11 @@
             });
         });
         
-        ///////////////////////////////////////////////////////////////////////
-        // Cards:
+        // adds endpoints for managing cards
+        cardModule.setupEndpoints(app, cardSvc, sessWrap, audit);
         
-        var authGetCard = authUtils.middlewarify({cards: 'read'});
-        app.get('/api/content/card/:id', sessWrap, authGetCard, audit, function(req, res) {
-            cardSvc.getObjs({id: req.params.id}, req, false).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error retrieving card', detail: error });
-            });
-        });
-
-        app.get('/api/content/cards', sessWrap, authGetCard, audit, function(req, res) {
-            var query = {};
-            ['org', 'user', 'campaignId'].forEach(function(field) {
-                if (req.query[field]) {
-                    query[field] = String(req.query[field]);
-                }
-            });
-
-            cardSvc.getObjs(query, req, true).then(function(resp) {
-                if (resp.pagination) {
-                    res.header('content-range', 'items ' + resp.pagination.start + '-' +
-                                                resp.pagination.end + '/' + resp.pagination.total);
-
-                }
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error retrieving cards', detail: error });
-            });
-        });
-
-        var authPostCard = authUtils.middlewarify({cards: 'create'});
-        app.post('/api/content/card', sessWrap, authPostCard, audit, function(req, res) {
-            cardSvc.createObj(req).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error creating card', detail: error });
-            });
-        });
-
-        var authPutCard = authUtils.middlewarify({cards: 'edit'});
-        app.put('/api/content/card/:id', sessWrap, authPutCard, audit, function(req, res) {
-            cardSvc.editObj(req).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error updating card', detail: error });
-            });
-        });
-
-        var authDelCard = authUtils.middlewarify({cards: 'delete'});
-        app.delete('/api/content/card/:id', sessWrap, authDelCard, audit, function(req, res) {
-            cardSvc.deleteObj(req)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error deleting card', detail: error });
-            });
-        });
-        
-        ///////////////////////////////////////////////////////////////////////
-        // Categories
-        
-        var authGetCat = authUtils.middlewarify({categories: 'read'});
-        app.get('/api/content/category/:id', sessWrap, authGetCat, audit, function(req, res) {
-            catSvc.getObjs({id: req.params.id}, req, false).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error retrieving category', detail: error });
-            });
-        });
-
-        app.get('/api/content/categories', sessWrap, authGetCat, audit, function(req, res) {
-            var query = {};
-            if (req.query.name) {
-                query.name = String(req.query.name);
-            }
-
-            catSvc.getObjs(query, req, true).then(function(resp) {
-                if (resp.pagination) {
-                    res.header('content-range', 'items ' + resp.pagination.start + '-' +
-                                                resp.pagination.end + '/' + resp.pagination.total);
-
-                }
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error retrieving categories', detail: error });
-            });
-        });
-
-        var authPostCat = authUtils.middlewarify({categories: 'create'});
-        app.post('/api/content/category', sessWrap, authPostCat, audit, function(req, res) {
-            catSvc.createObj(req).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error creating category', detail: error });
-            });
-        });
-
-        var authPutCat = authUtils.middlewarify({categories: 'edit'});
-        app.put('/api/content/category/:id', sessWrap, authPutCat, audit, function(req, res) {
-            catSvc.editObj(req).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error updating category', detail: error });
-            });
-        });
-
-        var authDelCat = authUtils.middlewarify({categories: 'delete'});
-        app.delete('/api/content/category/:id', sessWrap, authDelCat, audit, function(req, res) {
-            catSvc.deleteObj(req)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error deleting category', detail: error });
-            });
-        });
-        
-        ///////////////////////////////////////////////////////////////////////
+        // adds endpoints for managing categories
+        categoryModule.setupEndpoints(app, catSvc, sessWrap, audit);
 
         app.get('/api/content/meta', function(req, res){
             var data = {

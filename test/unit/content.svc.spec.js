@@ -8,6 +8,8 @@ describe('content (UT)', function() {
         uuid            = require('../../lib/uuid');
         logger          = require('../../lib/logger');
         content         = require('../../bin/content');
+        cardModule      = require('../../bin/content-cards');
+        categoryModule  = require('../../bin/content-categories');
         CrudSvc         = require('../../lib/crudSvc');
         FieldValidator  = require('../../lib/fieldValidator');
         mongoUtils      = require('../../lib/mongoUtils');
@@ -36,12 +38,13 @@ describe('content (UT)', function() {
         req = {uuid: '1234'};
     });
     
+    //TODO: move these tests elsewhere?
     describe('setupCardSvc', function() {
         it('should setup the card service', function() {
             spyOn(FieldValidator, 'orgFunc').andCallThrough();
             spyOn(FieldValidator, 'userFunc').andCallThrough();
             var mockColl = { collectionName: 'cards' },
-                cardSvc = content.setupCardSvc(mockColl);
+                cardSvc = cardModule.setupCardSvc(mockColl);
             
             expect(cardSvc instanceof CrudSvc).toBe(true);
             expect(cardSvc._prefix).toBe('rc');
@@ -62,7 +65,7 @@ describe('content (UT)', function() {
     describe('setupCategorySvc', function() {
         it('should setup the category service', function() {
             var mockColl = { collectionName: 'categories' },
-                catSvc = content.setupCategorySvc(mockColl);
+                catSvc = categoryModule.setupCategorySvc(mockColl);
 
             expect(catSvc instanceof CrudSvc).toBe(true);
             expect(catSvc._prefix).toBe('cat');
