@@ -100,12 +100,8 @@ describe('siteSvc (UT)', function() {
                 }
             };
             var site = { a: 'b', org: 'o-1234' };
-            spyOn(FieldValidator, 'eqReqFieldFunc').andCallThrough();
-            spyOn(FieldValidator, 'scopeFunc').andCallThrough();
             
             expect(siteSvc.createValidator.validate(site, {}, requester)).toBe(true);
-            expect(FieldValidator.eqReqFieldFunc).toHaveBeenCalledWith('org');
-            expect(FieldValidator.scopeFunc).toHaveBeenCalledWith('sites', 'create', Scope.All);
             
             site.org = 'o-4567';
             expect(siteSvc.createValidator.validate(site, {}, requester)).toBe(false);
@@ -138,12 +134,8 @@ describe('siteSvc (UT)', function() {
                 }
             };
             var site = { a: 'b', org: 'o-1234' };
-            spyOn(FieldValidator, 'eqReqFieldFunc').andCallThrough();
-            spyOn(FieldValidator, 'scopeFunc').andCallThrough();
             
             expect(siteSvc.updateValidator.validate(site, {}, requester)).toBe(true);
-            expect(FieldValidator.eqReqFieldFunc).toHaveBeenCalledWith('org');
-            expect(FieldValidator.scopeFunc).toHaveBeenCalledWith('sites', 'edit', Scope.All);
             
             site.org = 'o-4567';
             expect(siteSvc.updateValidator.validate(site, {}, requester)).toBe(false);

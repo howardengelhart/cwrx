@@ -97,22 +97,14 @@
         forbidden: ['id', 'created'],
         condForbidden: {
             permissions: userSvc.permsCheck,
-            org:    function(user, orig, requester) {
-                        var eqFunc = FieldValidator.eqReqFieldFunc('org'),
-                            scopeFunc = FieldValidator.scopeFunc('users', 'create', Scope.All);
-                        return eqFunc(user, orig, requester) || scopeFunc(user, orig, requester);
-                    }
+            org: FieldValidator.orgFunc('users', 'create')
         }
     });
     userSvc.updateValidator = new FieldValidator({
         forbidden: ['id', 'password', 'created', '_id', 'email'],
         condForbidden: {
             permissions: userSvc.permsCheck,
-            org:    function(user, orig, requester) {
-                        var eqFunc = FieldValidator.eqReqFieldFunc('org'),
-                            scopeFunc = FieldValidator.scopeFunc('users', 'edit', Scope.All);
-                        return eqFunc(user, orig, requester) || scopeFunc(user, orig, requester);
-                    }
+            org: FieldValidator.orgFunc('users', 'edit')
         }
     });
 

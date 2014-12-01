@@ -383,13 +383,7 @@
 
     app.createValidator = new FieldValidator({
         forbidden: ['id', 'created'],
-        condForbidden: {
-            org:    function(elec, orig, requester) {
-                        var eqFunc = FieldValidator.eqReqFieldFunc('org'),
-                            scopeFunc = FieldValidator.scopeFunc('elections', 'create', Scope.All);
-                        return eqFunc(elec, orig, requester) || scopeFunc(elec, orig, requester);
-                    }
-        }
+        condForbidden: { org: FieldValidator.orgFunc('elections', 'create') }
     });
     app.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created', '_id'] });
 

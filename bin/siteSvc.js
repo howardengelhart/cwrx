@@ -52,26 +52,14 @@
 
     siteSvc.createValidator = new FieldValidator({
         forbidden: ['id', 'created'],
-        condForbidden: {
-            org:    function(site, orig, requester) {
-                        var eqFunc = FieldValidator.eqReqFieldFunc('org'),
-                            scopeFunc = FieldValidator.scopeFunc('sites', 'create', Scope.All);
-                        return eqFunc(site, orig, requester) || scopeFunc(site, orig, requester);
-                    }
-        }
+        condForbidden: { org: FieldValidator.orgFunc('sites', 'create') }
     });
     siteSvc.updateValidator = new FieldValidator({
         forbidden: ['id', 'created', '_id'],
-        condForbidden: {
-            org:    function(site, orig, requester) {
-                        var eqFunc = FieldValidator.eqReqFieldFunc('org'),
-                            scopeFunc = FieldValidator.scopeFunc('sites', 'edit', Scope.All);
-                        return eqFunc(site, orig, requester) || scopeFunc(site, orig, requester);
-                    }
-        }
+        condForbidden: { org: FieldValidator.orgFunc('sites', 'edit') }
     });
     
-    // Return true if host is a root followed by tld (with optional country-code extension)
+    // Return true if host is a valid hostname (just domains and subdomains)
     siteSvc.validateHost = function(host) {
         return !!host.match(/^([\w-]+\.)+[\w-]+$/);
     };

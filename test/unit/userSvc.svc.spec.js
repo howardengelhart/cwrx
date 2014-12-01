@@ -157,12 +157,8 @@ describe('userSvc (UT)', function() {
                 }
             };
             var user = { a: 'b', org: 'o-1234' };
-            spyOn(FieldValidator, 'eqReqFieldFunc').andCallThrough();
-            spyOn(FieldValidator, 'scopeFunc').andCallThrough();
             
             expect(userSvc.createValidator.validate(user, {}, requester)).toBe(true);
-            expect(FieldValidator.eqReqFieldFunc).toHaveBeenCalledWith('org');
-            expect(FieldValidator.scopeFunc).toHaveBeenCalledWith('users', 'create', Scope.All);
             
             user.org = 'o-4567';
             expect(userSvc.createValidator.validate(user, {}, requester)).toBe(false);
@@ -214,12 +210,8 @@ describe('userSvc (UT)', function() {
                 }
             };
             var user = { a: 'b', org: 'o-1234' };
-            spyOn(FieldValidator, 'eqReqFieldFunc').andCallThrough();
-            spyOn(FieldValidator, 'scopeFunc').andCallThrough();
             
             expect(userSvc.updateValidator.validate(user, {}, requester)).toBe(true);
-            expect(FieldValidator.eqReqFieldFunc).toHaveBeenCalledWith('org');
-            expect(FieldValidator.scopeFunc).toHaveBeenCalledWith('users', 'edit', Scope.All);
             
             user.org = 'o-4567';
             expect(userSvc.updateValidator.validate(user, {}, requester)).toBe(false);

@@ -147,12 +147,8 @@ describe('content (UT)', function() {
                 }
             };
             var exp = { a: 'b', org: 'o-1234' };
-            spyOn(FieldValidator, 'eqReqFieldFunc').andCallThrough();
-            spyOn(FieldValidator, 'scopeFunc').andCallThrough();
             
             expect(content.createValidator.validate(exp, {}, user)).toBe(true);
-            expect(FieldValidator.eqReqFieldFunc).toHaveBeenCalledWith('org');
-            expect(FieldValidator.scopeFunc).toHaveBeenCalledWith('experiences', 'create', Scope.All);
             
             exp.org = 'o-4567';
             expect(content.createValidator.validate(exp, {}, user)).toBe(false);

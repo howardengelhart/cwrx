@@ -108,12 +108,8 @@ describe('vote (UT)',function(){
                 }
             };
             var exp = { a: 'b', org: 'o-1234' };
-            spyOn(fv, 'eqReqFieldFunc').andCallThrough();
-            spyOn(fv, 'scopeFunc').andCallThrough();
             
             expect(app.createValidator.validate(exp, {}, user)).toBe(true);
-            expect(fv.eqReqFieldFunc).toHaveBeenCalledWith('org');
-            expect(fv.scopeFunc).toHaveBeenCalledWith('elections', 'create', Scope.All);
             
             exp.org = 'o-4567';
             expect(app.createValidator.validate(exp, {}, user)).toBe(false);

@@ -445,7 +445,7 @@ describe('CrudSvc', function() {
         
         it('should format the query and call coll.find', function(done) {
             svc.getObjs(query, req, false).then(function(resp) {
-                expect(resp).toEqual({code: 200, body: ['formatted']});
+                expect(resp).toEqual({code: 200, body: 'formatted'});
                 expect(svc.runMiddleware).toHaveBeenCalledWith(req, 'read', anyFunc);
                 expect(svc.runMiddleware.callCount).toBe(1);
                 expect(svc.userPermQuery).toHaveBeenCalledWith({ type: 'foo' }, { id: 'u1', org: 'o1' });
@@ -461,7 +461,7 @@ describe('CrudSvc', function() {
         it('should use defaults if some params are not defined', function(done) {
             req = { uuid: '1234', user: 'fakeUser' };
             svc.getObjs(query, req, false).then(function(resp) {
-                expect(resp).toEqual({code: 200, body: ['formatted']});
+                expect(resp).toEqual({code: 200, body: 'formatted'});
                 expect(mockColl.find).toHaveBeenCalledWith('userPermQuery', {sort: {}, limit: 0, skip: 0});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -471,7 +471,7 @@ describe('CrudSvc', function() {
         it('should just ignore the sort param if invalid', function(done) {
             req.query.sort = 'foo';
             svc.getObjs(query, req, false).then(function(resp) {
-                expect(resp).toEqual({code: 200, body: ['formatted']});
+                expect(resp).toEqual({code: 200, body: 'formatted'});
                 expect(mockColl.find).toHaveBeenCalledWith('userPermQuery', {sort: {}, limit: 20, skip: 10});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
