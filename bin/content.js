@@ -86,7 +86,7 @@
     ///////////////////////////////////////////////////////////////////////////
     // Cards:
     
-    content.setupCardSvc = function(cardColl) { //TODO: unit test
+    content.setupCardSvc = function(cardColl) {
         var cardSvc = new CrudSvc(cardColl, 'rc');
         cardSvc.createValidator._required.push('campaignId');
         cardSvc.createValidator._condForbidden.user = FieldValidator.userFunc('cards', 'create');
@@ -102,7 +102,6 @@
     // Categories:
     
     //TODO: decide on access control for categories. Should all be public to read?
-    //TODO: unit test
     content.setupCategorySvc = function(catColl) { //TODO: what should prefix be?
         var catSvc = new CrudSvc(catColl, 'cat', { userProp: false, orgProp: false });
         catSvc.createValidator._required.push('name');

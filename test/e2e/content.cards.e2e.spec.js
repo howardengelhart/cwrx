@@ -32,7 +32,7 @@ describe('content card endpoints (E2E):', function() {
                     }
                 }
             },
-            { //TODO: revisit?
+            {
                 id: 'admin-e2e-user',
                 status: 'active',
                 email : 'admine2euser',

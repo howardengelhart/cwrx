@@ -8,6 +8,8 @@ describe('content (UT)', function() {
         uuid            = require('../../lib/uuid');
         logger          = require('../../lib/logger');
         content         = require('../../bin/content');
+        CrudSvc         = require('../../lib/crudSvc');
+        FieldValidator  = require('../../lib/fieldValidator');
         mongoUtils      = require('../../lib/mongoUtils');
         objUtils        = require('../../lib/objUtils');
         q               = require('q');
@@ -32,6 +34,45 @@ describe('content (UT)', function() {
 
         experiences = {};
         req = {uuid: '1234'};
+    });
+    
+    describe('setupCardSvc', function() {
+        it('should setup the card service', function() {
+            spyOn(FieldValidator, 'orgFunc').andCallThrough();
+            spyOn(FieldValidator, 'userFunc').andCallThrough();
+            var mockColl = { collectionName: 'cards' },
+                cardSvc = content.setupCardSvc(mockColl);
+            
+            expect(cardSvc instanceof CrudSvc).toBe(true);
+            expect(cardSvc._prefix).toBe('rc');
+            expect(cardSvc.objName).toBe('cards');
+            expect(cardSvc._userProp).toBe(true);
+            expect(cardSvc._orgProp).toBe(true);
+            expect(cardSvc._coll).toBe(mockColl);
+            expect(cardSvc.createValidator._required).toContain('campaignId');
+            expect(Object.keys(cardSvc.createValidator._condForbidden)).toEqual(['user', 'org']);
+            expect(Object.keys(cardSvc.editValidator._condForbidden)).toEqual(['user', 'org']);
+            expect(FieldValidator.userFunc).toHaveBeenCalledWith('cards', 'create');
+            expect(FieldValidator.userFunc).toHaveBeenCalledWith('cards', 'edit');
+            expect(FieldValidator.orgFunc).toHaveBeenCalledWith('cards', 'create');
+            expect(FieldValidator.orgFunc).toHaveBeenCalledWith('cards', 'edit');
+        });
+    });
+    
+    describe('setupCategorySvc', function() {
+        it('should setup the category service', function() {
+            var mockColl = { collectionName: 'categories' },
+                catSvc = content.setupCategorySvc(mockColl);
+
+            expect(catSvc instanceof CrudSvc).toBe(true);
+            expect(catSvc._prefix).toBe('cat');
+            expect(catSvc.objName).toBe('categories');
+            expect(catSvc._userProp).toBe(false);
+            expect(catSvc._orgProp).toBe(false);
+            expect(catSvc._coll).toBe(mockColl);
+            expect(catSvc.createValidator._required).toContain('name');
+            expect(catSvc.editValidator._forbidden).toContain('name');
+        });
     });
 
     describe('getPublicExp', function() {
