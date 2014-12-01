@@ -617,7 +617,7 @@ describe('userSvc (UT)', function() {
             userSvc.createUser(req, userColl).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(400);
-                expect(resp.body).toEqual('Illegal fields');
+                expect(resp.body).toEqual('Invalid request body');
                 expect(userColl.findOne).toHaveBeenCalled();
                 expect(userSvc.createValidator.validate).toHaveBeenCalled();
                 expect(userColl.insert).not.toHaveBeenCalled();
@@ -791,7 +791,7 @@ describe('userSvc (UT)', function() {
             userSvc.updateUser(req, userColl).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(400);
-                expect(resp.body).toBe('Illegal fields');
+                expect(resp.body).toBe('Invalid request body');
                 expect(userColl.findOne).toHaveBeenCalled();
                 expect(userSvc.updateValidator.validate).toHaveBeenCalled();
                 expect(userColl.findAndModify).not.toHaveBeenCalled();

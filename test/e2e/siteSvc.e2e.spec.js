@@ -395,7 +395,7 @@ describe('site (E2E):', function() {
             mockSite.org = 'o-4567';
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('Illegal fields');
+                expect(resp.body).toBe('Invalid request body');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
@@ -536,7 +536,7 @@ describe('site (E2E):', function() {
             options.json.id = 'new-id';
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('Illegal fields');
+                expect(resp.body).toBe('Invalid request body');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);

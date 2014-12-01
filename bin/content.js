@@ -86,10 +86,12 @@
     ///////////////////////////////////////////////////////////////////////////
     // Cards:
     
-    content.setupCardSvc = function(cardColl) {
+    content.setupCardSvc = function(cardColl) { //TODO: unit test
         var cardSvc = new CrudSvc(cardColl, 'rc');
         cardSvc.createValidator._required.push('campaignId');
+        cardSvc.createValidator._condForbidden.user = FieldValidator.userFunc('cards', 'create');
         cardSvc.createValidator._condForbidden.org = FieldValidator.orgFunc('cards', 'create');
+        cardSvc.editValidator._condForbidden.user = FieldValidator.userFunc('cards', 'edit');
         cardSvc.editValidator._condForbidden.org = FieldValidator.orgFunc('cards', 'edit');
         //TODO: implement (and decide on...) public card endpoint
         
@@ -100,6 +102,7 @@
     // Categories:
     
     //TODO: decide on access control for categories. Should all be public to read?
+    //TODO: unit test
     content.setupCategorySvc = function(catColl) { //TODO: what should prefix be?
         var catSvc = new CrudSvc(catColl, 'cat', { userProp: false, orgProp: false });
         catSvc.createValidator._required.push('name');
@@ -114,14 +117,17 @@
     content.createValidator = new FieldValidator({
         forbidden: ['id', 'created'],
         condForbidden: {
-            user:   function(exp, orig, requester) {
-                        var scopeFunc = FieldValidator.scopeFunc('experiences','create',Scope.All);
-                        return requester.id === exp.user || scopeFunc(exp, orig, requester);
-                    },
+            user:   FieldValidator.userFunc('experiences', 'create'),
             org:    FieldValidator.orgFunc('experiences', 'create')
         }
     });
-    content.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created', '_id'] });
+    content.updateValidator = new FieldValidator({
+        forbidden: ['id', 'created', '_id'],
+        condForbidden: {
+            user:   FieldValidator.userFunc('experiences', 'edit'),
+            org:    FieldValidator.orgFunc('experiences', 'edit')
+        }
+    });
 
     // Find and parse the origin, storing useful properties on the request
     content.parseOrigin = function(req, siteExceptions) {
@@ -471,7 +477,7 @@
         if (!content.createValidator.validate(obj, {}, user)) {
             log.warn('[%1] experience contains illegal fields', req.uuid);
             log.trace('exp: %1  |  requester: %2', JSON.stringify(obj), JSON.stringify(user));
-            return q({code: 400, body: 'Illegal fields'});
+            return q({code: 400, body: 'Invalid request body'});
         }
 
         obj.id = 'e-' + uuid.createUuid().substr(0,14);
@@ -606,7 +612,7 @@
                 log.warn('[%1] updates contain illegal fields', req.uuid);
                 log.trace('exp: %1  |  orig: %2  |  requester: %3',
                           JSON.stringify(updates), JSON.stringify(orig), JSON.stringify(user));
-                return q({code: 400, body: 'Illegal fields'});
+                return q({code: 400, body: 'Invalid request body'});
             }
             if (!content.checkScope(user, orig, 'experiences', 'edit')) {
                 log.info('[%1] User %2 is not authorized to edit %3', req.uuid, user.id, id);

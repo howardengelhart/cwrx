@@ -580,7 +580,7 @@ describe('content (UT)', function() {
             content.updateValidator.validate.andReturn(false);
             content.updateExperience(req, experiences).then(function(resp) {
                 expect(resp.code).toBe(400);
-                expect(resp.body).toBe('Illegal fields');
+                expect(resp.body).toBe('Invalid request body');
                 expect(content.updateValidator.validate).toHaveBeenCalled();
                 expect(experiences.findAndModify).not.toHaveBeenCalled();
                 done();

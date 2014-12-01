@@ -622,11 +622,15 @@ describe('CrudSvc', function() {
     });
     
     describe('editObj', function() {
+        var origObj;
         beforeEach(function() {
             req.body = { name: 'foo' };
             req.params = { id: 't1' };
-            svc._middleware.edit = [jasmine.createSpy('fakeValidate')
-                                    .andCallFake(function(req, next, done) { next(); })];
+            origObj = { id: 't1', status: Status.Active };
+            svc._middleware.edit = [jasmine.createSpy('fakeValidate').andCallFake(function(req, next, done) {
+                req.origObj = origObj;
+                next();
+            })];
             mockColl.findAndModify.andCallFake(function(query, sort, obj, opts, cb) { cb(null, [{id: 't1', updated: true}]); });
         });
         
@@ -640,6 +644,17 @@ describe('CrudSvc', function() {
                 expect(mockColl.findAndModify).toHaveBeenCalledWith({id: 't1'}, {id: 1},
                     {$set: {lastUpdated: jasmine.any(Date), name: 'foo'}},{w:1,journal:true,new:true},anyFunc);
                 expect(svc.formatOutput).toHaveBeenCalledWith({ id: 't1', updated: true });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should not call mongo if the original object was deleted', function(done) {
+            origObj.status = Status.Deleted;
+            svc.editObj(req).then(function(resp) {
+                expect(resp).toEqual({code: 404, body: 'That does not exist'});
+                expect(svc._middleware.edit[0]).toHaveBeenCalled();
+                expect(mockColl.findAndModify).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);

@@ -556,7 +556,7 @@ describe('orgSvc (UT)', function() {
             orgSvc.createOrg(req, orgColl).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(400);
-                expect(resp.body).toEqual('Illegal fields');
+                expect(resp.body).toEqual('Invalid request body');
                 expect(orgColl.findOne).toHaveBeenCalled();
                 expect(orgSvc.createValidator.validate).toHaveBeenCalled();
                 expect(orgColl.insert).not.toHaveBeenCalled();
@@ -759,7 +759,7 @@ describe('orgSvc (UT)', function() {
             orgSvc.updateOrg(req, orgColl).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(400);
-                expect(resp.body).toBe('Illegal fields');
+                expect(resp.body).toBe('Invalid request body');
                 expect(orgColl.findOne).toHaveBeenCalled();
                 expect(orgSvc.updateValidator.validate).toHaveBeenCalled();
                 expect(orgColl.findAndModify).not.toHaveBeenCalled();

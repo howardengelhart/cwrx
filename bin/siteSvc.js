@@ -207,7 +207,7 @@
                 log.warn('[%1] newSite contains illegal fields', req.uuid);
                 log.trace('newSite: %1  |  requester: %2',
                           JSON.stringify(newSite), JSON.stringify(requester));
-                return q({code: 400, body: 'Illegal fields'});
+                return q({code: 400, body: 'Invalid request body'});
             }
             
             newSite = siteSvc.setupSite(newSite);
@@ -257,7 +257,7 @@
                 log.warn('[%1] Updates contain illegal fields', req.uuid);
                 log.trace('updates: %1  |  orig: %2  |  requester: %3', JSON.stringify(updates),
                           JSON.stringify(orig), JSON.stringify(requester));
-                return q({code: 400, body: 'Illegal fields'});
+                return q({code: 400, body: 'Invalid request body'});
             }
             
             if (updates.host) {

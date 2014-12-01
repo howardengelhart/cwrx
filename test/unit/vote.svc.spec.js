@@ -478,7 +478,7 @@ describe('vote (UT)',function(){
                 app.updateValidator.validate.andReturn(false);
                 app.updateElection(req, elections).then(function(resp) {
                     expect(resp.code).toBe(400);
-                    expect(resp.body).toBe('Illegal fields');
+                    expect(resp.body).toBe('Invalid request body');
                     expect(app.updateValidator.validate).toHaveBeenCalled();
                     expect(elections.findAndModify).not.toHaveBeenCalled();
                     done();
