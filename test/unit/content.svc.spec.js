@@ -51,6 +51,7 @@ describe('content (UT)', function() {
             expect(cardSvc.objName).toBe('cards');
             expect(cardSvc._userProp).toBe(true);
             expect(cardSvc._orgProp).toBe(true);
+            expect(cardSvc._allowPublic).toBe(true);
             expect(cardSvc._coll).toBe(mockColl);
             expect(cardSvc.createValidator._required).toContain('campaignId');
             expect(Object.keys(cardSvc.createValidator._condForbidden)).toEqual(['user', 'org']);
@@ -72,6 +73,7 @@ describe('content (UT)', function() {
             expect(catSvc.objName).toBe('categories');
             expect(catSvc._userProp).toBe(false);
             expect(catSvc._orgProp).toBe(false);
+            expect(catSvc._allowPublic).toBe(true);
             expect(catSvc._coll).toBe(mockColl);
             expect(catSvc.createValidator._required).toContain('name');
             expect(catSvc.editValidator._forbidden).toContain('name');

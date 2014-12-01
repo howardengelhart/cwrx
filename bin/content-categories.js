@@ -7,7 +7,7 @@
         categoryModule = {};
 
     categoryModule.setupCategorySvc = function(catColl) {
-        var catSvc = new CrudSvc(catColl, 'cat', { userProp: false, orgProp: false });
+        var catSvc = new CrudSvc(catColl, 'cat', {userProp:false, orgProp:false, allowPublic:true});
         catSvc.createValidator._required.push('name');
         catSvc.editValidator._forbidden.push('name');
         

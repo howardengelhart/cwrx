@@ -54,6 +54,7 @@ describe('CrudSvc', function() {
             expect(svc.objName).toBe('thangs');
             expect(svc._userProp).toBe(true);
             expect(svc._orgProp).toBe(true);
+            expect(svc._allowPublic).toBe(false);
             expect(svc.createValidator instanceof FieldValidator).toBe(true);
             expect(svc.createValidator._forbidden).toEqual(['id', 'created']);
             expect(svc.editValidator instanceof FieldValidator).toBe(true);
@@ -71,14 +72,17 @@ describe('CrudSvc', function() {
         });
         
         it('should allow setting various options', function() {
-            svc = new CrudSvc(mockColl, 't', {objName: 'bananas', userProp: false, orgProp: false});
+            var opts = {objName: 'bananas', userProp: false, orgProp: false, allowPublic: true}
+            svc = new CrudSvc(mockColl, 't', opts);
             expect(svc.objName).toBe('bananas');
             expect(svc._userProp).toBe(false);
             expect(svc._orgProp).toBe(false);
+            expect(svc._allowPublic).toBe(true);
             svc = new CrudSvc(mockColl, 't', {orgProp: false});
             expect(svc.objName).toBe('thangs');
             expect(svc._userProp).toBe(true);
             expect(svc._orgProp).toBe(false);
+            expect(svc._allowPublic).toBe(false);
         });
     });
     
@@ -137,7 +141,7 @@ describe('CrudSvc', function() {
         
         it('should check if the user owns the object if they have Scope.Own', function() {
             expect(svc.userPermQuery(query, user))
-                .toEqual({ type: 'foo', status: { $ne: Status.Deleted }, user: 'u-1' });
+                .toEqual({ type: 'foo', status: { $ne: Status.Deleted }, $or: [{user: 'u-1'}] });
         });
         
         it('should check if the org owns the object if they have Scope.Org', function() {
@@ -149,8 +153,14 @@ describe('CrudSvc', function() {
         it('should log a warning if the user has an invalid scope', function() {
             user.permissions.thangs.read = 'arghlblarghl';
             expect(svc.userPermQuery(query, user))
-                .toEqual({ type: 'foo', status: { $ne: Status.Deleted }, user: 'u-1' });
+                .toEqual({ type: 'foo', status: { $ne: Status.Deleted }, $or: [{user: 'u-1'}] });
             expect(mockLog.warn).toHaveBeenCalled();
+        });
+        
+        it('should let users view active objects if allowPublic is true', function() {
+            svc._allowPublic = true;
+            expect(svc.userPermQuery(query, user)).toEqual({ type: 'foo', status: { $ne: Status.Deleted },
+                                                             $or: [{user: 'u-1'}, {status: Status.Active}] });
         });
     });
     

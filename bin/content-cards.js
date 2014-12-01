@@ -10,7 +10,7 @@
     //TODO: maybe redo this modularizing in a more sensible way...
 
     cardModule.setupCardSvc = function(cardColl) {
-        var cardSvc = new CrudSvc(cardColl, 'rc');
+        var cardSvc = new CrudSvc(cardColl, 'rc', {allowPublic: true});
         cardSvc.createValidator._required.push('campaignId');
         cardSvc.createValidator._condForbidden.user = FieldValidator.userFunc('cards', 'create');
         cardSvc.createValidator._condForbidden.org = FieldValidator.orgFunc('cards', 'create');
