@@ -78,6 +78,47 @@ describe('content (UT)', function() {
             expect(catSvc.createValidator._required).toContain('name');
             expect(catSvc.editValidator._forbidden).toContain('name');
         });
+        
+        describe('adds middleware for createObj that', function() {
+            var midWare, catSvc, nextSpy, doneSpy, req;
+            beforeEach(function() {
+                var _use = CrudSvc.prototype.use,
+                    mockColl = { collectionName: 'categories' };
+
+                spyOn(CrudSvc.prototype, 'use').andCallFake(function(action, func) {
+                    midWare = func;
+                    _use.apply(this, arguments);
+                });
+                
+                catSvc = categoryModule.setupCategorySvc(mockColl);
+                nextSpy = jasmine.createSpy('next');
+                doneSpy = jasmine.createSpy('done');
+                req = { uuid: '1234',user: { id: 'u1', permissions: {} } };
+                expect(catSvc._middleware.create).toContain(midWare);
+            });
+            
+            it('should allow admins to create categories', function() {
+                expect(catSvc._middleware.create).toContain(midWare);
+                req.user.permissions.categories = { create: Scope.All };
+                midWare(req, nextSpy, doneSpy);
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+            });
+            
+            it('should prevent anyone else from creating categories', function() {
+                expect(catSvc._middleware.create).toContain(midWare);
+                midWare(req, nextSpy, doneSpy);
+                req.user.permissions.categories = {};
+                midWare(req, nextSpy, doneSpy);
+                req.user.permissions.categories = {create: Scope.Own};
+                midWare(req, nextSpy, doneSpy);
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy.calls.length).toBe(3);
+                doneSpy.calls.forEach(function(call) {
+                    expect(call.args).toEqual([{code: 403, body: 'Not authorized to create categories'}]);
+                });
+            });
+        });
     });
 
     describe('getPublicExp', function() {

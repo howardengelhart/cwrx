@@ -3,19 +3,36 @@
 
     var authUtils       = require('../lib/authUtils'),
         CrudSvc         = require('../lib/crudSvc'),
+        enums           = require('../lib/enums'),
+        logger          = require('../lib/logger'),
+        Scope           = enums.Scope,
 
         categoryModule = {};
 
     categoryModule.setupCategorySvc = function(catColl) {
-        var catSvc = new CrudSvc(catColl, 'cat', {userProp:false, orgProp:false, allowPublic:true});
+        var log = logger.getLog(),
+            catSvc = new CrudSvc(catColl, 'cat', {userProp:false, orgProp:false, allowPublic:true});
+            
         catSvc.createValidator._required.push('name');
         catSvc.editValidator._forbidden.push('name');
+        
+        // only allow admins to create categories
+        catSvc.use('create', function(req, next, done) {
+            if (!(req.user.permissions &&
+                  req.user.permissions.categories &&
+                  req.user.permissions.categories.create === Scope.All)) {
+                log.info('[%1] User %2 not authorized to create categories', req.uuid, req.user.id);
+                return done({code: 403, body: 'Not authorized to create categories'});
+            }
+            
+            next();
+        });
         
         return catSvc;
     };
 
     categoryModule.setupEndpoints = function(app, catSvc, sessions, audit) {
-        var authGetCat = authUtils.middlewarify({categories: 'read'});
+        var authGetCat = authUtils.middlewarify({});
         app.get('/api/content/category/:id', sessions, authGetCat, audit, function(req, res) {
             catSvc.getObjs({id: req.params.id}, req, false).then(function(resp) {
                 res.send(resp.code, resp.body);
