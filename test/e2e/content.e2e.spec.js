@@ -84,8 +84,7 @@ describe('content (E2E):', function() {
         beforeEach(function(done) {
             options = {
                 url: config.contentUrl + '/public/content/experience/e2e-pubget1',
-                headers: { origin: 'http://test.c6.com' },
-                qs: { context: 'embed', branding: 'reqBrand', placementId: '789', wildCardPlacement: '987' }
+                headers: { origin: 'http://test.c6.com' }
             };
             mockExps = [
                 {
@@ -128,6 +127,7 @@ describe('content (E2E):', function() {
         });
 
         it('should get an experience by id', function(done) {
+            options.qs = {context: 'embed', branding: 'reqBrand', placementId: '789', wildCardPlacement: '987'};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(typeof resp.body).toBe('object');
@@ -146,7 +146,7 @@ describe('content (E2E):', function() {
         });
 
         it('should overwrite the existing mode if the context is mr2', function(done) {
-            options.qs.context = 'mr2';
+            options.qs = {context: 'mr2', branding: 'reqBrand', placementId: '789', wildCardPlacement: '987'};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body._id).not.toBeDefined();
@@ -184,8 +184,8 @@ describe('content (E2E):', function() {
         });
 
         it('should use the request config props if not on the exp', function(done) {
+            options.qs = {context: 'embed', branding: 'reqBrand', placementId: '789', wildCardPlacement: '987'};
             options.url = options.url.replace('e2e-pubget1', 'e2e-org-adConfig');
-            options.qs.context = 'mr2';
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.id).toBe('e2e-org-adConfig');
