@@ -17,7 +17,7 @@
         service         = require('../lib/service'),
         enums           = require('../lib/enums'),
         cardModule      = require('./content-cards'),
-        categoryModule  = require('./content-categories'),
+        catModule  = require('./content-categories'),
         Status          = enums.Status,
         Access          = enums.Access,
         Scope           = enums.Scope,
@@ -674,7 +674,7 @@
             orgs         = state.dbs.c6Db.collection('orgs'),
             sites        = state.dbs.c6Db.collection('sites'),
             cardSvc      = cardModule.setupCardSvc(state.dbs.c6Db.collection('cards')),
-            catSvc       = categoryModule.setupCategorySvc(state.dbs.c6Db.collection('categories')),
+            catSvc       = catModule.setupCatSvc(state.dbs.c6Db.collection('categories')),
             expTTLs      = state.config.cacheTTLs.experiences,
             expCache     = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences),
             orgTTLs      = state.config.cacheTTLs.orgs,
@@ -889,7 +889,7 @@
         cardModule.setupEndpoints(app, cardSvc, sessWrap, audit);
         
         // adds endpoints for managing categories
-        categoryModule.setupEndpoints(app, catSvc, sessWrap, audit);
+        catModule.setupEndpoints(app, catSvc, sessWrap, audit);
 
         app.get('/api/content/meta', function(req, res){
             var data = {

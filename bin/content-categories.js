@@ -7,9 +7,9 @@
         logger          = require('../lib/logger'),
         Scope           = enums.Scope,
 
-        categoryModule = {};
+        catModule = {};
 
-    categoryModule.setupCategorySvc = function(catColl) {
+    catModule.setupCatSvc = function(catColl) {
         var log = logger.getLog(),
             catSvc = new CrudSvc(catColl, 'cat', {userProp:false, orgProp:false, allowPublic:true});
             
@@ -31,7 +31,7 @@
         return catSvc;
     };
 
-    categoryModule.setupEndpoints = function(app, catSvc, sessions, audit) {
+    catModule.setupEndpoints = function(app, catSvc, sessions, audit) {
         var authGetCat = authUtils.middlewarify({});
         app.get('/api/content/category/:id', sessions, authGetCat, audit, function(req, res) {
             catSvc.getObjs({id: req.params.id}, req, false).then(function(resp) {
@@ -88,5 +88,5 @@
         });
     };
         
-    module.exports = categoryModule;
+    module.exports = catModule;
 }());

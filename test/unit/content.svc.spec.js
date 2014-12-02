@@ -9,7 +9,7 @@ describe('content (UT)', function() {
         logger          = require('../../lib/logger');
         content         = require('../../bin/content');
         cardModule      = require('../../bin/content-cards');
-        categoryModule  = require('../../bin/content-categories');
+        catModule  = require('../../bin/content-categories');
         CrudSvc         = require('../../lib/crudSvc');
         FieldValidator  = require('../../lib/fieldValidator');
         mongoUtils      = require('../../lib/mongoUtils');
@@ -41,6 +41,7 @@ describe('content (UT)', function() {
     //TODO: move these tests elsewhere?
     describe('setupCardSvc', function() {
         it('should setup the card service', function() {
+            spyOn(CrudSvc.prototype.preventGetAll, 'bind').andReturn(CrudSvc.prototype.preventGetAll);
             spyOn(FieldValidator, 'orgFunc').andCallThrough();
             spyOn(FieldValidator, 'userFunc').andCallThrough();
             var mockColl = { collectionName: 'cards' },
@@ -60,13 +61,14 @@ describe('content (UT)', function() {
             expect(FieldValidator.userFunc).toHaveBeenCalledWith('cards', 'edit');
             expect(FieldValidator.orgFunc).toHaveBeenCalledWith('cards', 'create');
             expect(FieldValidator.orgFunc).toHaveBeenCalledWith('cards', 'edit');
+            expect(cardSvc._middleware.read).toContain(CrudSvc.prototype.preventGetAll);
         });
     });
     
-    describe('setupCategorySvc', function() {
+    describe('setupCatSvc', function() {
         it('should setup the category service', function() {
             var mockColl = { collectionName: 'categories' },
-                catSvc = categoryModule.setupCategorySvc(mockColl);
+                catSvc = catModule.setupCatSvc(mockColl);
 
             expect(catSvc instanceof CrudSvc).toBe(true);
             expect(catSvc._prefix).toBe('cat');
@@ -90,7 +92,7 @@ describe('content (UT)', function() {
                     _use.apply(this, arguments);
                 });
                 
-                catSvc = categoryModule.setupCategorySvc(mockColl);
+                catSvc = catModule.setupCatSvc(mockColl);
                 nextSpy = jasmine.createSpy('next');
                 doneSpy = jasmine.createSpy('done');
                 req = { uuid: '1234',user: { id: 'u1', permissions: {} } };

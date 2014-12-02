@@ -16,6 +16,7 @@
         cardSvc.createValidator._condForbidden.org = FieldValidator.orgFunc('cards', 'create');
         cardSvc.editValidator._condForbidden.user = FieldValidator.userFunc('cards', 'edit');
         cardSvc.editValidator._condForbidden.org = FieldValidator.orgFunc('cards', 'edit');
+        cardSvc.use('read', cardSvc.preventGetAll.bind(cardSvc));
         //TODO: implement (and decide on...) public card endpoint
         
         return cardSvc;

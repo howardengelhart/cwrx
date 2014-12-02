@@ -161,6 +161,8 @@ describe('CrudSvc', function() {
             svc._allowPublic = true;
             expect(svc.userPermQuery(query, user)).toEqual({ type: 'foo', status: { $ne: Status.Deleted },
                                                              $or: [{user: 'u-1'}, {status: Status.Active}] });
+            user.permissions = {};
+            expect(svc.userPermQuery(query, user)).toEqual({ type: 'foo', status: Status.Active });
         });
     });
     
@@ -248,7 +250,7 @@ describe('CrudSvc', function() {
         });
     });
     
-    describe('_checkExisting', function() {
+    describe('checkExisting', function() {
         var next, doneSpy, reject;
         beforeEach(function() {
             mockColl.findOne.andCallFake(function(query, cb) { cb(null, 'origObject'); });
@@ -322,6 +324,44 @@ describe('CrudSvc', function() {
                 expect(svc.checkScope).not.toHaveBeenCalled();
                 done();
             });
+        });
+    });
+    
+    describe('preventGetAll', function() {
+        var req, nextSpy, doneSpy;
+        beforeEach(function() {
+            req = { uuid: '1234', _query: {}, user: { id: 'u1', permissions: {} } };
+            nextSpy = jasmine.createSpy('next');
+            doneSpy = jasmine.createSpy('done');
+        });
+
+        it('should prevent non-admins from querying with #nofilter', function() {
+            svc.preventGetAll(req, nextSpy, doneSpy);
+            req.user.permissions.thangs = {};
+            svc.preventGetAll(req, nextSpy, doneSpy);
+            req.user.permissions.thangs.read = Scope.Own;
+            svc.preventGetAll(req, nextSpy, doneSpy);
+            expect(nextSpy).not.toHaveBeenCalled();
+            expect(doneSpy.calls.length).toBe(3);
+            doneSpy.calls.forEach(function(call) {
+                expect(call.args).toEqual([{code: 403, body: 'Not authorized to read all thangs'}]);
+            });
+        });
+        
+        it('should allow admins to query with #nofilter', function() {
+            req.user.permissions.thangs = { read: Scope.All };
+            svc.preventGetAll(req, nextSpy, doneSpy);
+            expect(nextSpy).toHaveBeenCalled();
+            expect(doneSpy).not.toHaveBeenCalled();
+        });
+        
+        it('should let anyone query with a filter', function() {
+            req._query.selfie = 'hawt';
+            svc.preventGetAll(req, nextSpy, doneSpy);
+            req.user.permissions.thangs = { read: Scope.All };
+            svc.preventGetAll(req, nextSpy, doneSpy);
+            expect(nextSpy.calls.length).toBe(2);
+            expect(doneSpy).not.toHaveBeenCalled();
         });
     });
     
@@ -528,13 +568,23 @@ describe('CrudSvc', function() {
             }).done(done);
         });
         
-        it('should return a 404 if nothing was found', function(done) {
+        it('should return a 404 if nothing was found and multiGet is false', function(done) {
+            fakeCursor.toArray.andCallFake(function(cb) { cb(null, []); });
+            svc.getObjs(query, req, false).then(function(resp) {
+                expect(resp).toEqual({code: 404, body: 'No thangs found'});
+                expect(fakeCursor.toArray).toHaveBeenCalled();
+                expect(fakeCursor.count).not.toHaveBeenCalled();
+                expect(svc.formatOutput).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a 200 and [] if nothing was found and multiGet is true', function(done) {
             fakeCursor.toArray.andCallFake(function(cb) { cb(null, []); });
             fakeCursor.count.andCallFake(function(cb) { cb(null, 0); });
             svc.getObjs(query, req, true).then(function(resp) {
-                expect(resp).toEqual({code: 404, body: 'No thangs found', pagination: {start: 0, end: 0, total: 0}});
-                expect(resp.body).toEqual('No thangs found');
-                expect(resp.pagination).toEqual({start: 0, end: 0, total: 0});
+                expect(resp).toEqual({code: 200, body: [], pagination: {start: 0, end: 0, total: 0}});
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(fakeCursor.count).toHaveBeenCalled();
                 expect(svc.formatOutput).not.toHaveBeenCalled();

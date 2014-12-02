@@ -293,8 +293,8 @@ describe('content card endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-
-       it('should let a user get active cards they do not own', function(done) {
+        
+        it('should let a user get active cards they do not own', function(done) {
             options.qs.campaignId = 'cam-345';
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -302,6 +302,16 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.body.length).toBe(1);
                 expect(resp.body[0].id).toBe('e2e-getquery3');
                 expect(resp.response.headers['content-range']).toBe('items 1-1/1');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should not allow non-admins to retrieve all experiences', function(done) {
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(403);
+                expect(resp.body).toBe('Not authorized to read all cards');
+                expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
@@ -332,11 +342,11 @@ describe('content card endpoints (E2E):', function() {
             }).done(done);
         });
 
-        it('should return a 404 if nothing is found', function(done) {
+        it('should return a 200 and [] if nothing is found', function(done) {
             options.qs.user = 'hamboneHarry';
             requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toEqual('No cards found');
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([]);
                 expect(resp.response.headers['content-range']).toBe('items 0-0/0');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -370,8 +380,8 @@ describe('content card endpoints (E2E):', function() {
             options.url = config.contentUrl + '/content/cards?user[$gt]=';
             delete options.qs;
             requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toEqual('No cards found');
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([]);
                 expect(resp.response.headers['content-range']).toBe('items 0-0/0');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();

@@ -814,34 +814,6 @@ describe('content experience endpoints (E2E):', function() {
             }).done(done);
         });
 
-        it('should allow an admin to see any non-deleted experience', function(done) {
-            var loginOpts = {
-                url: config.authUrl + '/auth/login',
-                json: {email: 'admine2euser', password: 'password'},
-                jar: cookieJar
-            };
-            requestUtils.qRequest('post', loginOpts).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                var options = {
-                    url: config.contentUrl + '/content/experiences?type=foo&sort=id,1',
-                    jar: cookieJar
-                };
-                return requestUtils.qRequest('get', options);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body instanceof Array).toBeTruthy('body is array');
-                expect(resp.body.length).toBe(4);
-                expect(resp.body[0].id).toBe('e2e-getquery1');
-                expect(resp.body[1].id).toBe('e2e-getquery3');
-                expect(resp.body[2].id).toBe('e2e-getquery4');
-                expect(resp.body[3].id).toBe('e2e-getquery5');
-                expect(resp.response.headers['content-range']).toBe('items 1-4/4');
-                delete cookieJar.cookies; // force reset and re-login of mockRequester in beforeEach
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-            }).done(done);
-        });
-
         it('should return a 200 and empty array if nothing is found', function(done) {
             var options = {
                 url: config.contentUrl + '/content/experiences?user=hamboneHarry',
