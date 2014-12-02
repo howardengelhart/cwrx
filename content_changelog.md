@@ -1,5 +1,9 @@
 # Content Service Changelog
 
+### 1.13.4: Tue Dec  2 17:33:57 EST 2014
+* [FIX]: Always take branding + placements from query params, regardless of context: [#338](https://github.com/cinema6/cwrx/pull/338)
+* Extra deployment steps: Deploy new content cookbook
+
 ### 1.13.3: Wed Nov 12 16:35:55 EST 2014
 * [FIX]: Remove default values for site exceptions: [#326](https://github.com/cinema6/cwrx/pull/326)
 * Extra deployment steps: Deploy new content cookbook

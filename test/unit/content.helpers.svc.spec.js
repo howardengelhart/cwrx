@@ -569,6 +569,18 @@ describe('content (UT)', function() {
             }).done(done);
         });
         
+        it('should return the queryParam properties if defined', function(done) {
+            content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            .then(function(exp) {
+                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar',
+                                    branding: 'widgetBrand', placementId: 123, wildCardPlacement: 321 }});
+                expect(siteCache.getPromise).not.toHaveBeenCalled();
+                expect(orgCache.getPromise).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
         it('should overwrite the existing mode if the context is mr2', function(done) {
             queryParams.context = 'mr2';
             exp.data = { branding: 'expBranding', placementId: 234, wildCardPlacement: 543, mode: 'not-lightbox' };
@@ -576,19 +588,6 @@ describe('content (UT)', function() {
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {branding: 'expBranding', placementId: 234,
                                      wildCardPlacement: 543, mode: 'lightbox'}});
-                expect(siteCache.getPromise).not.toHaveBeenCalled();
-                expect(orgCache.getPromise).not.toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should return the queryParam properties if the context is mr2', function(done) {
-            queryParams.context = 'mr2';
-            content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
-            .then(function(exp) {
-                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', mode: 'lightbox',
-                                    branding: 'widgetBrand', placementId: 123, wildCardPlacement: 321 }});
                 expect(siteCache.getPromise).not.toHaveBeenCalled();
                 expect(orgCache.getPromise).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -611,7 +610,7 @@ describe('content (UT)', function() {
         });
         
         it('should fall back on the site\'s config', function(done) {
-            queryParams.context = 'embed';
+            queryParams = {};
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar',
@@ -625,7 +624,7 @@ describe('content (UT)', function() {
         });
         
         it('should not try to get the site if the host is not defined', function(done) {
-            queryParams.context = 'embed';
+            queryParams = {};
             content.chooseSite.andReturn(null);
             content.getSiteConfig(exp, 'o-1', queryParams, '', siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
@@ -640,7 +639,7 @@ describe('content (UT)', function() {
         });
         
         it('should next fall back to the org\'s config', function(done) {
-            queryParams.context = 'embed';
+            queryParams = {};
             content.chooseSite.andReturn(null);
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
@@ -655,7 +654,7 @@ describe('content (UT)', function() {
         });
         
         it('should handle the site object not having necessary props', function(done) {
-            queryParams.context = 'embed';
+            queryParams = {};
             content.chooseSite.andReturn([{id: 's-1'}]);
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
@@ -668,7 +667,7 @@ describe('content (UT)', function() {
         });
 
         it('should use the default config as a last resort', function(done) {
-            queryParams.context = 'embed';
+            queryParams = {};
             content.chooseSite.andReturn(null);
             orgCache.getPromise.andReturn(q([]));
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
@@ -682,7 +681,7 @@ describe('content (UT)', function() {
         });
         
         it('should handle the org object not having a branding', function(done) {
-            queryParams.context = 'embed';
+            queryParams = {};
             content.chooseSite.andReturn(null);
             orgCache.getPromise.andReturn(q([{id: 'o-1'}]));
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
@@ -696,7 +695,7 @@ describe('content (UT)', function() {
         });
         
         it('should not use the org if it is not active', function(done) {
-            queryParams.context = 'embed';
+            queryParams = {};
             content.chooseSite.andReturn(null);
             mockOrg.status = Status.Deleted;
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
@@ -711,7 +710,7 @@ describe('content (UT)', function() {
         
         it('should be able to get props from different sources', function(done) {
             exp.data.branding = 'expBranding';
-            queryParams.context = 'embed';
+            queryParams = {};
             content.chooseSite.andReturn({id :'w-1', wildCardPlacement: 876});
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
@@ -724,7 +723,7 @@ describe('content (UT)', function() {
         });
         
         it('should reject if siteCache.getPromise returns a rejected promise', function(done) {
-            queryParams.context = 'embed';
+            queryParams = {};
             siteCache.getPromise.andReturn(q.reject('I GOT A PROBLEM'));
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
@@ -736,7 +735,7 @@ describe('content (UT)', function() {
         });
 
         it('should reject if orgCache.getPromise returns a rejected promise', function(done) {
-            queryParams.context = 'embed';
+            queryParams = {};
             content.chooseSite.andReturn(null);
             orgCache.getPromise.andReturn(q.reject('I GOT A PROBLEM'));
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
