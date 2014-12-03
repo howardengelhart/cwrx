@@ -229,6 +229,21 @@ describe('content experience endpoints (E2E):', function() {
             }).done(done);
         });
         
+        it('should still use the veeseo site even if there\'s no origin', function(done) {
+            delete options.headers;
+            options.qs = { container: 'veeseo' };
+            options.url = options.url.replace('e2e-pubget1', 'e2e-org-adConfig');
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toBe('e2e-org-adConfig');
+                expect(resp.body.data.branding).toBe('veeseoBrand');
+                expect(resp.body.data.placementId).toBe('159');
+                expect(resp.body.data.wildCardPlacement).toBe('951');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+        
         it('should be able to use localhost as a site', function(done) {
             options.url = options.url.replace('e2e-pubget1', 'e2e-org-adConfig');
             options.headers.origin = 'http://localhost:9000';
