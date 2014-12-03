@@ -407,6 +407,19 @@ describe('content category endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
+        
+        it('should not allow creating a category with a duplicate name', function(done) {
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body.name).toBe('snuffles');
+                return requestUtils.qRequest('post', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(409);
+                expect(resp.body).toBe('A category with that name already exists');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
 
         it('should not allow non-admins to create categories', function(done) {
             q.all([e2eUserJar, somePermsJar].map(function(jar) {

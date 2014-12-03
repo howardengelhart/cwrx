@@ -1,6 +1,6 @@
 var flush = true;
 describe('content (UT)', function() {
-    var mockLog, mockLogger, experiences, req, uuid, logger, content, q, objUtils,
+    var mockLog, experiences, req, uuid, logger, content, q, objUtils,
         mongoUtils, enums, Status, Scope, Access;
 
     beforeEach(function() {
@@ -8,10 +8,6 @@ describe('content (UT)', function() {
         uuid            = require('../../lib/uuid');
         logger          = require('../../lib/logger');
         content         = require('../../bin/content');
-        cardModule      = require('../../bin/content-cards');
-        catModule  = require('../../bin/content-categories');
-        CrudSvc         = require('../../lib/crudSvc');
-        FieldValidator  = require('../../lib/fieldValidator');
         mongoUtils      = require('../../lib/mongoUtils');
         objUtils        = require('../../lib/objUtils');
         q               = require('q');
@@ -38,91 +34,6 @@ describe('content (UT)', function() {
         req = {uuid: '1234'};
     });
     
-    //TODO: move these tests elsewhere?
-    describe('setupCardSvc', function() {
-        it('should setup the card service', function() {
-            spyOn(CrudSvc.prototype.preventGetAll, 'bind').andReturn(CrudSvc.prototype.preventGetAll);
-            spyOn(FieldValidator, 'orgFunc').andCallThrough();
-            spyOn(FieldValidator, 'userFunc').andCallThrough();
-            var mockColl = { collectionName: 'cards' },
-                cardSvc = cardModule.setupCardSvc(mockColl);
-            
-            expect(cardSvc instanceof CrudSvc).toBe(true);
-            expect(cardSvc._prefix).toBe('rc');
-            expect(cardSvc.objName).toBe('cards');
-            expect(cardSvc._userProp).toBe(true);
-            expect(cardSvc._orgProp).toBe(true);
-            expect(cardSvc._allowPublic).toBe(true);
-            expect(cardSvc._coll).toBe(mockColl);
-            expect(cardSvc.createValidator._required).toContain('campaignId');
-            expect(Object.keys(cardSvc.createValidator._condForbidden)).toEqual(['user', 'org']);
-            expect(Object.keys(cardSvc.editValidator._condForbidden)).toEqual(['user', 'org']);
-            expect(FieldValidator.userFunc).toHaveBeenCalledWith('cards', 'create');
-            expect(FieldValidator.userFunc).toHaveBeenCalledWith('cards', 'edit');
-            expect(FieldValidator.orgFunc).toHaveBeenCalledWith('cards', 'create');
-            expect(FieldValidator.orgFunc).toHaveBeenCalledWith('cards', 'edit');
-            expect(cardSvc._middleware.read).toContain(CrudSvc.prototype.preventGetAll);
-        });
-    });
-    
-    describe('setupCatSvc', function() {
-        it('should setup the category service', function() {
-            var mockColl = { collectionName: 'categories' },
-                catSvc = catModule.setupCatSvc(mockColl);
-
-            expect(catSvc instanceof CrudSvc).toBe(true);
-            expect(catSvc._prefix).toBe('cat');
-            expect(catSvc.objName).toBe('categories');
-            expect(catSvc._userProp).toBe(false);
-            expect(catSvc._orgProp).toBe(false);
-            expect(catSvc._allowPublic).toBe(true);
-            expect(catSvc._coll).toBe(mockColl);
-            expect(catSvc.createValidator._required).toContain('name');
-            expect(catSvc.editValidator._forbidden).toContain('name');
-        });
-        
-        describe('adds middleware for createObj that', function() {
-            var midWare, catSvc, nextSpy, doneSpy, req;
-            beforeEach(function() {
-                var _use = CrudSvc.prototype.use,
-                    mockColl = { collectionName: 'categories' };
-
-                spyOn(CrudSvc.prototype, 'use').andCallFake(function(action, func) {
-                    midWare = func;
-                    _use.apply(this, arguments);
-                });
-                
-                catSvc = catModule.setupCatSvc(mockColl);
-                nextSpy = jasmine.createSpy('next');
-                doneSpy = jasmine.createSpy('done');
-                req = { uuid: '1234',user: { id: 'u1', permissions: {} } };
-                expect(catSvc._middleware.create).toContain(midWare);
-            });
-            
-            it('should allow admins to create categories', function() {
-                expect(catSvc._middleware.create).toContain(midWare);
-                req.user.permissions.categories = { create: Scope.All };
-                midWare(req, nextSpy, doneSpy);
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-            });
-            
-            it('should prevent anyone else from creating categories', function() {
-                expect(catSvc._middleware.create).toContain(midWare);
-                midWare(req, nextSpy, doneSpy);
-                req.user.permissions.categories = {};
-                midWare(req, nextSpy, doneSpy);
-                req.user.permissions.categories = {create: Scope.Own};
-                midWare(req, nextSpy, doneSpy);
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy.calls.length).toBe(3);
-                doneSpy.calls.forEach(function(call) {
-                    expect(call.args).toEqual([{code: 403, body: 'Not authorized to create categories'}]);
-                });
-            });
-        });
-    });
-
     describe('getPublicExp', function() {
         var id, req, expCache, orgCache, siteCache, pubList, siteCfg;
         beforeEach(function() {

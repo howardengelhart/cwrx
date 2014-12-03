@@ -1,7 +1,8 @@
 (function(){
     'use strict';
 
-    var authUtils       = require('../lib/authUtils'),
+    var q               = require('q'),
+        authUtils       = require('../lib/authUtils'),
         CrudSvc         = require('../lib/crudSvc'),
         enums           = require('../lib/enums'),
         logger          = require('../lib/logger'),
@@ -10,25 +11,42 @@
         catModule = {};
 
     catModule.setupCatSvc = function(catColl) {
-        var log = logger.getLog(),
-            catSvc = new CrudSvc(catColl, 'cat', {userProp:false, orgProp:false, allowPublic:true});
+        var catSvc = new CrudSvc(catColl, 'cat', {userProp:false, orgProp:false, allowPublic:true});
             
         catSvc.createValidator._required.push('name');
         catSvc.editValidator._forbidden.push('name');
         
-        // only allow admins to create categories
-        catSvc.use('create', function(req, next, done) {
-            if (!(req.user.permissions &&
-                  req.user.permissions.categories &&
-                  req.user.permissions.categories.create === Scope.All)) {
-                log.info('[%1] User %2 not authorized to create categories', req.uuid, req.user.id);
-                return done({code: 403, body: 'Not authorized to create categories'});
+        catSvc.use('create', catModule.adminsCreateCats);
+        catSvc.use('create', catModule.checkUniqueName.bind(catModule, catSvc));
+        
+        return catSvc;
+    };
+
+    // only allow admins to create categories
+    catModule.adminsCreateCats = function(req, next, done) {
+        var log = logger.getLog();
+        if (!(req.user.permissions &&
+              req.user.permissions.categories &&
+              req.user.permissions.categories.create === Scope.All)) {
+            log.info('[%1] User %2 not authorized to create categories', req.uuid, req.user.id);
+            return done({code: 403, body: 'Not authorized to create categories'});
+        }
+        
+        next();
+    };
+    
+    // ensure that the name in the request body is not used by any other categories
+    catModule.checkUniqueName = function(svc, req, next, done) {
+        var log = logger.getLog();
+            
+        return q.npost(svc._coll, 'findOne', [{name: req.body.name}]).then(function(cat) {
+            if (cat) {
+                log.info('[%1] Category %2 already has name %3', req.uuid, cat.id, req.body.name);
+                return done({code: 409, body: 'A category with that name already exists'});
             }
             
             next();
         });
-        
-        return catSvc;
     };
 
     catModule.setupEndpoints = function(app, catSvc, sessions, audit) {
