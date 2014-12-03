@@ -12,7 +12,7 @@
         journal         = require('../lib/journal'),
         service         = require('../lib/service'),
         util            = require('util'),
-        
+
         state   = {},
         search  = {}; // for exporting functions to unit tests
 
@@ -54,7 +54,7 @@
             }
         }
     };
-    
+
     // Parse a duration string and return the total number of seconds
     search.parseDuration = function(dur, link) {
         var log = logger.getLog(),
@@ -67,33 +67,33 @@
                 { rgx: /T.*?(\d+\.?\d*)M/,    yrgx: /T.*?M(\d+\.?\d*)/,    factor: 60 },
                 { rgx: /(\d+\.?\d*)S/,        yrgx: /S(\d+\.?\d*)/,        factor: 1 },
             ];
-        
+
         if (!dur) {
             log.info('Video %1 has no duration', link); // AOL vids have no duration, for example
             return undefined;
         }
 
         dur = dur.trim();
-        
+
         // some vimeo vids have durs like '90 mins'
         if (dur.match(/^\d+ mins/)) {
             return Number(dur.match(/^\d+/)[0])*60;
         }
-        
+
         // Yahoo incorrectly implements ISO 8601 duration format, so need different regexes
         if (dur.match(/^P([A-S,U-Z]\d+\.?\d*)*T?([A-S,U-Z]\d+\.?\d*)*$/)) {
             isYahoo = true;
-        } else if (!dur.match(/^P(\d+\.?\d*[A-S,U-Z])*T?(\d+\.?\d*[A-S,U-Z])*$/)) {
+        } else if (!dur.match(/^P?(\d+\.?\d*[A-S,U-Z])*T?(\d+\.?\d*[A-S,U-Z])*$/)) {
             log.warn('Video %1 has unknown duration format %2', link, dur);
             return undefined;
         }
-        
+
         return timeParts.reduce(function(total, part) {
             var regex = isYahoo ? part.yrgx : part.rgx;
             return total += part.factor * Number( ( dur.match(regex) || [0, 0] )[1] );
         }, 0);
     };
-    
+
     // Properly format results returned from findVideosWithGoogle
     search.formatGoogleResults = function(stats, items) {
         var log = logger.getLog();
@@ -104,7 +104,7 @@
                 totalResults    : stats.totalResults
             }
         };
-        
+
         items = items || [];
 
         respObj.items = items.map(function(item) {
@@ -126,13 +126,13 @@
                 duration    : search.parseDuration(item.pagemap.videoobject[0].duration, item.link)
             };
             /*jshint camelcase: true */
-            
+
             if (formatted.site.match('aol')) { // Transform 'on.aol' to just 'aol'
                 formatted.site = 'aol';
             } else if (formatted.site.match('yahoo')) { // Transform 'screen.yahoo' to just 'yahoo'
                 formatted.site = 'yahoo';
             }
-            
+
             switch (formatted.site) {
                 case 'youtube':
                     formatted.videoid = (item.link.match(/[^\=]+$/) || [])[0];
@@ -149,16 +149,19 @@
                 case 'yahoo':
                     formatted.videoid = (item.link.match(/[^\/]+(?=(\.html))/) || [])[0];
                     break;
+                case 'rumble':
+                    formatted.videoid = (item.link.match(/[^\/]+(?=(\.html))/) || [])[0];
+                    break;
             }
-            
+
             return formatted;
         }).filter(function(item) {
             return !!item;
         });
-        
+
         return respObj;
     };
-    
+
     // Use req params to find videos using Google's Custom Search API.
     search.findVideosWithGoogle = function(req, opts, googleCfg, apiKey) {
         var log = logger.getLog(),
@@ -188,13 +191,13 @@
                 'Referer' : 'https://portal.cinema6.com/index.html'
             }
         };
-        
+
         if (opts.hd === 'true') {
             reqOpts.qs.sort = 'videoobject-height:r:720';
         } else if (opts.hd === 'false') {
             reqOpts.qs.sort = 'videoobject-height:r::719';
         }
-        
+
         (function tryRequest(retried) {
             return requestUtils.qRequest('get', reqOpts)
             .then(function(resp) {
@@ -205,7 +208,7 @@
                     return q.reject('Received incomplete response body from google: ' +
                                     util.inspect(resp.body));
                 }
-                
+
                 var stats = resp.body.queries.request[0];
                 stats.count = Math.min(stats.count, stats.totalResults);
                 stats.startIndex = stats.startIndex || 0;
@@ -228,10 +231,10 @@
                 }
             });
         })();
-        
+
         return deferred.promise;
     };
-    
+
     // Parse request params and use 3rd party to find videos. Currently uses findVideosWithGoogle
     search.findVideos = function(req, config, secrets) {
         var log = logger.getLog(),
@@ -249,16 +252,16 @@
                 }) || null,
             hd = req.query && req.query.hd || undefined,
             opts = { query: query, limit: limit, start: start, sites: sites, hd: hd };
-        
+
         if (!query) {
             log.info('[%1] No query in request', req.uuid);
             return q({code: 400, body: 'No query in request'});
         }
-        
+
         log.info('[%1] User %2 is searching for %3 videos %4with query: %5; starting at result %6',
                  req.uuid, req.user.id, limit, sites ? 'from ' + sites.join(',') + ' ' : '',
                  query, start);
-                 
+
         return search.findVideosWithGoogle(req, opts, config.google, secrets.googleKey)
         .catch(function(error) {
             log.error('[%1] Error searching videos: %2', req.uuid, util.inspect(error));
@@ -275,17 +278,17 @@
             return state;
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
-            
+
         var express      = require('express'),
             app          = express(),
             users        = state.dbs.c6Db.collection('users'),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._coll = users;
-        
+
         app.use(express.bodyParser());
         app.use(express.cookieParser(state.secrets.cookieParser || ''));
-        
+
         var sessions = express.session({
             key: state.config.sessions.key,
             cookie: {
@@ -300,7 +303,7 @@
             authUtils._coll = users;
             log.info('Recreated collections from restarted c6Db');
         });
-        
+
         state.dbStatus.sessions.on('reconnected', function() {
             sessions = express.session({
                 key: state.config.sessions.key,
@@ -347,7 +350,7 @@
             }
             next();
         });
-        
+
         var authSearch = authUtils.middlewarify({});
         app.get('/api/search/videos', sessWrap, authSearch, audit, function(req,res){
             search.findVideos(req, state.config, state.secrets)
@@ -360,7 +363,7 @@
                 });
             });
         });
-        
+
         app.get('/api/search/meta', function(req, res){
             var data = {
                 version: state.config.appVersion,
@@ -369,7 +372,7 @@
             };
             res.send(200, data);
         });
-        
+
         app.get('/api/search/version',function(req, res) {
             res.send(200, state.config.appVersion);
         });
@@ -382,7 +385,7 @@
                 next();
             }
         });
-        
+
         app.listen(state.cmdl.port);
         log.info('Service is listening on port: ' + state.cmdl.port);
 
