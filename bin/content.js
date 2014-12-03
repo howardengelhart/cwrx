@@ -248,6 +248,9 @@
         if (container === 'veeseo') {
             return { host: 'veeseo.com' };
         }
+        if (!host) {
+            return null;
+        }
         var query = { host: { $in: [] } };
         do {
             query.host.$in.push(host);
@@ -295,7 +298,7 @@
 
         query = content.buildHostQuery(host, qps.container);
 
-        return ( !!host ? siteCache.getPromise(query) : q([]) ).then(function(results) {
+        return ( !!query ? siteCache.getPromise(query) : q([]) ).then(function(results) {
             var site = content.chooseSite(results);
             if (!site) {
                 if (!!host) {
