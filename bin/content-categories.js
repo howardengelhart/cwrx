@@ -16,14 +16,14 @@
         catSvc.createValidator._required.push('name');
         catSvc.editValidator._forbidden.push('name');
         
-        catSvc.use('create', catModule.adminsCreateCats);
-        catSvc.use('create', catModule.checkUniqueName.bind(catModule, catSvc));
+        catSvc.use('create', catModule.adminCreateCheck);
+        catSvc.use('create', catModule.validateName.bind(catModule, catSvc));
         
         return catSvc;
     };
 
     // only allow admins to create categories
-    catModule.adminsCreateCats = function(req, next, done) {
+    catModule.adminCreateCheck = function(req, next, done) {
         var log = logger.getLog();
         if (!(req.user.permissions &&
               req.user.permissions.categories &&
@@ -36,8 +36,14 @@
     };
     
     // ensure that the name in the request body is not used by any other categories
-    catModule.checkUniqueName = function(svc, req, next, done) {
+    catModule.validateName = function(svc, req, next, done) {
         var log = logger.getLog();
+        
+        if (!req.body.name.match(/^\w+$/)) {
+            log.info('[%1] User %2 trying to create category with invalid name: %3',
+                     req.uuid, req.user.id, req.body.name);
+            return q(done({code: 400, body: 'Invalid name'}));
+        }
             
         return q.npost(svc._coll, 'findOne', [{name: req.body.name}]).then(function(cat) {
             if (cat) {
@@ -105,6 +111,6 @@
             });
         });
     };
-        
+    
     module.exports = catModule;
 }());

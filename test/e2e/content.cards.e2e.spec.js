@@ -61,8 +61,8 @@ describe('content card endpoints (E2E):', function() {
         });
     });
 
-    describe('GET /api/public/content/card/:id', function() {
-        //TODO: impl this. Also, will there be .js and .json endpoints?
+    xdescribe('GET /api/public/content/card/:id', function() {
+        //TODO: impl this
     });
 
     describe('GET /api/content/card/:id', function() {

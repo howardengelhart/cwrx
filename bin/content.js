@@ -17,7 +17,7 @@
         service         = require('../lib/service'),
         enums           = require('../lib/enums'),
         cardModule      = require('./content-cards'),
-        catModule  = require('./content-categories'),
+        catModule       = require('./content-categories'),
         Status          = enums.Status,
         Access          = enums.Access,
         Scope           = enums.Scope,

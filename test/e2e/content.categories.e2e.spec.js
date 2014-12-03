@@ -408,6 +408,20 @@ describe('content category endpoints (E2E):', function() {
             }).done(done);
         });
         
+        it('should not allow creating a category with an invalid name', function(done) {
+            q.all(['fat cat', '12c@t', '@#)$(*$', 'ca\t'].map(function(name) {
+                mockCat.name = name;
+                return requestUtils.qRequest('post', options);
+            })).then(function(results) {
+                results.forEach(function(resp) {
+                    expect(resp.response.statusCode).toBe(400);
+                    expect(resp.body).toBe('Invalid name');
+                });
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+        
         it('should not allow creating a category with a duplicate name', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);

@@ -6,9 +6,8 @@
         CrudSvc         = require('../lib/crudSvc'),
 
         cardModule = {};
-        
-    //TODO: maybe redo this modularizing in a more sensible way...
 
+        
     cardModule.setupCardSvc = function(cardColl) {
         var cardSvc = new CrudSvc(cardColl, 'rc', {allowPublic: true});
         cardSvc.createValidator._required.push('campaignId');
@@ -17,7 +16,7 @@
         cardSvc.editValidator._condForbidden.user = FieldValidator.userFunc('cards', 'edit');
         cardSvc.editValidator._condForbidden.org = FieldValidator.orgFunc('cards', 'edit');
         cardSvc.use('read', cardSvc.preventGetAll.bind(cardSvc));
-        //TODO: implement (and decide on...) public card endpoint
+        //TODO: implement public card endpoint
         
         return cardSvc;
     };
