@@ -137,7 +137,7 @@ describe('content card endpoints (E2E):', function() {
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('No cards found');
+                expect(resp.body).toBe('Object not found');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
@@ -157,7 +157,7 @@ describe('content card endpoints (E2E):', function() {
             var options = {url: config.contentUrl + '/content/card/e2e-getid5678', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toEqual('No cards found');
+                expect(resp.body).toEqual('Object not found');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
@@ -425,7 +425,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.body.created).toBeDefined();
                 expect(new Date(resp.body.created).toString()).not.toEqual('Invalid Date');
                 expect(resp.body.lastUpdated).toEqual(resp.body.created);
-                expect(resp.body.status).toBe('active'); // TODO: should cards default to active?
+                expect(resp.body.status).toBe('active');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
@@ -657,7 +657,7 @@ describe('content card endpoints (E2E):', function() {
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('No cards found');
+                expect(resp.body).toBe('Object not found');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);

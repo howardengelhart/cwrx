@@ -571,7 +571,7 @@ describe('CrudSvc', function() {
         it('should return a 404 if nothing was found and multiGet is false', function(done) {
             fakeCursor.toArray.andCallFake(function(cb) { cb(null, []); });
             svc.getObjs(query, req, false).then(function(resp) {
-                expect(resp).toEqual({code: 404, body: 'No thangs found'});
+                expect(resp).toEqual({code: 404, body: 'Object not found'});
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(fakeCursor.count).not.toHaveBeenCalled();
                 expect(svc.formatOutput).not.toHaveBeenCalled();

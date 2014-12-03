@@ -84,7 +84,7 @@ describe('content category endpoints (E2E):', function() {
             testUtils.resetCollection('categories', mockCats).done(done);
         });
 
-        it('should get an category by id', function(done) {
+        it('should get a category by id', function(done) {
             var options = {url: config.contentUrl + '/content/category/e2e-id1', jar: e2eUserJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -116,7 +116,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(results[0].data).toEqual({route: 'GET /api/content/category/:id',
                                                  params: { 'id': 'e2e-id1' }, query: {} });
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).not.toBeDefined();
             }).done(done);
         });
         
@@ -124,7 +124,7 @@ describe('content category endpoints (E2E):', function() {
             var options = {url: config.contentUrl + '/content/category/e2e-id2', jar: e2eUserJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('No categories found');
+                expect(resp.body).toBe('Object not found');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
@@ -153,7 +153,7 @@ describe('content category endpoints (E2E):', function() {
             var options = {url: config.contentUrl + '/content/category/e2e-fake', jar: adminJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toEqual('No categories found');
+                expect(resp.body).toEqual('Object not found');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
@@ -163,7 +163,7 @@ describe('content category endpoints (E2E):', function() {
             var options = {url: config.contentUrl + '/content/category/e2e-id5', jar: adminJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toEqual('No categories found');
+                expect(resp.body).toEqual('Object not found');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
@@ -222,7 +222,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(results[0].data).toEqual({route: 'GET /api/content/categories',
                                                  params: {}, query: { sort: 'id,1' } });
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).not.toBeDefined();
             }).done(done);
         });
 
@@ -339,48 +339,40 @@ describe('content category endpoints (E2E):', function() {
     describe('POST /api/content/category', function() {
         var mockCat, options;
         beforeEach(function(done) {
-            mockCat = {
-                tag: 'testExp',
-                data: { foo: 'bar' },
-                org: 'e2e-org'
-            };
+            mockCat = { name: 'snuffles', label: 'Snuffles The Cat' },
             options = {
                 url: config.contentUrl + '/content/category',
-                jar: e2eUserJar,
+                jar: adminJar,
                 json: mockCat
             };
             testUtils.resetCollection('categories').done(done);
         });
 
-        xit('should be able to create an category', function(done) {
+        it('should be able to create a category', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toBeDefined();
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBeDefined();
-                expect(resp.body.tag).toBe('testExp');
-                expect(resp.body.data).toEqual({foo: 'bar'});
-                expect(resp.body.versionId).toBe('a5e744d0');
-                expect(resp.body.user).toBe('e2e-user');
-                expect(resp.body.org).toBe('e2e-org');
+                expect(resp.body.name).toBe('snuffles');
+                expect(resp.body.label).toBe('Snuffles The Cat');
+                expect(resp.body.user).not.toBeDefined();
+                expect(resp.body.org).not.toBeDefined();
                 expect(resp.body.created).toBeDefined();
                 expect(new Date(resp.body.created).toString()).not.toEqual('Invalid Date');
                 expect(resp.body.lastUpdated).toEqual(resp.body.created);
-                expect(resp.body.status).toBe('pending');
-                expect(resp.body.access).toBe('public');
-                done();
+                expect(resp.body.status).toBe('active');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-                done();
-            });
+            }).finally(done);
         });
 
-        xit('should write an entry to the audit collection', function(done) {
+        it('should write an entry to the audit collection', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
             }).then(function(results) {
-                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].user).toBe('admin-e2e-user');
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
@@ -390,184 +382,100 @@ describe('content category endpoints (E2E):', function() {
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'POST /api/content/category', params: {}, query: {} });
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-
-        xit('should be able to create an active, private category', function(done) {
-            mockCat.status = 'active';
-            mockCat.access = 'private';
-            requestUtils.qRequest('post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toBeDefined();
-                expect(resp.body.id).toBeDefined();
-                expect(resp.body.tag).toBe('testExp');
-                expect(resp.body.status).toBe('active');
-                expect(new Date(resp.body.lastPublished).toString()).not.toEqual('Invalid Date');
-                expect(resp.body.access).toBe('private');
-            }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
 
-        xit('should trim off certain fields not allowed on the top level', function(done) {
-            mockCat.title = 'bad title location';
-            mockCat.versionId = 'tha best version';
-            mockCat.data.title = 'data title';
+        it('should be able to create an inactive category', function(done) {
+            mockCat.status = 'inactive';
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toBeDefined();
                 expect(resp.body.id).toBeDefined();
-                expect(resp.body.title).toBe('data title');
-                expect(resp.body.versionId).toBe('14eb66c8');
+                expect(resp.body.name).toBe('snuffles');
+                expect(resp.body.status).toBe('inactive');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-
-        xit('should allow an admin to set a different user and org for the category', function(done) {
-            var altJar = request.jar();
-            var loginOpts = {
-                url: config.authUrl + '/auth/login',
-                json: {email: 'admine2euser', password: 'password'},
-                jar: altJar
-            };
-            requestUtils.qRequest('post', loginOpts).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                mockCat.user = 'another-user';
-                mockCat.org = 'another-org';
-                options.jar = altJar;
-                return requestUtils.qRequest('post', options);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toBeDefined();
-                expect(resp.body.id).toBeDefined();
-                expect(resp.body.tag).toBe('testExp');
-                expect(resp.body.user).toBe('another-user');
-                expect(resp.body.org).toBe('another-org');
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-
-        xit('should not allow a regular user to set a different user and org for the category', function(done) {
-            mockCat.user = 'another-user';
-            mockCat.org = 'another-org';
+        
+        it('should not allow creating a category with no name', function(done) {
+            delete mockCat.name;
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Invalid request body');
-                done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
-        xit('should only allow the adConfig to be set by users with permission', function(done) {
-            mockCat.data.adConfig = {ads: 'good'};
-            var altJar = request.jar();
-            var loginOpts = {
-                url: config.authUrl + '/auth/login',
-                json: { email: 'admanager', password: 'password' },
-                jar: altJar
-            };
-            return requestUtils.qRequest('post', loginOpts).then(function(resp) {
-                return q.all([e2eUserJar, altJar].map(function(jar) {
-                    options.jar = jar;
-                    return requestUtils.qRequest('post', options);
-                }));
-            }).then(function(results) {
+        it('should not allow non-admins to create categories', function(done) {
+            q.all([e2eUserJar, somePermsJar].map(function(jar) {
+                options.jar = jar;
+                return requestUtils.qRequest('post', options);
+            })).then(function(results) {
                 expect(results[0].response.statusCode).toBe(403);
-                expect(results[0].body).toBe('Not authorized to set adConfig');
-                expect(results[1].response.statusCode).toBe(201);
-                expect(results[1].body.data).toEqual({foo: 'bar', adConfig: {ads: 'good'}});
-                done();
+                expect(results[0].body).toBe('Forbidden');
+                expect(results[1].response.statusCode).toBe(403);
+                expect(results[1].body).toBe('Not authorized to create categories');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
-        xit('should throw a 401 error if the user is not authenticated', function(done) {
+        it('should throw a 401 error if the user is not authenticated', function(done) {
             delete options.jar;
             requestUtils.qRequest('post', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
-                done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
     });
 
     describe('PUT /api/content/category/:id', function() {
-        var mockCats, now;
+        var options, now;
         beforeEach(function(done) {
             // created = yesterday to allow for clock differences b/t server and test runner
             now = new Date(new Date() - 24*60*60*1000);
-            mockCats = [
-                {
-                    id: 'e2e-put1',
-                    data: [ { data: { foo: 'bar', adConfig: { ads: 'good' } }, versionId: 'a5e744d0' } ],
-                    tag: 'origTag',
-                    status: 'active',
-                    access: 'public',
-                    created: now,
-                    lastUpdated: now,
-                    user: 'e2e-user',
-                    org: 'e2e-org'
-                },
-                {
-                    id: 'e2e-put2',
-                    status: 'active',
-                    access: 'public',
-                    user: 'not-e2e-user',
-                    org: 'not-e2e-org'
-                }
-            ];
+            mockCats.forEach(function(cat) {
+                cat.created = now;
+                cat.lastUpdated = now;
+                cat.label = cat.name + ' the cat';
+            });
+            options = {
+                url: config.contentUrl + '/content/category/e2e-id1',
+                json: { label: 'rover' },
+                jar: adminJar
+            };
             testUtils.resetCollection('categories', mockCats).done(done);
         });
 
-        xit('should successfully update an category', function(done) {
-            var options = {
-                url: config.contentUrl + '/content/category/e2e-put1',
-                jar: e2eUserJar,
-                json: { tag: 'newTag' }
-            }, updatedExp;
+        it('should successfully update a category', function(done) {
+            var updatedCat;
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                updatedExp = resp.body;
-                expect(updatedExp).not.toEqual(mockCats[0]);
-                expect(updatedExp).toBeDefined();
-                expect(updatedExp._id).not.toBeDefined();
-                expect(updatedExp.id).toBe('e2e-put1');
-                expect(updatedExp.tag).toBe('newTag');
-                expect(updatedExp.user).toBe('e2e-user');
-                expect(updatedExp.versionId).toBe('a5e744d0');
-                expect(updatedExp.data).toEqual({foo: 'bar', adConfig: {ads: 'good'}});
-                expect(new Date(updatedExp.created)).toEqual(now);
-                expect(new Date(updatedExp.lastUpdated)).toBeGreaterThan(now);
-                done();
+                updatedCat = resp.body;
+                expect(updatedCat).not.toEqual(mockCats[0]);
+                expect(updatedCat._id).not.toBeDefined();
+                expect(updatedCat.id).toBe('e2e-id1');
+                expect(updatedCat.name).toBe('snuffles');
+                expect(updatedCat.label).toBe('rover');
+                expect(new Date(updatedCat.created)).toEqual(now);
+                expect(new Date(updatedCat.lastUpdated)).toBeGreaterThan(now);
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
-        xit('should write an entry to the audit collection', function(done) {
-            var options = {
-                url: config.contentUrl + '/content/category/e2e-put1',
-                jar: e2eUserJar,
-                json: { tag: 'newTag' }
-            };
+        it('should write an entry to the audit collection', function(done) {
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
             }).then(function(results) {
-                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].user).toBe('admin-e2e-user');
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
@@ -576,117 +484,34 @@ describe('content category endpoints (E2E):', function() {
                 expect(results[0].service).toBe('content');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'PUT /api/content/category/:id',
-                                                 params: { id: 'e2e-put1' }, query: {} });
+                                                 params: { id: 'e2e-id1' }, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
 
-        xit('should properly update the data and versionId together', function(done) {
-            var options = {
-                url: config.contentUrl + '/content/category/e2e-put1',
-                jar: e2eUserJar,
-                json: { data: { foo: 'baz' } }
-            };
-            requestUtils.qRequest('put', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                updatedExp = resp.body;
-                expect(updatedExp).not.toEqual(mockCats[0]);
-                expect(updatedExp).toBeDefined();
-                expect(updatedExp._id).not.toBeDefined();
-                expect(updatedExp.data).toEqual({foo: 'baz'});
-                expect(updatedExp.versionId).toBe('4c5c9754');
-                expect(new Date(updatedExp.created)).toEqual(now);
-                expect(new Date(updatedExp.lastUpdated)).toBeGreaterThan(now);
-                done();
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
-        });
-
-        xit('should not create an category if it does not exist', function(done) {
-            var options = {
-                url: config.contentUrl + '/content/category/e2e-putfake',
-                jar: e2eUserJar,
-                json: { tag: 'fakeTag' }
-            }, updatedExp;
+        it('should not create a category if it does not exist', function(done) {
+            options.url = config.contentUrl + '/content/category/e2e-putfake';
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('That category does not exist');
-                done();
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
-        });
-
-        xit('should not edit an category that has been deleted', function(done) {
-            var url = config.contentUrl + '/content/category/e2e-put1',
-                putOpts = { url: url, jar: e2eUserJar, json: { tag: 'fakeTag' } },
-                deleteOpts = { url: url, jar: e2eUserJar };
-            requestUtils.qRequest('delete', deleteOpts).then(function(resp) {
-                expect(resp.response.statusCode).toBe(204);
-                expect(resp.body).toBe('');
-                return requestUtils.qRequest('put', putOpts)
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('That category does not exist');
-                done();
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
-        });
-
-        xit('should not update an category the user does not own', function(done) {
-            var options = {
-                url: config.contentUrl + '/content/category/e2e-put2',
-                jar: e2eUserJar,
-                json: { tag: 'newTag' }
-            }, updatedExp;
-            requestUtils.qRequest('put', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(403);
-                expect(resp.body).toBe('Not authorized to edit this category');
-                done();
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
-        });
-
-        xit('should allow an admin to set a different user and org for the category', function(done) {
-            var altJar = request.jar();
-            var loginOpts = {
-                url: config.authUrl + '/auth/login',
-                json: {email: 'admine2euser', password: 'password'},
-                jar: altJar
-            };
-            requestUtils.qRequest('post', loginOpts).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                var options = {
-                    url: config.contentUrl + '/content/category/e2e-put1',
-                    json: { user: 'another-user', org: 'another-org' },
-                    jar: altJar
-                };
-                return requestUtils.qRequest('put', options);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBeDefined();
-                expect(resp.body.id).toBe('e2e-put1');
-                expect(resp.body.user).toBe('another-user');
-                expect(resp.body.org).toBe('another-org');
+                expect(resp.body).toBe('That does not exist');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
 
-        xit('should not allow a regular user to set a different user and org for the category', function(done) {
-            var options = {
-                url: config.contentUrl + '/content/category/e2e-put1',
-                json: { user: 'another-user', org: 'another-org' },
-                jar: e2eUserJar
-            };
+        it('should not edit a category that has been deleted', function(done) {
+            options.url = config.contentUrl + '/content/category/e2e-id5';
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toBe('That does not exist');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should not allow changes to a category\'s name', function(done) {
+            options.json = { name: 'bunny' };
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Invalid request body');
@@ -694,69 +519,22 @@ describe('content category endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-
-        xit('should not let users edit categories\' adConfig if they lack permission', function(done) {
-            var options = {
-                url: config.contentUrl + '/content/category/e2e-put1',
-                jar: e2eUserJar,
-                json: { data: { adConfig: { ads: 'bad' } } }
-            }, updatedExp;
-            requestUtils.qRequest('put', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(403);
-                expect(resp.body).toBe('Not authorized to edit adConfig of this category');
-                done();
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
-        });
-
-        xit('should allow the edit if the adConfig is unchanged', function(done) {
-            var options = {
-                url: config.contentUrl + '/content/category/e2e-put1',
-                jar: e2eUserJar,
-                json: { data: { foo: 'baz', adConfig: { ads: 'good' } } }
-            }, updatedExp;
-            requestUtils.qRequest('put', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.data).toEqual({ foo: 'baz', adConfig: { ads: 'good' } });
-                done();
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
-        });
-
-        xit('should let users edit owned categories\' adConfig if they have permission', function(done) {
-            var altJar = request.jar();
-            var loginOpts = {
-                url: config.authUrl + '/auth/login',
-                json: { email: 'admanager', password: 'password' },
-                jar: altJar
-            };
-            return requestUtils.qRequest('post', loginOpts).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                return q.all(['e2e-put1', 'e2e-put2'].map(function(id) {
-                    var options = {
-                        url: config.contentUrl + '/content/category/' + id,
-                        jar: altJar,
-                        json: { data: { foo: 'baz', adConfig: { ads: 'bad' } } }
-                    };
-                    return requestUtils.qRequest('put', options);
-                }));
-            }).then(function(results) {
-                expect(results[0].response.statusCode).toBe(200);
-                expect(results[0].body.data).toEqual({ foo: 'baz', adConfig: { ads: 'bad' } });
+        
+        it('should not allow non-admins to edit categories', function(done) {
+            q.all([e2eUserJar, somePermsJar].map(function(jar) {
+                options.jar = jar;
+                return requestUtils.qRequest('put', options);
+            })).then(function(results) {
+                expect(results[0].response.statusCode).toBe(403);
+                expect(results[0].body).toBe('Forbidden');
                 expect(results[1].response.statusCode).toBe(403);
-                expect(results[1].body).toBe('Not authorized to edit adConfig of this category');
-                done();
+                expect(results[1].body).toBe('Not authorized to edit this');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
-        xit('should throw a 401 error if the user is not authenticated', function(done) {
+        it('should throw a 401 error if the user is not authenticated', function(done) {
             var options = {
                 url: config.contentUrl + '/content/category/e2e-put1',
                 json: { tag: 'newTag' }
@@ -764,57 +542,39 @@ describe('content category endpoints (E2E):', function() {
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
-                done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
     });
 
     describe('DELETE /api/content/category/:id', function() {
         beforeEach(function(done) {
-            var mockCats = [
-                {
-                    id: 'e2e-del1',
-                    status: 'active',
-                    access: 'public',
-                    user: 'e2e-user'
-                },
-                {
-                    id: 'e2e-del2',
-                    status: 'active',
-                    access: 'public',
-                    user: 'not-e2e-user'
-                }
-            ];
             testUtils.resetCollection('categories', mockCats).done(done);
         });
 
-        xit('should set the status of an category to deleted', function(done) {
-            var options = {jar: e2eUserJar, url: config.contentUrl + '/content/category/e2e-del1'};
+        it('should set the status of a category to deleted', function(done) {
+            var options = {jar: adminJar, url: config.contentUrl + '/content/category/e2e-id1'};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
-                options = {url: config.contentUrl + '/content/category/e2e-del1', jar: e2eUserJar};
+                options = {url: config.contentUrl + '/content/category/e2e-id1', jar: e2eUserJar};
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('Experience not found');
-                done();
+                expect(resp.body).toBe('Object not found');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
-        xit('should write an entry to the audit collection', function(done) {
-            var options = {jar: e2eUserJar, url: config.contentUrl + '/content/category/e2e-del1'};
+        it('should write an entry to the audit collection', function(done) {
+            var options = {jar: adminJar, url: config.contentUrl + '/content/category/e2e-id1'};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
             }).then(function(results) {
-                expect(results[0].user).toBe('e2e-user');
+                expect(results[0].user).toBe('admin-e2e-user');
                 expect(results[0].created).toEqual(jasmine.any(Date));
                 expect(results[0].host).toEqual(jasmine.any(String));
                 expect(results[0].pid).toEqual(jasmine.any(Number));
@@ -823,26 +583,14 @@ describe('content category endpoints (E2E):', function() {
                 expect(results[0].service).toBe('content');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'DELETE /api/content/category/:id',
-                                                 params: { id: 'e2e-del1' }, query: {} });
+                                                 params: { id: 'e2e-id1' }, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
 
-        xit('should not delete an category the user does not own', function(done) {
-            var options = {jar: e2eUserJar, url: config.contentUrl + '/content/category/e2e-del2'};
-            requestUtils.qRequest('delete', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(403);
-                expect(resp.body).toBe('Not authorized to delete this category');
-                done();
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
-        });
-
-        xit('should still return a 204 if the category was already deleted', function(done) {
-            var options = {jar: e2eUserJar, url: config.contentUrl + '/content/category/e2e-del1'};
+        it('should still return a 204 if the category was already deleted', function(done) {
+            var options = {jar: adminJar, url: config.contentUrl + '/content/category/e2e-id1'};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -850,35 +598,43 @@ describe('content category endpoints (E2E):', function() {
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
-                done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
-        xit('should still return a 204 if the category does not exist', function(done) {
-            var options = {jar: e2eUserJar, url: config.contentUrl + '/content/category/fake'};
+        it('should still return a 204 if the category does not exist', function(done) {
+            var options = {jar: adminJar, url: config.contentUrl + '/content/category/fake'};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
-                done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-                done();
-            });
+            }).done(done);
+        });
+        
+        it('should not allow non-admins to delete categories', function(done) {
+            q.all([e2eUserJar, somePermsJar].map(function(jar) {
+                var options = {jar: jar, url: config.contentUrl + '/content/category/e2e-id1'};
+                return requestUtils.qRequest('delete', options);
+            })).then(function(results) {
+                expect(results[0].response.statusCode).toBe(403);
+                expect(results[0].body).toBe('Forbidden');
+                expect(results[1].response.statusCode).toBe(403);
+                expect(results[1].body).toBe('Not authorized to delete this');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
         });
 
-        xit('should throw a 401 error if the user is not authenticated', function(done) {
-            requestUtils.qRequest('delete', {url: config.contentUrl + '/content/category/e2e-del1'})
+        it('should throw a 401 error if the user is not authenticated', function(done) {
+            requestUtils.qRequest('delete', {url: config.contentUrl + '/content/category/e2e-id1'})
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
-                done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
     });
 });
