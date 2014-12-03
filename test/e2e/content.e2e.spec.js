@@ -81,7 +81,7 @@ describe('content experience endpoints (E2E):', function() {
     });
 
     describe('GET /api/public/content/experience/:id', function() {
-        var mockExps, mockOrg, mockSite, options;
+        var mockExps, mockOrg, mockSites, options;
         beforeEach(function(done) {
             options = {
                 url: config.contentUrl + '/public/content/experience/e2e-pubget1',
@@ -118,17 +118,21 @@ describe('content experience endpoints (E2E):', function() {
                 { id: 'e2e-pubget2', status: 'pending', access: 'public' },
                 { id: 'e2e-pubget3', status: 'active', access: 'private' }
             ];
-            mockSite = {id: 'e2e-site', status: 'active', host: 'c6.com',
-                        branding: 'siteBrand', placementId: '456', wildCardPlacement: '654'};
+            mockSites = [
+                { id: 'e2e-site', status: 'active', host: 'c6.com',
+                  branding: 'siteBrand', placementId: '456', wildCardPlacement: '654' },
+                { id: 'e2e-veeseo', status: 'active', host: 'veeseo.com',
+                  branding: 'veeseoBrand', placementId: '159', wildCardPlacement: '951' },
+            ];
             mockOrg = { id: 'e2e-active-org', status: 'active', adConfig: { foo: 'bar' }, branding: 'orgBrand' };
             q.all([testUtils.resetCollection('experiences', mockExps),
                    testUtils.resetCollection('orgs', mockOrg),
-                   testUtils.resetCollection('sites', mockSite)
+                   testUtils.resetCollection('sites', mockSites)
             ]).done(function() { done() });
         });
 
         it('should get an experience by id', function(done) {
-            options.qs = {context: 'embed', branding: 'reqBrand', placementId: '789', wildCardPlacement: '987'};
+            options.qs = {context: 'embed', container: 'embed', branding: 'reqBrand', placementId: '789', wildCardPlacement: '987'};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(typeof resp.body).toBe('object');
@@ -206,6 +210,20 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body.data.branding).toBe('siteBrand');
                 expect(resp.body.data.placementId).toBe('456');
                 expect(resp.body.data.wildCardPlacement).toBe('654');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should use the veeseo site if the container is veeseo', function(done) {
+            options.qs = { container: 'veeseo' };
+            options.url = options.url.replace('e2e-pubget1', 'e2e-org-adConfig');
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toBe('e2e-org-adConfig');
+                expect(resp.body.data.branding).toBe('veeseoBrand');
+                expect(resp.body.data.placementId).toBe('159');
+                expect(resp.body.data.wildCardPlacement).toBe('951');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);

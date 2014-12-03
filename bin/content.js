@@ -245,7 +245,10 @@
 
     /* Build a mongo query for a site by host. This transforms the host 'foo.bar.baz.com' into a 
      * query for sites with host 'foo.bar.baz.com', 'bar.baz.com', or 'baz.com' */
-    content.buildHostQuery = function(host) {
+    content.buildHostQuery = function(host, container) {
+        if (container === 'veeseo') {
+            return { host: 'veeseo.com' };
+        }
         var query = { host: { $in: [] } };
         do {
             query.host.$in.push(host);
@@ -276,6 +279,7 @@
                 props.forEach(function(prop) { exp.data[prop] = exp.data[prop] || obj[prop]; });
             },
             query;
+        qps = qps || {};
 
         if (!exp.data) {
             log.warn('Experience %1 does not have data!', exp.id);
@@ -283,14 +287,14 @@
         }
 
         setProps(exp, qps);
-        if (qps && qps.context === 'mr2') {
+        if (qps.context === 'mr2') {
             exp.data.mode = 'lightbox';
         }
         if (props.every(function(prop) { return !!exp.data[prop]; })) {
             return q(exp);
         }
 
-        query = content.buildHostQuery(host);
+        query = content.buildHostQuery(host, qps.container);
 
         return ( !!host ? siteCache.getPromise(query) : q([]) ).then(function(results) {
             var site = content.chooseSite(results);

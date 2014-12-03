@@ -493,12 +493,16 @@ describe('content (UT)', function() {
     
     describe('buildHostQuery', function() {
         it('should correctly build a query from a hostname', function() {
-            expect(content.buildHostQuery('foo.com')).toEqual({host:{$in:['foo.com']}});
-            expect(content.buildHostQuery('foo.bar.com')).toEqual({host:{$in:['foo.bar.com','bar.com']}});
-            expect(content.buildHostQuery('foo.bar.baz.com')).toEqual({host:{$in:['foo.bar.baz.com','bar.baz.com','baz.com']}});
+            expect(content.buildHostQuery('foo.com', 'a')).toEqual({host:{$in:['foo.com']}});
+            expect(content.buildHostQuery('foo.bar.com', 'b')).toEqual({host:{$in:['foo.bar.com','bar.com']}});
+            expect(content.buildHostQuery('foo.bar.baz.com', 'c')).toEqual({host:{$in:['foo.bar.baz.com','bar.baz.com','baz.com']}});
             expect(content.buildHostQuery('localhost')).toEqual({host:{$in:['localhost']}});
-            expect(content.buildHostQuery('')).toEqual({host:{$in:['']}});
+            expect(content.buildHostQuery('', 'd')).toEqual({host:{$in:['']}});
             expect(content.buildHostQuery('portal.cinema6.com')).toEqual({host:{$in:['portal.cinema6.com','cinema6.com']}});
+        });
+        
+        it('should override the query if the container is veeseo', function() {
+            expect(content.buildHostQuery('foo.com', 'veeseo')).toEqual({host: 'veeseo.com'});
         });
     });
     
@@ -602,8 +606,20 @@ describe('content (UT)', function() {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', mode: 'lightbox',
                                      branding: 'siteBrand', placementId: 456, wildCardPlacement: 654}});
                 expect(siteCache.getPromise).toHaveBeenCalledWith({host: {$in: ['games.wired.com', 'wired.com']}});
-                expect(content.buildHostQuery).toHaveBeenCalledWith('games.wired.com');
+                expect(content.buildHostQuery).toHaveBeenCalledWith('games.wired.com', undefined);
                 expect(content.chooseSite).toHaveBeenCalledWith(['fake1', 'fake2']);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should pass the container param to buildHostQuery if defined', function(done) {
+            queryParams = { container: 'largeBox' };
+            content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            .then(function(exp) {
+                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar',
+                                     branding: 'siteBrand', placementId: 456, wildCardPlacement: 654}});
+                expect(content.buildHostQuery).toHaveBeenCalledWith('games.wired.com', 'largeBox');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
