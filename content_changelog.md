@@ -1,5 +1,9 @@
 # Content Service Changelog
 
+### 1.13.5: Wed Dec  3 12:00:40 EST 2014
+* [FIX]: Override site query if `container=veeseo`: [#340](https://github.com/cinema6/cwrx/pull/340)
+* Extra deployment steps: Deploy new content cookbook
+
 ### 1.13.4: Tue Dec  2 17:33:57 EST 2014
 * [FIX]: Always take branding + placements from query params, regardless of context: [#338](https://github.com/cinema6/cwrx/pull/338)
 * Extra deployment steps: Deploy new content cookbook
