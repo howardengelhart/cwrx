@@ -293,7 +293,7 @@
             return q(exp);
         }
 
-        query = content.buildHostQuery(host, qps && qps.container);
+        query = content.buildHostQuery(host, qps.container);
 
         return ( !!host ? siteCache.getPromise(query) : q([]) ).then(function(results) {
             var site = content.chooseSite(results);
