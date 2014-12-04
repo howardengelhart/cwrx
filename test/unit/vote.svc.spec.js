@@ -108,12 +108,8 @@ describe('vote (UT)',function(){
                 }
             };
             var exp = { a: 'b', org: 'o-1234' };
-            spyOn(fv, 'eqReqFieldFunc').andCallThrough();
-            spyOn(fv, 'scopeFunc').andCallThrough();
             
             expect(app.createValidator.validate(exp, {}, user)).toBe(true);
-            expect(fv.eqReqFieldFunc).toHaveBeenCalledWith('org');
-            expect(fv.scopeFunc).toHaveBeenCalledWith('elections', 'create', Scope.All);
             
             exp.org = 'o-4567';
             expect(app.createValidator.validate(exp, {}, user)).toBe(false);
@@ -482,7 +478,7 @@ describe('vote (UT)',function(){
                 app.updateValidator.validate.andReturn(false);
                 app.updateElection(req, elections).then(function(resp) {
                     expect(resp.code).toBe(400);
-                    expect(resp.body).toBe('Illegal fields');
+                    expect(resp.body).toBe('Invalid request body');
                     expect(app.updateValidator.validate).toHaveBeenCalled();
                     expect(elections.findAndModify).not.toHaveBeenCalled();
                     done();

@@ -97,22 +97,14 @@
         forbidden: ['id', 'created'],
         condForbidden: {
             permissions: userSvc.permsCheck,
-            org:    function(user, orig, requester) {
-                        var eqFunc = FieldValidator.eqReqFieldFunc('org'),
-                            scopeFunc = FieldValidator.scopeFunc('users', 'create', Scope.All);
-                        return eqFunc(user, orig, requester) || scopeFunc(user, orig, requester);
-                    }
+            org: FieldValidator.orgFunc('users', 'create')
         }
     });
     userSvc.updateValidator = new FieldValidator({
         forbidden: ['id', 'password', 'created', '_id', 'email'],
         condForbidden: {
             permissions: userSvc.permsCheck,
-            org:    function(user, orig, requester) {
-                        var eqFunc = FieldValidator.eqReqFieldFunc('org'),
-                            scopeFunc = FieldValidator.scopeFunc('users', 'edit', Scope.All);
-                        return eqFunc(user, orig, requester) || scopeFunc(user, orig, requester);
-                    }
+            org: FieldValidator.orgFunc('users', 'edit')
         }
     });
 
@@ -313,7 +305,7 @@
                 log.warn('[%1] newUser contains illegal fields', req.uuid);
                 log.trace('newUser: %1  |  requester: %2',
                           JSON.stringify(newUser), JSON.stringify(requester));
-                return deferred.resolve({code: 400, body: 'Illegal fields'});
+                return deferred.resolve({code: 400, body: 'Invalid request body'});
             }
             return userSvc.setupUser(newUser, requester).then(function() {
                 log.trace('[%1] User %2 is creating user %3', req.uuid, requester.id, newUser.id);
@@ -356,7 +348,7 @@
                 log.warn('[%1] Updates contain illegal fields', req.uuid);
                 log.trace('updates: %1  |  orig: %2  |  requester: %3', JSON.stringify(updates),
                           JSON.stringify(orig), JSON.stringify(requester));
-                return deferred.resolve({code: 400, body: 'Illegal fields'});
+                return deferred.resolve({code: 400, body: 'Invalid request body'});
             }
             updates.lastUpdated = new Date();
             var updateObj = { $set: mongoUtils.escapeKeys(updates) };

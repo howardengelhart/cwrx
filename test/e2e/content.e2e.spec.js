@@ -5,11 +5,10 @@ var q               = require('q'),
     host            = process.env['host'] || 'localhost',
     config = {
         contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api',
-        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api',
-        previewUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host)
+        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
     };
 
-describe('content (E2E):', function() {
+describe('content experience endpoints (E2E):', function() {
     var cookieJar, mockUsers;
 
     beforeEach(function(done) {
@@ -59,7 +58,9 @@ describe('content (E2E):', function() {
                 permissions: {
                     experiences: {
                         read: 'all',
-                        create: 'all'
+                        create: 'all',
+                        edit: 'all',
+                        delete: 'all'
                     }
                 }
             },
@@ -373,91 +374,6 @@ describe('content (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-    });
-
-    describe('GET /preview/:id', function() {
-        var mockExps, mockOrg, options;
-        beforeEach(function(done) {
-            options = {
-                url: config.previewUrl + '/preview/e2e-pubget-preview',
-                headers: { origin: 'http://test.c6.com' },
-                qs: { context: 'embed', branding: 'reqBrand', placementId: '789' }
-            };
-            mockExps = [
-                {
-                    id: 'e2e-pubget-preview',
-                    title: 'test experience',
-                    data: [{
-                        data: {
-                            foo: 'bar',
-                            branding: 'expBrand',
-                            placementId: '123',
-                            mode: 'not-lightbox',
-                            splash: {
-                                "ratio" : "16-9",
-                                "theme" : "horizontal-stack"
-                            }
-                        },
-                        versionId: 'a5e744d0'
-                    }],
-                    access: 'public',
-                    user: 'e2e-user',
-                    org: 'e2e-org',
-                    status: 'active'
-                },
-                {
-                    id: 'e2e-pubget-no-title',
-                    data: [ { data: {foo: 'bar' }, versionId: 'a5e744d0' } ],
-                    access: 'public',
-                    status: 'active',
-                    user: 'e2e-user',
-                    org: 'e2e-active-org'
-                }
-            ];
-            testUtils.resetCollection('experiences', mockExps).done(function() {
-                done();
-            });
-        });
-
-        it('should get an experience by id', function(done) {
-            requestUtils.qRequest('get', options).then(function(resp) {
-                var req = resp.response.request;
-                expect(typeof req).toBe('object');
-                expect(req.href).toBeDefined();
-                var urlParts = req.href.split('?');
-                expect(urlParts[0]).toBe(config.previewUrl + '/#/preview/minireel');
-                var querystring = require('querystring'),
-                    query = querystring.parse(urlParts[1]);
-                expect(query.branding).not.toBeDefined();
-                expect(query.preload).toBe('');
-                expect(query.exp).toBe('e2e-pubget-preview');
-                expect(query.title).toBe('test experience');
-                expect(query.splash).toBe('horizontal-stack:16/9');
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-            }).done(done);
-        });
-
-        it('should respond with a 500 error code if required fields are missing', function(done) {
-            options.url = config.previewUrl + '/preview/e2e-pubget-no-title';
-            requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(500);
-                expect(resp.body).toBe('Response does not have required fields.');
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should respond with a 404 if the experience does not exist', function(done) {
-            options.url = config.previewUrl + '/preview/fake-exp';
-            requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('Experience not found');
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-            }).done(done);
-        });
-
     });
 
     /* Currently, this endpoint is identical to GET /api/public/experience/:id, so only one test is
@@ -931,34 +847,6 @@ describe('content (E2E):', function() {
             }).done(done);
         });
 
-        it('should allow an admin to see any non-deleted experience', function(done) {
-            var loginOpts = {
-                url: config.authUrl + '/auth/login',
-                json: {email: 'admine2euser', password: 'password'},
-                jar: cookieJar
-            };
-            requestUtils.qRequest('post', loginOpts).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                var options = {
-                    url: config.contentUrl + '/content/experiences?type=foo&sort=id,1',
-                    jar: cookieJar
-                };
-                return requestUtils.qRequest('get', options);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body instanceof Array).toBeTruthy('body is array');
-                expect(resp.body.length).toBe(4);
-                expect(resp.body[0].id).toBe('e2e-getquery1');
-                expect(resp.body[1].id).toBe('e2e-getquery3');
-                expect(resp.body[2].id).toBe('e2e-getquery4');
-                expect(resp.body[3].id).toBe('e2e-getquery5');
-                expect(resp.response.headers['content-range']).toBe('items 1-4/4');
-                delete cookieJar.cookies; // force reset and re-login of mockRequester in beforeEach
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-            }).done(done);
-        });
-
         it('should return a 200 and empty array if nothing is found', function(done) {
             var options = {
                 url: config.contentUrl + '/content/experiences?user=hamboneHarry',
@@ -1117,15 +1005,17 @@ describe('content (E2E):', function() {
         });
 
         it('should allow an admin to set a different user and org for the experience', function(done) {
+            var altJar = request.jar();
             var loginOpts = {
                 url: config.authUrl + '/auth/login',
                 json: {email: 'admine2euser', password: 'password'},
-                jar: cookieJar
+                jar: altJar
             };
             requestUtils.qRequest('post', loginOpts).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 mockExp.user = 'another-user';
                 mockExp.org = 'another-org';
+                options.jar = altJar;
                 return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
@@ -1134,7 +1024,6 @@ describe('content (E2E):', function() {
                 expect(resp.body.tag).toBe('testExp');
                 expect(resp.body.user).toBe('another-user');
                 expect(resp.body.org).toBe('another-org');
-                delete cookieJar.cookies; // force reset and re-login of mockRequester in beforeEach
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -1145,7 +1034,7 @@ describe('content (E2E):', function() {
             mockExp.org = 'another-org';
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBeDefined('Illegal fields');
+                expect(resp.body).toBe('Invalid request body');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -1345,6 +1234,45 @@ describe('content (E2E):', function() {
             });
         });
 
+        it('should allow an admin to set a different user and org for the experience', function(done) {
+            var altJar = request.jar();
+            var loginOpts = {
+                url: config.authUrl + '/auth/login',
+                json: {email: 'admine2euser', password: 'password'},
+                jar: altJar
+            };
+            requestUtils.qRequest('post', loginOpts).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                var options = {
+                    url: config.contentUrl + '/content/experience/e2e-put1',
+                    json: { user: 'another-user', org: 'another-org' },
+                    jar: altJar
+                };
+                return requestUtils.qRequest('put', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBeDefined();
+                expect(resp.body.id).toBe('e2e-put1');
+                expect(resp.body.user).toBe('another-user');
+                expect(resp.body.org).toBe('another-org');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should not allow a regular user to set a different user and org for the experience', function(done) {
+            var options = {
+                url: config.contentUrl + '/content/experience/e2e-put1',
+                json: { user: 'another-user', org: 'another-org' },
+                jar: cookieJar
+            };
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Invalid request body');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
 
         it('should not let users edit experiences\' adConfig if they lack permission', function(done) {
             var options = {

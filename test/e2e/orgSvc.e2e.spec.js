@@ -414,7 +414,7 @@ describe('org (E2E):', function() {
             var options = { url: config.orgSvcUrl + '/org', json: mockOrg, jar: cookieJar };
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('Illegal fields');
+                expect(resp.body).toBe('Invalid request body');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -726,7 +726,7 @@ describe('org (E2E):', function() {
             };
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('Illegal fields');
+                expect(resp.body).toBe('Invalid request body');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();

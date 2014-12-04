@@ -16,6 +16,8 @@
         authUtils       = require('../lib/authUtils'),
         service         = require('../lib/service'),
         enums           = require('../lib/enums'),
+        cardModule      = require('./content-cards'),
+        catModule       = require('./content-categories'),
         Status          = enums.Status,
         Access          = enums.Access,
         Scope           = enums.Scope,
@@ -81,22 +83,21 @@
             }
         }
     };
-
+    
     content.createValidator = new FieldValidator({
         forbidden: ['id', 'created'],
         condForbidden: {
-            user:    function(exp, orig, requester) {
-                        var scopeFunc = FieldValidator.scopeFunc('experiences','create',Scope.All);
-                        return requester.id === exp.user || scopeFunc(exp, orig, requester);
-                    },
-            org:    function(exp, orig, requester) {
-                        var eqFunc = FieldValidator.eqReqFieldFunc('org'),
-                            scopeFunc = FieldValidator.scopeFunc('experiences','create',Scope.All);
-                        return eqFunc(exp, orig, requester) || scopeFunc(exp, orig, requester);
-                    }
+            user:   FieldValidator.userFunc('experiences', 'create'),
+            org:    FieldValidator.orgFunc('experiences', 'create')
         }
     });
-    content.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created', '_id'] });
+    content.updateValidator = new FieldValidator({
+        forbidden: ['id', 'created', '_id'],
+        condForbidden: {
+            user:   FieldValidator.userFunc('experiences', 'edit'),
+            org:    FieldValidator.orgFunc('experiences', 'edit')
+        }
+    });
 
     // Find and parse the origin, storing useful properties on the request
     content.parseOrigin = function(req, siteExceptions) {
@@ -453,7 +454,7 @@
         if (!content.createValidator.validate(obj, {}, user)) {
             log.warn('[%1] experience contains illegal fields', req.uuid);
             log.trace('exp: %1  |  requester: %2', JSON.stringify(obj), JSON.stringify(user));
-            return q({code: 400, body: 'Illegal fields'});
+            return q({code: 400, body: 'Invalid request body'});
         }
 
         obj.id = 'e-' + uuid.createUuid().substr(0,14);
@@ -588,7 +589,7 @@
                 log.warn('[%1] updates contain illegal fields', req.uuid);
                 log.trace('exp: %1  |  orig: %2  |  requester: %3',
                           JSON.stringify(updates), JSON.stringify(orig), JSON.stringify(user));
-                return q({code: 400, body: 'Illegal fields'});
+                return q({code: 400, body: 'Invalid request body'});
             }
             if (!content.checkScope(user, orig, 'experiences', 'edit')) {
                 log.info('[%1] User %2 is not authorized to edit %3', req.uuid, user.id, id);
@@ -662,38 +663,7 @@
         return deferred.promise;
     };
 
-    content.generatePreviewLink = function(id, req, expCache, orgCache, siteCache, defaultSiteCfg) {
-        var log = logger.getLog();
-        log.info('[%1] User attempting to generate preview link for experience %2', req.uuid, id);
-        return content.getPublicExp(id, req, expCache, orgCache, siteCache, defaultSiteCfg)
-        .then(function(resp) {
-            if (resp.code !== 200) {
-                return q(resp);
-            }
-
-            if(resp.body && resp.body.id && resp.body.title &&
-                resp.body.data && resp.body.data.splash &&
-                resp.body.data.splash.theme && resp.body.data.splash.ratio) {
-                var splashData = resp.body.data.splash;
-                var urlObject = {
-                    query: {
-                        preload: '',
-                        exp: resp.body.id,
-                        title: resp.body.title,
-                        splash: splashData.theme + ':' + splashData.ratio.replace('-', '/')
-                    }
-                };
-                var url = '/#/preview/minireel' + urlUtils.format(urlObject);
-                return q({url: url});
-            } else {
-                log.warn('[%1] Experience %2 does not have required fields.', req.uuid, id);
-                return q({code: 500, body: 'Response does not have required fields.'});
-            }
-        }).catch(function(error) {
-            log.error('[%1] Error generating preview link for experience %2', req.uuid, id);
-            return q.reject(error);
-        });
-    };
+    ///////////////////////////////////////////////////////////////////////////
 
     content.main = function(state) {
         var log = logger.getLog(),
@@ -710,6 +680,8 @@
             users        = state.dbs.c6Db.collection('users'),
             orgs         = state.dbs.c6Db.collection('orgs'),
             sites        = state.dbs.c6Db.collection('sites'),
+            cardSvc      = cardModule.setupCardSvc(state.dbs.c6Db.collection('cards')),
+            catSvc       = catModule.setupCatSvc(state.dbs.c6Db.collection('categories')),
             expTTLs      = state.config.cacheTTLs.experiences,
             expCache     = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences),
             orgTTLs      = state.config.cacheTTLs.orgs,
@@ -717,7 +689,9 @@
             siteTTLs     = state.config.cacheTTLs.sites,
             siteCache    = new QueryCache(siteTTLs.freshTTL, siteTTLs.maxTTL, sites),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
-                                                    state.config.appVersion, state.config.appName);
+                                                    state.config.appVersion, state.config.appName),
+            audit        = auditJournal.middleware.bind(auditJournal);
+
         authUtils._coll = users;
 
         app.use(express.bodyParser());
@@ -737,6 +711,8 @@
             users = state.dbs.c6Db.collection('users');
             orgs = state.dbs.c6Db.collection('orgs');
             sites = state.dbs.c6Db.collection('sites');
+            cardSvc._coll = state.dbs.c6Db.collection('cards');
+            catSvc._coll = state.dbs.c6Db.collection('categories');
             expCache._coll = experiences;
             orgCache._coll = orgs;
             siteCache._coll = sites;
@@ -795,7 +771,7 @@
             }
             next();
         });
-
+        
         // Used for handling public requests for experiences by id methods:
         function handlePublicGet(req, res) {
             return content.getPublicExp(req.params.id, req, expCache, orgCache, siteCache,
@@ -805,10 +781,7 @@
                 return q(resp);
             }).catch(function(error) {
                 res.header('cache-control', 'max-age=60');
-                return q({code: 500, body: {
-                    error: 'Error retrieving content',
-                    detail: error
-                }});
+                return q({code: 500, body: { error: 'Error retrieving content', detail: error }});
             });
         }
 
@@ -838,25 +811,7 @@
             });
         });
 
-        app.get('/preview/:id', function(req, res) {
-            content.generatePreviewLink(req.params.id, req, expCache, orgCache, siteCache,
-                state.config.defaultSiteConfig)
-            .then(function(resp) {
-                if(resp.url) {
-                    res.redirect(resp.url);
-                } else {
-                    res.send(resp.code, resp.body);
-                }
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error generating preview link',
-                    detail: error
-                });
-            });
-        });
-
-        var authGetExp = authUtils.middlewarify({experiences: 'read'}),
-            audit = auditJournal.middleware.bind(auditJournal);
+        var authGetExp = authUtils.middlewarify({experiences: 'read'});
         
         // private get experience by id
         app.get('/api/content/experience/:id', sessWrap, authGetExp, audit, function(req, res) {
@@ -872,10 +827,7 @@
                     res.send(resp.code, resp.body);
                 }
             }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error retrieving content',
-                    detail: error
-                });
+                res.send(500, { error: 'Error retrieving content', detail: error });
             });
         });
 
@@ -906,10 +858,7 @@
                 }
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error retrieving content',
-                    detail: error
-                });
+                res.send(500, { error: 'Error retrieving content', detail: error });
             });
         });
 
@@ -919,10 +868,7 @@
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error creating experience',
-                    detail: error
-                });
+                res.send(500, { error: 'Error creating experience', detail: error });
             });
         });
 
@@ -932,10 +878,7 @@
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error updating experience',
-                    detail: error
-                });
+                res.send(500, { error: 'Error updating experience', detail: error });
             });
         });
 
@@ -945,12 +888,15 @@
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error deleting experience',
-                    detail: error
-                });
+                res.send(500, { error: 'Error deleting experience', detail: error });
             });
         });
+        
+        // adds endpoints for managing cards
+        cardModule.setupEndpoints(app, cardSvc, sessWrap, audit);
+        
+        // adds endpoints for managing categories
+        catModule.setupEndpoints(app, catSvc, sessWrap, audit);
 
         app.get('/api/content/meta', function(req, res){
             var data = {

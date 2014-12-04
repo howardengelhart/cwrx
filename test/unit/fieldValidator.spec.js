@@ -93,6 +93,15 @@ describe('FieldValidator', function() {
             fooSpy.andReturn(false);
             expect(v.validate({foo: 1}, { a: 1}, { b: 2})).toBe(false);
         });
+        
+        it('should not return false if a forbidden field is unchanged', function() {
+            var fooSpy = jasmine.createSpy('foo').andReturn(false);
+            var v = new FieldValidator({ forbidden: ['a'], condForbidden: { foo: fooSpy } });
+            expect(v.validate({a: 1}, {a: 2}, {})).toBe(false);
+            expect(v.validate({a: 2}, {a: 2}, {})).toBe(true);
+            expect(v.validate({foo: 'baz'}, {foo: 'bar'}, {})).toBe(false);
+            expect(v.validate({foo: 'bar'}, {foo: 'bar'}, {})).toBe(true);
+        });
     });
     
     describe('eqReqFieldFunc', function() {
@@ -119,6 +128,23 @@ describe('FieldValidator', function() {
         });
     });
     
+    describe('orgFunc', function() {
+        it('should return a function that validates the org field', function() {
+            spyOn(FieldValidator, 'eqReqFieldFunc').andCallThrough();
+            spyOn(FieldValidator, 'scopeFunc').andCallThrough();
+            var requester = { org: 'o1', permissions: { users: { read: Scope.All, create: Scope.Org } } };
+            
+            var func = FieldValidator.orgFunc('users', 'create');
+            expect(func({foo: 'bar', org: 'o2'}, {}, requester)).toBe(false);
+            expect(func({foo: 'bar', org: 'o1'}, {}, requester)).toBe(true);
+            requester.permissions.users.create = Scope.All;
+            expect(func({foo: 'bar', org: 'o2'}, {}, requester)).toBe(true);
+            
+            expect(FieldValidator.eqReqFieldFunc).toHaveBeenCalledWith('org');
+            expect(FieldValidator.scopeFunc).toHaveBeenCalledWith('users', 'create', Scope.All);
+        });
+    });
+    
     describe('midWare', function() {
         var v, next, done, req;
         beforeEach(function() {
@@ -142,7 +168,6 @@ describe('FieldValidator', function() {
             expect(next).not.toHaveBeenCalled();
             expect(done).toHaveBeenCalledWith({code: 400, body: 'Invalid request body'});
             expect(v.validate).toHaveBeenCalledWith('fakeBody', 'fakeOrig', 'fakeUser');
-            expect(mockLog.warn).toHaveBeenCalled();
         });
         
         it('should handle the origObj not being defined', function() {

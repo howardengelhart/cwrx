@@ -52,26 +52,14 @@
 
     siteSvc.createValidator = new FieldValidator({
         forbidden: ['id', 'created'],
-        condForbidden: {
-            org:    function(site, orig, requester) {
-                        var eqFunc = FieldValidator.eqReqFieldFunc('org'),
-                            scopeFunc = FieldValidator.scopeFunc('sites', 'create', Scope.All);
-                        return eqFunc(site, orig, requester) || scopeFunc(site, orig, requester);
-                    }
-        }
+        condForbidden: { org: FieldValidator.orgFunc('sites', 'create') }
     });
     siteSvc.updateValidator = new FieldValidator({
         forbidden: ['id', 'created', '_id'],
-        condForbidden: {
-            org:    function(site, orig, requester) {
-                        var eqFunc = FieldValidator.eqReqFieldFunc('org'),
-                            scopeFunc = FieldValidator.scopeFunc('sites', 'edit', Scope.All);
-                        return eqFunc(site, orig, requester) || scopeFunc(site, orig, requester);
-                    }
-        }
+        condForbidden: { org: FieldValidator.orgFunc('sites', 'edit') }
     });
     
-    // Return true if host is a root followed by tld (with optional country-code extension)
+    // Return true if host is a valid hostname (just domains and subdomains)
     siteSvc.validateHost = function(host) {
         return !!host.match(/^([\w-]+\.)+[\w-]+$/);
     };
@@ -219,7 +207,7 @@
                 log.warn('[%1] newSite contains illegal fields', req.uuid);
                 log.trace('newSite: %1  |  requester: %2',
                           JSON.stringify(newSite), JSON.stringify(requester));
-                return q({code: 400, body: 'Illegal fields'});
+                return q({code: 400, body: 'Invalid request body'});
             }
             
             newSite = siteSvc.setupSite(newSite);
@@ -269,7 +257,7 @@
                 log.warn('[%1] Updates contain illegal fields', req.uuid);
                 log.trace('updates: %1  |  orig: %2  |  requester: %3', JSON.stringify(updates),
                           JSON.stringify(orig), JSON.stringify(requester));
-                return q({code: 400, body: 'Illegal fields'});
+                return q({code: 400, body: 'Invalid request body'});
             }
             
             if (updates.host) {

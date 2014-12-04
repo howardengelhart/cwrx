@@ -139,20 +139,9 @@ describe('content (UT)', function() {
         });
         
         it('should conditionally prevent setting the org field', function() {
-            var user = {
-                id: 'u-1234',
-                org: 'o-1234',
-                permissions: {
-                    experiences: { create: Scope.Org }
-                }
-            };
+            var user = { id: 'u-1234', org: 'o-1234', permissions: { experiences: { create: Scope.Org } } };
             var exp = { a: 'b', org: 'o-1234' };
-            spyOn(FieldValidator, 'eqReqFieldFunc').andCallThrough();
-            spyOn(FieldValidator, 'scopeFunc').andCallThrough();
-            
             expect(content.createValidator.validate(exp, {}, user)).toBe(true);
-            expect(FieldValidator.eqReqFieldFunc).toHaveBeenCalledWith('org');
-            expect(FieldValidator.scopeFunc).toHaveBeenCalledWith('experiences', 'create', Scope.All);
             
             exp.org = 'o-4567';
             expect(content.createValidator.validate(exp, {}, user)).toBe(false);
@@ -161,18 +150,9 @@ describe('content (UT)', function() {
         });
 
         it('should conditionally prevent setting the user field', function() {
-            var user = {
-                id: 'u-1234',
-                permissions: {
-                    experiences: { create: Scope.Org }
-                }
-            };
+            var user = { id: 'u-1234', permissions: { experiences: { create: Scope.Org } } };
             var exp = { a: 'b', user: 'u-1234' };
-            spyOn(FieldValidator, 'eqReqFieldFunc').andCallThrough();
-            spyOn(FieldValidator, 'scopeFunc').andCallThrough();
-            
             expect(content.createValidator.validate(exp, {}, user)).toBe(true);
-            expect(FieldValidator.scopeFunc).toHaveBeenCalledWith('experiences', 'create', Scope.All);
             
             exp.user = 'u-4567';
             expect(content.createValidator.validate(exp, {}, user)).toBe(false);
@@ -183,7 +163,40 @@ describe('content (UT)', function() {
     
     describe('updateValidator', function() {
         it('should have initalized correctly', function() {
-            expect(content.updateValidator._forbidden).toEqual(['id', 'org', 'created', '_id']);
+            expect(content.updateValidator._forbidden).toEqual(['id', 'created', '_id']);
+            expect(typeof content.updateValidator._condForbidden.org).toBe('function');
+            expect(typeof content.updateValidator._condForbidden.user).toBe('function');
+        });
+
+        it('should prevent setting forbidden fields', function() {
+            var exp = { id: 'foo', a: 'b' };
+            expect(content.updateValidator.validate(exp, {}, {})).toBe(false);
+            exp = { created: 'foo', a: 'b' };
+            expect(content.updateValidator.validate(exp, {}, {})).toBe(false);
+            exp = { _id: 'foo', a: 'b' };
+            expect(content.updateValidator.validate(exp, {}, {})).toBe(false);
+        });
+        
+        it('should conditionally prevent setting the org field', function() {
+            var user = { id: 'u-1234', org: 'o-1234', permissions: { experiences: { edit: Scope.Org } } };
+            var exp = { a: 'b', org: 'o-1234' };
+            expect(content.updateValidator.validate(exp, {}, user)).toBe(true);
+            
+            exp.org = 'o-4567';
+            expect(content.updateValidator.validate(exp, {}, user)).toBe(false);
+            user.permissions.experiences.edit = Scope.All;
+            expect(content.updateValidator.validate(exp, {}, user)).toBe(true);
+        });
+
+        it('should conditionally prevent setting the user field', function() {
+            var user = { id: 'u-1234', permissions: { experiences: { edit: Scope.Org } } };
+            var exp = { a: 'b', user: 'u-1234' };
+            expect(content.updateValidator.validate(exp, {}, user)).toBe(true);
+            
+            exp.user = 'u-4567';
+            expect(content.updateValidator.validate(exp, {}, user)).toBe(false);
+            user.permissions.experiences.edit = Scope.All;
+            expect(content.updateValidator.validate(exp, {}, user)).toBe(true);
         });
         
         it('should prevent illegal updates', function() {
