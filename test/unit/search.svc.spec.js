@@ -69,7 +69,7 @@ describe('search (UT)', function() {
         });
 
         it('should return undefined if the duration is in an unknown format', function() {
-            var durs = ['aslkd', 'some mins', 'T3M1S', '4Y', 'TS32', 'P1..3Y', 'PT1HM3S', 'P1YTS3'];
+            var durs = ['aslkd', 'some mins', 'QT3M1S', 'T4Y', 'TS32', 'P1..3Y', 'PT1HM3S', 'P1YTS3'];
             durs.forEach(function(dur) {
                 expect(search.parseDuration(dur)).toBe(undefined);
             });

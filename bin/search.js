@@ -81,11 +81,16 @@
         }
 
         // Yahoo incorrectly implements ISO 8601 duration format, so need different regexes
-        if (dur.match(/^P([A-S,U-Z]\d+\.?\d*)*T?([A-S,U-Z]\d+\.?\d*)*$/)) {
+        if (dur.match(/^P([Y,M,D]\d+\.?\d*)*T?([H,M,S]\d+\.?\d*)*$/)) {
             isYahoo = true;
-        } else if (!dur.match(/^P?(\d+\.?\d*[A-S,U-Z])*T?(\d+\.?\d*[A-S,U-Z])*$/)) {
+        } else if (!dur.match(/^P?(\d+\.?\d*[Y,M,D])*T?(\d+\.?\d*[H,M,S])*$/)) {
             log.warn('Video %1 has unknown duration format %2', link, dur);
             return undefined;
+        }
+
+        // Ensure the duration format starts with P (rumble doesn't always do this)
+        if(dur[0] != 'P') {
+          dur = 'P' + dur;
         }
 
         return timeParts.reduce(function(total, part) {
