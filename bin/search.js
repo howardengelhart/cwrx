@@ -89,8 +89,8 @@
         }
 
         // Ensure the duration format starts with P (rumble doesn't always do this)
-        if(dur[0] != 'P') {
-          dur = 'P' + dur;
+        if(dur[0] !== 'P') {
+            dur = 'P' + dur;
         }
 
         return timeParts.reduce(function(total, part) {
