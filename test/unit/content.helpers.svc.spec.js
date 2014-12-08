@@ -600,6 +600,20 @@ describe('content (UT)', function() {
             }).done(done);
         });
         
+        it('should not overwrite lightbox-type modes', function(done) {
+            queryParams.context = 'mr2';
+            exp.data = { branding: 'expBranding', placementId: 234, wildCardPlacement: 543, mode: 'lightbox-playlist' };
+            content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            .then(function(exp) {
+                expect(exp).toEqual({id: 'e-1', data: {branding: 'expBranding', placementId: 234,
+                                     wildCardPlacement: 543, mode: 'lightbox-playlist'}});
+                expect(siteCache.getPromise).not.toHaveBeenCalled();
+                expect(orgCache.getPromise).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
         it('should handle the queryParams being incomplete', function(done) {
             queryParams = { context: 'mr2' };
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
