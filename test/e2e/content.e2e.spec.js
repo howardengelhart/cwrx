@@ -107,7 +107,7 @@ describe('content (E2E):', function() {
                 },
                 {
                     id: 'e2e-adConfig',
-                    data: [ { data: { foo: 'bar', adConfig: { foo: 'baz' } }, versionId: 'a5e744d0' } ],
+                    data: [{data: {mode: 'lightbox-playlist', foo: 'bar', adConfig: {foo: 'baz'}}, versionId: 'a5e744d0'}],
                     access: 'public',
                     status: 'active',
                     user: 'e2e-user',
@@ -158,6 +158,19 @@ describe('content (E2E):', function() {
                 expect(resp.body.title).toBe('test experience');
                 expect(resp.body.data).toEqual({foo: 'bar', branding: 'expBrand', placementId: '123',
                                                 wildCardPlacement: '321', mode: 'lightbox'});
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should not overwrite lightbox-type modes', function(done) {
+            options.url = options.url.replace('e2e-pubget1', 'e2e-adConfig');
+            options.qs = { context: 'mr2' };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body._id).not.toBeDefined();
+                expect(resp.body.id).toBe('e2e-adConfig');
+                expect(resp.body.data.mode).toBe('lightbox-playlist');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);

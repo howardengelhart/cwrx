@@ -289,7 +289,7 @@
         }
 
         setProps(exp, qps);
-        if (qps.context === 'mr2') {
+        if (qps.context === 'mr2' && (!exp.data.mode || !exp.data.mode.match(/^lightbox.*/))) {
             exp.data.mode = 'lightbox';
         }
         if (props.every(function(prop) { return !!exp.data[prop]; })) {

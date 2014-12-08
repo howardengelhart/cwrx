@@ -1,5 +1,9 @@
 # Content Service Changelog
 
+### 1.13.6: Mon Dec  8 10:47:52 EST 2014
+* [FIX]: Respect other lightbox modes when context is `mr2`: [#345](https://github.com/cinema6/cwrx/pull/345)
+* Extra deployment steps: Deploy new content cookbook
+
 ### 1.13.5: Wed Dec  3 12:00:40 EST 2014
 * [FIX]: Override site query if `container=veeseo`: [#340](https://github.com/cinema6/cwrx/pull/340)
 * Extra deployment steps: Deploy new content cookbook
