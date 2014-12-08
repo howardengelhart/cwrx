@@ -39,7 +39,7 @@ describe('search (E2E):', function() {
             done();
         });
     });
-    
+
     describe('GET /api/search/videos', function() {
         var options;
         beforeEach(function() {
@@ -95,7 +95,7 @@ describe('search (E2E):', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should be able to restrict results to only hd videos', function(done) {
             options.qs.hd = 'true';
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -114,7 +114,7 @@ describe('search (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should be able to restrict results to non-hd videos', function(done) {
             options.qs.hd = 'false';
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -133,7 +133,7 @@ describe('search (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should be able to restrict results to certain sites', function(done) {
             options.qs.sites = 'vimeo,dailymotion';
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -153,7 +153,7 @@ describe('search (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should handle yahoo videos', function(done) {
             options.qs.sites = 'yahoo';
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -174,7 +174,7 @@ describe('search (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should handle aol videos', function(done) {
             options.qs.sites = 'aol';
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -195,7 +195,29 @@ describe('search (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
+        it('should handle rumble videos', function(done) {
+          options.qs.sites = 'rumble';
+          requestUtils.qRequest('get', options).then(function(resp) {
+            expect(resp.response.statusCode).toBe(200);
+            expect(resp.body.meta).toBeDefined();
+            expect(resp.body.meta.skipped).toBe(0);
+            expect(resp.body.meta.numResults).toBe(10);
+            expect(resp.body.meta.totalResults >= 10).toBeTruthy();
+            expect(resp.body.items.length).toBe(10);
+            resp.body.items.forEach(function(item) {
+               expect(item.site).toBe('rumble');
+               expect(item.siteLink).toBe('rumble.com');
+               expect(!!item.link.match('rumble.com')).toBe(true);
+               expect(item.duration).toBeDefined();
+               expect(item.description).toBeDefined();
+               expect(item.videoid).toBeDefined();
+            });
+          }).catch(function(error) {
+            expect(error).not.toBeDefined();
+          }).done(done);
+        });
+
         it('should be able to paginate through results', function(done) {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -219,7 +241,7 @@ describe('search (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should impose sensible defaults on the skip and limit params', function(done) {
             options.qs.skip = '-3';
             options.qs.limit = '1000000000000000000';
@@ -234,7 +256,7 @@ describe('search (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return an empty array if nothing is found', function(done) {
             options.qs.query = 'fhoenfaefoajhweoucaeirycvnbaksdoiur' + Math.random() * 10000000;
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -248,7 +270,7 @@ describe('search (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 400 if no query is provided', function(done) {
             delete options.qs.query;
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -258,7 +280,7 @@ describe('search (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 400 if attempting to query past the 100th result', function(done) {
             q.all([{skip: 91}, {limit: 1, skip: 100}].map(function(params) {
                 options.qs.skip = params.skip;
@@ -273,7 +295,7 @@ describe('search (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 401 if no user is logged in', function(done) {
             delete options.jar;
             requestUtils.qRequest('get', options).then(function(resp) {

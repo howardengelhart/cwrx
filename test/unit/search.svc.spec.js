@@ -1,14 +1,14 @@
 var flush = true;
 describe('search (UT)', function() {
     var search, mockLog, mockLogger, req, q, logger, requestUtils, anyFunc;
-        
+
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q               = require('q');
         logger          = require('../../lib/logger');
         requestUtils    = require('../../lib/requestUtils');
         search          = require('../../bin/search');
-        
+
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
             error : jasmine.createSpy('log_error'),
@@ -25,13 +25,13 @@ describe('search (UT)', function() {
         };
         anyFunc = jasmine.any(Function);
     });
-    
+
     describe('parseDuration', function() {
         it('should return undefined if no duration string is passed in', function() {
             expect(search.parseDuration(null, 'yt.com/asdf')).toBe(undefined);
             expect(mockLog.warn).not.toHaveBeenCalled();
         });
-        
+
         it('should properly parse strings of the format "P#Y#M#DT#H#M#S"', function() {
             var durs = [ {str: 'PT1H1M11.23S', val: 3671.23}, {str: 'PT13H34M23S', val: 48863},
                          {str: 'P1Y12M2DT1H23M02S', val: 62817782}, {str: 'P3M', val: 7776000},
@@ -51,29 +51,39 @@ describe('search (UT)', function() {
             });
             expect(mockLog.warn).not.toHaveBeenCalled();
         });
-        
+
+        it('should properly parse rumble\'s strings of the format "#Y#M#DT#H#M#S"', function() {
+          var durs = [ {str: 'T1H1M11.23S', val: 3671.23}, {str: 'T13H34M23S', val: 48863},
+          {str: '1Y12M2DT1H23M02S', val: 62817782}, {str: '3M', val: 7776000},
+          {str: 'T3M', val: 180}, {str: 'PT2.45H', val: 8820} ];
+          durs.forEach(function(durObj) {
+            expect(search.parseDuration(durObj.str)).toBe(durObj.val);
+          });
+          expect(mockLog.warn).not.toHaveBeenCalled();
+        });
+
         it('should properly parse strings of the format "# mins"', function() {
             expect(search.parseDuration('12 mins')).toBe(720);
             expect(search.parseDuration('02 mins')).toBe(120);
             expect(mockLog.warn).not.toHaveBeenCalled();
         });
-        
+
         it('should return undefined if the duration is in an unknown format', function() {
-            var durs = ['aslkd', 'some mins', 'T3M1S', '4Y', 'TS32', 'P1..3Y', 'PT1HM3S', 'P1YTS3'];
+            var durs = ['aslkd', 'some mins', 'QT3M1S', 'T4Y', 'TS32', 'P1..3Y', 'PT1HM3S', 'P1YTS3'];
             durs.forEach(function(dur) {
                 expect(search.parseDuration(dur)).toBe(undefined);
             });
             expect(mockLog.warn.callCount).toBe(durs.length);
         });
     });
-    
+
     describe('formatGoogleResults', function() {
         var stats;
         beforeEach(function() {
             stats = { startIndex: 11, count: 20, totalResults: 50 };
             spyOn(search, 'parseDuration').andCallThrough();
         });
-        
+
         it('should correctly format youtube results', function() {
             var items = [
                 { title: 'YT Test', link: 'http://www.youtube.com/watch?v=GdEKSyad_rk', displayLink: 'www.youtube.com',
@@ -91,7 +101,7 @@ describe('search (UT)', function() {
             });
             expect(mockLog.warn).not.toHaveBeenCalled();
         });
-        
+
         it('should correctly format vimeo results', function() {
             var items = [
                 { title: 'V Test', link: 'http://vimeo.com/77428778', displayLink: 'vimeo.com',
@@ -161,7 +171,25 @@ describe('search (UT)', function() {
             });
             expect(mockLog.warn).not.toHaveBeenCalled();
         });
-        
+
+        it('should correctly format rumble results', function() {
+          var items = [
+          { title: 'Rumble Test', link: 'https://rumble.com/kitty-cats.html', displayLink: 'rumble.com',
+          pagemap: { videoobject: [{description: 'Look at the cats.', duration: 'P1YT1M13S'}],
+          cse_thumbnail: [{width: 300, height: 168, src: 'http://img.com'}] } }
+          ];
+
+          expect(search.formatGoogleResults(stats, items)).toEqual({
+            meta: {skipped: 10, numResults: 20, totalResults: 50},
+            items: [
+            { title: 'Rumble Test', link: 'https://rumble.com/kitty-cats.html', siteLink: 'rumble.com',
+            description: 'Look at the cats.', site: 'rumble', hd: false, duration: 31536073, videoid: 'kitty-cats',
+            thumbnail: { width: 300, height: 168, src: 'http://img.com' } }
+            ]
+          });
+          expect(mockLog.warn).not.toHaveBeenCalled();
+        });
+
         it('should filter out invalid items received from google', function() {
             stats.count = 6;
             var items = [
@@ -176,7 +204,7 @@ describe('search (UT)', function() {
             expect(results.items).toEqual([]);
             expect(mockLog.warn.callCount).toBe(3);
         });
-        
+
         it('should handle the case where google returns no items', function() {
             stats = { startIndex: 0, count: 0, totalResults: 0 };
             expect(search.formatGoogleResults(stats)).toEqual({
@@ -185,7 +213,7 @@ describe('search (UT)', function() {
             });
         });
     });
-    
+
     describe('findVideosWithGoogle', function() {
         var opts, googleCfg, apiKey;
         beforeEach(function() {
@@ -201,7 +229,7 @@ describe('search (UT)', function() {
             apiKey = 'zxcv5678';
             spyOn(search, 'formatGoogleResults').andReturn('formatted');
         });
-        
+
         it('should return a 400 if the user is trying to query past the 100th result', function(done) {
             q.all([{limit: 10, start: 92}, {limit: 5, start: 120}, {limit: 1, start: 101}].map(function(params) {
                 opts.limit = params.limit;
@@ -231,7 +259,7 @@ describe('search (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should be able to restrict results to certain sites', function(done) {
             opts.sites = ['youtube.com', 'vimeo.com'];
             search.findVideosWithGoogle(req, opts, googleCfg, apiKey).then(function(resp) {
@@ -242,7 +270,7 @@ describe('search (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should be able to restrict results to only hd videos', function(done) {
             opts.hd = 'true';
             search.findVideosWithGoogle(req, opts, googleCfg, apiKey).then(function(resp) {
@@ -264,7 +292,7 @@ describe('search (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should be able to retry failed requests to google', function(done) {
             requestUtils.qRequest.andCallFake(function(method, opts) {
                 if (this.qRequest.callCount >= 2) {
@@ -289,7 +317,7 @@ describe('search (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should never report that it found more than 100 results', function(done) {
             requestUtils.qRequest.andReturn(q({
                 response: { statusCode: 200 },
@@ -307,7 +335,7 @@ describe('search (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 500 code if google returns a non-2xx status code', function(done) {
             q.all([100, 300, 400, 500].map(function(code) {
                 requestUtils.qRequest.andReturn(q({response: {statusCode: code}, body: 'fake'}));
@@ -323,7 +351,7 @@ describe('search (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 500 code if google returns an incomplete body', function(done) {
             q.all([{items: []}, {queries: 'fake', items: []}]
             .map(function(body) {
@@ -340,7 +368,7 @@ describe('search (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 500 code if the request fails', function(done) {
             requestUtils.qRequest.andReturn(q.reject({error: 'I GOT A PROBLEM'}));
             search.findVideosWithGoogle(req, opts, googleCfg, apiKey).then(function(resp) {
@@ -353,7 +381,7 @@ describe('search (UT)', function() {
             }).done(done);
         });
     });
-    
+
     describe('findVideos', function() {
         var config, secrets;
         beforeEach(function() {
@@ -373,7 +401,7 @@ describe('search (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should handle aol and yahoo properly for the sites param', function(done) {
             req.query.sites = 'yahoo,aol';
             search.findVideos(req, config, secrets).then(function(resp) {
@@ -385,7 +413,7 @@ describe('search (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should use defaults for some opts if not provided', function(done) {
             req.query = {query: 'foo'};
             search.findVideos(req, config, secrets).then(function(resp) {
@@ -397,7 +425,7 @@ describe('search (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should guard against invalid values for the limit and skip params', function(done) {
             q.all([['a1', 'a1'], ['-1', '-2'], ['11', '0']].map(function(params) {
                 req.query.limit = params[0];
@@ -414,7 +442,7 @@ describe('search (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 400 if there\'s no query string in the request', function(done) {
             delete req.query.query;
             search.findVideos(req, config, secrets).then(function(resp) {
@@ -424,7 +452,7 @@ describe('search (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should reject if findVideosWithGoogle fails', function(done) {
             search.findVideosWithGoogle.andReturn(q.reject('I GOT A PROBLEM'));
             search.findVideos(req, config, secrets).then(function(resp) {
