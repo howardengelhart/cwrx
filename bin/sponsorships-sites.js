@@ -85,7 +85,7 @@
                     container.contentPlacementId = contResult.id;
                 }
             });
-        })).then(function(results) {
+        })).then(function(/*results*/) {
             log.info('[%1] Successfully created all placements for site %2', req.uuid, id);
             next();
         });

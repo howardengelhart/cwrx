@@ -20,8 +20,46 @@
         return svc;
     };
     
-    custModule.formatAdtechCust = function(customer) { //TODO: handle list of advertisers?
+    /* TODO: how to use for reads? should all Adtech updates retrieve original first?
+    custModule.getAdvertList = function(req, next, done) {
+        var log = logger.getLog(),
+            adtechId = req.origObj.adtechId;
+            
+        if (!adtechId) {
+            log.warn('[%1] No adtech id for customer %2', req.uuid, req.origObj.id);
+            return next();
+        }
+        
+        return adtech.customerAdmin.getCustomerById(adtechId).then(function(resp) {
+            req.origAdvertisers = resp.advertiser;
+            next();
+        }).catch(function(error) {
+            log.error('[%1] Could not retrieve Adtech customer %2: %3', req.uuid, adtechId, error);
+            return q.reject(error); //TODO: is this what we want?
+        });
+    };
+    */
+    
+    custModule.formatAdtechCust = function(req, customer, advertList) {
+        var log = logger.getLog(),
+            advertisers;
+        
+        if (advertList) {
+            if (!(advertList instanceof Array) || !advertList.every(function(advert) {
+                return typeof advert === 'string' || typeof advert === 'number';
+            })) {
+                log.warn('[%1] Invalid advertiser list: %2', req.uuid, JSON.stringify(advertList));
+            } else {
+                log.info('[%1] Linking customer %2 to advertisers %3',
+                         req.uuid, customer.id, advertList);
+                advertisers = adtech.customerAdmin.makeAdvertiserList(advertList.map(function(id) {
+                    return { id: Number(id) };
+                }));
+            }
+        }
+            
         return {
+            advertiser: advertisers,
             companyData: {
                 address: {},
                 url: customer.url || 'http://cinema6.com'
@@ -34,10 +72,11 @@
     
     custModule.adtechCreate = function(req, next/*, done*/) {
         var log = logger.getLog(),
-            record = custModule.formatAdtechCust(req.body);
-            
-        req.body.advertisers = req.body.advertisers || [];
+            record = custModule.formatAdtechCust(req);
         
+        delete req.body.advertisers;
+        
+            
         return adtech.customerAdmin.createCustomer(record).then(function(resp) {
             log.info('[%1] Created Adtech customer %2 for C6 customer %3',
                      req.uuid, resp.id, req.body.id);
@@ -52,18 +91,18 @@
     
     custModule.adtechEdit = function(req, next/*, done*/) {
         var log = logger.getLog(),
-            record = custModule.formatAdtechCust(req.origObj);
+            record = custModule.formatAdtechCust(req, req.origObj, req.body.advertisers);
         
-        if (req.body.name === req.origObj.name) {
-            log.info('[%1] Customer name unchanged; not updating adtech', req.uuid);
+        if (req.body.name === req.origObj.name && !req.body.advertisers) {
+            log.info('[%1] Customer unchanged; not updating adtech', req.uuid);
             return next();
         }
         
         record.name = req.body.name;
+        delete req.body.advertisers;
         
         return adtech.customerAdmin.updateCustomer(record).then(function(resp) {
-            log.info('[%1] Updated Adtech customer %2 with name %3',
-                     req.uuid, resp.id, req.body.name);
+            log.info('[%1] Updated Adtech customer %2', req.uuid, resp.id);
             next();
         }).catch(function(error) {
             log.error('[%1] Failed editing Adtech customer %2: %3',
