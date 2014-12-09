@@ -5,7 +5,6 @@
         authUtils       = require('../lib/authUtils'),
         CrudSvc         = require('../lib/crudSvc'),
         logger          = require('../lib/logger'),
-        objUtils        = require('../lib/objUtils'),
         adtech          = require('adtech'),
 
         advertModule = {};
@@ -22,26 +21,22 @@
     };
     
     //TODO: should this merge a new and old version? will we need to set more than just name?
-    advertModule.getAdtechRecord = function(advertiser) {
-        var record = {
+    advertModule.formatAdtechAdvert = function(advertiser) {
+        return {
             companyData: { //TODO: load this through default in config? fill in address?
                 address: {},
-                url: 'foo'
+                url: advertiser.url || 'http://cinema6.com'
             },
             extId: advertiser.id,
+            id: advertiser.adtechId && Number(advertiser.adtechId),
             name: advertiser.name
         };
-        if (advertiser.adtechId) {
-            record.id = Number(advertiser.adtechId);
-        }
-        
-        return objUtils.sortObject(record); //TODO: honestly this should be in the adtech module...
     };
     
     //TODO: rename these? wrap so adtech can be swapped?
     advertModule.adtechCreate = function(req, next/*, done*/) {
         var log = logger.getLog(),
-            record = advertModule.getAdtechRecord(req.body);
+            record = advertModule.formatAdtechAdvert(req.body);
         
         //TODO: should this timeout?
         return adtech.customerAdmin.createAdvertiser(record).then(function(resp) {
@@ -58,7 +53,7 @@
     
     advertModule.adtechEdit = function(req, next/*, done*/) {
         var log = logger.getLog(),
-            record = advertModule.getAdtechRecord(req.origObj);
+            record = advertModule.formatAdtechAdvert(req.origObj);
         
         if (req.body.name === req.origObj.name) {
             log.info('[%1] Advertiser name unchanged; not updating adtech', req.uuid);

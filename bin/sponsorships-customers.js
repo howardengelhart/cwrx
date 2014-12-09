@@ -5,7 +5,6 @@
         authUtils       = require('../lib/authUtils'),
         CrudSvc         = require('../lib/crudSvc'),
         logger          = require('../lib/logger'),
-        objUtils        = require('../lib/objUtils'),
         adtech          = require('adtech'),
 
         custModule = {};
@@ -21,25 +20,23 @@
         return svc;
     };
     
-    custModule.getAdtechRecord = function(customer) { //TODO: handle list of advertisers?
-        var record = {
+    custModule.formatAdtechCust = function(customer) { //TODO: handle list of advertisers?
+        return {
             companyData: {
                 address: {},
-                url: site.url || 'http://cinema6.com'
+                url: customer.url || 'http://cinema6.com'
             },
             extId: customer.id,
+            id: customer.adtechId && Number(customer.adtechId),
             name: customer.name
         };
-        if (customer.adtechId) {
-            record.id = Number(customer.adtechId);
-        }
-        
-        return objUtils.sortObject(record);
     };
     
     custModule.adtechCreate = function(req, next/*, done*/) {
         var log = logger.getLog(),
-            record = custModule.getAdtechRecord(req.body);
+            record = custModule.formatAdtechCust(req.body);
+            
+        req.body.advertisers = req.body.advertisers || [];
         
         return adtech.customerAdmin.createCustomer(record).then(function(resp) {
             log.info('[%1] Created Adtech customer %2 for C6 customer %3',
@@ -55,7 +52,7 @@
     
     custModule.adtechEdit = function(req, next/*, done*/) {
         var log = logger.getLog(),
-            record = custModule.getAdtechRecord(req.origObj);
+            record = custModule.formatAdtechCust(req.origObj);
         
         if (req.body.name === req.origObj.name) {
             log.info('[%1] Customer name unchanged; not updating adtech', req.uuid);

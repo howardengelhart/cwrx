@@ -21,6 +21,10 @@
         return campSvc;
     };
     
+    
+    
+    
+    
     campModule.setupEndpoints = function(app, svc, sessions, audit) {
         var authGetCamp = authUtils.middlewarify({campaigns: 'read'});
         app.get('/api/campaign/:id', sessions, authGetCamp, audit, function(req, res) {
