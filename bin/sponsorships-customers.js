@@ -85,7 +85,7 @@
         }).catch(function(error) {
             log.error('[%1] Failed creating Adtech customer for %2: %3',
                       req.uuid, req.body.id, error);
-            return q.reject('Adtech failure');
+            return q.reject(new Error('Adtech failure'));
         });
     };
     
@@ -107,7 +107,7 @@
         }).catch(function(error) {
             log.error('[%1] Failed editing Adtech customer %2: %3',
                       req.uuid, req.origObj.adtechId, error);
-            return q.reject('Adtech failure');
+            return q.reject(new Error('Adtech failure'));
         });
     };
 

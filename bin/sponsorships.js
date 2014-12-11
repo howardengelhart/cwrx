@@ -72,7 +72,7 @@
             users        = state.dbs.c6Db.collection('users'),
             advertSvc    = advertModule.setupSvc(state.dbs.c6Db.collection('advertisers')),
             custSvc      = custModule.setupSvc(state.dbs.c6Db.collection('customers')),
-            campSvc      = campModule.setupSvc(state.dbs.c6Db.collection('campaigns')),
+            campSvc      = campModule.setupSvc(state.dbs.c6Db),
             siteSvc      = siteModule.setupSvc(state.dbs.c6Db.collection('sites')),
             //TODO: groups?
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
