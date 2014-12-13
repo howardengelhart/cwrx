@@ -40,6 +40,7 @@
     };
     */
     
+    //TODO: fix this function it looks wack
     custModule.formatAdtechCust = function(req, customer, advertList) {
         var log = logger.getLog(),
             advertisers;
@@ -74,6 +75,7 @@
         var log = logger.getLog(),
             record = custModule.formatAdtechCust(req);
         
+        //TODO: should we put advertisers back on the response when sending to client (post-write)
         delete req.body.advertisers;
         
             

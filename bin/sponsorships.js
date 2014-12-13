@@ -14,7 +14,7 @@
         custModule      = require('./sponsorships-customers'),
         campModule      = require('./sponsorships-campaigns'),
         siteModule      = require('./sponsorships-sites'),
-        // groupModule     = require('./sponsorships-groups'),
+        groupModule     = require('./sponsorships-groups'),
         adtech          = require('adtech'),
         authUtils       = require('../lib/authUtils'),
         service         = require('../lib/service'),
@@ -74,7 +74,6 @@
             custSvc      = custModule.setupSvc(state.dbs.c6Db.collection('customers')),
             campSvc      = campModule.setupSvc(state.dbs.c6Db),
             siteSvc      = siteModule.setupSvc(state.dbs.c6Db.collection('sites')),
-            //TODO: groups?
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._coll = users;
@@ -151,9 +150,7 @@
         custModule.setupEndpoints(app, custSvc, sessWrap, audit);
         campModule.setupEndpoints(app, campSvc, sessWrap, audit);
         siteModule.setupEndpoints(app, siteSvc, sessWrap, audit);
-        /*
-        groupModule.setupEndpoints(app, groupSvc, sessWrap, audit);
-        */
+        groupModule.setupEndpoints(app, sessWrap, audit);
         
         //TODO: meta and version endpoints?
         started = 'good';

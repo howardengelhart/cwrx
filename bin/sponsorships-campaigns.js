@@ -2,32 +2,16 @@
     'use strict';
 
     var q               = require('q'),
-        path            = require('path'),
-        fs              = require('fs-extra'),
         adtech          = require('adtech'),
+        adtechUtils     = require('../lib/adtechUtils'),
         authUtils       = require('../lib/authUtils'),
         CrudSvc         = require('../lib/crudSvc'),
         logger          = require('../lib/logger'),
         enums           = require('../lib/enums'),
         Status          = enums.Status,
         
-        bannerDir = path.join(__dirname, '../templates/adtechBanners'),
-        bannerTypes = { // TODO: move elsewhere?
-            card: {
-                sizeTypeId: 277,
-                template: fs.readFileSync(path.join(bannerDir, 'card.html'))
-            },
-            miniReel: {
-                sizeTypeId: 1182,
-                template: fs.readFileSync(path.join(bannerDir, 'minireel.html'))
-            },
-            targetMiniReel: {
-                sizeTypeId: 509,
-                template: fs.readFileSync(path.join(bannerDir, 'minireel.html'))
-            }
-        },
-
         campModule = {};
+
 
     campModule.setupSvc = function(db) {
         var campColl = db.collection('campaigns'),
@@ -50,71 +34,11 @@
         
         return campSvc;
     };
-
-    //TODO: need to set KGT in features somehow...
-    campModule.formatAdtechCamp = function(campaign) {
-        return {
-            adGoalTypeId: 1, //TODO: should these be configurable? or something?
-            advertiserId: Number(campaign.advertiserId),
-            campaignTypeId: 26954,
-            customerId: Number(campaign.customerId),
-            dateRangeList: adtech.campaignAdmin.makeDateRangeList([{
-                endDate: new Date(campaign.created.valueOf() + 365*24*60*60*1000).toISOString(),
-                startDate: campaign.created.toISOString()
-            }]),
-            extId: campaign.id,
-            frequencyConfig: {
-                type: campaign.frequency || adtech.constants.ICampaign.FREQUENCY_TYPE_NONE
-            },
-            id: campaign.adtechId && Number(campaign.adtechId),
-            name: campaign.name,
-            optimizerTypeId: 6,
-            optimizingConfig: {
-                minClickRate: 0,
-                minNoPlacements: 0
-            },
-            pricingConfig: {
-                cpm: 0
-            }
-        };
-    };
-
-    campModule.formatAdtechBanner = function(type, extId) {
-        var retObj = { _type: type },
-            typeConfig = bannerTypes[type];
-
-        retObj.banner = {
-            data            : typeConfig.template.toString('base64'),
-            // description     : type + ' ' + extId,
-            extId           : extId,
-            fileType        : 'html',
-            id              : -1,
-            mainFileName    : 'index.html',
-            name            : type + ' ' + extId,
-            originalData    : typeConfig.template.toString('base64'),
-            sizeTypeId      : typeConfig.sizeTypeId,
-            statusId        : adtech.constants.IBanner.STATUS_ACTIVE,
-            styleTypeId     : adtech.constants.IBanner.STYLE_HTML
-        };
-        retObj.bannerInfo = {
-            bannerReferenceId        : retObj.banner.id,
-            entityFrequencyConfig    : {
-                frequencyCookiesOnly : true,
-                frequencyDistributed : true,
-                frequencyInterval    : 30,
-                frequencyTypeId      : adtech.constants.IFrequencyInformation.FREQUENCY_5_MINUTES
-            },
-            name                     : retObj.banner.name,
-            statusId                 : retObj.banner.statusId
-        };
-        
-        return retObj;
-    };
     
     campModule.adtechCreate = function(req, next/*, done*/) {
         var log = logger.getLog();
             
-        return adtech.campaignAdmin.createCampaign(campModule.formatAdtechCamp(req.body))
+        return adtech.campaignAdmin.createCampaign(adtechUtils.formatCampaign(req.body))
         .then(function(resp) {
             log.info('[%1] Created Adtech campaign %2 for C6 campaign %3',
                      req.uuid, resp.id, req.body.id);
@@ -128,10 +52,9 @@
         });
     };
     
-    //TODO: delete unused banners for PUTs?
+    //TODO: delete unused banners for PUTs? need to decide what source of truth is...
     campModule.createBanners = function(req, next, done) {
         var log = logger.getLog(),
-            bnCount = 0,
             banners = [],
             id, adtechId;
             
@@ -153,38 +76,15 @@
             }
         });
         
-        function filterItem(item) {
-            return !item.adtechId;
-        }
-        
-        banners = banners.concat(req.body.cards.filter(filterItem).map(function(card) {
-                        return campModule.formatAdtechBanner('card', card.id);
-                    }), req.body.miniReels.filter(filterItem).map(function(reel) {
-                        return campModule.formatAdtechBanner('miniReel', reel.id);
-                    }), req.body.targetMiniReels.filter(filterItem).map(function(tReel) {
-                        return campModule.formatAdtechBanner('targetMiniReel', tReel.id);
-                    }));
-        
-        // seems like adtech won't let us create multiple banners concurrently, so do 1 by 1
-        return banners.reduce(function(promise, obj) {
-            return promise.then(function() {
-                return adtech.bannerAdmin.createBanner(adtechId,obj.banner,obj.bannerInfo);
-            })
-            .then(function(resp) {
-                bnCount++;
-                log.info('[%1] Created banner "%2", id %3, for campaign %4',
-                         req.uuid, resp.name, resp.bannerNumber, id || req.origObj.id);
-                req.body[obj._type + 's'].forEach(function(item) {
-                    if (item.id === resp.extId) {
-                        item.adtechId = resp.bannerNumber;
-                    }
-                });
-            });
-        }, q())
+        return adtechUtils.createBanners(req.body.cards, 'card', adtechId)
         .then(function() {
-            if (bnCount > 0) {
-                log.info('[%1] Created all banners for campaign %2', req.uuid, id);
-            }
+            return adtechUtils.createBanners(req.body.miniReels, 'miniReel', adtechId);
+        })
+        .then(function() {
+            return adtechUtils.createBanners(req.body.targetMiniReels, 'targetMiniReel', adtechId);
+        })
+        .then(function() {
+            log.info('[%1] All banners for campaign %2 have been created', req.uuid, id);
             next();
         })
         .catch(function(error) {
@@ -193,6 +93,7 @@
         });
     };
     
+
     campModule.deleteContent = function(svc, req, next/*, done*/) {
         var log = logger.getLog(),
             cardIds = (req.origObj.cards || []).map(function(card) { return card.id; }),
@@ -219,6 +120,7 @@
         });
     };
     
+
     campModule.setupEndpoints = function(app, svc, sessions, audit) {
         var authGetCamp = authUtils.middlewarify({campaigns: 'read'});
         app.get('/api/campaign/:id', sessions, authGetCamp, audit, function(req, res) {
