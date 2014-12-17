@@ -302,7 +302,7 @@
             var site = content.chooseSite(results);
             if (!site) {
                 if (!!host) {
-                    log.warn('Site %1 not found', host);
+                    log.info('Site %1 not found', host);
                 }
             } else {
                 setProps(exp, site);
