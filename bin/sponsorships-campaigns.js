@@ -27,7 +27,7 @@
         campSvc.use('create', campSvc.validateUniqueProp.bind(campSvc, 'name', null));
         campSvc.use('edit', campSvc.validateUniqueProp.bind(campSvc, 'name', null));
         campSvc.use('read', campSvc.preventGetAll.bind(campSvc));
-        campSvc.use('create', campModule.adtechCreate);
+        campSvc.use('create', campModule.createAdtechCamp);
         campSvc.use('create', campModule.createBanners);
         campSvc.use('edit', campModule.createBanners);
         campSvc.use('delete', campModule.deleteContent.bind(campModule, campSvc));
@@ -35,7 +35,7 @@
         return campSvc;
     };
     
-    campModule.adtechCreate = function(req, next/*, done*/) {
+    campModule.createAdtechCamp = function(req, next/*, done*/) {
         var log = logger.getLog();
             
         return adtech.campaignAdmin.createCampaign(adtechUtils.formatCampaign(req.body))

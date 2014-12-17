@@ -364,6 +364,89 @@ describe('CrudSvc', function() {
             expect(doneSpy).not.toHaveBeenCalled();
         });
     });
+
+    describe('validateUniqueProp', function() {
+        var req, nextSpy, doneSpy, catchSpy;
+        beforeEach(function() {
+            mockColl.findOne.andCallFake(function(query, cb) { cb(null, null); });
+            req = { uuid: '1234', user: { id: 'u1' }, body: { name: 'scruffles' } };
+            nextSpy = jasmine.createSpy('next');
+            doneSpy = jasmine.createSpy('done');
+            catchSpy = jasmine.createSpy('errorCatcher');
+        });
+        
+        it('should call next if no object exists with the request property', function(done) {
+            svc.validateUniqueProp('name', /^\w+$/, req, nextSpy, doneSpy).catch(catchSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(catchSpy).not.toHaveBeenCalled();
+                expect(mockColl.findOne).toHaveBeenCalledWith({name: 'scruffles'}, anyFunc);
+                done(); 
+            });
+        });
+        
+        it('should exclude the current object in the mongo search for PUTs', function(done) {
+            req.params = {id: 'cat-1'};
+            svc.validateUniqueProp('name', /^\w+$/, req, nextSpy, doneSpy).catch(catchSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(catchSpy).not.toHaveBeenCalled();
+                expect(mockColl.findOne).toHaveBeenCalledWith({name: 'scruffles', id: {$ne: 'cat-1'}}, anyFunc);
+                done(); 
+            });
+        });
+        
+        it('should call next if the request body does not contain the field', function(done) {
+            svc.validateUniqueProp('fluffy', /^\w+$/, req, nextSpy, doneSpy).catch(catchSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(catchSpy).not.toHaveBeenCalled();
+                expect(mockColl.findOne).not.toHaveBeenCalled();
+                done(); 
+            });
+        });
+        
+        it('should call done if the field is invalid', function(done) {
+            q.all(['good cat', 'c@t', 'cat\n', '@#)($*)[['].map(function(name) {
+                req.body.name = name;
+                return svc.validateUniqueProp('name', /^\w+$/, req, nextSpy, doneSpy).catch(catchSpy);
+            })).then(function(results) {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy.calls.length).toBe(4);
+                doneSpy.calls.forEach(function(call) {
+                    expect(call.args).toEqual([{code: 400, body: 'Invalid name'}]);
+                });
+                expect(catchSpy).not.toHaveBeenCalled();
+                expect(mockColl.findOne).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should call done if an object exists with the request field', function(done) {
+            mockColl.findOne.andCallFake(function(query, cb) { cb(null, { cat: 'yes' }); });
+            svc.validateUniqueProp('name', /^\w+$/, req, nextSpy, doneSpy).catch(catchSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({code: 409, body: 'An object with that name already exists'});
+                expect(catchSpy).not.toHaveBeenCalled();
+                done(); 
+            });
+        });
+        
+        it('should reject if mongo encounters an error', function(done) {
+            mockColl.findOne.andCallFake(function(query, cb) { cb('CAT IS TOO CUTE HALP'); });
+            svc.validateUniqueProp('name', /^\w+$/, req, nextSpy, doneSpy).catch(catchSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(catchSpy).toHaveBeenCalledWith('CAT IS TOO CUTE HALP');
+                done(); 
+            });
+        });
+    });
     
     describe('use', function() {
         it('should push the function onto the appropriate middleware array', function() {

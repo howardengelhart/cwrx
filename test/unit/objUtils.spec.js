@@ -51,4 +51,15 @@ describe('objUtils', function() {
         });
     });
 
+    describe('trimNull', function() {
+        it('should trim any fields with null values from an object', function() {
+            var obj = { a: 1, b: null, nested: { c: null, d: undefined, e: 3 } };
+            objUtils.trimNull(obj);
+            expect(obj).toEqual({ a: 1, nested: { d: undefined, e: 3 } });
+            
+            obj = 'foo';
+            objUtils.trimNull(obj);
+            expect(obj).toBe('foo');
+        });
+    });
 });

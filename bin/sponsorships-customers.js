@@ -3,6 +3,7 @@
 
     var q               = require('q'),
         authUtils       = require('../lib/authUtils'),
+        objUtils        = require('../lib/objUtils'),
         CrudSvc         = require('../lib/crudSvc'),
         logger          = require('../lib/logger'),
         adtech          = require('adtech'),
@@ -14,8 +15,9 @@
         svc.createValidator._required.push('name');
         svc.createValidator._forbidden.push('adtechId');
         svc.use('read', svc.preventGetAll.bind(svc));
-        svc.use('create', custModule.adtechCreate);
-        svc.use('edit', custModule.adtechEdit);
+        svc.use('create', custModule.createAdtechCust);
+        svc.use('edit', custModule.editAdtechCust);
+        svc.use('delete', custModule.deleteAdtechCust);
         
         return svc;
     };
@@ -39,75 +41,111 @@
         });
     };
     */
-    
-    //TODO: fix this function it looks wack
-    custModule.formatAdtechCust = function(req, customer, advertList) {
+
+    custModule.formatAdtechCust = function(body, origCust, advertList) {
         var log = logger.getLog(),
-            advertisers;
-        
+            c6Id = body.id || (origCust && origCust.extId),
+            advertisers, record;
+            
+        advertList = advertList || (origCust && origCust.advertiser) || null;
         if (advertList) {
             if (!(advertList instanceof Array) || !advertList.every(function(advert) {
                 return typeof advert === 'string' || typeof advert === 'number';
             })) {
-                log.info('[%1] Invalid advertiser list: %2', req.uuid, JSON.stringify(advertList));
+                log.warn('Customer %1 has invalid advertiser list: %2',
+                         c6Id, JSON.stringify(advertList));
             } else {
-                log.info('[%1] Linking customer %2 to advertisers %3',
-                         req.uuid, customer.id, advertList);
+                log.info('Linking customer %1 to advertisers [%2]', c6Id, advertList);
                 advertisers = adtech.customerAdmin.makeAdvertiserList(advertList.map(function(id) {
                     return { id: Number(id) };
                 }));
             }
         }
-            
-        return {
-            advertiser: advertisers,
-            companyData: {
-                address: {},
-                url: customer.url || 'http://cinema6.com'
-            },
-            extId: customer.id,
-            id: customer.adtechId && Number(customer.adtechId),
-            name: customer.name
-        };
+        
+        if (origCust) {
+            delete origCust.archiveDate;
+            objUtils.trimNull(origCust);
+            origCust.contacts = adtech.customerAdmin.makeContactList(origCust.contacts);
+            record = origCust;
+        } else {
+            record = {
+                advertiser: advertisers,
+                companyData: {
+                    address: {},
+                    url: 'http://cinema6.com'
+                },
+                extId: c6Id,
+                name: body.name
+            };
+        }
+        record.name = body.name;
+        record.advertiser = advertisers;
+        
+        return record;
     };
     
-    custModule.adtechCreate = function(req, next/*, done*/) {
+    custModule.createAdtechCust = function(req, next/*, done*/) {
         var log = logger.getLog(),
-            record = custModule.formatAdtechCust(req);
+            record = custModule.formatAdtechCust(req.body);
         
-        //TODO: should we put advertisers back on the response when sending to client (post-write)
+        //TODO: should we put advertisers back on the response when sending to client (post-write)?
         delete req.body.advertisers;
-        
             
-        return adtech.customerAdmin.createCustomer(record).then(function(resp) {
+        return adtech.customerAdmin.createCustomer(record)
+        .then(function(resp) {
             log.info('[%1] Created Adtech customer %2 for C6 customer %3',
                      req.uuid, resp.id, req.body.id);
             req.body.adtechId = resp.id;
             next();
-        }).catch(function(error) {
+        })
+        .catch(function(error) {
             log.error('[%1] Failed creating Adtech customer for %2: %3',
                       req.uuid, req.body.id, error);
             return q.reject(new Error('Adtech failure'));
         });
     };
     
-    custModule.adtechEdit = function(req, next/*, done*/) {
-        var log = logger.getLog(),
-            record = custModule.formatAdtechCust(req, req.origObj, req.body.advertisers);
+    custModule.editAdtechCust = function(req, next/*, done*/) {
+        var log = logger.getLog();
         
         if (req.body.name === req.origObj.name && !req.body.advertisers) {
             log.info('[%1] Customer unchanged; not updating adtech', req.uuid);
             return next();
         }
         
-        record.name = req.body.name;
-        delete req.body.advertisers;
-        
-        return adtech.customerAdmin.updateCustomer(record).then(function(resp) {
+        return adtech.customerAdmin.getCustomerById(req.origObj.adtechId)
+        .then(function(cust) {
+            log.info('[%1] Retrieved previous customer %2', req.uuid, cust.id);
+            var record = custModule.formatAdtechCust(req.body, cust, req.body.advertisers);
+            delete req.body.advertisers;
+            return adtech.customerAdmin.updateCustomer(record);
+        })
+        .then(function(resp) {
             log.info('[%1] Updated Adtech customer %2', req.uuid, resp.id);
             next();
-        }).catch(function(error) {
+        })
+        .catch(function(error) {
             log.error('[%1] Failed editing Adtech customer %2: %3',
+                      req.uuid, req.origObj.adtechId, error);
+            return q.reject(new Error('Adtech failure'));
+        });
+    };
+
+    custModule.deleteAdtechCust = function(req, next/*, done*/) {
+        var log = logger.getLog();
+        
+        if (!req.origObj || !req.origObj.adtechId) {
+            log.warn('[%1] Cust %2 has no adtechId, nothing to delete', req.uuid, req.origObj.id);
+            return next();
+        }
+        
+        return adtech.customerAdmin.deleteCustomer(req.origObj.adtechId)
+        .then(function() {
+            log.info('[%1] Deleted Adtech customer %2', req.uuid, req.origObj.adtechId);
+            next();
+        })
+        .catch(function(error) {
+            log.error('[%1] Error deleting Adtech customer %2: %3',
                       req.uuid, req.origObj.adtechId, error);
             return q.reject(new Error('Adtech failure'));
         });

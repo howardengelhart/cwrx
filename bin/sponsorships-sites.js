@@ -20,12 +20,12 @@
         svc.use('create', svc.validateUniqueProp.bind(svc, 'host', hostRegex));
         svc.use('edit', svc.validateUniqueProp.bind(svc, 'host', hostRegex));
         svc.use('read', svc.preventGetAll.bind(svc));
-        svc.use('create', siteModule.adtechCreate);
+        svc.use('create', siteModule.createAdtechSite);
         svc.use('create', siteModule.createPlacements);
         svc.use('edit', siteModule.cleanPlacements);
-        svc.use('edit', siteModule.adtechEdit);
+        svc.use('edit', siteModule.editAdtechSite);
         svc.use('edit', siteModule.createPlacements);
-        svc.use('delete', siteModule.adtechDelete);
+        svc.use('delete', siteModule.deleteAdtechSite);
         
         return svc;
     };
@@ -151,7 +151,7 @@
     };
     
     
-    siteModule.adtechCreate = function(req, next/*, done*/) {
+    siteModule.createAdtechSite = function(req, next/*, done*/) {
         var log = logger.getLog(),
             record = siteModule.formatAdtechSite(req.body);
         req.body.containers = req.body.containers || [];
@@ -174,7 +174,7 @@
         });
     };
     
-    siteModule.adtechEdit = function(req, next/*, done*/) {
+    siteModule.editAdtechSite = function(req, next/*, done*/) {
         var log = logger.getLog(),
             record = siteModule.formatAdtechSite(req.origObj);
         
@@ -195,7 +195,7 @@
         });
     };
     
-    siteModule.adtechDelete = function(req, next, done) {
+    siteModule.deleteAdtechSite = function(req, next, done) {
         var log = logger.getLog();
         
         if (!req.origObj || !req.origObj.adtechId) {

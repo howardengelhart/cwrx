@@ -5,6 +5,7 @@
         authUtils       = require('../lib/authUtils'),
         CrudSvc         = require('../lib/crudSvc'),
         logger          = require('../lib/logger'),
+        objUtils        = require('../lib/objUtils'),
         adtech          = require('adtech'),
 
         advertModule = {};
@@ -14,59 +15,93 @@
         svc.createValidator._required.push('name');
         svc.createValidator._forbidden.push('adtechId');
         svc.use('read', svc.preventGetAll.bind(svc));
-        svc.use('create', advertModule.adtechCreate);
-        svc.use('edit', advertModule.adtechEdit);
+        svc.use('create', advertModule.createAdtechAdvert);
+        svc.use('edit', advertModule.editAdtechAdvert);
+        svc.use('delete', advertModule.deleteAdtechAdvert);
         
         return svc;
     };
     
-    //TODO: should this merge a new and old version? will we need to set more than just name?
-    advertModule.formatAdtechAdvert = function(advertiser) {
-        return {
-            companyData: { //TODO: load this through default in config? fill in address?
-                address: {},
-                url: advertiser.url || 'http://cinema6.com'
-            },
-            extId: advertiser.id,
-            id: advertiser.adtechId && Number(advertiser.adtechId),
-            name: advertiser.name
-        };
+    advertModule.formatAdtechAdvert = function(body, origAdvert) {
+        var record;
+        
+        if (origAdvert) {
+            delete origAdvert.archiveDate;
+            objUtils.trimNull(origAdvert);
+            origAdvert.contacts = adtech.customerAdmin.makeContactList(origAdvert.contacts);
+            record = origAdvert;
+        } else {
+            record = {
+                companyData: {
+                    address: {},
+                    url: 'http://cinema6.com'
+                },
+                extId: body.id,
+                name: body.name
+            };
+        }
+        record.name = body.name;
+        
+        return record;
     };
     
-    //TODO: rename these? wrap so adtech can be swapped?
-    advertModule.adtechCreate = function(req, next/*, done*/) {
+    advertModule.createAdtechAdvert = function(req, next/*, done*/) {
         var log = logger.getLog(),
             record = advertModule.formatAdtechAdvert(req.body);
         
-        return adtech.customerAdmin.createAdvertiser(record).then(function(resp) {
+        return adtech.customerAdmin.createAdvertiser(record)
+        .then(function(resp) {
             log.info('[%1] Created Adtech advertiser %2 for C6 advertiser %3',
                      req.uuid, resp.id, req.body.id);
             req.body.adtechId = resp.id;
             next();
-        }).catch(function(error) {
+        })
+        .catch(function(error) {
             log.error('[%1] Failed creating Adtech advertiser for %2: %3',
                       req.uuid, req.body.id, error);
             return q.reject(new Error('Adtech failure'));
         });
     };
     
-    advertModule.adtechEdit = function(req, next/*, done*/) {
-        var log = logger.getLog(),
-            record = advertModule.formatAdtechAdvert(req.origObj);
+    advertModule.editAdtechAdvert = function(req, next/*, done*/) {
+        var log = logger.getLog();
         
         if (req.body.name === req.origObj.name) {
             log.info('[%1] Advertiser name unchanged; not updating adtech', req.uuid);
             return next();
         }
         
-        record.name = req.body.name;
-        
-        return adtech.customerAdmin.updateAdvertiser(record).then(function(resp) {
-            log.info('[%1] Updated Adtech advertiser %2 with name %3',
-                     req.uuid, resp.id, req.body.name);
+        return adtech.customerAdmin.getAdvertiserById(req.origObj.adtechId)
+        .then(function(advert) {
+            log.info('[%1] Retrieved previous advertiser %2', req.uuid, advert.id);
+            var record = advertModule.formatAdtechAdvert(req.body, advert);
+            return adtech.customerAdmin.updateAdvertiser(record);
+        })
+        .then(function(resp) {
+            log.info('[%1] Updated Adtech advertiser %2', req.uuid, resp.id);
             next();
         }).catch(function(error) {
             log.error('[%1] Failed editing Adtech advertiser %2: %3',
+                      req.uuid, req.origObj.adtechId, error);
+            return q.reject(new Error('Adtech failure'));
+        });
+    };
+
+    advertModule.deleteAdtechAdvert = function(req, next/*, done*/) {
+        var log = logger.getLog();
+        
+        if (!req.origObj || !req.origObj.adtechId) {
+            log.warn('[%1] Advert %2 has no adtechId, nothing to delete', req.uuid, req.origObj.id);
+            return next();
+        }
+        
+        return adtech.customerAdmin.deleteAdvertiser(req.origObj.adtechId)
+        .then(function() {
+            log.info('[%1] Deleted Adtech advertiser %2', req.uuid, req.origObj.adtechId);
+            next();
+        })
+        .catch(function(error) {
+            log.error('[%1] Error deleting Adtech advertiser %2: %3',
                       req.uuid, req.origObj.adtechId, error);
             return q.reject(new Error('Adtech failure'));
         });
