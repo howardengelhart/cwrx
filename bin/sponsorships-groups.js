@@ -48,12 +48,11 @@
     
     groupModule.retrieveCampaign = function(id) {
         var log = logger.getLog(),
-            campaign, group;
+            campaign;
         
         return adtech.campaignAdmin.getCampaignById(id).then(function(resp) {
             log.trace('Retrieved campaign %1', id);
             campaign = resp;
-
             
             var aove = new adtech.AOVE();
             aove.addExpression(new adtech.AOVE.LongExpression('campaignId', campaign.id));
@@ -87,7 +86,7 @@
         });
     };
     
-    /* TODO
+    /* TODO: what can we filter groups by?  how should we do it?
     groupModule.getGroups = function(query, req) {
     };
     */
@@ -117,7 +116,7 @@
             }
             
             return adtechUtils.createBanners(req.body.miniReels, 'contentMiniReel', resp.id)
-            .then(function() { //TODO: this might actually return the banner list...
+            .then(function() {
                 return groupModule.retrieveCampaign(resp.id);
             });
         })

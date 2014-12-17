@@ -49,7 +49,7 @@
             if (!(advertList instanceof Array) || !advertList.every(function(advert) {
                 return typeof advert === 'string' || typeof advert === 'number';
             })) {
-                log.warn('[%1] Invalid advertiser list: %2', req.uuid, JSON.stringify(advertList));
+                log.info('[%1] Invalid advertiser list: %2', req.uuid, JSON.stringify(advertList));
             } else {
                 log.info('[%1] Linking customer %2 to advertisers %3',
                          req.uuid, customer.id, advertList);

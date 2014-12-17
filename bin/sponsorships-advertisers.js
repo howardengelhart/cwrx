@@ -38,7 +38,6 @@
         var log = logger.getLog(),
             record = advertModule.formatAdtechAdvert(req.body);
         
-        //TODO: should this timeout?
         return adtech.customerAdmin.createAdvertiser(record).then(function(resp) {
             log.info('[%1] Created Adtech advertiser %2 for C6 advertiser %3',
                      req.uuid, resp.id, req.body.id);
@@ -62,7 +61,6 @@
         
         record.name = req.body.name;
         
-        //TODO: should this timeout?
         return adtech.customerAdmin.updateAdvertiser(record).then(function(resp) {
             log.info('[%1] Updated Adtech advertiser %2 with name %3',
                      req.uuid, resp.id, req.body.name);

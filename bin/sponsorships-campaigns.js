@@ -55,7 +55,6 @@
     //TODO: delete unused banners for PUTs? need to decide what source of truth is...
     campModule.createBanners = function(req, next, done) {
         var log = logger.getLog(),
-            banners = [],
             id, adtechId;
             
         req.origObj = req.origObj || {}; //TODO: this feels like a bad hack
