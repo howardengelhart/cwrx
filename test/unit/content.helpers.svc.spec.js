@@ -665,7 +665,7 @@ describe('content (UT)', function() {
                                      branding: 'orgBrand', placementId: 789, wildCardPlacement: 987}});
                 expect(siteCache.getPromise).toHaveBeenCalled();
                 expect(orgCache.getPromise).toHaveBeenCalled();
-                expect(mockLog.warn).toHaveBeenCalled();
+                expect(mockLog.info).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
