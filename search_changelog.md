@@ -1,5 +1,9 @@
 # Search Service Changelog
 
+### 1.3.0: Mon Dec  8 13:28:31 EST 2014
+* [FEATURE]: Add support for Rumble: [#343](https://github.com/cinema6/cwrx/pull/343)
+* Extra deployment steps: None
+
 ### 1.2.0: Tue Nov 18 14:31:36 EST 2014
 * [FEATURE]: Add support for AOL and Yahoo videos: [#329](https://github.com/cinema6/cwrx/pull/329)
 * Extra deployment steps: Deploy new search service cookbook

@@ -1,5 +1,9 @@
 # Content Service Changelog
 
+### 1.13.7: Wed Dec 17 13:47:05 EST 2014
+* [FIX]: Stop logging warnings for unknown sites: [#346](https://github.com/cinema6/cwrx/pull/346)
+* Extra deployment steps: None
+
 ### 1.13.6: Mon Dec  8 10:47:52 EST 2014
 * [FIX]: Respect other lightbox modes when context is `mr2`: [#345](https://github.com/cinema6/cwrx/pull/345)
 * Extra deployment steps: None
