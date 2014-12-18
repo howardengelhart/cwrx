@@ -22,32 +22,38 @@
         return svc;
     };
     
-    /* TODO: how to use for reads? should all Adtech updates retrieve original first?
-    custModule.getAdvertList = function(req, next, done) {
-        var log = logger.getLog(),
-            adtechId = req.origObj.adtechId;
-            
-        if (!adtechId) {
-            log.warn('[%1] No adtech id for customer %2', req.uuid, req.origObj.id);
-            return next();
+    custModule.getAdvertList = function(req, resp) {
+        var log = logger.getLog();
+        
+        if (resp.code < 200 || resp.code >= 300 || typeof resp.body !== 'object') {
+            return q(resp);
         }
         
-        return adtech.customerAdmin.getCustomerById(adtechId).then(function(resp) {
-            req.origAdvertisers = resp.advertiser;
-            next();
-        }).catch(function(error) {
-            log.error('[%1] Could not retrieve Adtech customer %2: %3', req.uuid, adtechId, error);
-            return q.reject(error); //TODO: is this what we want?
+        if (!resp.body.adtechId) {
+            log.warn('[%1] Customer %2 has no adtechId', req.uuid, req.params.id);
+            return q(resp);
+        }
+        
+        return adtech.customerAdmin.getCustomerById(resp.body.adtechId)
+        .then(function(customer) {
+            log.info('[%1] Retrieved list of advertisers for %2: [%3]',
+                     req.uuid, resp.body.adtechId, customer.advertiser);
+            resp.body.advertisers = customer.advertiser;
+            return q(resp);
+        })
+        .catch(function(error) {
+            log.error('[%1] Failed retrieving customer %2: %3',
+                      req.uuid, resp.body.adtechId, error);
+            return q.reject(new Error('Adtech failure'));
         });
     };
-    */
-
-    custModule.formatAdtechCust = function(body, origCust, advertList) {
+    
+    custModule.formatAdtechCust = function(body, origCust) {
         var log = logger.getLog(),
             c6Id = body.id || (origCust && origCust.extId),
-            advertisers, record;
+            advertList, advertisers, record;
             
-        advertList = advertList || (origCust && origCust.advertiser) || null;
+        advertList = body.advertisers || (origCust && origCust.advertiser) || null;
         if (advertList) {
             if (!(advertList instanceof Array) || !advertList.every(function(advert) {
                 return typeof advert === 'string' || typeof advert === 'number';
@@ -88,7 +94,6 @@
         var log = logger.getLog(),
             record = custModule.formatAdtechCust(req.body);
         
-        //TODO: should we put advertisers back on the response when sending to client (post-write)?
         delete req.body.advertisers;
             
         return adtech.customerAdmin.createCustomer(record)
@@ -116,7 +121,7 @@
         return adtech.customerAdmin.getCustomerById(req.origObj.adtechId)
         .then(function(cust) {
             log.info('[%1] Retrieved previous customer %2', req.uuid, cust.id);
-            var record = custModule.formatAdtechCust(req.body, cust, req.body.advertisers);
+            var record = custModule.formatAdtechCust(req.body, cust);
             delete req.body.advertisers;
             return adtech.customerAdmin.updateCustomer(record);
         })
@@ -155,7 +160,10 @@
     custModule.setupEndpoints = function(app, svc, sessions, audit) {
         var authGetCust = authUtils.middlewarify({customers: 'read'});
         app.get('/api/account/customer/:id', sessions, authGetCust, audit, function(req, res) {
-            svc.getObjs({id: req.params.id}, req, false).then(function(resp) {
+            svc.getObjs({id: req.params.id}, req, false)
+            .then(function(resp) {
+                return custModule.getAdvertList(req, resp);
+            }).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error retrieving customer', detail: error });
@@ -183,6 +191,8 @@
         var authPostCust = authUtils.middlewarify({customers: 'create'});
         app.post('/api/account/customer', sessions, authPostCust, audit, function(req, res) {
             svc.createObj(req).then(function(resp) {
+                return custModule.getAdvertList(req, resp);
+            }).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error creating customer', detail: error });
@@ -192,6 +202,8 @@
         var authPutCust = authUtils.middlewarify({customers: 'edit'});
         app.put('/api/account/customer/:id', sessions, authPutCust, audit, function(req, res) {
             svc.editObj(req).then(function(resp) {
+                return custModule.getAdvertList(req, resp);
+            }).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error updating customer', detail: error });
