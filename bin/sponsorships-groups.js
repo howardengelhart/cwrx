@@ -132,19 +132,12 @@
     //TODO: delete unused banners for PUTs?
     groupModule.editGroup = function(req) {
         var log = logger.getLog(),
-            id = req.params.id,
-            promise;
+            id = req.params.id;
             
         // as of now, can't edit campaigns. So this will just update banner list
-        if (!req.body.miniReels) {
-            log.info('[%1] No miniReels list, not performing any edits to %2', req.uuid, id);
-            promise = q();
-        } else {
-            promise = adtechUtils.createBanners(req.body.miniReels, 'contentMiniReel', id)
-                      .then(function() { log.info('[%1] Created banners for %2', req.uuid, id); });
-        }
-        
-        return promise.then(function() {
+        return adtechUtils.createBanners(req.body.miniReels, 'contentMiniReel', id)
+        .then(function() {
+            log.info('[%1] All banners for %2 have been created', req.uuid, id);
             return groupModule.retrieveCampaign(id);
         })
         .then(function(group) {

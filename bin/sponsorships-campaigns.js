@@ -29,6 +29,7 @@
         campSvc.use('read', campSvc.preventGetAll.bind(campSvc));
         campSvc.use('create', campModule.createAdtechCamp);
         campSvc.use('create', campModule.createBanners);
+        campSvc.use('edit', campModule.cleanBanners);
         campSvc.use('edit', campModule.createBanners);
         campSvc.use('delete', campModule.deleteContent.bind(campModule, campSvc));
         
@@ -37,6 +38,8 @@
     
     campModule.createAdtechCamp = function(req, next/*, done*/) {
         var log = logger.getLog();
+        
+        req.body.minViewTime = req.body.minViewTime || -1;
             
         return adtech.campaignAdmin.createCampaign(adtechUtils.formatCampaign(req.body))
         .then(function(resp) {
@@ -52,26 +55,22 @@
         });
     };
     
-    //TODO: delete unused banners for PUTs? need to decide what source of truth is...
     campModule.createBanners = function(req, next, done) {
         var log = logger.getLog(),
-            id, adtechId;
-            
-        req.origObj = req.origObj || {}; //TODO: this feels like a bad hack
-        adtechId = req.body.adtechId || req.origObj.adtechId;
-        id = req.body.id || req.origObj.id;
+            id = req.body.id || (req.origObj && req.origObj.id),
+            adtechId = req.body.adtechId || (req.origObj && req.origObj.adtechId),
+            doneCalled = false;
         
-        //TODO: merge arrays more intelligently?
-        req.body.minViewTime = req.body.minViewTime || req.origObj.minViewTime || -1;
-        req.body.miniReels = req.body.miniReels || req.origObj.miniReels || [];
-        req.body.cards = req.body.cards || req.origObj.cards || [];
-        req.body.targetMiniReels = req.body.targetMiniReels || req.origObj.targetMiniReels || [];
-
         ['miniReels', 'cards', 'targetMiniReels'].forEach(function(key) {
-            if (!req.body[key].every(function(item) { return typeof item === 'object'; })) {
+            if (req.body[key] && !req.body[key].every(function(item) {
+                return typeof item === 'object';
+            })) {
                 log.info('[%1] req.body.%2 is invalid: %3',
                          req.uuid, key, JSON.stringify(req.body[key]));
-                return done({code: 400, body: key + ' must be an array of objects'});
+                if (!doneCalled) {
+                    doneCalled = true;
+                    return done({code: 400, body: key + ' must be an array of objects'});
+                }
             }
         });
         
@@ -89,6 +88,49 @@
         .catch(function(error) {
             log.error('Failed creating banners for campaign %2: %3', req.uuid, id, error);
             return q.reject(new Error('Adtech failure'));
+        });
+    };
+    
+    campModule.cleanBanners = function(req, next/*, done*/) {
+        var log = logger.getLog(),
+            id = req.origObj.id;
+        
+        return ['cards', 'miniReels', 'targetMiniReels'].reduce(function(promise, key) {
+            return promise.then(function() {
+                if (!req.origObj[key] || !req.body[key]) {
+                    return q();
+                }
+                
+                return req.origObj[key].reduce(function(promise2, item) {
+                    return promise2.then(function() {
+                        if (req.body[key].some(function(newItem) {
+                            return newItem.bannerId === item.bannerId;
+                        })) {
+                            log.trace('[%1] Banner %2 still exists for %3',
+                                      req.uuid, item.bannerId, id);
+                            return q();
+                        }
+                        
+                        log.info('[%1] Banner %2 removed from %3, deleting it in Adtech',
+                                 req.uuid, item.bannerId, id);
+                                 
+                        return adtech.bannerAdmin.deleteBanner(item.bannerId)
+                        .then(function() {
+                            log.info('[%1] Succesfully deleted banner %2 for %3',
+                                     req.uuid, item.bannerId, id);
+                        })
+                        .catch(function(error) {
+                            log.error('[%1] Error deleting banner %2: %3',
+                                      req.uuid, item.bannerId, error);
+                            return q.reject(new Error('Adtech failure'));
+                        });
+                    });
+                }, q());
+            });
+        }, q())
+        .then(function() {
+            log.trace('[%1] Successfully processed all banners from origObj', req.uuid);
+            next();
         });
     };
     

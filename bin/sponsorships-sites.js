@@ -174,6 +174,11 @@
         });
     };
     
+    /*
+    TODO: maybe add some sort of check (for edit path or elsewhere) to alert if Adtech site and
+          mongo site are out of sync
+    */
+    
     siteModule.editAdtechSite = function(req, next/*, done*/) {
         var log = logger.getLog(),
             record = siteModule.formatAdtechSite(req.origObj);
