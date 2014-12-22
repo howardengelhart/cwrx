@@ -58,29 +58,30 @@
     campModule.createBanners = function(req, next, done) {
         var log = logger.getLog(),
             id = req.body.id || (req.origObj && req.origObj.id),
-            adtechId = req.body.adtechId || (req.origObj && req.origObj.adtechId),
+            adtechId = parseInt(req.body.adtechId || (req.origObj && req.origObj.adtechId)),
             doneCalled = false;
         
-        ['miniReels', 'cards', 'targetMiniReels'].forEach(function(key) {
-            if (req.body[key] && !req.body[key].every(function(item) {
-                return typeof item === 'object';
-            })) {
-                log.info('[%1] req.body.%2 is invalid: %3',
-                         req.uuid, key, JSON.stringify(req.body[key]));
-                if (!doneCalled) {
-                    doneCalled = true;
-                    return done({code: 400, body: key + ' must be an array of objects'});
+        ['miniReels', 'cards', 'targetMiniReels'].reduce(function(promise, key) {
+            return promise.then(function() {
+                if (req.body[key] && !req.body[key].every(function(item) {
+                    return typeof item === 'object';
+                })) {
+                    log.info('[%1] req.body.%2 is invalid: %3',
+                             req.uuid, key, JSON.stringify(req.body[key]));
+                    if (!doneCalled) {
+                        doneCalled = true;
+                        return done({code: 400, body: key + ' must be an array of objects'});
+                    }
                 }
-            }
-        });
-        
-        return adtechUtils.createBanners(req.body.cards, 'card', adtechId)
-        .then(function() {
-            return adtechUtils.createBanners(req.body.miniReels, 'miniReel', adtechId);
-        })
-        .then(function() {
-            return adtechUtils.createBanners(req.body.targetMiniReels, 'targetMiniReel', adtechId);
-        })
+                
+                return adtechUtils.createBanners(
+                    req.body[key],
+                    req.origObj && req.origObj[key] || null,
+                    key.replace(/s$/, ''),
+                    adtechId
+                );
+            });
+        }, q())
         .then(function() {
             log.info('[%1] All banners for campaign %2 have been created', req.uuid, id);
             next();
@@ -97,35 +98,7 @@
         
         return ['cards', 'miniReels', 'targetMiniReels'].reduce(function(promise, key) {
             return promise.then(function() {
-                if (!req.origObj[key] || !req.body[key]) {
-                    return q();
-                }
-                
-                return req.origObj[key].reduce(function(promise2, item) {
-                    return promise2.then(function() {
-                        if (req.body[key].some(function(newItem) {
-                            return newItem.bannerId === item.bannerId;
-                        })) {
-                            log.trace('[%1] Banner %2 still exists for %3',
-                                      req.uuid, item.bannerId, id);
-                            return q();
-                        }
-                        
-                        log.info('[%1] Banner %2 removed from %3, deleting it in Adtech',
-                                 req.uuid, item.bannerId, id);
-                                 
-                        return adtech.bannerAdmin.deleteBanner(item.bannerId)
-                        .then(function() {
-                            log.info('[%1] Succesfully deleted banner %2 for %3',
-                                     req.uuid, item.bannerId, id);
-                        })
-                        .catch(function(error) {
-                            log.error('[%1] Error deleting banner %2: %3',
-                                      req.uuid, item.bannerId, error);
-                            return q.reject(new Error('Adtech failure'));
-                        });
-                    });
-                }, q());
+                return adtechUtils.cleanBanners(req.body[key], req.origObj[key], id);
             });
         }, q())
         .then(function() {

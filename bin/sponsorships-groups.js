@@ -35,12 +35,12 @@
             lastUpdated: campaign.lastUpdatedAt || campaign.createdAt
         };
         
-        group.experiences = banners.filter(function(banner) {
+        group.miniReels = banners.filter(function(banner) {
             return campaign.bannerTimeRangeList[0].bannerInfoList.some(function(bannerInfo) {
                 return banner.id === bannerInfo.bannerReferenceId;
             });
         }).map(function(banner) {
-            return { id: banner.extId, adtechId: banner.bannerNumber };
+            return { id: banner.extId, bannerNumber: banner.bannerNumber, bannerId: banner.id };
         });
         
         return group;
@@ -62,27 +62,26 @@
             log.trace('Retrieved banner list for campaign %1', id);
             return q(groupModule.transformCampaign(campaign, bannList));
         }).catch(function(error) {
-            log.error('Error retrieving campaign %1: %2', id, error);
-            return q.reject(error);
+            if (error.message && error.message.match(/^Unable to locate object/)) {
+                log.info('Could not find campaign %1', id);
+                return q();
+            } else {
+                log.error('Error retrieving group campaign %1: %2', id, error);
+                return q.reject('Adtech failure');
+            }
         });
     };
 
     groupModule.getGroup = function(req) {
         var log = logger.getLog(),
-            id = req.params.id;
+            id = parseInt(req.params.id);
         
         return groupModule.retrieveCampaign(id).then(function(group) {
+            if (!group) {
+                return q({code: 404, body: 'Group not found'});
+            }
             log.info('[%1] Successfully retrieved group campaign %2', req.uuid, id);
             return q({ code: 200, body: group });
-        })
-        .catch(function(error) {
-            if (error.message && error.message.match(/^Unable to locate object/)) {
-                log.info('[%1] Could not find campaign %2', req.uuid, id);
-                return q({code: 404, body: 'Group not found'});
-            } else {
-                log.error('[%1] Error retrieving group campaign %2: %3', req.uuid, id, error);
-                return q.reject('Adtech failure');
-            }
         });
     };
     
@@ -91,14 +90,14 @@
     };
     */
     
-    //TODO: need to handle setting categories as kwlp3 keywords
     groupModule.createGroup = function(req) {
-        var log = logger.getLog();
+        var log = logger.getLog(),
+            miniReels = req.body.miniReels;
         
-        if (req.body.miniReels && (!(req.body.miniReels instanceof Array) ||
-            !req.body.miniReels.every(function(item) { return typeof item === 'object'; }))) {
+        if (miniReels && (!(miniReels instanceof Array) ||
+            !miniReels.every(function(item) { return typeof item === 'object'; }))) {
             log.info('[%1] req.body.miniReels is invalid: %2',
-                     req.uuid, JSON.stringify(req.body.miniReels));
+                     req.uuid, JSON.stringify(miniReels));
             return q({code: 400, body: 'Invalid request body'});
         }
         if (!groupModule.createValidator.validate(req.body, {}, req.user)) {
@@ -111,11 +110,11 @@
         return adtech.campaignAdmin.createCampaign(adtechUtils.formatCampaign(req.body))
         .then(function(resp) {
             log.info('[%1] Created campaign %2 for group "%3"', req.uuid, resp.id, req.body.name);
-            if (!req.body.miniReels) {
+            if (!miniReels) {
                 return q(groupModule.transformCampaign(resp));
             }
             
-            return adtechUtils.createBanners(req.body.miniReels, 'contentMiniReel', resp.id)
+            return adtechUtils.createBanners(miniReels, null, 'contentMiniReel', resp.id)
             .then(function() {
                 return groupModule.retrieveCampaign(resp.id);
             });
@@ -129,23 +128,46 @@
         });
     };
     
-    //TODO: delete unused banners for PUTs?
+    // as of now, can't edit campaigns. So this will just update banner list
     groupModule.editGroup = function(req) {
         var log = logger.getLog(),
-            id = req.params.id;
+            id = parseInt(req.params.id),
+            miniReels = req.body.miniReels;
+
+        if (miniReels && (!(miniReels instanceof Array) ||
+                          !miniReels.every(function(item) { return typeof item === 'object'; }))) {
+            log.info('[%1] req.body.miniReels is invalid: %2',
+                     req.uuid, JSON.stringify(miniReels));
+            return q({code: 400, body: 'Invalid request body'});
+        }
+        if (!groupModule.editValidator.validate(req.body, {}, req.user)) {
+            log.info('[%1] Invalid group object', req.uuid);
+            return q({code: 400, body: 'Invalid request body'});
+        }
             
-        // as of now, can't edit campaigns. So this will just update banner list
-        return adtechUtils.createBanners(req.body.miniReels, 'contentMiniReel', id)
-        .then(function() {
-            log.info('[%1] All banners for %2 have been created', req.uuid, id);
-            return groupModule.retrieveCampaign(id);
-        })
+        return groupModule.retrieveCampaign(id)
         .then(function(group) {
-            return q({ code: 201, body: group });
+            if (!group) {
+                return q({code: 404, body: 'Group not found'});
+            }
+            if (!miniReels) {
+                return q({ code: 201, body: group });
+            }
+            
+            return adtechUtils.cleanBanners(miniReels, group.miniReels, id)
+            .then(function() {
+                log.trace('[%1] Successfully processed all banners from original', req.uuid);
+                return adtechUtils.createBanners(miniReels, group.miniReels, 'contentMiniReel', id);
+            })
+            .then(function() {
+                log.info('[%1] All banners for %2 have been created', req.uuid, id);
+                group.miniReels = miniReels; //TODO: verify this is kosher
+                return q({ code: 201, body: group });
+            });
         })
         .catch(function(error) {
-            log.error('[%1] Error editing group %2: %3', req.uuid, id, error);
-            return q.reject(error);
+            log.error('[%1] Error editing group campaign %2: %3', req.uuid, id, error);
+            return q.reject('Adtech failure');
         });
     };
 

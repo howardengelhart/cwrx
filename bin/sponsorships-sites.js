@@ -100,10 +100,7 @@
             adtechId = req.body.adtechId || (req.origObj && req.origObj.adtechId),
             pageId = req.body.pageId || (req.origObj && req.origObj.pageId);
         
-        if (!req.body.containers) {
-            log.info('[%1] No containers in %2 to create placements for', req.uuid, id);
-            return next();
-        }
+        req.body.containers = req.body.containers || [];
         
         if (!(req.body.containers instanceof Array)) {
             log.info('[%1] Site %2 has invalid containers: %3', id, req.body.containers);
