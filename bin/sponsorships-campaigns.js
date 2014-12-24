@@ -37,11 +37,24 @@
     };
     
     campModule.createAdtechCamp = function(req, next/*, done*/) {
-        var log = logger.getLog();
+        var log = logger.getLog(),
+            kwlp1List;
         
         req.body.minViewTime = req.body.minViewTime || -1;
-            
-        return adtech.campaignAdmin.createCampaign(adtechUtils.formatCampaign(req.body))
+        
+        //TODO: validate these here? and validate categories?
+        kwlp1List = (req.body.cards || []).map(function(card) { return card.id; })
+                    .concat((req.body.miniReels || []).map(function(exp) { return exp.id; }));
+        
+        return q.all([adtechUtils.makeKeywords(kwlp1List),
+                      adtechUtils.makeKeywords(req.body.categories || [])])
+        .spread(function(kwlp1Ids, kwlp3Ids) {
+            var keys = {
+                level1: kwlp1Ids,
+                level3: kwlp3Ids
+            };
+            return adtech.campaignAdmin.createCampaign(adtechUtils.formatCampaign(req.body, keys));
+        })
         .then(function(resp) {
             log.info('[%1] Created Adtech campaign %2 for C6 campaign %3',
                      req.uuid, resp.id, req.body.id);

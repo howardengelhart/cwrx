@@ -26,10 +26,11 @@
         forbidden: ['id', 'created']
     });
     
-    groupModule.transformCampaign = function(campaign, banners) {
+    groupModule.transformCampaign = function(campaign, banners, categories) {
         banners = banners || [];
         var group = {
             id: campaign.id,
+            categories: categories,
             name: campaign.name,
             created: campaign.createdAt,
             lastUpdated: campaign.lastUpdatedAt || campaign.createdAt
@@ -48,20 +49,30 @@
     
     groupModule.retrieveCampaign = function(id) {
         var log = logger.getLog(),
-            campaign;
+            campaign, categories;
         
         return adtech.campaignAdmin.getCampaignById(id).then(function(resp) {
             log.trace('Retrieved campaign %1', id);
             campaign = resp;
             
+            if (campaign.priorityLevelThreeKeywordIdList instanceof Array &&
+                campaign.priorityLevelThreeKeywordIdList.length > 0) {
+                return adtechUtils.lookupKeywords(campaign.priorityLevelThreeKeywordIdList);
+            } else {
+                return q();
+            }
+        })
+        .then(function(catList) {
+            categories = catList;
             var aove = new adtech.AOVE();
             aove.addExpression(new adtech.AOVE.LongExpression('campaignId', campaign.id));
             return adtech.bannerAdmin.getBannerList(null, null, aove);
         })
         .then(function(bannList) {
             log.trace('Retrieved banner list for campaign %1', id);
-            return q(groupModule.transformCampaign(campaign, bannList));
-        }).catch(function(error) {
+            return q(groupModule.transformCampaign(campaign, bannList, categories));
+        })
+        .catch(function(error) {
             if (error.message && error.message.match(/^Unable to locate object/)) {
                 log.info('Could not find campaign %1', id);
                 return q();
@@ -107,7 +118,11 @@
         
         req.body.created = new Date();
         
-        return adtech.campaignAdmin.createCampaign(adtechUtils.formatCampaign(req.body))
+        return adtechUtils.makeKeywords(req.body.categories || [])
+        .then(function(keyIds) {
+            var keys = { level3: keyIds };
+            return adtech.campaignAdmin.createCampaign(adtechUtils.formatCampaign(req.body, keys))
+        })
         .then(function(resp) {
             log.info('[%1] Created campaign %2 for group "%3"', req.uuid, resp.id, req.body.name);
             if (!miniReels) {
@@ -161,7 +176,7 @@
             })
             .then(function() {
                 log.info('[%1] All banners for %2 have been created', req.uuid, id);
-                group.miniReels = miniReels; //TODO: verify this is kosher
+                group.miniReels = miniReels;
                 return q({ code: 201, body: group });
             });
         })
