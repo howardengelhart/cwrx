@@ -19,38 +19,59 @@ describe('FieldValidator', function() {
         };
         spyOn(logger, 'createLog').andReturn(mockLog);
         spyOn(logger, 'getLog').andReturn(mockLog);
+        spyOn(FieldValidator, 'checkFormat').andCallThrough();
     });
 
     describe('initialization', function() {
         it('should correctly initialize a validator', function() {
             var cF = { c: function() {} };
-            var v = new FieldValidator({forbidden: ['a', 'b'], condForbidden: cF, required: ['c', 'd']});
+            var fmts = { e: 'string' }
+            var v = new FieldValidator({forbidden: ['a', 'b'], condForbidden: cF,
+                                        required: ['c', 'd'], formats: fmts});
             expect(v._forbidden).toEqual(['a', 'b']);
             expect(v._required).toEqual(['c', 'd']);
             expect(v._condForbidden).toBe(cF);
+            expect(v._formats).toBe(fmts);
         });
         
-        it('should initialize a validator with only one of the three restriction sets', function() {
-            var cF = { c: function() {} },
-                v;
-            expect(function() { v = new FieldValidator({forbidden: ['a', 'b']}); }).not.toThrow();
-            expect(v._forbidden).toEqual(['a', 'b']);
+        it('should initialize be able to initialize an empty validator', function() {
+            var v;
+            expect(function() { v = new FieldValidator(); }).not.toThrow();
+            expect(v._forbidden).toEqual([]);
             expect(v._required).toEqual([]);
             expect(v._condForbidden).toEqual({});
-            expect(function() { v = new FieldValidator({condForbidden: cF}); }).not.toThrow();
-            expect(v._forbidden).toEqual([]);
-            expect(v._condForbidden).toEqual(cF);
-            expect(v._required).toEqual([]);
-            expect(function() { v = new FieldValidator({required: ['c', 'd']}); }).not.toThrow();
-            expect(v._forbidden).toEqual([]);
-            expect(v._condForbidden).toEqual({});
-            expect(v._required).toEqual(['c', 'd']);
+            expect(v._formats).toEqual({});
+            expect(v.validate({foo: 'bar'}, {}, {})).toBe(true);
+        });
+    });
+    
+    describe('checkFormat', function() {
+        it('should handle string formats', function() {
+            expect(FieldValidator.checkFormat('string', 1)).toBe(false);
+            expect(FieldValidator.checkFormat('string', '1')).toBe(true);
+            expect(FieldValidator.checkFormat('object', 'a')).toBe(false);
+            expect(FieldValidator.checkFormat('object', { foo: 'bar' })).toBe(true);
+            expect(FieldValidator.checkFormat('object', [1, 2, '3'])).toBe(true);
         });
         
-        it('should throw an error if no restriction sets are defined', function() {
-            var msg = 'Cannot create a FieldValidator with no fields to validate';
-            expect(function() { new FieldValidator({}); }).toThrow(msg);
-            expect(function() { new FieldValidator(); }).toThrow(msg);
+        it('should handle function formats', function() {
+            function MyClass() { this.foo = 'bar'; }
+            expect(FieldValidator.checkFormat(Date, 'a')).toBe(false);
+            expect(FieldValidator.checkFormat(Date, new Date())).toBe(true);
+            expect(FieldValidator.checkFormat(MyClass, { foo: 'bar' })).toBe(false);
+            expect(FieldValidator.checkFormat(MyClass, new MyClass())).toBe(true);
+        });
+        
+        it('should handle formats with options', function() {
+            expect(FieldValidator.checkFormat({or: ['string', 'number']}, 'a')).toBe(true);
+            expect(FieldValidator.checkFormat({or: ['string', 'number']}, 1.5)).toBe(true);
+            expect(FieldValidator.checkFormat({or: ['string', 'number']}, true)).toBe(false);
+        });
+        
+        it('should handle array formats', function() {
+            expect(FieldValidator.checkFormat(['string'], ['a', 'b'])).toBe(true);
+            expect(FieldValidator.checkFormat(['string'], ['a', 1])).toBe(false);
+            expect(FieldValidator.checkFormat([{or: ['string', 'number']}], ['a', 1])).toBe(true);
         });
     });
     
@@ -101,6 +122,14 @@ describe('FieldValidator', function() {
             expect(v.validate({a: 2}, {a: 2}, {})).toBe(true);
             expect(v.validate({foo: 'baz'}, {foo: 'bar'}, {})).toBe(false);
             expect(v.validate({foo: 'bar'}, {foo: 'bar'}, {})).toBe(true);
+        });
+        
+        it('should return false if a field is in the wrong format', function() {
+            var v = new FieldValidator({ formats: { a: 'string' } });
+            expect(v.validate({a: 1}, {}, {})).toBe(false);
+            expect(FieldValidator.checkFormat).toHaveBeenCalledWith('string', 1);
+            expect(v.validate({a: '1'}, {}, {})).toBe(true);
+            expect(FieldValidator.checkFormat).toHaveBeenCalledWith('string', '1');
         });
     });
     

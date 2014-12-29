@@ -19,11 +19,19 @@
     
     groupModule.createValidator = new FieldValidator({
         forbidden: ['id', 'created'],
-        required: ['name', 'advertiserId', 'customerId']
+        required: ['name', 'advertiserId', 'customerId'],
+        formats: {
+            miniReels: ['object'],
+            categories: ['string']
+        }
     });
     
     groupModule.editValidator = new FieldValidator({
-        forbidden: ['id', 'created']
+        forbidden: ['id', 'created'],
+        formats: {
+            miniReels: ['object'],
+            categories: ['string']
+        }
     });
     
     groupModule.transformCampaign = function(campaign, banners, categories) {
@@ -105,14 +113,10 @@
         var log = logger.getLog(),
             miniReels = req.body.miniReels;
         
-        if (miniReels && (!(miniReels instanceof Array) ||
-            !miniReels.every(function(item) { return typeof item === 'object'; }))) {
-            log.info('[%1] req.body.miniReels is invalid: %2',
-                     req.uuid, JSON.stringify(miniReels));
-            return q({code: 400, body: 'Invalid request body'});
-        }
         if (!groupModule.createValidator.validate(req.body, {}, req.user)) {
             log.info('[%1] Invalid group object', req.uuid);
+            log.trace('updates: %1', JSON.stringify(req.body));
+            log.trace('requester: %1', JSON.stringify(req.user));
             return q({code: 400, body: 'Invalid request body'});
         }
         
@@ -121,7 +125,7 @@
         return adtechUtils.makeKeywords(req.body.categories || [])
         .then(function(keyIds) {
             var keys = { level3: keyIds };
-            return adtech.campaignAdmin.createCampaign(adtechUtils.formatCampaign(req.body, keys))
+            return adtech.campaignAdmin.createCampaign(adtechUtils.formatCampaign(req.body, keys));
         })
         .then(function(resp) {
             log.info('[%1] Created campaign %2 for group "%3"', req.uuid, resp.id, req.body.name);
@@ -149,14 +153,10 @@
             id = parseInt(req.params.id),
             miniReels = req.body.miniReels;
 
-        if (miniReels && (!(miniReels instanceof Array) ||
-                          !miniReels.every(function(item) { return typeof item === 'object'; }))) {
-            log.info('[%1] req.body.miniReels is invalid: %2',
-                     req.uuid, JSON.stringify(miniReels));
-            return q({code: 400, body: 'Invalid request body'});
-        }
         if (!groupModule.editValidator.validate(req.body, {}, req.user)) {
             log.info('[%1] Invalid group object', req.uuid);
+            log.trace('updates: %1', JSON.stringify(req.body));
+            log.trace('requester: %1', JSON.stringify(req.user));
             return q({code: 400, body: 'Invalid request body'});
         }
             

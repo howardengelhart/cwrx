@@ -14,6 +14,8 @@
         var svc = new CrudSvc(coll, 's', { userProp: false, orgProp: false });
         svc.createValidator._required.push('host');
         svc.createValidator._condForbidden.org = FieldValidator.orgFunc('sites', 'create');
+        svc.createValidator._formats.containers = ['object'];
+        svc.editValidator._formats.containers = ['object'];
         svc.editValidator._condForbidden.org = FieldValidator.orgFunc('sites', 'create');
         
         var hostRegex = /^([\w-]+\.)+[\w-]+$/;
@@ -94,18 +96,13 @@
         });
     };
     
-    siteModule.createPlacements = function(req, next, done) {
+    siteModule.createPlacements = function(req, next/*, done*/) {
         var log = logger.getLog(),
             id = req.body.id || (req.origObj && req.origObj.id),
             adtechId = req.body.adtechId || (req.origObj && req.origObj.adtechId),
             pageId = req.body.pageId || (req.origObj && req.origObj.pageId);
         
         req.body.containers = req.body.containers || [];
-        
-        if (!(req.body.containers instanceof Array)) {
-            log.info('[%1] Site %2 has invalid containers: %3', id, req.body.containers);
-            return done({code: 400, body: 'Containers must be an array'});
-        }
         
         //TODO: speed up? find out why there's a 30+ second delay?
         return q.all(req.body.containers.map(function(container) {

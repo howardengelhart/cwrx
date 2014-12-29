@@ -14,6 +14,8 @@
         var svc = new CrudSvc(coll, 'cu', { userProp: false, orgProp: false });
         svc.createValidator._required.push('name');
         svc.createValidator._forbidden.push('adtechId');
+        svc.createValidator._formats.advertisers = [{or: ['string', 'number']}];
+
         svc.use('read', svc.preventGetAll.bind(svc));
         svc.use('create', custModule.createAdtechCust);
         svc.use('edit', custModule.editAdtechCust);
@@ -55,17 +57,10 @@
             
         advertList = body.advertisers || (origCust && origCust.advertiser) || null;
         if (advertList) {
-            if (!(advertList instanceof Array) || !advertList.every(function(advert) {
-                return typeof advert === 'string' || typeof advert === 'number';
-            })) {
-                log.warn('Customer %1 has invalid advertiser list: %2',
-                         c6Id, JSON.stringify(advertList));
-            } else {
-                log.info('Linking customer %1 to advertisers [%2]', c6Id, advertList);
-                advertisers = adtech.customerAdmin.makeAdvertiserList(advertList.map(function(id) {
-                    return { id: Number(id) };
-                }));
-            }
+            log.info('Linking customer %1 to advertisers [%2]', c6Id, advertList);
+            advertisers = adtech.customerAdmin.makeAdvertiserList(advertList.map(function(id) {
+                return { id: Number(id) };
+            }));
         }
         
         if (origCust) {

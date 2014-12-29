@@ -510,6 +510,34 @@ describe('CrudSvc', function() {
                 done();
             });
         });
+        
+        it('should only allow next to be called once per middleware func', function(done) {
+            mw[1].andCallFake(function(req, next, done) { next(); next(); });
+            svc.runMiddleware(req, 'test', doneSpy).then(resolve, reject);
+            process.nextTick(function() {
+                expect(doneSpy).toHaveBeenCalledWith();
+                expect(resolve).not.toHaveBeenCalled();
+                expect(reject).not.toHaveBeenCalled();
+                expect(svc.runMiddleware.callCount).toBe(4);
+                mw.forEach(function(mwFunc) { expect(mwFunc.calls.length).toBe(1); });
+                expect(doneSpy.calls.length).toBe(1);
+                done();
+            });
+        });
+        
+        it('should only allow done to be called once per middleware func', function(done) {
+            mw[1].andCallFake(function(req, next, done) { done('a response'); done('poop'); });
+            svc.runMiddleware(req, 'test', doneSpy).then(resolve, reject);
+            process.nextTick(function() {
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(resolve).toHaveBeenCalledWith('a response');
+                expect(resolve.calls.length).toBe(1);
+                expect(reject).not.toHaveBeenCalled();
+                expect(mw[2]).not.toHaveBeenCalled();
+                expect(svc.runMiddleware.callCount).toBe(2);
+                done();
+            });
+        });
 
         it('should break out and reject if one of the middleware funcs rejects', function(done) {
             mw[0].andCallFake(function(req, next, done) { return q.reject('I GOT A PROBLEM'); });

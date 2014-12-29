@@ -24,6 +24,13 @@
         campSvc.createValidator._required.push('name', 'advertiserId', 'customerId');
         campSvc.createValidator._forbidden.push('adtechId');
         campSvc.editValidator._forbidden.push('campaignId', 'customerId');
+        ['cards', 'miniReels', 'targetMiniReels'].forEach(function(key) {
+            campSvc.createValidator._formats[key] = ['object'];
+            campSvc.editValidator._formats[key] = ['object'];
+        });
+        campSvc.createValidator._formats.categories = ['string'];
+        campSvc.editValidator._formats.categories = ['string'];
+
         campSvc.use('create', campSvc.validateUniqueProp.bind(campSvc, 'name', null));
         campSvc.use('edit', campSvc.validateUniqueProp.bind(campSvc, 'name', null));
         campSvc.use('read', campSvc.preventGetAll.bind(campSvc));
@@ -42,7 +49,6 @@
         
         req.body.minViewTime = req.body.minViewTime || -1;
         
-        //TODO: validate these here? and validate categories?
         kwlp1List = (req.body.cards || []).map(function(card) { return card.id; })
                     .concat((req.body.miniReels || []).map(function(exp) { return exp.id; }));
         
@@ -68,25 +74,13 @@
         });
     };
     
-    campModule.createBanners = function(req, next, done) {
+    campModule.createBanners = function(req, next/*, done*/) {
         var log = logger.getLog(),
             id = req.body.id || (req.origObj && req.origObj.id),
-            adtechId = parseInt(req.body.adtechId || (req.origObj && req.origObj.adtechId)),
-            doneCalled = false;
+            adtechId = parseInt(req.body.adtechId || (req.origObj && req.origObj.adtechId));
         
         ['miniReels', 'cards', 'targetMiniReels'].reduce(function(promise, key) {
             return promise.then(function() {
-                if (req.body[key] && !req.body[key].every(function(item) {
-                    return typeof item === 'object';
-                })) {
-                    log.info('[%1] req.body.%2 is invalid: %3',
-                             req.uuid, key, JSON.stringify(req.body[key]));
-                    if (!doneCalled) {
-                        doneCalled = true;
-                        return done({code: 400, body: key + ' must be an array of objects'});
-                    }
-                }
-                
                 return adtechUtils.createBanners(
                     req.body[key],
                     req.origObj && req.origObj[key] || null,
