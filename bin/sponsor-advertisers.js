@@ -28,7 +28,7 @@
         if (origAdvert) {
             delete origAdvert.archiveDate;
             objUtils.trimNull(origAdvert);
-            origAdvert.contacts = adtech.customerAdmin.makeContactList(origAdvert.contacts);
+            origAdvert.contacts = adtech.customerAdmin.makeContactList(origAdvert.contacts || []);
             record = origAdvert;
         } else {
             record = {
@@ -66,9 +66,9 @@
     advertModule.editAdtechAdvert = function(req, next/*, done*/) {
         var log = logger.getLog();
         
-        if (req.body.name === req.origObj.name) {
+        if (req.origObj && req.body.name === req.origObj.name) {
             log.info('[%1] Advertiser name unchanged; not updating adtech', req.uuid);
-            return next();
+            return q(next());
         }
         
         return adtech.customerAdmin.getAdvertiserById(req.origObj.adtechId)
@@ -92,7 +92,7 @@
         
         if (!req.origObj || !req.origObj.adtechId) {
             log.warn('[%1] Advert %2 has no adtechId, nothing to delete', req.uuid, req.origObj.id);
-            return next();
+            return q(next());
         }
         
         return adtech.customerAdmin.deleteAdvertiser(req.origObj.adtechId)

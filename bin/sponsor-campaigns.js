@@ -3,7 +3,7 @@
 
     var q               = require('q'),
         adtech          = require('adtech'),
-        adtechUtils     = require('../lib/adtechUtils'),
+        campaignUtils   = require('../lib/campaignUtils'),
         authUtils       = require('../lib/authUtils'),
         CrudSvc         = require('../lib/crudSvc'),
         logger          = require('../lib/logger'),
@@ -50,16 +50,17 @@
         req.body.minViewTime = req.body.minViewTime || -1;
         
         kwlp1List = (req.body.cards || []).map(function(card) { return card.id; })
-                    .concat((req.body.miniReels || []).map(function(exp) { return exp.id; }));
+                    .concat((req.body.targetMiniReels || []).map(function(exp) { return exp.id; }));
         
-        return q.all([adtechUtils.makeKeywords(kwlp1List),
-                      adtechUtils.makeKeywords(req.body.categories || [])])
+        return q.all([campaignUtils.makeKeywords(kwlp1List),
+                      campaignUtils.makeKeywords(req.body.categories || [])])
         .spread(function(kwlp1Ids, kwlp3Ids) {
             var keys = {
                 level1: kwlp1Ids,
                 level3: kwlp3Ids
             };
-            return adtech.campaignAdmin.createCampaign(adtechUtils.formatCampaign(req.body, keys));
+            var formatted = campaignUtils.formatCampaign(req.body, keys, true);
+            return adtech.campaignAdmin.createCampaign(formatted);
         })
         .then(function(resp) {
             log.info('[%1] Created Adtech campaign %2 for C6 campaign %3',
@@ -81,7 +82,7 @@
         
         ['miniReels', 'cards', 'targetMiniReels'].reduce(function(promise, key) {
             return promise.then(function() {
-                return adtechUtils.createBanners(
+                return campaignUtils.createBanners(
                     req.body[key],
                     req.origObj && req.origObj[key] || null,
                     key.replace(/s$/, ''),
@@ -105,12 +106,16 @@
         
         return ['cards', 'miniReels', 'targetMiniReels'].reduce(function(promise, key) {
             return promise.then(function() {
-                return adtechUtils.cleanBanners(req.body[key], req.origObj[key], id);
+                return campaignUtils.cleanBanners(req.body[key], req.origObj[key], id);
             });
         }, q())
         .then(function() {
             log.trace('[%1] Successfully processed all banners from origObj', req.uuid);
             next();
+        })
+        .catch(function(error) {
+            log.error('Failed cleaning banners for campaign %2: %3', req.uuid, id, error);
+            return q.reject(new Error('Adtech failure'));
         });
     };
     

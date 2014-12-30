@@ -1,5 +1,5 @@
 var flush = true;
-describe('content (UT)', function() {
+describe('content-categories (UT)', function() {
     var mockLog, CrudSvc, logger, enums, Scope, q;
 
     beforeEach(function() {
@@ -72,6 +72,4 @@ describe('content (UT)', function() {
             });
         });
     });
-    
-
 });

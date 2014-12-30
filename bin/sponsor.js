@@ -10,11 +10,11 @@
         logger          = require('../lib/logger'),
         uuid            = require('../lib/uuid'),
         journal         = require('../lib/journal'),
-        advertModule    = require('./sponsorships-advertisers'),
-        custModule      = require('./sponsorships-customers'),
-        campModule      = require('./sponsorships-campaigns'),
-        siteModule      = require('./sponsorships-sites'),
-        groupModule     = require('./sponsorships-groups'),
+        advertModule    = require('./sponsor-advertisers'),
+        custModule      = require('./sponsor-customers'),
+        campModule      = require('./sponsor-campaigns'),
+        siteModule      = require('./sponsor-sites'),
+        groupModule     = require('./sponsor-groups'),
         adtech          = require('adtech'),
         authUtils       = require('../lib/authUtils'),
         service         = require('../lib/service'),
@@ -23,10 +23,10 @@
         Scope           = enums.Scope,*/
         
         state   = {},
-        sponsorships = {}; // for exporting functions to unit tests
+        sponsor = {}; // for exporting functions to unit tests
 
     state.defaultConfig = {
-        appName: 'sponsorships',
+        appName: 'sponsor',
         appDir: __dirname,
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/' + state.name + '/caches/run/'),
@@ -41,7 +41,7 @@
                 retryConnect : true
             }
         },
-        secretsPath: path.join(process.env.HOME,'.sponsorships.secrets.json'),
+        secretsPath: path.join(process.env.HOME,'.sponsor.secrets.json'),
         // secretsPath: path.join(process.env.HOME,'.siteSvc.secrets.json'),
         mongo: {
             c6Db: {
@@ -58,7 +58,7 @@
     };
 
     
-    sponsorships.main = function(state) {
+    sponsor.main = function(state) {
         var log = logger.getLog(),
             started = new Date();
         if (state.clusterMaster){
@@ -182,7 +182,7 @@
         .then(service.initSessionStore)
         .then(function(state) {
             return adtech.createClient().thenResolve(state); //TODO: paths for keys/certs?
-        }).then(sponsorships.main)
+        }).then(sponsor.main)
         .catch(function(err) {
             var log = logger.getLog();
             console.log(err.message || err);
@@ -196,6 +196,6 @@
             log.info('ready to serve');
         });
     } else {
-        module.exports = sponsorships;
+        module.exports = sponsor;
     }
 }());

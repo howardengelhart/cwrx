@@ -4,7 +4,7 @@
     var q               = require('q'),
         adtech          = require('adtech'),
         authUtils       = require('../lib/authUtils'),
-        adtechUtils     = require('../lib/adtechUtils'),
+        campaignUtils   = require('../lib/campaignUtils'),
         logger          = require('../lib/logger'),
         FieldValidator  = require('../lib/fieldValidator'),
 
@@ -65,7 +65,7 @@
             
             if (campaign.priorityLevelThreeKeywordIdList instanceof Array &&
                 campaign.priorityLevelThreeKeywordIdList.length > 0) {
-                return adtechUtils.lookupKeywords(campaign.priorityLevelThreeKeywordIdList);
+                return campaignUtils.lookupKeywords(campaign.priorityLevelThreeKeywordIdList);
             } else {
                 return q();
             }
@@ -104,8 +104,12 @@
         });
     };
     
-    /* TODO: what can we filter groups by?  how should we do it?
+    // TODO: what can we filter groups by?  how should we do it?
+    /*
     groupModule.getGroups = function(query, req) {
+        
+        var aove = new adtech.AOVE();
+        aove.addExpression(new adtech.AOVE.IntExpression('priority', 3));
     };
     */
     
@@ -122,10 +126,10 @@
         
         req.body.created = new Date();
         
-        return adtechUtils.makeKeywords(req.body.categories || [])
+        return campaignUtils.makeKeywords(req.body.categories || [])
         .then(function(keyIds) {
             var keys = { level3: keyIds };
-            return adtech.campaignAdmin.createCampaign(adtechUtils.formatCampaign(req.body, keys));
+            return adtech.campaignAdmin.createCampaign(campaignUtils.formatCampaign(req.body,keys));
         })
         .then(function(resp) {
             log.info('[%1] Created campaign %2 for group "%3"', req.uuid, resp.id, req.body.name);
@@ -133,7 +137,7 @@
                 return q(groupModule.transformCampaign(resp));
             }
             
-            return adtechUtils.createBanners(miniReels, null, 'contentMiniReel', resp.id)
+            return campaignUtils.createBanners(miniReels, null, 'contentMiniReel', resp.id)
             .then(function() {
                 return groupModule.retrieveCampaign(resp.id);
             });
@@ -169,10 +173,10 @@
                 return q({ code: 201, body: group });
             }
             
-            return adtechUtils.cleanBanners(miniReels, group.miniReels, id)
+            return campaignUtils.cleanBanners(miniReels, group.miniReels, id)
             .then(function() {
                 log.trace('[%1] Successfully processed all banners from original', req.uuid);
-                return adtechUtils.createBanners(miniReels, group.miniReels, 'contentMiniReel', id);
+                return campaignUtils.createBanners(miniReels,group.miniReels,'contentMiniReel',id);
             })
             .then(function() {
                 log.info('[%1] All banners for %2 have been created', req.uuid, id);
