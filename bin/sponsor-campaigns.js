@@ -23,7 +23,7 @@
         
         campSvc.createValidator._required.push('name', 'advertiserId', 'customerId');
         campSvc.createValidator._forbidden.push('adtechId');
-        campSvc.editValidator._forbidden.push('campaignId', 'customerId');
+        campSvc.editValidator._forbidden.push('advertiserId', 'customerId');
         ['cards', 'miniReels', 'targetMiniReels'].forEach(function(key) {
             campSvc.createValidator._formats[key] = ['object'];
             campSvc.editValidator._formats[key] = ['object'];
@@ -31,11 +31,11 @@
         campSvc.createValidator._formats.categories = ['string'];
         campSvc.editValidator._formats.categories = ['string'];
 
-        campSvc.use('create', campSvc.validateUniqueProp.bind(campSvc, 'name', null));
-        campSvc.use('edit', campSvc.validateUniqueProp.bind(campSvc, 'name', null));
         campSvc.use('read', campSvc.preventGetAll.bind(campSvc));
+        campSvc.use('create', campSvc.validateUniqueProp.bind(campSvc, 'name', null)); //TODO: ???
         campSvc.use('create', campModule.createAdtechCamp);
         campSvc.use('create', campModule.createBanners);
+        campSvc.use('edit', campSvc.validateUniqueProp.bind(campSvc, 'name', null));
         campSvc.use('edit', campModule.cleanBanners);
         campSvc.use('edit', campModule.createBanners);
         campSvc.use('delete', campModule.deleteContent.bind(campModule, campSvc));
@@ -80,7 +80,7 @@
             id = req.body.id || (req.origObj && req.origObj.id),
             adtechId = parseInt(req.body.adtechId || (req.origObj && req.origObj.adtechId));
         
-        ['miniReels', 'cards', 'targetMiniReels'].reduce(function(promise, key) {
+        return ['miniReels', 'cards', 'targetMiniReels'].reduce(function(promise, key) {
             return promise.then(function() {
                 return campaignUtils.createBanners(
                     req.body[key],
@@ -104,7 +104,7 @@
         var log = logger.getLog(),
             id = req.origObj.id;
         
-        return ['cards', 'miniReels', 'targetMiniReels'].reduce(function(promise, key) {
+        return ['miniReels', 'cards', 'targetMiniReels'].reduce(function(promise, key) {
             return promise.then(function() {
                 return campaignUtils.cleanBanners(req.body[key], req.origObj[key], id);
             });

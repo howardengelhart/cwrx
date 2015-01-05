@@ -82,9 +82,9 @@ describe('sponsor-advertisers (UT)', function() {
             expect(record).toEqual({
                 companyData: { address: {}, url: 'http://cinema6.com' },
                 contacts: { Items: {
-                    attributes: jasmine.any(Object),
+                    attributes: { 'xmlns:cm' : 'http://systinet.com/wsdl/de/adtech/helios/UserManagement/' },
                     Item: [{
-                        attributes: jasmine.any(Object),
+                        attributes: { 'xsi:type': 'cm:ContactData' },
                         email: 'test@foo.com',
                         firstName: 'Johnny',
                         lastName: 'Testmonkey'
@@ -208,7 +208,7 @@ describe('sponsor-advertisers (UT)', function() {
             });
         });
         
-        it('should log a warning if the original object there is no adtechId', function(done) {
+        it('should log a warning if the original object has no adtechId', function(done) {
             delete req.origObj.adtechId;
             advertModule.deleteAdtechAdvert(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {

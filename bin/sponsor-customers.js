@@ -15,6 +15,7 @@
         svc.createValidator._required.push('name');
         svc.createValidator._forbidden.push('adtechId');
         svc.createValidator._formats.advertisers = [{or: ['string', 'number']}];
+        svc.editValidator._formats.advertisers = [{or: ['string', 'number']}];
 
         svc.use('read', svc.preventGetAll.bind(svc));
         svc.use('create', custModule.createAdtechCust);
@@ -32,7 +33,7 @@
         }
         
         if (!resp.body.adtechId) {
-            log.warn('[%1] Customer %2 has no adtechId', req.uuid, req.params.id);
+            log.warn('[%1] Customer %2 has no adtechId', req.uuid, resp.body.id);
             return q(resp);
         }
         
@@ -66,7 +67,7 @@
         if (origCust) {
             delete origCust.archiveDate;
             objUtils.trimNull(origCust);
-            origCust.contacts = adtech.customerAdmin.makeContactList(origCust.contacts);
+            origCust.contacts = adtech.customerAdmin.makeContactList(origCust.contacts || []);
             record = origCust;
         } else {
             record = {
@@ -79,7 +80,7 @@
                 name: body.name
             };
         }
-        record.name = body.name;
+        record.name = body.name || origCust.name;
         record.advertiser = advertisers;
         
         return record;
@@ -108,9 +109,9 @@
     custModule.editAdtechCust = function(req, next/*, done*/) {
         var log = logger.getLog();
         
-        if (req.body.name === req.origObj.name && !req.body.advertisers) {
+        if ((!req.body.name || req.body.name === req.origObj.name) && !req.body.advertisers) {
             log.info('[%1] Customer unchanged; not updating adtech', req.uuid);
-            return next();
+            return q(next());
         }
         
         return adtech.customerAdmin.getCustomerById(req.origObj.adtechId)
@@ -136,7 +137,7 @@
         
         if (!req.origObj || !req.origObj.adtechId) {
             log.warn('[%1] Cust %2 has no adtechId, nothing to delete', req.uuid, req.origObj.id);
-            return next();
+            return q(next());
         }
         
         return adtech.customerAdmin.deleteCustomer(req.origObj.adtechId)

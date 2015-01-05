@@ -18,7 +18,7 @@
     */
     
     groupModule.createValidator = new FieldValidator({
-        forbidden: ['id', 'created'],
+        forbidden: ['id', 'created', 'adtechId'],
         required: ['name', 'advertiserId', 'customerId'],
         formats: {
             miniReels: ['object'],

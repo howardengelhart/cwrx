@@ -12,18 +12,19 @@
 
     siteModule.setupSvc = function(coll) {
         var svc = new CrudSvc(coll, 's', { userProp: false, orgProp: false });
-        svc.createValidator._required.push('host');
+        svc.createValidator._required.push('host', 'name');
+        svc.createValidator._forbidden.push('adtechId');
         svc.createValidator._condForbidden.org = FieldValidator.orgFunc('sites', 'create');
         svc.createValidator._formats.containers = ['object'];
         svc.editValidator._formats.containers = ['object'];
-        svc.editValidator._condForbidden.org = FieldValidator.orgFunc('sites', 'create');
+        svc.editValidator._condForbidden.org = FieldValidator.orgFunc('sites', 'edit');
         
         var hostRegex = /^([\w-]+\.)+[\w-]+$/;
-        svc.use('create', svc.validateUniqueProp.bind(svc, 'host', hostRegex));
-        svc.use('edit', svc.validateUniqueProp.bind(svc, 'host', hostRegex));
         svc.use('read', svc.preventGetAll.bind(svc));
+        svc.use('create', svc.validateUniqueProp.bind(svc, 'host', hostRegex));
         svc.use('create', siteModule.createAdtechSite);
         svc.use('create', siteModule.createPlacements);
+        svc.use('edit', svc.validateUniqueProp.bind(svc, 'host', hostRegex));
         svc.use('edit', siteModule.cleanPlacements);
         svc.use('edit', siteModule.editAdtechSite);
         svc.use('edit', siteModule.createPlacements);
@@ -47,11 +48,10 @@
             doneCalled = false;
         
         if (!req.origObj.containers || !req.body.containers) {
-            return next();
+            return q(next());
         }
         
         return q.all(req.origObj.containers.map(function(cont) {
-
             if (req.body.containers.some(function(newCont) {
                 return newCont.type === cont.type;
             })) {
@@ -63,6 +63,10 @@
                      req.uuid, cont.type, id);
                      
             return q.all([cont.displayPlacementId, cont.contentPlacementId].map(function(plId) {
+                if (!plId) {
+                    return q();
+                }
+
                 return adtech.websiteAdmin.deletePlacement(plId)
                 .then(function() {
                     log.info('[%1] Succesfully deleted placement %2 for container %3',
@@ -105,38 +109,37 @@
         req.body.containers = req.body.containers || [];
         
         //TODO: speed up? find out why there's a 30+ second delay?
-        return q.all(req.body.containers.map(function(container) {
-            var placements = [];
-            if (!container.displayPlacementId) {
-                placements.push({
-                    name: container.type + '_display',
+        return q.all(req.body.containers.map(function(container, idx) {
+            var existing = req.origObj.containers.filter(function(oldCont) {
+                return container.type === oldCont.type;
+            })[0];
+            if (existing) { // copy over any existing placements, then ensure both are created
+                req.body.containers[idx] = container = existing;
+            }
+
+            return q.all(['contentPlacementId', 'displayPlacementId'].map(function(key) {
+                if (container[key]) {
+                    return q();
+                }
+
+                var formatted = {
+                    name: container.type + '_' + key.replace('PlacementId', ''),
                     pageId: Number(pageId),
                     websiteId: Number(adtechId)
-                });
-            }
-            if (!container.contentPlacementId) {
-                placements.push({
-                    name: container.type + '_content',
-                    pageId: Number(pageId),
-                    websiteId: Number(adtechId)
-                });
-            }
-            
-            return q.all(placements.map(function(placement) {
-                return adtech.websiteAdmin.createPlacement(placement);
-            }))
-            .spread(function(dispResult, contResult) {
-                if (dispResult) {
+                };
+
+                return adtech.websiteAdmin.createPlacement(formatted)
+                .then(function(result) {
                     log.info('[%1] Created placement %2, id = %3, for site %4',
-                             req.uuid, dispResult.name, dispResult.id, id);
-                    container.displayPlacementId = dispResult.id;
-                }
-                if (contResult) {
-                    log.info('[%1] Created placement %2, id = %3, for site %4',
-                             req.uuid, contResult.name, contResult.id, id);
-                    container.contentPlacementId = contResult.id;
-                }
-            });
+                             req.uuid, result.name, result.id, id);
+                    container[key] = result.id;
+                })
+                .catch(function(error) {
+                    log.error('[%1] Error creating placement %2 for site %3: %4',
+                              req.uuid, formatted.name, id, error);
+                    return q.reject(new Error('Adtech failure'));
+                });
+            }));
         }))
         .then(function(/*results*/) {
             log.info('[%1] All placements have been created for site %2', req.uuid, id);
@@ -148,7 +151,6 @@
     siteModule.createAdtechSite = function(req, next/*, done*/) {
         var log = logger.getLog(),
             record = siteModule.formatAdtechSite(req.body);
-        req.body.containers = req.body.containers || [];
         
         return adtech.websiteAdmin.createWebsite(record).then(function(resp) {
             log.info('[%1] Created Adtech site %2 for C6 site %3', req.uuid, resp.id, req.body.id);
@@ -177,13 +179,14 @@
         var log = logger.getLog(),
             record = siteModule.formatAdtechSite(req.origObj);
         
-        if (req.body.name === req.origObj.name && req.body.host === req.origObj.host) {
+        if ((!req.body.name || req.body.name === req.origObj.name) &&
+            (!req.body.host || req.body.host === req.origObj.host)) {
             log.info('[%1] Site props, unchanged; not updating adtech site', req.uuid);
-            return next();
+            return q(next());
         }
         
-        record.name = req.body.name;
-        record.URL = req.body.host;
+        record.name = req.body.name || req.origObj.name;
+        record.URL = req.body.host || req.origObj.host;
         
         return adtech.websiteAdmin.updateWebsite(record).then(function(resp) {
             log.info('[%1] Updated Adtech site %2', req.uuid, resp.id);
@@ -199,7 +202,7 @@
         
         if (!req.origObj || !req.origObj.adtechId) {
             log.warn('[%1] Site %2 has no adtechId, nothing to delete', req.uuid, req.origObj.id);
-            return next();
+            return q(next());
         }
         
         return adtech.websiteAdmin.deleteWebsite(req.origObj.adtechId)

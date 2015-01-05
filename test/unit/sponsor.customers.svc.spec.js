@@ -1,6 +1,6 @@
 var flush = true;
 describe('sponsor-customers (UT)', function() {
-    var mockLog, CrudSvc, logger, q, adtech, mockClient;
+    var mockLog, CrudSvc, logger, q, adtech, custModule, mockClient, nextSpy, doneSpy, errorSpy, req;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -20,6 +20,12 @@ describe('sponsor-customers (UT)', function() {
         spyOn(logger, 'createLog').andReturn(mockLog);
         spyOn(logger, 'getLog').andReturn(mockLog);
 
+        req = { uuid: '1234' };
+        
+        nextSpy = jasmine.createSpy('next');
+        doneSpy = jasmine.createSpy('done');
+        errorSpy = jasmine.createSpy('caught error');
+
         mockClient = {client: 'yes'};
         delete require.cache[require.resolve('adtech/lib/customer')];
         adtech = require('adtech');
@@ -33,8 +39,347 @@ describe('sponsor-customers (UT)', function() {
         });
     });
 
-    //TODO
     describe('setupSvc', function() {
+        it('should setup the customer service', function() {
+            spyOn(CrudSvc.prototype.preventGetAll, 'bind').andReturn(CrudSvc.prototype.preventGetAll);
+            var mockColl = { collectionName: 'customers' },
+                svc = custModule.setupSvc(mockColl);
+
+            expect(svc instanceof CrudSvc).toBe(true);
+            expect(svc._prefix).toBe('cu');
+            expect(svc.objName).toBe('customers');
+            expect(svc._userProp).toBe(false);
+            expect(svc._orgProp).toBe(false);
+            expect(svc._allowPublic).toBe(false);
+            expect(svc._coll).toBe(mockColl);
+            expect(svc.createValidator._required).toContain('name');
+            expect(svc.createValidator._forbidden).toContain('adtechId');
+            expect(svc.createValidator._formats.advertisers).toEqual([{or: ['string', 'number']}]);
+            expect(svc.editValidator._formats.advertisers).toEqual([{or: ['string', 'number']}]);
+            expect(svc._middleware.read).toContain(svc.preventGetAll);
+            expect(svc._middleware.create).toContain(custModule.createAdtechCust);
+            expect(svc._middleware.edit).toContain(custModule.editAdtechCust);
+            expect(svc._middleware.delete).toContain(custModule.deleteAdtechCust);
+        });
+    });
+    
+    describe('getAdvertList', function() {
+        var resp;
+        beforeEach(function() {
+            resp = { code: 200, body: { id: 'cu-1', adtechId: 123, name: 'testy' } };
+            adtech.customerAdmin.getCustomerById.andReturn(q({id: 123, advertiser: [456, 789]}));
+        });
         
+        it('should attach a customer\'s advertiser list to the resp', function(done) {
+            custModule.getAdvertList(req, resp).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: { id: 'cu-1', adtechId: 123, name: 'testy',
+                                                         advertisers: [456, 789] } });
+                expect(adtech.customerAdmin.getCustomerById).toHaveBeenCalledWith(123);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should not do anything if the response code is not 2xx', function(done) {
+            var codes = [100, 300, 400, 500];
+            q.all(codes.map(function(code) {
+                var response = { code: code, body: resp.body };
+                return custModule.getAdvertList(req, response).then(function(result) {
+                    expect(result.code).toBe(code);
+                    expect(result.body.advertisers).not.toBeDefined();
+                });
+            })).then(function(results) {
+                expect(adtech.customerAdmin.getCustomerById).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should log a warning if the response has no adtechId', function(done) {
+            delete resp.body.adtechId;
+            custModule.getAdvertList(req, resp).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body.advertisers).not.toBeDefined();
+                expect(mockLog.warn).toHaveBeenCalled();
+                expect(adtech.customerAdmin.getCustomerById).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should reject if adtech fails', function(done) {
+            adtech.customerAdmin.getCustomerById.andReturn(q.reject('I GOT A PROBLEM'));
+            custModule.getAdvertList(req, resp).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toEqual(new Error('Adtech failure'));
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
+        });
+    });
+    
+    describe('formatAdtechCust', function() {
+        
+        it('should create a new record when there is no original', function() {
+            var record = custModule.formatAdtechCust({id: 'cu-1', name: 'testy'});
+            expect(record).toEqual({ companyData: { address: {}, url: 'http://cinema6.com' },
+                                     extId: 'cu-1', name: 'testy' });
+        });
+        
+        it('should format the advertisers correctly if defined', function() {
+            var record = custModule.formatAdtechCust({id: 'cu-1', name: 'testy', advertisers: [12, 23]});
+            expect(record).toEqual({
+                advertiser: { Items: {
+                    attributes: { 'xmlns:cm' : 'http://systinet.com/wsdl/de/adtech/helios/CustomerManagement/' },
+                    Item: [
+                        { attributes: { 'xsi:type': 'cm:Advertiser' }, id: 12 },
+                        { attributes: { 'xsi:type': 'cm:Advertiser' }, id: 23 }
+                    ]
+                } },
+                companyData: { address: {}, url: 'http://cinema6.com' },
+                extId: 'cu-1',
+                name: 'testy'
+            });
+        });
+        
+        it('should modify the original record, if there is one', function() {
+            var orig = {
+                archiveDate: new Date(),
+                apples: null,
+                advertiser: ['12', '23'],
+                companyData: { address: {}, url: 'http://cinema6.com' },
+                contacts: [{email: 'test@foo.com', firstName: 'Johnny', lastName: 'Testmonkey'}],
+                extId: 'cu-1',
+                id: 123,
+                name: 'old name'
+            };
+            var record = custModule.formatAdtechCust({id: 'cu-1', name: 'testy'}, orig);
+            expect(record).toEqual({
+                advertiser: { Items: {
+                    attributes: { 'xmlns:cm' : 'http://systinet.com/wsdl/de/adtech/helios/CustomerManagement/' },
+                    Item: [
+                        { attributes: { 'xsi:type': 'cm:Advertiser' }, id: 12 },
+                        { attributes: { 'xsi:type': 'cm:Advertiser' }, id: 23 }
+                    ]
+                } },
+                companyData: { address: {}, url: 'http://cinema6.com' },
+                contacts: { Items: {
+                    attributes: { 'xmlns:cm' : 'http://systinet.com/wsdl/de/adtech/helios/UserManagement/' },
+                    Item: [{
+                        attributes: { 'xsi:type': 'cm:ContactData' },
+                        email: 'test@foo.com',
+                        firstName: 'Johnny',
+                        lastName: 'Testmonkey'
+                    }]
+                } },
+                extId: 'cu-1',
+                id: 123,
+                name: 'testy'
+            });
+        });
+    });
+    
+    describe('createAdtechCust', function() {
+        beforeEach(function() {
+            req.body = { id: 'cu-1', name: 'testy' };
+            adtech.customerAdmin.createCustomer.andReturn(q({id: 123}));
+        });
+        
+        it('should create a new customer in adtech', function(done) {
+            custModule.createAdtechCust(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.body.adtechId).toBe(123);
+                expect(adtech.customerAdmin.createCustomer).toHaveBeenCalledWith({
+                    companyData: {address: {}, url: 'http://cinema6.com'}, extId: 'cu-1', name: 'testy'});
+                done();
+            });
+        });
+        
+        it('should set the advertisers and trim the field off the body', function(done) {
+            req.body.advertisers = [12, 23];
+            custModule.createAdtechCust(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.body.adtechId).toBe(123);
+                expect(req.body.advertisers).not.toBeDefined();
+                expect(adtech.customerAdmin.createCustomer).toHaveBeenCalledWith({
+                    advertiser: { Items: {
+                        attributes: { 'xmlns:cm' : 'http://systinet.com/wsdl/de/adtech/helios/CustomerManagement/' },
+                        Item: [
+                            { attributes: { 'xsi:type': 'cm:Advertiser' }, id: 12 },
+                            { attributes: { 'xsi:type': 'cm:Advertiser' }, id: 23 }
+                        ]
+                    } },
+                    companyData: {address: {}, url: 'http://cinema6.com'}, extId: 'cu-1', name: 'testy'});
+                done();
+            });
+        });
+        
+        it('should reject if adtech fails', function(done) {
+            adtech.customerAdmin.createCustomer.andReturn(q.reject('I GOT A PROBLEM'));
+            custModule.createAdtechCust(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith(new Error('Adtech failure'));
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(req.body.adtechId).not.toBeDefined();
+                done();
+            });
+        });
+    });
+    
+    describe('editAdtechCust', function() {
+        beforeEach(function() {
+            req.body = { id: 'cu-1', name: 'testy' };
+            req.origObj = { id: 'cu-1', name: 'old name', adtechId: 123 };
+            adtech.customerAdmin.getCustomerById.andReturn(q({name: 'old name', id: 123}));
+            adtech.customerAdmin.updateCustomer.andReturn(q({id: 123, updated: true}));
+        });
+        
+        it('should edit a customer in adtech', function(done) {
+            custModule.editAdtechCust(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(adtech.customerAdmin.getCustomerById).toHaveBeenCalledWith(123);
+                expect(adtech.customerAdmin.updateCustomer).toHaveBeenCalledWith({
+                    name: 'testy', id: 123,
+                    contacts: { Items: {
+                        attributes: { 'xmlns:cm': 'http://systinet.com/wsdl/de/adtech/helios/UserManagement/' },
+                        Item: []
+                    } }
+                });
+                done();
+            });
+        });
+        
+        it('should be able to update the advertiser list', function(done) {
+            req.body = { id: 'cu-1', advertisers: [12, 23] };
+            custModule.editAdtechCust(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(adtech.customerAdmin.getCustomerById).toHaveBeenCalledWith(123);
+                expect(adtech.customerAdmin.updateCustomer).toHaveBeenCalledWith({
+                    advertiser: { Items: {
+                        attributes: { 'xmlns:cm': 'http://systinet.com/wsdl/de/adtech/helios/CustomerManagement/' },
+                        Item: [
+                            { attributes: { 'xsi:type': 'cm:Advertiser' }, id: 12 },
+                            { attributes: { 'xsi:type': 'cm:Advertiser' }, id: 23 },
+                        ]
+                    } },
+                    name: 'old name', id: 123,
+                    contacts: { Items: {
+                        attributes: { 'xmlns:cm': 'http://systinet.com/wsdl/de/adtech/helios/UserManagement/' },
+                        Item: []
+                    } }
+                });
+                expect(req.body.advertisers).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should do nothing if the name and advertisers are not defined in the request', function(done) {
+            req.body = { id: 'cu-1', foo: 'bar' };
+            custModule.editAdtechCust(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(adtech.customerAdmin.getCustomerById).not.toHaveBeenCalled();
+                expect(adtech.customerAdmin.updateCustomer).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should do nothing if the name and advertisers are unchanged', function(done) {
+            req.body = { id: 'cu-1', name: 'old name' };
+            custModule.editAdtechCust(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(adtech.customerAdmin.getCustomerById).not.toHaveBeenCalled();
+                expect(adtech.customerAdmin.updateCustomer).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should reject if finding the existing customer fails', function(done) {
+            adtech.customerAdmin.getCustomerById.andReturn(q.reject('I GOT A PROBLEM'));
+            custModule.editAdtechCust(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith(new Error('Adtech failure'));
+                expect(adtech.customerAdmin.getCustomerById).toHaveBeenCalled();
+                expect(adtech.customerAdmin.updateCustomer).not.toHaveBeenCalled();
+                done();
+            });
+        });
+
+        it('should reject if updating the customer fails', function(done) {
+            adtech.customerAdmin.updateCustomer.andReturn(q.reject('I GOT A PROBLEM'));
+            custModule.editAdtechCust(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith(new Error('Adtech failure'));
+                expect(adtech.customerAdmin.getCustomerById).toHaveBeenCalled();
+                expect(adtech.customerAdmin.updateCustomer).toHaveBeenCalled();
+                done();
+            });
+        });
+    });
+    
+    describe('deleteAdtechCust', function() {
+        beforeEach(function() {
+            req.origObj = { id: 'cu-1', name: 'testy', adtechId: 123 };
+            adtech.customerAdmin.deleteCustomer.andReturn(q());
+        });
+        
+        it('should delete an advertiser in adtech', function(done) {
+            custModule.deleteAdtechCust(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(adtech.customerAdmin.deleteCustomer).toHaveBeenCalledWith(123);
+                done();
+            });
+        });
+        
+        it('should log a warning if the original object has no adtechId', function(done) {
+            delete req.origObj.adtechId;
+            custModule.deleteAdtechCust(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+                expect(adtech.customerAdmin.deleteCustomer).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should reject if adtech fails', function(done) {
+            adtech.customerAdmin.deleteCustomer.andReturn(q.reject('I GOT A PROBLEM'));
+            custModule.deleteAdtechCust(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith(new Error('Adtech failure'));
+                done();
+            });
+        });
     });
 });
+
