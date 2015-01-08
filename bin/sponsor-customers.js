@@ -25,6 +25,7 @@
         return svc;
     };
     
+    //TODO: this should map the Adtech ids back to C6 ids
     custModule.getAdvertList = function(req, resp) {
         var log = logger.getLog();
         
@@ -51,6 +52,7 @@
         });
     };
     
+    //TODO: body.advertisers will be C6 ids, need to lookup and map to C6 ids
     custModule.formatAdtechCust = function(body, origCust) {
         var log = logger.getLog(),
             c6Id = body.id || (origCust && origCust.extId),

@@ -21,7 +21,7 @@
         forbidden: ['id', 'created', 'adtechId'],
         required: ['name', 'advertiserId', 'customerId'],
         formats: {
-            miniReels: ['object'],
+            miniReels: ['string'],
             categories: ['string']
         }
     });
@@ -29,10 +29,15 @@
     groupModule.editValidator = new FieldValidator({
         forbidden: ['id', 'created'],
         formats: {
-            miniReels: ['object'],
+            miniReels: ['string'],
             categories: ['string']
         }
     });
+    
+    groupModule.formatOutput = function(group) {
+        group.miniReels = group.miniReels.map(function(reel) { return reel.id; });
+        return group;
+    };
     
     groupModule.transformCampaign = function(campaign, banners, categories) {
         banners = banners || [];
@@ -55,7 +60,7 @@
         return group;
     };
     
-    groupModule.retrieveCampaign = function(id) {
+    groupModule.lookupCampaign = function(id) {
         var log = logger.getLog(),
             campaign, categories;
         
@@ -95,12 +100,12 @@
         var log = logger.getLog(),
             id = parseInt(req.params.id);
         
-        return groupModule.retrieveCampaign(id).then(function(group) {
+        return groupModule.lookupCampaign(id).then(function(group) {
             if (!group) {
                 return q({code: 404, body: 'Group not found'});
             }
             log.info('[%1] Successfully retrieved group campaign %2', req.uuid, id);
-            return q({ code: 200, body: group });
+            return q({ code: 200, body: groupModule.formatOutput(group) });
         });
     };
     
@@ -134,16 +139,20 @@
         .then(function(resp) {
             log.info('[%1] Created campaign %2 for group "%3"', req.uuid, resp.id, req.body.name);
             if (!miniReels) {
-                return q(groupModule.transformCampaign(resp));
+                return q(groupModule.transformCampaign(resp, null, req.body.categories));
             }
-            
+
+            miniReels = miniReels.map(function(id) { return { id: id }; });
             return campaignUtils.createBanners(miniReels, null, 'contentMiniReel', resp.id)
             .then(function() {
-                return groupModule.retrieveCampaign(resp.id);
+                return groupModule.lookupCampaign(resp.id);
             });
         })
         .then(function(group) {
-            return q({ code: 201, body: group });
+            if (!group) {
+                return q.reject('Newly created group could not be found');
+            }
+            return q({ code: 201, body: groupModule.formatOutput(group) });
         })
         .catch(function(error) {
             log.error('[%1] Error creating group "%2": %3', req.uuid, req.body.name, error);
@@ -164,15 +173,16 @@
             return q({code: 400, body: 'Invalid request body'});
         }
             
-        return groupModule.retrieveCampaign(id)
+        return groupModule.lookupCampaign(id)
         .then(function(group) {
             if (!group) {
                 return q({code: 404, body: 'Group not found'});
             }
             if (!miniReels) {
-                return q({ code: 201, body: group });
+                return q({ code: 201, body: groupModule.formatOutput(group) });
             }
             
+            miniReels = miniReels.map(function(id) { return { id: id }; });
             return campaignUtils.cleanBanners(miniReels, group.miniReels, id)
             .then(function() {
                 log.trace('[%1] Successfully processed all banners from original', req.uuid);
@@ -181,7 +191,7 @@
             .then(function() {
                 log.info('[%1] All banners for %2 have been created', req.uuid, id);
                 group.miniReels = miniReels;
-                return q({ code: 201, body: group });
+                return q({ code: 201, body: groupModule.formatOutput(group) });
             });
         })
         .catch(function(error) {
