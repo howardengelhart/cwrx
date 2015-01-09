@@ -42,7 +42,7 @@
     groupModule.transformCampaign = function(campaign, banners, categories) {
         banners = banners || [];
         var group = {
-            id: campaign.id,
+            id: parseInt(campaign.id),
             categories: categories,
             name: campaign.name,
             created: campaign.createdAt,

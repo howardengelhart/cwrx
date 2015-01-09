@@ -10,23 +10,65 @@
 
         custModule = {};
 
-    custModule.setupSvc = function(coll) {
-        var svc = new CrudSvc(coll, 'cu', { userProp: false, orgProp: false });
+    custModule.setupSvc = function(db) {
+        var coll = db.collection('customers'),
+            svc = new CrudSvc(coll, 'cu', { userProp: false, orgProp: false });
+        svc._advertColl = db.collection('advertisers');
         svc.createValidator._required.push('name');
         svc.createValidator._forbidden.push('adtechId');
         svc.createValidator._formats.advertisers = [{or: ['string', 'number']}];
         svc.editValidator._formats.advertisers = [{or: ['string', 'number']}];
 
         svc.use('read', svc.preventGetAll.bind(svc));
-        svc.use('create', custModule.createAdtechCust);
-        svc.use('edit', custModule.editAdtechCust);
+        svc.use('create', custModule.createAdtechCust.bind(custModule, svc));
+        svc.use('edit', custModule.editAdtechCust.bind(custModule, svc));
         svc.use('delete', custModule.deleteAdtechCust);
         
         return svc;
     };
     
-    //TODO: this should map the Adtech ids back to C6 ids
-    custModule.getAdvertList = function(req, resp) {
+    custModule.getAdvertC6Ids = function(svc, adtechIds) { //TODO: rename?
+        var log = logger.getLog();
+        if (!(adtechIds instanceof Array) || adtechIds.length === 0) {
+            return q(adtechIds);
+        }
+        
+        var cursor = svc._advertColl.find({adtechId: {$in: adtechIds}}, {id: 1, adtechId: 1});
+        return q.npost(cursor, 'toArray')
+        .then(function(advertisers) {
+            if (advertisers.length !== adtechIds.length) {
+                log.warn('Looking up advertisers [%1] but only found [%2]', adtechIds,
+                         advertisers.map(function(advertiser) { return advertiser.adtechId; }));
+            }
+            return advertisers.map(function(advertiser) { return advertiser.id; });
+        })
+        .catch(function(error) {
+            log.error('Failed looking up advertisers with adtechIds [%1]: %2', adtechIds, error);
+            return q.reject('Mongo error');
+        });
+    };
+    
+    custModule.getAdvertAdtechIds = function(svc, c6Ids) { //TODO: rename
+        var log = logger.getLog();
+        if (!(c6Ids instanceof Array) || c6Ids.length === 0) {
+            return q(c6Ids);
+        }
+        
+        return q.npost(svc._advertColl.find({id: {$in: c6Ids}}, {id: 1, adtechId: 1}), 'toArray')
+        .then(function(advertisers) {
+            if (advertisers.length !== c6Ids.length) {
+                log.warn('Looking up advertisers [%1] but only found [%2]', c6Ids,
+                         advertisers.map(function(advertiser) { return advertiser.id; }));
+            }
+            return advertisers.map(function(advertiser) { return advertiser.adtechId; });
+        })
+        .catch(function(error) {
+            log.error('Failed looking up advertisers with c6Ids [%1]: %2', c6Ids, error);
+            return q.reject('Mongo error');
+        });
+    };
+    
+    custModule.getAdvertList = function(svc, req, resp) {
         var log = logger.getLog();
         
         if (resp.code < 200 || resp.code >= 300 || typeof resp.body !== 'object') {
@@ -40,9 +82,11 @@
         
         return adtech.customerAdmin.getCustomerById(resp.body.adtechId)
         .then(function(customer) {
+            return custModule.getAdvertC6Ids(svc, customer.advertiser.map(Number));
+        }).then(function(advertisers) {
             log.info('[%1] Retrieved list of advertisers for %2: [%3]',
-                     req.uuid, resp.body.adtechId, customer.advertiser);
-            resp.body.advertisers = customer.advertiser;
+                     req.uuid, resp.body.adtechId, advertisers);
+            resp.body.advertisers = advertisers;
             return q(resp);
         })
         .catch(function(error) {
@@ -53,12 +97,12 @@
     };
     
     //TODO: body.advertisers will be C6 ids, need to lookup and map to C6 ids
-    custModule.formatAdtechCust = function(body, origCust) {
+    custModule.formatAdtechCust = function(body, origCust, advertList) {
         var log = logger.getLog(),
             c6Id = body.id || (origCust && origCust.extId),
-            advertList, advertisers, record;
+            advertisers, record;
             
-        advertList = body.advertisers || (origCust && origCust.advertiser) || null;
+        advertList = advertList || (origCust && origCust.advertiser) || null;
         if (advertList) {
             log.info('Linking customer %1 to advertisers [%2]', c6Id, advertList);
             advertisers = adtech.customerAdmin.makeAdvertiserList(advertList.map(function(id) {
@@ -88,17 +132,19 @@
         return record;
     };
     
-    custModule.createAdtechCust = function(req, next/*, done*/) {
-        var log = logger.getLog(),
-            record = custModule.formatAdtechCust(req.body);
+    custModule.createAdtechCust = function(svc, req, next/*, done*/) {
+        var log = logger.getLog();
         
-        delete req.body.advertisers;
-            
-        return adtech.customerAdmin.createCustomer(record)
+        return custModule.getAdvertAdtechIds(svc, req.body.advertisers)
+        .then(function(advertisers) {
+            delete req.body.advertisers;
+            var record = custModule.formatAdtechCust(req.body, null, advertisers);
+            return adtech.customerAdmin.createCustomer(record);
+        })
         .then(function(resp) {
             log.info('[%1] Created Adtech customer %2 for C6 customer %3',
                      req.uuid, resp.id, req.body.id);
-            req.body.adtechId = resp.id;
+            req.body.adtechId = parseInt(resp.id);
             next();
         })
         .catch(function(error) {
@@ -108,8 +154,9 @@
         });
     };
     
-    custModule.editAdtechCust = function(req, next/*, done*/) {
-        var log = logger.getLog();
+    custModule.editAdtechCust = function(svc, req, next/*, done*/) {
+        var log = logger.getLog(),
+            oldCust;
         
         if ((!req.body.name || req.body.name === req.origObj.name) && !req.body.advertisers) {
             log.info('[%1] Customer unchanged; not updating adtech', req.uuid);
@@ -119,8 +166,12 @@
         return adtech.customerAdmin.getCustomerById(req.origObj.adtechId)
         .then(function(cust) {
             log.info('[%1] Retrieved previous customer %2', req.uuid, cust.id);
-            var record = custModule.formatAdtechCust(req.body, cust);
+            oldCust = cust;
+            return custModule.getAdvertAdtechIds(svc, req.body.advertisers);
+        })
+        .then(function(advertisers) {
             delete req.body.advertisers;
+            var record = custModule.formatAdtechCust(req.body, oldCust, advertisers);
             return adtech.customerAdmin.updateCustomer(record);
         })
         .then(function(resp) {
@@ -160,7 +211,7 @@
         app.get('/api/account/customer/:id', sessions, authGetCust, audit, function(req, res) {
             svc.getObjs({id: req.params.id}, req, false)
             .then(function(resp) {
-                return custModule.getAdvertList(req, resp);
+                return custModule.getAdvertList(svc, req, resp);
             }).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
@@ -189,7 +240,7 @@
         var authPostCust = authUtils.middlewarify({customers: 'create'});
         app.post('/api/account/customer', sessions, authPostCust, audit, function(req, res) {
             svc.createObj(req).then(function(resp) {
-                return custModule.getAdvertList(req, resp);
+                return custModule.getAdvertList(svc, req, resp);
             }).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
@@ -200,7 +251,7 @@
         var authPutCust = authUtils.middlewarify({customers: 'edit'});
         app.put('/api/account/customer/:id', sessions, authPutCust, audit, function(req, res) {
             svc.editObj(req).then(function(resp) {
-                return custModule.getAdvertList(req, resp);
+                return custModule.getAdvertList(svc, req, resp);
             }).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {

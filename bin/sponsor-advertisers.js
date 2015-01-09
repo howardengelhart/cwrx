@@ -53,7 +53,7 @@
         .then(function(resp) {
             log.info('[%1] Created Adtech advertiser %2 for C6 advertiser %3',
                      req.uuid, resp.id, req.body.id);
-            req.body.adtechId = resp.id;
+            req.body.adtechId = parseInt(resp.id);
             next();
         })
         .catch(function(error) {

@@ -42,8 +42,17 @@ describe('sponsor-customers (UT)', function() {
     describe('setupSvc', function() {
         it('should setup the customer service', function() {
             spyOn(CrudSvc.prototype.preventGetAll, 'bind').andReturn(CrudSvc.prototype.preventGetAll);
-            var mockColl = { collectionName: 'customers' },
-                svc = custModule.setupSvc(mockColl);
+            spyOn(custModule.createAdtechCust, 'bind').andReturn(custModule.createAdtechCust);
+            spyOn(custModule.editAdtechCust, 'bind').andReturn(custModule.editAdtechCust);
+            var mockDb = {
+                collection: jasmine.createSpy('db.collection()').andCallFake(function(name) {
+                    return { collectionName: name };
+                })
+            };
+            var svc = custModule.setupSvc(mockDb);
+            
+            expect(custModule.createAdtechCust.bind).toHaveBeenCalledWith(custModule, svc);
+            expect(custModule.editAdtechCust.bind).toHaveBeenCalledWith(custModule, svc);
 
             expect(svc instanceof CrudSvc).toBe(true);
             expect(svc._prefix).toBe('cu');
@@ -51,11 +60,14 @@ describe('sponsor-customers (UT)', function() {
             expect(svc._userProp).toBe(false);
             expect(svc._orgProp).toBe(false);
             expect(svc._allowPublic).toBe(false);
-            expect(svc._coll).toBe(mockColl);
+            expect(svc._coll).toEqual({ collectionName: 'customers' });
+            expect(svc._advertColl).toEqual({ collectionName: 'advertisers' });
+            
             expect(svc.createValidator._required).toContain('name');
             expect(svc.createValidator._forbidden).toContain('adtechId');
             expect(svc.createValidator._formats.advertisers).toEqual([{or: ['string', 'number']}]);
             expect(svc.editValidator._formats.advertisers).toEqual([{or: ['string', 'number']}]);
+            
             expect(svc._middleware.read).toContain(svc.preventGetAll);
             expect(svc._middleware.create).toContain(custModule.createAdtechCust);
             expect(svc._middleware.edit).toContain(custModule.editAdtechCust);
@@ -63,18 +75,106 @@ describe('sponsor-customers (UT)', function() {
         });
     });
     
+    describe('getAdvertC6Ids', function() {
+        var svc, mockCursor, advertisers;
+        beforeEach(function() {
+            advertisers = [ {id: 'a-1', adtechId: 12}, {id: 'a-2', adtechId: 23} ];
+            mockCursor = { toArray: jasmine.createSpy('cursor.toArray()').andCallFake(function(cb) {
+                cb(null, advertisers);
+            }) };
+            svc = { _advertColl: { find: jasmine.createSpy('coll.find()').andReturn(mockCursor) } };
+        });
+        
+        it('should get a list of advertiser C6 ids', function(done) {
+            custModule.getAdvertC6Ids(svc, [12, 23]).then(function(ids) {
+                expect(ids).toEqual(['a-1', 'a-2']);
+                expect(svc._advertColl.find).toHaveBeenCalledWith({adtechId: {$in: [12, 23]}}, {id: 1, adtechId: 1});
+                expect(mockCursor.toArray).toHaveBeenCalledWith(jasmine.any(Function));
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should log a warning if mongo doesn\'t find all the advertisers', function(done) {
+            advertisers.pop();
+            custModule.getAdvertC6Ids(svc, [12, 23]).then(function(ids) {
+                expect(ids).toEqual(['a-1']);
+                expect(mockLog.warn).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should log an error if mongo fails', function(done) {
+            mockCursor.toArray.andCallFake(function(cb) { cb('I GOT A PROBLEM'); });
+            custModule.getAdvertC6Ids(svc, [12, 23]).then(function(ids) {
+                expect(ids).not.toBeDefiend();
+            }).catch(function(error) {
+                expect(error).toBe('Mongo error');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(mockCursor.toArray).toHaveBeenCalledWith(jasmine.any(Function));
+            }).done(done);
+        });
+    });
+
+    describe('getAdvertAdtechIds', function() {
+        var svc, mockCursor, advertisers;
+        beforeEach(function() {
+            advertisers = [ {id: 'a-1', adtechId: 12}, {id: 'a-2', adtechId: 23} ];
+            mockCursor = { toArray: jasmine.createSpy('cursor.toArray()').andCallFake(function(cb) {
+                cb(null, advertisers);
+            }) };
+            svc = { _advertColl: { find: jasmine.createSpy('coll.find()').andReturn(mockCursor) } };
+        });
+        
+        it('should get a list of advertiser adtech ids', function(done) {
+            custModule.getAdvertAdtechIds(svc, ['a-1', 'a-2']).then(function(ids) {
+                expect(ids).toEqual([12, 23]);
+                expect(svc._advertColl.find).toHaveBeenCalledWith({id: {$in: ['a-1', 'a-2']}}, {id: 1, adtechId: 1});
+                expect(mockCursor.toArray).toHaveBeenCalledWith(jasmine.any(Function));
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should log a warning if mongo doesn\'t find all the advertisers', function(done) {
+            advertisers.shift();
+            custModule.getAdvertAdtechIds(svc, ['a-1', 'a-2']).then(function(ids) {
+                expect(ids).toEqual([23]);
+                expect(mockLog.warn).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should log an error if mongo fails', function(done) {
+            mockCursor.toArray.andCallFake(function(cb) { cb('I GOT A PROBLEM'); });
+            custModule.getAdvertAdtechIds(svc, ['a-1', 'a-2']).then(function(ids) {
+                expect(ids).not.toBeDefiend();
+            }).catch(function(error) {
+                expect(error).toBe('Mongo error');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(mockCursor.toArray).toHaveBeenCalledWith(jasmine.any(Function));
+            }).done(done);
+        });
+    });
+    
     describe('getAdvertList', function() {
         var resp;
         beforeEach(function() {
             resp = { code: 200, body: { id: 'cu-1', adtechId: 123, name: 'testy' } };
-            adtech.customerAdmin.getCustomerById.andReturn(q({id: 123, advertiser: [456, 789]}));
+            adtech.customerAdmin.getCustomerById.andReturn(q({id: 123, advertiser: ['456', '789']}));
+            spyOn(custModule, 'getAdvertC6Ids').andReturn(q(['a-1', 'a-2']));
         });
         
         it('should attach a customer\'s advertiser list to the resp', function(done) {
-            custModule.getAdvertList(req, resp).then(function(resp) {
+            custModule.getAdvertList('mockService', req, resp).then(function(resp) {
                 expect(resp).toEqual({code: 200, body: { id: 'cu-1', adtechId: 123, name: 'testy',
-                                                         advertisers: [456, 789] } });
+                                                         advertisers: ['a-1', 'a-2'] } });
                 expect(adtech.customerAdmin.getCustomerById).toHaveBeenCalledWith(123);
+                expect(custModule.getAdvertC6Ids).toHaveBeenCalledWith('mockService', [456, 789]);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -84,12 +184,13 @@ describe('sponsor-customers (UT)', function() {
             var codes = [100, 300, 400, 500];
             q.all(codes.map(function(code) {
                 var response = { code: code, body: resp.body };
-                return custModule.getAdvertList(req, response).then(function(result) {
+                return custModule.getAdvertList('mockService', req, response).then(function(result) {
                     expect(result.code).toBe(code);
                     expect(result.body.advertisers).not.toBeDefined();
                 });
             })).then(function(results) {
                 expect(adtech.customerAdmin.getCustomerById).not.toHaveBeenCalled();
+                expect(custModule.getAdvertC6Ids).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -97,11 +198,12 @@ describe('sponsor-customers (UT)', function() {
         
         it('should log a warning if the response has no adtechId', function(done) {
             delete resp.body.adtechId;
-            custModule.getAdvertList(req, resp).then(function(resp) {
+            custModule.getAdvertList('mockService', req, resp).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body.advertisers).not.toBeDefined();
                 expect(mockLog.warn).toHaveBeenCalled();
                 expect(adtech.customerAdmin.getCustomerById).not.toHaveBeenCalled();
+                expect(custModule.getAdvertC6Ids).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -109,7 +211,18 @@ describe('sponsor-customers (UT)', function() {
         
         it('should reject if adtech fails', function(done) {
             adtech.customerAdmin.getCustomerById.andReturn(q.reject('I GOT A PROBLEM'));
-            custModule.getAdvertList(req, resp).then(function(resp) {
+            custModule.getAdvertList('mockService', req, resp).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toEqual(new Error('Adtech failure'));
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(custModule.getAdvertC6Ids).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should reject if mongo fails', function(done) {
+            custModule.getAdvertC6Ids.andReturn(q.reject('I GOT A PROBLEM'));
+            custModule.getAdvertList('mockService', req, resp).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toEqual(new Error('Adtech failure'));
@@ -119,7 +232,6 @@ describe('sponsor-customers (UT)', function() {
     });
     
     describe('formatAdtechCust', function() {
-        
         it('should create a new record when there is no original', function() {
             var record = custModule.formatAdtechCust({id: 'cu-1', name: 'testy'});
             expect(record).toEqual({ companyData: { address: {}, url: 'http://cinema6.com' },
@@ -127,7 +239,7 @@ describe('sponsor-customers (UT)', function() {
         });
         
         it('should format the advertisers correctly if defined', function() {
-            var record = custModule.formatAdtechCust({id: 'cu-1', name: 'testy', advertisers: [12, 23]});
+            var record = custModule.formatAdtechCust({id: 'cu-1', name: 'testy'}, null, ['12', '23']);
             expect(record).toEqual({
                 advertiser: { Items: {
                     attributes: { 'xmlns:cm' : 'http://systinet.com/wsdl/de/adtech/helios/CustomerManagement/' },
@@ -183,15 +295,20 @@ describe('sponsor-customers (UT)', function() {
         beforeEach(function() {
             req.body = { id: 'cu-1', name: 'testy' };
             adtech.customerAdmin.createCustomer.andReturn(q({id: 123}));
+            spyOn(custModule, 'getAdvertAdtechIds').andCallFake(function(svc, ids) {
+                if (!ids) return q(ids);
+                else return q([12, 23]);
+            });
         });
         
         it('should create a new customer in adtech', function(done) {
-            custModule.createAdtechCust(req, nextSpy, doneSpy).catch(errorSpy);
+            custModule.createAdtechCust('mockService', req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body.adtechId).toBe(123);
+                expect(custModule.getAdvertAdtechIds).toHaveBeenCalledWith('mockService', undefined);
                 expect(adtech.customerAdmin.createCustomer).toHaveBeenCalledWith({
                     companyData: {address: {}, url: 'http://cinema6.com'}, extId: 'cu-1', name: 'testy'});
                 done();
@@ -199,14 +316,15 @@ describe('sponsor-customers (UT)', function() {
         });
         
         it('should set the advertisers and trim the field off the body', function(done) {
-            req.body.advertisers = [12, 23];
-            custModule.createAdtechCust(req, nextSpy, doneSpy).catch(errorSpy);
+            req.body.advertisers = ['a-1', 'a-2'];
+            custModule.createAdtechCust('mockService', req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body.adtechId).toBe(123);
                 expect(req.body.advertisers).not.toBeDefined();
+                expect(custModule.getAdvertAdtechIds).toHaveBeenCalledWith('mockService', ['a-1', 'a-2']);
                 expect(adtech.customerAdmin.createCustomer).toHaveBeenCalledWith({
                     advertiser: { Items: {
                         attributes: { 'xmlns:cm' : 'http://systinet.com/wsdl/de/adtech/helios/CustomerManagement/' },
@@ -220,9 +338,23 @@ describe('sponsor-customers (UT)', function() {
             });
         });
         
+        it('should reject if mongo fails', function(done) {
+            custModule.getAdvertAdtechIds.andReturn(q.reject('I GOT A PROBLEM'));
+            custModule.createAdtechCust('mockService', req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith(new Error('Adtech failure'));
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(adtech.customerAdmin.createCustomer).not.toHaveBeenCalled();
+                expect(req.body.adtechId).not.toBeDefined();
+                done();
+            });
+        });
+        
         it('should reject if adtech fails', function(done) {
             adtech.customerAdmin.createCustomer.andReturn(q.reject('I GOT A PROBLEM'));
-            custModule.createAdtechCust(req, nextSpy, doneSpy).catch(errorSpy);
+            custModule.createAdtechCust('mockService', req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
@@ -240,15 +372,20 @@ describe('sponsor-customers (UT)', function() {
             req.origObj = { id: 'cu-1', name: 'old name', adtechId: 123 };
             adtech.customerAdmin.getCustomerById.andReturn(q({name: 'old name', id: 123}));
             adtech.customerAdmin.updateCustomer.andReturn(q({id: 123, updated: true}));
+            spyOn(custModule, 'getAdvertAdtechIds').andCallFake(function(svc, ids) {
+                if (!ids) return q(ids);
+                else return q([12, 23]);
+            });
         });
         
         it('should edit a customer in adtech', function(done) {
-            custModule.editAdtechCust(req, nextSpy, doneSpy).catch(errorSpy);
+            custModule.editAdtechCust('mockService', req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(adtech.customerAdmin.getCustomerById).toHaveBeenCalledWith(123);
+                expect(custModule.getAdvertAdtechIds).toHaveBeenCalledWith('mockService', undefined);
                 expect(adtech.customerAdmin.updateCustomer).toHaveBeenCalledWith({
                     name: 'testy', id: 123,
                     contacts: { Items: {
@@ -261,13 +398,14 @@ describe('sponsor-customers (UT)', function() {
         });
         
         it('should be able to update the advertiser list', function(done) {
-            req.body = { id: 'cu-1', advertisers: [12, 23] };
-            custModule.editAdtechCust(req, nextSpy, doneSpy).catch(errorSpy);
+            req.body = { id: 'cu-1', advertisers: ['a-1', 'a-2'] };
+            custModule.editAdtechCust('mockService', req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(adtech.customerAdmin.getCustomerById).toHaveBeenCalledWith(123);
+                expect(custModule.getAdvertAdtechIds).toHaveBeenCalledWith('mockService', ['a-1', 'a-2']);
                 expect(adtech.customerAdmin.updateCustomer).toHaveBeenCalledWith({
                     advertiser: { Items: {
                         attributes: { 'xmlns:cm': 'http://systinet.com/wsdl/de/adtech/helios/CustomerManagement/' },
@@ -289,12 +427,13 @@ describe('sponsor-customers (UT)', function() {
         
         it('should do nothing if the name and advertisers are not defined in the request', function(done) {
             req.body = { id: 'cu-1', foo: 'bar' };
-            custModule.editAdtechCust(req, nextSpy, doneSpy).catch(errorSpy);
+            custModule.editAdtechCust('mockService', req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(adtech.customerAdmin.getCustomerById).not.toHaveBeenCalled();
+                expect(custModule.getAdvertAdtechIds).not.toHaveBeenCalled();
                 expect(adtech.customerAdmin.updateCustomer).not.toHaveBeenCalled();
                 done();
             });
@@ -302,12 +441,13 @@ describe('sponsor-customers (UT)', function() {
         
         it('should do nothing if the name and advertisers are unchanged', function(done) {
             req.body = { id: 'cu-1', name: 'old name' };
-            custModule.editAdtechCust(req, nextSpy, doneSpy).catch(errorSpy);
+            custModule.editAdtechCust('mockService', req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(adtech.customerAdmin.getCustomerById).not.toHaveBeenCalled();
+                expect(custModule.getAdvertAdtechIds).not.toHaveBeenCalled();
                 expect(adtech.customerAdmin.updateCustomer).not.toHaveBeenCalled();
                 done();
             });
@@ -315,12 +455,25 @@ describe('sponsor-customers (UT)', function() {
         
         it('should reject if finding the existing customer fails', function(done) {
             adtech.customerAdmin.getCustomerById.andReturn(q.reject('I GOT A PROBLEM'));
-            custModule.editAdtechCust(req, nextSpy, doneSpy).catch(errorSpy);
+            custModule.editAdtechCust('mockService', req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).toHaveBeenCalledWith(new Error('Adtech failure'));
                 expect(adtech.customerAdmin.getCustomerById).toHaveBeenCalled();
+                expect(custModule.getAdvertAdtechIds).not.toHaveBeenCalled();
+                expect(adtech.customerAdmin.updateCustomer).not.toHaveBeenCalled();
+                done();
+            });
+        });
+
+        it('should reject if mongo fails', function(done) {
+            custModule.getAdvertAdtechIds.andReturn(q.reject('I GOT A PROBLEM'));
+            custModule.editAdtechCust('mockService', req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith(new Error('Adtech failure'));
                 expect(adtech.customerAdmin.updateCustomer).not.toHaveBeenCalled();
                 done();
             });
@@ -328,13 +481,11 @@ describe('sponsor-customers (UT)', function() {
 
         it('should reject if updating the customer fails', function(done) {
             adtech.customerAdmin.updateCustomer.andReturn(q.reject('I GOT A PROBLEM'));
-            custModule.editAdtechCust(req, nextSpy, doneSpy).catch(errorSpy);
+            custModule.editAdtechCust('mockService', req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).toHaveBeenCalledWith(new Error('Adtech failure'));
-                expect(adtech.customerAdmin.getCustomerById).toHaveBeenCalled();
-                expect(adtech.customerAdmin.updateCustomer).toHaveBeenCalled();
                 done();
             });
         });

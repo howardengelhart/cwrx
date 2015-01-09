@@ -109,6 +109,7 @@
         req.body.containers = req.body.containers || [];
         
         //TODO: speed up? find out why there's a 30+ second delay?
+        //TODO: send 204 and use elasticache for result caching?
         return q.all(req.body.containers.map(function(container, idx) {
             var existing = req.origObj.containers.filter(function(oldCont) {
                 return container.type === oldCont.type;
@@ -124,15 +125,15 @@
 
                 var formatted = {
                     name: container.type + '_' + key.replace('PlacementId', ''),
-                    pageId: Number(pageId),
-                    websiteId: Number(adtechId)
+                    pageId: parseInt(pageId),
+                    websiteId: parseInt(adtechId)
                 };
 
                 return adtech.websiteAdmin.createPlacement(formatted)
                 .then(function(result) {
                     log.info('[%1] Created placement %2, id = %3, for site %4',
                              req.uuid, result.name, result.id, id);
-                    container[key] = result.id;
+                    container[key] = parseInt(result.id);
                 })
                 .catch(function(error) {
                     log.error('[%1] Error creating placement %2 for site %3: %4',
@@ -154,14 +155,14 @@
         
         return adtech.websiteAdmin.createWebsite(record).then(function(resp) {
             log.info('[%1] Created Adtech site %2 for C6 site %3', req.uuid, resp.id, req.body.id);
-            req.body.adtechId = resp.id;
+            req.body.adtechId = parseInt(resp.id);
             
             var page = { name: 'Default', websiteId: resp.id };
             return adtech.websiteAdmin.createPage(page);
         })
         .then(function(resp) {
             log.info('[%1] Created Adtech page %2 for C6 site %3', req.uuid, resp.id, req.body.id);
-            req.body.pageId = resp.id;
+            req.body.pageId = parseInt(resp.id);
             next();
         })
         .catch(function(error) {
