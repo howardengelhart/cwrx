@@ -70,7 +70,7 @@ describe('sponsor-groups (UT)', function() {
     describe('createValidator', function() {
         it('should have initialized correctly', function() {
             expect(groupModule.createValidator._forbidden).toEqual(['id', 'created', 'adtechId']);
-            expect(groupModule.createValidator._required).toEqual(['name', 'advertiserId', 'customerId']);
+            expect(groupModule.createValidator._required).toEqual(['name']);
             expect(groupModule.createValidator._formats).toEqual({miniReels: ['string'], categories: ['string']});
         });
     });
@@ -241,9 +241,11 @@ describe('sponsor-groups (UT)', function() {
     });
     
     describe('createGroup', function() {
+        var groupCfg;
         beforeEach(function() {
             req.body = { name: 'group 1' };
             req.user = { id: 'u-1' };
+            groupCfg = { advertiserId: 456, customerId: 567 };
             spyOn(groupModule.createValidator, 'validate').andReturn(true);
             spyOn(campaignUtils, 'makeKeywords').andCallFake(function(keywords) {
                 if (keywords && keywords.length > 0) return q([78, 89]);
@@ -256,12 +258,13 @@ describe('sponsor-groups (UT)', function() {
         });
         
         it('should successfully create a group campaign', function(done) {
-            groupModule.createGroup(req).then(function(resp) {
+            groupModule.createGroup(req, groupCfg).then(function(resp) {
                 expect(resp).toEqual({code: 201, body: {id: 123, name: 'group 1', created: now,
                                                         lastUpdated: later, miniReels: []}});
                 expect(groupModule.createValidator.validate).toHaveBeenCalledWith(req.body, {}, {id: 'u-1'});
                 expect(campaignUtils.makeKeywords).toHaveBeenCalledWith([]);
-                expect(campaignUtils.formatCampaign).toHaveBeenCalledWith({name: 'group 1', created: jasmine.any(Date)}, { level3: [] });
+                expect(campaignUtils.formatCampaign).toHaveBeenCalledWith({name: 'group 1', 
+                    advertiserId: 456, customerId: 567, created: jasmine.any(Date)}, { level3: [] });
                 expect(adtech.campaignAdmin.createCampaign).toHaveBeenCalledWith({formatted: true});
                 expect(campaignUtils.createBanners).not.toHaveBeenCalled();
                 expect(groupModule.lookupCampaign).not.toHaveBeenCalled();
@@ -272,7 +275,7 @@ describe('sponsor-groups (UT)', function() {
         
         it('should be able to create banners for the campaign', function(done) {
             req.body.miniReels = ['e-1', 'e-2'];
-            groupModule.createGroup(req).then(function(resp) {
+            groupModule.createGroup(req, groupCfg).then(function(resp) {
                 expect(resp).toEqual({code: 201, body: {id: 123, name: 'group 1', created: now,
                                                         lastUpdated: later, miniReels: ['e-1', 'e-2']}});
                 expect(campaignUtils.makeKeywords).toHaveBeenCalledWith([]);
@@ -285,12 +288,12 @@ describe('sponsor-groups (UT)', function() {
         
         it('should be able to set category keywords on the campaign', function(done) {
             req.body.categories = ['food', 'sports'];
-            groupModule.createGroup(req).then(function(resp) {
+            groupModule.createGroup(req, groupCfg).then(function(resp) {
                 expect(resp).toEqual({code: 201, body: {id: 123, name: 'group 1', created: now, categories: ['food', 'sports'],
                                                         lastUpdated: later, miniReels: []}});
                 expect(campaignUtils.makeKeywords).toHaveBeenCalledWith(['food', 'sports']);
-                expect(campaignUtils.formatCampaign).toHaveBeenCalledWith({name: 'group 1',
-                    categories: ['food', 'sports'], created: jasmine.any(Date)}, { level3: [78, 89] });
+                expect(campaignUtils.formatCampaign).toHaveBeenCalledWith({name: 'group 1', advertiserId: 456,
+                    customerId: 567, categories: ['food', 'sports'], created: jasmine.any(Date)}, { level3: [78, 89] });
                 expect(campaignUtils.createBanners).not.toHaveBeenCalled();
                 expect(groupModule.lookupCampaign).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -300,7 +303,7 @@ describe('sponsor-groups (UT)', function() {
         
         it('should throw a 400 if the body is not valid', function(done) {
             groupModule.createValidator.validate.andReturn(false);
-            groupModule.createGroup(req).then(function(resp) {
+            groupModule.createGroup(req, groupCfg).then(function(resp) {
                 expect(resp).toEqual({code: 400, body: 'Invalid request body'});
                 expect(campaignUtils.makeKeywords).not.toHaveBeenCalled();
                 expect(adtech.campaignAdmin.createCampaign).not.toHaveBeenCalled();
@@ -311,7 +314,7 @@ describe('sponsor-groups (UT)', function() {
         
         it('should reject if making keywords fails', function(done) {
             campaignUtils.makeKeywords.andReturn(q.reject('I GOT A PROBLEM'));
-            groupModule.createGroup(req).then(function(resp) {
+            groupModule.createGroup(req, groupCfg).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Adtech failure');
@@ -323,7 +326,7 @@ describe('sponsor-groups (UT)', function() {
         it('should reject if creating the campaign fails', function(done) {
             req.body.miniReels = ['e-1', 'e-2'];
             adtech.campaignAdmin.createCampaign.andReturn(q.reject('I GOT A PROBLEM'));
-            groupModule.createGroup(req).then(function(resp) {
+            groupModule.createGroup(req, groupCfg).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Adtech failure');
@@ -335,7 +338,7 @@ describe('sponsor-groups (UT)', function() {
         it('should reject if creating the banners fails', function(done) {
             req.body.miniReels = ['e-1', 'e-2'];
             campaignUtils.createBanners.andReturn(q.reject('I GOT A PROBLEM'));
-            groupModule.createGroup(req).then(function(resp) {
+            groupModule.createGroup(req, groupCfg).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Adtech failure');
@@ -347,7 +350,7 @@ describe('sponsor-groups (UT)', function() {
         it('should reject if looking up the campaign again fails', function(done) {
             req.body.miniReels = ['e-1', 'e-2'];
             groupModule.lookupCampaign.andReturn(q.reject('I GOT A PROBLEM'));
-            groupModule.createGroup(req).then(function(resp) {
+            groupModule.createGroup(req, groupCfg).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Adtech failure');
@@ -358,7 +361,7 @@ describe('sponsor-groups (UT)', function() {
         it('should reject if the campaign cannot be looked up again', function(done) {
             req.body.miniReels = ['e-1', 'e-2'];
             groupModule.lookupCampaign.andReturn(q());
-            groupModule.createGroup(req).then(function(resp) {
+            groupModule.createGroup(req, groupCfg).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Adtech failure');

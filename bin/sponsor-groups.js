@@ -13,13 +13,12 @@
     /*
         TODO: Open questions:
         - How should we handle permissions? Should everyone have 'all'? Or any scope is fine?
-        - Should the delete endpoint exist?
         - How exactly should we namespace the endpoints?
     */
     
     groupModule.createValidator = new FieldValidator({
         forbidden: ['id', 'created', 'adtechId'],
-        required: ['name', 'advertiserId', 'customerId'],
+        required: ['name'],
         formats: {
             miniReels: ['string'],
             categories: ['string']
@@ -118,7 +117,7 @@
     };
     */
     
-    groupModule.createGroup = function(req) {
+    groupModule.createGroup = function(req, groupCfg) {
         var log = logger.getLog(),
             miniReels = req.body.miniReels;
         
@@ -130,6 +129,8 @@
         }
         
         req.body.created = new Date();
+        req.body.advertiserId = groupCfg.advertiserId;
+        req.body.customerId = groupCfg.customerId;
         
         return campaignUtils.makeKeywords(req.body.categories || [])
         .then(function(keyIds) {
@@ -218,7 +219,7 @@
     */
 
     
-    groupModule.setupEndpoints = function(app, sessions, audit) {
+    groupModule.setupEndpoints = function(app, sessions, audit, groupCfg) {
         var authGetGroup = authUtils.middlewarify({contentGroups: 'read'});
         app.get('/api/contentGroup/:id', sessions, authGetGroup, audit, function(req, res) {
             groupModule.getGroup(req).then(function(resp) {
@@ -248,7 +249,7 @@
 
         var authPostGroup = authUtils.middlewarify({contentGroups: 'create'});
         app.post('/api/contentGroup', sessions, authPostGroup, audit, function(req, res) {
-            groupModule.createGroup(req).then(function(resp) {
+            groupModule.createGroup(req, groupCfg).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error creating contentGroup', detail: error });

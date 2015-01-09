@@ -3,8 +3,6 @@
     'use strict';
     var __ut__      = (global.jasmine !== undefined) ? true : false;
     
-    //TODO: RENAME THIS FILE/SERVICE?
-
     var path            = require('path'),
         // q               = require('q'),
         logger          = require('../lib/logger'),
@@ -31,6 +29,10 @@
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/' + state.name + '/caches/run/'),
         },
+        contentGroups: {
+            advertiserId: null,   // Adtech advertiser id; must be overriden in a config file
+            customerId: null      // Adtech customer id; must be overriden in a config file
+        },
         sessions: {
             key: 'c6Auth',
             maxAge: 14*24*60*60*1000, // 14 days; unit here is milliseconds
@@ -42,7 +44,6 @@
             }
         },
         secretsPath: path.join(process.env.HOME,'.sponsor.secrets.json'),
-        // secretsPath: path.join(process.env.HOME,'.siteSvc.secrets.json'),
         mongo: {
             c6Db: {
                 host: null,
@@ -150,7 +151,7 @@
         custModule.setupEndpoints(app, custSvc, sessWrap, audit);
         campModule.setupEndpoints(app, campSvc, sessWrap, audit);
         siteModule.setupEndpoints(app, siteSvc, sessWrap, audit);
-        groupModule.setupEndpoints(app, sessWrap, audit);
+        groupModule.setupEndpoints(app, sessWrap, audit, state.config.contentGroups);
         
         //TODO: meta and version endpoints?
         started = 'good';

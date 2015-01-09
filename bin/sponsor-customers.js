@@ -27,7 +27,7 @@
         return svc;
     };
     
-    custModule.getAdvertC6Ids = function(svc, adtechIds) { //TODO: rename?
+    custModule.getAdvertC6Ids = function(svc, adtechIds) {
         var log = logger.getLog();
         if (!(adtechIds instanceof Array) || adtechIds.length === 0) {
             return q(adtechIds);
@@ -48,7 +48,7 @@
         });
     };
     
-    custModule.getAdvertAdtechIds = function(svc, c6Ids) { //TODO: rename
+    custModule.getAdvertAdtechIds = function(svc, c6Ids) {
         var log = logger.getLog();
         if (!(c6Ids instanceof Array) || c6Ids.length === 0) {
             return q(c6Ids);
@@ -96,7 +96,6 @@
         });
     };
     
-    //TODO: body.advertisers will be C6 ids, need to lookup and map to C6 ids
     custModule.formatAdtechCust = function(body, origCust, advertList) {
         var log = logger.getLog(),
             c6Id = body.id || (origCust && origCust.extId),
