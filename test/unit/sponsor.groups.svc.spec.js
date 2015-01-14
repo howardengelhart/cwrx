@@ -120,6 +120,42 @@ describe('sponsor-groups (UT)', function() {
         });
     });
     
+    describe('checkUniqueName', function() {
+        beforeEach(function() {
+            adtech.campaignAdmin.getCampaignList.andReturn(q([]));
+        });
+        
+        it('should return true if no campaigns are found with the same name', function(done) {
+            groupModule.checkUniqueName('floob').then(function(unique) {
+                expect(unique).toBe(true);
+                expect(adtech.campaignAdmin.getCampaignList).toHaveBeenCalledWith(null, null, jasmine.any(adtech.AOVE));
+                expect(adtech.campaignAdmin.getCampaignList.calls[0].args[2].expressions)
+                    .toEqual([{ attr: 'name', val: 'floob', op: '==', type: 'xsd:string' }]);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should return false if campaigns are found with the same name', function(done) {
+            adtech.campaignAdmin.getCampaignList.andReturn(q([{id: 123, name: 'a camp'}]));
+            groupModule.checkUniqueName('floob').then(function(unique) {
+                expect(unique).toBe(false);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should reject if adtech fails', function(done) {
+            adtech.campaignAdmin.getCampaignList.andReturn(q.reject('I GOT A PROBLEM'));
+            groupModule.checkUniqueName('floob').then(function(unique) {
+                expect(unique).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('Adtech failure');
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
+        });
+    });
+
     describe('lookupCampaign', function() {
         beforeEach(function() {
             adtech.campaignAdmin.getCampaignById.andReturn(q(mockCamp));
@@ -255,6 +291,7 @@ describe('sponsor-groups (UT)', function() {
             adtech.campaignAdmin.createCampaign.andReturn(q(mockCamp));
             spyOn(campaignUtils, 'createBanners').andReturn(q());
             spyOn(groupModule, 'lookupCampaign').andReturn(q(mockGroup));
+            spyOn(groupModule, 'checkUniqueName').andReturn(q(true));
         });
         
         it('should successfully create a group campaign', function(done) {
@@ -262,6 +299,7 @@ describe('sponsor-groups (UT)', function() {
                 expect(resp).toEqual({code: 201, body: {id: 123, name: 'group 1', created: now,
                                                         lastUpdated: later, miniReels: []}});
                 expect(groupModule.createValidator.validate).toHaveBeenCalledWith(req.body, {}, {id: 'u-1'});
+                expect(groupModule.checkUniqueName).toHaveBeenCalledWith('group 1');
                 expect(campaignUtils.makeKeywords).toHaveBeenCalledWith([]);
                 expect(campaignUtils.formatCampaign).toHaveBeenCalledWith({name: 'group 1', 
                     advertiserId: 456, customerId: 567, created: jasmine.any(Date)}, { level3: [] });
@@ -305,6 +343,18 @@ describe('sponsor-groups (UT)', function() {
             groupModule.createValidator.validate.andReturn(false);
             groupModule.createGroup(req, groupCfg).then(function(resp) {
                 expect(resp).toEqual({code: 400, body: 'Invalid request body'});
+                expect(groupModule.checkUniqueName).not.toHaveBeenCalled();
+                expect(campaignUtils.makeKeywords).not.toHaveBeenCalled();
+                expect(adtech.campaignAdmin.createCampaign).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should throw a 409 if a campaign exists with the name', function(done) {
+            groupModule.checkUniqueName.andReturn(q(false));
+            groupModule.createGroup(req, groupCfg).then(function(resp) {
+                expect(resp).toEqual({code: 409, body: 'An object with that name already exists'});
                 expect(campaignUtils.makeKeywords).not.toHaveBeenCalled();
                 expect(adtech.campaignAdmin.createCampaign).not.toHaveBeenCalled();
             }).catch(function(error) {

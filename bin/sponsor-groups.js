@@ -58,6 +58,26 @@
         
         return group;
     };
+
+    groupModule.checkUniqueName = function(name) {
+        var log = logger.getLog(),
+            aove = new adtech.AOVE();
+        aove.addExpression(new adtech.AOVE.StringExpression('name', name));
+        
+        return adtech.campaignAdmin.getCampaignList(null, null, aove)
+        .then(function(list) {
+            if (list.length > 0) {
+                log.info('Found %1 campaign(s) with name %2', list.length, name);
+                return false;
+            } else {
+                return true;
+            }
+        })
+        .catch(function(error) {
+            log.error('Error retrieving campaigns with name %1: %2', name, error);
+            return q.reject('Adtech failure');
+        });
+    };
     
     groupModule.lookupCampaign = function(id) {
         var log = logger.getLog(),
@@ -94,7 +114,7 @@
             }
         });
     };
-
+    
     groupModule.getGroup = function(req) {
         var log = logger.getLog(),
             id = parseInt(req.params.id);
@@ -128,40 +148,45 @@
             return q({code: 400, body: 'Invalid request body'});
         }
         
-        req.body.created = new Date();
-        req.body.advertiserId = groupCfg.advertiserId;
-        req.body.customerId = groupCfg.customerId;
-        
-        return campaignUtils.makeKeywords(req.body.categories || [])
-        .then(function(keyIds) {
-            var keys = { level3: keyIds };
-            return adtech.campaignAdmin.createCampaign(campaignUtils.formatCampaign(req.body,keys));
-        })
-        .then(function(resp) {
-            log.info('[%1] Created campaign %2 for group "%3"', req.uuid, resp.id, req.body.name);
-            if (!miniReels) {
-                return q(groupModule.transformCampaign(resp, null, req.body.categories));
+        return groupModule.checkUniqueName(req.body.name)
+        .then(function(unique) {
+            if (!unique) {
+                log.info('[%1] Name %2 is not unique, not creating camp', req.uuid, req.body.name);
+                return q({code: 409, body: 'An object with that name already exists'});
             }
 
-            miniReels = miniReels.map(function(id) { return { id: id }; });
-            return campaignUtils.createBanners(miniReels, null, 'contentMiniReel', resp.id)
-            .then(function() {
-                return groupModule.lookupCampaign(resp.id);
+            //TODO: unit test
+            return campaignUtils.makeKeywordLevels({ level3: req.body.categories })
+            .then(function(keys) {
+                return campaignUtils.createCampaign(undefined, req.body.name, false, keys,
+                                                    groupCfg.advertiserId, groupCfg.customerId);
+            })
+            .then(function(resp) {
+                if (!miniReels) {
+                    return q(groupModule.transformCampaign(resp, null, req.body.categories));
+                }
+
+                miniReels = miniReels.map(function(id) { return { id: id }; });
+                return campaignUtils.createBanners(miniReels, null, 'contentMiniReel', resp.id)
+                .then(function() {
+                    return groupModule.lookupCampaign(resp.id);
+                });
+            })
+            .then(function(group) {
+                if (!group) {
+                    return q.reject('Newly created group could not be found');
+                }
+                return q({ code: 201, body: groupModule.formatOutput(group) });
+            })
+            .catch(function(error) {
+                log.error('[%1] Error creating group "%2": %3', req.uuid, req.body.name, error);
+                return q.reject('Adtech failure');
             });
-        })
-        .then(function(group) {
-            if (!group) {
-                return q.reject('Newly created group could not be found');
-            }
-            return q({ code: 201, body: groupModule.formatOutput(group) });
-        })
-        .catch(function(error) {
-            log.error('[%1] Error creating group "%2": %3', req.uuid, req.body.name, error);
-            return q.reject('Adtech failure');
         });
     };
     
     // as of now, can't edit campaigns. So this will just update banner list
+    // TODO: when we can edit campaign names, need to check uniqueness
     groupModule.editGroup = function(req) {
         var log = logger.getLog(),
             id = parseInt(req.params.id),
@@ -177,7 +202,7 @@
         return groupModule.lookupCampaign(id)
         .then(function(group) {
             if (!group) {
-                return q({code: 404, body: 'Group not found'});
+                return q({ code: 404, body: 'Group not found' });
             }
             if (!miniReels) {
                 return q({ code: 201, body: groupModule.formatOutput(group) });

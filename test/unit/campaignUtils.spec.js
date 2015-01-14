@@ -105,6 +105,36 @@ describe('campaignUtils', function() {
         });
     });
     
+    describe('makeKeywordLevels', function() {
+        it('should call makeKeywords for each level', function(done) {
+            spyOn(campaignUtils, 'makeKeywords').andCallFake(function(keywords) {
+                return keywords && keywords.map(function(keyword, idx) { return keyword + idx; });
+            });
+            campaignUtils.makeKeywordLevels({level1: ['foo', 'bar'], level2: []}).then(function(keys) {
+                expect(keys).toEqual({level1: ['foo0', 'bar1'], level2: [], level3: undefined});
+                expect(campaignUtils.makeKeywords.calls.length).toBe(3);
+                expect(campaignUtils.makeKeywords).toHaveBeenCalledWith(['foo', 'bar']);
+                expect(campaignUtils.makeKeywords).toHaveBeenCalledWith([]);
+                expect(campaignUtils.makeKeywords).toHaveBeenCalledWith(undefined);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should reject if any of the makeKeywords calls fails', function(done) {
+            spyOn(campaignUtils, 'makeKeywords').andCallFake(function(keywords) {
+                if (!keywords) return q.reject('I GOT A PROBLEM');
+                return keywords.map(function(keyword, idx) { return keyword + idx; });
+            });
+            campaignUtils.makeKeywordLevels({level1: ['foo', 'bar'], level2: []}).then(function(keys) {
+                expect(keys).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(campaignUtils.makeKeywords.calls.length).toBe(3);
+            }).done(done);
+        });
+    });
+    
     describe('makeKeywords', function() {
         var keywords;
         beforeEach(function() {
@@ -122,6 +152,15 @@ describe('campaignUtils', function() {
                 expect(campaignUtils._keywordCache.key456).toBe(456);
                 expect(adtech.keywordAdmin.registerKeyword).toHaveBeenCalledWith('key123');
                 expect(adtech.keywordAdmin.registerKeyword).toHaveBeenCalledWith('key456');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should handle undefined keyword lists', function(done) {
+            campaignUtils.makeKeywords().then(function(ids) {
+                expect(ids).not.toBeDefined();
+                expect(adtech.keywordAdmin.registerKeyword).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -223,6 +262,10 @@ describe('campaignUtils', function() {
         });
     });
     
+    describe('createCampaign', function() {
+        //TODO
+    });
+    
     describe('formatBanners', function() {
         var cardTempl, reelTempl;
         beforeEach(function() {
@@ -243,7 +286,7 @@ describe('campaignUtils', function() {
         
         it('should correctly handle different banner types', function() {
             var banners = {};
-            ['card', 'miniReel', 'targetMiniReel', 'contentMiniReel'].forEach(function(type) {
+            ['card', 'miniReel', 'contentMiniReel'].forEach(function(type) {
                 banners[type] = campaignUtils.formatBanner(type, 'rc-1');
                 if (type === 'card') expect(banners[type].banner.data).toBe(cardTempl.toString('base64'));
                 else expect(banners[type].banner.data).toBe(reelTempl.toString('base64'));
@@ -251,8 +294,7 @@ describe('campaignUtils', function() {
                 expect(banners[type].banner.name).toBe(type + ' rc-1');
             });
             expect(banners.card.banner.sizeTypeId).toBe(277);
-            expect(banners.miniReel.banner.sizeTypeId).toBe(1182);
-            expect(banners.targetMiniReel.banner.sizeTypeId).toBe(509);
+            expect(banners.miniReel.banner.sizeTypeId).toBe(509);
             expect(banners.contentMiniReel.banner.sizeTypeId).toBe(16);
         });
     });

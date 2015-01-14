@@ -16,8 +16,8 @@
         svc._advertColl = db.collection('advertisers');
         svc.createValidator._required.push('name');
         svc.createValidator._forbidden.push('adtechId');
-        svc.createValidator._formats.advertisers = [{or: ['string', 'number']}];
-        svc.editValidator._formats.advertisers = [{or: ['string', 'number']}];
+        svc.createValidator._formats.advertisers = ['string'];
+        svc.editValidator._formats.advertisers = ['string'];
 
         svc.use('read', svc.preventGetAll.bind(svc));
         svc.use('create', custModule.createAdtechCust.bind(custModule, svc));
