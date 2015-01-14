@@ -65,8 +65,8 @@ describe('sponsor-customers (UT)', function() {
             
             expect(svc.createValidator._required).toContain('name');
             expect(svc.createValidator._forbidden).toContain('adtechId');
-            expect(svc.createValidator._formats.advertisers).toEqual([{or: ['string', 'number']}]);
-            expect(svc.editValidator._formats.advertisers).toEqual([{or: ['string', 'number']}]);
+            expect(svc.createValidator._formats.advertisers).toEqual(['string']);
+            expect(svc.editValidator._formats.advertisers).toEqual(['string']);
             
             expect(svc._middleware.read).toContain(svc.preventGetAll);
             expect(svc._middleware.create).toContain(custModule.createAdtechCust);

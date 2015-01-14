@@ -4,21 +4,17 @@
     var __ut__      = (global.jasmine !== undefined) ? true : false;
     
     var path            = require('path'),
-        // q               = require('q'),
         logger          = require('../lib/logger'),
         uuid            = require('../lib/uuid'),
         journal         = require('../lib/journal'),
         advertModule    = require('./sponsor-advertisers'),
         custModule      = require('./sponsor-customers'),
-        campModule      = require('./sponsor-campaigns'),
+        // campModule      = require('./sponsor-campaigns'),
         siteModule      = require('./sponsor-sites'),
-        groupModule     = require('./sponsor-groups'),
+        // groupModule     = require('./sponsor-groups'),
         adtech          = require('adtech'),
         authUtils       = require('../lib/authUtils'),
         service         = require('../lib/service'),
-        /*enums           = require('../lib/enums'),
-        Status          = enums.Status,
-        Scope           = enums.Scope,*/
         
         state   = {},
         sponsor = {}; // for exporting functions to unit tests
@@ -73,7 +69,7 @@
             users        = state.dbs.c6Db.collection('users'),
             advertSvc    = advertModule.setupSvc(state.dbs.c6Db.collection('advertisers')),
             custSvc      = custModule.setupSvc(state.dbs.c6Db),
-            campSvc      = campModule.setupSvc(state.dbs.c6Db),
+            // campSvc      = campModule.setupSvc(state.dbs.c6Db),
             siteSvc      = siteModule.setupSvc(state.dbs.c6Db.collection('sites')),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
@@ -149,9 +145,9 @@
         
         advertModule.setupEndpoints(app, advertSvc, sessWrap, audit);
         custModule.setupEndpoints(app, custSvc, sessWrap, audit);
-        campModule.setupEndpoints(app, campSvc, sessWrap, audit);
+        // campModule.setupEndpoints(app, campSvc, sessWrap, audit);
         siteModule.setupEndpoints(app, siteSvc, sessWrap, audit);
-        groupModule.setupEndpoints(app, sessWrap, audit, state.config.contentGroups);
+        // groupModule.setupEndpoints(app, sessWrap, audit, state.config.contentGroups);
         
         //TODO: meta and version endpoints?
         started = 'good';
