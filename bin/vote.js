@@ -383,13 +383,7 @@
 
     app.createValidator = new FieldValidator({
         forbidden: ['id', 'created'],
-        condForbidden: {
-            org:    function(elec, orig, requester) {
-                        var eqFunc = FieldValidator.eqReqFieldFunc('org'),
-                            scopeFunc = FieldValidator.scopeFunc('elections', 'create', Scope.All);
-                        return eqFunc(elec, orig, requester) || scopeFunc(elec, orig, requester);
-                    }
-        }
+        condForbidden: { org: FieldValidator.orgFunc('elections', 'create') }
     });
     app.updateValidator = new FieldValidator({ forbidden: ['id', 'org', 'created', '_id'] });
 
@@ -409,7 +403,7 @@
         if (!app.createValidator.validate(obj, {}, user)) {
             log.warn('[%1] election contains illegal fields', req.uuid);
             log.trace('obj: %1  |  requester: %2', JSON.stringify(obj), JSON.stringify(user));
-            return q({code: 400, body: 'Illegal fields'});
+            return q({code: 400, body: 'Invalid request body'});
         }
         obj.id = 'el-' + uuid.createUuid().substr(0,14);
         log.trace('[%1] User %2 is creating election %3', req.uuid, user.id, obj.id);
@@ -455,7 +449,7 @@
                 log.warn('[%1] updates contain illegal fields', req.uuid);
                 log.trace('updates: %1  |  orig: %2  |  requester: %3',
                           JSON.stringify(updates), JSON.stringify(orig), JSON.stringify(user));
-                return deferred.resolve({code: 400, body: 'Illegal fields'});
+                return deferred.resolve({code: 400, body: 'Invalid request body'});
             }
             if (!app.checkScope(user, orig, 'edit')) {
                 log.info('[%1] User %2 is not authorized to edit %3', req.uuid, user.id, id);

@@ -236,7 +236,7 @@
                 log.warn('[%1] newOrg contains illegal fields', req.uuid);
                 log.trace('newOrg: %1  |  requester: %2',
                           JSON.stringify(newOrg), JSON.stringify(requester));
-                return deferred.resolve({code: 400, body: 'Illegal fields'});
+                return deferred.resolve({code: 400, body: 'Invalid request body'});
             }
             orgSvc.setupOrg(newOrg);
             log.trace('[%1] User %2 is creating org %3', req.uuid, requester.id, newOrg.id);
@@ -282,7 +282,7 @@
                 log.warn('[%1] Updates contain illegal fields', req.uuid);
                 log.trace('updates: %1  |  orig: %2  |  requester: %3', JSON.stringify(updates),
                           JSON.stringify(orig), JSON.stringify(requester));
-                return q({code: 400, body: 'Illegal fields'});
+                return q({code: 400, body: 'Invalid request body'});
             }
             if (updates.adConfig && !objUtils.compareObjects(updates.adConfig, orig.adConfig) &&
                 !orgSvc.checkScope(requester, {id: id}, 'editAdConfig')) {

@@ -100,12 +100,8 @@ describe('siteSvc (UT)', function() {
                 }
             };
             var site = { a: 'b', org: 'o-1234' };
-            spyOn(FieldValidator, 'eqReqFieldFunc').andCallThrough();
-            spyOn(FieldValidator, 'scopeFunc').andCallThrough();
             
             expect(siteSvc.createValidator.validate(site, {}, requester)).toBe(true);
-            expect(FieldValidator.eqReqFieldFunc).toHaveBeenCalledWith('org');
-            expect(FieldValidator.scopeFunc).toHaveBeenCalledWith('sites', 'create', Scope.All);
             
             site.org = 'o-4567';
             expect(siteSvc.createValidator.validate(site, {}, requester)).toBe(false);
@@ -138,12 +134,8 @@ describe('siteSvc (UT)', function() {
                 }
             };
             var site = { a: 'b', org: 'o-1234' };
-            spyOn(FieldValidator, 'eqReqFieldFunc').andCallThrough();
-            spyOn(FieldValidator, 'scopeFunc').andCallThrough();
             
             expect(siteSvc.updateValidator.validate(site, {}, requester)).toBe(true);
-            expect(FieldValidator.eqReqFieldFunc).toHaveBeenCalledWith('org');
-            expect(FieldValidator.scopeFunc).toHaveBeenCalledWith('sites', 'edit', Scope.All);
             
             site.org = 'o-4567';
             expect(siteSvc.updateValidator.validate(site, {}, requester)).toBe(false);
@@ -501,7 +493,7 @@ describe('siteSvc (UT)', function() {
             siteSvc.createValidator.validate.andReturn(false);
             siteSvc.createSite(req, siteColl).then(function(resp) {
                 expect(resp.code).toBe(400);
-                expect(resp.body).toEqual('Illegal fields');
+                expect(resp.body).toEqual('Invalid request body');
                 expect(siteColl.findOne).toHaveBeenCalled();
                 expect(siteSvc.createValidator.validate).toHaveBeenCalled();
                 expect(siteColl.insert).not.toHaveBeenCalled();
@@ -669,7 +661,7 @@ describe('siteSvc (UT)', function() {
             siteSvc.updateSite(req, siteColl).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(400);
-                expect(resp.body).toBe('Illegal fields');
+                expect(resp.body).toBe('Invalid request body');
                 expect(siteColl.findOne).toHaveBeenCalled();
                 expect(siteSvc.updateValidator.validate).toHaveBeenCalled();
                 expect(siteColl.findAndModify).not.toHaveBeenCalled();

@@ -1,6 +1,6 @@
 var flush = true;
 describe('content (UT)', function() {
-    var mockLog, mockLogger, experiences, req, uuid, logger, content, q, objUtils,
+    var mockLog, experiences, req, uuid, logger, content, q, objUtils,
         mongoUtils, enums, Status, Scope, Access;
 
     beforeEach(function() {
@@ -33,7 +33,7 @@ describe('content (UT)', function() {
         experiences = {};
         req = {uuid: '1234'};
     });
-
+    
     describe('getPublicExp', function() {
         var id, req, expCache, orgCache, siteCache, pubList, siteCfg;
         beforeEach(function() {
@@ -580,7 +580,7 @@ describe('content (UT)', function() {
             content.updateValidator.validate.andReturn(false);
             content.updateExperience(req, experiences).then(function(resp) {
                 expect(resp.code).toBe(400);
-                expect(resp.body).toBe('Illegal fields');
+                expect(resp.body).toBe('Invalid request body');
                 expect(content.updateValidator.validate).toHaveBeenCalled();
                 expect(experiences.findAndModify).not.toHaveBeenCalled();
                 done();
@@ -834,66 +834,4 @@ describe('content (UT)', function() {
             });
         });
     });  // end -- describe deleteExperience
-
-    describe('generatePreviewLink', function() {
-        var id, req, expCache, orgCache, siteCache, siteCfg, publicGetResult;
-        beforeEach(function() {
-            id = 'e-1';
-            req = { isC6Origin: false, shortOrigin: 'c6.com', uuid: '1234', query: {foo: 'bar'} };
-            siteCfg = { sites: 'good' };
-            expCache = {
-                getPromise: jasmine.createSpy('expCache.getPromise').andReturn(q([{id: 'e-1', org: 'o-1'}]))
-            };
-            orgCache = 'fakeOrgCache';
-            siteCache = 'fakeSiteCache';
-            publicGetResult = { code: 200, body: { id: 'fakeID', title: 'fakeTitle', data: {
-                                splash: { ratio: '16-9', theme: 'horizontal-stack' } } } };
-            spyOn(content, 'getPublicExp').andCallFake(function() { return q(publicGetResult); });
-        });
-
-        it('should return a generated url', function(done) {
-            content.generatePreviewLink(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
-                expect(mockLog.info).toHaveBeenCalled();
-                expect(content.getPublicExp).toHaveBeenCalledWith(id, req, expCache, orgCache, siteCache, siteCfg);
-                expect(resp).toEqual({url: '/#/preview/minireel?preload=&exp=fakeID&title=fakeTitle&splash=horizontal-stack%3A16%2F9'});
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-
-        it('should return the proper 500 response if there is a missing field', function(done) {
-            delete publicGetResult.body.id;
-            content.generatePreviewLink(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
-                expect(mockLog.info).toHaveBeenCalled();
-                expect(content.getPublicExp).toHaveBeenCalledWith(id, req, expCache, orgCache, siteCache, siteCfg);
-                expect(mockLog.warn).toHaveBeenCalled();
-                expect(resp).toEqual({code: 500, body: 'Response does not have required fields.'});
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should behave appropriately when getPublicExp returns a non-200 response', function(done) {
-            content.getPublicExp.andReturn(q({code: 404, body: 'Experience not found'}));
-            content.generatePreviewLink(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
-                expect(mockLog.info).toHaveBeenCalled();
-                expect(content.getPublicExp).toHaveBeenCalledWith(id, req, expCache, orgCache, siteCache, siteCfg);
-                expect(mockLog.warn).not.toHaveBeenCalled();
-                expect(resp).toEqual({code: 404, body: 'Experience not found'});
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-
-        it('shoud behave appropriately when getPublicExp rejects with an error', function(done) {
-            content.getPublicExp.andReturn(q.reject('Some error message.'));
-            content.generatePreviewLink(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
-                expect(resp).not.toBeDefined();
-            }).catch(function(error) {
-                expect(content.getPublicExp).toHaveBeenCalledWith(id, req, expCache, orgCache, siteCache, siteCfg);
-                expect(mockLog.error).toHaveBeenCalled();
-                expect(error.toString()).toBe('Some error message.');
-            }).done(done);
-        });
-    }); // end --describe generatePreviewLink
 });  // end -- describe content

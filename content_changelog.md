@@ -1,5 +1,10 @@
 # Content Service Changelog
 
+### 1.14.0: Thu Jan 15 13:59:47 EST 2015
+* [FEATURE]: Add API endpoints for cards: [#355](https://github.com/cinema6/cwrx/pull/355)
+* [FEATURE]: Add API endpoints for categories: [#355](https://github.com/cinema6/cwrx/pull/355)
+* Extra deployment steps: None
+
 ### 1.13.7: Wed Dec 17 13:47:05 EST 2014
 * [FIX]: Stop logging warnings for unknown sites: [#346](https://github.com/cinema6/cwrx/pull/346)
 * Extra deployment steps: None
