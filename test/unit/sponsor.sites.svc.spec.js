@@ -68,9 +68,9 @@ describe('sponsor-sites (UT)', function() {
             expect(svc.editValidator._condForbidden.org).toEqual(jasmine.any(Function));
             expect(svc._middleware.read).toContain(svc.preventGetAll);
             expect(svc._middleware.create).toContain(CrudSvc.prototype.validateUniqueProp,
-                siteModule.createAdtechSite, siteModule.createPlacements);
+                siteModule.validateContainers, siteModule.createAdtechSite, siteModule.createPlacements);
             expect(svc._middleware.edit).toContain(CrudSvc.prototype.validateUniqueProp,
-                siteModule.cleanPlacements, siteModule.editAdtechSite, siteModule.createPlacements);
+                siteModule.validateContainers, siteModule.cleanPlacements, siteModule.editAdtechSite, siteModule.createPlacements);
             expect(svc._middleware.delete).toContain(siteModule.deleteAdtechSite);
         });
     });
@@ -87,14 +87,73 @@ describe('sponsor-sites (UT)', function() {
         });
     });
     
+    describe('validateContainers', function() {
+        it('should do nothing if there are no containers', function(done) {
+            req.body = { name: 'site 1' };
+            siteModule.validateContainers(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.body).toEqual({name: 'site 1'});
+                done();
+            });
+        });
+        
+        it('should call next if all the containers are valid', function(done) {
+            req.body = { containers: [{id: 'a', type: 'a'}, {id: 'a_1'}, {id: 'b', type: 'a'}] };
+            siteModule.validateContainers(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should call done with a 400 if not all containers have an id', function(done) {
+            req.body = { containers: [{id: 'a', type: 'a'}, {id: 'a_1'}, {type: 'a'}] };
+            siteModule.validateContainers(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({code: 400, body: 'All containers must have ids'});
+                expect(errorSpy).not.toHaveBeenCalled();
+                done();
+            });
+        });
+
+        it('should call done with a 400 if not all ids are unique', function(done) {
+            req.body = { containers: [{id: 'a', type: 'a'}, {id: 'a_1'}, {id: 'a', type: 'b'}] };
+            siteModule.validateContainers(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({code: 400, body: 'Container ids must be unique'});
+                expect(errorSpy).not.toHaveBeenCalled();
+                done();
+            });
+        });
+
+        it('should only call done once', function(done) {
+            req.body = { containers: [{id: 'a', type: 'a'}, {type: 'a_1'}, {id: 'a', type: 'b'}] };
+            siteModule.validateContainers(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy.calls.length).toBe(1);
+                expect(doneSpy).toHaveBeenCalledWith({code: 400, body: 'All containers must have ids'});
+                expect(errorSpy).not.toHaveBeenCalled();
+                done();
+            });
+        });
+    });
+    
     describe('cleanPlacements', function() {
         beforeEach(function() {
             req.origObj = {id: 's-1', containers: [
-                {type: 'a', contentPlacementId: 123, displayPlacementId: 234},
-                {type: 'b', displayPlacementId: 345},
-                {type: 'c', displayPlacementId: 456, contentPlacementId: 567},
+                {id: 'a', contentPlacementId: 123, displayPlacementId: 234},
+                {id: 'b', displayPlacementId: 345},
+                {id: 'c', displayPlacementId: 456, contentPlacementId: 567},
             ]};
-            req.body = { id: 's-1', containers: [{type: 'c'}, {type: 'd'}] };
+            req.body = { id: 's-1', containers: [{id: 'c'}, {id: 'd'}] };
             adtech.websiteAdmin.deletePlacement.andReturn(q());
         });
         
@@ -150,7 +209,6 @@ describe('sponsor-sites (UT)', function() {
                 expect(doneSpy).toHaveBeenCalledWith({code: 400, body: 'Cannot delete in-use placements'});
                 expect(doneSpy.calls.length).toBe(1);
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockLog.warn).toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
                 expect(adtech.websiteAdmin.deletePlacement.calls.length).toBe(3);
                 done();
@@ -174,9 +232,22 @@ describe('sponsor-sites (UT)', function() {
     describe('createPlacements', function() {
         beforeEach(function() {
             req.origObj = { id: 's-1', adtechId: 123, pageId: 234, containers: [] };
-            req.body = { id: 's-1', containers: [{type: 'a'}, {type: 'b'}] };
+            req.body = { id: 's-1', containers: [{id: 'a'}, {id: 'b'}] };
             adtech.websiteAdmin.createPlacement.andCallFake(function(placement) {
                 return q({id: this.createPlacement.calls.length*100});
+            });
+        });
+        
+        it('should skip if there is no containers property', function(done) {
+            delete req.body.containers;
+            siteModule.createPlacements(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.body.containers).not.toBeDefined();
+                expect(adtech.websiteAdmin.createPlacement).not.toHaveBeenCalled();
+                done();
             });
         });
         
@@ -187,8 +258,8 @@ describe('sponsor-sites (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body.containers).toEqual([
-                    { type: 'a', contentPlacementId: 100, displayPlacementId: 200 },
-                    { type: 'b', contentPlacementId: 300, displayPlacementId: 400 }
+                    { id: 'a', contentPlacementId: 100, displayPlacementId: 200 },
+                    { id: 'b', contentPlacementId: 300, displayPlacementId: 400 }
                 ]);
                 expect(adtech.websiteAdmin.createPlacement.calls.length).toBe(4);
                 expect(adtech.websiteAdmin.createPlacement).toHaveBeenCalledWith({name: 'a_display', pageId: 234, websiteId: 123});
@@ -200,13 +271,13 @@ describe('sponsor-sites (UT)', function() {
         });
         
         it('should only create placements if their ids are missing', function(done) {
-            req.body.containers = [{type: 'a', contentPlacementId: 321}];
+            req.body.containers = [{id: 'a', contentPlacementId: 321}];
             siteModule.createPlacements(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.body.containers).toEqual([{type: 'a', displayPlacementId: 100, contentPlacementId: 321}]);
+                expect(req.body.containers).toEqual([{id: 'a', displayPlacementId: 100, contentPlacementId: 321}]);
                 expect(adtech.websiteAdmin.createPlacement.calls.length).toBe(1);
                 expect(adtech.websiteAdmin.createPlacement).toHaveBeenCalledWith({name: 'a_display', pageId: 234, websiteId: 123});
                 done();
@@ -214,15 +285,15 @@ describe('sponsor-sites (UT)', function() {
         });
         
         it('should not recreate placements that already exist', function(done) {
-            req.origObj.containers = [{type: 'a', displayPlacementId: 321}];
+            req.origObj.containers = [{id: 'a', displayPlacementId: 321}];
             siteModule.createPlacements(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body.containers).toEqual([
-                    { type: 'a', contentPlacementId: 100, displayPlacementId: 321 },
-                    { type: 'b', contentPlacementId: 200, displayPlacementId: 300 }
+                    { id: 'a', contentPlacementId: 100, displayPlacementId: 321 },
+                    { id: 'b', contentPlacementId: 200, displayPlacementId: 300 }
                 ]);
                 expect(adtech.websiteAdmin.createPlacement.calls.length).toBe(3);
                 expect(adtech.websiteAdmin.createPlacement).toHaveBeenCalledWith({name: 'a_content', pageId: 234, websiteId: 123});
@@ -315,13 +386,13 @@ describe('sponsor-sites (UT)', function() {
         });
 
         it('should do nothing if the name and url are not defined in the request', function(done) {
-            req.body = { id: 's-1', containers: [{type: 'a'}] };
+            req.body = { id: 's-1', containers: [{id: 'a'}] };
             siteModule.editAdtechSite(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.body).toEqual({ id: 's-1', containers: [{type: 'a'}] });
+                expect(req.body).toEqual({ id: 's-1', containers: [{id: 'a'}] });
                 expect(adtech.websiteAdmin.updateWebsite).not.toHaveBeenCalled();
                 done();
             });

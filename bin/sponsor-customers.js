@@ -220,7 +220,7 @@
 
         app.get('/api/account/customers', sessions, authGetCust, audit, function(req, res) {
             var query = {};
-            if (req.query.name) { //TODO: supported query params are?
+            if (req.query.name) {
                 query.name = String(req.query.name);
             }
 

@@ -120,7 +120,7 @@
 
         app.get('/api/account/advertisers', sessions, authGetAd, audit, function(req, res) {
             var query = {};
-            if (req.query.name) { //TODO: supported query params are? Def want multi-ids
+            if (req.query.name) {
                 query.name = String(req.query.name);
             }
 

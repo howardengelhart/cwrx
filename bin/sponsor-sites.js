@@ -22,9 +22,11 @@
         var hostRegex = /^([\w-]+\.)+[\w-]+$/;
         svc.use('read', svc.preventGetAll.bind(svc));
         svc.use('create', svc.validateUniqueProp.bind(svc, 'host', hostRegex));
+        svc.use('create', siteModule.validateContainers);
         svc.use('create', siteModule.createAdtechSite);
         svc.use('create', siteModule.createPlacements);
         svc.use('edit', svc.validateUniqueProp.bind(svc, 'host', hostRegex));
+        svc.use('edit', siteModule.validateContainers);
         svc.use('edit', siteModule.cleanPlacements);
         svc.use('edit', siteModule.editAdtechSite);
         svc.use('edit', siteModule.createPlacements);
@@ -41,6 +43,29 @@
             name: site.name
         };
     };
+    
+    siteModule.validateContainers = function(req, next, done) {
+        var log = logger.getLog(),
+            containers = req.body.containers || [],
+            ids = {};
+        
+        for (var i = 0; i < containers.length; i++) {
+            if (!containers[i].id) {
+                log.info('[%1] Container #%2 has no id', req.uuid, i);
+                return q(done({code: 400, body: 'All containers must have ids'}));
+            }
+
+            if (ids[containers[i].id] !== undefined) {
+                log.info('[%1] Containers #%2 and #%3 both have id %4',
+                         req.uuid, ids[containers[i].id], i, containers[i].id);
+                return q(done({code: 400, body: 'Container ids must be unique'}));
+            }
+            
+            ids[containers[i].id] = i;
+        }
+        
+        return q(next());
+    };
 
     siteModule.cleanPlacements = function(req, next, done) {
         var log = logger.getLog(),
@@ -51,33 +76,34 @@
             return q(next());
         }
         
-        return q.all(req.origObj.containers.map(function(cont) {
-            if (req.body.containers.some(function(newCont) {
-                return newCont.type === cont.type;
-            })) {
-                log.trace('[%1] Container %2 still exists for %3', req.uuid, cont.type, id);
-                return q();
+        return req.origObj.containers.reduce(function(promise, cont) {
+            if (req.body.containers.some(function(newCont) { return newCont.id === cont.id; })) {
+                log.trace('[%1] Container %2 still exists for %3', req.uuid, cont.id, id);
+                return promise;
             }
             
-            log.info('[%1] Container %2 removed from %3, deleting its placements',
-                     req.uuid, cont.type, id);
-                     
-            return q.all([cont.displayPlacementId, cont.contentPlacementId].map(function(plId) {
+            log.info('[%1] Container %2 removed from %3, deleting placements',req.uuid,cont.id,id);
+
+            var ids = [cont.displayPlacementId, cont.contentPlacementId];
+            return ids.reduce(function(promise2, plId) {
                 if (!plId) {
-                    return q();
+                    return promise2;
                 }
 
-                return adtech.websiteAdmin.deletePlacement(plId)
+                return promise2.then(function() {
+                    return adtech.websiteAdmin.deletePlacement(plId);
+                })
                 .then(function() {
-                    log.info('[%1] Succesfully deleted placement %2 for container %3',
-                             req.uuid, plId, cont.type);
+                    log.info('[%1] Succesfully deleted placement %2 from container %3',
+                             req.uuid, plId, cont.id);
                 })
                 .catch(function(error) {
                     try {
-                        var errRgx = /deletion cannot be performed because .* run on the affected/;
-                        if (!!error.root.Envelope.Body.Fault.faultstring.match(errRgx)) {
-                            log.warn('[%1] Cannot delete placement %2; it has active campaigns',
+                        var rgx = /deletion cannot be performed because .* run on the affected/;
+                        if (!!error.root.Envelope.Body.Fault.faultstring.match(rgx)) {
+                            log.info('[%1] Cannot delete placement %2; it has active campaigns',
                                      req.uuid, plId);
+
                             if (!doneCalled) { // ensure done is only called once
                                 doneCalled = true;
                                 return done({code: 400, body: 'Cannot delete in-use placements'});
@@ -90,8 +116,8 @@
                     log.error('[%1] Error deleting placement %2: %3', req.uuid, plId, error);
                     return q.reject(new Error('Adtech failure'));
                 });
-            }));
-        }))
+            }, promise);
+        }, q())
         .then(function() {
             if (!doneCalled) {
                 log.trace('[%1] Successfully processed all containers from origObj', req.uuid);
@@ -104,45 +130,48 @@
         var log = logger.getLog(),
             id = req.body.id || (req.origObj && req.origObj.id),
             adtechId = req.body.adtechId || (req.origObj && req.origObj.adtechId),
-            pageId = req.body.pageId || (req.origObj && req.origObj.pageId);
+            pageId = req.body.pageId || (req.origObj && req.origObj.pageId),
+            oldConts = (req.origObj && req.origObj.containers) || [],
+            idx = 0;
         
-        req.body.containers = req.body.containers || [];
+        if (!req.body.containers) {
+            return q(next());
+        }
         
-        //TODO: speed up? find out why there's a 30+ second delay?
-        //TODO: send 204 and use elasticache for result caching?
-        return q.all(req.body.containers.map(function(container, idx) {
-            var existing = req.origObj.containers.filter(function(oldCont) {
-                return container.type === oldCont.type;
-            })[0];
+        return req.body.containers.reduce(function(promise, cont) {
+            var existing = oldConts.filter(function(oldCont) { return cont.id === oldCont.id; })[0];
             if (existing) { // copy over any existing placements, then ensure both are created
-                req.body.containers[idx] = container = existing;
+                req.body.containers[idx] = cont = existing;
             }
+            idx++;
 
-            return q.all(['contentPlacementId', 'displayPlacementId'].map(function(key) {
-                if (container[key]) {
-                    return q();
+            return ['contentPlacementId', 'displayPlacementId'].reduce(function(promise2, key) {
+                if (cont[key]) {
+                    return promise2;
                 }
 
                 var formatted = {
-                    name: container.type + '_' + key.replace('PlacementId', ''),
+                    name: cont.id + '_' + key.replace('PlacementId', ''),
                     pageId: parseInt(pageId),
                     websiteId: parseInt(adtechId)
                 };
 
-                return adtech.websiteAdmin.createPlacement(formatted)
+                return promise2.then(function() {
+                    return adtech.websiteAdmin.createPlacement(formatted);
+                })
                 .then(function(result) {
                     log.info('[%1] Created placement %2, id = %3, for site %4',
                              req.uuid, result.name, result.id, id);
-                    container[key] = parseInt(result.id);
+                    cont[key] = parseInt(result.id);
                 })
                 .catch(function(error) {
                     log.error('[%1] Error creating placement %2 for site %3: %4',
                               req.uuid, formatted.name, id, error);
                     return q.reject(new Error('Adtech failure'));
                 });
-            }));
-        }))
-        .then(function(/*results*/) {
+            }, promise);
+        }, q())
+        .then(function() {
             log.info('[%1] All placements have been created for site %2', req.uuid, id);
             next();
         });
@@ -171,18 +200,13 @@
         });
     };
     
-    /*
-    TODO: maybe add some sort of check (for edit path or elsewhere) to alert if Adtech site and
-          mongo site are out of sync
-    */
-    
     siteModule.editAdtechSite = function(req, next/*, done*/) {
         var log = logger.getLog(),
             record = siteModule.formatAdtechSite(req.origObj);
         
         if ((!req.body.name || req.body.name === req.origObj.name) &&
             (!req.body.host || req.body.host === req.origObj.host)) {
-            log.info('[%1] Site props, unchanged; not updating adtech site', req.uuid);
+            log.info('[%1] Site props unchanged; not updating adtech site', req.uuid);
             return q(next());
         }
         
