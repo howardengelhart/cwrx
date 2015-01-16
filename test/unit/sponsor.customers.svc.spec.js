@@ -88,7 +88,8 @@ describe('sponsor-customers (UT)', function() {
         it('should get a list of advertiser C6 ids', function(done) {
             custModule.getAdvertC6Ids(svc, [12, 23]).then(function(ids) {
                 expect(ids).toEqual(['a-1', 'a-2']);
-                expect(svc._advertColl.find).toHaveBeenCalledWith({adtechId: {$in: [12, 23]}}, {id: 1, adtechId: 1});
+                expect(svc._advertColl.find).toHaveBeenCalledWith(
+                    {adtechId: {$in: [12, 23]}, status: {$ne: 'deleted'}}, {id: 1, adtechId: 1});
                 expect(mockCursor.toArray).toHaveBeenCalledWith(jasmine.any(Function));
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -131,7 +132,8 @@ describe('sponsor-customers (UT)', function() {
         it('should get a list of advertiser adtech ids', function(done) {
             custModule.getAdvertAdtechIds(svc, ['a-1', 'a-2']).then(function(ids) {
                 expect(ids).toEqual([12, 23]);
-                expect(svc._advertColl.find).toHaveBeenCalledWith({id: {$in: ['a-1', 'a-2']}}, {id: 1, adtechId: 1});
+                expect(svc._advertColl.find).toHaveBeenCalledWith(
+                    {id: {$in: ['a-1', 'a-2']}, status: {$ne: 'deleted'}}, {id: 1, adtechId: 1});
                 expect(mockCursor.toArray).toHaveBeenCalledWith(jasmine.any(Function));
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -257,6 +259,7 @@ describe('sponsor-customers (UT)', function() {
         it('should modify the original record, if there is one', function() {
             var orig = {
                 archiveDate: new Date(),
+                assignedUsers: ['1234', '4567'],
                 apples: null,
                 advertiser: ['12', '23'],
                 companyData: { address: {}, url: 'http://cinema6.com' },
@@ -267,6 +270,13 @@ describe('sponsor-customers (UT)', function() {
             };
             var record = custModule.formatAdtechCust({id: 'cu-1', name: 'testy'}, orig);
             expect(record).toEqual({
+                assignedUsers: { Items: {
+                    attributes: { 'xmlns:cm' : 'http://www.w3.org/2001/XMLSchema' },
+                    Item: [
+                        { attributes: { 'xsi:type': 'cm:long' }, $value: '1234' },
+                        { attributes: { 'xsi:type': 'cm:long' }, $value: '4567' },
+                    ]
+                } },
                 advertiser: { Items: {
                     attributes: { 'xmlns:cm' : 'http://systinet.com/wsdl/de/adtech/helios/CustomerManagement/' },
                     Item: [
@@ -388,6 +398,7 @@ describe('sponsor-customers (UT)', function() {
                 expect(custModule.getAdvertAdtechIds).toHaveBeenCalledWith('mockService', undefined);
                 expect(adtech.customerAdmin.updateCustomer).toHaveBeenCalledWith({
                     name: 'testy', id: 123,
+                    assignedUsers: {Items: {attributes: {'xmlns:cm' : 'http://www.w3.org/2001/XMLSchema'}, Item: []}},
                     contacts: { Items: {
                         attributes: { 'xmlns:cm': 'http://systinet.com/wsdl/de/adtech/helios/UserManagement/' },
                         Item: []
@@ -407,6 +418,7 @@ describe('sponsor-customers (UT)', function() {
                 expect(adtech.customerAdmin.getCustomerById).toHaveBeenCalledWith(123);
                 expect(custModule.getAdvertAdtechIds).toHaveBeenCalledWith('mockService', ['a-1', 'a-2']);
                 expect(adtech.customerAdmin.updateCustomer).toHaveBeenCalledWith({
+                    assignedUsers: {Items: {attributes: {'xmlns:cm' : 'http://www.w3.org/2001/XMLSchema'}, Item: []}},
                     advertiser: { Items: {
                         attributes: { 'xmlns:cm': 'http://systinet.com/wsdl/de/adtech/helios/CustomerManagement/' },
                         Item: [

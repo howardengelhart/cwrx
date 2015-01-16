@@ -22,14 +22,15 @@
         return svc;
     };
     
-    advertModule.formatAdtechAdvert = function(body, origAdvert) {
+    advertModule.formatAdtechAdvert = function(body, orig) {
         var record;
         
-        if (origAdvert) {
-            delete origAdvert.archiveDate;
-            objUtils.trimNull(origAdvert);
-            origAdvert.contacts = adtech.customerAdmin.makeContactList(origAdvert.contacts || []);
-            record = origAdvert;
+        if (orig) {
+            delete orig.archiveDate;
+            objUtils.trimNull(orig);
+            orig.assignedUsers = adtech.customerAdmin.makeUserList(orig.assignedUsers || []);
+            orig.contacts = adtech.customerAdmin.makeContactList(orig.contacts || []);
+            record = orig;
         } else {
             record = {
                 companyData: {
@@ -122,6 +123,9 @@
             var query = {};
             if (req.query.name) {
                 query.name = String(req.query.name);
+            }
+            if (req.query.adtechId) {
+                query.adtechId = Number(req.query.adtechId);
             }
 
             svc.getObjs(query, req, true).then(function(resp) {

@@ -33,7 +33,9 @@
             return q(adtechIds);
         }
         
-        var cursor = svc._advertColl.find({adtechId: {$in: adtechIds}}, {id: 1, adtechId: 1});
+        var query = { adtechId: { $in: adtechIds }, status: { $ne: 'deleted' } },
+            cursor = svc._advertColl.find(query, {id: 1, adtechId: 1});
+
         return q.npost(cursor, 'toArray')
         .then(function(advertisers) {
             if (advertisers.length !== adtechIds.length) {
@@ -54,7 +56,10 @@
             return q(c6Ids);
         }
         
-        return q.npost(svc._advertColl.find({id: {$in: c6Ids}}, {id: 1, adtechId: 1}), 'toArray')
+        var query = { id: { $in: c6Ids }, status: { $ne: 'deleted' } },
+            cursor = svc._advertColl.find(query, {id: 1, adtechId: 1});
+        
+        return q.npost(cursor, 'toArray')
         .then(function(advertisers) {
             if (advertisers.length !== c6Ids.length) {
                 log.warn('Looking up advertisers [%1] but only found [%2]', c6Ids,
@@ -96,12 +101,12 @@
         });
     };
     
-    custModule.formatAdtechCust = function(body, origCust, advertList) {
+    custModule.formatAdtechCust = function(body, orig, advertList) {
         var log = logger.getLog(),
-            c6Id = body.id || (origCust && origCust.extId),
+            c6Id = body.id || (orig && orig.extId),
             advertisers, record;
             
-        advertList = advertList || (origCust && origCust.advertiser) || null;
+        advertList = advertList || (orig && orig.advertiser) || null;
         if (advertList) {
             log.info('Linking customer %1 to advertisers [%2]', c6Id, advertList);
             advertisers = adtech.customerAdmin.makeAdvertiserList(advertList.map(function(id) {
@@ -109,11 +114,12 @@
             }));
         }
         
-        if (origCust) {
-            delete origCust.archiveDate;
-            objUtils.trimNull(origCust);
-            origCust.contacts = adtech.customerAdmin.makeContactList(origCust.contacts || []);
-            record = origCust;
+        if (orig) {
+            delete orig.archiveDate;
+            objUtils.trimNull(orig);
+            orig.assignedUsers = adtech.customerAdmin.makeUserList(orig.assignedUsers || []);
+            orig.contacts = adtech.customerAdmin.makeContactList(orig.contacts || []);
+            record = orig;
         } else {
             record = {
                 advertiser: advertisers,
@@ -125,7 +131,7 @@
                 name: body.name
             };
         }
-        record.name = body.name || origCust.name;
+        record.name = body.name || orig.name;
         record.advertiser = advertisers;
         
         return record;
@@ -222,6 +228,9 @@
             var query = {};
             if (req.query.name) {
                 query.name = String(req.query.name);
+            }
+            if (req.query.adtechId) {
+                query.adtechId = Number(req.query.adtechId);
             }
 
             svc.getObjs(query, req, true).then(function(resp) {

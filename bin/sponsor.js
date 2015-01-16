@@ -148,10 +148,20 @@
         // campModule.setupEndpoints(app, campSvc, sessWrap, audit);
         siteModule.setupEndpoints(app, siteSvc, sessWrap, audit);
         // groupModule.setupEndpoints(app, sessWrap, audit, state.config.contentGroups);
-        
-        //TODO: meta and version endpoints?
-        started = 'good';
 
+        
+        app.get('/api/sponsor/meta', function(req, res){
+            var data = {
+                version: state.config.appVersion,
+                started : started.toISOString(),
+                status : 'OK'
+            };
+            res.send(200, data);
+        });
+
+        app.get('/api/sponsor/version',function(req, res) {
+            res.send(200, state.config.appVersion);
+        });
 
         app.use(function(err, req, res, next) {
             if (err) {

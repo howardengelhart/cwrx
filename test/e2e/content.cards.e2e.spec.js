@@ -551,16 +551,14 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should successfully update a card', function(done) {
-            var updatedExp;
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                updatedExp = resp.body;
-                expect(updatedExp).not.toEqual(mockCards[0]);
-                expect(updatedExp._id).not.toBeDefined();
-                expect(updatedExp.id).toBe('e2e-put1');
-                expect(updatedExp.data).toEqual({foo: 'baz'});
-                expect(new Date(updatedExp.created)).toEqual(now);
-                expect(new Date(updatedExp.lastUpdated)).toBeGreaterThan(now);
+                expect(resp.body).not.toEqual(mockCards[0]);
+                expect(resp.body._id).not.toBeDefined();
+                expect(resp.body.id).toBe('e2e-put1');
+                expect(resp.body.data).toEqual({foo: 'baz'});
+                expect(new Date(resp.body.created)).toEqual(now);
+                expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(now);
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);

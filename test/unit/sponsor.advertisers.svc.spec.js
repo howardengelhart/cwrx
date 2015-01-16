@@ -71,6 +71,7 @@ describe('sponsor-advertisers (UT)', function() {
         it('should modify the original record, if there is one', function() {
             var orig = {
                 archiveDate: new Date(),
+                assignedUsers: ['1234', '4567'],
                 apples: null,
                 companyData: { address: {}, url: 'http://cinema6.com' },
                 contacts: [{email: 'test@foo.com', firstName: 'Johnny', lastName: 'Testmonkey'}],
@@ -80,6 +81,13 @@ describe('sponsor-advertisers (UT)', function() {
             };
             var record = advertModule.formatAdtechAdvert({id: 'a-1', name: 'testy'}, orig);
             expect(record).toEqual({
+                assignedUsers: { Items: {
+                    attributes: { 'xmlns:cm' : 'http://www.w3.org/2001/XMLSchema' },
+                    Item: [
+                        { attributes: { 'xsi:type': 'cm:long' }, $value: '1234' },
+                        { attributes: { 'xsi:type': 'cm:long' }, $value: '4567' },
+                    ]
+                } },
                 companyData: { address: {}, url: 'http://cinema6.com' },
                 contacts: { Items: {
                     attributes: { 'xmlns:cm' : 'http://systinet.com/wsdl/de/adtech/helios/UserManagement/' },
