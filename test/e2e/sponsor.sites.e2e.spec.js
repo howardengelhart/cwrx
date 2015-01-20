@@ -79,7 +79,7 @@ describe('sponsor sites endpoints (E2E):', function() {
         adtech.createWebsiteAdmin().done(function(resp) { done(); });
     });
 
-    ddescribe('GET /api/site/:id', function() {
+    describe('GET /api/site/:id', function() {
         beforeEach(function(done) {
             var mockSites = [
                 { id: 'e2e-getid1', name: 'site 1', host: 'foo.com', adtechId: 123, status: 'active' },
@@ -152,7 +152,7 @@ describe('sponsor sites endpoints (E2E):', function() {
         });
     });
 
-    ddescribe('GET /api/sites', function() {
+    describe('GET /api/sites', function() {
         var options;
         beforeEach(function(done) {
             options = { url: config.sponsorUrl + '/sites', qs: {sort: 'id,1'}, jar: cookieJar };
@@ -280,7 +280,7 @@ describe('sponsor sites endpoints (E2E):', function() {
         });
     });
 
-    ddescribe('POST /api/site', function() {
+    describe('POST /api/site', function() {
         var mockSite, options;
         beforeEach(function() {
             mockSite = {
@@ -391,7 +391,7 @@ describe('sponsor sites endpoints (E2E):', function() {
 
     });
 
-    ddescribe('PUT /api/site/:id', function() {
+    describe('PUT /api/site/:id', function() {
         var mockSites, now, options;
         beforeEach(function(done) {
             // created = yesterday to allow for clock differences b/t server and test runner
@@ -581,7 +581,7 @@ describe('sponsor sites endpoints (E2E):', function() {
         });
     });
 
-    ddescribe('DELETE /api/site/:id', function() {
+    describe('DELETE /api/site/:id', function() {
         beforeEach(function(done) {
             var mockSites = [
                 { id: 'e2e-del1', host: 'a.com', status: 'deleted', adtechId: 1234 },

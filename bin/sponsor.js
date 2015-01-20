@@ -25,6 +25,10 @@
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/' + state.name + '/caches/run/'),
         },
+        adtechCreds: {
+            keyPath: path.join(process.env.HOME, '.ssh/adtech.key'),
+            certPath: path.join(process.env.HOME, '.ssh/adtech.crt')
+        },
         contentGroups: {
             advertiserId: null,   // Adtech advertiser id; must be overriden in a config file
             customerId: null      // Adtech customer id; must be overriden in a config file
@@ -188,7 +192,10 @@
         .then(service.initMongo)
         .then(service.initSessionStore)
         .then(function(state) {
-            return adtech.createClient().thenResolve(state); //TODO: paths for keys/certs?
+            return adtech.createClient(
+                state.config.adtechCreds.keyPath,
+                state.config.adtechCreds.certPath
+            ).thenResolve(state);
         }).then(sponsor.main)
         .catch(function(err) {
             var log = logger.getLog();
