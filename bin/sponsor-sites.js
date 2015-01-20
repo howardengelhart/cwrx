@@ -28,13 +28,14 @@
         svc.use('edit', svc.validateUniqueProp.bind(svc, 'host', hostRegex));
         svc.use('edit', siteModule.validateContainers);
         svc.use('edit', siteModule.cleanPlacements);
-        svc.use('edit', siteModule.editAdtechSite);
         svc.use('edit', siteModule.createPlacements);
+        svc.use('edit', siteModule.editAdtechSite);
         svc.use('delete', siteModule.deleteAdtechSite);
         
         return svc;
     };
-    
+
+    //TODO: use original site doc so we don't overwrite pageList...
     siteModule.formatAdtechSite = function(site) {
         return {
             URL: site.host,
@@ -52,7 +53,7 @@
         for (var i = 0; i < containers.length; i++) {
             if (!containers[i].id) {
                 log.info('[%1] Container #%2 has no id', req.uuid, i);
-                return q(done({code: 400, body: 'All containers must have ids'}));
+                return q(done({code: 400, body: 'All containers must have an id'}));
             }
 
             if (ids[containers[i].id] !== undefined) {
@@ -263,12 +264,14 @@
 
         app.get('/api/sites', sessions, authGetSite, audit, function(req, res) {
             var query = {};
-            ['name', 'org', 'host']
-            .forEach(function(field) {
+            ['name', 'org', 'host'].forEach(function(field) {
                 if (req.query[field]) {
                     query[field] = String(req.query[field]);
                 }
             });
+            if (req.query.adtechId) {
+                query.adtechId = Number(req.query.adtechId);
+            }
 
             svc.getObjs(query, req, true).then(function(resp) {
                 if (resp.pagination) {

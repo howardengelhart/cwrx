@@ -9,7 +9,7 @@ var q               = require('q'),
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
     };
     
-jasmine.getEnv().defaultTimeoutInterval = 10000; //TODO: reconsider this?
+jasmine.getEnv().defaultTimeoutInterval = 10000;
 
 describe('sponsor customers endpoints (E2E):', function() {
     var cookieJar, mockUser, createdCust, createdAdverts, keptAdvert;
@@ -25,7 +25,7 @@ describe('sponsor customers endpoints (E2E):', function() {
             email : 'custe2euser',
             password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
             org: 'e2e-org',
-            permissions: { //TODO: actually test permissions?
+            permissions: {
                 advertisers: { read: 'all', create: 'all', edit: 'all', delete: 'all' },
                 customers: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
             }

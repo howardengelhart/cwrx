@@ -116,7 +116,7 @@ describe('sponsor-sites (UT)', function() {
             siteModule.validateContainers(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({code: 400, body: 'All containers must have ids'});
+                expect(doneSpy).toHaveBeenCalledWith({code: 400, body: 'All containers must have an id'});
                 expect(errorSpy).not.toHaveBeenCalled();
                 done();
             });
@@ -139,7 +139,7 @@ describe('sponsor-sites (UT)', function() {
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy.calls.length).toBe(1);
-                expect(doneSpy).toHaveBeenCalledWith({code: 400, body: 'All containers must have ids'});
+                expect(doneSpy).toHaveBeenCalledWith({code: 400, body: 'All containers must have an id'});
                 expect(errorSpy).not.toHaveBeenCalled();
                 done();
             });
