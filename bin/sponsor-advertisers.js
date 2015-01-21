@@ -23,16 +23,8 @@
     };
     
     advertModule.formatAdtechAdvert = function(body, orig) {
-        var record;
-        
-        if (orig) {
-            delete orig.archiveDate;
-            objUtils.trimNull(orig);
-            orig.assignedUsers = adtech.customerAdmin.makeUserList(orig.assignedUsers || []);
-            orig.contacts = adtech.customerAdmin.makeContactList(orig.contacts || []);
-            record = orig;
-        } else {
-            record = {
+        if (!orig) {
+            return {
                 companyData: {
                     address: {},
                     url: 'http://cinema6.com'
@@ -41,7 +33,15 @@
                 name: body.name
             };
         }
-        record.name = body.name;
+        
+        var record = JSON.parse(JSON.stringify(orig));
+        objUtils.trimNull(record);
+
+        record.assignedUsers = record.assignedUsers ?
+            adtech.customerAdmin.makeUserList(record.assignedUsers) : undefined;
+        record.contacts = record.contacts ?
+            adtech.customerAdmin.makeContactList(record.contacts) : undefined;
+        record.name = body.name || record.name;
         
         return record;
     };

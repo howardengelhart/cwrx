@@ -2,6 +2,7 @@
     'use strict';
 
     var q               = require('q'),
+        objUtils        = require('../lib/objUtils'),
         authUtils       = require('../lib/authUtils'),
         CrudSvc         = require('../lib/crudSvc'),
         logger          = require('../lib/logger'),
@@ -35,14 +36,27 @@
         return svc;
     };
 
-    //TODO: use original site doc so we don't overwrite pageList...
-    siteModule.formatAdtechSite = function(site) {
-        return {
-            URL: site.host,
-            extId: site.id,
-            id: site.adtechId && Number(site.adtechId),
-            name: site.name
-        };
+    siteModule.formatAdtechSite = function(body, orig) {
+        if (!orig) {
+            return {
+                URL: 'http://' + body.host,
+                contact: { email: 'ops@cinema6.com' },
+                extId: body.id,
+                name: body.name
+            };
+        }
+        
+        var record = JSON.parse(JSON.stringify(orig));
+        objUtils.trimNull(record);
+
+        record.pageList = record.pageList ?
+            adtech.websiteAdmin.makePageList(record.pageList) : undefined;
+        record.assignedUsers = record.assignedUsers ?
+            adtech.customerAdmin.makeUserList(record.assignedUsers) : undefined;
+        record.name = body.name || record.name;
+        record.URL = body.host ? 'http://' + body.host : record.URL;
+
+        return record;
     };
     
     siteModule.validateContainers = function(req, next, done) {
@@ -202,8 +216,7 @@
     };
     
     siteModule.editAdtechSite = function(req, next/*, done*/) {
-        var log = logger.getLog(),
-            record = siteModule.formatAdtechSite(req.origObj);
+        var log = logger.getLog();
         
         if ((!req.body.name || req.body.name === req.origObj.name) &&
             (!req.body.host || req.body.host === req.origObj.host)) {
@@ -211,10 +224,13 @@
             return q(next());
         }
         
-        record.name = req.body.name || req.origObj.name;
-        record.URL = req.body.host || req.origObj.host;
-        
-        return adtech.websiteAdmin.updateWebsite(record).then(function(resp) {
+        return adtech.websiteAdmin.getWebsiteById(req.origObj.adtechId)
+        .then(function(orig) {
+            log.info('[%1] Retrieved previous site %2', req.uuid, orig.id);
+            var record = siteModule.formatAdtechSite(req.body, orig);
+            return adtech.websiteAdmin.updateWebsite(record);
+        })
+        .then(function(resp) {
             log.info('[%1] Updated Adtech site %2', req.uuid, resp.id);
             next();
         }).catch(function(error) {

@@ -257,8 +257,9 @@ describe('sponsor-customers (UT)', function() {
         });
         
         it('should modify the original record, if there is one', function() {
+            var now = new Date();
             var orig = {
-                archiveDate: new Date(),
+                archiveDate: now,
                 assignedUsers: ['1234', '4567'],
                 apples: null,
                 advertiser: ['12', '23'],
@@ -270,6 +271,7 @@ describe('sponsor-customers (UT)', function() {
             };
             var record = custModule.formatAdtechCust({id: 'cu-1', name: 'testy'}, orig);
             expect(record).toEqual({
+                archiveDate: now.toISOString(),
                 assignedUsers: { Items: {
                     attributes: { 'xmlns:cm' : 'http://www.w3.org/2001/XMLSchema' },
                     Item: [
@@ -297,6 +299,16 @@ describe('sponsor-customers (UT)', function() {
                 extId: 'cu-1',
                 id: 123,
                 name: 'testy'
+            });
+        });
+
+        it('should not set list properties if not defined on the original', function() {
+            var orig = { companyData: {address: {}, url: 'http://cinema6.com'},
+                         extId: 'cu-1', id: 123, name: 'old name' };
+            
+            expect(custModule.formatAdtechCust({name: 'testy'}, orig)).toEqual({
+                companyData: {address: {}, url: 'http://cinema6.com'},
+                extId: 'cu-1', id: 123, name: 'testy'
             });
         });
     });
@@ -396,14 +408,7 @@ describe('sponsor-customers (UT)', function() {
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(adtech.customerAdmin.getCustomerById).toHaveBeenCalledWith(123);
                 expect(custModule.getAdvertAdtechIds).toHaveBeenCalledWith('mockService', undefined);
-                expect(adtech.customerAdmin.updateCustomer).toHaveBeenCalledWith({
-                    name: 'testy', id: 123,
-                    assignedUsers: {Items: {attributes: {'xmlns:cm' : 'http://www.w3.org/2001/XMLSchema'}, Item: []}},
-                    contacts: { Items: {
-                        attributes: { 'xmlns:cm': 'http://systinet.com/wsdl/de/adtech/helios/UserManagement/' },
-                        Item: []
-                    } }
-                });
+                expect(adtech.customerAdmin.updateCustomer).toHaveBeenCalledWith({name: 'testy', id: 123});
                 done();
             });
         });
@@ -418,7 +423,6 @@ describe('sponsor-customers (UT)', function() {
                 expect(adtech.customerAdmin.getCustomerById).toHaveBeenCalledWith(123);
                 expect(custModule.getAdvertAdtechIds).toHaveBeenCalledWith('mockService', ['a-1', 'a-2']);
                 expect(adtech.customerAdmin.updateCustomer).toHaveBeenCalledWith({
-                    assignedUsers: {Items: {attributes: {'xmlns:cm' : 'http://www.w3.org/2001/XMLSchema'}, Item: []}},
                     advertiser: { Items: {
                         attributes: { 'xmlns:cm': 'http://systinet.com/wsdl/de/adtech/helios/CustomerManagement/' },
                         Item: [
@@ -426,11 +430,7 @@ describe('sponsor-customers (UT)', function() {
                             { attributes: { 'xsi:type': 'cm:Advertiser' }, id: 23 },
                         ]
                     } },
-                    name: 'old name', id: 123,
-                    contacts: { Items: {
-                        attributes: { 'xmlns:cm': 'http://systinet.com/wsdl/de/adtech/helios/UserManagement/' },
-                        Item: []
-                    } }
+                    name: 'old name', id: 123
                 });
                 expect(req.body.advertisers).not.toBeDefined();
                 done();

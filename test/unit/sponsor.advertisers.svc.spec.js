@@ -69,8 +69,9 @@ describe('sponsor-advertisers (UT)', function() {
         });
         
         it('should modify the original record, if there is one', function() {
+            var now = new Date();
             var orig = {
-                archiveDate: new Date(),
+                archiveDate: now,
                 assignedUsers: ['1234', '4567'],
                 apples: null,
                 companyData: { address: {}, url: 'http://cinema6.com' },
@@ -81,6 +82,7 @@ describe('sponsor-advertisers (UT)', function() {
             };
             var record = advertModule.formatAdtechAdvert({id: 'a-1', name: 'testy'}, orig);
             expect(record).toEqual({
+                archiveDate: now.toISOString(),
                 assignedUsers: { Items: {
                     attributes: { 'xmlns:cm' : 'http://www.w3.org/2001/XMLSchema' },
                     Item: [
@@ -101,6 +103,16 @@ describe('sponsor-advertisers (UT)', function() {
                 extId: 'a-1',
                 id: 123,
                 name: 'testy'
+            });
+        });
+
+        it('should not set list properties if not defined on the original', function() {
+            var orig = { companyData: {address: {}, url: 'http://cinema6.com'},
+                         extId: 'a-1', id: 123, name: 'old name' };
+            
+            expect(advertModule.formatAdtechAdvert({name: 'testy'}, orig)).toEqual({
+                companyData: {address: {}, url: 'http://cinema6.com'},
+                extId: 'a-1', id: 123, name: 'testy'
             });
         });
     });

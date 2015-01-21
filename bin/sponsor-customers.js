@@ -115,11 +115,14 @@
         }
         
         if (orig) {
-            delete orig.archiveDate;
-            objUtils.trimNull(orig);
-            orig.assignedUsers = adtech.customerAdmin.makeUserList(orig.assignedUsers || []);
-            orig.contacts = adtech.customerAdmin.makeContactList(orig.contacts || []);
-            record = orig;
+            record = JSON.parse(JSON.stringify(orig));
+            objUtils.trimNull(record);
+            record.assignedUsers = record.assignedUsers ?
+                adtech.customerAdmin.makeUserList(record.assignedUsers) : undefined;
+            record.contacts = record.contacts ?
+                adtech.customerAdmin.makeContactList(record.contacts) : undefined;
+            record.name = body.name || record.name;
+            record.advertiser = advertisers;
         } else {
             record = {
                 advertiser: advertisers,
@@ -131,8 +134,6 @@
                 name: body.name
             };
         }
-        record.name = body.name || orig.name;
-        record.advertiser = advertisers;
         
         return record;
     };

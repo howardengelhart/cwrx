@@ -317,7 +317,7 @@ describe('sponsor sites endpoints (E2E):', function() {
             }).then(function(site)  {
                 expect(site.name).toBe(createdSite.name);
                 expect(site.extId).toBe(createdSite.id);
-                expect(site.URL).toBe(createdSite.host);
+                expect(site.URL).toBe('http://test.com');
                 return getPlacementsBySite(createdSite.adtechId);
             }).then(function(placements) {
                 comparePlacements(placements, createdSite.containers, createdSite.pageId);
@@ -392,16 +392,26 @@ describe('sponsor sites endpoints (E2E):', function() {
     });
 
     describe('PUT /api/site/:id', function() {
-        var mockSites, now, options;
+        var mockSites, options, keptSite;
         beforeEach(function(done) {
-            // created = yesterday to allow for clock differences b/t server and test runner
-            now = new Date(new Date() - 24*60*60*1000);
-            mockSites = [
-                { id: 'e2e-put1', status: 'active', name: 'fake site', foo: 'bar' },
-                { id: 'e2e-deleted', status: 'deleted', adtechId: 1234, name: 'deleted site' },
-                createdSite
-            ];
-            testUtils.resetCollection('sites', mockSites).done(done);
+            var promise;
+            if (keptSite) {
+                promise = q();
+            } else { // this is an alternative to hardcoding the adtechId for this in the test
+                promise = adtech.websiteAdmin.getWebsiteByExtId('e2e-s-keepme').then(function(resp) {
+                    keptSite = { id: 'e2e-s-keepme', name: resp.name, adtechId: resp.id, pageId: resp.pageList[0].id };
+                });
+            }
+                
+            promise.then(function() {
+                mockSites = [
+                    { id: 'e2e-put1', status: 'active', name: 'fake site', foo: 'bar' },
+                    { id: 'e2e-deleted', status: 'deleted', adtechId: 1234, name: 'deleted site' },
+                    keptSite,
+                    createdSite
+                ];
+                return testUtils.resetCollection('sites', mockSites);
+            }).done(done);
         });
 
         it('should successfully update a site in mongo and adtech', function(done) {
@@ -425,7 +435,7 @@ describe('sponsor sites endpoints (E2E):', function() {
                 return adtech.websiteAdmin.getWebsiteById(createdSite.adtechId)
             }).then(function(site) {
                 expect(site.name).toBe('e2e_test_updated');
-                expect(site.URL).toBe('updated.test.com');
+                expect(site.URL).toBe('http://updated.test.com');
                 expect(site.extId).toBe(createdSite.id);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -458,7 +468,6 @@ describe('sponsor sites endpoints (E2E):', function() {
             }).done(done);
         });
         
-        /*
         it('should preserve other existing adtech fields', function(done) {
             options = {
                 url: config.sponsorUrl + '/site/e2e-s-keepme',
@@ -468,20 +477,21 @@ describe('sponsor sites endpoints (E2E):', function() {
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.name).toBe(options.json.name);
-                return adtech.websiteAdmin.getWebsiteByExtId(826513);
+                return adtech.websiteAdmin.getWebsiteByExtId('e2e-s-keepme');
             }).then(function(site) {
                 expect(site.name).toBe(options.json.name);
                 expect(site.extId).toBe('e2e-s-keepme');
-                expect(site.companyData).toEqual({ address: { address1: '1 Bananas Road', address2: 'Apt 123',
-                    city: 'Bananaville', country: 'USA', zip: '12345' }, firmName: '', fax: '9876543210',
-                    id: 1260839, mail: '', phone: '1234567890', url: 'http://bananas.com' });
-                expect(site.contacts).toEqual([{email: 'jtestmonkey@foo.com', fax: '',
-                    firstName: 'Johnny', lastName: 'Testmonkey', id: 902914, mobile: '', phone: ''}]);
+                expect(site.company).toEqual({ address: { address1: '1 Bananas Road', address2: 'Apt 123',
+                    city: 'Bananaville', country: 'USA', zip: '12345' }, firmName: 'Bananas 4 Bananas',
+                    fax: '9876543210', id: jasmine.any(Number), mail: 'jtestmonkey@bananas.com',
+                    phone: '1234567890', url: '' });
+                expect(site.contact).toEqual({email: 'jtestmonkey@bananas.com', fax: '9876543210', firstName: 'Johnny',
+                    lastName: 'Testmonkey', id: jasmine.any(Number), mobile: '', phone: '1234567890'});
+                expect(site.pageList).not.toEqual([]);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        */
         
         it('should be able to edit the placement list', function(done) {
             options = {
@@ -604,14 +614,12 @@ describe('sponsor sites endpoints (E2E):', function() {
                 
                 var promises = [
                     adtech.websiteAdmin.getWebsiteById(createdSite.adtechId),
-                //    adtech.websiteAdmin.getPageById(createdSite.pageId)
+                    adtech.websiteAdmin.getPageById(createdSite.pageId)
                 ];
-                /* TODO: don't overwrite pageList on PUT so all sub-entities get deleted properly
                 createdSite.containers.forEach(function(cont) {
                     promises.push(adtech.websiteAdmin.getPlacementById(cont.contentPlacementId));
                     promises.push(adtech.websiteAdmin.getPlacementById(cont.displayPlacementId));
                 });
-                */
                 return q.allSettled(promises);
             }).then(function(results) {
                 results.forEach(function(result) {

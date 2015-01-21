@@ -30,14 +30,18 @@ describe('sponsor-sites (UT)', function() {
 
         mockClient = {client: 'yes'};
         delete require.cache[require.resolve('adtech/lib/website')];
+        delete require.cache[require.resolve('adtech/lib/customer')];
         adtech = require('adtech');
         adtech.websiteAdmin = require('adtech/lib/website');
-        Object.keys(adtech.websiteAdmin).forEach(function(prop) {
-            if (typeof adtech.websiteAdmin[prop] !== 'function') {
-                return;
-            }
-            adtech.websiteAdmin[prop] = adtech.websiteAdmin[prop].bind(adtech.websiteAdmin, mockClient);
-            spyOn(adtech.websiteAdmin, prop).andCallThrough();
+        adtech.customerAdmin = require('adtech/lib/customer');
+        ['websiteAdmin', 'customerAdmin'].forEach(function(admin) {
+            Object.keys(adtech[admin]).forEach(function(prop) {
+                if (typeof adtech[admin][prop] !== 'function') {
+                    return;
+                }
+                adtech[admin][prop] = adtech[admin][prop].bind(adtech[admin], mockClient);
+                spyOn(adtech[admin], prop).andCallThrough();
+            });
         });
     });
 
@@ -76,14 +80,60 @@ describe('sponsor-sites (UT)', function() {
     });
     
     describe('formatAdtechSite', function() {
-        it('should format a site for saving to adtech', function() {
+        it('should create a new record if there is no original', function() {
             expect(siteModule.formatAdtechSite({id: 's-1', name: 'site 1', host: 'foo.com'}))
-                .toEqual({ URL: 'foo.com', extId: 's-1', name: 'site 1' });
+                .toEqual({URL: 'http://foo.com', contact: {email: 'ops@cinema6.com'}, extId: 's-1', name: 'site 1'});
         });
-
-        it('should set the adtechId if defined', function() {
-            expect(siteModule.formatAdtechSite({id: 's-1', adtechId: 123, name: 'site 1', host: 'foo.com'}))
-                .toEqual({ URL: 'foo.com', extId: 's-1', id: 123, name: 'site 1' });
+        
+        it('should modify the original record if there is one', function() {
+            var now = new Date();
+            var orig = {
+                URL: 'http://foo.com',
+                archiveDate: now,
+                assignedUsers: ['1234'],
+                apples: null,
+                contact: { firstName: 'Johnny', lastName: 'Testmonkey' },
+                extId: 's-1',
+                id: 123,
+                name: 'site 1',
+                pageList: [{
+                    id: 456,
+                    name: 'Default',
+                    placementList: [{id: 987, name: 'content'}, {id: 876, name: 'display'}]
+                }]
+            };
+            
+            expect(siteModule.formatAdtechSite({name: 'site 1.1'}, orig)).toEqual({
+                URL: 'http://foo.com', archiveDate: now.toISOString(),
+                assignedUsers: { Items: {
+                    attributes: { 'xmlns:cm': 'http://www.w3.org/2001/XMLSchema' }, 
+                    Item: [{ attributes: { 'xsi:type': 'cm:long' }, $value: '1234' }]
+                } },
+                contact: { firstName: 'Johnny', lastName: 'Testmonkey' },
+                extId: 's-1', id: 123, name: 'site 1.1',
+                pageList: { Items: {
+                    attributes: { 'xmlns:cm': 'http://systinet.com/wsdl/de/adtech/helios/WebsiteManagement/' },
+                    Item: [{
+                        attributes: { 'xsi:type': 'cm:Page' },
+                        id: 456, name: 'Default',
+                        placementList: { Items: {
+                            attributes: { 'xmlns:cm': 'http://systinet.com/wsdl/de/adtech/helios/WebsiteManagement/' },
+                            Item: [
+                                { attributes: { 'xsi:type': 'cm:Placement' }, id: 987, name: 'content' },
+                                { attributes: { 'xsi:type': 'cm:Placement' }, id: 876, name: 'display' },
+                            ]
+                        } }
+                    }]
+                } }
+            });
+        });
+        
+        it('should not set list properties if not defined on the original', function() {
+            var orig = { URL: 'http://foo.com', extId: 's-1', id: 123, name: 'site 1' };
+            
+            expect(siteModule.formatAdtechSite({host: 'bar.foo.com'}, orig)).toEqual({
+                URL: 'http://bar.foo.com', extId: 's-1', id: 123, name: 'site 1'
+            });
         });
     });
     
@@ -331,7 +381,8 @@ describe('sponsor-sites (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body).toEqual({id: 's-1', host: 'foo.com', name: 'site 1', adtechId: 123, pageId: 456});
-                expect(adtech.websiteAdmin.createWebsite).toHaveBeenCalledWith({URL: 'foo.com', extId: 's-1', name: 'site 1'});
+                expect(adtech.websiteAdmin.createWebsite).toHaveBeenCalledWith(
+                    {URL: 'http://foo.com', contact: {email: 'ops@cinema6.com'}, extId: 's-1', name: 'site 1'});
                 expect(adtech.websiteAdmin.createPage).toHaveBeenCalledWith({name: 'Default', websiteId: 123});
                 done();
             });
@@ -369,6 +420,7 @@ describe('sponsor-sites (UT)', function() {
         beforeEach(function() {
             req.origObj = { id: 's-1', host: 'foo.com', name: 'old name', adtechId: 123 };
             req.body = { id: 's-1', host: 'bar.com', name: 'new name' };
+            adtech.websiteAdmin.getWebsiteById.andReturn(q({id: 123, extId: 's-1'}));
             adtech.websiteAdmin.updateWebsite.andReturn(q({id: 123}));
         });
         
@@ -380,7 +432,7 @@ describe('sponsor-sites (UT)', function() {
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body).toEqual({id: 's-1', host: 'bar.com', name: 'new name'});
                 expect(adtech.websiteAdmin.updateWebsite).toHaveBeenCalledWith(
-                    {URL: 'bar.com', extId: 's-1', id: 123, name: 'new name'});
+                    {URL: 'http://bar.com', extId: 's-1', id: 123, name: 'new name'});
                 done();
             });
         });
@@ -406,6 +458,19 @@ describe('sponsor-sites (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body).toEqual({ id: 's-1', host: 'foo.com', name: 'old name' });
+                expect(adtech.websiteAdmin.updateWebsite).not.toHaveBeenCalled();
+                done();
+            });
+        });
+
+        it('should reject if finding the existing website fails', function(done) {
+            adtech.websiteAdmin.getWebsiteById.andReturn(q.reject('I GOT A PROBLEM'));
+            siteModule.editAdtechSite(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith(new Error('Adtech failure'));
+                expect(mockLog.error).toHaveBeenCalled();
                 expect(adtech.websiteAdmin.updateWebsite).not.toHaveBeenCalled();
                 done();
             });
