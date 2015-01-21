@@ -1,8 +1,7 @@
 (function(){
     'use strict';
 
-    var q               = require('q'),
-        authUtils       = require('../lib/authUtils'),
+    var authUtils       = require('../lib/authUtils'),
         CrudSvc         = require('../lib/crudSvc'),
         enums           = require('../lib/enums'),
         logger          = require('../lib/logger'),
@@ -17,7 +16,7 @@
         catSvc.editValidator._forbidden.push('name');
         
         catSvc.use('create', catModule.adminCreateCheck);
-        catSvc.use('create', catModule.validateName.bind(catModule, catSvc));
+        catSvc.use('create', catSvc.validateUniqueProp.bind(catSvc, 'name', /^\w+$/));
         
         return catSvc;
     };
@@ -35,26 +34,6 @@
         next();
     };
     
-    // ensure that the name in the request body is not used by any other categories
-    catModule.validateName = function(svc, req, next, done) {
-        var log = logger.getLog();
-        
-        if (!req.body.name.match(/^\w+$/)) {
-            log.info('[%1] User %2 trying to create category with invalid name: %3',
-                     req.uuid, req.user.id, req.body.name);
-            return q(done({code: 400, body: 'Invalid name'}));
-        }
-            
-        return q.npost(svc._coll, 'findOne', [{name: req.body.name}]).then(function(cat) {
-            if (cat) {
-                log.info('[%1] Category %2 already has name %3', req.uuid, cat.id, req.body.name);
-                return done({code: 409, body: 'A category with that name already exists'});
-            }
-            
-            next();
-        });
-    };
-
     catModule.setupEndpoints = function(app, catSvc, sessions, audit) {
         var authGetCat = authUtils.middlewarify({});
         app.get('/api/content/category/:id', sessions, authGetCat, audit, function(req, res) {

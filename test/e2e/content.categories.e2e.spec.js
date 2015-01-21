@@ -429,7 +429,7 @@ describe('content category endpoints (E2E):', function() {
                 return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(409);
-                expect(resp.body).toBe('A category with that name already exists');
+                expect(resp.body).toBe('An object with that name already exists');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
