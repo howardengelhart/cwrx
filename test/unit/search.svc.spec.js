@@ -62,9 +62,10 @@ describe('search (UT)', function() {
           expect(mockLog.warn).not.toHaveBeenCalled();
         });
 
-        it('should properly parse strings of the format "# mins"', function() {
+        it('should properly parse strings of the format "# mins" or "# minutes"', function() {
             expect(search.parseDuration('12 mins')).toBe(720);
             expect(search.parseDuration('02 mins')).toBe(120);
+            expect(search.parseDuration('12 minutes')).toBe(720);
             expect(mockLog.warn).not.toHaveBeenCalled();
         });
 
