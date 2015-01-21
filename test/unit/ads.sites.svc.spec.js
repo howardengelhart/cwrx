@@ -1,5 +1,5 @@
 var flush = true;
-describe('sponsor-sites (UT)', function() {
+describe('ads-sites (UT)', function() {
     var mockLog, CrudSvc, logger, q, adtech, siteModule, FieldValidator, mockClient,
         nextSpy, doneSpy, errorSpy, req;
 
@@ -7,7 +7,7 @@ describe('sponsor-sites (UT)', function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q               = require('q');
         logger          = require('../../lib/logger');
-        siteModule      = require('../../bin/sponsor-sites');
+        siteModule      = require('../../bin/ads-sites');
         FieldValidator  = require('../../lib/fieldValidator');
         CrudSvc         = require('../../lib/crudSvc');
 

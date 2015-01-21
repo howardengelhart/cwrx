@@ -6,8 +6,8 @@ var q               = require('q'),
     requestUtils    = require('../../lib/requestUtils'),
     host            = process.env['host'] || 'localhost',
     config = {
-        sponsorUrl  : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api',
-        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
+        adsUrl  : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api',
+        authUrl : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
     };
     
 jasmine.getEnv().defaultTimeoutInterval = 10000;
@@ -36,7 +36,7 @@ function comparePlacements(placements, containers, pageId) {
 }
 
 
-describe('sponsor sites endpoints (E2E):', function() {
+describe('ads sites endpoints (E2E):', function() {
     var cookieJar, mockUser, createdSite;
 
     beforeEach(function(done) {
@@ -89,7 +89,7 @@ describe('sponsor sites endpoints (E2E):', function() {
         });
 
         it('should get a site by id', function(done) {
-            var options = {url: config.sponsorUrl + '/site/e2e-getid1', jar: cookieJar};
+            var options = {url: config.adsUrl + '/site/e2e-getid1', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual({id: 'e2e-getid1', name: 'site 1', host: 'foo.com',
@@ -101,7 +101,7 @@ describe('sponsor sites endpoints (E2E):', function() {
         });
         
         it('should write an entry to the audit collection', function(done) {
-            var options = {url: config.sponsorUrl + '/site/e2e-getid1', jar: cookieJar};
+            var options = {url: config.adsUrl + '/site/e2e-getid1', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
@@ -112,7 +112,7 @@ describe('sponsor sites endpoints (E2E):', function() {
                 expect(results[0].pid).toEqual(jasmine.any(Number));
                 expect(results[0].uuid).toEqual(jasmine.any(String));
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
-                expect(results[0].service).toBe('sponsor');
+                expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'GET /api/site/:id',
                                                  params: { 'id': 'e2e-getid1' }, query: {} });
@@ -122,7 +122,7 @@ describe('sponsor sites endpoints (E2E):', function() {
         });
 
         it('should not show deleted sites', function(done) {
-            var options = {url: config.sponsorUrl + '/site/e2e-getid2', jar: cookieJar};
+            var options = {url: config.adsUrl + '/site/e2e-getid2', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('Object not found');
@@ -132,7 +132,7 @@ describe('sponsor sites endpoints (E2E):', function() {
         });
         
         it('should throw a 401 error if the user is not authenticated', function(done) {
-            var options = { url: config.sponsorUrl + '/site/e2e-getid1' };
+            var options = { url: config.adsUrl + '/site/e2e-getid1' };
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
@@ -142,7 +142,7 @@ describe('sponsor sites endpoints (E2E):', function() {
         });
 
         it('should return a 404 if nothing is found', function(done) {
-            var options = {url: config.sponsorUrl + '/site/e2e-getid5678', jar: cookieJar};
+            var options = {url: config.adsUrl + '/site/e2e-getid5678', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('Object not found');
@@ -155,7 +155,7 @@ describe('sponsor sites endpoints (E2E):', function() {
     describe('GET /api/sites', function() {
         var options;
         beforeEach(function(done) {
-            options = { url: config.sponsorUrl + '/sites', qs: {sort: 'id,1'}, jar: cookieJar };
+            options = { url: config.adsUrl + '/sites', qs: {sort: 'id,1'}, jar: cookieJar };
             var mockSites = [
                 { id: 'e2e-getquery1', name: 'site 1', host: 'c6.com', org: 'o-1', adtechId: 123, status: 'active' },
                 { id: 'e2e-getquery2', name: 'site 2', host: 'c7.com', org: 'o-1', adtechId: 456, status: 'inactive' },
@@ -189,7 +189,7 @@ describe('sponsor sites endpoints (E2E):', function() {
                 expect(results[0].pid).toEqual(jasmine.any(Number));
                 expect(results[0].uuid).toEqual(jasmine.any(String));
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
-                expect(results[0].service).toBe('sponsor');
+                expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'GET /api/sites',
                                                  params: {}, query: { sort: 'id,1' } });
@@ -289,7 +289,7 @@ describe('sponsor sites endpoints (E2E):', function() {
                 containers: [{ id: 'embed' }, { id: 'mr2' }]
             };
             options = {
-                url: config.sponsorUrl + '/site',
+                url: config.adsUrl + '/site',
                 jar: cookieJar,
                 json: mockSite
             };
@@ -331,7 +331,7 @@ describe('sponsor sites endpoints (E2E):', function() {
                 expect(results[0].pid).toEqual(jasmine.any(Number));
                 expect(results[0].uuid).toEqual(jasmine.any(String));
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
-                expect(results[0].service).toBe('sponsor');
+                expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'POST /api/site', params: {}, query: {} });
             }).catch(function(error) {
@@ -416,7 +416,7 @@ describe('sponsor sites endpoints (E2E):', function() {
 
         it('should successfully update a site in mongo and adtech', function(done) {
             options = {
-                url: config.sponsorUrl + '/site/' + createdSite.id,
+                url: config.adsUrl + '/site/' + createdSite.id,
                 json: { name: 'e2e_test_updated', host: 'updated.test.com' },
                 jar: cookieJar
             };
@@ -444,7 +444,7 @@ describe('sponsor sites endpoints (E2E):', function() {
 
         it('should write an entry to the audit collection', function(done) {
             options = {
-                url: config.sponsorUrl + '/site/e2e-put1',
+                url: config.adsUrl + '/site/e2e-put1',
                 json: { name: 'fake site', foo: 'baz' },
                 jar: cookieJar
             };
@@ -459,7 +459,7 @@ describe('sponsor sites endpoints (E2E):', function() {
                 expect(results[0].pid).toEqual(jasmine.any(Number));
                 expect(results[0].uuid).toEqual(jasmine.any(String));
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
-                expect(results[0].service).toBe('sponsor');
+                expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'PUT /api/site/:id',
                                                  params: { id: 'e2e-put1' }, query: {} });
@@ -470,7 +470,7 @@ describe('sponsor sites endpoints (E2E):', function() {
         
         it('should preserve other existing adtech fields', function(done) {
             options = {
-                url: config.sponsorUrl + '/site/e2e-s-keepme',
+                url: config.adsUrl + '/site/e2e-s-keepme',
                 json: { name: 'e2e_s_keep_me_' + new Date().toISOString() },
                 jar: cookieJar
             }
@@ -495,7 +495,7 @@ describe('sponsor sites endpoints (E2E):', function() {
         
         it('should be able to edit the placement list', function(done) {
             options = {
-                url: config.sponsorUrl + '/site/' + createdSite.id,
+                url: config.adsUrl + '/site/' + createdSite.id,
                 json: { containers: [{id: 'embed'}, {id: 'taboola'}] },
                 jar: cookieJar
             };
@@ -524,7 +524,7 @@ describe('sponsor sites endpoints (E2E):', function() {
         
         it('should not edit a site that has been deleted', function(done) {
             options = {
-                url: config.sponsorUrl + '/site/e2e-deleted',
+                url: config.adsUrl + '/site/e2e-deleted',
                 json: { name: 'resurrected' },
                 jar: cookieJar
             };
@@ -538,7 +538,7 @@ describe('sponsor sites endpoints (E2E):', function() {
         
         it('should not create a site if they do not exist', function(done) {
             options = {
-                url: config.sponsorUrl + '/site/e2e-putfake',
+                url: config.adsUrl + '/site/e2e-putfake',
                 json: { name: 'the best thing' },
                 jar: cookieJar
             };
@@ -551,7 +551,7 @@ describe('sponsor sites endpoints (E2E):', function() {
         });
         
         it('should throw a 400 if the containers are invalid', function(done) {
-            options = { url: config.sponsorUrl + '/site/' + createdSite.id, jar: cookieJar };
+            options = { url: config.adsUrl + '/site/' + createdSite.id, jar: cookieJar };
             q.all([[{id: 'embed'}, {type: 'mr2'}], [{id: 'embed'}, {id: 'embed', type: 2}]].map(function(containers) {
                 options.json = { containers: containers };
                 return requestUtils.qRequest('put', options);
@@ -567,7 +567,7 @@ describe('sponsor sites endpoints (E2E):', function() {
         
         it('should throw a 409 if a site with that host exists', function(done) {
             options = {
-                url: config.sponsorUrl + '/site/e2e-put1',
+                url: config.adsUrl + '/site/e2e-put1',
                 json: { host: createdSite.host },
                 jar: cookieJar
             };
@@ -602,11 +602,11 @@ describe('sponsor sites endpoints (E2E):', function() {
         });
 
         it('should delete a site and all its entities from adtech and set its status to deleted', function(done) {
-            var options = {jar: cookieJar, url: config.sponsorUrl + '/site/' + createdSite.id};
+            var options = {jar: cookieJar, url: config.adsUrl + '/site/' + createdSite.id};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
-                options = {url: config.sponsorUrl + '/site/' + createdSite.id, jar: cookieJar};
+                options = {url: config.adsUrl + '/site/' + createdSite.id, jar: cookieJar};
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
@@ -634,7 +634,7 @@ describe('sponsor sites endpoints (E2E):', function() {
         });
 
         it('should handle sites that have no adtechId', function(done) {
-            var options = {jar: cookieJar, url: config.sponsorUrl + '/site/e2e-del2'};
+            var options = {jar: cookieJar, url: config.adsUrl + '/site/e2e-del2'};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -648,12 +648,12 @@ describe('sponsor sites endpoints (E2E):', function() {
                 expect(results[0].pid).toEqual(jasmine.any(Number));
                 expect(results[0].uuid).toEqual(jasmine.any(String));
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
-                expect(results[0].service).toBe('sponsor');
+                expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'DELETE /api/site/:id',
                                                  params: { id: 'e2e-del2' }, query: {} });
                 
-                options = {url: config.sponsorUrl + '/site/e2e-del2' + createdSite.id, jar: cookieJar};
+                options = {url: config.adsUrl + '/site/e2e-del2' + createdSite.id, jar: cookieJar};
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
@@ -664,7 +664,7 @@ describe('sponsor sites endpoints (E2E):', function() {
         });
         
         it('should still return a 204 if the site has been deleted', function(done) {
-            var options = {jar: cookieJar, url: config.sponsorUrl + '/site/e2e-del1'};
+            var options = {jar: cookieJar, url: config.adsUrl + '/site/e2e-del1'};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -674,7 +674,7 @@ describe('sponsor sites endpoints (E2E):', function() {
         });
         
         it('should still return a 204 if the site does not exist', function(done) {
-            var options = {jar: cookieJar, url: config.sponsorUrl + '/site/LDFJDKJFWOI'};
+            var options = {jar: cookieJar, url: config.adsUrl + '/site/LDFJDKJFWOI'};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -684,7 +684,7 @@ describe('sponsor sites endpoints (E2E):', function() {
         });
 
         it('should throw a 401 error if the user is not authenticated', function(done) {
-            requestUtils.qRequest('delete', {url: config.sponsorUrl + '/site/e2e-del1'})
+            requestUtils.qRequest('delete', {url: config.adsUrl + '/site/e2e-del1'})
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');

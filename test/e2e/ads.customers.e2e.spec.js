@@ -5,13 +5,13 @@ var q               = require('q'),
     requestUtils    = require('../../lib/requestUtils'),
     host            = process.env['host'] || 'localhost',
     config = {
-        sponsorUrl  : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api',
-        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
+        adsUrl  : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api',
+        authUrl : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
     };
     
 jasmine.getEnv().defaultTimeoutInterval = 10000;
 
-describe('sponsor customers endpoints (E2E):', function() {
+describe('ads customers endpoints (E2E):', function() {
     var cookieJar, mockUser, createdCust, createdAdverts, keptAdvert;
 
     beforeEach(function(done) {
@@ -56,7 +56,7 @@ describe('sponsor customers endpoints (E2E):', function() {
                            adtechId: 826513, created: new Date(), lastUpdated: new Date() };
 
             q.all([{name: 'e2e advert 1'}, {name: 'e2e advert 2'}, {name: 'e2e advert 3'}].map(function(body) {
-                var options = { url: config.sponsorUrl + '/account/advertiser', json: body, jar: cookieJar };
+                var options = { url: config.adsUrl + '/account/advertiser', json: body, jar: cookieJar };
                 return requestUtils.qRequest('post', options);
             })).then(function(results) {
                 createdAdverts = results.map(function(resp) {
@@ -79,7 +79,7 @@ describe('sponsor customers endpoints (E2E):', function() {
         });
 
         it('should get a customer by id', function(done) {
-            var options = {url: config.sponsorUrl + '/account/customer/e2e-cu-keepme', jar: cookieJar};
+            var options = {url: config.adsUrl + '/account/customer/e2e-cu-keepme', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual({id: 'e2e-cu-keepme', name: 'e2e_cu_keep_me', adtechId: 475049,
@@ -91,7 +91,7 @@ describe('sponsor customers endpoints (E2E):', function() {
         });
         
         it('should write an entry to the audit collection', function(done) {
-            var options = {url: config.sponsorUrl + '/account/customer/e2e-getid1', jar: cookieJar};
+            var options = {url: config.adsUrl + '/account/customer/e2e-getid1', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
@@ -102,7 +102,7 @@ describe('sponsor customers endpoints (E2E):', function() {
                 expect(results[0].pid).toEqual(jasmine.any(Number));
                 expect(results[0].uuid).toEqual(jasmine.any(String));
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
-                expect(results[0].service).toBe('sponsor');
+                expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'GET /api/account/customer/:id',
                                                  params: { 'id': 'e2e-getid1' }, query: {} });
@@ -112,7 +112,7 @@ describe('sponsor customers endpoints (E2E):', function() {
         });
 
         it('should not show deleted customers', function(done) {
-            var options = {url: config.sponsorUrl + '/account/customer/e2e-getid2', jar: cookieJar};
+            var options = {url: config.adsUrl + '/account/customer/e2e-getid2', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('Object not found');
@@ -122,7 +122,7 @@ describe('sponsor customers endpoints (E2E):', function() {
         });
         
         it('should throw a 401 error if the user is not authenticated', function(done) {
-            var options = { url: config.sponsorUrl + '/account/customer/e2e-getid1' };
+            var options = { url: config.adsUrl + '/account/customer/e2e-getid1' };
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
@@ -132,7 +132,7 @@ describe('sponsor customers endpoints (E2E):', function() {
         });
 
         it('should return a 404 if nothing is found', function(done) {
-            var options = {url: config.sponsorUrl + '/account/customer/e2e-getid5678', jar: cookieJar};
+            var options = {url: config.adsUrl + '/account/customer/e2e-getid5678', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('Object not found');
@@ -145,7 +145,7 @@ describe('sponsor customers endpoints (E2E):', function() {
     describe('GET /api/account/customers', function() {
         var options;
         beforeEach(function(done) {
-            options = { url: config.sponsorUrl + '/account/customers', qs: {sort: 'id,1'}, jar: cookieJar };
+            options = { url: config.adsUrl + '/account/customers', qs: {sort: 'id,1'}, jar: cookieJar };
             var mockCusts = [
                 { id: 'e2e-cu-keepme', name: 'e2e_cu_keep_me', adtechId: 475049, status: 'active' },
                 { id: 'e2e-getquery1', name: 'cust 1', adtechId: 123, status: 'active' },
@@ -182,7 +182,7 @@ describe('sponsor customers endpoints (E2E):', function() {
                 expect(results[0].pid).toEqual(jasmine.any(Number));
                 expect(results[0].uuid).toEqual(jasmine.any(String));
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
-                expect(results[0].service).toBe('sponsor');
+                expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'GET /api/account/customers',
                                                  params: {}, query: { sort: 'id,1' } });
@@ -266,7 +266,7 @@ describe('sponsor customers endpoints (E2E):', function() {
             mockCust = { name: 'e2e_test-' + new Date().toISOString(),
                          advertisers: [createdAdverts[0].id, createdAdverts[1].id] };
             options = {
-                url: config.sponsorUrl + '/account/customer',
+                url: config.adsUrl + '/account/customer',
                 jar: cookieJar,
                 json: mockCust
             };
@@ -302,7 +302,7 @@ describe('sponsor customers endpoints (E2E):', function() {
                 expect(results[0].pid).toEqual(jasmine.any(Number));
                 expect(results[0].uuid).toEqual(jasmine.any(String));
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
-                expect(results[0].service).toBe('sponsor');
+                expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'POST /api/account/customer', params: {}, query: {} });
             }).catch(function(error) {
@@ -353,7 +353,7 @@ describe('sponsor customers endpoints (E2E):', function() {
 
         it('should successfully update a customer in mongo and adtech', function(done) {
             options = {
-                url: config.sponsorUrl + '/account/customer/' + createdCust.id,
+                url: config.adsUrl + '/account/customer/' + createdCust.id,
                 json: { name: 'e2e_test_updated' },
                 jar: cookieJar
             }
@@ -381,7 +381,7 @@ describe('sponsor customers endpoints (E2E):', function() {
 
         it('should write an entry to the audit collection', function(done) {
             options = {
-                url: config.sponsorUrl + '/account/customer/e2e-put1',
+                url: config.adsUrl + '/account/customer/e2e-put1',
                 json: { name: 'fake cust', foo: 'baz' },
                 jar: cookieJar
             };
@@ -396,7 +396,7 @@ describe('sponsor customers endpoints (E2E):', function() {
                 expect(results[0].pid).toEqual(jasmine.any(Number));
                 expect(results[0].uuid).toEqual(jasmine.any(String));
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
-                expect(results[0].service).toBe('sponsor');
+                expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'PUT /api/account/customer/:id',
                                                  params: { id: 'e2e-put1' }, query: {} });
@@ -407,7 +407,7 @@ describe('sponsor customers endpoints (E2E):', function() {
 
         it('should be able to update the advertiser list', function(done) {
             options = {
-                url: config.sponsorUrl + '/account/customer/' + createdCust.id,
+                url: config.adsUrl + '/account/customer/' + createdCust.id,
                 json: { advertisers: [createdAdverts[1].id, createdAdverts[2].id] },
                 jar: cookieJar
             }
@@ -429,7 +429,7 @@ describe('sponsor customers endpoints (E2E):', function() {
         
         it('should preserve other existing adtech fields', function(done) {
             options = {
-                url: config.sponsorUrl + '/account/customer/e2e-cu-keepme',
+                url: config.adsUrl + '/account/customer/e2e-cu-keepme',
                 json: { name: 'e2e_cu_keep_me_' + new Date().toISOString() },
                 jar: cookieJar
             }
@@ -453,7 +453,7 @@ describe('sponsor customers endpoints (E2E):', function() {
         
         it('should not edit a customer that has been deleted', function(done) {
             options = {
-                url: config.sponsorUrl + '/account/customer/e2e-deleted',
+                url: config.adsUrl + '/account/customer/e2e-deleted',
                 json: { name: 'resurrected' },
                 jar: cookieJar
             };
@@ -467,7 +467,7 @@ describe('sponsor customers endpoints (E2E):', function() {
         
         it('should not create a customer if they do not exist', function(done) {
             options = {
-                url: config.sponsorUrl + '/account/customer/e2e-putfake',
+                url: config.adsUrl + '/account/customer/e2e-putfake',
                 json: { name: 'the best thing' },
                 jar: cookieJar
             };
@@ -501,11 +501,11 @@ describe('sponsor customers endpoints (E2E):', function() {
         });
 
         it('should delete a customer from adtech and set its status to deleted', function(done) {
-            var options = {jar: cookieJar, url: config.sponsorUrl + '/account/customer/' + createdCust.id};
+            var options = {jar: cookieJar, url: config.adsUrl + '/account/customer/' + createdCust.id};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
-                options = {url: config.sponsorUrl + '/account/customer/' + createdCust.id, jar: cookieJar};
+                options = {url: config.adsUrl + '/account/customer/' + createdCust.id, jar: cookieJar};
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
@@ -523,7 +523,7 @@ describe('sponsor customers endpoints (E2E):', function() {
         });
 
         it('should handle customers that have no adtechId', function(done) {
-            var options = {jar: cookieJar, url: config.sponsorUrl + '/account/customer/e2e-del2'};
+            var options = {jar: cookieJar, url: config.adsUrl + '/account/customer/e2e-del2'};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -537,12 +537,12 @@ describe('sponsor customers endpoints (E2E):', function() {
                 expect(results[0].pid).toEqual(jasmine.any(Number));
                 expect(results[0].uuid).toEqual(jasmine.any(String));
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
-                expect(results[0].service).toBe('sponsor');
+                expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'DELETE /api/account/customer/:id',
                                                  params: { id: 'e2e-del2' }, query: {} });
                 
-                options = {url: config.sponsorUrl + '/account/customer/e2e-del2' + createdCust.id, jar: cookieJar};
+                options = {url: config.adsUrl + '/account/customer/e2e-del2' + createdCust.id, jar: cookieJar};
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
@@ -553,7 +553,7 @@ describe('sponsor customers endpoints (E2E):', function() {
         });
         
         it('should still return a 204 if the customer has been deleted', function(done) {
-            var options = {jar: cookieJar, url: config.sponsorUrl + '/account/customer/e2e-del1'};
+            var options = {jar: cookieJar, url: config.adsUrl + '/account/customer/e2e-del1'};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -563,7 +563,7 @@ describe('sponsor customers endpoints (E2E):', function() {
         });
         
         it('should still return a 204 if the customer does not exist', function(done) {
-            var options = {jar: cookieJar, url: config.sponsorUrl + '/account/customer/LDFJDKJFWOI'};
+            var options = {jar: cookieJar, url: config.adsUrl + '/account/customer/LDFJDKJFWOI'};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -573,7 +573,7 @@ describe('sponsor customers endpoints (E2E):', function() {
         });
 
         it('should throw a 401 error if the user is not authenticated', function(done) {
-            requestUtils.qRequest('delete', {url: config.sponsorUrl + '/account/customer/e2e-del1'})
+            requestUtils.qRequest('delete', {url: config.adsUrl + '/account/customer/e2e-del1'})
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
@@ -587,7 +587,7 @@ describe('sponsor customers endpoints (E2E):', function() {
     describe('cleaning up advertisers', function() {
         it('should use the API to delete some advertisers', function(done) {
             q.all(createdAdverts.map(function(body) {
-                var options = { url: config.sponsorUrl + '/account/advertiser/' + body.id, jar: cookieJar };
+                var options = { url: config.adsUrl + '/account/advertiser/' + body.id, jar: cookieJar };
                 return requestUtils.qRequest('delete', options);
             })).then(function(results) {
                 results.forEach(function(resp) {

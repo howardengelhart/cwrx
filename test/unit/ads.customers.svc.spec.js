@@ -1,12 +1,12 @@
 var flush = true;
-describe('sponsor-customers (UT)', function() {
+describe('ads-customers (UT)', function() {
     var mockLog, CrudSvc, logger, q, adtech, custModule, mockClient, nextSpy, doneSpy, errorSpy, req;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q               = require('q');
         logger          = require('../../lib/logger');
-        custModule      = require('../../bin/sponsor-customers');
+        custModule      = require('../../bin/ads-customers');
         CrudSvc         = require('../../lib/crudSvc');
 
         mockLog = {

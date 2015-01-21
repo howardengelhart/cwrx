@@ -7,20 +7,20 @@
         logger          = require('../lib/logger'),
         uuid            = require('../lib/uuid'),
         journal         = require('../lib/journal'),
-        advertModule    = require('./sponsor-advertisers'),
-        custModule      = require('./sponsor-customers'),
-        // campModule      = require('./sponsor-campaigns'),
-        siteModule      = require('./sponsor-sites'),
-        // groupModule     = require('./sponsor-groups'),
+        advertModule    = require('./ads-advertisers'),
+        custModule      = require('./ads-customers'),
+        // campModule      = require('./ads-campaigns'),
+        siteModule      = require('./ads-sites'),
+        // groupModule     = require('./ads-groups'),
         adtech          = require('adtech'),
         authUtils       = require('../lib/authUtils'),
         service         = require('../lib/service'),
         
         state   = {},
-        sponsor = {}; // for exporting functions to unit tests
+        ads = {}; // for exporting functions to unit tests
 
     state.defaultConfig = {
-        appName: 'sponsor',
+        appName: 'ads',
         appDir: __dirname,
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/' + state.name + '/caches/run/'),
@@ -43,7 +43,7 @@
                 retryConnect : true
             }
         },
-        secretsPath: path.join(process.env.HOME,'.sponsor.secrets.json'),
+        secretsPath: path.join(process.env.HOME,'.ads.secrets.json'),
         mongo: {
             c6Db: {
                 host: null,
@@ -57,9 +57,11 @@
             }
         }
     };
+    
+    //TODO: rename to something like "adserver service"
 
     
-    sponsor.main = function(state) {
+    ads.main = function(state) {
         var log = logger.getLog(),
             started = new Date();
         if (state.clusterMaster){
@@ -154,7 +156,7 @@
         // groupModule.setupEndpoints(app, sessWrap, audit, state.config.contentGroups);
 
         
-        app.get('/api/sponsor/meta', function(req, res){
+        app.get('/api/ads/meta', function(req, res){
             var data = {
                 version: state.config.appVersion,
                 started : started.toISOString(),
@@ -163,7 +165,7 @@
             res.send(200, data);
         });
 
-        app.get('/api/sponsor/version',function(req, res) {
+        app.get('/api/ads/version',function(req, res) {
             res.send(200, state.config.appVersion);
         });
 
@@ -196,7 +198,7 @@
                 state.config.adtechCreds.keyPath,
                 state.config.adtechCreds.certPath
             ).thenResolve(state);
-        }).then(sponsor.main)
+        }).then(ads.main)
         .catch(function(err) {
             var log = logger.getLog();
             console.log(err.message || err);
@@ -210,6 +212,6 @@
             log.info('ready to serve');
         });
     } else {
-        module.exports = sponsor;
+        module.exports = ads;
     }
 }());
