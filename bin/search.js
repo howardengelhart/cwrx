@@ -76,7 +76,7 @@
         dur = dur.trim();
 
         // some vimeo vids have durs like '90 mins'
-        if (dur.match(/^\d+ mins/)) {
+        if (dur.match(/^\d+ mins/) || dur.match(/^\d+ minutes/)) {
             return Number(dur.match(/^\d+/)[0])*60;
         }
 
