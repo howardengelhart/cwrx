@@ -9,7 +9,7 @@ var q               = require('q'),
         authUrl : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
     };
     
-jasmine.getEnv().defaultTimeoutInterval = 10000;
+jasmine.getEnv().defaultTimeoutInterval = 30000;
 
 describe('ads advertisers endpoints (E2E):', function() {
     var cookieJar, mockUser, createdAdvert;
