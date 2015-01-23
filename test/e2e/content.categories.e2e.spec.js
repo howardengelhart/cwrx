@@ -531,7 +531,7 @@ describe('content category endpoints (E2E):', function() {
             options.url = config.contentUrl + '/content/category/e2e-id5';
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('That does not exist');
+                expect(resp.body).toBe('That has been deleted');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);

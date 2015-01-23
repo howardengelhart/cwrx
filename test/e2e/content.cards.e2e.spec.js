@@ -602,7 +602,7 @@ describe('content card endpoints (E2E):', function() {
                 return requestUtils.qRequest('put', options)
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('That does not exist');
+                expect(resp.body).toBe('That has been deleted');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
