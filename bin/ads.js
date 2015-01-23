@@ -9,9 +9,9 @@
         journal         = require('../lib/journal'),
         advertModule    = require('./ads-advertisers'),
         custModule      = require('./ads-customers'),
-        // campModule      = require('./ads-campaigns'),
+        campModule      = require('./ads-campaigns'),
         siteModule      = require('./ads-sites'),
-        // groupModule     = require('./ads-groups'),
+        groupModule     = require('./ads-groups'),
         adtech          = require('adtech'),
         authUtils       = require('../lib/authUtils'),
         service         = require('../lib/service'),
@@ -58,9 +58,6 @@
         }
     };
     
-    //TODO: rename to something like "adserver service"
-
-    
     ads.main = function(state) {
         var log = logger.getLog(),
             started = new Date();
@@ -75,7 +72,7 @@
             users        = state.dbs.c6Db.collection('users'),
             advertSvc    = advertModule.setupSvc(state.dbs.c6Db.collection('advertisers')),
             custSvc      = custModule.setupSvc(state.dbs.c6Db),
-            // campSvc      = campModule.setupSvc(state.dbs.c6Db),
+            campSvc      = campModule.setupSvc(state.dbs.c6Db),
             siteSvc      = siteModule.setupSvc(state.dbs.c6Db.collection('sites')),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
@@ -151,9 +148,9 @@
         
         advertModule.setupEndpoints(app, advertSvc, sessWrap, audit);
         custModule.setupEndpoints(app, custSvc, sessWrap, audit);
-        // campModule.setupEndpoints(app, campSvc, sessWrap, audit);
+        campModule.setupEndpoints(app, campSvc, sessWrap, audit);
         siteModule.setupEndpoints(app, siteSvc, sessWrap, audit);
-        // groupModule.setupEndpoints(app, sessWrap, audit, state.config.contentGroups);
+        groupModule.setupEndpoints(app, sessWrap, audit, state.config.contentGroups);
 
         
         app.get('/api/ads/meta', function(req, res){
