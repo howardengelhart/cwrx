@@ -135,10 +135,27 @@ module.exports = {
             }
         ]
     },
+    ads     : {
+        startInstances : [ 'mongo-dev-1' ],
+        runInstances   : [ { name: 'test-ads', params: 'apiServer' } ],
+        checkHttp : [
+            {
+                host    : 'test-ads',
+                iface   : 'public',
+                path    : '/api/ads/meta'
+            }
+        ],
+        checkSsh : [ { host : 'mongo-dev-1' } ]
+    },
     nightly_build : {
         startInstances : [ 'mongo-dev-1' ],
         runInstances   : [ { name: 'nightly_build', params: 'apiServer' } ],
         checkHttp : [
+            {
+                host    : 'nightly_build',
+                iface   : 'public',
+                path    : '/api/ads/meta'
+            },
             {
                 host    : 'nightly_build',
                 iface   : 'public',
