@@ -282,7 +282,7 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(new Date(resp.body.created).toString()).not.toEqual('Invalid Date');
                 expect(resp.body.lastUpdated).toEqual(resp.body.created);
                 expect(resp.body.status).toBe('active');
-                expect(resp.body.advertisers).toEqual([createdAdverts[0].id, createdAdverts[1].id]);
+                expect(resp.body.advertisers.sort()).toEqual([createdAdverts[0].id, createdAdverts[1].id].sort());
                 
                 createdCust = resp.body;
                 return adtech.customerAdmin.getCustomerById(createdCust.adtechId);
@@ -366,7 +366,7 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(resp.body.name).toBe('e2e_test_updated');
                 expect(resp.body.created).toBe(createdCust.created);
                 expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(createdCust.lastUpdated));
-                expect(resp.body.advertisers).toEqual([createdAdverts[0].id, createdAdverts[1].id]);
+                expect(resp.body.advertisers.sort()).toEqual([createdAdverts[0].id, createdAdverts[1].id].sort());
                 
                 return adtech.customerAdmin.getCustomerById(createdCust.adtechId)
             }).then(function(cust) {
@@ -415,7 +415,7 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).not.toEqual(createdCust);
                 expect(resp.body._id).not.toBeDefined();
-                expect(resp.body.advertisers).toEqual([createdAdverts[1].id, createdAdverts[2].id]);
+                expect(resp.body.advertisers.sort()).toEqual([createdAdverts[1].id, createdAdverts[2].id].sort());
                 
                 return adtech.customerAdmin.getCustomerById(createdCust.adtechId)
             }).then(function(cust) {

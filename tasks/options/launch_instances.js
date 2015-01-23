@@ -179,11 +179,6 @@ module.exports = {
             {
                 host    : 'nightly_build',
                 iface   : 'public',
-                path    : '/api/site/meta'
-            },
-            {
-                host    : 'nightly_build',
-                iface   : 'public',
                 path    : '/api/account/org/meta'
             },
             {
