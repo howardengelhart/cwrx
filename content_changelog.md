@@ -1,5 +1,10 @@
 # Content Service Changelog
 
+### 1.14.1: Mon Jan 26 17:10:33 EST 2015
+* [FIX]: Public endpoint fetches placements from site container: [#360](https://github.com/cinema6/cwrx/pull/360)
+* [FIX]: Public endpoint no longer changes mode based on context: [#360](https://github.com/cinema6/cwrx/pull/360)
+* Extra deployment steps: None
+
 ### 1.14.0: Thu Jan 15 13:59:47 EST 2015
 * [FEATURE]: Add API endpoints for cards: [#355](https://github.com/cinema6/cwrx/pull/355)
 * [FEATURE]: Add API endpoints for categories: [#355](https://github.com/cinema6/cwrx/pull/355)
