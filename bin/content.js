@@ -313,7 +313,7 @@
                                                  container.contentPlacementId;
                     exp.data.branding = exp.data.branding || site.branding;
                 } else {
-                    if (!!qps.container) {
+                    if (!!qps.container && !!site.containers) {
                         log.warn('Container %1 not found for %2', qps.container, host);
                     }
                     setProps(exp, site);
