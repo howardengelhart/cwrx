@@ -224,6 +224,11 @@
             return q(next());
         }
         
+        if (!req.origObj || !req.origObj.adtechId) {
+            log.warn('[%1] Site %2 has no adtechId, nothing to edit', req.uuid, req.origObj.id);
+            return q(next());
+        }
+        
         return adtech.websiteAdmin.getWebsiteById(req.origObj.adtechId)
         .then(function(orig) {
             log.info('[%1] Retrieved previous site %2', req.uuid, orig.id);
