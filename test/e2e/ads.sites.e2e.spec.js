@@ -405,7 +405,7 @@ describe('ads sites endpoints (E2E):', function() {
                 
             promise.then(function() {
                 mockSites = [
-                    { id: 'e2e-put1', status: 'active', name: 'fake site', foo: 'bar' },
+                    { id: 'e2e-put1', status: 'active', placementId: 12345, name: 'fake site', host: 'fake.com' },
                     { id: 'e2e-deleted', status: 'deleted', adtechId: 1234, name: 'deleted site' },
                     keptSite,
                     createdSite
@@ -445,7 +445,7 @@ describe('ads sites endpoints (E2E):', function() {
         it('should write an entry to the audit collection', function(done) {
             options = {
                 url: config.adsUrl + '/site/e2e-put1',
-                json: { name: 'fake site', foo: 'baz' },
+                json: { foo: 'baz' },
                 jar: cookieJar
             };
             requestUtils.qRequest('put', options).then(function(resp) {
@@ -517,6 +517,26 @@ describe('ads sites endpoints (E2E):', function() {
                 return getPlacementsBySite(createdSite.adtechId);
             }).then(function(placements) {
                 comparePlacements(placements, createdSite.containers, createdSite.pageId);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should handle a legacy-style site', function(done) {
+            options = {
+                url: config.adsUrl + '/site/e2e-put1',
+                json: { host: 'really.fake.com', placementId: 54321, wildCardPlacement: 98765 },
+                jar: cookieJar
+            };
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body._id).not.toBeDefined();
+                expect(resp.body.name).toBe('fake site');
+                expect(resp.body.host).toBe('really.fake.com');
+                expect(resp.body.placementId).toBe(54321);
+                expect(resp.body.wildCardPlacement).toBe(98765);
+                expect(resp.body.adtechId).not.toBeDefined();
+                expect(resp.body.containers).not.toBeDefined();
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

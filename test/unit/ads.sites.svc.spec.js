@@ -450,6 +450,19 @@ describe('ads-sites (UT)', function() {
             });
         });
         
+        it('should do nothing if there is no adtechId on the original object', function(done) {
+            delete req.origObj.adtechId;
+            siteModule.editAdtechSite(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.body).toEqual({id: 's-1', host: 'bar.com', name: 'new name'});
+                expect(adtech.websiteAdmin.updateWebsite).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
         it('should do nothing if the name and url are unchanged', function(done) {
             req.body = { id: 's-1', host: 'foo.com', name: 'old name' };
             siteModule.editAdtechSite(req, nextSpy, doneSpy).catch(errorSpy);
