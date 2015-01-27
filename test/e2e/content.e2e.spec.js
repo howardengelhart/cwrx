@@ -92,7 +92,7 @@ describe('content experience endpoints (E2E):', function() {
                     id: 'e2e-pubget1',
                     title: 'test experience',
                     data: [{data: { foo: 'bar', branding: 'expBrand', placementId: '123',
-                                    wildCardPlacement: '321', mode: 'not-lightbox' }, versionId: 'a5e744d0'}],
+                                    wildCardPlacement: '321', }, versionId: 'a5e744d0'}],
                     access: 'public',
                     user: 'e2e-user',
                     org: 'e2e-org',
@@ -108,7 +108,7 @@ describe('content experience endpoints (E2E):', function() {
                 },
                 {
                     id: 'e2e-adConfig',
-                    data: [{data: {mode: 'lightbox-playlist', foo: 'bar', adConfig: {foo: 'baz'}}, versionId: 'a5e744d0'}],
+                    data: [{data: { foo: 'bar', adConfig: {foo: 'baz'}}, versionId: 'a5e744d0'}],
                     access: 'public',
                     status: 'active',
                     user: 'e2e-user',
@@ -123,6 +123,8 @@ describe('content experience endpoints (E2E):', function() {
                   branding: 'siteBrand', placementId: '456', wildCardPlacement: '654' },
                 { id: 'e2e-veeseo', status: 'active', host: 'veeseo.com',
                   branding: 'veeseoBrand', placementId: '159', wildCardPlacement: '951' },
+                { id: 'e2e-containers', status: 'active', host: 'containers.com', branding: 'siteBrand',
+                  containers: [{id: 'embed', contentPlacementId: 11, displayPlacementId: 12}] }
             ];
             mockOrg = { id: 'e2e-active-org', status: 'active', adConfig: { foo: 'bar' }, branding: 'orgBrand' };
             q.all([testUtils.resetCollection('experiences', mockExps),
@@ -132,7 +134,7 @@ describe('content experience endpoints (E2E):', function() {
         });
 
         it('should get an experience by id', function(done) {
-            options.qs = {context: 'embed', container: 'embed', branding: 'reqBrand', placementId: '789', wildCardPlacement: '987'};
+            options.qs = {container: 'embed', branding: 'reqBrand', placementId: '789', wildCardPlacement: '987'};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(typeof resp.body).toBe('object');
@@ -140,38 +142,11 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body.id).toBe('e2e-pubget1');
                 expect(resp.body.title).toBe('test experience');
                 expect(resp.body.data).toEqual({foo: 'bar', branding: 'expBrand', placementId: '123',
-                                                wildCardPlacement: '321', mode: 'not-lightbox'});
+                                                wildCardPlacement: '321'});
                 expect(resp.body.user).not.toBeDefined();
                 expect(resp.body.org).not.toBeDefined();
                 expect(resp.body.versionId).toBe('a5e744d0');
                 expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-            }).done(done);
-        });
-
-        it('should overwrite the existing mode if the context is mr2', function(done) {
-            options.qs = {context: 'mr2', branding: 'reqBrand', placementId: '789', wildCardPlacement: '987'};
-            requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body._id).not.toBeDefined();
-                expect(resp.body.id).toBe('e2e-pubget1');
-                expect(resp.body.title).toBe('test experience');
-                expect(resp.body.data).toEqual({foo: 'bar', branding: 'expBrand', placementId: '123',
-                                                wildCardPlacement: '321', mode: 'lightbox'});
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-            }).done(done);
-        });
-
-        it('should not overwrite lightbox-type modes', function(done) {
-            options.url = options.url.replace('e2e-pubget1', 'e2e-adConfig');
-            options.qs = { context: 'mr2' };
-            requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body._id).not.toBeDefined();
-                expect(resp.body.id).toBe('e2e-adConfig');
-                expect(resp.body.data.mode).toBe('lightbox-playlist');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
@@ -202,7 +177,7 @@ describe('content experience endpoints (E2E):', function() {
         });
 
         it('should use the request config props if not on the exp', function(done) {
-            options.qs = {context: 'embed', branding: 'reqBrand', placementId: '789', wildCardPlacement: '987'};
+            options.qs = {branding: 'reqBrand', placementId: '789', wildCardPlacement: '987'};
             options.url = options.url.replace('e2e-pubget1', 'e2e-org-adConfig');
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -270,6 +245,40 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body.data.branding).toBe('local');
                 expect(resp.body.data.placementId).toBe('246');
                 expect(resp.body.data.wildCardPlacement).toBe('642');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should be able to fetch ids from the container', function(done) {
+            options = {
+                url: config.contentUrl + '/public/content/experience/e2e-org-adConfig',
+                headers: { origin: 'http://containers.com' }, qs: { container: 'embed' }
+            };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toBe('e2e-org-adConfig');
+                expect(resp.body.data.branding).toBe('siteBrand');
+                expect(resp.body.data.placementId).toBe(12);
+                expect(resp.body.data.wildCardPlacement).toBe(11);
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should use defaults if the request\'s container is not in the site', function(done) {
+            options = {
+                url: config.contentUrl + '/public/content/experience/e2e-org-adConfig',
+                headers: { origin: 'http://containers.com' }, qs: { container: 'taboola' }
+            };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toBe('e2e-org-adConfig');
+                expect(resp.body.data.branding).toBe('siteBrand');
+                expect(resp.body.data.placementId).toBeDefined();
+                expect(resp.body.data.placementId).not.toBe(12);
+                expect(resp.body.data.wildCardPlacement).toBeDefined();
+                expect(resp.body.data.wildCardPlacement).not.toBe(11);
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);

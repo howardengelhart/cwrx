@@ -290,9 +290,6 @@
         }
 
         setProps(exp, qps);
-        if (qps.context === 'mr2' && (!exp.data.mode || !exp.data.mode.match(/^lightbox.*/))) {
-            exp.data.mode = 'lightbox';
-        }
         if (props.every(function(prop) { return !!exp.data[prop]; })) {
             return q(exp);
         }
@@ -306,7 +303,21 @@
                     log.info('Site %1 not found', host);
                 }
             } else {
-                setProps(exp, site);
+                var container = (site.containers || []).filter(function(cont) {
+                    return cont.id === qps.container;
+                })[0];
+                
+                if (container) {
+                    exp.data.placementId = exp.data.placementId || container.displayPlacementId;
+                    exp.data.wildCardPlacement = exp.data.wildCardPlacement ||
+                                                 container.contentPlacementId;
+                    exp.data.branding = exp.data.branding || site.branding;
+                } else {
+                    if (!!qps.container && !!site.containers) {
+                        log.warn('Container %1 not found for %2', qps.container, host);
+                    }
+                    setProps(exp, site);
+                }
             }
             if (exp.data.branding) {
                 return q();
@@ -319,7 +330,6 @@
             setProps(exp, defaultSiteCfg);
             return q(exp);
         });
-
     };
 
 

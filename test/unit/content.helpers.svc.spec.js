@@ -541,7 +541,7 @@ describe('content (UT)', function() {
             exp = { id: 'e-1', data: { foo: 'bar' } };
             mockSite = { id: 's-1', status: Status.Active, branding: 'siteBrand', placementId: 456, wildCardPlacement: 654 };
             mockOrg = { id: 'o-1', status: Status.Active, branding: 'orgBrand' };
-            queryParams = { context: 'embed', branding: 'widgetBrand', placementId: 123, wildCardPlacement: 321 };
+            queryParams = { branding: 'widgetBrand', placementId: 123, wildCardPlacement: 321 };
             host = 'games.wired.com';
             siteCache = { getPromise: jasmine.createSpy('siteCache.getPromise').andReturn(q(['fake1', 'fake2'])) };
             orgCache = { getPromise: jasmine.createSpy('orgCache.getPromise').andReturn(q([mockOrg])) };
@@ -585,41 +585,13 @@ describe('content (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
-
-        it('should overwrite the existing mode if the context is mr2', function(done) {
-            queryParams.context = 'mr2';
-            exp.data = { branding: 'expBranding', placementId: 234, wildCardPlacement: 543, mode: 'not-lightbox' };
-            content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
-            .then(function(exp) {
-                expect(exp).toEqual({id: 'e-1', data: {branding: 'expBranding', placementId: 234,
-                                     wildCardPlacement: 543, mode: 'lightbox'}});
-                expect(siteCache.getPromise).not.toHaveBeenCalled();
-                expect(orgCache.getPromise).not.toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should not overwrite lightbox-type modes', function(done) {
-            queryParams.context = 'mr2';
-            exp.data = { branding: 'expBranding', placementId: 234, wildCardPlacement: 543, mode: 'lightbox-playlist' };
-            content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
-            .then(function(exp) {
-                expect(exp).toEqual({id: 'e-1', data: {branding: 'expBranding', placementId: 234,
-                                     wildCardPlacement: 543, mode: 'lightbox-playlist'}});
-                expect(siteCache.getPromise).not.toHaveBeenCalled();
-                expect(orgCache.getPromise).not.toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
         
         it('should handle the queryParams being incomplete', function(done) {
-            queryParams = { context: 'mr2' };
+            queryParams = {};
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
-                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', mode: 'lightbox',
-                                     branding: 'siteBrand', placementId: 456, wildCardPlacement: 654}});
+                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'siteBrand',
+                                                       placementId: 456, wildCardPlacement: 654}});
                 expect(siteCache.getPromise).toHaveBeenCalledWith({host: {$in: ['games.wired.com', 'wired.com']}});
                 expect(content.buildHostQuery).toHaveBeenCalledWith('games.wired.com', undefined);
                 expect(content.chooseSite).toHaveBeenCalledWith(['fake1', 'fake2']);
@@ -632,26 +604,45 @@ describe('content (UT)', function() {
             queryParams = { container: 'largeBox' };
             content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
-                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar',
-                                     branding: 'siteBrand', placementId: 456, wildCardPlacement: 654}});
+                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar', branding: 'siteBrand',
+                                                       placementId: 456, wildCardPlacement: 654}});
                 expect(content.buildHostQuery).toHaveBeenCalledWith('games.wired.com', 'largeBox');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
         
-        it('should fall back on the site\'s config', function(done) {
-            queryParams = {};
-            content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
-            .then(function(exp) {
-                expect(exp).toEqual({id: 'e-1', data: {foo: 'bar',
-                                     branding: 'siteBrand', placementId: 456, wildCardPlacement: 654}});
-                expect(siteCache.getPromise).toHaveBeenCalledWith({host: {$in: ['games.wired.com', 'wired.com']}})
-                expect(orgCache.getPromise).not.toHaveBeenCalled();
-                expect(mockLog.warn).not.toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
+        describe('fetching container', function(done) {
+            beforeEach(function() {
+                content.chooseSite.andReturn({id: 's-2', host: 'foo.com', branding: 'siteBrand', containers: [
+                    { id: 'embed', contentPlacementId: 12, displayPlacementId: 13 },
+                    { id: 'mr2', contentPlacementId: 14, displayPlacementId: 15 }
+                ], placementId: 11, wildCardPlacement: 22 });
+                queryParams = { container: 'embed' };
+            });
+            
+            it('should take placement ids from the matching container', function(done) {
+                content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+                .then(function(exp) {
+                    expect(exp.data).toEqual({foo:'bar',branding:'siteBrand',placementId:13,wildCardPlacement:12});
+                    expect(orgCache.getPromise).not.toHaveBeenCalled();
+                    expect(mockLog.warn).not.toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should fall back to the site params if there are no matching containers', function(done) {
+                queryParams.container = 'taboola';
+                content.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+                .then(function(exp) {
+                    expect(exp.data).toEqual({foo:'bar',branding:'siteBrand',placementId:11,wildCardPlacement:22});
+                    expect(orgCache.getPromise).not.toHaveBeenCalled();
+                    expect(mockLog.warn).toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
         });
         
         it('should not try to get the site if the host is not defined', function(done) {
