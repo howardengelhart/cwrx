@@ -3,6 +3,8 @@ describe('ads-groups (UT)', function() {
     var mockLog, logger, q, adtech, groupModule, FieldValidator, campaignUtils, mockClient,
         nextSpy, doneSpy, errorSpy, req, mockCamp, mockBanners, mockGroup, now, later;
 
+    //TODO: hahaha everything here needs to be rewritten yayyyy
+
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q               = require('q');

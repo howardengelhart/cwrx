@@ -2,252 +2,190 @@
     'use strict';
 
     var q               = require('q'),
-        adtech          = require('adtech'),
+        CrudSvc         = require('../lib/crudSvc'),
         authUtils       = require('../lib/authUtils'),
         campaignUtils   = require('../lib/campaignUtils'),
         logger          = require('../lib/logger'),
-        FieldValidator  = require('../lib/fieldValidator'),
 
-        groupModule = {};
-
-    /*
-        TODO: Open questions:
-        - How should we handle permissions? Should everyone have 'all'? Or any scope is fine?
-        - How exactly should we namespace the endpoints?
-    */
-    
-    groupModule.createValidator = new FieldValidator({
-        forbidden: ['id', 'created', 'adtechId'],
-        required: ['name'],
-        formats: {
-            miniReels: ['string'],
-            categories: ['string']
-        }
-    });
-    
-    groupModule.editValidator = new FieldValidator({
-        forbidden: ['id', 'created'],
-        formats: {
-            miniReels: ['string'],
-            categories: ['string']
-        }
-    });
-    
-    groupModule.formatOutput = function(group) {
-        group.miniReels = group.miniReels.map(function(reel) { return reel.id; });
-        return group;
-    };
-    
-    groupModule.transformCampaign = function(campaign, banners, categories) {
-        banners = banners || [];
-        var group = {
-            id: parseInt(campaign.id),
-            categories: categories,
-            name: campaign.name,
-            created: campaign.createdAt,
-            lastUpdated: campaign.lastUpdatedAt || campaign.createdAt
+        groupModule = {
+            groupsCfg: null, // these will get filled in with vals from config in setupSvc
+            campsCfg: null
         };
+
+    groupModule.setupSvc = function(db, config) {
+        groupModule.groupsCfg = config.contentGroups;
+        groupModule.campsCfg = config.campaigns;
+    
+        var groupColl = db.collection('contentGroups'), //TODO: or just 'groups'?
+            svc = new CrudSvc(groupColl, 'g', { userProp: false, orgProp: false });
+        svc._advertColl = db.collection('advertisers');
+        svc._custColl = db.collection('customers');
         
-        group.miniReels = banners.filter(function(banner) {
-            return campaign.bannerTimeRangeList[0].bannerInfoList.some(function(bannerInfo) {
-                return banner.id === bannerInfo.bannerReferenceId;
-            });
-        }).map(function(banner) {
-            return { id: banner.extId, bannerNumber: banner.bannerNumber, bannerId: banner.id };
-        });
+        svc.createValidator._required.push('name');
+        svc.createValidator._forbidden.push('adtechId');
+        svc.editValidator._forbidden.push('advertiserId', 'customerId');
+
+        svc.createValidator._formats.miniReels = ['string'];
+        svc.editValidator._formats.miniReels = ['string'];
+        svc.createValidator._formats.categories = ['string'];
+        svc.editValidator._formats.categories = ['string'];
+
+        svc.use('read', svc.preventGetAll.bind(svc));
+        svc.use('create', svc.validateUniqueProp.bind(svc, 'name', null));
+        svc.use('create', groupModule.getAccountIds.bind(groupModule, svc));
+        svc.use('create', groupModule.createAdtechGroup);
+        svc.use('create', groupModule.createBanners);
+        svc.use('edit', svc.validateUniqueProp.bind(svc, 'name', null));
+        svc.use('edit', groupModule.getAccountIds.bind(groupModule, svc));
+        svc.use('edit', groupModule.cleanBanners);
+        svc.use('edit', groupModule.createBanners);
+        svc.use('edit', groupModule.editAdtechGroup);
+        svc.use('delete', groupModule.deleteAdtechGroup);
         
-        return group;
+        svc.formatOutput = groupModule.formatOutput.bind(groupModule, svc);
+        
+        return svc;
     };
 
-    groupModule.checkUniqueName = function(name) {
-        var log = logger.getLog(),
-            aove = new adtech.AOVE();
-        aove.addExpression(new adtech.AOVE.StringExpression('name', name));
-        
-        return adtech.campaignAdmin.getCampaignList(null, null, aove)
-        .then(function(list) {
-            if (list.length > 0) {
-                log.info('Found %1 campaign(s) with name %2', list.length, name);
-                return false;
-            } else {
-                return true;
-            }
-        })
-        .catch(function(error) {
-            log.error('Error retrieving campaigns with name %1: %2', name, error);
-            return q.reject('Adtech failure');
+    // Extends CrudSvc.prototype.formatOutput, processing miniReels
+    groupModule.formatOutput = function(svc, obj) {
+        obj.miniReels = obj.miniReels && obj.miniReels.map(function(reel) { return reel.id; });
+        return CrudSvc.prototype.formatOutput.call(svc, obj);
+    };
+    
+    /* Wrap campaignUtils.getAccountIds, defaulting advertiserId and customerId to values from
+       config if not in req.body or req.origObj */
+    groupModule.getAccountIds = function(svc, req, next, done) {
+        ['advertiserId', 'customerId'].forEach(function(key) {
+            req.body[key] = req.body[key] || (req.origObj && req.origObj[key]) ||
+                            groupModule.groupsCfg[key];
         });
+        
+        return campaignUtils.getAccountIds(svc._advertColl, svc._custColl, req, next, done);
     };
-    
-    groupModule.lookupCampaign = function(id) {
-        var log = logger.getLog(),
-            campaign, categories;
-        
-        return adtech.campaignAdmin.getCampaignById(id).then(function(resp) {
-            log.trace('Retrieved campaign %1', id);
-            campaign = resp;
-            
-            if (campaign.priorityLevelThreeKeywordIdList instanceof Array &&
-                campaign.priorityLevelThreeKeywordIdList.length > 0) {
-                return campaignUtils.lookupKeywords(campaign.priorityLevelThreeKeywordIdList);
-            } else {
-                return q();
-            }
-        })
-        .then(function(catList) {
-            categories = catList;
-            var aove = new adtech.AOVE();
-            aove.addExpression(new adtech.AOVE.LongExpression('campaignId', campaign.id));
-            return adtech.bannerAdmin.getBannerList(null, null, aove);
-        })
-        .then(function(bannList) {
-            log.trace('Retrieved banner list for campaign %1', id);
-            return q(groupModule.transformCampaign(campaign, bannList, categories));
-        })
-        .catch(function(error) {
-            if (error.message && error.message.match(/^Unable to locate object/)) {
-                log.info('Could not find campaign %1', id);
-                return q();
-            } else {
-                log.error('Error retrieving group campaign %1: %2', id, error);
-                return q.reject('Adtech failure');
-            }
-        });
-    };
-    
-    groupModule.getGroup = function(req) {
-        var log = logger.getLog(),
-            id = parseInt(req.params.id);
-        
-        return groupModule.lookupCampaign(id).then(function(group) {
-            if (!group) {
-                return q({code: 404, body: 'Group not found'});
-            }
-            log.info('[%1] Successfully retrieved group campaign %2', req.uuid, id);
-            return q({ code: 200, body: groupModule.formatOutput(group) });
-        });
-    };
-    
-    // TODO: what can we filter groups by?  how should we do it?
-    /*
-    groupModule.getGroups = function(query, req) {
-        
-        var aove = new adtech.AOVE();
-        aove.addExpression(new adtech.AOVE.IntExpression('priority', 3));
-    };
-    */
-    
-    groupModule.createGroup = function(req, groupCfg) {
-        var log = logger.getLog(),
-            miniReels = req.body.miniReels;
-        
-        if (!groupModule.createValidator.validate(req.body, {}, req.user)) {
-            log.info('[%1] Invalid group object', req.uuid);
-            log.trace('updates: %1', JSON.stringify(req.body));
-            log.trace('requester: %1', JSON.stringify(req.user));
-            return q({code: 400, body: 'Invalid request body'});
-        }
-        
-        return groupModule.checkUniqueName(req.body.name)
-        .then(function(unique) {
-            if (!unique) {
-                log.info('[%1] Name %2 is not unique, not creating camp', req.uuid, req.body.name);
-                return q({code: 409, body: 'An object with that name already exists'});
-            }
 
-            //TODO: unit test
-            return campaignUtils.makeKeywordLevels({ level3: req.body.categories })
-            .then(function(keys) {
-                return campaignUtils.createCampaign(undefined, req.body.name, false, keys,
-                                                    groupCfg.advertiserId, groupCfg.customerId);
-            })
-            .then(function(resp) {
-                if (!miniReels) {
-                    return q(groupModule.transformCampaign(resp, null, req.body.categories));
+/*    
+    groupModule.startCampaign = function(req) {
+        var id = req.params.id,
+            log = logger.getLog();
+        
+        log.info('[%1] Starting group campaign %2', req.uuid, id);
+        return adtech.pushAdmin.startCampaignById(id)
+        .then(function() {
+            log.info('[%1] Succesfully started group campaign %2', req.uuid, id);
+            return q({code: 204});
+        })
+        .catch(function(error) {
+            try {
+                var errRgx = /No active placement found for campaign /;
+                if (!!error.root.Envelope.Body.Fault.faultstring.match(errRgx)) {
+                    log.info('[%1] Need to assign campaign %2 to a placement before starting',
+                             req.uuid, id);
+                    return q({code: 400, body: 'Need to assign to a placement first'});
                 }
-
-                miniReels = miniReels.map(function(id) { return { id: id }; });
-                return campaignUtils.createBanners(miniReels, null, 'contentMiniReel', resp.id)
-                .then(function() {
-                    return groupModule.lookupCampaign(resp.id);
-                });
-            })
-            .then(function(group) {
-                if (!group) {
-                    return q.reject('Newly created group could not be found');
-                }
-                return q({ code: 201, body: groupModule.formatOutput(group) });
-            })
-            .catch(function(error) {
-                log.error('[%1] Error creating group "%2": %3', req.uuid, req.body.name, error);
-                return q.reject('Adtech failure');
-            });
-        });
-    };
-    
-    // as of now, can't edit campaigns. So this will just update banner list
-    // TODO: when we can edit campaign names, need to check uniqueness
-    groupModule.editGroup = function(req) {
-        var log = logger.getLog(),
-            id = parseInt(req.params.id),
-            miniReels = req.body.miniReels;
-
-        if (!groupModule.editValidator.validate(req.body, {}, req.user)) {
-            log.info('[%1] Invalid group object', req.uuid);
-            log.trace('updates: %1', JSON.stringify(req.body));
-            log.trace('requester: %1', JSON.stringify(req.user));
-            return q({code: 400, body: 'Invalid request body'});
-        }
+            } catch(e) {}
             
-        return groupModule.lookupCampaign(id)
-        .then(function(group) {
-            if (!group) {
-                return q({ code: 404, body: 'Group not found' });
-            }
-            if (!miniReels) {
-                return q({ code: 201, body: groupModule.formatOutput(group) });
-            }
-            
-            miniReels = miniReels.map(function(id) { return { id: id }; });
-            return campaignUtils.cleanBanners(miniReels, group.miniReels, id)
-            .then(function() {
-                log.trace('[%1] Successfully processed all banners from original', req.uuid);
-                return campaignUtils.createBanners(miniReels,group.miniReels,'contentMiniReel',id);
-            })
-            .then(function() {
-                log.info('[%1] All banners for %2 have been created', req.uuid, id);
-                group.miniReels = miniReels;
-                return q({ code: 201, body: groupModule.formatOutput(group) });
-            });
-        })
-        .catch(function(error) {
-            log.error('[%1] Error editing group campaign %2: %3', req.uuid, id, error);
+            log.error('[%1] Error starting group campaign %2: %3', req.uuid, id, error);
             return q.reject('Adtech failure');
         });
     };
 
+    groupModule.stopCampaign = function(req) {
+        var id = req.params.id,
+            log = logger.getLog();
+        
+        log.info('[%1] Stopping group campaign %2', req.uuid, id);
+        return adtech.pushAdmin.stopCampaignById(id)
+        .then(function() {
+            log.info('[%1] Succesfully stopped group campaign %2', req.uuid, id);
+            return q({code: 204});
+        })
+        .catch(function(error) {
+            log.error('[%1] Error stopping group campaign %2: %3', req.uuid, id, error);
+            return q.reject('Adtech failure');
+        });
+    };
 
-    /* TODO: need to edit a campaign + make it not active before deleting, but lib can't do it
-    groupModule.deleteGroup = function(req) {
-        var log = logger.getLog(),
-            id = req.params.id;
-            
-        adtech.campaignAdmin.deleteCampaign(id)
+    groupModule.holdCampaign = function(req) {
+        var id = req.params.id,
+            log = logger.getLog();
+        
+        log.info('[%1] Holding group campaign %2', req.uuid, id);
+        return adtech.pushAdmin.holdCampaignById(id)
+        .then(function() {
+            log.info('[%1] Succesfully paused group campaign %2', req.uuid, id);
+            return q({code: 204});
+        })
+        .catch(function(error) {
+            log.error('[%1] Error holding group campaign %2: %3', req.uuid, id, error);
+            return q.reject('Adtech failure');
+        });
+    };
+*/
+
+    groupModule.createBanners = function(req, next/*, done*/) {
+        req.body.miniReels = campaignUtils.objectify(req.body.miniReels);
+        return campaignUtils.createBanners(
+            req.body.miniReels,
+            req.origObj && req.origObj.miniReels || [],
+            'contentMiniReel',
+            req.body.adtechId || (req.origObj && req.origObj.adtechId)
+        )
+        .then(function() {
+            next();
+        });
+    };
+
+    groupModule.cleanBanners = function(req, next/*, done*/) {
+        req.body.miniReels = campaignUtils.objectify(req.body.miniReels);
+        return campaignUtils.cleanBanners(
+            req.body.miniReels,
+            req.origObj.miniReels,
+            req.origObj.adtechId
+        )
+        .then(function() {
+            next();
+        });
+    };
+
+    groupModule.createAdtechGroup = function(req, next/*, done*/) {
+        return campaignUtils.makeKeywordLevels({ level3: req.body.categories })
+        .then(function(keys) {
+            return campaignUtils.createCampaign(req.body.id, req.body.name, false, keys,
+                                                req._advertiserId, req._customerId);
+        })
         .then(function(resp) {
-        
-        })
-        .catch(function(error) {
-            log.error('[%1] Error deleting group %2: %3', req.uuid, req.body.id, error);
-            return q.reject('Adtech failure');
+            req.body.adtechId = parseInt(resp.id);
+            next();
         });
     };
-    */
-
     
-    groupModule.setupEndpoints = function(app, sessions, audit, groupCfg) {
+    groupModule.editAdtechGroup = function(req, next/*, done*/) {
+        //TODO: edit dat campaign
+        req.foo = 'bar';
+        next();
+    };
+
+    groupModule.deleteAdtechGroup = function(req, next/*, done*/) {
+        var log = logger.getLog(),
+            delay = groupModule.campsCfg.statusDelay,
+            attempts = groupModule.campsCfg.statusAttempts;
+    
+        if (!req.origObj || !req.origObj.adtechId) {
+            log.warn('[%1] Group %2 has no adtechId, nothing to delete', req.uuid, req.origObj.id);
+            return q(next());
+        }
+        
+        return campaignUtils.deleteCampaigns([req.origObj.adtechId], delay, attempts)
+        .then(function() {
+            next();
+        });
+    };
+    
+    groupModule.setupEndpoints = function(app, svc, sessions, audit) {
         var authGetGroup = authUtils.middlewarify({contentGroups: 'read'});
         app.get('/api/contentGroup/:id', sessions, authGetGroup, audit, function(req, res) {
-            groupModule.getGroup(req).then(function(resp) {
+            svc.getObjs({id: req.params.id}, req, false).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error retrieving contentGroup', detail: error });
@@ -260,7 +198,7 @@
                 query.name = String(req.query.name);
             }
 
-            groupModule.getGroups(query, req).then(function(resp) {
+            svc.getObjs(query, req, true).then(function(resp) {
                 if (resp.pagination) {
                     res.header('content-range', 'items ' + resp.pagination.start + '-' +
                                                 resp.pagination.end + '/' + resp.pagination.total);
@@ -274,7 +212,7 @@
 
         var authPostGroup = authUtils.middlewarify({contentGroups: 'create'});
         app.post('/api/contentGroup', sessions, authPostGroup, audit, function(req, res) {
-            groupModule.createGroup(req, groupCfg).then(function(resp) {
+            svc.createObj(req).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error creating contentGroup', detail: error });
@@ -283,7 +221,7 @@
 
         var authPutGroup = authUtils.middlewarify({contentGroups: 'edit'});
         app.put('/api/contentGroup/:id', sessions, authPutGroup, audit, function(req, res) {
-            groupModule.editGroup(req).then(function(resp) {
+            svc.editObj(req).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error updating contentGroup', detail: error });
@@ -292,13 +230,38 @@
 
         var authDelGroup = authUtils.middlewarify({contentGroups: 'delete'});
         app.delete('/api/contentGroup/:id', sessions, authDelGroup, audit, function(req, res) {
-            groupModule.deleteGroup(req)
-            .then(function(resp) {
+            svc.deleteObj(req).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error deleting contentGroup', detail: error });
             });
         });
+        
+        /*
+        app.post('/api/contentGroup/start/:id', sessions, authPutGroup, audit, function(req, res) {
+            groupModule.startCampaign(req).then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, { error: 'Error starting contentGroup', detail: error });
+            });
+        });
+
+        app.post('/api/contentGroup/hold/:id', sessions, authPutGroup, audit, function(req, res) {
+            groupModule.holdCampaign(req).then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, { error: 'Error holding contentGroup', detail: error });
+            });
+        });
+
+        app.post('/api/contentGroup/stop/:id', sessions, authPutGroup, audit, function(req, res) {
+            groupModule.stopCampaign(req).then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, { error: 'Error stopping contentGroup', detail: error });
+            });
+        });
+        */
     };
     
     module.exports = groupModule;

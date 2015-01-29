@@ -11,51 +11,56 @@
         enums           = require('../lib/enums'),
         Status          = enums.Status,
         
-        campModule = {};
+        campModule = {
+            campConfig: null    // this will get filled in with vals from config in setupSvc
+        };
 
-
-    campModule.setupSvc = function(db) {
-        var campColl = db.collection('campaigns'),
-            campSvc = new CrudSvc(campColl, 'cam', { userProp: false, orgProp: false });
-        campSvc._cardColl = db.collection('cards');
-        campSvc._expColl = db.collection('experiences');
-        campSvc._advertColl = db.collection('advertisers');
-        campSvc._custColl = db.collection('customers');
-        
-        campSvc.createValidator._required.push('advertiserId', 'customerId');
-        campSvc.createValidator._forbidden.push('adtechId');
-        campSvc.editValidator._forbidden.push('advertiserId', 'customerId');
-
-        campSvc.createValidator._formats.cards = ['string'];
-        campSvc.editValidator._formats.cards = ['string'];
-        campSvc.createValidator._formats.miniReels = ['string'];
-        campSvc.editValidator._formats.miniReels = ['string'];
-        campSvc.createValidator._formats.miniReelGroups = ['object'];
-        campSvc.editValidator._formats.miniReelGroups = ['object'];
-        campSvc.createValidator._formats.categories = ['string'];
-        campSvc.editValidator._formats.categories = ['string'];
-
-        campSvc.use('read', campSvc.preventGetAll.bind(campSvc));
-        campSvc.use('create', campModule.getAccountIds.bind(campModule, campSvc));
-        campSvc.use('create', campModule.createSponsoredCamps);
-        campSvc.use('create', campModule.createTargetCamps);
-        campSvc.use('edit', campModule.getAccountIds.bind(campModule, campSvc));
-        campSvc.use('edit', campModule.createSponsoredCamps);
-        campSvc.use('edit', campModule.createTargetCamps);
-        campSvc.use('edit', campModule.editTargetCamps);
-        campSvc.use('delete', campModule.deleteContent.bind(campModule, campSvc));
-        
-        campSvc.formatOutput = campModule.formatOutput.bind(campModule, campSvc);
-        
-        return campSvc;
-    };
+    campModule.setupSvc = function(db, config) {
+        campModule.campsCfg = config.campaigns;
     
-    // TODO: revisit these functions - clean up/modularize, move code to campaignUtils, etc.
+        var campColl = db.collection('campaigns'),
+            svc = new CrudSvc(campColl, 'cam', { userProp: false, orgProp: false });
+        svc._cardColl = db.collection('cards');
+        svc._expColl = db.collection('experiences');
+        svc._advertColl = db.collection('advertisers');
+        svc._custColl = db.collection('customers');
+        
+        svc.createValidator._required.push('advertiserId', 'customerId');
+        svc.createValidator._forbidden.push('adtechId');
+        svc.editValidator._forbidden.push('advertiserId', 'customerId');
+
+        svc.createValidator._formats.cards = ['string'];
+        svc.editValidator._formats.cards = ['string'];
+        svc.createValidator._formats.miniReels = ['string'];
+        svc.editValidator._formats.miniReels = ['string'];
+        svc.createValidator._formats.miniReelGroups = ['object'];
+        svc.editValidator._formats.miniReelGroups = ['object'];
+        svc.createValidator._formats.categories = ['string'];
+        svc.editValidator._formats.categories = ['string'];
+
+        svc.use('read', svc.preventGetAll.bind(svc));
+        svc.use('create', campaignUtils.getAccountIds.bind(campaignUtils, svc._advertColl,
+                                                           svc._custColl));
+        svc.use('create', campModule.createSponsoredCamps);
+        svc.use('create', campModule.createTargetCamps);
+        svc.use('edit', campaignUtils.getAccountIds.bind(campaignUtils, svc._advertColl,
+                                                         svc._custColl));
+        svc.use('edit', campModule.cleanSponsoredCamps);
+        svc.use('edit', campModule.createSponsoredCamps);
+        svc.use('edit', campModule.createTargetCamps);
+        svc.use('edit', campModule.editTargetCamps);
+        // svc.use('delete', campModule.deleteContent.bind(campModule, svc));
+        svc.use('delete', campModule.deleteAdtechCamps);
+        
+        svc.formatOutput = campModule.formatOutput.bind(campModule, svc);
+        
+        return svc;
+    };
     
     // Extends CrudSvc.prototype.formatOutput, processing cards, miniReels, and miniReelGroups
     campModule.formatOutput = function(svc, obj) {
         ['cards', 'miniReels'].forEach(function(key) {
-            obj[key] = (obj[key] || []).map(function(contentObj) { return contentObj.id; });
+            obj[key] = obj[key] && obj[key].map(function(contentObj) { return contentObj.id; });
         });
         
         (obj.miniReelGroups || []).forEach(function(group) {
@@ -67,45 +72,6 @@
         });
         
         return CrudSvc.prototype.formatOutput.call(svc, obj);
-    };
-    
-    // Get adtech ids for advertiser and customer by searching mongo; attaches them to req
-    campModule.getAccountIds = function(svc, req, next, done) {
-        var log = logger.getLog(),
-            doneCalled = false;
-        
-        function lookup(key, coll) {
-            var c6Id = req.body[key] || (req.origObj && req.origObj[key]) || null,
-                objName = key.replace(/Id$/, '');
-            if (!c6Id) {
-                return q();
-            }
-            
-            return q.npost(coll, 'findOne', [{id: String(c6Id)}, {id: 1, adtechId: 1}])
-            .then(function(obj) {
-                if (!obj) {
-                    log.warn('[%1] Could not find %2 %3', req.uuid, objName, c6Id);
-                    if (!doneCalled) {
-                        doneCalled = true;
-                        return done({code: 400, body: objName + ' ' + c6Id + ' does not exist'});
-                    } else {
-                        return q();
-                    }
-                }
-                req['_' + key] = parseInt(obj.adtechId);
-            })
-            .catch(function(error) {
-                log.error('[%1] Error looking up %2 %3: %4', req.uuid, objName, c6Id, error);
-                return q.reject(new Error('Mongo failure'));
-            });
-        }
-        
-        return q.all([lookup('advertiserId', svc._advertColl), lookup('customerId', svc._custColl)])
-        .then(function() {
-            if (!doneCalled) {
-                next();
-            }
-        });
     };
     
 /*
@@ -120,9 +86,9 @@ done - for each exp in `miniReels`, create a campaign, plus a banner in that cam
 done - for each entry in `miniReelGroups`, create campaign, plus banners for id in `miniReels`
 
 edit:
-- clean old unused card campaigns
-- clean old unused sponsored minireel campaigns
-done - create new card campaigns
+done - clean old unused sponsored card campaigns
+done - clean old unused sponsored minireel campaigns
+done - create new sponsored card campaigns
 done - create new sponsored minireel campaigns
 - edit existing card/sponsored minireel campaigns' category list???
 - diff `miniReelGroup` list:
@@ -136,45 +102,49 @@ delete:
 - DELETE ALL THE THINGS (aka every campaign for cards, miniReels, miniReelGroups)
 */
 
-    // Creates multiple sponsored campaigns of a given type
-    /*
-    campModule.makeSponsoredCamps = function(id, objs, type, categories, advertiserId, customerId) {
+    // TODO: this clean/create logic is repeated a lot with slight variations; unify somehow?
+    campModule.cleanSponsoredCamps = function(req, next/*, done*/) {
         var log = logger.getLog(),
-            keys = {};
-            
-        if (!(objs instanceof Array) || objs.length === 0) {
-            log.trace('No %1 campaigns to make', type);
-            return q();
-        }
+            id = req.body.id || (req.origObj && req.origObj.id),
+            delay = campModule.campsCfg.statusDelay,
+            attempts = campModule.campsCfg.statusAttempts,
+            toDelete = [];
         
-        return campaignUtils.makeKeywords(categories || [])
-        .then(function(kwlp3Ids) {
-            keys.level3 = kwlp3Ids;
-            if (type === 'card') {
-                return campaignUtils.makeKeywords([id]);
-            } else {
-                return q();
+        ['miniReels', 'cards'].forEach(function(key) {
+            if (!req.origObj || !req.origObj[key] || !req.body[key]) {
+                return;
             }
-        })
-        .then(function(kwlp1Ids) {
-            keys.level1 = kwlp1Ids;
-            return q.all(objs.map(function(obj) {
-                if (obj.adtechId) {
-                    log.info('Campaign %1 already exists for %2', obj.adtechId, obj.id);
-                    return q();
+            req.body[key] = campaignUtils.objectify(req.body[key]);
+            
+            req.origObj[key].forEach(function(oldObj) {
+                if (req.body[key].some(function(newObj) { return newObj.id === oldObj.id; })) {
+                    log.trace('[%1] Campaign for %2 still exists for %3', req.uuid, oldObj.id, id);
+                    return;
                 }
                 
-                var name = id + '_' + type + '_' + obj.id;
-                return campaignUtils.createCampaign(id, name, true, keys, advertiserId, customerId)
-                .then(function(resp) {
-                    obj.adtechId = parseInt(resp.id);
-                    return campaignUtils.createBanners([obj], null, type, obj.adtechId);
-                });
-            }));
+                log.info('[%1] %2 removed from %3 in %4, deleting its campaign in Adtech',
+                         req.uuid, oldObj.id, key, id);
+                if (!oldObj.adtechId) {
+                    log.warn('[%1] Entry for %2 in %3 has no adtechId, cannot delete it',
+                             req.uuid, oldObj.id, key);
+                    return;
+                }
+                toDelete.push(oldObj.adtechId);
+            });
+        });
+        
+        return campaignUtils.deleteCampaigns(toDelete, delay, attempts)
+        .then(function() {
+            log.trace('[%1] Cleaned sponsored campaigns for %2', req.uuid, req.params.id);
+            next();
+        })
+        .catch(function(error) {
+            log.error('[%1] Error cleaning sponsored campaigns: %2',
+                      req.uuid, error && error.stack || error);
+            return q.reject('Adtech failure');
         });
     };
-    */
-    
+
     // Middleware to create sponsored miniReel and sponsored card campaigns
     campModule.createSponsoredCamps = function(req, next/*, done*/) {
         var log = logger.getLog(),
@@ -185,18 +155,17 @@ delete:
             
         return q.all(['miniReels', 'cards'].map(function(key) {
             var type = key.replace(/s$/, ''),
+                oldList = (req.origObj && req.origObj[key]) || [],
                 keywords = { level1: (type === 'card' ? [id] : undefined), level3: cats };
-
+                
             if (!(req.body[key] instanceof Array) || req.body[key].length === 0) {
                 log.trace('[%1] No %2 to make campaigns for', req.uuid, key);
                 return q();
             }
 
-            req.body[key] = req.body[key].map(function(newId) {
-                var oldList = (req.origObj && req.origObj[key]) || [],
-                    existing = oldList.filter(function(oldObj) { return oldObj.id === newId; })[0];
-                
-                return existing || { id: newId };
+            req.body[key] = campaignUtils.objectify(req.body[key]).map(function(newObj) {
+                var existing = oldList.filter(function(obj) {return obj.id === newObj.id;})[0];
+                return existing || newObj;
             });
             
             return campaignUtils.makeKeywordLevels(keywords)
@@ -222,8 +191,9 @@ delete:
             next();
         })
         .catch(function(error) {
-            log.error('[%1] Error creating sponsored campaigns: %2', req.uuid, error);
-            return q.reject(new Error('Adtech failure'));
+            log.error('[%1] Error creating sponsored campaigns: %2',
+                      req.uuid, error && error.stack || error);
+            return q.reject('Adtech failure');
         });
     };
     
@@ -239,17 +209,17 @@ delete:
             return q(next());
         }
         
-        return q.all(req.body.miniReelGroups.map(function(obj) {
+        return q.all(req.body.miniReelGroups.map(function(obj, idx) {
             if (obj.adtechId) {
                 log.trace('[%1] Group campaign %2 already created', req.uuid, obj.adtechId);
                 return q();
             }
             if (!(obj.cards instanceof Array) || obj.cards.length === 0) {
-                log.trace('[%1] Cards array was empty, skipping this group', req.uuid);
+                log.info('[%1] Cards array was empty, skipping group %2', req.uuid, idx);
                 return q();
             }
             if (!(obj.miniReels instanceof Array) || obj.miniReels.length === 0) {
-                log.trace('[%1] Minireels array was empty, skipping this group', req.uuid);
+                log.info('[%1] Minireels array was empty, skipping group %2', req.uuid, idx);
                 return q();
             }
             
@@ -259,8 +229,8 @@ delete:
             })
             .then(function(resp) {
                 obj.adtechId = parseInt(resp.id);
-                obj.miniReels = obj.miniReels.map(function(mrId) { return {id: mrId}; });
-
+                obj.miniReels = campaignUtils.objectify(obj.miniReels);
+                
                 return campaignUtils.createBanners(obj.miniReels, null,
                                                    'contentMiniReel', obj.adtechId);
             });
@@ -269,9 +239,9 @@ delete:
             log.trace('[%1] All target groups for %2 have been created', req.uuid, id);
             next();
         })
-        .catch(function(error) {
-            log.error('[%1] Error creating target campaigns: %2', req.uuid, error);
-            return q.reject(new Error('Adtech failure'));
+        .catch(function(err) {
+            log.error('[%1] Error creating target campaigns: %2',req.uuid, err && err.stack || err);
+            return q.reject('Adtech failure');
         });
     };
     
@@ -290,7 +260,7 @@ delete:
                 return q();
             }
             
-            group.miniReels = (group.miniReels || []).map(function(mrId) { return { id: mrId }; });
+            group.miniReels = campaignUtils.objectify(group.miniReels);
             
             return campaignUtils.cleanBanners(group.miniReels, existing.miniReels, group.adtechId)
             .then(function() {
@@ -306,12 +276,13 @@ delete:
             log.trace('[%1] All target groups for %2 are up to date', req.uuid, id);
             next();
         })
-        .catch(function(error) {
-            log.error('[%1] Error editing target campaigns: %2', req.uuid, error);
-            return q.reject(new Error('Adtech failure'));
+        .catch(function(err) {
+            log.error('[%1] Error editing target campaigns: %2', req.uuid, err && err.stack || err);
+            return q.reject('Adtech failure');
         });
     };
     
+    //TODO: permissions are tricky for this... do we even want to do this? proxy to content svc?
     // Middleware to delete all sponsored content associated with this to-be-deleted campaign
     campModule.deleteContent = function(svc, req, next/*, done*/) {
         var log = logger.getLog(),
@@ -324,7 +295,8 @@ delete:
             if (cardIds.length) {
                 log.info('[%1] Deleted cards %2', req.uuid, cardIds.join(', '));
             }
-            return q.npost(svc._expColl, 'update', [{id: {$in: expIds}}, updates, {multi: true}]);
+            //return q.npost(svc._expColl, 'update', [{id: {$in: expIds}}, updates, {multi: true}]);
+            return q(); //TODO: need to add entry to status array...
         })
         .then(function() {
             if (expIds.length) {
@@ -338,6 +310,55 @@ delete:
             return q.reject(new Error('Mongo error'));
         });
     };
+    
+    // Middleware to delete all sponsored and target adtech campaigns for this C6 campaign
+    campModule.deleteAdtechCamps = function(req, next/*, done*/) {
+        var log = logger.getLog(),
+            delay = campModule.campsCfg.statusDelay,
+            attempts = campModule.campsCfg.statusAttempts,
+            toDelete = [];
+
+        log.trace('[%1] Deleting all sponsored + target campaigns for %2', req.uuid, req.params.id);
+
+        ['cards', 'miniReels', 'miniReelGroups'].forEach(function(key) {
+            if (!req.origObj[key]) {
+                return;
+            }
+            
+            for (var idx in req.origObj[key]) {
+                if (!req.origObj[key][idx].adtechId) {
+                    log.warn('[%1] Item %2 from %3 array has no adtechId', req.uuid, idx, key);
+                    return q();
+                }
+                toDelete.push(req.origObj[key][idx].adtechId);
+            }
+        });
+        
+        return campaignUtils.deleteCampaigns(toDelete, delay, attempts)
+        .then(function() {
+            log.info('[%1] Deleted all adtech campaigns for %2', req.uuid, req.params.id);
+            next();
+        })
+        .catch(function(error) {
+            log.error('[%1] Error deleting campaigns for %2: %3', req.uuid, req.params.id, error);
+            return q.reject(new Error('Adtech failure'));
+        });
+    };
+    
+    /*
+    campModule.changeCampaignStatus = function(svc, req) {
+        var id = req.params.id,
+            doneCalled = false,
+            deferred = q.defer(),
+            log = logger.getLog();
+            
+        function done(resp) {
+            log.info('[%1] Not modifying campaign\'s status', req.uuid);
+            doneCalled = true;
+            
+        }
+    };
+    */
     
 
     campModule.setupEndpoints = function(app, svc, sessions, audit) {
@@ -388,13 +409,38 @@ delete:
 
         var authDelCamp = authUtils.middlewarify({campaigns: 'delete'});
         app.delete('/api/campaign/:id', sessions, authDelCamp, audit, function(req, res) {
-            svc.deleteObj(req)
-            .then(function(resp) {
+            svc.deleteObj(req).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error deleting campaign', detail: error });
             });
         });
+        
+        /*
+        app.post('/api/campaign/start/:id', sessions, authPutCamp, audit, function(req, res) {
+            campModule.startCampaign(svc, req).then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, { error: 'Error starting campaign', detail: error });
+            });
+        });
+
+        app.post('/api/campaign/hold/:id', sessions, authPutCamp, audit, function(req, res) {
+            campModule.holdCampaign(svc, req).then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, { error: 'Error holding campaign', detail: error });
+            });
+        });
+
+        app.post('/api/campaign/stop/:id', sessions, authPutCamp, audit, function(req, res) {
+            campModule.stopCampaign(svc, req).then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, { error: 'Error stopping campaign', detail: error });
+            });
+        });
+        */
     };
     
     module.exports = campModule;

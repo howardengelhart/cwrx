@@ -20,6 +20,8 @@
         svc.editValidator._formats.containers = ['object'];
         svc.editValidator._condForbidden.org = FieldValidator.orgFunc('sites', 'edit');
         
+        //TODO: names should probs be unique for reporting purposes
+        
         var hostRegex = /^([\w-]+\.)+[\w-]+$/;
         svc.use('read', svc.preventGetAll.bind(svc));
         svc.use('create', svc.validateUniqueProp.bind(svc, 'host', hostRegex));

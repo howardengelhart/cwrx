@@ -2,6 +2,8 @@ var flush = true;
 describe('campaignUtils', function() {
     var q, path, fs, mockLog, logger, adtech, campaignUtils, mockClient;
     
+    //TODO: go through all of these again!
+    
     beforeEach(function() {
         jasmine.Clock.useMock();
 
@@ -263,7 +265,6 @@ describe('campaignUtils', function() {
     });
     
     describe('createCampaign', function() {
-        //TODO
     });
     
     describe('formatBanners', function() {

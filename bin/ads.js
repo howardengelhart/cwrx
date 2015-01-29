@@ -29,9 +29,13 @@
             keyPath: path.join(process.env.HOME, '.ssh/adtech.key'),
             certPath: path.join(process.env.HOME, '.ssh/adtech.crt')
         },
+        campaigns: {
+            statusDelay: 1000,  // How long to delay between polls for campaigns' statuses
+            statusAttempts: 10  // How many times to try polling for campaigns' statuses
+        },
         contentGroups: {
-            advertiserId: null,   // Adtech advertiser id; must be overriden in a config file
-            customerId: null      // Adtech customer id; must be overriden in a config file
+            advertiserId: null, // Adtech advertiser id; must be overriden in a config file
+            customerId: null    // Adtech customer id; must be overriden in a config file
         },
         sessions: {
             key: 'c6Auth',
@@ -72,7 +76,8 @@
             users        = state.dbs.c6Db.collection('users'),
             advertSvc    = advertModule.setupSvc(state.dbs.c6Db.collection('advertisers')),
             custSvc      = custModule.setupSvc(state.dbs.c6Db),
-            campSvc      = campModule.setupSvc(state.dbs.c6Db),
+            campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config),
+            groupSvc     = groupModule.setupSvc(state.dbs.c6Db, state.config),
             siteSvc      = siteModule.setupSvc(state.dbs.c6Db.collection('sites')),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
@@ -150,7 +155,7 @@
         custModule.setupEndpoints(app, custSvc, sessWrap, audit);
         campModule.setupEndpoints(app, campSvc, sessWrap, audit);
         siteModule.setupEndpoints(app, siteSvc, sessWrap, audit);
-        groupModule.setupEndpoints(app, sessWrap, audit, state.config.contentGroups);
+        groupModule.setupEndpoints(app, groupSvc, sessWrap, audit);
 
         
         app.get('/api/ads/meta', function(req, res){

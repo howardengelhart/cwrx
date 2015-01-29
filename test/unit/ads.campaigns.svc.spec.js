@@ -3,6 +3,8 @@ describe('ads-campaigns (UT)', function() {
     var mockLog, CrudSvc, logger, q, adtech, campModule, campaignUtils, mockClient,
         nextSpy, doneSpy, errorSpy, req;
 
+    //TODO: oh man these are all just pretty much fucked probably
+
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q               = require('q');
@@ -26,7 +28,6 @@ describe('ads-campaigns (UT)', function() {
         spyOn(campaignUtils, 'makeKeywords').andCallFake(function(keywords) {
             return q(keywords.map(function(key) { return ++keywordCount*100; }));
         });
-        // spyOn(campaignUtils, 'formatCampaign').andReturn({formatted: true}); //TODO
         spyOn(campaignUtils, 'createBanners').andReturn(q());
 
         req = { uuid: '1234' };
@@ -426,7 +427,6 @@ describe('ads-campaigns (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                //TODO
                 expect(campaignUtils.makeKeywords.calls.length).toBe(2);
                 expect(campaignUtils.makeKeywords.calls[0].args).toEqual([['rc-1', 'rc-2']]);
                 expect(campaignUtils.makeKeywords.calls[1].args).toEqual([['rc-3']]);
@@ -437,7 +437,6 @@ describe('ads-campaigns (UT)', function() {
     });
     
     describe('editTargetCamps', function() {
-        //TODO
     });
     
     describe('deleteContent', function() {
