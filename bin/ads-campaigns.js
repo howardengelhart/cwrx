@@ -2,10 +2,11 @@
     'use strict';
 
     var q               = require('q'),
-        // adtech          = require('adtech'),
         uuid            = require('../lib/uuid'),
         campaignUtils   = require('../lib/campaignUtils'),
+        bannerUtils     = require('../lib/bannerUtils'),
         authUtils       = require('../lib/authUtils'),
+        objUtils        = require('../lib/objUtils'),
         CrudSvc         = require('../lib/crudSvc'),
         logger          = require('../lib/logger'),
         enums           = require('../lib/enums'),
@@ -14,7 +15,7 @@
         campModule = {
             campConfig: null    // this will get filled in with vals from config in setupSvc
         };
-
+        
     campModule.setupSvc = function(db, config) {
         campModule.campsCfg = config.campaigns;
     
@@ -46,7 +47,9 @@
         svc.use('edit', campaignUtils.getAccountIds.bind(campaignUtils, svc._advertColl,
                                                          svc._custColl));
         svc.use('edit', campModule.cleanSponsoredCamps);
+        svc.use('edit', campModule.editSponsoredCamps);
         svc.use('edit', campModule.createSponsoredCamps);
+        svc.use('edit', campModule.cleanTargetCamps);
         svc.use('edit', campModule.createTargetCamps);
         svc.use('edit', campModule.editTargetCamps);
         // svc.use('delete', campModule.deleteContent.bind(campModule, svc));
@@ -90,19 +93,21 @@ done - clean old unused sponsored card campaigns
 done - clean old unused sponsored minireel campaigns
 done - create new sponsored card campaigns
 done - create new sponsored minireel campaigns
-- edit existing card/sponsored minireel campaigns' category list???
+done - edit existing card/sponsored minireel campaigns' category list
 - diff `miniReelGroup` list:
 done- new objects (those without `adtechId`) in the list get new campaign plus banners
-    - unused campaigns (those in origObj w/ `adtechId` no longer present in new) should get deleted
+done- unused campaigns (those in origObj w/ `adtechId` no longer present in new) should get deleted
     - existing objects (those in origObj w/ `adtechId` still present in new) with different cards
       should have their kwlp1 list updated
 done- existing objects with different miniReels should have their banners updated
 
 delete:
-- DELETE ALL THE THINGS (aka every campaign for cards, miniReels, miniReelGroups)
+done - DELETE ALL THE THINGS (aka every campaign for cards, miniReels, miniReelGroups)
+- set sponsored cards/minireels statuses to deleted: need to redo/rethink
 */
 
-    // TODO: this clean/create logic is repeated a lot with slight variations; unify somehow?
+    /* TODO: this clean/create logic is repeated a lot with slight variations; unify somehow?
+     * at the very least we can probably modularize out some of the old/new list comparisons */
     campModule.cleanSponsoredCamps = function(req, next/*, done*/) {
         var log = logger.getLog(),
             id = req.body.id || (req.origObj && req.origObj.id),
@@ -181,7 +186,7 @@ delete:
                     return campaignUtils.createCampaign(id, name, true, keys, advert, cust)
                     .then(function(resp) {
                         obj.adtechId = parseInt(resp.id);
-                        return campaignUtils.createBanners([obj], null, type, obj.adtechId);
+                        return bannerUtils.createBanners([obj], null, type, obj.adtechId);
                     });
                 }));
             });
@@ -192,6 +197,45 @@ delete:
         })
         .catch(function(error) {
             log.error('[%1] Error creating sponsored campaigns: %2',
+                      req.uuid, error && error.stack || error);
+            return q.reject('Adtech failure');
+        });
+    };
+        
+    // Middleware to edit sponsored campaigns
+    campModule.editSponsoredCamps = function(req, next/*, done*/) {
+        var log = logger.getLog(),
+            cats = req.body.categories,
+            id = req.origObj.id;
+        
+        if (!cats || objUtils.compareObjects(cats.sort(), req.origObj.categories.sort())) {
+            log.trace('[%1] Categories unchanged, not editing sponsored campaigns', req.uuid);
+            return q(next());
+        }
+        
+        return q.all(['miniReels', 'cards'].map(function(key) {
+            if (!req.origObj[key]) {
+                return q();
+            }
+            
+            var keywords = { level1: (key === 'cards' ? [id] : undefined), level3: cats };
+            return campaignUtils.makeKeywordLevels(keywords)
+            .then(function(keys) {
+                return q.all(req.origObj[key].filter(function(oldCamp) {
+                    return !req.body[key] || req.body[key].some(function(newCamp) {
+                        return newCamp.id === oldCamp.id;
+                    });
+                }).map(function(camp) {
+                    return campaignUtils.editCampaign(camp.adtechId, null, keys);
+                }));
+            });
+        }))
+        .then(function() {
+            log.trace('[%1] All sponsored campaigns for %2 have been edited', req.uuid, id);
+            next();
+        })
+        .catch(function(error) {
+            log.error('[%1] Error editing sponsored campaigns: %2',
                       req.uuid, error && error.stack || error);
             return q.reject('Adtech failure');
         });
@@ -231,7 +275,7 @@ delete:
                 obj.adtechId = parseInt(resp.id);
                 obj.miniReels = campaignUtils.objectify(obj.miniReels);
                 
-                return campaignUtils.createBanners(obj.miniReels, null,
+                return bannerUtils.createBanners(obj.miniReels, null,
                                                    'contentMiniReel', obj.adtechId);
             });
         }))
@@ -245,11 +289,57 @@ delete:
         });
     };
     
+    // Middleware to delete unused target minireel group campaigns on an edit
+    campModule.cleanTargetCamps = function(req, next/*, done*/) {
+        var log = logger.getLog(),
+            id = req.params.id,
+            delay = campModule.campsCfg.statusDelay,
+            attempts = campModule.campsCfg.statusAttempts,
+            toDelete = [];
+        
+        if (!req.origObj.miniReelGroups || !req.body.miniReelGroups) {
+            return q(next());
+        }
+        
+        req.origObj.miniReelGroups.forEach(function(oldObj, idx) {
+            if (!oldObj.adtechId) {
+                log.warn('[%1] Entry %2 in miniReelGroups array for %3 has no adtechId',
+                         req.uuid, idx, id);
+                return;
+            }
+            if (req.body.miniReelGroups.some(function(newObj) {
+                return newObj.adtechId === oldObj.adtechId;
+            })) {
+                log.trace('[%1] Campaign for %2 still exists for %3',req.uuid, oldObj.adtechId, id);
+                return;
+            }
+            
+            log.info('[%1] %2 removed from miniReelGroups in %3, deleting its campaign in Adtech',
+                     req.uuid, oldObj.adtechId, id);
+            toDelete.push(oldObj.adtechId);
+        });
+        
+        return campaignUtils.deleteCampaigns(toDelete, delay, attempts)
+        .then(function() {
+            log.trace('[%1] Cleaned target campaigns for %2', req.uuid, id);
+            next();
+        })
+        .catch(function(error) {
+            log.error('[%1] Error cleaning target campaigns: %2',
+                      req.uuid, error && error.stack || error);
+            return q.reject('Adtech failure');
+        });
+    };
+    
     // Middleware to edit target group campaigns, updating banner list
     campModule.editTargetCamps = function(req, next/*, done*/) {
         //TODO: also edit kwlp1 keys if different cards...
         var log = logger.getLog(),
             id = req.body.id || (req.origObj && req.origObj.id);
+            
+        if (!req.body.miniReelGroups || !req.origObj.miniReelGroups) {
+            return q(next());
+        }
         
         return q.all((req.body.miniReelGroups || []).map(function(group) {
             var existing = req.origObj.miniReelGroups.filter(function(oldGroup) {
@@ -262,9 +352,9 @@ delete:
             
             group.miniReels = campaignUtils.objectify(group.miniReels);
             
-            return campaignUtils.cleanBanners(group.miniReels, existing.miniReels, group.adtechId)
+            return bannerUtils.cleanBanners(group.miniReels, existing.miniReels, group.adtechId)
             .then(function() {
-                return campaignUtils.createBanners(
+                return bannerUtils.createBanners(
                     group.miniReels,
                     existing.miniReels,
                     'contentMiniReel',

@@ -222,7 +222,7 @@
         
         if ((!req.body.name || req.body.name === req.origObj.name) &&
             (!req.body.host || req.body.host === req.origObj.host)) {
-            log.info('[%1] Site props unchanged; not updating adtech site', req.uuid);
+            log.info('[%1] Adtech props unchanged; not updating adtech site', req.uuid);
             return q(next());
         }
         

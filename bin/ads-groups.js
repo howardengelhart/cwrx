@@ -4,7 +4,9 @@
     var q               = require('q'),
         CrudSvc         = require('../lib/crudSvc'),
         authUtils       = require('../lib/authUtils'),
+        objUtils        = require('../lib/objUtils'),
         campaignUtils   = require('../lib/campaignUtils'),
+        bannerUtils     = require('../lib/bannerUtils'),
         logger          = require('../lib/logger'),
 
         groupModule = {
@@ -125,7 +127,7 @@
 
     groupModule.createBanners = function(req, next/*, done*/) {
         req.body.miniReels = campaignUtils.objectify(req.body.miniReels);
-        return campaignUtils.createBanners(
+        return bannerUtils.createBanners(
             req.body.miniReels,
             req.origObj && req.origObj.miniReels || [],
             'contentMiniReel',
@@ -138,7 +140,7 @@
 
     groupModule.cleanBanners = function(req, next/*, done*/) {
         req.body.miniReels = campaignUtils.objectify(req.body.miniReels);
-        return campaignUtils.cleanBanners(
+        return bannerUtils.cleanBanners(
             req.body.miniReels,
             req.origObj.miniReels,
             req.origObj.adtechId
@@ -161,9 +163,22 @@
     };
     
     groupModule.editAdtechGroup = function(req, next/*, done*/) {
-        //TODO: edit dat campaign
-        req.foo = 'bar';
-        next();
+        var log = logger.getLog(),
+            cats = req.body.categories;
+        
+        if ((!req.body.name || req.body.name === req.origObj.name) &&
+            (!cats || objUtils.compareObjects(cats.sort(), req.origObj.categories.sort()))) {
+            log.info('[%1] Adtech props unchanged, not updating adtech group campaign', req.uuid);
+            return q(next());
+        }
+        
+        return (cats ? campaignUtils.makeKeywordLevels({ level3: cats }) : q())
+        .then(function(keys) {
+            return campaignUtils.editCampaign(req.origObj.adtechId, req.body.name, keys);
+        })
+        .then(function() {
+            next();
+        });
     };
 
     groupModule.deleteAdtechGroup = function(req, next/*, done*/) {
