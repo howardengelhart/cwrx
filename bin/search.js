@@ -75,9 +75,11 @@
 
         dur = dur.trim();
 
-        // some vimeo vids have durs like '90 mins'
-        if (dur.match(/^\d+ mins/) || dur.match(/^\d+ minutes/)) {
-            return Number(dur.match(/^\d+/)[0])*60;
+        // some vimeo vids have durs like '90 mins' or '1 hour 20 minutes'
+        if (dur.match(/^(\d+ (hours?|minutes?|mins?|seconds?)\s?)+$/)) {
+            return Number( ( dur.match(/(\d+) hours?/) || [0, 0] )[1] )*60*60 +
+                   Number( ( dur.match(/(\d+) (mins|minutes)/) || [0, 0] )[1] )*60 +
+                   Number( ( dur.match(/(\d+) seconds?/) || [0, 0] )[1] );
         }
 
         // Yahoo incorrectly implements ISO 8601 duration format, so need different regexes
