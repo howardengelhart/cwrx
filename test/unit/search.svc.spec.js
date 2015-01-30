@@ -53,19 +53,22 @@ describe('search (UT)', function() {
         });
 
         it('should properly parse rumble\'s strings of the format "#Y#M#DT#H#M#S"', function() {
-          var durs = [ {str: 'T1H1M11.23S', val: 3671.23}, {str: 'T13H34M23S', val: 48863},
-          {str: '1Y12M2DT1H23M02S', val: 62817782}, {str: '3M', val: 7776000},
-          {str: 'T3M', val: 180}, {str: 'PT2.45H', val: 8820} ];
-          durs.forEach(function(durObj) {
-            expect(search.parseDuration(durObj.str)).toBe(durObj.val);
-          });
-          expect(mockLog.warn).not.toHaveBeenCalled();
+            var durs = [ {str: 'T1H1M11.23S', val: 3671.23}, {str: 'T13H34M23S', val: 48863},
+                         {str: '1Y12M2DT1H23M02S', val: 62817782}, {str: '3M', val: 7776000},
+                         {str: 'T3M', val: 180}, {str: 'PT2.45H', val: 8820} ];
+            durs.forEach(function(durObj) {
+                expect(search.parseDuration(durObj.str)).toBe(durObj.val);
+            });
+            expect(mockLog.warn).not.toHaveBeenCalled();
         });
 
-        it('should properly parse strings of the format "# mins" or "# minutes"', function() {
-            expect(search.parseDuration('12 mins')).toBe(720);
-            expect(search.parseDuration('02 mins')).toBe(120);
-            expect(search.parseDuration('12 minutes')).toBe(720);
+        it('should properly parse vimeo\'s strings of the format "# (hours|minutes|seconds)"', function() {
+            var durs = [{str: '12 mins', val: 720}, {str: '02 mins', val: 120}, {str: '12 minutes', val: 720},
+                        {str: '1 hour 2 minutes', val: 3720}, {str: '5 hours 21 mins', val: 19260},
+                        {str: '23 seconds', val: 23}, {str: '2 hours 1 second', val: 7201}];
+            durs.forEach(function(durObj) {
+                expect(search.parseDuration(durObj.str)).toBe(durObj.val);
+            });
             expect(mockLog.warn).not.toHaveBeenCalled();
         });
 

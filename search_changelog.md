@@ -1,5 +1,9 @@
 # Search Service Changelog
 
+### 1.3.2: Fri Jan 30 11:41:29 EST 2015
+* [FIX]: : [#3](https://github.com/cinema6/cwrx/pull/3)
+* Extra deployment steps: None
+
 ### 1.3.1: Wed Jan 21 11:54:53 EST 2015
 * [FIX]: Support "# minutes" duration formats: [#357](https://github.com/cinema6/cwrx/pull/357)
 * Extra deployment steps: None
