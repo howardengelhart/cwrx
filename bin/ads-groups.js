@@ -15,10 +15,10 @@
         };
 
     groupModule.setupSvc = function(db, config) {
-        groupModule.groupsCfg = config.contentGroups;
+        groupModule.groupsCfg = config.minireelGroups;
         groupModule.campsCfg = config.campaigns;
     
-        var groupColl = db.collection('contentGroups'), //TODO: or just 'groups'?
+        var groupColl = db.collection('minireelGroups'), //TODO: or just 'groups'?
             svc = new CrudSvc(groupColl, 'g', { userProp: false, orgProp: false });
         svc._advertColl = db.collection('advertisers');
         svc._custColl = db.collection('customers');
@@ -66,65 +66,6 @@
         return campaignUtils.getAccountIds(svc._advertColl, svc._custColl, req, next, done);
     };
 
-/*    
-    groupModule.startCampaign = function(req) {
-        var id = req.params.id,
-            log = logger.getLog();
-        
-        log.info('[%1] Starting group campaign %2', req.uuid, id);
-        return adtech.pushAdmin.startCampaignById(id)
-        .then(function() {
-            log.info('[%1] Succesfully started group campaign %2', req.uuid, id);
-            return q({code: 204});
-        })
-        .catch(function(error) {
-            try {
-                var errRgx = /No active placement found for campaign /;
-                if (!!error.root.Envelope.Body.Fault.faultstring.match(errRgx)) {
-                    log.info('[%1] Need to assign campaign %2 to a placement before starting',
-                             req.uuid, id);
-                    return q({code: 400, body: 'Need to assign to a placement first'});
-                }
-            } catch(e) {}
-            
-            log.error('[%1] Error starting group campaign %2: %3', req.uuid, id, error);
-            return q.reject('Adtech failure');
-        });
-    };
-
-    groupModule.stopCampaign = function(req) {
-        var id = req.params.id,
-            log = logger.getLog();
-        
-        log.info('[%1] Stopping group campaign %2', req.uuid, id);
-        return adtech.pushAdmin.stopCampaignById(id)
-        .then(function() {
-            log.info('[%1] Succesfully stopped group campaign %2', req.uuid, id);
-            return q({code: 204});
-        })
-        .catch(function(error) {
-            log.error('[%1] Error stopping group campaign %2: %3', req.uuid, id, error);
-            return q.reject('Adtech failure');
-        });
-    };
-
-    groupModule.holdCampaign = function(req) {
-        var id = req.params.id,
-            log = logger.getLog();
-        
-        log.info('[%1] Holding group campaign %2', req.uuid, id);
-        return adtech.pushAdmin.holdCampaignById(id)
-        .then(function() {
-            log.info('[%1] Succesfully paused group campaign %2', req.uuid, id);
-            return q({code: 204});
-        })
-        .catch(function(error) {
-            log.error('[%1] Error holding group campaign %2: %3', req.uuid, id, error);
-            return q.reject('Adtech failure');
-        });
-    };
-*/
-
     groupModule.createBanners = function(req, next/*, done*/) {
         req.body.miniReels = campaignUtils.objectify(req.body.miniReels);
         return bannerUtils.createBanners(
@@ -164,10 +105,11 @@
     
     groupModule.editAdtechGroup = function(req, next/*, done*/) {
         var log = logger.getLog(),
-            cats = req.body.categories;
+            cats = req.body.categories,
+            origCats = req.origObj.categories || [];
         
         if ((!req.body.name || req.body.name === req.origObj.name) &&
-            (!cats || objUtils.compareObjects(cats.sort(), req.origObj.categories.sort()))) {
+            (!cats || objUtils.compareObjects(cats.sort(), origCats.sort()))) {
             log.info('[%1] Adtech props unchanged, not updating adtech group campaign', req.uuid);
             return q(next());
         }
@@ -198,18 +140,18 @@
     };
     
     groupModule.setupEndpoints = function(app, svc, sessions, audit) {
-        var authGetGroup = authUtils.middlewarify({contentGroups: 'read'});
-        app.get('/api/contentGroup/:id', sessions, authGetGroup, audit, function(req, res) {
+        var authGetGroup = authUtils.middlewarify({minireelGroups: 'read'});
+        app.get('/api/minireelGroup/:id', sessions, authGetGroup, audit, function(req, res) {
             svc.getObjs({id: req.params.id}, req, false).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
-                res.send(500, { error: 'Error retrieving contentGroup', detail: error });
+                res.send(500, { error: 'Error retrieving minireelGroup', detail: error });
             });
         });
 
-        app.get('/api/contentGroups', sessions, authGetGroup, audit, function(req, res) {
+        app.get('/api/minireelGroups', sessions, authGetGroup, audit, function(req, res) {
             var query = {};
-            if (req.query.name) { //TODO: supported query params are?
+            if (req.query.name) {
                 query.name = String(req.query.name);
             }
 
@@ -221,62 +163,36 @@
                 }
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
-                res.send(500, { error: 'Error retrieving contentGroups', detail: error });
+                res.send(500, { error: 'Error retrieving minireelGroups', detail: error });
             });
         });
 
-        var authPostGroup = authUtils.middlewarify({contentGroups: 'create'});
-        app.post('/api/contentGroup', sessions, authPostGroup, audit, function(req, res) {
+        var authPostGroup = authUtils.middlewarify({minireelGroups: 'create'});
+        app.post('/api/minireelGroup', sessions, authPostGroup, audit, function(req, res) {
             svc.createObj(req).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
-                res.send(500, { error: 'Error creating contentGroup', detail: error });
+                res.send(500, { error: 'Error creating minireelGroup', detail: error });
             });
         });
 
-        var authPutGroup = authUtils.middlewarify({contentGroups: 'edit'});
-        app.put('/api/contentGroup/:id', sessions, authPutGroup, audit, function(req, res) {
+        var authPutGroup = authUtils.middlewarify({minireelGroups: 'edit'});
+        app.put('/api/minireelGroup/:id', sessions, authPutGroup, audit, function(req, res) {
             svc.editObj(req).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
-                res.send(500, { error: 'Error updating contentGroup', detail: error });
+                res.send(500, { error: 'Error updating minireelGroup', detail: error });
             });
         });
 
-        var authDelGroup = authUtils.middlewarify({contentGroups: 'delete'});
-        app.delete('/api/contentGroup/:id', sessions, authDelGroup, audit, function(req, res) {
+        var authDelGroup = authUtils.middlewarify({minireelGroups: 'delete'});
+        app.delete('/api/minireelGroup/:id', sessions, authDelGroup, audit, function(req, res) {
             svc.deleteObj(req).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
-                res.send(500, { error: 'Error deleting contentGroup', detail: error });
+                res.send(500, { error: 'Error deleting minireelGroup', detail: error });
             });
         });
-        
-        /*
-        app.post('/api/contentGroup/start/:id', sessions, authPutGroup, audit, function(req, res) {
-            groupModule.startCampaign(req).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error starting contentGroup', detail: error });
-            });
-        });
-
-        app.post('/api/contentGroup/hold/:id', sessions, authPutGroup, audit, function(req, res) {
-            groupModule.holdCampaign(req).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error holding contentGroup', detail: error });
-            });
-        });
-
-        app.post('/api/contentGroup/stop/:id', sessions, authPutGroup, audit, function(req, res) {
-            groupModule.stopCampaign(req).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error stopping contentGroup', detail: error });
-            });
-        });
-        */
     };
     
     module.exports = groupModule;

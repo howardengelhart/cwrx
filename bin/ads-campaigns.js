@@ -94,10 +94,10 @@ done - clean old unused sponsored minireel campaigns
 done - create new sponsored card campaigns
 done - create new sponsored minireel campaigns
 done - edit existing card/sponsored minireel campaigns' category list
-- diff `miniReelGroup` list:
+done - diff `miniReelGroup` list:
 done- new objects (those without `adtechId`) in the list get new campaign plus banners
 done- unused campaigns (those in origObj w/ `adtechId` no longer present in new) should get deleted
-    - existing objects (those in origObj w/ `adtechId` still present in new) with different cards
+done- existing objects (those in origObj w/ `adtechId` still present in new) with different cards
       should have their kwlp1 list updated
 done- existing objects with different miniReels should have their banners updated
 
@@ -206,9 +206,10 @@ done - DELETE ALL THE THINGS (aka every campaign for cards, miniReels, miniReelG
     campModule.editSponsoredCamps = function(req, next/*, done*/) {
         var log = logger.getLog(),
             cats = req.body.categories,
+            origCats = req.origObj.categories || [],
             id = req.origObj.id;
         
-        if (!cats || objUtils.compareObjects(cats.sort(), req.origObj.categories.sort())) {
+        if (!cats || objUtils.compareObjects(cats.sort(), origCats.sort())) {
             log.trace('[%1] Categories unchanged, not editing sponsored campaigns', req.uuid);
             return q(next());
         }
@@ -331,9 +332,8 @@ done - DELETE ALL THE THINGS (aka every campaign for cards, miniReels, miniReelG
         });
     };
     
-    // Middleware to edit target group campaigns, updating banner list
+    // Middleware to edit target group campaigns, updating banner list + keywords
     campModule.editTargetCamps = function(req, next/*, done*/) {
-        //TODO: also edit kwlp1 keys if different cards...
         var log = logger.getLog(),
             id = req.body.id || (req.origObj && req.origObj.id);
             
@@ -343,8 +343,8 @@ done - DELETE ALL THE THINGS (aka every campaign for cards, miniReels, miniReelG
         
         return q.all((req.body.miniReelGroups || []).map(function(group) {
             var existing = req.origObj.miniReelGroups.filter(function(oldGroup) {
-                return oldGroup.adtechId === group.adtechId;
-            })[0];
+                    return oldGroup.adtechId === group.adtechId;
+                })[0];
             
             if (!existing) {
                 return q();
@@ -352,7 +352,14 @@ done - DELETE ALL THE THINGS (aka every campaign for cards, miniReels, miniReelG
             
             group.miniReels = campaignUtils.objectify(group.miniReels);
             
-            return bannerUtils.cleanBanners(group.miniReels, existing.miniReels, group.adtechId)
+            return ( (objUtils.compareObjects(group.cards, existing.cards)) ? q() :
+                campaignUtils.makeKeywordLevels({level1: group.cards}).then(function(keys) {
+                    return campaignUtils.editCampaign(group.adtechId, null, keys);
+                })
+            )
+            .then(function() {
+                return bannerUtils.cleanBanners(group.miniReels,existing.miniReels,group.adtechId);
+            })
             .then(function() {
                 return bannerUtils.createBanners(
                     group.miniReels,
@@ -435,22 +442,6 @@ done - DELETE ALL THE THINGS (aka every campaign for cards, miniReels, miniReelG
         });
     };
     
-    /*
-    campModule.changeCampaignStatus = function(svc, req) {
-        var id = req.params.id,
-            doneCalled = false,
-            deferred = q.defer(),
-            log = logger.getLog();
-            
-        function done(resp) {
-            log.info('[%1] Not modifying campaign\'s status', req.uuid);
-            doneCalled = true;
-            
-        }
-    };
-    */
-    
-
     campModule.setupEndpoints = function(app, svc, sessions, audit) {
         var authGetCamp = authUtils.middlewarify({campaigns: 'read'});
         app.get('/api/campaign/:id', sessions, authGetCamp, audit, function(req, res) {
@@ -505,32 +496,6 @@ done - DELETE ALL THE THINGS (aka every campaign for cards, miniReels, miniReelG
                 res.send(500, { error: 'Error deleting campaign', detail: error });
             });
         });
-        
-        /*
-        app.post('/api/campaign/start/:id', sessions, authPutCamp, audit, function(req, res) {
-            campModule.startCampaign(svc, req).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error starting campaign', detail: error });
-            });
-        });
-
-        app.post('/api/campaign/hold/:id', sessions, authPutCamp, audit, function(req, res) {
-            campModule.holdCampaign(svc, req).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error holding campaign', detail: error });
-            });
-        });
-
-        app.post('/api/campaign/stop/:id', sessions, authPutCamp, audit, function(req, res) {
-            campModule.stopCampaign(svc, req).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error stopping campaign', detail: error });
-            });
-        });
-        */
     };
     
     module.exports = campModule;

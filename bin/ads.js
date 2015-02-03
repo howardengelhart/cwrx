@@ -33,7 +33,7 @@
             statusDelay: 1000,  // How long to delay between polls for campaigns' statuses
             statusAttempts: 10  // How many times to try polling for campaigns' statuses
         },
-        contentGroups: {
+        minireelGroups: {
             advertiserId: null, // Adtech advertiser id; must be overriden in a config file
             customerId: null    // Adtech customer id; must be overriden in a config file
         },
