@@ -56,9 +56,29 @@
     orgSvc.checkScope = function(requester, org, verb) {
         return !!(requester && requester.permissions && requester.permissions.orgs &&
                   requester.permissions.orgs[verb] &&
-             (requester.permissions.orgs[verb] === Scope.All ||
-             (requester.permissions.orgs[verb] === Scope.Org && requester.org === org.id)||
-             (requester.permissions.orgs[verb] === Scope.Own && requester.org === org.id) ));
+             ( (requester.permissions.orgs[verb] === Scope.All) ||
+               (requester.permissions.orgs[verb] === Scope.Org && requester.org === org.id) ||
+               (requester.permissions.orgs[verb] === Scope.Own && requester.org === org.id) ) );
+    };
+
+    // Adds fields to a find query to filter out orgs the requester can't see
+    orgSvc.userPermQuery = function(query, requester) {
+        var newQuery = JSON.parse(JSON.stringify(query)),
+            readScope = requester.permissions.orgs.read,
+            log = logger.getLog();
+        
+        newQuery.status = {$ne: Status.Deleted}; // never show deleted users
+        
+        if (!Scope.isScope(readScope)) {
+            log.warn('User has invalid scope ' + readScope);
+            readScope = Scope.Own;
+        }
+        
+        if (readScope === Scope.Own || readScope === Scope.Org) {
+            newQuery.id = requester.org;
+        }
+        
+        return newQuery;
     };
 
     // Validate fields when creating an org
@@ -125,21 +145,23 @@
             }
         }
 
-        if (!(req.user.permissions &&
-              req.user.permissions.orgs &&
-              req.user.permissions.orgs.read &&
-              req.user.permissions.orgs.read === Scope.All)) {
+        if (!Object.keys(query).length && !(req.user.permissions &&
+                                            req.user.permissions.orgs &&
+                                            req.user.permissions.orgs.read &&
+                                            req.user.permissions.orgs.read === Scope.All)) {
             log.info('[%1] User %2 is not authorized to read all orgs', req.uuid, req.user.id);
             return q({code: 403, body: 'Not authorized to read all orgs'});
         }
         
-        query = query || {};
-        query.status = {$ne: Status.Deleted};
+        if (query.id instanceof Array) {
+            query.id = {$in: query.id};
+        }
 
         log.info('[%1] User %2 getting orgs with query %3, sort %4, limit %5, skip %6', req.uuid,
                  req.user.id, JSON.stringify(query), JSON.stringify(sortObj), limit, skip);
 
-        var cursor = orgs.find(query, {sort: sortObj, limit: limit, skip: skip});
+        var permQuery = orgSvc.userPermQuery(query, req.user),
+            cursor = orgs.find(permQuery, {sort: sortObj, limit: limit, skip: skip});
         
         return q.npost(cursor, 'count')
         .then(function(count) {
@@ -474,7 +496,12 @@
         });
 
         app.get('/api/account/orgs', sessWrap, authGetUser, audit, function(req, res) {
-            orgSvc.getOrgs(null, req, orgs)
+            var query = {};
+            if (req.query.ids) {
+                query.id = req.query.ids.split(',');
+            }
+
+            orgSvc.getOrgs(query, req, orgs)
             .then(function(resp) {
                 if (resp.pagination) {
                     res.header('content-range', 'items ' + resp.pagination.start + '-' +

@@ -1,5 +1,9 @@
 # User Service Changelog
 
+### 1.8.0: Wed Feb  4 17:16:46 EST 2015
+* [FEATURE]: Add ability to query by list of ids: [#365](https://github.com/cinema6/cwrx/pull/365)
+* Extra deployment steps: None
+
 ### 1.7.0: Fri Oct 17 14:28:44 EDT 2014
 * [FEATURE]: Add journaling: [#309](https://github.com/cinema6/cwrx/pull/309)
 * Extra deployment steps:

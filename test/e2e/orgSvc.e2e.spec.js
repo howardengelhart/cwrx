@@ -9,10 +9,15 @@ var q               = require('q'),
     };
 
 describe('org (E2E):', function() {
-    var cookieJar, mockRequester, noPermsUser;
+    var cookieJar, noPermsJar, mockRequester, noPermsUser;
         
     beforeEach(function(done) {
+        if (cookieJar && cookieJar.cookies && noPermsJar && noPermsJar.cookies) {
+            return done();
+        }
+
         cookieJar = request.jar();
+        noPermsJar = request.jar();
         mockRequester = {
             id: 'e2e-user',
             status: 'active',
@@ -33,28 +38,14 @@ describe('org (E2E):', function() {
                 orgs: { read: 'own', create: 'own', edit: 'own', delete: 'own' }
             }
         };
-        var loginOpts = {
-            url: config.authUrl + '/login',
-            jar: cookieJar,
-            json: {
-                email: 'orgsvce2euser',
-                password: 'password'
-            }
-        };
+        var logins = [
+            {url: config.authUrl + '/login', json: {email: 'orgsvce2euser', password: 'password'}, jar: cookieJar},
+            {url: config.authUrl + '/login', json: {email: 'orgsvce2enopermsuser', password: 'password'}, jar: noPermsJar},
+        ];
+        
         testUtils.resetCollection('users', [mockRequester, noPermsUser]).then(function(resp) {
-            return requestUtils.qRequest('post', loginOpts);
-        }).done(function(resp) {
-            done();
-        });
-    });
- 
-    afterEach(function(done) {
-        var logoutOpts = {
-            url: config.authUrl + '/logout',
-            jar: cookieJar
-        };
-       requestUtils.qRequest('post',logoutOpts)
-        .done(function(){
+            return q.all(logins.map(function(opts) { return requestUtils.qRequest('post', opts); }));
+        }).done(function(results) {
             done();
         });
     });
@@ -71,13 +62,7 @@ describe('org (E2E):', function() {
             mockOrg2 = {
                 id: 'o-1234'
             }
-            testUtils.resetCollection('users', [mockRequester, noPermsUser])
-            .then(function(){
-                return testUtils.resetCollection('orgs', mockOrg);
-            })
-            .done(function(){
-                done()
-            });
+            testUtils.resetCollection('orgs', mockOrg).done(done);
         });
         
         it('should get an org by id', function(done) {
@@ -197,11 +182,7 @@ describe('org (E2E):', function() {
                 { id: 'o-4567', name: 'e2e-getOrg2' },
                 { id: 'o-7890', name: 'e2e-getOrg1' }
             ];
-            testUtils.resetCollection('users', [mockRequester, noPermsUser])
-            .then(function(){
-            return testUtils.resetCollection('orgs', mockOrgs);
-            })
-            .done(done);
+            testUtils.resetCollection('orgs', mockOrgs).done(done);
         });
         
         it('should get orgs', function(done) {
@@ -247,6 +228,24 @@ describe('org (E2E):', function() {
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
+        });
+
+        it('should get orgs by list of ids', function(done) {
+            var options = { url: config.orgSvcUrl + '/orgs?ids=o-1234,o-4567&sort=id,1', jar: cookieJar };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBeDefined();
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0]._id).not.toBeDefined();
+                expect(resp.body[0].id).toBe('o-1234');
+                expect(resp.body[1]._id).not.toBeDefined();
+                expect(resp.body[1].id).toBe('o-4567');
+                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
         });
         
         it('should be able to sort and paginate the results', function(done) {
@@ -299,20 +298,27 @@ describe('org (E2E):', function() {
             });
         });
 
-        it('should not allow non-admins to use this endpoint', function(done) {
-            var loginOpts = {
-                url: config.authUrl + '/login',
-                jar: cookieJar,
-                json: { email: 'orgsvce2enopermsuser', password: 'password' }
-            };
-            requestUtils.qRequest('post', loginOpts).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                var options = { url: config.orgSvcUrl + '/orgs', jar: cookieJar };
-                return requestUtils.qRequest('get', options);
-            }).then(function(resp) {
+        it('should not allow non-admins to get all orgs', function(done) {
+            var options = { url: config.orgSvcUrl + '/orgs?sort=id,1', jar: noPermsJar };
+            requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Not authorized to read all orgs');
                 expect(resp.response.headers['content-range']).not.toBeDefined();
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should allow non-admins to see their own org', function(done) {
+            var options = { url: config.orgSvcUrl + '/orgs?ids=o-1234,o-4567&sort=id,1', jar: noPermsJar };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(1);
+                expect(resp.body[0]._id).not.toBeDefined();
+                expect(resp.body[0].id).toBe('o-1234');
+                expect(resp.response.headers['content-range']).toBe('items 1-1/1');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -339,13 +345,7 @@ describe('org (E2E):', function() {
             mockOrg = {
                 name: 'e2e-org'
             };
-            testUtils.resetCollection('users', [mockRequester, noPermsUser])
-            .then(function(){
-                return testUtils.resetCollection('orgs');
-            })
-            .done(function(){
-                done();
-            });
+            testUtils.resetCollection('orgs').done(done);
         });
         
         it('should be able to create an org', function(done) {
@@ -456,27 +456,8 @@ describe('org (E2E):', function() {
         });
 
         it('should throw a 403 error if the user is not authenticated for creating orgs', function(done) {
-            var options = { url: config.orgSvcUrl + '/org', jar: cookieJar, json: {name: 'someOrg'}};
-            var logoutOpts = {
-                url: config.authUrl + '/logout',
-                jar: cookieJar
-            };
-            var loginOpts = {
-                url: config.authUrl + '/login',
-                jar: cookieJar,
-                json: {
-                    email: 'orgsvce2enopermsuser',
-                    password: 'password'
-                }
-            };
-            requestUtils.qRequest('post',logoutOpts)
-            .then(function(resp) {
-                return requestUtils.qRequest('post', loginOpts);
-            })
-            .then(function(){
-                return requestUtils.qRequest('post', options);
-            })
-            .then(function(resp) {
+            var options = { url: config.orgSvcUrl + '/org', jar: noPermsJar, json: {name: 'someOrg'}};
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe("Not authorized to create orgs");
                 done();
@@ -488,19 +469,10 @@ describe('org (E2E):', function() {
 
         it('should only allow the adConfig to be set by users with permission', function(done) {
             mockOrg.adConfig = {ads: 'good'};
-            var altJar = request.jar();
-            var loginOpts = {
-                url: config.authUrl + '/login',
-                json: { email: 'orgsvce2enopermsuser', password: 'password' },
-                jar: altJar
-            };
-            return requestUtils.qRequest('post', loginOpts).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                return q.all([cookieJar, altJar].map(function(jar) {
-                    var options = { url: config.orgSvcUrl + '/org', json: mockOrg, jar: jar };
-                    return requestUtils.qRequest('post', options);
-                }));
-            }).then(function(results) {
+            q.all([cookieJar, noPermsJar].map(function(jar) {
+                var options = { url: config.orgSvcUrl + '/org', json: mockOrg, jar: jar };
+                return requestUtils.qRequest('post', options);
+            })).then(function(results) {
                 expect(results[0].response.statusCode).toBe(201);
                 expect(results[0].body.adConfig).toEqual({ads: 'good'});
                 expect(results[1].response.statusCode).toBe(403);
@@ -550,11 +522,7 @@ describe('org (E2E):', function() {
                     created: start
                 }
             ];
-            testUtils.resetCollection('users', [mockRequester, noPermsUser])
-            .then(function(){
-                return testUtils.resetCollection('orgs', mockOrgs);
-            })
-            .done(done);
+            testUtils.resetCollection('orgs', mockOrgs).done(done);
             updates = { tag: 'bar', waterfalls: {video: ['cinema6'], display: ['cinema6']}};
         });
         
@@ -621,27 +589,9 @@ describe('org (E2E):', function() {
             var options = {
                 url: config.orgSvcUrl + '/org/o-4567',
                 json: updates,
-                jar: cookieJar
+                jar: noPermsJar
             };
-            var logoutOpts = {
-                url: config.authUrl + '/logout',
-                jar: cookieJar
-            };
-            var loginOpts = {
-                url: config.authUrl + '/login',
-                jar: cookieJar,
-                json: {
-                    email: 'orgsvce2enopermsuser',
-                    password: 'password'
-                }
-            };
-            requestUtils.qRequest('post',logoutOpts)
-            .then(function(resp) {
-                return requestUtils.qRequest('post', loginOpts);
-            }).then(function(){
-                return requestUtils.qRequest('put', options);
-            })
-            .then(function(resp) {
+            requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Not authorized to edit this org');
                 done();
@@ -652,21 +602,12 @@ describe('org (E2E):', function() {
         });
 
         it('should not let users edit orgs\' adConfig if they lack permission', function(done) {
-            var altJar = request.jar();
-            var loginOpts = {
-                url: config.authUrl + '/login',
-                json: { email: 'orgsvce2enopermsuser', password: 'password' },
-                jar: altJar
+            var options = {
+                url: config.orgSvcUrl + '/org/o-1234',
+                jar: noPermsJar,
+                json: { adConfig: { ads: 'bad' } }
             };
-            requestUtils.qRequest('post', loginOpts).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                var options = {
-                    url: config.orgSvcUrl + '/org/o-1234',
-                    jar: altJar,
-                    json: { adConfig: { ads: 'bad' } }
-                };
-                return requestUtils.qRequest('put', options);
-            }).then(function(resp) {
+            requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Not authorized to edit adConfig of this org');
                 done();
@@ -677,21 +618,12 @@ describe('org (E2E):', function() {
         });
 
         it('should allow the edit if the adConfig is unchanged', function(done) {
-            var altJar = request.jar();
-            var loginOpts = {
-                url: config.authUrl + '/login',
-                json: { email: 'orgsvce2enopermsuser', password: 'password' },
-                jar: altJar
+            var options = {
+                url: config.orgSvcUrl + '/org/o-1234',
+                jar: noPermsJar,
+                json: { adConfig: { ads: 'good' }, updated: true }
             };
-            requestUtils.qRequest('post', loginOpts).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                var options = {
-                    url: config.orgSvcUrl + '/org/o-1234',
-                    jar: cookieJar,
-                    json: { adConfig: { ads: 'good' }, updated: true }
-                };
-                return requestUtils.qRequest('put', options);
-            }).then(function(resp) {
+            requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.adConfig).toEqual({ads: 'good'});
                 expect(resp.body.updated).toBe(true);
@@ -847,27 +779,8 @@ describe('org (E2E):', function() {
         });
         
         it('should throw a 403 if the requester is not authorized to delete the org', function(done) {
-            var options = { url: config.orgSvcUrl + '/org/org2', jar: cookieJar };
-            var logoutOpts = {
-                url: config.authUrl + '/logout',
-                jar: cookieJar
-            };
-            var loginOpts = {
-                url: config.authUrl + '/login',
-                jar: cookieJar,
-                json: {
-                    email: 'orgsvce2enopermsuser',
-                    password: 'password'
-                }
-            };
-            requestUtils.qRequest('post',logoutOpts)
-            .then(function(resp) {
-                return requestUtils.qRequest('post', loginOpts);
-            })
-            .then(function(){
-                return requestUtils.qRequest('delete', options);
-            })
-            .then(function(resp) {
+            var options = { url: config.orgSvcUrl + '/org/org2', jar: noPermsJar };
+            requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Not authorized to delete this org');
                 done();

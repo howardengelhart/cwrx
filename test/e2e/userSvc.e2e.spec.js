@@ -207,6 +207,26 @@ describe('user (E2E):', function() {
             }).done(done);
         });
         
+        it('should get users by a list of ids', function(done) {
+            var options = { url: config.userSvcUrl + '/users?ids=e2e-getOrg1,e2e-getOrg2&sort=id,1', jar: cookieJar };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBeDefined();
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0]._id).not.toBeDefined();
+                expect(resp.body[0].id).toBe('e2e-getOrg1');
+                expect(resp.body[0].password).not.toBeDefined();
+                expect(resp.body[1]._id).not.toBeDefined();
+                expect(resp.body[1].id).toBe('e2e-getOrg2');
+                expect(resp.body[1].password).not.toBeDefined();
+                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
+                done();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+                done();
+            });
+        });
+        
         it('should be able to sort and paginate the results', function(done) {
             var options = {
                 url: config.userSvcUrl + '/users?org=o-1234&sort=email,1&limit=1',

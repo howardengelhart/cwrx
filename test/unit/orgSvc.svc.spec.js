@@ -78,6 +78,35 @@ describe('orgSvc (UT)', function() {
         });
 
     });
+    
+    describe('userPermQuery', function() {
+        var query, requester;
+        beforeEach(function() {
+            query = {};
+            requester = { id: 'u-1', org: 'o-1', permissions: { orgs: { read: Scope.Own } } };
+        });
+        
+        it('should just check that the orgs are not deleted if the requester is an admin', function() {
+            requester.permissions.orgs.read = Scope.All;
+            expect(orgSvc.userPermQuery(query, requester))
+                .toEqual({ status: { $ne: Status.Deleted } });
+            expect(query).toEqual({});
+        });
+        
+        it('should check that the ids match if the requester has Scope.Own or Scope.Org', function() {
+            var expected = { id: 'o-1', status: { $ne: Status.Deleted } };
+            expect(orgSvc.userPermQuery(query, requester)).toEqual(expected);
+            requester.permissions.orgs.read = Scope.Org;
+            expect(orgSvc.userPermQuery(query, requester)).toEqual(expected);
+        });
+                
+        it('should log a warning if the requester has an invalid scope', function() {
+            requester.permissions.orgs.read = 'alfkjdf';
+            expect(orgSvc.userPermQuery(query, requester))
+                .toEqual({ id: 'o-1', status: { $ne: Status.Deleted } });
+            expect(mockLog.warn).toHaveBeenCalled();
+        });
+    });
 
     describe('createValidator', function() {
 
@@ -228,7 +257,7 @@ describe('orgSvc (UT)', function() {
 
         it('should sanity check the requester\'s permissions before checking them for the required scope', function(done) {
             delete req.user.permissions;
-            orgSvc.getOrgs(null, req, orgColl).then(function(resp) {
+            orgSvc.getOrgs({}, req, orgColl).then(function(resp) {
                 expect(resp.code).toBe(403);
                 expect(resp.body).toEqual('Not authorized to read all orgs');
                 expect(orgColl.find).not.toHaveBeenCalled();
@@ -239,7 +268,7 @@ describe('orgSvc (UT)', function() {
 
         it('should return a 403 if the requester doesn\'t have scope \'all\'', function(done) {
             req.user.permissions.orgs.read = Scope.Own;
-            orgSvc.getOrgs(null, req, orgColl).then(function(resp) {
+            orgSvc.getOrgs({}, req, orgColl).then(function(resp) {
                 expect(resp.code).toBe(403);
                 expect(resp.body).toEqual('Not authorized to read all orgs');
                 expect(orgColl.find).not.toHaveBeenCalled();
@@ -249,7 +278,7 @@ describe('orgSvc (UT)', function() {
         });
         
         it('should call orgs.find to get orgs', function(done) {
-            orgSvc.getOrgs(null, req, orgColl).then(function(resp) {
+            orgSvc.getOrgs({}, req, orgColl).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual([{id:'1'}]);
                 expect(resp.pagination).toEqual({start: 11, end: 30, total: 50});
@@ -262,10 +291,21 @@ describe('orgSvc (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
+        
+        it('should properly format a query for multiple ids', function(done) {
+            orgSvc.getOrgs({id: ['o-1', 'o-2']}, req, orgColl).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual([{id:'1'}]);
+                expect(orgColl.find).toHaveBeenCalledWith({id: {$in: ['o-1','o-2']}, status: {$ne: Status.Deleted}},
+                                                          {sort: {id: 1}, limit: 20, skip: 10});
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
 
         it('should handle end behavior properly when paginating', function(done) {
             req.query.skip = 45;
-            orgSvc.getOrgs(null, req, orgColl).then(function(resp) {
+            orgSvc.getOrgs({}, req, orgColl).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual([{id:'1'}]);
                 expect(resp.pagination).toEqual({start: 46, end: 50, total: 50});
@@ -277,7 +317,7 @@ describe('orgSvc (UT)', function() {
         
         it('should use defaults for sorting/paginating options if not provided', function(done) {
             req.query = {};
-            orgSvc.getOrgs(null, req, orgColl).then(function(resp) {
+            orgSvc.getOrgs({}, req, orgColl).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual([{id:'1'}]);
                 expect(resp.pagination).toEqual({start: 1, end: 50, total: 50});
@@ -290,7 +330,7 @@ describe('orgSvc (UT)', function() {
 
         it('should ignore the sort param if invalid', function(done) {
             req.query.sort = 'foo';
-            orgSvc.getOrgs(null, req, orgColl).then(function(resp) {
+            orgSvc.getOrgs({}, req, orgColl).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual([{id:'1'}]);
                 expect(resp.pagination).toEqual({start: 11, end: 30, total: 50});
@@ -305,7 +345,7 @@ describe('orgSvc (UT)', function() {
         it('should return a 404 if nothing was found', function(done) {
             fakeCursor.toArray.andCallFake(function(cb) { cb(null, []); });
             fakeCursor.count.andCallFake(function(cb) { cb(null, 0); });
-            orgSvc.getOrgs(null, req, orgColl).then(function(resp) {
+            orgSvc.getOrgs({}, req, orgColl).then(function(resp) {
                 expect(resp.code).toBe(404);
                 expect(resp.body).toBe('No orgs found');
                 expect(resp.pagination).toEqual({start: 0, end: 0, total: 0});
@@ -316,7 +356,7 @@ describe('orgSvc (UT)', function() {
 
         it('should fail if cursor.count has an error', function(done) {
             fakeCursor.count.andCallFake(function(cb) { cb('Error!'); });
-            orgSvc.getOrgs(null, req, orgColl).then(function(resp) {
+            orgSvc.getOrgs({}, req, orgColl).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Error!');
@@ -329,7 +369,7 @@ describe('orgSvc (UT)', function() {
         
         it('should fail if cursor.toArray has an error', function(done) {
             fakeCursor.toArray.andCallFake(function(cb) { cb('Error!'); });
-            orgSvc.getOrgs(null, req, orgColl).then(function(resp) {
+            orgSvc.getOrgs({}, req, orgColl).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Error!');
