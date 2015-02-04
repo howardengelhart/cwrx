@@ -154,6 +154,9 @@
             if (req.query.name) {
                 query.name = String(req.query.name);
             }
+            if (req.query.adtechId) {
+                query.adtechId = Number(req.query.adtechId);
+            }
 
             svc.getObjs(query, req, true).then(function(resp) {
                 if (resp.pagination) {

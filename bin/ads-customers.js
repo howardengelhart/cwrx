@@ -113,7 +113,7 @@
                 return { id: Number(id) };
             }));
         }
-        
+
         if (orig) {
             record = JSON.parse(JSON.stringify(orig));
             objUtils.trimNull(record);

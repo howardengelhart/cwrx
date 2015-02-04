@@ -30,12 +30,13 @@
             certPath: path.join(process.env.HOME, '.ssh/adtech.crt')
         },
         campaigns: {
-            statusDelay: 1000,  // How long to delay between polls for campaigns' statuses
-            statusAttempts: 10  // How many times to try polling for campaigns' statuses
+            statusDelay: 1000,      // How long to delay between polls for campaigns' statuses
+            statusAttempts: 10      // How many times to try polling for campaigns' statuses
         },
+        contentHost: 'localhost',   // Hostname of the content service to proxy delete requests to
         minireelGroups: {
-            advertiserId: null, // Adtech advertiser id; must be overriden in a config file
-            customerId: null    // Adtech customer id; must be overriden in a config file
+            advertiserId: null,     // Adtech advertiser id; must be overriden in a config file
+            customerId: null        // Adtech customer id; must be overriden in a config file
         },
         sessions: {
             key: 'c6Auth',
@@ -170,7 +171,7 @@
         app.get('/api/ads/version',function(req, res) {
             res.send(200, state.config.appVersion);
         });
-
+        
         app.use(function(err, req, res, next) {
             if (err) {
                 log.error('Error: %1', err);

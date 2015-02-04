@@ -2,6 +2,8 @@
     'use strict';
 
     var q               = require('q'),
+        util            = require('util'),
+        requestUtils    = require('../lib/requestUtils'),
         uuid            = require('../lib/uuid'),
         campaignUtils   = require('../lib/campaignUtils'),
         bannerUtils     = require('../lib/bannerUtils'),
@@ -9,20 +11,15 @@
         objUtils        = require('../lib/objUtils'),
         CrudSvc         = require('../lib/crudSvc'),
         logger          = require('../lib/logger'),
-        enums           = require('../lib/enums'),
-        Status          = enums.Status,
         
-        campModule = {
-            campConfig: null    // this will get filled in with vals from config in setupSvc
-        };
+        campModule = {};
         
     campModule.setupSvc = function(db, config) {
         campModule.campsCfg = config.campaigns;
+        campModule.contentHost = config.contentHost;
     
         var campColl = db.collection('campaigns'),
             svc = new CrudSvc(campColl, 'cam', { userProp: false, orgProp: false });
-        svc._cardColl = db.collection('cards');
-        svc._expColl = db.collection('experiences');
         svc._advertColl = db.collection('advertisers');
         svc._custColl = db.collection('customers');
         
@@ -50,9 +47,9 @@
         svc.use('edit', campModule.editSponsoredCamps);
         svc.use('edit', campModule.createSponsoredCamps);
         svc.use('edit', campModule.cleanTargetCamps);
-        svc.use('edit', campModule.createTargetCamps);
         svc.use('edit', campModule.editTargetCamps);
-        // svc.use('delete', campModule.deleteContent.bind(campModule, svc));
+        svc.use('edit', campModule.createTargetCamps);
+        svc.use('delete', campModule.deleteContent);
         svc.use('delete', campModule.deleteAdtechCamps);
         
         svc.formatOutput = campModule.formatOutput.bind(campModule, svc);
@@ -76,35 +73,6 @@
         
         return CrudSvc.prototype.formatOutput.call(svc, obj);
     };
-    
-/*
-New middleware flow:
-
-Note:
-each entry in `miniReelGroup` should also have an `adtechId` so we can edit/delete/find the campaign
-
-create:
-done - for each card in `cards`, create a campaign, plus a banner in that campaign
-done - for each exp in `miniReels`, create a campaign, plus a banner in that campaign
-done - for each entry in `miniReelGroups`, create campaign, plus banners for id in `miniReels`
-
-edit:
-done - clean old unused sponsored card campaigns
-done - clean old unused sponsored minireel campaigns
-done - create new sponsored card campaigns
-done - create new sponsored minireel campaigns
-done - edit existing card/sponsored minireel campaigns' category list
-done - diff `miniReelGroup` list:
-done- new objects (those without `adtechId`) in the list get new campaign plus banners
-done- unused campaigns (those in origObj w/ `adtechId` no longer present in new) should get deleted
-done- existing objects (those in origObj w/ `adtechId` still present in new) with different cards
-      should have their kwlp1 list updated
-done- existing objects with different miniReels should have their banners updated
-
-delete:
-done - DELETE ALL THE THINGS (aka every campaign for cards, miniReels, miniReelGroups)
-- set sponsored cards/minireels statuses to deleted: need to redo/rethink
-*/
 
     /* TODO: this clean/create logic is repeated a lot with slight variations; unify somehow?
      * at the very least we can probably modularize out some of the old/new list comparisons */
@@ -183,7 +151,7 @@ done - DELETE ALL THE THINGS (aka every campaign for cards, miniReels, miniReelG
                     }
                     
                     var name = id + '_' + type + '_' + obj.id;
-                    return campaignUtils.createCampaign(id, name, true, keys, advert, cust)
+                    return campaignUtils.createCampaign(obj.id, name, true, keys, advert, cust)
                     .then(function(resp) {
                         obj.adtechId = parseInt(resp.id);
                         return bannerUtils.createBanners([obj], null, type, obj.adtechId);
@@ -378,33 +346,44 @@ done - DELETE ALL THE THINGS (aka every campaign for cards, miniReels, miniReelG
             return q.reject('Adtech failure');
         });
     };
-    
-    //TODO: permissions are tricky for this... do we even want to do this? proxy to content svc?
-    // Middleware to delete all sponsored content associated with this to-be-deleted campaign
-    campModule.deleteContent = function(svc, req, next/*, done*/) {
-        var log = logger.getLog(),
-            cardIds = (req.origObj.cards || []).map(function(card) { return card.id; }),
-            expIds = (req.origObj.miniReels || []).map(function(exp) { return exp.id; }),
-            updates = { $set: { lastUpdated: new Date(), status: Status.Deleted } };
+
+    /* Send a DELETE request to the content service. type should be "card" or "experience"
+     * Logs + swallows errors so deleting campaign continues despite failures to delete content.*/
+    campModule.sendDeleteRequest = function(req, id, type) {
+        var log = logger.getLog();
         
-        return q.npost(svc._cardColl, 'update', [{id: {$in: cardIds}}, updates, {multi: true}])
-        .then(function() {
-            if (cardIds.length) {
-                log.info('[%1] Deleted cards %2', req.uuid, cardIds.join(', '));
-            }
-            //return q.npost(svc._expColl, 'update', [{id: {$in: expIds}}, updates, {multi: true}]);
-            return q(); //TODO: need to add entry to status array...
+        return requestUtils.qRequest('delete', {
+            url: req.protocol + '://' + campModule.contentHost + '/api/content/' + type + '/' + id,
+            headers: { cookie: req.headers.cookie }
         })
-        .then(function() {
-            if (expIds.length) {
-                log.info('[%1] Deleted experiences %2', req.uuid, expIds.join(', '));
+        .then(function(resp) {
+            if (resp.response.statusCode !== 204) {
+                log.warn('[%1] Could not delete %2 %3. Received (%4, %5)',
+                         req.uuid, type, id, resp.response.statusCode, resp.body);
+            } else {
+                log.info('[%1] Succesfully deleted %2 %3', req.uuid, type, id);
             }
-            next();
         })
         .catch(function(error) {
-            log.error('[%1] Error deleting cards + minireels for campaign %2: %3',
-                      req.uuid, req.origObj.id, error);
-            return q.reject(new Error('Mongo error'));
+            log.error('[%1] Error deleting %2 %3: %4', req.uuid, type, id, util.inspect(error));
+        });
+    };
+    
+    // Middleware to delete all sponsored content associated with this to-be-deleted campaign
+    campModule.deleteContent = function(req, next/*, done*/) {
+        var log = logger.getLog();
+            
+        return q.all(
+            (req.origObj.cards || []).map(function(card) {
+                return campModule.sendDeleteRequest(req, card.id, 'card');
+            })
+            .concat((req.origObj.miniReels || []).map(function(exp) {
+                return campModule.sendDeleteRequest(req, exp.id, 'experience');
+            }))
+        )
+        .then(function() {
+            log.trace('[%1] Successfully deleted content for campaign %2',req.uuid,req.origObj.id);
+            next();
         });
     };
     
@@ -454,7 +433,7 @@ done - DELETE ALL THE THINGS (aka every campaign for cards, miniReels, miniReelG
 
         app.get('/api/campaigns', sessions, authGetCamp, audit, function(req, res) {
             var query = {};
-            if (req.query.name) { //TODO: supported query params are?
+            if (req.query.name) {
                 query.name = String(req.query.name);
             }
 
