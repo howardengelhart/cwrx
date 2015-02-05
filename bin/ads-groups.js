@@ -18,7 +18,7 @@
         groupModule.groupsCfg = config.minireelGroups;
         groupModule.campsCfg = config.campaigns;
     
-        var groupColl = db.collection('minireelGroups'), //TODO: or just 'groups'?
+        var groupColl = db.collection('minireelGroups'),
             svc = new CrudSvc(groupColl, 'g', { userProp: false, orgProp: false });
         svc._advertColl = db.collection('advertisers');
         svc._custColl = db.collection('customers');
