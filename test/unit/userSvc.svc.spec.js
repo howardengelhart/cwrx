@@ -316,6 +316,18 @@ describe('userSvc (UT)', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
+        
+        it('should properly format a query for multiple ids', function(done) {
+            query = { id: ['u-1', 'u-2', 'u-3'] };
+            userSvc.getUsers(query, req, userColl, false).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual([{id:'1'}]);
+                expect(userSvc.userPermQuery).toHaveBeenCalledWith({id: {$in: ['u-1', 'u-2', 'u-3']}},
+                    { id: 'u-1234', permissions: { users: { read: Scope.Own } } });
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
 
         it('should set resp.pagination if multiGet is true', function(done) {
             userSvc.getUsers(query, req, userColl, true).then(function(resp) {
@@ -341,7 +353,7 @@ describe('userSvc (UT)', function() {
         });
         
         it('should prevent non-admin users from getting all users', function(done) {
-            query = null;
+            query = {};
             userSvc.getUsers(query, req, userColl, false).then(function(resp) {
                 expect(resp.code).toBe(403);
                 expect(resp.body).toBe('Not authorized to read all users');
@@ -353,7 +365,7 @@ describe('userSvc (UT)', function() {
         });
         
         it('should allow admin users to get all users', function(done) {
-            query = null;
+            query = {};
             req.user.permissions.users.read = Scope.All;
             userSvc.getUsers(query, req, userColl, false).then(function(resp) {
                 expect(resp.code).toBe(200);

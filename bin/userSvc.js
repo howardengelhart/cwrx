@@ -157,15 +157,17 @@
             }
         }
 
-        if (!query && !(req.user.permissions &&
-                        req.user.permissions.users &&
-                        req.user.permissions.users.read &&
-                        req.user.permissions.users.read === Scope.All)) {
+        if (!Object.keys(query).length && !(req.user.permissions &&
+                                            req.user.permissions.users &&
+                                            req.user.permissions.users.read &&
+                                            req.user.permissions.users.read === Scope.All)) {
             log.info('[%1] User %2 is not authorized to read all users', req.uuid, req.user.id);
             return q({code: 403, body: 'Not authorized to read all users'});
         }
         
-        query = query || {};
+        if (query.id instanceof Array) {
+            query.id = {$in: query.id};
+        }
         
         log.info('[%1] User %2 getting users with query %3, sort %4, limit %5, skip %6', req.uuid,
                  req.user.id, JSON.stringify(query), JSON.stringify(sortObj), limit, skip);
@@ -650,7 +652,13 @@
         });
         
         app.get('/api/account/users', sessWrap, authGetUser, audit, function(req, res) {
-            var query = req.query && req.query.org ? { org: String(req.query.org) } : null;
+            var query = {};
+            if (req.query.org) {
+                query.org = String(req.query.org);
+            } else if (req.query.ids) {
+                query.id = req.query.ids.split(',');
+            }
+
             userSvc.getUsers(query, req, users, true)
             .then(function(resp) {
                 if (resp.pagination) {
