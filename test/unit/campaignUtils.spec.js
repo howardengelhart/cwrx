@@ -1,17 +1,15 @@
 var flush = true;
 describe('campaignUtils', function() {
-    var q, path, fs, mockLog, logger, adtech, campaignUtils, mockClient;
-    
-    //TODO: go through all of these again!
+    var q, mockLog, logger, promise, adtech, campaignUtils, mockClient,
+        nextSpy, doneSpy, errorSpy, req;
     
     beforeEach(function() {
         jasmine.Clock.useMock();
 
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q               = require('q');
-        path            = require('path');
-        fs              = require('fs-extra');
         logger          = require('../../lib/logger');
+        promise         = require('../../lib/promise');
         campaignUtils   = require('../../lib/campaignUtils');
         
         mockLog = {
@@ -24,6 +22,11 @@ describe('campaignUtils', function() {
         };
         spyOn(logger, 'createLog').andReturn(mockLog);
         spyOn(logger, 'getLog').andReturn(mockLog);
+        
+        req = { uuid: '1234' };
+        nextSpy = jasmine.createSpy('next');
+        doneSpy = jasmine.createSpy('done');
+        errorSpy = jasmine.createSpy('caught error');
         
         mockClient = {client: 'yes'};
         ['adtech/lib/campaign', 'adtech/lib/banner', 'adtech/lib/keyword'].forEach(function(key) {
@@ -43,70 +46,93 @@ describe('campaignUtils', function() {
             });
         });
     });
-
-    describe('lookupKeywords', function() {
-        var ids;
-        beforeEach(function() {
-            campaignUtils._keywordCache = {};
-            ids = [123, 456, 789];
-            adtech.keywordAdmin.getKeywordById.andCallFake(function(id) { return q('key' + id); });
+    
+    describe('objectify', function() {
+        it('should transform all of a list\'s items into objects', function() {
+            expect(campaignUtils.objectify(['e1', 'e2', 'bananas'])).toEqual([{id: 'e1'}, {id: 'e2'}, {id: 'bananas'}]);
+            expect(campaignUtils.objectify(['e1', {id: 'e2'}, 'bananas'])).toEqual([{id: 'e1'}, {id: 'e2'}, {id: 'bananas'}]);
+            expect(campaignUtils.objectify([{foo: 'bar'}, {id: 'e2'}, 'bananas'])).toEqual([{foo: 'bar'}, {id: 'e2'}, {id: 'bananas'}]);
         });
         
-        it('should lookup multiple keywords by id', function(done) {
-            campaignUtils.lookupKeywords(ids).then(function(keywords) {
-                expect(keywords).toEqual(['key123', 'key456', 'key789']);
-                expect(campaignUtils._keywordCache.key123).toBe(123);
-                expect(campaignUtils._keywordCache.key456).toBe(456);
-                expect(campaignUtils._keywordCache.key789).toBe(789);
-                expect(adtech.keywordAdmin.getKeywordById).toHaveBeenCalledWith(123);
-                expect(adtech.keywordAdmin.getKeywordById).toHaveBeenCalledWith(456);
-                expect(adtech.keywordAdmin.getKeywordById).toHaveBeenCalledWith(789);
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should retrieve keywords from the cache if defined', function(done) {
-            campaignUtils._keywordCache.key123 = 123;
-            campaignUtils.lookupKeywords(ids).then(function(keywords) {
-                expect(keywords).toEqual(['key123', 'key456', 'key789']);
-                expect(campaignUtils._keywordCache.key123).toBe(123);
-                expect(campaignUtils._keywordCache.key456).toBe(456);
-                expect(campaignUtils._keywordCache.key789).toBe(789);
-                expect(adtech.keywordAdmin.getKeywordById).not.toHaveBeenCalledWith(123);
-                expect(adtech.keywordAdmin.getKeywordById).toHaveBeenCalledWith(456);
-                expect(adtech.keywordAdmin.getKeywordById).toHaveBeenCalledWith(789);
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should eventually delete keywords from the cache', function(done) {
-            campaignUtils.lookupKeywords(ids.slice(0, 1)).then(function(keywords) {
-                expect(keywords).toEqual(['key123']);
-                expect(campaignUtils._keywordCache.key123).toBe(123);
-                jasmine.Clock.tick(1000*60*60*24 + 1);
-                expect(campaignUtils._keywordCache.key123).not.toBeDefined();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should reject if the call to adtech fails', function(done) {
-            adtech.keywordAdmin.getKeywordById.andCallFake(function(id) {
-                if (id === 456) return q.reject('I GOT A PROBLEM');
-                else return q('key' + id);
-            });
-            campaignUtils.lookupKeywords(ids).then(function(keywords) {
-                expect(keywords).not.toBeDefined();
-            }).catch(function(error) {
-                expect(error).toBe('Adtech failure');
-                expect(mockLog.error).toHaveBeenCalled();
-                expect(campaignUtils._keywordCache.key456).not.toBeDefined();
-            }).done(done);
+        it('should just return a non-list param', function() {
+            expect(campaignUtils.objectify(undefined)).toEqual(undefined);
+            expect(campaignUtils.objectify('bananas')).toEqual('bananas');
         });
     });
     
+    describe('getAccountIds', function() {
+        var req, advertColl, custColl;
+        beforeEach(function() {
+            req = { uuid: '1234', body: { advertiserId: 'a-1', customerId: 'cu-1' } };
+            advertColl = {
+                findOne: jasmine.createSpy('advertColl.findOne').andCallFake(function(query, fields, cb) {
+                    if (query.id === 'a-1') cb(null, {id: 'a-1', adtechId: 123});
+                    else if (query.id === 'a-bad') cb('ADVERTS GOT A PROBLEM');
+                    else cb();
+                })
+            };
+            custColl = {
+                findOne: jasmine.createSpy('custColl.findOne').andCallFake(function(query, fields, cb) {
+                    if (query.id === 'cu-1') cb(null, {id: 'cu-1', adtechId: 456});
+                    else if (query.id === 'cu-bad') cb('CUSTS GOT A PROBLEM');
+                    else cb();
+                })
+            };
+        });
+        
+        it('should lookup the advertiser and customer', function(done) {
+            campaignUtils.getAccountIds(advertColl, custColl, req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req._advertiserId).toBe(123);
+                expect(req._customerId).toBe(456);
+                expect(advertColl.findOne).toHaveBeenCalledWith({id: 'a-1'}, {id: 1, adtechId: 1}, jasmine.any(Function));
+                expect(custColl.findOne).toHaveBeenCalledWith({id: 'cu-1'}, {id: 1, adtechId: 1}, jasmine.any(Function));
+                done();
+            });
+        });
+        
+        it('should call done if one of the two is not found', function(done) {
+            var req1 = { uuid: '1234', body: {}, origObj: { advertiserId: 'a-1', customerId: 'cu-2' } },
+                req2 = { uuid: '1234', body: {}, origObj: { advertiserId: 'a-2', customerId: 'cu-1' } };
+            campaignUtils.getAccountIds(advertColl, custColl, req1, nextSpy, doneSpy).catch(errorSpy);
+            campaignUtils.getAccountIds(advertColl, custColl, req2, nextSpy, doneSpy).catch(errorSpy);
+
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(doneSpy.calls.length).toBe(2);
+                expect(doneSpy.calls[0].args).toEqual([{code: 400, body: 'customer cu-2 does not exist'}]);
+                expect(doneSpy.calls[1].args).toEqual([{code: 400, body: 'advertiser a-2 does not exist'}]);
+                expect(mockLog.warn.calls.length).toBe(2);
+                expect(req1._advertiserId).toBe(123);
+                expect(req1._customerId).not.toBeDefined();
+                expect(req2._advertiserId).not.toBeDefined();
+                expect(req2._customerId).toBe(456);
+                done();
+            });
+        });
+        
+        it('should reject if one of the two calls fails', function(done) {
+            var req1 = { uuid: '1234', body: { advertiserId: 'a-1', customerId: 'cu-bad' } },
+                req2 = { uuid: '1234', body: { advertiserId: 'a-bad', customerId: 'cu-1' } };
+            campaignUtils.getAccountIds(advertColl, custColl, req1, nextSpy, doneSpy).catch(errorSpy);
+            campaignUtils.getAccountIds(advertColl, custColl, req2, nextSpy, doneSpy).catch(errorSpy);
+
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy.calls.length).toBe(2);
+                expect(errorSpy.calls[0].args).toEqual([new Error('Mongo error')]);
+                expect(errorSpy.calls[1].args).toEqual([new Error('Mongo error')]);
+                expect(mockLog.error.calls.length).toBe(2);
+                done();
+            });
+        });
+    });
+
     describe('makeKeywordLevels', function() {
         it('should call makeKeywords for each level', function(done) {
             spyOn(campaignUtils, 'makeKeywords').andCallFake(function(keywords) {
@@ -140,7 +166,7 @@ describe('campaignUtils', function() {
     describe('makeKeywords', function() {
         var keywords;
         beforeEach(function() {
-            campaignUtils._keywordCache = {};
+            campaignUtils._keywordCache = new promise.Keeper();;
             keywords = ['key123', 'key456'];
             adtech.keywordAdmin.registerKeyword.andCallFake(function(keyword) {
                 return q(parseInt(keyword.match(/\d+/)[0]));
@@ -150,8 +176,8 @@ describe('campaignUtils', function() {
         it('should register a list of keywords', function(done) {
             campaignUtils.makeKeywords(keywords).then(function(ids) {
                 expect(ids).toEqual([123, 456]);
-                expect(campaignUtils._keywordCache.key123).toBe(123);
-                expect(campaignUtils._keywordCache.key456).toBe(456);
+                expect(campaignUtils._keywordCache.getDeferred('key123', true)).toBeDefined();
+                expect(campaignUtils._keywordCache.getDeferred('key456', true)).toBeDefined();
                 expect(adtech.keywordAdmin.registerKeyword).toHaveBeenCalledWith('key123');
                 expect(adtech.keywordAdmin.registerKeyword).toHaveBeenCalledWith('key456');
             }).catch(function(error) {
@@ -169,11 +195,11 @@ describe('campaignUtils', function() {
         });
         
         it('should retrieve ids from the cache if defined', function(done) {
-            campaignUtils._keywordCache.key123 = 123;
+            campaignUtils._keywordCache.defer('key123').resolve(123);
             campaignUtils.makeKeywords(keywords).then(function(ids) {
                 expect(ids).toEqual([123, 456]);
-                expect(campaignUtils._keywordCache.key123).toBe(123);
-                expect(campaignUtils._keywordCache.key456).toBe(456);
+                expect(campaignUtils._keywordCache.getDeferred('key123', true)).toBeDefined();
+                expect(campaignUtils._keywordCache.getDeferred('key456', true)).toBeDefined();
                 expect(adtech.keywordAdmin.registerKeyword).not.toHaveBeenCalledWith('key123');
                 expect(adtech.keywordAdmin.registerKeyword).toHaveBeenCalledWith('key456');
             }).catch(function(error) {
@@ -184,25 +210,40 @@ describe('campaignUtils', function() {
         it('should eventually delete keywords from the cache', function(done) {
             campaignUtils.makeKeywords(keywords.slice(0, 1)).then(function(ids) {
                 expect(ids).toEqual([123]);
-                expect(campaignUtils._keywordCache.key123).toBe(123);
+                expect(campaignUtils._keywordCache.getDeferred('key123', true)).toBeDefined();
                 jasmine.Clock.tick(1000*60*60*24 + 1);
-                expect(campaignUtils._keywordCache.key123).not.toBeDefined();
+                expect(campaignUtils._keywordCache.getDeferred('key123', true)).not.toBeDefined();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
         
-        it('should reject if the call to adtech fails', function(done) {
+        it('should reject if the call to adtech fails, and not cache errors', function(done) {
+            var callCount = 0;
             adtech.keywordAdmin.registerKeyword.andCallFake(function(keyword) {
-                if (keyword === 'key123') return q.reject('I GOT A PROBLEM');
-                else return q(parseInt(keyword.match(/\d+/)[0]));
+                if (keyword === 'key123') {
+                    if (callCount === 0) {
+                        callCount++;
+                        return q.reject('I GOT A PROBLEM');
+                    }
+                }
+                return q(parseInt(keyword.match(/\d+/)[0]));
             });
-            campaignUtils.makeKeywords(keywords).then(function(ids) {
+            campaignUtils.makeKeywords(['key123', 'key456', 'key123']).then(function(ids) {
                 expect(ids).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).toBe('Adtech failure');
+                expect(error).toEqual(new Error('Adtech failure'));
                 expect(mockLog.error).toHaveBeenCalled();
-                expect(campaignUtils._keywordCache.key123).not.toBeDefined();
+                expect(campaignUtils._keywordCache.getDeferred('key456', true)).toBeDefined();
+                expect(campaignUtils._keywordCache.getDeferred('key123', true)).not.toBeDefined();
+                expect(adtech.keywordAdmin.registerKeyword.calls.length).toBe(2);
+                return campaignUtils.makeKeywords(['key123']);
+            }).then(function(ids) {
+                expect(ids).toEqual([123]);
+                expect(campaignUtils._keywordCache.getDeferred('key123', true)).toBeDefined();
+                expect(adtech.keywordAdmin.registerKeyword.calls.length).toBe(3);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
     });
@@ -221,35 +262,28 @@ describe('campaignUtils', function() {
             var fmt = campaignUtils.formatCampaign(campaign);
             expect(fmt.adGoalTypeId).toBe(1);
             expect(fmt.advertiserId).toBe(123);
-            expect(Object.keys(fmt.campaignFeatures)).toEqual(['attributes', 'Keys', 'Values']);
-            expect(adtech.campaignAdmin.makeCampaignFeatures).toHaveBeenCalledWith(features);
+            expect(fmt.campaignFeatures).toEqual(features);
             expect(fmt.campaignTypeId).toBe(26954);
             expect(fmt.customerId).toBe(456);
-            expect(fmt.dateRangeList).toEqual({Items: jasmine.any(Object)});
-            expect(adtech.campaignAdmin.makeDateRangeList).toHaveBeenCalledWith([
-                {endDate: new Date(now.valueOf() + 365*24*60*60*1000).toISOString(), startDate: now.toISOString()}]);
+            expect(fmt.dateRangeList).toEqual([{deliveryGoal: {desiredImpressions: 1000000000},
+                endDate: jasmine.any(String), startDate: jasmine.any(String)}]);
             expect(fmt.extId).toBe('cam-1');
             expect(fmt.frequencyConfig).toEqual({type: -1});
             expect(fmt.id).not.toBeDefined();
             expect(fmt.name).toBe('camp1');
             expect(fmt.optimizerTypeId).toBe(6);
             expect(fmt.optimizingConfig).toEqual({minClickRate: 0, minNoPlacements: 0});
-            expect(fmt.pricingConfig).toEqual({cpm: 0});
+            expect(fmt.pricingConfig).toEqual({cpm: 0, invoiceImpressions : 1000000000});
             expect(fmt.priority).toBe(3);
-            expect(fmt.priorityLevelOneKeywordIdList.Items.Item).toEqual([]);
-            expect(fmt.priorityLevelThreeKeywordIdList.Items.Item).toEqual([]);
+            expect(fmt.priorityLevelOneKeywordIdList).not.toBeDefined();
+            expect(fmt.priorityLevelThreeKeywordIdList).not.toBeDefined();
             expect(fmt.viewCount).toBe(true);
         });
         
         it('should be able to set keywords', function() {
             var fmt = campaignUtils.formatCampaign(campaign, keywords);
-            expect(fmt.priorityLevelOneKeywordIdList.Items.Item).toEqual([
-                { attributes: { 'xsi:type': 'cm:long'}, '$value': 12 },
-                { attributes: { 'xsi:type': 'cm:long'}, '$value': 23 },
-            ]);
-            expect(fmt.priorityLevelThreeKeywordIdList.Items.Item).toEqual([
-                { attributes: { 'xsi:type': 'cm:long'}, '$value': 34 }
-            ]);
+            expect(fmt.priorityLevelOneKeywordIdList).toEqual([12, 23]);
+            expect(fmt.priorityLevelThreeKeywordIdList).toEqual([34]);
         });
         
         it('should set a higher priority if the campaign is sponsored', function() {
@@ -265,147 +299,110 @@ describe('campaignUtils', function() {
     });
     
     describe('createCampaign', function() {
-    });
-    
-    describe('formatBanners', function() {
-        var cardTempl, reelTempl;
         beforeEach(function() {
-            cardTempl = fs.readFileSync(path.join(__dirname, '../../templates/adtechBanners/card.html'));
-            reelTempl = fs.readFileSync(path.join(__dirname, '../../templates/adtechBanners/minireel.html'));
-        });
-
-        it('should format a banner for saving to adtech', function() {
-            var obj = campaignUtils.formatBanner('card', 'rc-1');
-            expect(obj).toEqual({ banner: jasmine.any(Object), bannerInfo: jasmine.any(Object) });
-            expect(obj.banner).toEqual({
-                data: cardTempl.toString('base64'), extId: 'rc-1', fileType: 'html', id: -1, mainFileName: 'index.html',
-                name: 'card rc-1', originalData: cardTempl.toString('base64'), sizeTypeId: 277, statusId: 1, styleTypeId: 3 });
-            expect(obj.bannerInfo).toEqual({
-                bannerReferenceId: -1, entityFrequencyConfig: { frequencyCookiesOnly: true, frequencyDistributed: true,
-                frequencyInterval: 30, frequencyTypeId: 18 }, name: 'card rc-1', statusId: 1 });
+            spyOn(campaignUtils, 'formatCampaign').andReturn({formatted: 'yes'});
+            adtech.campaignAdmin.createCampaign.andReturn(q({id: 123, campaign: 'yes'}));
         });
         
-        it('should correctly handle different banner types', function() {
-            var banners = {};
-            ['card', 'miniReel', 'contentMiniReel'].forEach(function(type) {
-                banners[type] = campaignUtils.formatBanner(type, 'rc-1');
-                if (type === 'card') expect(banners[type].banner.data).toBe(cardTempl.toString('base64'));
-                else expect(banners[type].banner.data).toBe(reelTempl.toString('base64'));
-                expect(banners[type].banner.originalData).toBe(banners[type].banner.data);
-                expect(banners[type].banner.name).toBe(type + ' rc-1');
-            });
-            expect(banners.card.banner.sizeTypeId).toBe(277);
-            expect(banners.miniReel.banner.sizeTypeId).toBe(509);
-            expect(banners.contentMiniReel.banner.sizeTypeId).toBe(16);
-        });
-    });
-    
-    describe('createBanners', function() {
-        var newBanns, oldBanns;
-        beforeEach(function() {
-            oldBanns = [];
-            newBanns = [{id: 'rc-1'}, {id: 'rc-2'}];
-            
-            adtech.bannerAdmin.createBanner.andCallFake(function(campId, banner, bannerInfo) {
-                var num = this.createBanner.calls.length;
-                return q({name: banner.name, extId: banner.extId, bannerNumber: num, id: num*100});
-            });
-            spyOn(campaignUtils, 'formatBanner').andCallFake(function(type, id) {
-                return {banner: {extId: id, name: type + ' ' + id}, bannerInfo: {name: type + ' ' + id}};
-            });
-        });
-        
-        it('should create a batch of banners', function(done) {
-            campaignUtils.createBanners(newBanns, oldBanns, 'card', 12345).then(function(resp) {
-                expect(newBanns).toEqual([
-                    {id: 'rc-1', bannerId: 100, bannerNumber: 1},
-                    {id: 'rc-2', bannerId: 200, bannerNumber: 2}
-                ]);
-                expect(campaignUtils.formatBanner).toHaveBeenCalledWith('card', 'rc-1');
-                expect(campaignUtils.formatBanner).toHaveBeenCalledWith('card', 'rc-2');
-                expect(adtech.bannerAdmin.createBanner.calls.length).toBe(2);
-                expect(adtech.bannerAdmin.createBanner).toHaveBeenCalledWith(12345,
-                    {extId: 'rc-1', name: 'card rc-1'}, {name: 'card rc-1'});
-                expect(adtech.bannerAdmin.createBanner).toHaveBeenCalledWith(12345,
-                    {extId: 'rc-2', name: 'card rc-2'}, {name: 'card rc-2'});
+        it('should format and create a campaign', function(done) {
+            campaignUtils.createCampaign('cam-1', 'camp 1', true, {keys: 'yes'}, 45, 56).then(function(resp) {
+                expect(resp).toEqual({id: 123, campaign: 'yes'});
+                expect(campaignUtils.formatCampaign).toHaveBeenCalledWith({id: 'cam-1', name: 'camp 1',
+                    advertiserId: 45, customerId: 56, created: jasmine.any(Date)}, {keys: 'yes'}, true);
+                expect(adtech.campaignAdmin.createCampaign).toHaveBeenCalledWith({formatted: 'yes'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
         
-        it('should not recreate banners that already exist', function(done) {
-            oldBanns = [
-                { id: 'rc-2', bannerId: 200, bannerNumber: 2 },
-                { id: 'rc-3', bannerId: 300, bannerNumber: 3 }
-            ];
-            campaignUtils.createBanners(newBanns, oldBanns, 'card', 12345).then(function() {
-                expect(newBanns).toEqual([
-                    {id: 'rc-1', bannerId: 100, bannerNumber: 1},
-                    {id: 'rc-2', bannerId: 200, bannerNumber: 2}
-                ]);
-                expect(campaignUtils.formatBanner.calls.length).toBe(1);
-                expect(campaignUtils.formatBanner).toHaveBeenCalledWith('card', 'rc-1');
-                expect(adtech.bannerAdmin.createBanner.calls.length).toBe(1);
-                expect(adtech.bannerAdmin.createBanner).toHaveBeenCalledWith(12345,
-                    {extId: 'rc-1', name: 'card rc-1'}, {name: 'card rc-1'});
+        it('should reject if creating the campaign fails', function(done) {
+            adtech.campaignAdmin.createCampaign.andReturn(q.reject('ADTECH IS THE WORST'));
+            campaignUtils.createCampaign('cam-1', 'camp 1', true, {keys: 'yes'}, 45, 56).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toEqual(new Error('ADTECH IS THE WORST'));
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
+        });
+    });
+    
+    describe('editCampaign', function() {
+        var name, keys;
+        beforeEach(function() {
+            name = 'new';
+            keys = { level1: [31, 32, 33], level3: [41] };
+            adtech.campaignAdmin.getCampaignById.andReturn(q({id: 123, foo: null, name: 'old',
+                priorityLevelOneKeywordIdList: [11, 12], priorityLevelThreeKeywordIdList: [21, 22]}));
+            adtech.campaignAdmin.updateCampaign.andReturn(q());
+        });
+        
+        it('should be capable of editing the name and keywords', function(done) {
+            campaignUtils.editCampaign(123, name, keys).then(function() {
+                expect(adtech.campaignAdmin.getCampaignById).toHaveBeenCalledWith(123);
+                expect(adtech.campaignAdmin.updateCampaign).toHaveBeenCalledWith({id: 123, name: 'new',
+                    priorityLevelOneKeywordIdList: [31, 32, 33], priorityLevelThreeKeywordIdList: [41]});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
         
-        it('should reject if one of the adtech calls fails', function(done) {
-            adtech.bannerAdmin.createBanner.andReturn(q.reject('I GOT A PROBLEM'));
-            campaignUtils.createBanners(newBanns, oldBanns, 'card', 12345).then(function() {
+        it('should not change the name if no new name is provided', function(done) {
+            campaignUtils.editCampaign(123, undefined, keys).then(function() {
+                expect(adtech.campaignAdmin.updateCampaign).toHaveBeenCalledWith({id: 123, name: 'old',
+                    priorityLevelOneKeywordIdList: [31, 32, 33], priorityLevelThreeKeywordIdList: [41]});
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should not update a keyword list if a new list of that level is not provided', function(done) {
+            delete keys.level1;
+            campaignUtils.editCampaign(123, 'new', keys).then(function() {
+                expect(adtech.campaignAdmin.updateCampaign).toHaveBeenCalledWith({id: 123, name: 'new',
+                    priorityLevelOneKeywordIdList: [11, 12], priorityLevelThreeKeywordIdList: [41]});
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should not update the keywords if new keys are not provided at all', function(done) {
+            campaignUtils.editCampaign(123, 'new', undefined).then(function() {
+                expect(adtech.campaignAdmin.updateCampaign).toHaveBeenCalledWith({id: 123, name: 'new',
+                    priorityLevelOneKeywordIdList: [11, 12], priorityLevelThreeKeywordIdList: [21, 22]});
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should reject if retrieving the campaign failed', function(done) {
+            adtech.campaignAdmin.getCampaignById.andReturn(q.reject('ADTECH IS THE WORST'));
+            campaignUtils.editCampaign(123, 'new', keys).then(function() {
                 expect('resolved').not.toBe('resolved');
             }).catch(function(error) {
-                expect(error).toBe('I GOT A PROBLEM');
+                expect(error).toEqual(new Error('ADTECH IS THE WORST'));
                 expect(mockLog.error).toHaveBeenCalled();
-                expect(campaignUtils.formatBanner.calls.length).toBe(2);
-                expect(adtech.bannerAdmin.createBanner.calls.length).toBe(1);
+                expect(adtech.campaignAdmin.updateCampaign).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should reject if updating the campaign failed', function(done) {
+            adtech.campaignAdmin.updateCampaign.andReturn(q.reject('ADTECH IS THE WORST'));
+            campaignUtils.editCampaign(123, 'new', keys).then(function() {
+                expect('resolved').not.toBe('resolved');
+            }).catch(function(error) {
+                expect(error).toEqual(new Error('ADTECH IS THE WORST'));
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(adtech.campaignAdmin.getCampaignById).toHaveBeenCalled();
+                expect(adtech.campaignAdmin.updateCampaign).toHaveBeenCalled();
             }).done(done);
         });
     });
     
-    describe('cleanBanners', function() {
-        var newBanns, oldBanns;
-        beforeEach(function() {
-            oldBanns = [
-                { id: 'rc-2', bannerId: 200, bannerNumber: 2 },
-                { id: 'rc-3', bannerId: 300, bannerNumber: 3 },
-                { id: 'rc-4', bannerId: 400, bannerNumber: 4 }
-            ];
-            newBanns = [{id: 'rc-1'}, {id: 'rc-2'}];
-            adtech.bannerAdmin.deleteBanner.andReturn(q());
-        });
-        
-        it('should delete old banners not in the set of new banners', function(done) {
-            campaignUtils.cleanBanners(newBanns, oldBanns, 12345).then(function() {
-                expect(adtech.bannerAdmin.deleteBanner.calls.length).toBe(2);
-                expect(adtech.bannerAdmin.deleteBanner).toHaveBeenCalledWith(300);
-                expect(adtech.bannerAdmin.deleteBanner).toHaveBeenCalledWith(400);
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should do nothing if there are no old banners', function(done) {
-            oldBanns = [];
-            campaignUtils.cleanBanners(newBanns, oldBanns, 12345).then(function() {
-                expect(adtech.bannerAdmin.deleteBanner).not.toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should reject if one of the adtech calls fails', function(done) {
-            adtech.bannerAdmin.deleteBanner.andReturn(q.reject('I GOT A PROBLEM'));
-            campaignUtils.cleanBanners(newBanns, oldBanns, 12345).then(function() {
-                expect('resolved').not.toBe('resolved');
-            }).catch(function(error) {
-                expect(error).toBe('I GOT A PROBLEM');
-                expect(mockLog.error).toHaveBeenCalled();
-                expect(adtech.bannerAdmin.deleteBanner.calls.length).toBe(1);
-            }).done(done);
-        });
+    describe('pollStatuses', function() {
+        //TODO
+    });
+    
+    describe('deleteCampaigns', function() {
+        //TODO
     });
 });

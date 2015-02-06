@@ -57,10 +57,12 @@
         return svc;
     };
     
+    //TODO: double check all error logging because you are dumb
+    
     // Extends CrudSvc.prototype.formatOutput, processing cards, miniReels, and miniReelGroups
     campModule.formatOutput = function(svc, obj) {
-        ['cards', 'miniReels'].forEach(function(key) {
-            obj[key] = obj[key] && obj[key].map(function(contentObj) { return contentObj.id; });
+        ['cards', 'miniReels'].forEach(function(prop) {
+            obj[prop] = obj[prop] && obj[prop].map(function(contentObj) { return contentObj.id; });
         });
         
         (obj.miniReelGroups || []).forEach(function(group) {
@@ -74,8 +76,7 @@
         return CrudSvc.prototype.formatOutput.call(svc, obj);
     };
 
-    /* TODO: this clean/create logic is repeated a lot with slight variations; unify somehow?
-     * at the very least we can probably modularize out some of the old/new list comparisons */
+    // Middleware to delete unused sponsored miniReel and card campaigns
     campModule.cleanSponsoredCamps = function(req, next/*, done*/) {
         var log = logger.getLog(),
             id = req.body.id || (req.origObj && req.origObj.id),
@@ -83,23 +84,23 @@
             attempts = campModule.campsCfg.statusAttempts,
             toDelete = [];
         
-        ['miniReels', 'cards'].forEach(function(key) {
-            if (!req.origObj || !req.origObj[key] || !req.body[key]) {
+        ['miniReels', 'cards'].forEach(function(prop) {
+            if (!req.origObj || !req.origObj[prop] || !req.body[prop]) {
                 return;
             }
-            req.body[key] = campaignUtils.objectify(req.body[key]);
+            req.body[prop] = campaignUtils.objectify(req.body[prop]);
             
-            req.origObj[key].forEach(function(oldObj) {
-                if (req.body[key].some(function(newObj) { return newObj.id === oldObj.id; })) {
+            req.origObj[prop].forEach(function(oldObj) {
+                if (req.body[prop].some(function(newObj) { return newObj.id === oldObj.id; })) {
                     log.trace('[%1] Campaign for %2 still exists for %3', req.uuid, oldObj.id, id);
                     return;
                 }
                 
                 log.info('[%1] %2 removed from %3 in %4, deleting its campaign in Adtech',
-                         req.uuid, oldObj.id, key, id);
+                         req.uuid, oldObj.id, prop, id);
                 if (!oldObj.adtechId) {
                     log.warn('[%1] Entry for %2 in %3 has no adtechId, cannot delete it',
-                             req.uuid, oldObj.id, key);
+                             req.uuid, oldObj.id, prop);
                     return;
                 }
                 toDelete.push(oldObj.adtechId);
@@ -118,6 +119,47 @@
         });
     };
 
+    // Middleware to edit sponsored campaigns, updating level 3 keywords if categories change
+    campModule.editSponsoredCamps = function(req, next/*, done*/) {
+        var log = logger.getLog(),
+            cats = req.body.categories,
+            origCats = req.origObj.categories || [],
+            id = req.params.id;
+        
+        if (!cats || objUtils.compareObjects(cats.sort(), origCats.sort())) {
+            log.trace('[%1] Categories unchanged, not editing sponsored campaigns', req.uuid);
+            return q(next());
+        }
+        
+        return q.all(['miniReels', 'cards'].map(function(prop) {
+            if (!req.origObj[prop]) {
+                return q();
+            }
+            
+            var keywords = { level1: (prop === 'cards' ? [id] : undefined), level3: cats };
+            return campaignUtils.makeKeywordLevels(keywords)
+            .then(function(keys) {
+                return q.all(req.origObj[prop].filter(function(oldCamp) {
+                    return !req.body[prop] ||
+                            campaignUtils.objectify(req.body[prop]).some(function(newCamp) {
+                                return newCamp.id === oldCamp.id;
+                            });
+                }).map(function(camp) {
+                    return campaignUtils.editCampaign(camp.adtechId, null, keys);
+                }));
+            });
+        }))
+        .then(function() {
+            log.trace('[%1] All sponsored campaigns for %2 have been edited', req.uuid, id);
+            next();
+        })
+        .catch(function(error) {
+            log.error('[%1] Error editing sponsored campaigns: %2',
+                      req.uuid, error && error.stack || error);
+            return q.reject('Adtech failure');
+        });
+    };
+
     // Middleware to create sponsored miniReel and sponsored card campaigns
     campModule.createSponsoredCamps = function(req, next/*, done*/) {
         var log = logger.getLog(),
@@ -126,24 +168,24 @@
             advert = req._advertiserId,
             cust = req._customerId;
             
-        return q.all(['miniReels', 'cards'].map(function(key) {
-            var type = key.replace(/s$/, ''),
-                oldList = (req.origObj && req.origObj[key]) || [],
+        return q.all(['miniReels', 'cards'].map(function(prop) {
+            var type = prop.replace(/s$/, ''),
+                oldList = (req.origObj && req.origObj[prop]) || [],
                 keywords = { level1: (type === 'card' ? [id] : undefined), level3: cats };
                 
-            if (!(req.body[key] instanceof Array) || req.body[key].length === 0) {
-                log.trace('[%1] No %2 to make campaigns for', req.uuid, key);
+            if (!(req.body[prop] instanceof Array) || req.body[prop].length === 0) {
+                log.trace('[%1] No %2 to make campaigns for', req.uuid, prop);
                 return q();
             }
 
-            req.body[key] = campaignUtils.objectify(req.body[key]).map(function(newObj) {
+            req.body[prop] = campaignUtils.objectify(req.body[prop]).map(function(newObj) {
                 var existing = oldList.filter(function(obj) {return obj.id === newObj.id;})[0];
                 return existing || newObj;
             });
             
             return campaignUtils.makeKeywordLevels(keywords)
             .then(function(keys) {
-                return q.all(req.body[key].map(function(obj) {
+                return q.all(req.body[prop].map(function(obj) {
                     if (obj.adtechId) {
                         log.trace('[%1] Campaign %2 already exists for %3',
                                   req.uuid, obj.adtechId, obj.id);
@@ -166,94 +208,6 @@
         .catch(function(error) {
             log.error('[%1] Error creating sponsored campaigns: %2',
                       req.uuid, error && error.stack || error);
-            return q.reject('Adtech failure');
-        });
-    };
-        
-    // Middleware to edit sponsored campaigns
-    campModule.editSponsoredCamps = function(req, next/*, done*/) {
-        var log = logger.getLog(),
-            cats = req.body.categories,
-            origCats = req.origObj.categories || [],
-            id = req.origObj.id;
-        
-        if (!cats || objUtils.compareObjects(cats.sort(), origCats.sort())) {
-            log.trace('[%1] Categories unchanged, not editing sponsored campaigns', req.uuid);
-            return q(next());
-        }
-        
-        return q.all(['miniReels', 'cards'].map(function(key) {
-            if (!req.origObj[key]) {
-                return q();
-            }
-            
-            var keywords = { level1: (key === 'cards' ? [id] : undefined), level3: cats };
-            return campaignUtils.makeKeywordLevels(keywords)
-            .then(function(keys) {
-                return q.all(req.origObj[key].filter(function(oldCamp) {
-                    return !req.body[key] || req.body[key].some(function(newCamp) {
-                        return newCamp.id === oldCamp.id;
-                    });
-                }).map(function(camp) {
-                    return campaignUtils.editCampaign(camp.adtechId, null, keys);
-                }));
-            });
-        }))
-        .then(function() {
-            log.trace('[%1] All sponsored campaigns for %2 have been edited', req.uuid, id);
-            next();
-        })
-        .catch(function(error) {
-            log.error('[%1] Error editing sponsored campaigns: %2',
-                      req.uuid, error && error.stack || error);
-            return q.reject('Adtech failure');
-        });
-    };
-    
-    // Middleware to create target minireel group campaigns from miniReelGroups property
-    campModule.createTargetCamps = function(req, next/*, done*/) {
-        var log = logger.getLog(),
-            id = req.body.id || (req.origObj && req.origObj.id),
-            name = id + '_group_' + uuid.createUuid().substr(0, 8),
-            advert = req._advertiserId,
-            cust = req._customerId;
-        
-        if (!req.body.miniReelGroups) {
-            return q(next());
-        }
-        
-        return q.all(req.body.miniReelGroups.map(function(obj, idx) {
-            if (obj.adtechId) {
-                log.trace('[%1] Group campaign %2 already created', req.uuid, obj.adtechId);
-                return q();
-            }
-            if (!(obj.cards instanceof Array) || obj.cards.length === 0) {
-                log.info('[%1] Cards array was empty, skipping group %2', req.uuid, idx);
-                return q();
-            }
-            if (!(obj.miniReels instanceof Array) || obj.miniReels.length === 0) {
-                log.info('[%1] Minireels array was empty, skipping group %2', req.uuid, idx);
-                return q();
-            }
-            
-            return campaignUtils.makeKeywordLevels({ level1: obj.cards })
-            .then(function(keys) {
-                return campaignUtils.createCampaign(id, name, false, keys, advert, cust);
-            })
-            .then(function(resp) {
-                obj.adtechId = parseInt(resp.id);
-                obj.miniReels = campaignUtils.objectify(obj.miniReels);
-                
-                return bannerUtils.createBanners(obj.miniReels, null,
-                                                   'contentMiniReel', obj.adtechId);
-            });
-        }))
-        .then(function() {
-            log.trace('[%1] All target groups for %2 have been created', req.uuid, id);
-            next();
-        })
-        .catch(function(err) {
-            log.error('[%1] Error creating target campaigns: %2',req.uuid, err && err.stack || err);
             return q.reject('Adtech failure');
         });
     };
@@ -287,7 +241,6 @@
                      req.uuid, oldObj.adtechId, id);
             toDelete.push(oldObj.adtechId);
         });
-        
         return campaignUtils.deleteCampaigns(toDelete, delay, attempts)
         .then(function() {
             log.trace('[%1] Cleaned target campaigns for %2', req.uuid, id);
@@ -303,13 +256,14 @@
     // Middleware to edit target group campaigns, updating banner list + keywords
     campModule.editTargetCamps = function(req, next/*, done*/) {
         var log = logger.getLog(),
-            id = req.body.id || (req.origObj && req.origObj.id);
+            id = req.params.id;
             
         if (!req.body.miniReelGroups || !req.origObj.miniReelGroups) {
             return q(next());
         }
         
-        return q.all((req.body.miniReelGroups || []).map(function(group) {
+        return q.all((req.body.miniReelGroups).map(function(group) {
+            group.miniReels = campaignUtils.objectify(group.miniReels);
             var existing = req.origObj.miniReelGroups.filter(function(oldGroup) {
                     return oldGroup.adtechId === group.adtechId;
                 })[0];
@@ -318,9 +272,7 @@
                 return q();
             }
             
-            group.miniReels = campaignUtils.objectify(group.miniReels);
-            
-            return ( (objUtils.compareObjects(group.cards, existing.cards)) ? q() :
+            return ( (objUtils.compareObjects(group.cards.sort(), existing.cards.sort())) ? q() :
                 campaignUtils.makeKeywordLevels({level1: group.cards}).then(function(keys) {
                     return campaignUtils.editCampaign(group.adtechId, null, keys);
                 })
@@ -343,6 +295,54 @@
         })
         .catch(function(err) {
             log.error('[%1] Error editing target campaigns: %2', req.uuid, err && err.stack || err);
+            return q.reject('Adtech failure');
+        });
+    };
+        
+    // Middleware to create target minireel group campaigns from miniReelGroups property
+    campModule.createTargetCamps = function(req, next/*, done*/) {
+        var log = logger.getLog(),
+            id = req.body.id || (req.origObj && req.origObj.id),
+            advert = req._advertiserId,
+            cust = req._customerId;
+        
+        if (!req.body.miniReelGroups) {
+            return q(next());
+        }
+        
+        return q.all(req.body.miniReelGroups.map(function(obj, idx) {
+            if (obj.adtechId) {
+                log.trace('[%1] Group campaign %2 already created', req.uuid, obj.adtechId);
+                return q();
+            }
+            if (!(obj.cards instanceof Array) || obj.cards.length === 0) {
+                log.info('[%1] Cards array was empty, skipping group %2', req.uuid, idx);
+                return q();
+            }
+            if (!(obj.miniReels instanceof Array) || obj.miniReels.length === 0) {
+                log.info('[%1] Minireels array was empty, skipping group %2', req.uuid, idx);
+                return q();
+            }
+
+            var name = id + '_group_' + uuid.createUuid().substr(0, 8);
+            
+            return campaignUtils.makeKeywordLevels({ level1: obj.cards })
+            .then(function(keys) {
+                return campaignUtils.createCampaign(id, name, false, keys, advert, cust);
+            })
+            .then(function(resp) {
+                obj.adtechId = parseInt(resp.id);
+                obj.miniReels = campaignUtils.objectify(obj.miniReels);
+                
+                return bannerUtils.createBanners(obj.miniReels,null,'contentMiniReel',obj.adtechId);
+            });
+        }))
+        .then(function() {
+            log.trace('[%1] All target groups for %2 have been created', req.uuid, id);
+            next();
+        })
+        .catch(function(err) {
+            log.error('[%1] Error creating target campaigns: %2',req.uuid, err && err.stack || err);
             return q.reject('Adtech failure');
         });
     };
@@ -393,20 +393,20 @@
             delay = campModule.campsCfg.statusDelay,
             attempts = campModule.campsCfg.statusAttempts,
             toDelete = [];
-
+            
         log.trace('[%1] Deleting all sponsored + target campaigns for %2', req.uuid, req.params.id);
 
-        ['cards', 'miniReels', 'miniReelGroups'].forEach(function(key) {
-            if (!req.origObj[key]) {
+        ['cards', 'miniReels', 'miniReelGroups'].forEach(function(prop) {
+            if (!req.origObj[prop]) {
                 return;
             }
             
-            for (var idx in req.origObj[key]) {
-                if (!req.origObj[key][idx].adtechId) {
-                    log.warn('[%1] Item %2 from %3 array has no adtechId', req.uuid, idx, key);
-                    return q();
+            for (var idx in req.origObj[prop]) {
+                if (!req.origObj[prop][idx].adtechId) {
+                    log.warn('[%1] Item %2 from %3 array has no adtechId', req.uuid, idx, prop);
+                    continue;
                 }
-                toDelete.push(req.origObj[key][idx].adtechId);
+                toDelete.push(req.origObj[prop][idx].adtechId);
             }
         });
         
@@ -416,7 +416,8 @@
             next();
         })
         .catch(function(error) {
-            log.error('[%1] Error deleting campaigns for %2: %3', req.uuid, req.params.id, error);
+            log.error('[%1] Error deleting campaigns for %2: %3',
+                      req.uuid, req.params.id, error && error.stack || error);
             return q.reject(new Error('Adtech failure'));
         });
     };
