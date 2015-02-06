@@ -1,6 +1,6 @@
 var flush = true;
 describe('campaignUtils', function() {
-    var q, mockLog, logger, promise, adtech, campaignUtils, mockClient,
+    var q, mockLog, logger, promise, adtech, campaignUtils, mockClient, kCamp,
         nextSpy, doneSpy, errorSpy, req;
     
     beforeEach(function() {
@@ -29,14 +29,17 @@ describe('campaignUtils', function() {
         errorSpy = jasmine.createSpy('caught error');
         
         mockClient = {client: 'yes'};
-        ['adtech/lib/campaign', 'adtech/lib/banner', 'adtech/lib/keyword'].forEach(function(key) {
+        
+        ['adtech/lib/campaign', 'adtech/lib/banner', 'adtech/lib/keyword', 'adtech/lib/push'].forEach(function(key) {
             delete require.cache[require.resolve(key)];
         });
         adtech = require('adtech');
+        kCamp = adtech.constants.ICampaign;
         adtech.campaignAdmin = require('adtech/lib/campaign');
         adtech.bannerAdmin = require('adtech/lib/banner');
         adtech.keywordAdmin = require('adtech/lib/keyword');
-        ['campaignAdmin', 'bannerAdmin', 'keywordAdmin'].forEach(function(admin) {
+        adtech.pushAdmin = require('adtech/lib/push');
+        ['campaignAdmin', 'bannerAdmin', 'keywordAdmin', 'pushAdmin'].forEach(function(admin) {
             Object.keys(adtech[admin]).forEach(function(prop) {
                 if (typeof adtech[admin][prop] !== 'function') {
                     return;
@@ -399,10 +402,178 @@ describe('campaignUtils', function() {
     });
     
     describe('pollStatuses', function() {
-        //TODO
+        var deferreds, desired, tick;
+        beforeEach(function() {
+            deferreds = { 123: q.defer(), 234: q.defer(), 345: q.defer() };
+            desired = kCamp.STATUS_EXPIRED;
+            spyOn(campaignUtils, 'pollStatuses').andCallThrough();
+            adtech.campaignAdmin.getCampaignStatusValues.andCallFake(function(ids) {
+                var results = {};
+                ids.forEach(function(id, idx) {
+                    if (idx === 0) results[id] = desired;
+                    else results[id] = kCamp.STATUS_PENDING;
+                });
+                return q(results);
+            });
+            tick = function() {
+                var def = q.defer();
+                process.nextTick(function() {
+                    jasmine.Clock.tick(1000);
+                    def.resolve();
+                });
+                return def.promise;
+            };
+        });
+        
+        it('should poll for campaign statuses until all have succesfully transitioned', function(done) {
+            campaignUtils.pollStatuses(deferreds, desired, 1000, 3).then(function() {
+                expect(deferreds[123].promise.inspect()).toEqual({state: 'fulfilled', value: undefined});
+                expect(deferreds[234].promise.inspect()).toEqual({state: 'fulfilled', value: undefined});
+                expect(deferreds[345].promise.inspect()).toEqual({state: 'fulfilled', value: undefined});
+                expect(campaignUtils.pollStatuses.calls.length).toBe(3);
+                expect(adtech.campaignAdmin.getCampaignStatusValues.calls.length).toBe(3);
+                expect(adtech.campaignAdmin.getCampaignStatusValues.calls[0].args).toEqual([['123', '234', '345']]);
+                expect(adtech.campaignAdmin.getCampaignStatusValues.calls[1].args).toEqual([['234', '345']]);
+                expect(adtech.campaignAdmin.getCampaignStatusValues.calls[2].args).toEqual([['345']]);
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+
+            tick().then(function() {
+                expect(deferreds[123].promise.inspect()).toEqual({state: 'fulfilled', value: undefined});
+                expect(deferreds[234].promise.inspect()).toEqual({state: 'pending'});
+                expect(deferreds[345].promise.inspect()).toEqual({state: 'pending'});
+            }).then(tick).then(function() {
+                expect(deferreds[123].promise.inspect()).toEqual({state: 'fulfilled', value: undefined});
+                expect(deferreds[234].promise.inspect()).toEqual({state: 'fulfilled', value: undefined});
+                expect(deferreds[345].promise.inspect()).toEqual({state: 'pending'});
+            }).then(tick);
+        });
+
+        it('should do nothing if there are no campaigns to check', function(done) {
+            deferreds = {};
+            campaignUtils.pollStatuses(deferreds, desired, 1000, 3).then(function() {
+                expect(adtech.campaignAdmin.getCampaignStatusValues).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should just log a warning if a getCampaignStatusValues call fails', function(done) {
+            adtech.campaignAdmin.getCampaignStatusValues.andCallFake(function(ids) {
+                if (this.getCampaignStatusValues.calls.length === 2) return q.reject('I GOT A PROBLEM');
+                var results = {};
+                ids.forEach(function(id, idx) {
+                    if (idx === 0) results[id] = desired;
+                    else results[id] = kCamp.STATUS_PENDING;
+                });
+                return q(results);
+            });
+            campaignUtils.pollStatuses(deferreds, desired, 1000, 4).then(function() {
+                expect(deferreds[123].promise.inspect()).toEqual({state: 'fulfilled', value: undefined});
+                expect(deferreds[234].promise.inspect()).toEqual({state: 'fulfilled', value: undefined});
+                expect(deferreds[345].promise.inspect()).toEqual({state: 'fulfilled', value: undefined});
+                expect(campaignUtils.pollStatuses.calls.length).toBe(4);
+                expect(adtech.campaignAdmin.getCampaignStatusValues.calls.length).toBe(4);
+                expect(adtech.campaignAdmin.getCampaignStatusValues.calls[0].args).toEqual([['123', '234', '345']]);
+                expect(adtech.campaignAdmin.getCampaignStatusValues.calls[1].args).toEqual([['234', '345']]);
+                expect(adtech.campaignAdmin.getCampaignStatusValues.calls[2].args).toEqual([['234', '345']]);
+                expect(adtech.campaignAdmin.getCampaignStatusValues.calls[3].args).toEqual([['345']]);
+                expect(mockLog.warn).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+            
+            tick().then(tick).then(tick).then(tick);
+        });
+        
+        it('should reject any promises for campaigns that don\'t succeed in time', function(done) {
+            campaignUtils.pollStatuses(deferreds, desired, 1000, 2).then(function() {
+                expect(deferreds[123].promise.inspect()).toEqual({state: 'fulfilled', value: undefined});
+                expect(deferreds[234].promise.inspect()).toEqual({state: 'fulfilled', value: undefined});
+                expect(deferreds[345].promise.inspect()).toEqual({state: 'rejected', reason: 'Status for 345 is 10 after 2 poll attempts'});
+                expect(campaignUtils.pollStatuses.calls.length).toBe(3);
+                expect(adtech.campaignAdmin.getCampaignStatusValues.calls.length).toBe(2);
+                expect(adtech.campaignAdmin.getCampaignStatusValues.calls[0].args).toEqual([['123', '234', '345']]);
+                expect(adtech.campaignAdmin.getCampaignStatusValues.calls[1].args).toEqual([['234', '345']]);
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+            
+            tick().then(tick);
+        });
+        
+        it('should stop checking a campaign if its status becomes an error status', function(done) {
+            adtech.campaignAdmin.getCampaignStatusValues.andCallFake(function(ids) {
+                var results = {};
+                ids.forEach(function(id, idx) {
+                    if (idx === 0) results[id] = kCamp.STATUS_ERROR_STOPPING;
+                    else results[id] = kCamp.STATUS_PENDING;
+                });
+                return q(results);
+            });
+            campaignUtils.pollStatuses(deferreds, desired, 1000, 3).then(function() {
+                expect(deferreds[123].promise.inspect()).toEqual({state: 'rejected', reason: 'Status for 123 is STATUS_ERROR_STOPPING'});
+                expect(deferreds[234].promise.inspect()).toEqual({state: 'rejected', reason: 'Status for 234 is STATUS_ERROR_STOPPING'});
+                expect(deferreds[345].promise.inspect()).toEqual({state: 'rejected', reason: 'Status for 345 is STATUS_ERROR_STOPPING'});
+                expect(campaignUtils.pollStatuses.calls.length).toBe(3);
+                expect(adtech.campaignAdmin.getCampaignStatusValues.calls.length).toBe(3);
+                expect(adtech.campaignAdmin.getCampaignStatusValues.calls[0].args).toEqual([['123', '234', '345']]);
+                expect(adtech.campaignAdmin.getCampaignStatusValues.calls[1].args).toEqual([['234', '345']]);
+                expect(adtech.campaignAdmin.getCampaignStatusValues.calls[2].args).toEqual([['345']]);
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+            
+            tick().then(tick).then(tick);
+        });
     });
     
     describe('deleteCampaigns', function() {
-        //TODO
+        var ids;
+        beforeEach(function() {
+            ids = [123, 234, 345];
+            adtech.pushAdmin.stopCampaignById.andReturn(q());
+            adtech.campaignAdmin.deleteCampaign.andReturn(q());
+            spyOn(campaignUtils, 'pollStatuses').andCallFake(function(deferreds) {
+                Object.keys(deferreds).forEach(function(id) { deferreds[id].resolve(); });
+            });
+        });
+        
+        it('should stop and delete campaigns', function(done) {
+            campaignUtils.deleteCampaigns(ids, 1000, 10).then(function() {
+                expect(adtech.pushAdmin.stopCampaignById.calls.length).toBe(3);
+                expect(adtech.campaignAdmin.deleteCampaign.calls.length).toBe(3);
+                ids.forEach(function(id) {
+                    expect(adtech.pushAdmin.stopCampaignById).toHaveBeenCalledWith(id);
+                    expect(adtech.campaignAdmin.deleteCampaign).toHaveBeenCalledWith(id);
+                });
+                expect(campaignUtils.pollStatuses).toHaveBeenCalledWith({123: jasmine.any(Object),
+                    234: jasmine.any(Object), 345: jasmine.any(Object)}, kCamp.STATUS_EXPIRED, 1000, 10);
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should do nothing if there are no ids', function(done) {
+            campaignUtils.deleteCampaigns(undefined, 1000, 10).then(function() {
+                return campaignUtils.deleteCampaigns([], 1000, 10);
+            }).then(function() {
+                expect(adtech.pushAdmin.stopCampaignById).not.toHaveBeenCalled();
+                expect(adtech.campaignAdmin.deleteCampaign).not.toHaveBeenCalled();
+                expect(campaignUtils.pollStatuses).not.toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        xit('should log warnings if campaigns fail to delete', function(done) {
+            //TODO: finish these tests
+        });
     });
 });

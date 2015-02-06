@@ -881,7 +881,7 @@ describe('ads-campaigns (UT)', function() {
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith(new Error('Adtech failure'));
+                expect(errorSpy).toHaveBeenCalledWith('Adtech failure');
                 expect(mockLog.error).toHaveBeenCalled();
                 done();
             });

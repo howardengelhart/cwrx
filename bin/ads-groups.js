@@ -66,6 +66,20 @@
         return campaignUtils.getAccountIds(svc._advertColl, svc._custColl, req, next, done);
     };
 
+    // Setup the group's campaign, calling makeKeywordLevels and createCampaign
+    groupModule.createAdtechGroup = function(req, next/*, done*/) {
+        return campaignUtils.makeKeywordLevels({ level3: req.body.categories })
+        .then(function(keys) {
+            return campaignUtils.createCampaign(req.body.id, req.body.name, false, keys,
+                                                req._advertiserId, req._customerId);
+        })
+        .then(function(resp) {
+            req.body.adtechId = parseInt(resp.id);
+            next();
+        });
+    };
+
+    // Call bannerUtils.createBanners to create any necessary banners for the campaign
     groupModule.createBanners = function(req, next/*, done*/) {
         req.body.miniReels = campaignUtils.objectify(req.body.miniReels);
         return bannerUtils.createBanners(
@@ -79,6 +93,7 @@
         });
     };
 
+    // Call bannerUtils.cleanBanners to delete any unused banners for the campaign
     groupModule.cleanBanners = function(req, next/*, done*/) {
         req.body.miniReels = campaignUtils.objectify(req.body.miniReels);
         return bannerUtils.cleanBanners(
@@ -91,18 +106,7 @@
         });
     };
 
-    groupModule.createAdtechGroup = function(req, next/*, done*/) {
-        return campaignUtils.makeKeywordLevels({ level3: req.body.categories })
-        .then(function(keys) {
-            return campaignUtils.createCampaign(req.body.id, req.body.name, false, keys,
-                                                req._advertiserId, req._customerId);
-        })
-        .then(function(resp) {
-            req.body.adtechId = parseInt(resp.id);
-            next();
-        });
-    };
-    
+    // Edit the campaign with updated keywords if the name or categories have been changed
     groupModule.editAdtechGroup = function(req, next/*, done*/) {
         var log = logger.getLog(),
             cats = req.body.categories,
@@ -123,6 +127,7 @@
         });
     };
 
+    // Delete the group's campaign from adtech
     groupModule.deleteAdtechGroup = function(req, next/*, done*/) {
         var log = logger.getLog(),
             delay = groupModule.campsCfg.statusDelay,
@@ -138,6 +143,7 @@
             next();
         });
     };
+
     
     groupModule.setupEndpoints = function(app, svc, sessions, audit) {
         var authGetGroup = authUtils.middlewarify({minireelGroups: 'read'});

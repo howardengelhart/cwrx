@@ -418,7 +418,7 @@
         .catch(function(error) {
             log.error('[%1] Error deleting campaigns for %2: %3',
                       req.uuid, req.params.id, error && error.stack || error);
-            return q.reject(new Error('Adtech failure'));
+            return q.reject('Adtech failure');
         });
     };
     
