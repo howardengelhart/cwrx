@@ -348,7 +348,7 @@
     };
 
     /* Send a DELETE request to the content service. type should be "card" or "experience"
-     * Logs + swallows errors so deleting campaign continues despite failures to delete content.*/
+     * Logs + swallows 4xx failures, but rejects 5xx failures. */
     campModule.sendDeleteRequest = function(req, id, type) {
         var log = logger.getLog();
         
@@ -366,6 +366,7 @@
         })
         .catch(function(error) {
             log.error('[%1] Error deleting %2 %3: %4', req.uuid, type, id, util.inspect(error));
+            return q.reject('Failed sending delete request to content service');
         });
     };
     

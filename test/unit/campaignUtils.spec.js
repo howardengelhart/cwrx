@@ -572,8 +572,54 @@ describe('campaignUtils', function() {
             }).done(done);
         });
         
-        xit('should log warnings if campaigns fail to delete', function(done) {
-            //TODO: finish these tests
+        it('should fail early if any of the stop calls fails', function(done) {
+            adtech.pushAdmin.stopCampaignById.andCallFake(function(id) {
+                if (id === 234) return q.reject('I GOT A PROBLEM');
+                else return q();
+            });
+            campaignUtils.deleteCampaigns(ids, 1000, 10).then(function() {
+                expect('resolved').not.toBe('resolved');
+            }).catch(function(error) {
+                expect(error).toEqual(new Error('Adtech failure'));
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(adtech.pushAdmin.stopCampaignById.calls.length).toBe(3);
+                expect(adtech.campaignAdmin.deleteCampaign).not.toHaveBeenCalled();
+                expect(campaignUtils.pollStatuses).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should reject if one of the campaigns fails to transition states', function(done) {
+            campaignUtils.pollStatuses.andCallFake(function(deferreds) {
+                Object.keys(deferreds).forEach(function(id) {
+                    if (id === '123') deferreds[id].reject('I GOT A PROBLEM');
+                    else deferreds[id].resolve();
+                });
+            });
+            campaignUtils.deleteCampaigns(ids, 1000, 10).then(function() {
+                expect('resolved').not.toBe('resolved');
+            }).catch(function(error) {
+                expect(error).toEqual(new Error('Adtech failure'));
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(adtech.pushAdmin.stopCampaignById.calls.length).toBe(3);
+                expect(adtech.campaignAdmin.deleteCampaign.calls.length).toBe(2);
+                expect(campaignUtils.pollStatuses).toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should reject if deleting one of the campaigns fails', function(done) {
+            adtech.campaignAdmin.deleteCampaign.andCallFake(function(id) {
+                if (id === 345) return q.reject('I GOT A PROBLEM');
+                else return q();
+            });
+            campaignUtils.deleteCampaigns(ids, 1000, 10).then(function() {
+                expect('resolved').not.toBe('resolved');
+            }).catch(function(error) {
+                expect(error).toEqual(new Error('Adtech failure'));
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(adtech.pushAdmin.stopCampaignById.calls.length).toBe(3);
+                expect(adtech.campaignAdmin.deleteCampaign.calls.length).toBe(3);
+                expect(campaignUtils.pollStatuses).toHaveBeenCalled();
+            }).done(done);
         });
     });
 });

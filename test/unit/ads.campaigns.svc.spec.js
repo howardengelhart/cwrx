@@ -771,13 +771,13 @@ describe('ads-campaigns (UT)', function() {
             }).done(done);
         });
 
-        it('should just log an error if the request fails', function(done) {
+        it('should reject if the request fails', function(done) {
             requestUtils.qRequest.andReturn(q.reject('I GOT A PROBLEM'));
             campModule.sendDeleteRequest(req, 'e-1', 'experience').then(function() {
-                expect(mockLog.warn).not.toHaveBeenCalled();
-                expect(mockLog.error).toHaveBeenCalled();
+                expect('resolved').not.toBe('resolved');
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(error).toBe('Failed sending delete request to content service');
+                expect(mockLog.error).toHaveBeenCalled();
             }).done(done);
         });
     });
@@ -816,7 +816,7 @@ describe('ads-campaigns (UT)', function() {
             });
         });
         
-        it('should reject if one of the requests somehow rejects', function(done) {
+        it('should reject if one of the requests rejects', function(done) {
             campModule.sendDeleteRequest.andCallFake(function(req, id, type) {
                 if (id === 'e-1') return q.reject('YOU DONE FUCKED UP');
                 else return q();
