@@ -248,6 +248,8 @@
     content.buildHostQuery = function(host, container) {
         if (container === 'veeseo') {
             return { host: 'veeseo.com' };
+        } else if (container === 'connatix') {
+            return { host: 'connatix.com' };
         }
         if (!host) {
             return null;

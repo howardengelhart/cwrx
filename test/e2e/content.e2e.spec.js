@@ -123,6 +123,8 @@ describe('content experience endpoints (E2E):', function() {
                   branding: 'siteBrand', placementId: '456', wildCardPlacement: '654' },
                 { id: 'e2e-veeseo', status: 'active', host: 'veeseo.com',
                   branding: 'veeseoBrand', placementId: '159', wildCardPlacement: '951' },
+                { id: 'e2e-connatix', status: 'active', host: 'connatix.com',
+                  branding: 'connatixBrand', placementId: '246', wildCardPlacement: '864' },
                 { id: 'e2e-containers', status: 'active', host: 'containers.com', branding: 'siteBrand',
                   containers: [{id: 'embed', contentPlacementId: 11, displayPlacementId: 12}] }
             ];
@@ -212,6 +214,20 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body.data.branding).toBe('veeseoBrand');
                 expect(resp.body.data.placementId).toBe('159');
                 expect(resp.body.data.wildCardPlacement).toBe('951');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should use the connatix site if the container is connatix', function(done) {
+            options.qs = { container: 'connatix' };
+            options.url = options.url.replace('e2e-pubget1', 'e2e-org-adConfig');
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.id).toBe('e2e-org-adConfig');
+                expect(resp.body.data.branding).toBe('connatixBrand');
+                expect(resp.body.data.placementId).toBe('246');
+                expect(resp.body.data.wildCardPlacement).toBe('864');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);

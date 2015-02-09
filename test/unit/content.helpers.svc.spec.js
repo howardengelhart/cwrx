@@ -505,6 +505,11 @@ describe('content (UT)', function() {
             expect(content.buildHostQuery('foo.com', 'veeseo')).toEqual({host: 'veeseo.com'});
             expect(content.buildHostQuery('', 'veeseo')).toEqual({host: 'veeseo.com'});
         });
+
+        it('should override the query if the container is connatix', function() {
+            expect(content.buildHostQuery('foo.com', 'connatix')).toEqual({host: 'connatix.com'});
+            expect(content.buildHostQuery('', 'connatix')).toEqual({host: 'connatix.com'});
+        });
     });
     
     describe('chooseSite', function() {
