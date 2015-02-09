@@ -745,3 +745,9 @@ describe('collateral (E2E):', function() {
         });
     });  // end -- describe POST /api/collateral/setHeaders
 });
+
+describe('closeDbs', function() {
+    it('should close db connections', function() {
+        testUtils.closeDbs();
+    });
+});

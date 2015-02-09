@@ -12,7 +12,16 @@ var request         = require('request'),
     s3util          = require('../../lib/s3util'),
     awsAuth         = process.env['awsAuth'] || path.join(process.env.HOME,'.aws.json'),
     
-    testUtils = {};
+    testUtils = { _dbCache: {} };
+
+
+///////////////////////////// Mongo Helper Methods /////////////////////////////
+
+// Close all dbs stored in the cache; should be called in a test spec at the end of each file
+testUtils.closeDbs = function() {
+    Object.keys(testUtils._dbCache).forEach(function(key) { testUtils._dbCache[key].close(); });
+    testUtils._dbCache = {};
+};
   
 testUtils._getDb = function(userCfg) {
     userCfg = userCfg || {};
@@ -24,8 +33,16 @@ testUtils._getDb = function(userCfg) {
         user : userCfg.user ? userCfg.user : procCfg.user || 'e2eTests',
         pass : userCfg.pass ? userCfg.pass : procCfg.pass || 'password'
     };
+    var key = dbConfig.host + ':' + dbConfig.port + '/' + dbConfig.db;
     
-    return mongoUtils.connect(dbConfig.host,dbConfig.port,dbConfig.db,dbConfig.user,dbConfig.pass)
+    if (testUtils._dbCache[key]) {
+        return q(testUtils._dbCache[key]);
+    } else {
+        return mongoUtils.connect(dbConfig.host,dbConfig.port,dbConfig.db,dbConfig.user,dbConfig.pass).then(function(db) {
+            testUtils._dbCache[key] = db;
+            return q(db);
+        });
+    }
 };
 
 testUtils.mongoFind = function(collection, query, sort, limit, skip, userCfg) {
@@ -36,7 +53,7 @@ testUtils.mongoFind = function(collection, query, sort, limit, skip, userCfg) {
             coll    = db.collection(collection);
             var cursor = coll.find(query, {sort: sort, limit: limit, skip: skip});
             return q.npost(cursor, 'toArray');
-        }).finally(function() { db.close(); });
+        });
 };
 
 testUtils.resetCollection = function(collection,data,userCfg){
@@ -59,11 +76,30 @@ testUtils.resetCollection = function(collection,data,userCfg){
             }
 
             return q.npost(coll,'insert',[data, { w: 1, journal: true }]);
-        })
-        .then(function(){
-            db.close();
-        });
+        }).catch(function(error) {
+            console.log('\nFailed resetting ' + collection + ' with data ' + JSON.stringify(data, null, 4));
+            return q.reject(error);
+        }).thenResolve();
 };
+
+///////////////////////////// Adtech Helper Methods /////////////////////////////
+
+// Try to format adtech errors into something that doesn't blow up our console
+testUtils.handleAdtechError = function(error) {
+    if (error instanceof Error) return q.reject(error);
+    try {
+        var err = {
+            faultcode: error.root.Envelope.Body.Fault.faultcode,
+            faultstring: error.root.Envelope.Body.Fault.faultstring,
+            detail: Object.keys(error.root.Envelope.Body.Fault.detail)[0]
+        };
+        return q.reject('Adtech failure: ' + JSON.stringify(err, null, 4));
+    } catch(e) {
+        return q.reject(error);
+    }
+};
+
+///////////////////////////// Miscellaneous Helper Methods /////////////////////////////
 
 testUtils.checkStatus = function(jobId, host, statusUrl, statusTimeout, pollInterval) {
     var interval, timeout,

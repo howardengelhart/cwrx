@@ -2,6 +2,7 @@ var q               = require('q'),
     adtech          = require('adtech'),
     request         = require('request'),
     testUtils       = require('./testUtils'),
+    adtechErr       = testUtils.handleAdtechError,
     requestUtils    = require('../../lib/requestUtils'),
     host            = process.env['host'] || 'localhost',
     config = {
@@ -12,7 +13,7 @@ var q               = require('q'),
 jasmine.getEnv().defaultTimeoutInterval = 30000;
 
 describe('ads customers endpoints (E2E):', function() {
-    var cookieJar, mockUser, createdCust, createdAdverts, keptAdvert;
+    var cookieJar, mockUser, createdCust, createdAdverts, keptCust, keptAdvert;
 
     beforeEach(function(done) {
         if (cookieJar && cookieJar.cookies) {
@@ -47,14 +48,25 @@ describe('ads customers endpoints (E2E):', function() {
         if (adtech.customerAdmin) {
             return done();
         }
-        adtech.createCustomerAdmin().done(function(resp) { done(); });
+        adtech.createCustomerAdmin().catch(adtechErr).done(function(resp) { done(); });
+    });
+
+    beforeEach(function(done) {
+        if (keptCust && keptAdvert) {
+            return done();
+        } else {
+            q.all([
+                adtech.customerAdmin.getCustomerByExtId('e2e-cu-keepme'),
+                adtech.customerAdmin.getAdvertiserByExtId('e2e-a-keepme')
+            ]).spread(function(customer, advertiser) {
+                keptCust = { id: 'e2e-cu-keepme', status: 'active', name: customer.name, adtechId: customer.id };
+                keptAdvert = { id: 'e2e-a-keepme', status: 'active', name: advertiser.name, adtechId: advertiser.id };
+            }).catch(adtechErr).done(done);
+        }
     });
     
     describe('setting up advertisers', function() {
         it('should use the API to create some advertisers', function(done) {
-            keptAdvert = { id: 'e2e-a-keepme', name: 'e2e_a_keep_me', status: 'active',
-                           adtechId: 826513, created: new Date(), lastUpdated: new Date() };
-
             q.all([{name: 'e2e advert 1'}, {name: 'e2e advert 2'}, {name: 'e2e advert 3'}].map(function(body) {
                 var options = { url: config.adsUrl + '/account/advertiser', json: body, jar: cookieJar };
                 return requestUtils.qRequest('post', options);
@@ -71,7 +83,7 @@ describe('ads customers endpoints (E2E):', function() {
     describe('GET /api/account/customer/:id', function() {
         beforeEach(function(done) {
             var mockCusts = [
-                { id: 'e2e-cu-keepme', name: 'e2e_cu_keep_me', adtechId: 475049, status: 'active' },
+                keptCust,
                 { id: 'e2e-getid1', name: 'cust 1', status: 'active' },
                 { id: 'e2e-getid2', name: 'cust 2', status: 'deleted' },
             ];
@@ -82,7 +94,7 @@ describe('ads customers endpoints (E2E):', function() {
             var options = {url: config.adsUrl + '/account/customer/e2e-cu-keepme', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toEqual({id: 'e2e-cu-keepme', name: 'e2e_cu_keep_me', adtechId: 475049,
+                expect(resp.body).toEqual({id: 'e2e-cu-keepme', name: keptCust.name, adtechId: keptCust.adtechId,
                                            status: 'active', advertisers: ['e2e-a-keepme']});
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
@@ -147,7 +159,7 @@ describe('ads customers endpoints (E2E):', function() {
         beforeEach(function(done) {
             options = { url: config.adsUrl + '/account/customers', qs: {sort: 'id,1'}, jar: cookieJar };
             var mockCusts = [
-                { id: 'e2e-cu-keepme', name: 'e2e_cu_keep_me', adtechId: 475049, status: 'active' },
+                keptCust,
                 { id: 'e2e-getquery1', name: 'cust 1', adtechId: 123, status: 'active' },
                 { id: 'e2e-getquery2', name: 'cust 2', adtechId: 456, status: 'inactive' },
                 { id: 'e2e-getgone', name: 'cust deleted', adtechId: 666, status: 'deleted' }
@@ -285,7 +297,7 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(resp.body.advertisers.sort()).toEqual([createdAdverts[0].id, createdAdverts[1].id].sort());
                 
                 createdCust = resp.body;
-                return adtech.customerAdmin.getCustomerById(createdCust.adtechId);
+                return adtech.customerAdmin.getCustomerById(createdCust.adtechId).catch(adtechErr);
             }).then(function(cust)  {
                 expect(cust.name).toBe(createdCust.name);
                 expect(cust.extId).toBe(createdCust.id);
@@ -345,7 +357,7 @@ describe('ads customers endpoints (E2E):', function() {
             mockCusts = [
                 { id: 'e2e-put1', status: 'active', name: 'fake cust', foo: 'bar' },
                 { id: 'e2e-deleted', status: 'deleted', adtechId: 1234, name: 'deleted cust' },
-                { id: 'e2e-cu-keepme', status: 'active', adtechId: 475049, name: 'e2e_keep_me' },
+                keptCust,
                 createdCust
             ];
             testUtils.resetCollection('customers', mockCusts).done(done);
@@ -368,7 +380,7 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(createdCust.lastUpdated));
                 expect(resp.body.advertisers.sort()).toEqual([createdAdverts[0].id, createdAdverts[1].id].sort());
                 
-                return adtech.customerAdmin.getCustomerById(createdCust.adtechId)
+                return adtech.customerAdmin.getCustomerById(createdCust.adtechId).catch(adtechErr);
             }).then(function(cust) {
                 expect(cust.name).toBe('e2e_test_updated');
                 expect(cust.extId).toBe(createdCust.id);
@@ -417,7 +429,7 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.advertisers.sort()).toEqual([createdAdverts[1].id, createdAdverts[2].id].sort());
                 
-                return adtech.customerAdmin.getCustomerById(createdCust.adtechId)
+                return adtech.customerAdmin.getCustomerById(createdCust.adtechId).catch(adtechErr);
             }).then(function(cust) {
                 expect(cust.extId).toBe(createdCust.id);
                 expect(cust.advertiser.sort()).toEqual(
@@ -430,13 +442,13 @@ describe('ads customers endpoints (E2E):', function() {
         it('should preserve other existing adtech fields', function(done) {
             options = {
                 url: config.adsUrl + '/account/customer/e2e-cu-keepme',
-                json: { name: 'e2e_cu_keep_me_' + new Date().toISOString() },
+                json: { name: 'e2e_cu_KEEP_ME_' + new Date().toISOString() },
                 jar: cookieJar
             }
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.name).toBe(options.json.name);
-                return adtech.customerAdmin.getCustomerById(475049);
+                return adtech.customerAdmin.getCustomerById(keptCust.adtechId).catch(adtechErr);
             }).then(function(cust) {
                 expect(cust.name).toBe(options.json.name);
                 expect(cust.extId).toBe('e2e-cu-keepme');
@@ -445,7 +457,7 @@ describe('ads customers endpoints (E2E):', function() {
                     id: 1260826, mail: '', phone: '9876543210', url: 'http://bananas.com' });
                 expect(cust.contacts).toEqual([{email: 'jimtest@bananas.com', fax: '',
                     firstName: 'Jimmy', lastName: 'Testmonkey', id: 902910, mobile: '', phone: '1234567890'}]);
-                expect(cust.advertiser).toEqual(['826513']);
+                expect(cust.advertiser).toEqual([String(keptAdvert.adtechId)]);
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
@@ -511,7 +523,7 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('Object not found');
                 
-                return adtech.customerAdmin.getCustomerById(createdCust.adtechId)
+                return adtech.customerAdmin.getCustomerById(createdCust.adtechId).catch(adtechErr);
                 .then(function(cust) {
                     expect(cust).not.toBeDefined();
                 }).catch(function(err) {
@@ -595,5 +607,11 @@ describe('ads customers endpoints (E2E):', function() {
                 });
             }).done(done);
         });
+    });
+});
+
+describe('closeDbs', function() {
+    it('should close db connections', function() {
+        testUtils.closeDbs();
     });
 });

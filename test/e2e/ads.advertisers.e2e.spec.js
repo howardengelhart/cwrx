@@ -2,6 +2,7 @@ var q               = require('q'),
     adtech          = require('adtech'),
     request         = require('request'),
     testUtils       = require('./testUtils'),
+    adtechErr       = testUtils.handleAdtechError,
     requestUtils    = require('../../lib/requestUtils'),
     host            = process.env['host'] || 'localhost',
     config = {
@@ -51,7 +52,7 @@ describe('ads advertisers endpoints (E2E):', function() {
         if (adtech.customerAdmin) {
             return done();
         }
-        adtech.createCustomerAdmin().done(function(resp) { done(); });
+        adtech.createCustomerAdmin().catch(adtechErr).done(function(resp) { done(); });
     });
 
     describe('GET /api/account/advertiser/:id', function() {
@@ -264,7 +265,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.body.status).toBe('active');
                 
                 createdAdvert = resp.body;
-                return adtech.customerAdmin.getAdvertiserById(createdAdvert.adtechId);
+                return adtech.customerAdmin.getAdvertiserById(createdAdvert.adtechId).catch(adtechErr);
             }).then(function(advert)  {
                 expect(advert.name).toBe(createdAdvert.name);
                 expect(advert.extId).toBe(createdAdvert.id);
@@ -315,17 +316,28 @@ describe('ads advertisers endpoints (E2E):', function() {
     });
 
     describe('PUT /api/account/advertiser/:id', function() {
-        var mockAdverts, now, options;
+        var mockAdverts, now, options, keptAdvert;
         beforeEach(function(done) {
             // created = yesterday to allow for clock differences b/t server and test runner
             now = new Date(new Date() - 24*60*60*1000);
-            mockAdverts = [
-                { id: 'e2e-put1', status: 'active', name: 'fake advert', foo: 'bar' },
-                { id: 'e2e-deleted', status: 'deleted', adtechId: 1234, name: 'deleted advert' },
-                { id: 'e2e-a-keepme', status: 'active', adtechId: 826513, name: 'e2e_a_keep_me' },
-                createdAdvert
-            ];
-            testUtils.resetCollection('advertisers', mockAdverts).done(done);
+            var promise;
+            if (keptAdvert) {
+                promise = q();
+            } else { // this is an alternative to hardcoding the adtechId for this in the test
+                promise = adtech.customerAdmin.getAdvertiserByExtId('e2e-a-keepme').then(function(resp) {
+                    keptAdvert = { id: 'e2e-a-keepme', status: 'active', name: resp.name, adtechId: resp.id };
+                }).catch(adtechErr);
+            }
+            
+            promise.then(function() {
+                mockAdverts = [
+                    { id: 'e2e-put1', status: 'active', name: 'fake advert', foo: 'bar' },
+                    { id: 'e2e-deleted', status: 'deleted', adtechId: 1234, name: 'deleted advert' },
+                    keptAdvert,
+                    createdAdvert
+                ];
+                return testUtils.resetCollection('advertisers', mockAdverts);
+            }).done(done);
         });
 
         it('should successfully update an advertiser in mongo and adtech', function(done) {
@@ -344,7 +356,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.body.created).toBe(createdAdvert.created);
                 expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(createdAdvert.lastUpdated));
                 
-                return adtech.customerAdmin.getAdvertiserById(createdAdvert.adtechId)
+                return adtech.customerAdmin.getAdvertiserById(createdAdvert.adtechId).catch(adtechErr);
             }).then(function(advert) {
                 expect(advert.name).toBe('e2e_test_updated');
                 expect(advert.extId).toBe(createdAdvert.id);
@@ -382,21 +394,21 @@ describe('ads advertisers endpoints (E2E):', function() {
         it('should preserve other existing adtech fields', function(done) {
             options = {
                 url: config.adsUrl + '/account/advertiser/e2e-a-keepme',
-                json: { name: 'e2e_a_keep_me_' + new Date().toISOString() },
+                json: { name: 'e2e_a_KEEP_ME_' + new Date().toISOString() },
                 jar: cookieJar
             }
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.name).toBe(options.json.name);
-                return adtech.customerAdmin.getAdvertiserById(826513);
+                return adtech.customerAdmin.getAdvertiserById(keptAdvert.adtechId).catch(adtechErr);
             }).then(function(advert) {
                 expect(advert.name).toBe(options.json.name);
                 expect(advert.extId).toBe('e2e-a-keepme');
                 expect(advert.companyData).toEqual({ address: { address1: '1 Bananas Road', address2: 'Apt 123',
                     city: 'Bananaville', country: 'USA', zip: '12345' }, firmName: '', fax: '9876543210',
-                    id: 1260839, mail: '', phone: '1234567890', url: 'http://bananas.com' });
+                    id: jasmine.any(Number), mail: '', phone: '1234567890', url: 'http://bananas.com' });
                 expect(advert.contacts).toEqual([{email: 'jtestmonkey@foo.com', fax: '',
-                    firstName: 'Johnny', lastName: 'Testmonkey', id: 902914, mobile: '', phone: ''}]);
+                    firstName: 'Johnny', lastName: 'Testmonkey', id: jasmine.any(Number), mobile: '', phone: ''}]);
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
@@ -462,7 +474,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('Object not found');
                 
-                return adtech.customerAdmin.getAdvertiserById(createdAdvert.adtechId)
+                return adtech.customerAdmin.getAdvertiserById(createdAdvert.adtechId).catch(adtechErr)
                 .then(function(advert) {
                     expect(advert).not.toBeDefined();
                 }).catch(function(err) {
@@ -532,5 +544,11 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
+    });
+});
+
+describe('closeDbs', function() {
+    it('should close db connections', function() {
+        testUtils.closeDbs();
     });
 });

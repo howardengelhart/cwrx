@@ -645,3 +645,9 @@ describe('site (E2E):', function() {
         });
     });
 });
+
+describe('closeDbs', function() {
+    it('should close db connections', function() {
+        testUtils.closeDbs();
+    });
+});

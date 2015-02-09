@@ -738,3 +738,9 @@ describe('auth (E2E):', function() {
         });
     });
 });  // end describe auth (E2E)
+
+describe('closeDbs', function() {
+    it('should close db connections', function() {
+        testUtils.closeDbs();
+    });
+});

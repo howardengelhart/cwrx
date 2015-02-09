@@ -111,7 +111,7 @@
         var log = logger.getLog(),
             cats = req.body.categories,
             origCats = req.origObj.categories || [];
-        
+            
         if ((!req.body.name || req.body.name === req.origObj.name) &&
             (!cats || objUtils.compareObjects(cats.sort(), origCats.sort()))) {
             log.info('[%1] Adtech props unchanged, not updating adtech group campaign', req.uuid);
