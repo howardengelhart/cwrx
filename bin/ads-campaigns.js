@@ -57,8 +57,6 @@
         return svc;
     };
     
-    //TODO: double check all error logging because you are dumb
-    
     // Extends CrudSvc.prototype.formatOutput, processing cards, miniReels, and miniReelGroups
     campModule.formatOutput = function(svc, obj) {
         ['cards', 'miniReels'].forEach(function(prop) {
@@ -415,11 +413,6 @@
         .then(function() {
             log.info('[%1] Deleted all adtech campaigns for %2', req.uuid, req.params.id);
             next();
-        })
-        .catch(function(error) {
-            log.error('[%1] Error deleting campaigns for %2: %3',
-                      req.uuid, req.params.id, error && error.stack || error);
-            return q.reject('Adtech failure');
         });
     };
     

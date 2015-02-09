@@ -316,7 +316,9 @@ describe('ads minireelGroups endpoints (E2E):', function() {
                 expect(group.name).toBe(createdGroup.name);
                 expect(group.extId).toBe(createdGroup.id);
                 expect(group.priorityLevelThreeKeywordIdList.sort()).toEqual(['1002744', '1003562']);
-                //TODO: some more stuff
+                expect(group.priority).toBe(3);
+                expect(group.advertiserId).toBe(keptAdvert.adtechId);
+                expect(group.customerId).toBe(keptCust.adtechId);
                 return getCampaignBanners(createdGroup.adtechId);
             }).then(function(banners) {
                 compareBanners(banners, createdGroup.miniReels);
