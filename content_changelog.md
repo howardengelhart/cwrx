@@ -1,7 +1,7 @@
 # Content Service Changelog
 
 ### 1.14.2: Mon Feb  9 17:39:24 EST 2015
-* [FIX]: Override host if container is `connatix`: [#366](https://github.com/cinema6/cwrx/pull/366)
+* [FIX]: Override host to `cinema6.com` if container is `connatix` or `veeseo`: [#366](https://github.com/cinema6/cwrx/pull/366)
 * Extra deployment steps: None
 
 ### 1.14.1: Mon Jan 26 17:10:33 EST 2015
