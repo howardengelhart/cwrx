@@ -523,7 +523,7 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('Object not found');
                 
-                return adtech.customerAdmin.getCustomerById(createdCust.adtechId).catch(adtechErr);
+                return adtech.customerAdmin.getCustomerById(createdCust.adtechId).catch(adtechErr)
                 .then(function(cust) {
                     expect(cust).not.toBeDefined();
                 }).catch(function(err) {

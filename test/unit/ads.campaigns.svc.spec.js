@@ -78,7 +78,6 @@ describe('ads-campaigns (UT)', function() {
             expect(svc._custColl).toEqual({collectionName: 'customers'});
             
             expect(svc.createValidator._required).toContain('advertiserId', 'customerId');
-            expect(svc.createValidator._forbidden).toContain('adtechId');
             expect(svc.editValidator._forbidden).toContain('advertiserId', 'customerId');
             ['cards', 'miniReels', 'categories'].forEach(function(key) {
                 expect(svc.createValidator._formats[key]).toEqual(['string']);

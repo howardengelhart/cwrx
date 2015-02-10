@@ -7,6 +7,7 @@ var request         = require('request'),
     mailparser      = require('mailparser'),
     events          = require('events'),
     util            = require('util'),
+    adtech          = require('adtech'),
     requestUtils    = require('../../lib/requestUtils'),
     mongoUtils      = require('../../lib/mongoUtils'),
     s3util          = require('../../lib/s3util'),
@@ -84,9 +85,14 @@ testUtils.resetCollection = function(collection,data,userCfg){
 
 ///////////////////////////// Adtech Helper Methods /////////////////////////////
 
+testUtils._sizeTypeMap = {
+    card            : 277,  // 2x2
+    miniReel        : 509,  // 2x1
+    contentMiniReel : 16    // 1x1
+};
+
 // Try to format adtech errors into something that doesn't blow up our console
 testUtils.handleAdtechError = function(error) {
-    if (error instanceof Error) return q.reject(error);
     try {
         var err = {
             faultcode: error.root.Envelope.Body.Fault.faultcode,
@@ -98,6 +104,25 @@ testUtils.handleAdtechError = function(error) {
         return q.reject(error);
     }
 };
+
+// Retrieve active banners for a campaign from Adtech's API. Assumes bannerAdmin was created previously
+testUtils.getCampaignBanners = function(campId) {
+    var aove = new adtech.AOVE();
+    aove.addExpression(new adtech.AOVE.LongExpression('campaignId', parseInt(campId)));
+    aove.addExpression(new adtech.AOVE.BooleanExpression('deleted', false));
+    return adtech.bannerAdmin.getBannerList(null, null, aove).catch(testUtils.handleAdtechError);
+}
+
+// check that banners exist for each id in list, and they have the correct name + sizeTypeId
+testUtils.compareBanners = function(banners, list, type) {
+    expect(banners.length).toBe(list.length);
+    list.forEach(function(id) {
+        var banner = banners.filter(function(bann) { return bann.extId === id; })[0];
+        expect(banner).toBeDefined('banner for ' + id);
+        expect(banner.name).toBe(type + ' ' + id);
+        expect(banner.sizeTypeId).toBe(testUtils._sizeTypeMap[type]);
+    });
+}
 
 ///////////////////////////// Miscellaneous Helper Methods /////////////////////////////
 

@@ -406,7 +406,7 @@ describe('ads sites endpoints (E2E):', function() {
                 
             promise.then(function() {
                 mockSites = [
-                    { id: 'e2e-put1', status: 'active', adtechId: 12345, name: 'fake site', host: 'fake.com' },
+                    { id: 'e2e-put1', status: 'active', placementId: 12345, name: 'fake site', host: 'fake.com' },
                     { id: 'e2e-deleted', status: 'deleted', adtechId: 1234, name: 'deleted site' },
                     keptSite,
                     createdSite
@@ -647,7 +647,7 @@ describe('ads sites endpoints (E2E):', function() {
                     expect(result.state).toBe('rejected');
                     expect(result.value).not.toBeDefined();
                     expect(result.reason).toEqual(jasmine.any(Error));
-                    expect(result.reason && result.reason.message.match(/^Unable to locate object: /)).toBeTruthy();
+                    expect(result.reason && result.reason.message).toMatch(/^Unable to locate object: /);
                 });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();

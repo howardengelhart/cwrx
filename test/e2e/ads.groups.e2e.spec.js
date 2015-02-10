@@ -13,24 +13,6 @@ var q               = require('q'),
     
 jasmine.getEnv().defaultTimeoutInterval = 90000;
 
-function getCampaignBanners(campId) {
-    var aove = new adtech.AOVE();
-    aove.addExpression(new adtech.AOVE.LongExpression('campaignId', parseInt(campId)));
-    aove.addExpression(new adtech.AOVE.BooleanExpression('deleted', false));
-    return adtech.bannerAdmin.getBannerList(null, null, aove).catch(adtechErr);
-}
-
-// check that banners exist for each id in list, and they are correctly named
-function compareBanners(banners, list) {
-    expect(banners.length).toBe(list.length);
-    list.forEach(function(id) {
-        var banner = banners.filter(function(bann) { return bann.extId === id; })[0];
-        expect(banner).toBeDefined('banner for ' + id);
-        expect(banner.name).toBe('contentMiniReel ' + id);
-        expect(banner.sizeTypeId).toBe(16);
-    });
-}
-
 describe('ads minireelGroups endpoints (E2E):', function() {
     var cookieJar, mockUser, createdGroup, keptAdvert, keptCust;
 
@@ -74,6 +56,7 @@ describe('ads minireelGroups endpoints (E2E):', function() {
         adtech.createClient().catch(adtechErr).done(function(resp) { done(); });
     });
 
+    // Setup an advertiser + customer in mongo so we can use them to create campaigns.
     beforeEach(function(done) {
         if (keptCust && keptAdvert) {
             return done();
@@ -315,13 +298,15 @@ describe('ads minireelGroups endpoints (E2E):', function() {
             }).then(function(group)  {
                 expect(group.name).toBe(createdGroup.name);
                 expect(group.extId).toBe(createdGroup.id);
+                expect(group.priorityLevelOneKeywordIdList).toEqual([]);
+                // the keyword ids for 'food' and 'sports' should never change, so we can hardcode them
                 expect(group.priorityLevelThreeKeywordIdList.sort()).toEqual(['1002744', '1003562']);
                 expect(group.priority).toBe(3);
                 expect(group.advertiserId).toBe(keptAdvert.adtechId);
                 expect(group.customerId).toBe(keptCust.adtechId);
-                return getCampaignBanners(createdGroup.adtechId);
+                return testUtils.getCampaignBanners(createdGroup.adtechId);
             }).then(function(banners) {
-                compareBanners(banners, createdGroup.miniReels);
+                testUtils.compareBanners(banners, createdGroup.miniReels, 'contentMiniReel');
             
                 // check that it wrote an entry to the audit collection
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
@@ -478,9 +463,9 @@ describe('ads minireelGroups endpoints (E2E):', function() {
                 expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(createdGroup.lastUpdated));
                 createdGroup = resp.body;
 
-                return getCampaignBanners(createdGroup.adtechId);
+                return testUtils.getCampaignBanners(createdGroup.adtechId);
             }).then(function(banners) {
-                compareBanners(banners, createdGroup.miniReels);
+                testUtils.compareBanners(banners, createdGroup.miniReels, 'contentMiniReel');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -581,7 +566,7 @@ describe('ads minireelGroups endpoints (E2E):', function() {
                 return q.allSettled([adtech.campaignAdmin.getCampaignById(createdGroup.adtechId).catch(adtechErr)]);
             }).then(function(results) {
                 expect(results[0].state).toBe('rejected');
-                expect(results[0].reason && results[0].reason.message.match(/^Unable to locate object: /)).toBeTruthy();
+                expect(results[0].reason && results[0].reason.message).toMatch(/^Unable to locate object: /);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

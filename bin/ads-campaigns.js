@@ -24,7 +24,6 @@
         svc._custColl = db.collection('customers');
         
         svc.createValidator._required.push('advertiserId', 'customerId');
-        svc.createValidator._forbidden.push('adtechId');
         svc.editValidator._forbidden.push('advertiserId', 'customerId');
 
         svc.createValidator._formats.cards = ['string'];
@@ -262,9 +261,10 @@
         
         return q.all((req.body.miniReelGroups).map(function(group) {
             group.miniReels = campaignUtils.objectify(group.miniReels);
+            
             var existing = req.origObj.miniReelGroups.filter(function(oldGroup) {
-                    return oldGroup.adtechId === group.adtechId;
-                })[0];
+                return oldGroup.adtechId === group.adtechId;
+            })[0];
             
             if (!existing) {
                 return q();
