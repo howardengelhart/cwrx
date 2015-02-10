@@ -1,8 +1,11 @@
 # Content Service Changelog
 
-### 1.14.2: Mon Feb  9 17:39:24 EST 2015
+### 1.14.2: Tue Feb 10 11:26:31 EST 2015
 * [FIX]: Override host to `cinema6.com` if container is `connatix` or `veeseo`: [#366](https://github.com/cinema6/cwrx/pull/366)
-* Extra deployment steps: None
+* [FIX]: Add ability to query for experiences by `categories`: [#367](https://github.com/cinema6/cwrx/pull/367)
+* [FIX]: Add ability to query for sponsored/non-sponsored experiences: [#367](https://github.com/cinema6/cwrx/pull/367)
+* [FIX]: Remove ability to query by `sponsoredType` (unused): [#367](https://github.com/cinema6/cwrx/pull/367)
+* Extra deployment steps: Setup index on `categories` field
 
 ### 1.14.1: Mon Jan 26 17:10:33 EST 2015
 * [FIX]: Public endpoint fetches placements from site container: [#360](https://github.com/cinema6/cwrx/pull/360)

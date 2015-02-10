@@ -244,6 +244,39 @@ describe('content (UT)', function() {
             }).done(done);
         });
 
+        it('should properly format a query by multiple ids', function(done) {
+            query = { id: ['e-1', 'e-2'] };
+            content.getExperiences(query, req, expColl, false).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual(['formatted']);
+                expect(content.userPermQuery).toHaveBeenCalledWith({id: {$in: ['e-1', 'e-2']}}, 'fakeUser', false);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should properly format a query by multiple categories', function(done) {
+            query = { categories: ['food', 'sports'] };
+            content.getExperiences(query, req, expColl, false).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual(['formatted']);
+                expect(content.userPermQuery).toHaveBeenCalledWith({categories: {$in: ['food', 'sports']}}, 'fakeUser', false);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should properly format queries for sponsored/non-sponsored minireels', function(done) {
+            content.getExperiences({sponsored: true}, req, expColl, false).then(function(resp) {
+                return content.getExperiences({sponsored: false}, req, expColl, false);
+            }).then(function() {
+                expect(content.userPermQuery.calls[0].args).toEqual([{campaignId: {$exists: true}}, 'fakeUser', false]);
+                expect(content.userPermQuery.calls[1].args).toEqual([{campaignId: {$exists: false}}, 'fakeUser', false]);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
         it('should properly format a query on the status field', function(done) {
             query.status = Status.Active;
             content.getExperiences(query, req, expColl, false).then(function(resp) {
@@ -251,18 +284,6 @@ describe('content (UT)', function() {
                 expect(resp.body).toEqual(['formatted']);
                 expect(content.userPermQuery).toHaveBeenCalledWith({type: 'minireel',
                     'status.0.status': Status.Active}, 'fakeUser', false);
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should properly format a query on the sponsoredType field', function(done) {
-            query.sponsoredType = 'card';
-            content.getExperiences(query, req, expColl, false).then(function(resp) {
-                expect(resp.code).toBe(200);
-                expect(resp.body).toEqual(['formatted']);
-                expect(content.userPermQuery).toHaveBeenCalledWith({type: 'minireel',
-                    'data.0.data.sponsoredType': 'card'}, 'fakeUser', false);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
