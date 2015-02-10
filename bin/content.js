@@ -246,8 +246,8 @@
     /* Build a mongo query for a site by host. This transforms the host 'foo.bar.baz.com' into a 
      * query for sites with host 'foo.bar.baz.com', 'bar.baz.com', or 'baz.com' */
     content.buildHostQuery = function(host, container) {
-        if (container === 'veeseo') {
-            return { host: 'veeseo.com' };
+        if (container === 'veeseo' || container === 'connatix') {
+            return { host: 'cinema6.com' };
         }
         if (!host) {
             return null;

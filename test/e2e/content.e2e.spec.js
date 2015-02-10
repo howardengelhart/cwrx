@@ -121,8 +121,11 @@ describe('content experience endpoints (E2E):', function() {
             mockSites = [
                 { id: 'e2e-site', status: 'active', host: 'c6.com',
                   branding: 'siteBrand', placementId: '456', wildCardPlacement: '654' },
-                { id: 'e2e-veeseo', status: 'active', host: 'veeseo.com',
-                  branding: 'veeseoBrand', placementId: '159', wildCardPlacement: '951' },
+                { id: 'e2e-cinema6', status: 'active', host: 'cinema6.com', branding: 'c6',
+                  containers: [
+                    {id: 'veeseo', contentPlacementId: 1337, displayPlacementId: 7331},
+                    {id: 'connatix', contentPlacementId: 246, displayPlacementId: 864}
+                  ] },
                 { id: 'e2e-containers', status: 'active', host: 'containers.com', branding: 'siteBrand',
                   containers: [{id: 'embed', contentPlacementId: 11, displayPlacementId: 12}] }
             ];
@@ -203,30 +206,31 @@ describe('content experience endpoints (E2E):', function() {
             }).done(done);
         });
         
-        it('should use the veeseo site if the container is veeseo', function(done) {
+        it('should use the cinema6 site if the container is veeseo', function(done) {
             options.qs = { container: 'veeseo' };
+            options.headers.origin = 'http://myblog.com';
             options.url = options.url.replace('e2e-pubget1', 'e2e-org-adConfig');
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.id).toBe('e2e-org-adConfig');
-                expect(resp.body.data.branding).toBe('veeseoBrand');
-                expect(resp.body.data.placementId).toBe('159');
-                expect(resp.body.data.wildCardPlacement).toBe('951');
+                expect(resp.body.data.branding).toBe('c6');
+                expect(resp.body.data.placementId).toBe(7331);
+                expect(resp.body.data.wildCardPlacement).toBe(1337);
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
-        it('should still use the veeseo site even if there\'s no origin', function(done) {
-            delete options.headers;
-            options.qs = { container: 'veeseo' };
+
+        it('should use the connatix site if the container is connatix', function(done) {
+            options.qs = { container: 'connatix' };
+            options.headers.origin = 'http://somesillysite.com';
             options.url = options.url.replace('e2e-pubget1', 'e2e-org-adConfig');
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.id).toBe('e2e-org-adConfig');
-                expect(resp.body.data.branding).toBe('veeseoBrand');
-                expect(resp.body.data.placementId).toBe('159');
-                expect(resp.body.data.wildCardPlacement).toBe('951');
+                expect(resp.body.data.branding).toBe('c6');
+                expect(resp.body.data.placementId).toBe(864);
+                expect(resp.body.data.wildCardPlacement).toBe(246);
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
@@ -286,7 +290,7 @@ describe('content experience endpoints (E2E):', function() {
 
         it('should then fall back to the org\'s branding', function(done) {
             options.url = options.url.replace('e2e-pubget1', 'e2e-org-adConfig');
-            options.headers.origin = 'http://cinema6.com';
+            options.headers.origin = 'http://fake.com';
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.id).toBe('e2e-org-adConfig');

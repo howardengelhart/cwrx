@@ -501,9 +501,11 @@ describe('content (UT)', function() {
             expect(content.buildHostQuery('portal.cinema6.com')).toEqual({host:{$in:['portal.cinema6.com','cinema6.com']}});
         });
         
-        it('should override the query if the container is veeseo', function() {
-            expect(content.buildHostQuery('foo.com', 'veeseo')).toEqual({host: 'veeseo.com'});
-            expect(content.buildHostQuery('', 'veeseo')).toEqual({host: 'veeseo.com'});
+        it('should override the query if the container is veeseo or connatix', function() {
+            expect(content.buildHostQuery('foo.com', 'veeseo')).toEqual({host: 'cinema6.com'});
+            expect(content.buildHostQuery('', 'veeseo')).toEqual({host: 'cinema6.com'});
+            expect(content.buildHostQuery('foo.com', 'connatix')).toEqual({host: 'cinema6.com'});
+            expect(content.buildHostQuery('', 'connatix')).toEqual({host: 'cinema6.com'});
         });
     });
     
