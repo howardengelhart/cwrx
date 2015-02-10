@@ -98,7 +98,7 @@
             org:    FieldValidator.orgFunc('experiences', 'edit')
         }
     });
-
+    
     // Find and parse the origin, storing useful properties on the request
     content.parseOrigin = function(req, siteExceptions) {
         req.origin = req.headers && (req.headers.origin || req.headers.referer) || '';
@@ -386,9 +386,18 @@
                 sortObj[sortParts[0]] = Number(sortParts[1]);
             }
         }
+        
         if (query.id instanceof Array) {
             query.id = {$in: query.id};
         }
+        if (query.categories instanceof Array) {
+            query.categories = {$in: query.categories};
+        }
+        if (query.sponsored !== undefined) {
+            query.campaignId = query.sponsored ? {$exists: true} : {$exists: false};
+            delete query.sponsored;
+        }
+        
         if (query.status) {
             if (query.status === Status.Deleted) {
                 log.warn('[%1] User %2 attempting to get deleted experiences',req.uuid,req.user.id);
@@ -396,10 +405,6 @@
             }
             query['status.0.status'] = query.status;
             delete query.status;
-        }
-        if (query.sponsoredType) {
-            query['data.0.data.sponsoredType'] = query.sponsoredType;
-            delete query.sponsoredType;
         }
         if (query.text) {
             query = content.formatTextQuery(query);
@@ -844,14 +849,19 @@
         // private get experience by query
         app.get('/api/content/experiences', sessWrap, authGetExp, audit, function(req, res) {
             var query = {};
-            ['ids', 'user', 'org', 'type', 'sponsoredType', 'status', 'text']
+            if (req.query.ids) {
+                query.id = req.query.ids.split(',');
+            }
+            if (req.query.categories) {
+                query.categories = req.query.categories.split(',');
+            }
+            if (req.query.sponsored) {
+                query.sponsored = req.query.sponsored === 'true' ? true : false;
+            }
+            ['user', 'org', 'type', 'status', 'text']
             .forEach(function(field) {
                 if (req.query[field]) {
-                    if (field === 'ids') {
-                        query.id = req.query.ids.split(',');
-                    } else {
-                        query[field] = String(req.query[field]);
-                    }
+                    query[field] = String(req.query[field]);
                 }
             });
             if (!Object.keys(query).length) {

@@ -589,7 +589,9 @@ describe('content experience endpoints (E2E):', function() {
                 {
                     id: 'e2e-getquery1',
                     status: [{status: 'inactive', date: new Date()}],
-                    data: [{ data: { foo: 'bar', title: 'foo bar Baz', sponsoredType: 'card' } }],
+                    data: [{ data: { foo: 'bar', title: 'foo bar Baz' } }],
+                    categories: ['food', 'sports'],
+                    campaignId: 'cam-1',
                     access: 'private',
                     user: 'e2e-user',
                     org: 'e2e-org',
@@ -598,7 +600,8 @@ describe('content experience endpoints (E2E):', function() {
                 {
                     id: 'e2e-getquery2',
                     status: [{status: 'inactive', date: new Date()}],
-                    data: [{ data: { foo: 'bar', title: 'bar Foo baz', sponsoredType: 'minireel' } }],
+                    data: [{ data: { foo: 'bar', title: 'bar Foo baz' } }],
+                    categories: ['baseball', 'food'],
                     access: 'private',
                     user: 'not-e2e-user',
                     org: 'e2e-org',
@@ -607,7 +610,9 @@ describe('content experience endpoints (E2E):', function() {
                 {
                     id: 'e2e-getquery3',
                     status: [{status: 'active', date: new Date()}],
-                    data: [{ data: { foo: 'bar', title: 'foo Bar', sponsoredType: 'card' } }],
+                    data: [{ data: { foo: 'bar', title: 'foo Bar' } }],
+                    categories: ['soccer'],
+                    campaignId: 'cam-2',
                     access: 'private',
                     user: 'not-e2e-user',
                     org: 'not-e2e-org',
@@ -636,6 +641,14 @@ describe('content experience endpoints (E2E):', function() {
                     user: 'e2e-user',
                     org: 'e2e-org',
                     type: 'foo'
+                },
+                {
+                    id: 'e2e-getquery7',
+                    status: [{status: 'active', date: new Date()}],
+                    categories: ['baseball', 'yankees'],
+                    access: 'public',
+                    user: 'e2e-user',
+                    org: 'e2e-org'
                 }
             ];
             testUtils.resetCollection('experiences', mockExps).done(done);
@@ -652,10 +665,10 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body.length).toBe(2);
                 expect(resp.body[0]._id).not.toBeDefined();
                 expect(resp.body[0].id).toBe('e2e-getquery1');
-                expect(resp.body[0].data).toEqual({foo: 'bar', title: 'foo bar Baz', sponsoredType: 'card'});
+                expect(resp.body[0].data).toEqual({foo: 'bar', title: 'foo bar Baz'});
                 expect(resp.body[1]._id).not.toBeDefined();
                 expect(resp.body[1].id).toBe('e2e-getquery3');
-                expect(resp.body[1].data).toEqual({foo: 'bar', title: 'foo Bar', sponsoredType: 'card'});
+                expect(resp.body[1].data).toEqual({foo: 'bar', title: 'foo Bar'});
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -691,9 +704,10 @@ describe('content experience endpoints (E2E):', function() {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body instanceof Array).toBeTruthy('body is array');
-                expect(resp.body.length).toBe(1);
+                expect(resp.body.length).toBe(2);
                 expect(resp.body[0].id).toBe('e2e-getquery1');
-                expect(resp.response.headers['content-range']).toBe('items 1-1/1');
+                expect(resp.body[1].id).toBe('e2e-getquery7');
+                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
@@ -724,10 +738,11 @@ describe('content experience endpoints (E2E):', function() {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body instanceof Array).toBeTruthy('body is array');
-                expect(resp.body.length).toBe(2);
+                expect(resp.body.length).toBe(3);
                 expect(resp.body[0].id).toBe('e2e-getquery1');
                 expect(resp.body[1].id).toBe('e2e-getquery2');
-                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
+                expect(resp.body[2].id).toBe('e2e-getquery7');
+                expect(resp.response.headers['content-range']).toBe('items 1-3/3');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
@@ -750,24 +765,7 @@ describe('content experience endpoints (E2E):', function() {
             }).done(done);
         });
         
-        it('should get experiences by sponsoredType', function(done) {
-            var options = {
-                url: config.contentUrl + '/content/experiences?sponsoredType=card&sort=id,1',
-                jar: cookieJar
-            };
-            requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body instanceof Array).toBeTruthy('body is array');
-                expect(resp.body.length).toBe(2);
-                expect(resp.body[0].id).toBe('e2e-getquery1');
-                expect(resp.body[1].id).toBe('e2e-getquery3');
-                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should get experiences by title', function(done) {
+        it('should get experiences by text search', function(done) {
             var options = {
                 url: config.contentUrl + '/content/experiences',
                 qs: { text: 'foo bar', sort: 'id,1' },
@@ -793,6 +791,58 @@ describe('content experience endpoints (E2E):', function() {
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).finally(done);
+        });
+        
+        it('should get experiences by categories', function(done) {
+            var options = {
+                url: config.contentUrl + '/content/experiences?categories=baseball,food&sort=id,1',
+                jar: cookieJar
+            };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body instanceof Array).toBeTruthy('body is array');
+                expect(resp.body.length).toBe(3);
+                expect(resp.body[0].id).toBe('e2e-getquery1');
+                expect(resp.body[1].id).toBe('e2e-getquery2');
+                expect(resp.body[2].id).toBe('e2e-getquery7');
+                expect(resp.response.headers['content-range']).toBe('items 1-3/3');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should get sponsored experiences', function(done) {
+            var options = {
+                url: config.contentUrl + '/content/experiences?sponsored=true&sort=id,1',
+                jar: cookieJar
+            };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body instanceof Array).toBeTruthy('body is array');
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0].id).toBe('e2e-getquery1');
+                expect(resp.body[1].id).toBe('e2e-getquery3');
+                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should get non-sponsored experiences', function(done) {
+            var options = {
+                url: config.contentUrl + '/content/experiences?sponsored=false&sort=id,1',
+                jar: cookieJar
+            };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body instanceof Array).toBeTruthy('body is array');
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0].id).toBe('e2e-getquery2');
+                expect(resp.body[1].id).toBe('e2e-getquery7');
+                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
         });
 
         it('should not allow a user to query for deleted experiences', function(done) {
