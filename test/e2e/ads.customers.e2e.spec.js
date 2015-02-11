@@ -610,7 +610,7 @@ describe('ads customers endpoints (E2E):', function() {
     });
 });
 
-describe('closeDbs', function() {
+describe('test cleanup', function() {
     it('should close db connections', function() {
         testUtils.closeDbs();
     });

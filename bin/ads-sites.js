@@ -20,15 +20,15 @@
         svc.editValidator._formats.containers = ['object'];
         svc.editValidator._condForbidden.org = FieldValidator.orgFunc('sites', 'edit');
         
-        //TODO: names should probs be unique for reporting purposes
-        
         var hostRegex = /^([\w-]+\.)+[\w-]+$/;
         svc.use('read', svc.preventGetAll.bind(svc));
         svc.use('create', svc.validateUniqueProp.bind(svc, 'host', hostRegex));
+        svc.use('create', svc.validateUniqueProp.bind(svc, 'name', null));
         svc.use('create', siteModule.validateContainers);
         svc.use('create', siteModule.createAdtechSite);
         svc.use('create', siteModule.createPlacements);
         svc.use('edit', svc.validateUniqueProp.bind(svc, 'host', hostRegex));
+        svc.use('edit', svc.validateUniqueProp.bind(svc, 'name', null));
         svc.use('edit', siteModule.validateContainers);
         svc.use('edit', siteModule.cleanPlacements);
         svc.use('edit', siteModule.createPlacements);

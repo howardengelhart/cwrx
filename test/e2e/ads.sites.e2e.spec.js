@@ -282,10 +282,11 @@ describe('ads sites endpoints (E2E):', function() {
     });
 
     describe('POST /api/site', function() {
-        var mockSite, options;
+        var name = 'e2e_test-' + new Date().toISOString(),
+            mockSite, options;
         beforeEach(function() {
             mockSite = {
-                name: 'e2e_test-' + new Date().toISOString(),
+                name: name,
                 host: 'test.com',
                 containers: [{ id: 'embed' }, { id: 'mr2' }]
             };
@@ -341,10 +342,22 @@ describe('ads sites endpoints (E2E):', function() {
         });
 
         it('should throw a 409 if a site with that host exists', function(done) {
+            options.json = { name: 'some other name', host: mockSite.host };
             requestUtils.qRequest('post', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(409);
                 expect(resp.body).toBe('An object with that host already exists');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should throw a 409 if a site with that name exists', function(done) {
+            options.json = { name: mockSite.name, host: 'some.other.host.com' };
+            requestUtils.qRequest('post', options)
+            .then(function(resp) {
+                expect(resp.response.statusCode).toBe(409);
+                expect(resp.body).toBe('An object with that name already exists');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -365,6 +378,7 @@ describe('ads sites endpoints (E2E):', function() {
         });
         
         it('should throw a 400 if the containers are invalid', function(done) {
+            options.json.name = 'a bad test site';
             options.json.host = 'bad.test.com';
             q.all([[{id: 'embed'}, {type: 'mr2'}], [{id: 'embed'}, {id: 'embed', type: 2}]].map(function(containers) {
                 options.json.containers = containers;
@@ -601,6 +615,21 @@ describe('ads sites endpoints (E2E):', function() {
             }).done(done);
         });
 
+        it('should throw a 409 if a site with that host exists', function(done) {
+            options = {
+                url: config.adsUrl + '/site/e2e-put1',
+                json: { name: createdSite.name },
+                jar: cookieJar
+            };
+            requestUtils.qRequest('put', options)
+            .then(function(resp) {
+                expect(resp.response.statusCode).toBe(409);
+                expect(resp.body).toBe('An object with that name already exists');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
         it('should throw a 401 error if the user is not authenticated', function(done) {
             delete options.jar;
             requestUtils.qRequest('put', options).then(function(resp) {
@@ -716,7 +745,7 @@ describe('ads sites endpoints (E2E):', function() {
     });
 });
 
-describe('closeDbs', function() {
+describe('test cleanup', function() {
     it('should close db connections', function() {
         testUtils.closeDbs();
     });

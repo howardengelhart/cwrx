@@ -739,7 +739,7 @@ describe('auth (E2E):', function() {
     });
 });  // end describe auth (E2E)
 
-describe('closeDbs', function() {
+describe('test cleanup', function() {
     it('should close db connections', function() {
         testUtils.closeDbs();
     });
