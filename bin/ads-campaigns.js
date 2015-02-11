@@ -13,7 +13,7 @@
         logger          = require('../lib/logger'),
         
         campModule = {};
-        
+
     campModule.setupSvc = function(db, config) {
         campModule.campsCfg = config.campaigns;
         campModule.contentHost = config.contentHost;
@@ -55,7 +55,7 @@
         
         return svc;
     };
-    
+
     // Extends CrudSvc.prototype.formatOutput, processing cards, miniReels, and miniReelGroups
     campModule.formatOutput = function(svc, obj) {
         ['cards', 'miniReels'].forEach(function(prop) {
@@ -73,13 +73,38 @@
         return CrudSvc.prototype.formatOutput.call(svc, obj);
     };
 
-    // Middleware to delete unused sponsored miniReel and card campaigns
+    /* Send a DELETE request to the content service. type should be "card" or "experience"
+     * Logs + swallows 4xx failures, but rejects 5xx failures. */
+    campModule.sendDeleteRequest = function(req, id, type) {
+        var log = logger.getLog();
+        
+        return requestUtils.qRequest('delete', {
+            url: req.protocol + '://' + campModule.contentHost + '/api/content/' + type + '/' + id,
+            headers: { cookie: req.headers.cookie }
+        })
+        .then(function(resp) {
+            if (resp.response.statusCode !== 204) {
+                log.warn('[%1] Could not delete %2 %3. Received (%4, %5)',
+                         req.uuid, type, id, resp.response.statusCode, resp.body);
+            } else {
+                log.info('[%1] Succesfully deleted %2 %3', req.uuid, type, id);
+            }
+        })
+        .catch(function(error) {
+            log.error('[%1] Error deleting %2 %3: %4', req.uuid, type, id, util.inspect(error));
+            return q.reject(new Error('Failed sending delete request to content service'));
+        });
+    };
+
+
+    /* Middleware to delete unused sponsored miniReels and cards. Deletes their campaigns from
+     * Adtech, as well their objects in mongo through the content service */
     campModule.cleanSponsoredCamps = function(req, next/*, done*/) {
         var log = logger.getLog(),
             id = req.body.id || (req.origObj && req.origObj.id),
             delay = campModule.campsCfg.statusDelay,
             attempts = campModule.campsCfg.statusAttempts,
-            toDelete = [];
+            toDelete = { adtechIds: [], miniReels: [], cards: [] };
         
         ['miniReels', 'cards'].forEach(function(prop) {
             if (!req.origObj || !req.origObj[prop] || !req.body[prop]) {
@@ -93,26 +118,34 @@
                     return;
                 }
                 
-                log.info('[%1] %2 removed from %3 in %4, deleting its campaign in Adtech',
-                         req.uuid, oldObj.id, prop, id);
+                log.info('[%1] Item %2 with adtechId %3 removed from %4 in %5, deleting it',
+                         req.uuid, oldObj.id, oldObj.adtechId, prop, id);
+                toDelete[prop].push(oldObj.id);
+                         
                 if (!oldObj.adtechId) {
-                    log.warn('[%1] Entry for %2 in %3 has no adtechId, cannot delete it',
+                    log.warn('[%1] Entry for %2 in %3 has no adtechId, cannot delete its campaign',
                              req.uuid, oldObj.id, prop);
-                    return;
+                } else {
+                    toDelete.adtechIds.push(oldObj.adtechId);
                 }
-                toDelete.push(oldObj.adtechId);
+                
             });
         });
         
-        return campaignUtils.deleteCampaigns(toDelete, delay, attempts)
+        return campaignUtils.deleteCampaigns(toDelete.adtechIds, delay, attempts)
         .then(function() {
-            log.trace('[%1] Cleaned sponsored campaigns for %2', req.uuid, req.params.id);
+            log.trace('[%1] Cleaned sponsored Adtech campaigns for %2', req.uuid, req.params.id);
+            
+            return q.all(
+                toDelete.miniReels.map(function(id) {
+                    return campModule.sendDeleteRequest(req, id, 'experience');
+                }).concat(toDelete.cards.map(function(id) {
+                    return campModule.sendDeleteRequest(req, id, 'card');
+                }))
+            );
+        }).then(function() {
+            log.trace('[%1] Deleted all unused content for %2', req.uuid, req.params.id);
             next();
-        })
-        .catch(function(error) {
-            log.error('[%1] Error cleaning sponsored campaigns: %2',
-                      req.uuid, error && error.stack || error);
-            return q.reject('Adtech failure');
         });
     };
 
@@ -345,29 +378,6 @@
         });
     };
 
-    /* Send a DELETE request to the content service. type should be "card" or "experience"
-     * Logs + swallows 4xx failures, but rejects 5xx failures. */
-    campModule.sendDeleteRequest = function(req, id, type) {
-        var log = logger.getLog();
-        
-        return requestUtils.qRequest('delete', {
-            url: req.protocol + '://' + campModule.contentHost + '/api/content/' + type + '/' + id,
-            headers: { cookie: req.headers.cookie }
-        })
-        .then(function(resp) {
-            if (resp.response.statusCode !== 204) {
-                log.warn('[%1] Could not delete %2 %3. Received (%4, %5)',
-                         req.uuid, type, id, resp.response.statusCode, resp.body);
-            } else {
-                log.info('[%1] Succesfully deleted %2 %3', req.uuid, type, id);
-            }
-        })
-        .catch(function(error) {
-            log.error('[%1] Error deleting %2 %3: %4', req.uuid, type, id, util.inspect(error));
-            return q.reject('Failed sending delete request to content service');
-        });
-    };
-    
     // Middleware to delete all sponsored content associated with this to-be-deleted campaign
     campModule.deleteContent = function(req, next/*, done*/) {
         var log = logger.getLog();

@@ -486,7 +486,7 @@ describe('ads sites endpoints (E2E):', function() {
         it('should preserve other existing adtech fields', function(done) {
             options = {
                 url: config.adsUrl + '/site/e2e-s-keepme',
-                json: { name: 'e2e_s_keep_me_' + new Date().toISOString() },
+                json: { name: 'e2e_s_KEEP_ME_' + new Date().toISOString() },
                 jar: cookieJar
             }
             requestUtils.qRequest('put', options).then(function(resp) {

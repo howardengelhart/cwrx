@@ -130,6 +130,7 @@ describe('ads-campaigns (UT)', function() {
             req.body = { miniReels: ['e-1', 'e-3'], cards: ['rc-2', 'rc-3'] };
             req.origObj = { miniReels: [{id: 'e-1', adtechId: 11}, {id: 'e-2', adtechId: 12}],
                             cards: [{id: 'rc-1', adtechId: 21}, {id: 'rc-2', adtechId: 22}] };
+            spyOn(campModule, 'sendDeleteRequest').andReturn(q());
         });
         
         it('should delete unused campaigns', function(done) {
@@ -141,6 +142,9 @@ describe('ads-campaigns (UT)', function() {
                 expect(req.body.miniReels).toEqual([{id: 'e-1'}, {id: 'e-3'}]);
                 expect(req.body.cards).toEqual([{id: 'rc-2'}, {id: 'rc-3'}]);
                 expect(campaignUtils.deleteCampaigns).toHaveBeenCalledWith([12, 21], 1000, 10);
+                expect(campModule.sendDeleteRequest.calls.length).toBe(2);
+                expect(campModule.sendDeleteRequest).toHaveBeenCalledWith(req, 'e-2', 'experience');
+                expect(campModule.sendDeleteRequest).toHaveBeenCalledWith(req, 'rc-1', 'card');
                 done();
             });
         });
@@ -155,6 +159,7 @@ describe('ads-campaigns (UT)', function() {
                 expect(req.body.miniReels).not.toBeDefined();
                 expect(req.body.cards).toEqual([{id: 'rc-2'}, {id: 'rc-3'}]);
                 expect(campaignUtils.deleteCampaigns).toHaveBeenCalledWith([21], 1000, 10);
+                expect(campModule.sendDeleteRequest).toHaveBeenCalledWith(req, 'rc-1', 'card');
                 done();
             });
         });
@@ -167,6 +172,7 @@ describe('ads-campaigns (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(campaignUtils.deleteCampaigns).toHaveBeenCalledWith([12], 1000, 10);
+                expect(campModule.sendDeleteRequest).toHaveBeenCalledWith(req, 'e-2', 'experience');
                 done();
             });
         });
@@ -180,6 +186,8 @@ describe('ads-campaigns (UT)', function() {
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(mockLog.warn).toHaveBeenCalled();
                 expect(campaignUtils.deleteCampaigns).toHaveBeenCalledWith([12], 1000, 10);
+                expect(campModule.sendDeleteRequest).toHaveBeenCalledWith(req, 'e-2', 'experience');
+                expect(campModule.sendDeleteRequest).toHaveBeenCalledWith(req, 'rc-1', 'card');
                 done();
             });
         });
@@ -190,8 +198,20 @@ describe('ads-campaigns (UT)', function() {
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith('Adtech failure');
-                expect(mockLog.error).toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith(new Error('ADTECH IS THE WORST'));
+                expect(campModule.sendDeleteRequest).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should reject if one of the delete requests fails', function(done) {
+            campModule.sendDeleteRequest.andReturn(q.reject(new Error('Request failed')));
+            campModule.cleanSponsoredCamps(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith(new Error('Request failed'));
+                expect(campModule.sendDeleteRequest.calls.length).toBe(2);
                 done();
             });
         });
@@ -775,7 +795,7 @@ describe('ads-campaigns (UT)', function() {
             campModule.sendDeleteRequest(req, 'e-1', 'experience').then(function() {
                 expect('resolved').not.toBe('resolved');
             }).catch(function(error) {
-                expect(error).toBe('Failed sending delete request to content service');
+                expect(error).toEqual(new Error('Failed sending delete request to content service'));
                 expect(mockLog.error).toHaveBeenCalled();
             }).done(done);
         });

@@ -561,6 +561,10 @@ describe('ads campaigns endpoints (E2E):', function() {
                 return testUtils.getCampaignBanners(results[2].value.id);
             }).then(function(banners) {
                 testUtils.compareBanners(banners, ['rc-3'], 'card');
+                
+                return testUtils.mongoFind('cards', {id: 'rc-2'});
+            }).then(function(results) {
+                expect(results[0].status).toBe('deleted');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -603,6 +607,10 @@ describe('ads campaigns endpoints (E2E):', function() {
                 return testUtils.getCampaignBanners(results[2].value.id);
             }).then(function(banners) {
                 testUtils.compareBanners(banners, ['e-3'], 'miniReel');
+
+                return testUtils.mongoFind('experiences', {id: 'e-2'});
+            }).then(function(results) {
+                expect(results[0].status[0].status).toBe('deleted');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -845,7 +853,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                     expect(results[0].id).toBe('e-1');
                     expect(results[0].status[0].status).toBe('active');
                     expect(results[1].id).toBe('e-2');
-                    expect(results[1].status[0].status).toBe('active');
+                    expect(results[1].status[0].status).toBe('deleted');
                     expect(results[2].id).toBe('e-3');
                     expect(results[2].status[0].status).toBe('deleted');
                     
@@ -854,7 +862,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                     expect(results[0].id).toBe('rc-1');
                     expect(results[0].status).toBe('deleted');
                     expect(results[1].id).toBe('rc-2');
-                    expect(results[1].status).toBe('active');
+                    expect(results[1].status).toBe('deleted');
                     expect(results[2].id).toBe('rc-3');
                     expect(results[2].status).toBe('active');
                 }).catch(function(error) {

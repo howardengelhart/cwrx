@@ -35,8 +35,8 @@
         },
         contentHost: 'localhost',   // Hostname of the content service to proxy delete requests to
         minireelGroups: {
-            advertiserId: null,     // Adtech advertiser id; must be overriden in a config file
-            customerId: null        // Adtech customer id; must be overriden in a config file
+            advertiserId: null,     // C6 advertiser id; must be overriden in a config file
+            customerId: null        // C6 customer id; must be overriden in a config file
         },
         sessions: {
             key: 'c6Auth',
