@@ -23,7 +23,7 @@
         Scope           = enums.Scope,
 
         state   = {},
-        content = {}; // for exporting functions to unit tests
+        content = { brandCache: {} }; // for exporting functions to unit tests
 
     // This is the template for content's configuration
     state.defaultConfig = {
@@ -331,7 +331,21 @@
             return q(exp);
         });
     };
+    
+    /* Chooses a branding string from a csv list of brandings. Chooses the next string for each call
+     * with the same brandString, using content.brandCache to keep track of the indexes */
+    content.chooseBranding = function(brandString, reqId, id) {
+        var log         = logger.getLog(),
+            brands      = brandString.split(','),
+            idx         = content.brandCache[brandString] || 0,
+            selected    = brands[idx];
+            
+        log.trace(JSON.stringify(content.brandCache, null, 4));
+        log.info('[%1] Selected brand %2, idx %3, for %4', reqId, selected, idx, id);
 
+        content.brandCache[brandString] = (++idx >= brands.length) ? 0 : idx;
+        return selected;
+    };
 
     content.getPublicExp = function(id, req, expCache, orgCache, siteCache, defaultSiteCfg) {
         var log = logger.getLog(),
@@ -361,6 +375,9 @@
                                              orgCache, defaultSiteCfg);
             })
             .then(function(exp) {
+                if (exp.data && exp.data.branding && exp.data.branding.match(/(\w+,)+\w+/)) {
+                    exp.data.branding = content.chooseBranding(exp.data.branding, req.uuid, id);
+                }
                 return q({code: 200, body: exp});
             });
         })

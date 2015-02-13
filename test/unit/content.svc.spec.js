@@ -49,6 +49,7 @@ describe('content (UT)', function() {
             content.formatOutput.andReturn('formatted');
             spyOn(content, 'getAdConfig').andReturn(q('withAdConfig'));
             spyOn(content, 'getSiteConfig').andReturn(q('withSiteConfig'));
+            spyOn(content, 'chooseBranding').andCallThrough();
         });
 
         it('should call cache.getPromise to get the experience', function(done) {
@@ -61,6 +62,29 @@ describe('content (UT)', function() {
                 expect(content.getAdConfig).toHaveBeenCalledWith('formatted', 'o-1', 'fakeOrgCache');
                 expect(content.getSiteConfig).toHaveBeenCalledWith('withAdConfig', 'o-1', {foo: 'bar'},
                     'c6.com', 'fakeSiteCache', 'fakeOrgCache', {sites: 'good'});
+                expect(content.chooseBranding).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should choose a brand if the branding string is a csv list', function(done) {
+            content.getSiteConfig.andReturn({id: 'e-1', data: {branding: 'foo,bar,baz'}});
+            content.getPublicExp(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual({id: 'e-1', data: {branding: 'foo'}});
+                expect(content.chooseBranding).toHaveBeenCalledWith('foo,bar,baz', '1234', 'e-1');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should not choose a brand if the branding string is not a csv list', function(done) {
+            content.getSiteConfig.andReturn({id: 'e-1', data: {branding: 'foo,'}});
+            content.getPublicExp(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual({id: 'e-1', data: {branding: 'foo,'}});
+                expect(content.chooseBranding).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);

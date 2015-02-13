@@ -81,7 +81,8 @@ describe('content experience endpoints (E2E):', function() {
     });
 
     describe('GET /api/public/content/experience/:id', function() {
-        var mockExps, mockOrg, mockSites, options;
+        var dateStr = String(new Date().valueOf()), // used for cache busting on site with csv branding
+            mockExps, mockOrg, mockSites, options;
         beforeEach(function(done) {
             options = {
                 url: config.contentUrl + '/public/content/experience/e2e-pubget1',
@@ -127,7 +128,8 @@ describe('content experience endpoints (E2E):', function() {
                     {id: 'connatix', contentPlacementId: 246, displayPlacementId: 864}
                   ] },
                 { id: 'e2e-containers', status: 'active', host: 'containers.com', branding: 'siteBrand',
-                  containers: [{id: 'embed', contentPlacementId: 11, displayPlacementId: 12}] }
+                  containers: [{id: 'embed', contentPlacementId: 11, displayPlacementId: 12}] },
+                { id: 'e2e-brands', status: 'active', host: dateStr + '.brands.com', branding: 'foo,bar,' + dateStr }
             ];
             mockOrg = { id: 'e2e-active-org', status: 'active', adConfig: { foo: 'bar' }, branding: 'orgBrand' };
             q.all([testUtils.resetCollection('experiences', mockExps),
@@ -316,6 +318,29 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body.data.placementId).not.toBe('456');
                 expect(resp.body.data.wildCardPlacement).toBeDefined();
                 expect(resp.body.data.wildCardPlacement).not.toBe('654');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should be able to rotate through a csv branding list', function(done) {
+            options = {
+                url: config.contentUrl + '/public/content/experience/e2e-org-adConfig',
+                headers: { origin: 'http://' + dateStr + '.brands.com' }
+            };
+            
+            // send requests sequentially so we can guarantee we examine results in right order
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.body.data.branding).toBe('foo');
+                return requestUtils.qRequest('get', options);
+            }).then(function(resp) {
+                expect(resp.body.data.branding).toBe('bar');
+                return requestUtils.qRequest('get', options);
+            }).then(function(resp) {
+                expect(resp.body.data.branding).toBe(dateStr);
+                return requestUtils.qRequest('get', options);
+            }).then(function(resp) {
+                expect(resp.body.data.branding).toBe('foo');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);

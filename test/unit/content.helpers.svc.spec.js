@@ -773,6 +773,27 @@ describe('content (UT)', function() {
         });
     });
     
+    describe('chooseBranding', function() {
+        beforeEach(function() {
+            content.brandCache = {};
+        });
+
+        it('should cycle through a list of brandings', function() {
+            expect(content.chooseBranding('foo,bar,baz')).toBe('foo');
+            expect(content.brandCache['foo,bar,baz']).toBe(1);
+            expect(content.chooseBranding('foo,bar,baz')).toBe('bar');
+            expect(content.chooseBranding('foo,bar,baz')).toBe('baz');
+            expect(content.chooseBranding('foo,bar,baz')).toBe('foo');
+        });
+        
+        it('should maintain separate lists for different strings', function() {
+            expect(content.chooseBranding('foo,bar,baz')).toBe('foo');
+            expect(content.chooseBranding('foo,bar,baz,buz')).toBe('foo');
+            expect(content.chooseBranding('foo,bar,baz')).toBe('bar');
+            expect(content.brandCache).toEqual({'foo,bar,baz': 2, 'foo,bar,baz,buz': 1  });
+        });
+    });
+    
     describe('formatUpdates', function() {
         var req, orig, updates, user, start = new Date();
         
