@@ -316,22 +316,20 @@ describe('content (UT)', function() {
                 { email: 'otter', date: now, status: Status.Deleted },
                 { email: 'crosby', date: now, status: Status.Pending }
             ]};
-            expect(content.formatOutput(experience)).toEqual({ id:'e1', status: Status.Deleted });
+            expect(content.formatOutput(experience).status).toBe(Status.Deleted);
             expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
         });
         
-        it('should set the lastPublished date if the experience was active', function() {
+        it('should set the lastStatusChange date to the most recent status change', function() {
             var now = new Date();
             experience = { id: 'e1', status: [
                 { date: new Date(now + 1000), status: Status.Active },
                 { date: now, status: Status.Pending }
             ]};
-            expect(content.formatOutput(experience)).toEqual({id:'e1',status:Status.Active,
-                                                              lastPublished:new Date(now + 1000)});
+            expect(content.formatOutput(experience).lastStatusChange).toEqual(new Date(now + 1000));
             experience.status.push({date: new Date(now + 2000), status: Status.Pending});
             experience.status.push({date: new Date(now + 3000), status: Status.Active});
-            expect(content.formatOutput(experience)).toEqual({id:'e1',status:Status.Active,
-                                                              lastPublished:new Date(now + 3000)});
+            expect(content.formatOutput(experience).lastStatusChange).toEqual(new Date(now + 3000));
         });
         
         it('should prevent a guest user from seeing certain fields', function() {

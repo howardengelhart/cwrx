@@ -113,14 +113,6 @@
             privateFields = ['user', 'org'],
             newExp = {};
 
-        function statusReduce(a, b) {
-            if (b.status === Status.Active && (!a || b.date > a.date)) {
-                return b;
-            } else {
-                return a;
-            }
-        }
-
         for (var key in experience) {
             if (key === 'data') {
                 if (!(experience.data instanceof Array)) {
@@ -141,10 +133,9 @@
                     newExp.status = experience.status;
                 } else {
                     newExp.status = experience.status[0].status;
-                    var lastActive = experience.status.reduce(statusReduce, null);
-                    if (lastActive) {
-                        newExp.lastPublished = lastActive.date;
-                    }
+                    newExp.lastStatusChange = experience.status[0].date;
+                    // Remove lastPublished when frontend stops using it
+                    newExp.lastPublished = experience.status[0].date;
                 }
             } else if (key !== '_id' && !(isGuest && privateFields.indexOf(key) >= 0)) {
                 newExp[key] = experience[key];
@@ -340,7 +331,6 @@
             idx         = content.brandCache[brandString] || 0,
             selected    = brands[idx];
             
-        log.trace(JSON.stringify(content.brandCache, null, 4));
         log.info('[%1] Selected brand %2, idx %3, for %4', reqId, selected, idx, id);
 
         content.brandCache[brandString] = (++idx >= brands.length) ? 0 : idx;
@@ -495,6 +485,7 @@
         delete obj.versionId; // only allow these properties to be set in the data
         delete obj.title;
         delete obj.lastPublished;
+        delete obj.lastStatusChange;
 
         obj.created = now;
         obj.lastUpdated = now;
@@ -603,8 +594,9 @@
         // these props are copied from elsewhere when returning to the client, so don't allow them
         // to be set here
         delete updates.title;
-        delete updates.lastPublished;
         delete updates.versionId;
+        delete updates.lastPublished;
+        delete updates.lastStatusChange;
 
         log.info('[%1] User %2 is attempting to update experience %3',req.uuid,user.id,id);
         return q.npost(experiences, 'findOne', [{id: id}])
@@ -809,7 +801,9 @@
             return content.getPublicExp(req.params.id, req, expCache, orgCache, siteCache,
                                         state.config.defaultSiteConfig)
             .then(function(resp) {
-                res.header('cache-control', 'max-age=' + state.config.cacheTTLs.cloudFront*60);
+                if (!req.originHost.match(/(portal|staging).cinema6.com/)) {
+                    res.header('cache-control', 'max-age=' + state.config.cacheTTLs.cloudFront*60);
+                }
                 return q(resp);
             }).catch(function(error) {
                 res.header('cache-control', 'max-age=60');

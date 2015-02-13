@@ -120,16 +120,20 @@ describe('content experience endpoints (E2E):', function() {
                 { id: 'e2e-pubget3', status: 'active', access: 'private' }
             ];
             mockSites = [
-                { id: 'e2e-site', status: 'active', host: 'c6.com',
-                  branding: 'siteBrand', placementId: '456', wildCardPlacement: '654' },
-                { id: 'e2e-cinema6', status: 'active', host: 'cinema6.com', branding: 'c6',
-                  containers: [
-                    {id: 'veeseo', contentPlacementId: 1337, displayPlacementId: 7331},
-                    {id: 'connatix', contentPlacementId: 246, displayPlacementId: 864}
-                  ] },
-                { id: 'e2e-containers', status: 'active', host: 'containers.com', branding: 'siteBrand',
-                  containers: [{id: 'embed', contentPlacementId: 11, displayPlacementId: 12}] },
-                { id: 'e2e-brands', status: 'active', host: dateStr + '.brands.com', branding: 'foo,bar,' + dateStr }
+                {
+                    id: 'e2e-site', status: 'active', host: 'c6.com',
+                    branding: 'siteBrand', placementId: '456', wildCardPlacement: '654'
+                },
+                {
+                    id: 'e2e-cinema6', status: 'active', host: 'cinema6.com', branding: 'c6',
+                    containers: [
+                        {id: 'veeseo', contentPlacementId: 1337, displayPlacementId: 7331},
+                        {id: 'connatix', contentPlacementId: 246, displayPlacementId: 864}
+                    ]
+                },
+                {
+                    id: 'e2e-brands', status: 'active', host: dateStr + '.brands.com', branding: 'foo,bar,' + dateStr
+                }
             ];
             mockOrg = { id: 'e2e-active-org', status: 'active', adConfig: { foo: 'bar' }, branding: 'orgBrand' };
             q.all([testUtils.resetCollection('experiences', mockExps),
@@ -152,6 +156,8 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body.org).not.toBeDefined();
                 expect(resp.body.versionId).toBe('a5e744d0');
                 expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
+                expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
+                expect(resp.response.headers['cache-control']).not.toBe('max-age=0');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
@@ -256,31 +262,15 @@ describe('content experience endpoints (E2E):', function() {
             }).done(done);
         });
         
-        it('should be able to fetch ids from the container', function(done) {
-            options = {
-                url: config.contentUrl + '/public/content/experience/e2e-org-adConfig',
-                headers: { origin: 'http://containers.com' }, qs: { container: 'embed' }
-            };
-            requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.id).toBe('e2e-org-adConfig');
-                expect(resp.body.data.branding).toBe('siteBrand');
-                expect(resp.body.data.placementId).toBe(12);
-                expect(resp.body.data.wildCardPlacement).toBe(11);
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-            }).done(done);
-        });
-        
         it('should use defaults if the request\'s container is not in the site', function(done) {
             options = {
                 url: config.contentUrl + '/public/content/experience/e2e-org-adConfig',
-                headers: { origin: 'http://containers.com' }, qs: { container: 'taboola' }
+                headers: { origin: 'http://cinema6.com' }, qs: { container: 'taboola' }
             };
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.id).toBe('e2e-org-adConfig');
-                expect(resp.body.data.branding).toBe('siteBrand');
+                expect(resp.body.data.branding).toBe('c6');
                 expect(resp.body.data.placementId).toBeDefined();
                 expect(resp.body.data.placementId).not.toBe(12);
                 expect(resp.body.data.wildCardPlacement).toBeDefined();
@@ -409,6 +399,20 @@ describe('content experience endpoints (E2E):', function() {
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('Experience not found');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should not cache if the origin is staging.cinema6.com or portal.cinema6.com', function(done) {
+            q.all(['http://staging.cinema6.com', 'http://portal.cinema6.com'].map(function(origin) {
+                options.headers.origin = origin;
+                return requestUtils.qRequest('get', options);
+            })).then(function(results) {
+                results.forEach(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.response.headers['cache-control']).toBe('max-age=0');
+                });
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
@@ -1083,7 +1087,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body.id).toBeDefined();
                 expect(resp.body.tag).toBe('testExp');
                 expect(resp.body.status).toBe('active');
-                expect(new Date(resp.body.lastPublished).toString()).not.toEqual('Invalid Date');
+                expect(new Date(resp.body.lastStatusChange).toString()).not.toEqual('Invalid Date');
                 expect(resp.body.access).toBe('private');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
