@@ -1,5 +1,11 @@
 # Content Service Changelog
 
+### 1.14.3: Fri Feb 13 16:04:45 EST 2015
+* [FIX]: Rotate branding for csv-style branding lists: [#373](https://github.com/cinema6/cwrx/pull/373)
+* [FIX]: Set `lastStatusChange` virtual property for minireels: [#373](https://github.com/cinema6/cwrx/pull/373)
+* [FIX]: Don't cache public endpoint responses if origin is staging or portal studio: [#373](https://github.com/cinema6/cwrx/pull/373)
+* Extra deployment steps: None
+
 ### 1.14.2: Tue Feb 10 11:26:31 EST 2015
 * [FIX]: Override host to `cinema6.com` if container is `connatix` or `veeseo`: [#366](https://github.com/cinema6/cwrx/pull/366)
 * [FIX]: Add ability to query for experiences by `categories`: [#367](https://github.com/cinema6/cwrx/pull/367)

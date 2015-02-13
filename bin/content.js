@@ -264,30 +264,54 @@
             return curr;
         }, null);
     };
+    
+    /* Chooses a branding string from a csv list of brandings. Chooses the next string for each call
+     * with the same brandString, using content.brandCache to keep track of the indexes */
+    content.chooseBranding = function(brandString, prefix, expId) {
+        if (!brandString || !brandString.match(/(\w+,)+\w+/)) {
+            return brandString;
+        }
+
+        var log         = logger.getLog(),
+            brands      = brandString.split(','),
+            key         = prefix + ':' + brandString,
+            idx         = content.brandCache[key] || 0,
+            selected    = brands[idx];
+            
+        log.info('Selected brand %1, idx %2, from %3 for %4', selected, idx, key, expId);
+
+        content.brandCache[key] = (++idx >= brands.length) ? 0 : idx;
+        return selected;
+    };
 
     // Ensure experience has branding and placements, getting from current site or org if necessary
     content.getSiteConfig = function(exp, orgId, qps, host, siteCache, orgCache, defaultSiteCfg) {
         var log = logger.getLog(),
             props = ['branding', 'placementId', 'wildCardPlacement'],
-            setProps = function(exp, obj) {
-                props.forEach(function(prop) { exp.data[prop] = exp.data[prop] || obj[prop]; });
-            },
-            query;
+            siteQuery;
         qps = qps || {};
+
+        function setProps(exp, obj, src) {
+            exp.data.placementId = exp.data.placementId || obj.placementId;
+            exp.data.wildCardPlacement = exp.data.wildCardPlacement || obj.wildCardPlacement;
+            exp.data.branding = exp.data.branding ||
+                                content.chooseBranding(obj.branding, src, exp.id);
+        }
 
         if (!exp.data) {
             log.warn('Experience %1 does not have data!', exp.id);
             return q(exp);
         }
-
-        setProps(exp, qps);
+        
+        exp.data.branding = content.chooseBranding(exp.data.branding, exp.id, exp.id);
+        setProps(exp, qps, 'queryParams', exp.id);
         if (props.every(function(prop) { return !!exp.data[prop]; })) {
             return q(exp);
         }
 
-        query = content.buildHostQuery(host, qps.container);
+        siteQuery = content.buildHostQuery(host, qps.container);
 
-        return ( !!query ? siteCache.getPromise(query) : q([]) ).then(function(results) {
+        return ( !!siteQuery ? siteCache.getPromise(siteQuery) : q([]) ).then(function(results) {
             var site = content.chooseSite(results);
             if (!site) {
                 if (!!host) {
@@ -302,13 +326,12 @@
                     exp.data.placementId = exp.data.placementId || container.displayPlacementId;
                     exp.data.wildCardPlacement = exp.data.wildCardPlacement ||
                                                  container.contentPlacementId;
-                    exp.data.branding = exp.data.branding || site.branding;
                 } else {
                     if (!!qps.container && !!site.containers) {
                         log.warn('Container %1 not found for %2', qps.container, host);
                     }
-                    setProps(exp, site);
                 }
+                setProps(exp, site, site.id, exp.id);
             }
             if (exp.data.branding) {
                 return q();
@@ -316,27 +339,13 @@
             return orgCache.getPromise({id: orgId});
         }).then(function(results) {
             if (results && results.length !== 0 && results[0].status === Status.Active) {
-                exp.data.branding = exp.data.branding || results[0].branding;
+                setProps(exp, results[0], results[0].id, exp.id);
             }
-            setProps(exp, defaultSiteCfg);
+            setProps(exp, defaultSiteCfg, 'default', exp.id);
             return q(exp);
         });
     };
     
-    /* Chooses a branding string from a csv list of brandings. Chooses the next string for each call
-     * with the same brandString, using content.brandCache to keep track of the indexes */
-    content.chooseBranding = function(brandString, reqId, id) {
-        var log         = logger.getLog(),
-            brands      = brandString.split(','),
-            idx         = content.brandCache[brandString] || 0,
-            selected    = brands[idx];
-            
-        log.info('[%1] Selected brand %2, idx %3, for %4', reqId, selected, idx, id);
-
-        content.brandCache[brandString] = (++idx >= brands.length) ? 0 : idx;
-        return selected;
-    };
-
     content.getPublicExp = function(id, req, expCache, orgCache, siteCache, defaultSiteCfg) {
         var log = logger.getLog(),
             qps = req.query,
@@ -365,9 +374,6 @@
                                              orgCache, defaultSiteCfg);
             })
             .then(function(exp) {
-                if (exp.data && exp.data.branding && exp.data.branding.match(/(\w+,)+\w+/)) {
-                    exp.data.branding = content.chooseBranding(exp.data.branding, req.uuid, id);
-                }
                 return q({code: 200, body: exp});
             });
         })
