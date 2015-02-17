@@ -316,22 +316,20 @@ describe('content (UT)', function() {
                 { email: 'otter', date: now, status: Status.Deleted },
                 { email: 'crosby', date: now, status: Status.Pending }
             ]};
-            expect(content.formatOutput(experience)).toEqual({ id:'e1', status: Status.Deleted });
+            expect(content.formatOutput(experience).status).toBe(Status.Deleted);
             expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
         });
         
-        it('should set the lastPublished date if the experience was active', function() {
+        it('should set the lastStatusChange date to the most recent status change', function() {
             var now = new Date();
             experience = { id: 'e1', status: [
                 { date: new Date(now + 1000), status: Status.Active },
                 { date: now, status: Status.Pending }
             ]};
-            expect(content.formatOutput(experience)).toEqual({id:'e1',status:Status.Active,
-                                                              lastPublished:new Date(now + 1000)});
+            expect(content.formatOutput(experience).lastStatusChange).toEqual(new Date(now + 1000));
             experience.status.push({date: new Date(now + 2000), status: Status.Pending});
             experience.status.push({date: new Date(now + 3000), status: Status.Active});
-            expect(content.formatOutput(experience)).toEqual({id:'e1',status:Status.Active,
-                                                              lastPublished:new Date(now + 3000)});
+            expect(content.formatOutput(experience).lastStatusChange).toEqual(new Date(now + 3000));
         });
         
         it('should prevent a guest user from seeing certain fields', function() {
@@ -550,6 +548,7 @@ describe('content (UT)', function() {
             defaultSiteCfg = { branding: 'c6', placementId: 789, wildCardPlacement: 987 };
             spyOn(content, 'buildHostQuery').andCallThrough();
             spyOn(content, 'chooseSite').andReturn(mockSite);
+            spyOn(content, 'chooseBranding').andCallThrough();
         });
         
         it('should log a warning if the experience has no data', function(done) {
@@ -571,6 +570,7 @@ describe('content (UT)', function() {
                 expect(exp).toEqual({id: 'e-1', data: {branding: 'expBranding', placementId: 234, wildCardPlacement: 543}});
                 expect(siteCache.getPromise).not.toHaveBeenCalled();
                 expect(orgCache.getPromise).not.toHaveBeenCalled();
+                expect(content.chooseBranding).toHaveBeenCalledWith('expBranding', 'e-1', 'e-1');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -583,6 +583,7 @@ describe('content (UT)', function() {
                                     branding: 'widgetBrand', placementId: 123, wildCardPlacement: 321 }});
                 expect(siteCache.getPromise).not.toHaveBeenCalled();
                 expect(orgCache.getPromise).not.toHaveBeenCalled();
+                expect(content.chooseBranding).toHaveBeenCalledWith('widgetBrand', 'queryParams', 'e-1');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -597,6 +598,7 @@ describe('content (UT)', function() {
                 expect(siteCache.getPromise).toHaveBeenCalledWith({host: {$in: ['games.wired.com', 'wired.com']}});
                 expect(content.buildHostQuery).toHaveBeenCalledWith('games.wired.com', undefined);
                 expect(content.chooseSite).toHaveBeenCalledWith(['fake1', 'fake2']);
+                expect(content.chooseBranding).toHaveBeenCalledWith('siteBrand', 's-1', 'e-1');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -629,6 +631,7 @@ describe('content (UT)', function() {
                     expect(exp.data).toEqual({foo:'bar',branding:'siteBrand',placementId:13,wildCardPlacement:12});
                     expect(orgCache.getPromise).not.toHaveBeenCalled();
                     expect(mockLog.warn).not.toHaveBeenCalled();
+                    expect(content.chooseBranding).toHaveBeenCalledWith('siteBrand', 's-2', 'e-1');
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);
@@ -656,6 +659,7 @@ describe('content (UT)', function() {
                                      branding: 'orgBrand', placementId: 789, wildCardPlacement: 987}});
                 expect(siteCache.getPromise).not.toHaveBeenCalled();
                 expect(orgCache.getPromise).toHaveBeenCalled();
+                expect(content.chooseBranding).toHaveBeenCalledWith('orgBrand', 'o-1', 'e-1');
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -698,6 +702,7 @@ describe('content (UT)', function() {
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar',
                                      branding: 'c6', placementId: 789, wildCardPlacement: 987}});
+                expect(content.chooseBranding).toHaveBeenCalledWith('c6', 'default', 'e-1');
                 expect(siteCache.getPromise).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -770,6 +775,33 @@ describe('content (UT)', function() {
                 expect(siteCache.getPromise).toHaveBeenCalled();
                 expect(orgCache.getPromise).toHaveBeenCalled();
             }).done(done);
+        });
+    });
+    
+    describe('chooseBranding', function() {
+        beforeEach(function() {
+            content.brandCache = {};
+        });
+        
+        it('should just return the brandString if it\'s undefined or not a csv list', function() {
+            expect(content.chooseBranding(null, 's-1', 'e-1')).toBe(null);
+            expect(content.chooseBranding('', 's-1', 'e-1')).toBe('');
+            expect(content.chooseBranding('asdf,', 's-1', 'e-1')).toBe('asdf,');
+        });
+
+        it('should cycle through a list of brandings', function() {
+            expect(content.chooseBranding('foo,bar,baz', 's-1', 'e-1')).toBe('foo');
+            expect(content.brandCache['s-1:foo,bar,baz']).toBe(1);
+            expect(content.chooseBranding('foo,bar,baz', 's-1', 'e-1')).toBe('bar');
+            expect(content.chooseBranding('foo,bar,baz', 's-1', 'e-1')).toBe('baz');
+            expect(content.chooseBranding('foo,bar,baz', 's-1', 'e-1')).toBe('foo');
+        });
+        
+        it('should maintain separate lists for different combos of prefix + brandString', function() {
+            expect(content.chooseBranding('foo,bar,baz', 's-1', 'e-1')).toBe('foo');
+            expect(content.chooseBranding('foo,bar,baz,buz', 's-1', 'e-1')).toBe('foo');
+            expect(content.chooseBranding('foo,bar,baz', 'o-1', 'e-1')).toBe('foo');
+            expect(content.brandCache).toEqual({'s-1:foo,bar,baz': 1, 's-1:foo,bar,baz,buz': 1, 'o-1:foo,bar,baz': 1});
         });
     });
     

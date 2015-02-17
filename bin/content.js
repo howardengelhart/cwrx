@@ -23,7 +23,7 @@
         Scope           = enums.Scope,
 
         state   = {},
-        content = {}; // for exporting functions to unit tests
+        content = { brandCache: {} }; // for exporting functions to unit tests
 
     // This is the template for content's configuration
     state.defaultConfig = {
@@ -113,14 +113,6 @@
             privateFields = ['user', 'org'],
             newExp = {};
 
-        function statusReduce(a, b) {
-            if (b.status === Status.Active && (!a || b.date > a.date)) {
-                return b;
-            } else {
-                return a;
-            }
-        }
-
         for (var key in experience) {
             if (key === 'data') {
                 if (!(experience.data instanceof Array)) {
@@ -141,10 +133,9 @@
                     newExp.status = experience.status;
                 } else {
                     newExp.status = experience.status[0].status;
-                    var lastActive = experience.status.reduce(statusReduce, null);
-                    if (lastActive) {
-                        newExp.lastPublished = lastActive.date;
-                    }
+                    newExp.lastStatusChange = experience.status[0].date;
+                    // Remove lastPublished when frontend stops using it
+                    newExp.lastPublished = experience.status[0].date;
                 }
             } else if (key !== '_id' && !(isGuest && privateFields.indexOf(key) >= 0)) {
                 newExp[key] = experience[key];
@@ -273,30 +264,54 @@
             return curr;
         }, null);
     };
+    
+    /* Chooses a branding string from a csv list of brandings. Chooses the next string for each call
+     * with the same brandString, using content.brandCache to keep track of the indexes */
+    content.chooseBranding = function(brandString, prefix, expId) {
+        if (!brandString || !brandString.match(/(\w+,)+\w+/)) {
+            return brandString;
+        }
+
+        var log         = logger.getLog(),
+            brands      = brandString.split(','),
+            key         = prefix + ':' + brandString,
+            idx         = content.brandCache[key] || 0,
+            selected    = brands[idx];
+            
+        log.info('Selected brand %1, idx %2, from %3 for %4', selected, idx, key, expId);
+
+        content.brandCache[key] = (++idx >= brands.length) ? 0 : idx;
+        return selected;
+    };
 
     // Ensure experience has branding and placements, getting from current site or org if necessary
     content.getSiteConfig = function(exp, orgId, qps, host, siteCache, orgCache, defaultSiteCfg) {
         var log = logger.getLog(),
             props = ['branding', 'placementId', 'wildCardPlacement'],
-            setProps = function(exp, obj) {
-                props.forEach(function(prop) { exp.data[prop] = exp.data[prop] || obj[prop]; });
-            },
-            query;
+            siteQuery;
         qps = qps || {};
+
+        function setProps(exp, obj, src) {
+            exp.data.placementId = exp.data.placementId || obj.placementId;
+            exp.data.wildCardPlacement = exp.data.wildCardPlacement || obj.wildCardPlacement;
+            exp.data.branding = exp.data.branding ||
+                                content.chooseBranding(obj.branding, src, exp.id);
+        }
 
         if (!exp.data) {
             log.warn('Experience %1 does not have data!', exp.id);
             return q(exp);
         }
-
-        setProps(exp, qps);
+        
+        exp.data.branding = content.chooseBranding(exp.data.branding, exp.id, exp.id);
+        setProps(exp, qps, 'queryParams', exp.id);
         if (props.every(function(prop) { return !!exp.data[prop]; })) {
             return q(exp);
         }
 
-        query = content.buildHostQuery(host, qps.container);
+        siteQuery = content.buildHostQuery(host, qps.container);
 
-        return ( !!query ? siteCache.getPromise(query) : q([]) ).then(function(results) {
+        return ( !!siteQuery ? siteCache.getPromise(siteQuery) : q([]) ).then(function(results) {
             var site = content.chooseSite(results);
             if (!site) {
                 if (!!host) {
@@ -311,13 +326,12 @@
                     exp.data.placementId = exp.data.placementId || container.displayPlacementId;
                     exp.data.wildCardPlacement = exp.data.wildCardPlacement ||
                                                  container.contentPlacementId;
-                    exp.data.branding = exp.data.branding || site.branding;
                 } else {
                     if (!!qps.container && !!site.containers) {
                         log.warn('Container %1 not found for %2', qps.container, host);
                     }
-                    setProps(exp, site);
                 }
+                setProps(exp, site, site.id, exp.id);
             }
             if (exp.data.branding) {
                 return q();
@@ -325,14 +339,13 @@
             return orgCache.getPromise({id: orgId});
         }).then(function(results) {
             if (results && results.length !== 0 && results[0].status === Status.Active) {
-                exp.data.branding = exp.data.branding || results[0].branding;
+                setProps(exp, results[0], results[0].id, exp.id);
             }
-            setProps(exp, defaultSiteCfg);
+            setProps(exp, defaultSiteCfg, 'default', exp.id);
             return q(exp);
         });
     };
-
-
+    
     content.getPublicExp = function(id, req, expCache, orgCache, siteCache, defaultSiteCfg) {
         var log = logger.getLog(),
             qps = req.query,
@@ -478,6 +491,7 @@
         delete obj.versionId; // only allow these properties to be set in the data
         delete obj.title;
         delete obj.lastPublished;
+        delete obj.lastStatusChange;
 
         obj.created = now;
         obj.lastUpdated = now;
@@ -586,8 +600,9 @@
         // these props are copied from elsewhere when returning to the client, so don't allow them
         // to be set here
         delete updates.title;
-        delete updates.lastPublished;
         delete updates.versionId;
+        delete updates.lastPublished;
+        delete updates.lastStatusChange;
 
         log.info('[%1] User %2 is attempting to update experience %3',req.uuid,user.id,id);
         return q.npost(experiences, 'findOne', [{id: id}])
@@ -792,7 +807,9 @@
             return content.getPublicExp(req.params.id, req, expCache, orgCache, siteCache,
                                         state.config.defaultSiteConfig)
             .then(function(resp) {
-                res.header('cache-control', 'max-age=' + state.config.cacheTTLs.cloudFront*60);
+                if (!req.originHost.match(/(portal|staging).cinema6.com/)) {
+                    res.header('cache-control', 'max-age=' + state.config.cacheTTLs.cloudFront*60);
+                }
                 return q(resp);
             }).catch(function(error) {
                 res.header('cache-control', 'max-age=60');
