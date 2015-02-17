@@ -3,6 +3,7 @@ var q               = require('q'),
     request         = require('request'),
     util            = require('util'),
     testUtils       = require('./testUtils'),
+    adtechErr       = testUtils.handleAdtechError,
     requestUtils    = require('../../lib/requestUtils'),
     host            = process.env['host'] || 'localhost',
     config = {
@@ -16,7 +17,7 @@ jasmine.getEnv().defaultTimeoutInterval = 30000;
 function getPlacementsBySite(siteId) {
     var aove = new adtech.AOVE();
     aove.addExpression(new adtech.AOVE.LongExpression('websiteId', Number(siteId)));
-    return adtech.websiteAdmin.getPlacementList(null, null, aove);
+    return adtech.websiteAdmin.getPlacementList(null, null, aove).catch(adtechErr);
 }
 
 // check that placements exist for each id in each container, and they are correctly named
@@ -76,7 +77,7 @@ describe('ads sites endpoints (E2E):', function() {
         if (adtech.websiteAdmin) {
             return done();
         }
-        adtech.createWebsiteAdmin().done(function(resp) { done(); });
+        adtech.createWebsiteAdmin().catch(adtechErr).done(function(resp) { done(); });
     });
 
     describe('GET /api/site/:id', function() {
@@ -281,10 +282,11 @@ describe('ads sites endpoints (E2E):', function() {
     });
 
     describe('POST /api/site', function() {
-        var mockSite, options;
+        var name = 'e2e_test-' + new Date().toISOString(),
+            mockSite, options;
         beforeEach(function() {
             mockSite = {
-                name: 'e2e_test-' + new Date().toISOString(),
+                name: name,
                 host: 'test.com',
                 containers: [{ id: 'embed' }, { id: 'mr2' }]
             };
@@ -313,7 +315,7 @@ describe('ads sites endpoints (E2E):', function() {
                 expect(resp.body.status).toBe('active');
                 
                 createdSite = resp.body;
-                return adtech.websiteAdmin.getWebsiteById(createdSite.adtechId);
+                return adtech.websiteAdmin.getWebsiteById(createdSite.adtechId).catch(adtechErr);
             }).then(function(site)  {
                 expect(site.name).toBe(createdSite.name);
                 expect(site.extId).toBe(createdSite.id);
@@ -340,10 +342,22 @@ describe('ads sites endpoints (E2E):', function() {
         });
 
         it('should throw a 409 if a site with that host exists', function(done) {
+            options.json = { name: 'some other name', host: mockSite.host };
             requestUtils.qRequest('post', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(409);
                 expect(resp.body).toBe('An object with that host already exists');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should throw a 409 if a site with that name exists', function(done) {
+            options.json = { name: mockSite.name, host: 'some.other.host.com' };
+            requestUtils.qRequest('post', options)
+            .then(function(resp) {
+                expect(resp.response.statusCode).toBe(409);
+                expect(resp.body).toBe('An object with that name already exists');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -364,6 +378,7 @@ describe('ads sites endpoints (E2E):', function() {
         });
         
         it('should throw a 400 if the containers are invalid', function(done) {
+            options.json.name = 'a bad test site';
             options.json.host = 'bad.test.com';
             q.all([[{id: 'embed'}, {type: 'mr2'}], [{id: 'embed'}, {id: 'embed', type: 2}]].map(function(containers) {
                 options.json.containers = containers;
@@ -400,7 +415,7 @@ describe('ads sites endpoints (E2E):', function() {
             } else { // this is an alternative to hardcoding the adtechId for this in the test
                 promise = adtech.websiteAdmin.getWebsiteByExtId('e2e-s-keepme').then(function(resp) {
                     keptSite = { id: 'e2e-s-keepme', name: resp.name, adtechId: resp.id, pageId: resp.pageList[0].id };
-                });
+                }).catch(adtechErr);
             }
                 
             promise.then(function() {
@@ -432,7 +447,7 @@ describe('ads sites endpoints (E2E):', function() {
                 expect(resp.body.containers).toEqual(createdSite.containers);
                 createdSite = resp.body;
                 
-                return adtech.websiteAdmin.getWebsiteById(createdSite.adtechId)
+                return adtech.websiteAdmin.getWebsiteById(createdSite.adtechId).catch(adtechErr);
             }).then(function(site) {
                 expect(site.name).toBe('e2e_test_updated');
                 expect(site.URL).toBe('http://updated.test.com');
@@ -471,13 +486,13 @@ describe('ads sites endpoints (E2E):', function() {
         it('should preserve other existing adtech fields', function(done) {
             options = {
                 url: config.adsUrl + '/site/e2e-s-keepme',
-                json: { name: 'e2e_s_keep_me_' + new Date().toISOString() },
+                json: { name: 'e2e_s_KEEP_ME_' + new Date().toISOString() },
                 jar: cookieJar
             }
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.name).toBe(options.json.name);
-                return adtech.websiteAdmin.getWebsiteByExtId('e2e-s-keepme');
+                return adtech.websiteAdmin.getWebsiteByExtId('e2e-s-keepme').catch(adtechErr);
             }).then(function(site) {
                 expect(site.name).toBe(options.json.name);
                 expect(site.extId).toBe('e2e-s-keepme');
@@ -600,6 +615,21 @@ describe('ads sites endpoints (E2E):', function() {
             }).done(done);
         });
 
+        it('should throw a 409 if a site with that host exists', function(done) {
+            options = {
+                url: config.adsUrl + '/site/e2e-put1',
+                json: { name: createdSite.name },
+                jar: cookieJar
+            };
+            requestUtils.qRequest('put', options)
+            .then(function(resp) {
+                expect(resp.response.statusCode).toBe(409);
+                expect(resp.body).toBe('An object with that name already exists');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
         it('should throw a 401 error if the user is not authenticated', function(done) {
             delete options.jar;
             requestUtils.qRequest('put', options).then(function(resp) {
@@ -633,12 +663,12 @@ describe('ads sites endpoints (E2E):', function() {
                 expect(resp.body).toBe('Object not found');
                 
                 var promises = [
-                    adtech.websiteAdmin.getWebsiteById(createdSite.adtechId),
-                    adtech.websiteAdmin.getPageById(createdSite.pageId)
+                    adtech.websiteAdmin.getWebsiteById(createdSite.adtechId).catch(adtechErr),
+                    adtech.websiteAdmin.getPageById(createdSite.pageId).catch(adtechErr)
                 ];
                 createdSite.containers.forEach(function(cont) {
-                    promises.push(adtech.websiteAdmin.getPlacementById(cont.contentPlacementId));
-                    promises.push(adtech.websiteAdmin.getPlacementById(cont.displayPlacementId));
+                    promises.push(adtech.websiteAdmin.getPlacementById(cont.contentPlacementId).catch(adtechErr));
+                    promises.push(adtech.websiteAdmin.getPlacementById(cont.displayPlacementId).catch(adtechErr));
                 });
                 return q.allSettled(promises);
             }).then(function(results) {
@@ -646,7 +676,7 @@ describe('ads sites endpoints (E2E):', function() {
                     expect(result.state).toBe('rejected');
                     expect(result.value).not.toBeDefined();
                     expect(result.reason).toEqual(jasmine.any(Error));
-                    expect(result.reason && result.reason.message.match(/^Unable to locate object: /)).toBeTruthy();
+                    expect(result.reason && result.reason.message).toMatch(/^Unable to locate object: /);
                 });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -712,5 +742,11 @@ describe('ads sites endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+    });
+});
+
+describe('test cleanup', function() {
+    it('should close db connections', function() {
+        testUtils.closeDbs();
     });
 });

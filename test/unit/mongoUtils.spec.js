@@ -175,6 +175,12 @@ describe('mongoUtils', function() {
             var start = new Date();
             expect(mongoUtils.escapeKeys({ created: start })).toEqual({ created: start });
         });
+        
+        it('should trim out keys whose value is set as undefined', function() {
+            var fmt = mongoUtils.escapeKeys({foo: 'bar', blah: undefined});
+            expect(fmt).toEqual({foo: 'bar'});
+            expect(Object.keys(fmt)).toEqual(['foo']);
+        });
     });
     
     describe('unescapeKeys', function() {

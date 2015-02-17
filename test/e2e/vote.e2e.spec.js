@@ -1,7 +1,11 @@
+var q               = require('q');
+    testUtils       = require('./testUtils');
+    requestUtils    = require('../../lib/requestUtils');
+
 jasmine.getEnv().defaultTimeoutInterval = 10000;
 
 describe('vote (E2E)', function(){
-    var testUtils, q, makeUrl, mockData, cookieJar, restart = true,
+    var makeUrl, mockData, cookieJar, restart = true,
         dbEnv = JSON.parse(process.env['mongo'] || '{}');
     if (dbEnv && !dbEnv.db) {
         dbEnv.db = 'voteDb';
@@ -10,9 +14,7 @@ describe('vote (E2E)', function(){
     
     beforeEach(function(){
         var urlBase;
-        q               = require('q');
-        testUtils       = require('./testUtils');
-        requestUtils    = require('../../lib/requestUtils'),
+
 
         urlBase = 'http://' + (process.env['host'] ? process.env['host'] : 'localhost');
         makeUrl = function(fragment){
@@ -714,5 +716,11 @@ describe('vote (E2E)', function(){
                 done();
             });
         });
+    });
+});
+
+describe('test cleanup', function() {
+    it('should close db connections', function() {
+        testUtils.closeDbs();
     });
 });

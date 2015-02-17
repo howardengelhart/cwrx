@@ -1,6 +1,7 @@
 var q               = require('q'),
     adtech          = require('adtech'),
     request         = require('request'),
+    util            = require('util'),
     testUtils       = require('./testUtils'),
     adtechErr       = testUtils.handleAdtechError,
     requestUtils    = require('../../lib/requestUtils'),
@@ -10,10 +11,10 @@ var q               = require('q'),
         authUrl : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
     };
     
-jasmine.getEnv().defaultTimeoutInterval = 30000;
+jasmine.getEnv().defaultTimeoutInterval = 90000;
 
-describe('ads customers endpoints (E2E):', function() {
-    var cookieJar, mockUser, createdCust, createdAdverts, keptCust, keptAdvert;
+describe('ads minireelGroups endpoints (E2E):', function() {
+    var cookieJar, mockUser, createdGroup, keptAdvert, keptCust;
 
     beforeEach(function(done) {
         if (cookieJar && cookieJar.cookies) {
@@ -23,87 +24,79 @@ describe('ads customers endpoints (E2E):', function() {
         mockUser = {
             id: 'e2e-user',
             status: 'active',
-            email : 'custe2euser',
+            email : 'adsvce2euser',
             password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
             org: 'e2e-org',
             permissions: {
-                advertisers: { read: 'all', create: 'all', edit: 'all', delete: 'all' },
-                customers: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
+                minireelGroups: {
+                    read: 'all',
+                    create: 'all',
+                    edit: 'all',
+                    delete: 'all'
+                }
             }
         };
         var loginOpts = {
             url: config.authUrl + '/auth/login',
             jar: cookieJar,
             json: {
-                email: 'custe2euser',
+                email: 'adsvce2euser',
                 password: 'password'
             }
         };
-        testUtils.resetCollection('users', mockUser).then(function(resp) {
+        return testUtils.resetCollection('users', mockUser).then(function() {
             return requestUtils.qRequest('post', loginOpts);
         }).done(function(resp) { done(); });
     });
     
     beforeEach(function(done) {
-        if (adtech.customerAdmin) {
+        if (adtech.campaignAdmin && adtech.bannerAdmin) {
             return done();
         }
-        adtech.createCustomerAdmin().catch(adtechErr).done(function(resp) { done(); });
+        adtech.createClient().catch(adtechErr).done(function(resp) { done(); });
     });
 
+    // Setup an advertiser + customer in mongo so we can use them to create campaigns.
     beforeEach(function(done) {
         if (keptCust && keptAdvert) {
             return done();
         } else {
             q.all([
-                adtech.customerAdmin.getCustomerByExtId('e2e-cu-keepme'),
-                adtech.customerAdmin.getAdvertiserByExtId('e2e-a-keepme')
+                adtech.customerAdmin.getCustomerByExtId('e2e-cu-keepme').catch(adtechErr),
+                adtech.customerAdmin.getAdvertiserByExtId('e2e-a-keepme').catch(adtechErr)
             ]).spread(function(customer, advertiser) {
                 keptCust = { id: 'e2e-cu-keepme', status: 'active', name: customer.name, adtechId: customer.id };
                 keptAdvert = { id: 'e2e-a-keepme', status: 'active', name: advertiser.name, adtechId: advertiser.id };
-            }).catch(adtechErr).done(done);
+                return q.all([
+                    testUtils.resetCollection('advertisers', keptAdvert),
+                    testUtils.resetCollection('customers', keptCust)
+                ]);
+            }).done(function(results) { done(); });
         }
     });
-    
-    describe('setting up advertisers', function() {
-        it('should use the API to create some advertisers', function(done) {
-            q.all([{name: 'e2e advert 1'}, {name: 'e2e advert 2'}, {name: 'e2e advert 3'}].map(function(body) {
-                var options = { url: config.adsUrl + '/account/advertiser', json: body, jar: cookieJar };
-                return requestUtils.qRequest('post', options);
-            })).then(function(results) {
-                createdAdverts = results.map(function(resp) {
-                    expect(resp.response.statusCode).toBe(201);
-                    return resp.body;
-                });
-                return testUtils.resetCollection('advertisers', createdAdverts.concat(keptAdvert));
-            }).done(done);
-        });
-    });
 
-    describe('GET /api/account/customer/:id', function() {
+    describe('GET /api/minireelGroup/:id', function() {
         beforeEach(function(done) {
-            var mockCusts = [
-                keptCust,
-                { id: 'e2e-getid1', name: 'cust 1', status: 'active' },
-                { id: 'e2e-getid2', name: 'cust 2', status: 'deleted' },
+            var mockGroups = [
+                { id: 'e2e-getid1', name: 'group 1', adtechId: 123, status: 'active' },
+                { id: 'e2e-getid2', name: 'group 2', adtechId: 456, status: 'deleted' }
             ];
-            testUtils.resetCollection('customers', mockCusts).done(done);
+            testUtils.resetCollection('minireelGroups', mockGroups).done(done);
         });
 
-        it('should get a customer by id', function(done) {
-            var options = {url: config.adsUrl + '/account/customer/e2e-cu-keepme', jar: cookieJar};
+        it('should get a group by id', function(done) {
+            var options = {url: config.adsUrl + '/minireelGroup/e2e-getid1', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toEqual({id: 'e2e-cu-keepme', name: keptCust.name, adtechId: keptCust.adtechId,
-                                           status: 'active', advertisers: ['e2e-a-keepme']});
+                expect(resp.body).toEqual({id: 'e2e-getid1', name: 'group 1', adtechId: 123, status: 'active'});
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
         it('should write an entry to the audit collection', function(done) {
-            var options = {url: config.adsUrl + '/account/customer/e2e-getid1', jar: cookieJar};
+            var options = {url: config.adsUrl + '/minireelGroup/e2e-getid1', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
@@ -116,70 +109,67 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'GET /api/account/customer/:id',
+                expect(results[0].data).toEqual({route: 'GET /api/minireelGroup/:id',
                                                  params: { 'id': 'e2e-getid1' }, query: {} });
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
-        it('should not show deleted customers', function(done) {
-            var options = {url: config.adsUrl + '/account/customer/e2e-getid2', jar: cookieJar};
+        it('should not show deleted groups', function(done) {
+            var options = {url: config.adsUrl + '/minireelGroup/e2e-getid2', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('Object not found');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
         it('should throw a 401 error if the user is not authenticated', function(done) {
-            var options = { url: config.adsUrl + '/account/customer/e2e-getid1' };
+            var options = { url: config.adsUrl + '/minireelGroup/e2e-getid1' };
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
         it('should return a 404 if nothing is found', function(done) {
-            var options = {url: config.adsUrl + '/account/customer/e2e-getid5678', jar: cookieJar};
+            var options = {url: config.adsUrl + '/minireelGroup/e2e-getid5678', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('Object not found');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });
 
-    describe('GET /api/account/customers', function() {
+    describe('GET /api/minireelGroups', function() {
         var options;
         beforeEach(function(done) {
-            options = { url: config.adsUrl + '/account/customers', qs: {sort: 'id,1'}, jar: cookieJar };
-            var mockCusts = [
-                keptCust,
-                { id: 'e2e-getquery1', name: 'cust 1', adtechId: 123, status: 'active' },
-                { id: 'e2e-getquery2', name: 'cust 2', adtechId: 456, status: 'inactive' },
-                { id: 'e2e-getgone', name: 'cust deleted', adtechId: 666, status: 'deleted' }
+            options = { url: config.adsUrl + '/minireelGroups', qs: {sort: 'id,1'}, jar: cookieJar };
+            var mockGroups = [
+                { id: 'e2e-getquery1', name: 'group 1', adtechId: 123, status: 'active' },
+                { id: 'e2e-getquery2', name: 'group 2', adtechId: 456, status: 'inactive' },
+                { id: 'e2e-getquery3', name: 'group 3', adtechId: 789, status: 'active' },
+                { id: 'e2e-getgone', name: 'group deleted', adtechId: 666, status: 'deleted' }
             ];
-            testUtils.resetCollection('customers', mockCusts).done(done);
+            testUtils.resetCollection('minireelGroups', mockGroups).done(done);
         });
 
-        it('should get all customers', function(done) {
+        it('should get all groups', function(done) {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(3);
-                expect(resp.body[0].id).toBe('e2e-cu-keepme');
-                expect(resp.body[1].id).toBe('e2e-getquery1');
-                expect(resp.body[2].id).toBe('e2e-getquery2');
-                resp.body.forEach(function(cust) {
-                    expect(cust.advertisers).not.toBeDefined();
-                });
+                expect(resp.body[0].id).toBe('e2e-getquery1');
+                expect(resp.body[1].id).toBe('e2e-getquery2');
+                expect(resp.body[2].id).toBe('e2e-getquery3');
                 expect(resp.response.headers['content-range']).toBe('items 1-3/3');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -196,34 +186,34 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'GET /api/account/customers',
+                expect(results[0].data).toEqual({route: 'GET /api/minireelGroups',
                                                  params: {}, query: { sort: 'id,1' } });
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
-        it('should get customers by name', function(done) {
-            options.qs.name = 'cust 2';
+        it('should get groups by name', function(done) {
+            options.qs.name = 'group 3';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(1);
+                expect(resp.body[0].id).toBe('e2e-getquery3');
+                expect(resp.response.headers['content-range']).toBe('items 1-1/1');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should get groups by adtechId', function(done) {
+            options.qs.adtechId = '456';
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(1);
                 expect(resp.body[0].id).toBe('e2e-getquery2');
                 expect(resp.response.headers['content-range']).toBe('items 1-1/1');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-            }).done(done);
-        });
-
-        it('should get customers by adtechId', function(done) {
-            options.qs.adtechId = '123';
-            requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.length).toBe(1);
-                expect(resp.body[0].id).toBe('e2e-getquery1');
-                expect(resp.response.headers['content-range']).toBe('items 1-1/1');
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -234,7 +224,7 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(resp.body).toEqual([]);
                 expect(resp.response.headers['content-range']).toBe('items 0-0/0');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -244,7 +234,7 @@ describe('ads customers endpoints (E2E):', function() {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(2);
-                expect(resp.body[0].id).toBe('e2e-cu-keepme');
+                expect(resp.body[0].id).toBe('e2e-getquery3');
                 expect(resp.body[1].id).toBe('e2e-getquery2');
                 expect(resp.response.headers['content-range']).toBe('items 1-2/3');
                 options.qs.skip = 1;
@@ -256,7 +246,7 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(resp.body[1].id).toBe('e2e-getquery1');
                 expect(resp.response.headers['content-range']).toBe('items 2-3/3');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -267,44 +257,57 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(resp.body).toBe('Unauthorized');
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });
 
-    describe('POST /api/account/customer', function() {
-        var mockCust, options;
+    describe('POST /api/minireelGroup', function() {
+        var name = 'e2e_test-' + new Date().toISOString(),
+            mockGroup, options;
         beforeEach(function() {
-            mockCust = { name: 'e2e_test-' + new Date().toISOString(),
-                         advertisers: [createdAdverts[0].id, createdAdverts[1].id] };
+            mockGroup = {
+                name: name,
+                categories: ['food', 'sports'],
+                advertiserId: keptAdvert.id,
+                customerId: keptCust.id,
+                miniReels: ['e-1', 'e-2']
+            };
             options = {
-                url: config.adsUrl + '/account/customer',
+                url: config.adsUrl + '/minireelGroup',
                 jar: cookieJar,
-                json: mockCust
+                json: mockGroup
             };
         });
 
-        it('should be able to create a customer', function(done) {
+        it('should be able to create a group', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBeDefined();
-                expect(resp.body.name).toBe(mockCust.name);
+                expect(resp.body.name).toBe(mockGroup.name);
+                expect(resp.body.categories).toEqual(['food', 'sports']);
+                expect(resp.body.miniReels).toEqual(['e-1', 'e-2']);
                 expect(resp.body.adtechId).toEqual(jasmine.any(Number));
                 expect(new Date(resp.body.created).toString()).not.toEqual('Invalid Date');
                 expect(resp.body.lastUpdated).toEqual(resp.body.created);
                 expect(resp.body.status).toBe('active');
-                expect(resp.body.advertisers.sort()).toEqual([createdAdverts[0].id, createdAdverts[1].id].sort());
                 
-                createdCust = resp.body;
-                return adtech.customerAdmin.getCustomerById(createdCust.adtechId).catch(adtechErr);
-            }).then(function(cust)  {
-                expect(cust.name).toBe(createdCust.name);
-                expect(cust.extId).toBe(createdCust.id);
-                expect(cust.companyData.url).toBe('http://cinema6.com');
-                expect(cust.advertiser.sort()).toEqual(
-                    [String(createdAdverts[0].adtechId), String(createdAdverts[1].adtechId)].sort());
-                
+                createdGroup = resp.body;
+                return adtech.campaignAdmin.getCampaignById(createdGroup.adtechId).catch(adtechErr);
+            }).then(function(group)  {
+                expect(group.name).toBe(createdGroup.name);
+                expect(group.extId).toBe(createdGroup.id);
+                expect(group.priorityLevelOneKeywordIdList).toEqual([]);
+                // the keyword ids for 'food' and 'sports' should never change, so we can hardcode them
+                expect(group.priorityLevelThreeKeywordIdList.sort()).toEqual(['1002744', '1003562']);
+                expect(group.priority).toBe(3);
+                expect(group.advertiserId).toBe(keptAdvert.adtechId);
+                expect(group.customerId).toBe(keptCust.adtechId);
+                return testUtils.getCampaignBanners(createdGroup.adtechId);
+            }).then(function(banners) {
+                testUtils.compareBanners(banners, createdGroup.miniReels, 'contentMiniReel');
+            
                 // check that it wrote an entry to the audit collection
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
             }).then(function(results) {
@@ -316,14 +319,24 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'POST /api/account/customer', params: {}, query: {} });
+                expect(results[0].data).toEqual({route: 'POST /api/minireelGroup', params: {}, query: {} });
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should throw a 409 if a group with that name exists', function(done) {
+            requestUtils.qRequest('post', options)
+            .then(function(resp) {
+                expect(resp.response.statusCode).toBe(409);
+                expect(resp.body).toBe('An object with that name already exists');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
         it('should throw a 400 if the body is invalid', function(done) {
-            q.all([{foo: 'bar'}, {name: 'test cust', adtechId: 1234}].map(function(body) {
+            q.all([{foo: 'bar'}, {name: 'test', adtechId: 1234}, {name: 'test', miniReels: [123]}].map(function(body) {
                 options.json = body;
                 return requestUtils.qRequest('post', options);
             })).then(function(results) {
@@ -332,7 +345,24 @@ describe('ads customers endpoints (E2E):', function() {
                     expect(resp.body).toBe('Invalid request body');
                 });
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should throw a 400 if the advertiser or customer don\'t exist', function(done) {
+            q.all([
+                {name: 'test', advertiserId: 'fake', customerId: mockGroup.customerId},
+                {name: 'test', advertiserId: mockGroup.advertiserId, customerId: 'fake'}
+            ].map(function(body) {
+                options.json = body;
+                return requestUtils.qRequest('post', options);
+            })).then(function(results) {
+                expect(results[0].response.statusCode).toBe(400);
+                expect(results[0].body).toBe('advertiser fake does not exist');
+                expect(results[1].response.statusCode).toBe(400);
+                expect(results[1].body).toBe('customer fake does not exist');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -343,58 +373,58 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+    });
+
+    describe('PUT /api/minireelGroup/:id', function() {
+        var mockGroups, options;
+        beforeEach(function(done) {
+            mockGroups = [
+                { id: 'e2e-put1', status: 'active', advertiserId: keptAdvert.id, customerId: keptCust.id,
+                  adtechId: 12345, name: 'fake group' },
+                { id: 'e2e-deleted', status: 'deleted', advertiserId: keptAdvert.id, customerId: keptCust.id,
+                  adtechId: 1234, name: 'deleted group' }
+            ];
+            return testUtils.mongoFind('minireelGroups', {id: createdGroup.id}).then(function(results) {
+                mockGroups.push(results[0]);
+                return testUtils.resetCollection('minireelGroups', mockGroups);
             }).done(done);
         });
 
-    });
-
-    describe('PUT /api/account/customer/:id', function() {
-        var mockCusts, now, options;
-        beforeEach(function(done) {
-            // created = yesterday to allow for clock differences b/t server and test runner
-            now = new Date(new Date() - 24*60*60*1000);
-            mockCusts = [
-                { id: 'e2e-put1', status: 'active', name: 'fake cust', foo: 'bar' },
-                { id: 'e2e-deleted', status: 'deleted', adtechId: 1234, name: 'deleted cust' },
-                keptCust,
-                createdCust
-            ];
-            testUtils.resetCollection('customers', mockCusts).done(done);
-        });
-
-        it('should successfully update a customer in mongo and adtech', function(done) {
+        it('should successfully update a group in mongo and adtech', function(done) {
             options = {
-                url: config.adsUrl + '/account/customer/' + createdCust.id,
-                json: { name: 'e2e_test_updated' },
+                url: config.adsUrl + '/minireelGroup/' + createdGroup.id,
+                json: { name: 'e2e_test_updated', categories: ['food'] },
                 jar: cookieJar
-            }
+            };
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).not.toEqual(createdCust);
+                expect(resp.body).not.toEqual(createdGroup);
                 expect(resp.body._id).not.toBeDefined();
-                expect(resp.body.id).toBe(createdCust.id);
-                expect(resp.body.adtechId).toBe(createdCust.adtechId);
+                expect(resp.body.id).toBe(createdGroup.id);
                 expect(resp.body.name).toBe('e2e_test_updated');
-                expect(resp.body.created).toBe(createdCust.created);
-                expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(createdCust.lastUpdated));
-                expect(resp.body.advertisers.sort()).toEqual([createdAdverts[0].id, createdAdverts[1].id].sort());
+                expect(resp.body.categories).toEqual(['food']);
+                expect(resp.body.created).toBe(createdGroup.created);
+                expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(createdGroup.lastUpdated));
+                expect(resp.body.miniReels).toEqual(createdGroup.miniReels);
+                createdGroup = resp.body;
                 
-                return adtech.customerAdmin.getCustomerById(createdCust.adtechId).catch(adtechErr);
-            }).then(function(cust) {
-                expect(cust.name).toBe('e2e_test_updated');
-                expect(cust.extId).toBe(createdCust.id);
-                expect(cust.advertiser.sort()).toEqual(
-                    [String(createdAdverts[0].adtechId), String(createdAdverts[1].adtechId)].sort());
+                return adtech.campaignAdmin.getCampaignById(createdGroup.adtechId).catch(adtechErr);
+            }).then(function(group) {
+                expect(group.name).toBe('e2e_test_updated');
+                expect(group.priorityLevelThreeKeywordIdList).toEqual(['1003562']);
+                expect(group.extId).toBe(createdGroup.id);
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
         it('should write an entry to the audit collection', function(done) {
             options = {
-                url: config.adsUrl + '/account/customer/e2e-put1',
-                json: { name: 'fake cust', foo: 'baz' },
+                url: config.adsUrl + '/minireelGroup/e2e-put1',
+                json: { foo: 'baz' },
                 jar: cookieJar
             };
             requestUtils.qRequest('put', options).then(function(resp) {
@@ -410,62 +440,40 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'PUT /api/account/customer/:id',
+                expect(results[0].data).toEqual({route: 'PUT /api/minireelGroup/:id',
                                                  params: { id: 'e2e-put1' }, query: {} });
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-
-        it('should be able to update the advertiser list', function(done) {
+        
+        it('should be able to edit the miniReels list', function(done) {
             options = {
-                url: config.adsUrl + '/account/customer/' + createdCust.id,
-                json: { advertisers: [createdAdverts[1].id, createdAdverts[2].id] },
+                url: config.adsUrl + '/minireelGroup/' + createdGroup.id,
+                json: { miniReels: ['e-1', 'e-3'] },
                 jar: cookieJar
-            }
+            };
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).not.toEqual(createdCust);
                 expect(resp.body._id).not.toBeDefined();
-                expect(resp.body.advertisers.sort()).toEqual([createdAdverts[1].id, createdAdverts[2].id].sort());
-                
-                return adtech.customerAdmin.getCustomerById(createdCust.adtechId).catch(adtechErr);
-            }).then(function(cust) {
-                expect(cust.extId).toBe(createdCust.id);
-                expect(cust.advertiser.sort()).toEqual(
-                    [String(createdAdverts[1].adtechId), String(createdAdverts[2].adtechId)].sort());
+                expect(resp.body.name).toBe(createdGroup.name);
+                expect(resp.body.miniReels).toEqual(['e-1', 'e-3']);
+                expect(resp.body.adtechId).toEqual(createdGroup.adtechId);
+                expect(resp.body.created).toBe(createdGroup.created);
+                expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(createdGroup.lastUpdated));
+                createdGroup = resp.body;
+
+                return testUtils.getCampaignBanners(createdGroup.adtechId);
+            }).then(function(banners) {
+                testUtils.compareBanners(banners, createdGroup.miniReels, 'contentMiniReel');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
-        it('should preserve other existing adtech fields', function(done) {
+        it('should not edit a group that has been deleted', function(done) {
             options = {
-                url: config.adsUrl + '/account/customer/e2e-cu-keepme',
-                json: { name: 'e2e_cu_KEEP_ME_' + new Date().toISOString() },
-                jar: cookieJar
-            }
-            requestUtils.qRequest('put', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.name).toBe(options.json.name);
-                return adtech.customerAdmin.getCustomerById(keptCust.adtechId).catch(adtechErr);
-            }).then(function(cust) {
-                expect(cust.name).toBe(options.json.name);
-                expect(cust.extId).toBe('e2e-cu-keepme');
-                expect(cust.companyData).toEqual({ address: { address1: '1 Bananas Road', address2: 'Apt 123',
-                    city: 'Bananaville', country: 'USA', zip: '12345' }, firmName: '', fax: '1234567890',
-                    id: 1260826, mail: '', phone: '9876543210', url: 'http://bananas.com' });
-                expect(cust.contacts).toEqual([{email: 'jimtest@bananas.com', fax: '',
-                    firstName: 'Jimmy', lastName: 'Testmonkey', id: 902910, mobile: '', phone: '1234567890'}]);
-                expect(cust.advertiser).toEqual([String(keptAdvert.adtechId)]);
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should not edit a customer that has been deleted', function(done) {
-            options = {
-                url: config.adsUrl + '/account/customer/e2e-deleted',
+                url: config.adsUrl + '/minireelGroup/e2e-deleted',
                 json: { name: 'resurrected' },
                 jar: cookieJar
             };
@@ -473,13 +481,13 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('That has been deleted');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
-        it('should not create a customer if they do not exist', function(done) {
+        it('should not create a group if they do not exist', function(done) {
             options = {
-                url: config.adsUrl + '/account/customer/e2e-putfake',
+                url: config.adsUrl + '/minireelGroup/e2e-putfake',
                 json: { name: 'the best thing' },
                 jar: cookieJar
             };
@@ -487,7 +495,37 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('That does not exist');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should throw a 400 if the body is invalid', function(done) {
+            options = { url: config.adsUrl + '/minireelGroup/' + createdGroup.id, jar: cookieJar };
+            q.all([{advertiserId: 'fake'}, {customerId: 'fake'}, {miniReels: [123, 234]}].map(function(body) {
+                options.json = body;
+                return requestUtils.qRequest('put', options);
+            })).then(function(results) {
+                results.forEach(function(resp) {
+                    expect(resp.response.statusCode).toBe(400);
+                    expect(resp.body).toBe('Invalid request body');
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should throw a 409 if a group with that name exists', function(done) {
+            options = {
+                url: config.adsUrl + '/minireelGroup/e2e-put1',
+                json: { name: createdGroup.name },
+                jar: cookieJar
+            };
+            requestUtils.qRequest('put', options)
+            .then(function(resp) {
+                expect(resp.response.statusCode).toBe(409);
+                expect(resp.body).toBe('An object with that name already exists');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -497,45 +535,45 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });
 
-    describe('DELETE /api/account/customer/:id', function() {
+    describe('DELETE /api/minireelGroup/:id', function() {
         beforeEach(function(done) {
-            var mockCusts = [
+            mockGroups = [
                 { id: 'e2e-del1', status: 'deleted', adtechId: 1234 },
-                { id: 'e2e-del2', status: 'active' },
-                createdCust
+                { id: 'e2e-del2', status: 'active' }
             ];
-            testUtils.resetCollection('customers', mockCusts).done(done);
+            return testUtils.mongoFind('minireelGroups', {id: createdGroup.id}).then(function(results) {
+                mockGroups.push(results[0]);
+                return testUtils.resetCollection('minireelGroups', mockGroups);
+            }).done(done);
         });
 
-        it('should delete a customer from adtech and set its status to deleted', function(done) {
-            var options = {jar: cookieJar, url: config.adsUrl + '/account/customer/' + createdCust.id};
+        it('should delete a group from adtech and set its status to deleted', function(done) {
+            var options = {jar: cookieJar, url: config.adsUrl + '/minireelGroup/' + createdGroup.id};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
-                options = {url: config.adsUrl + '/account/customer/' + createdCust.id, jar: cookieJar};
+                options = {url: config.adsUrl + '/minireelGroup/' + createdGroup.id, jar: cookieJar};
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('Object not found');
                 
-                return adtech.customerAdmin.getCustomerById(createdCust.adtechId).catch(adtechErr)
-                .then(function(cust) {
-                    expect(cust).not.toBeDefined();
-                }).catch(function(err) {
-                    expect(err).toEqual(new Error('Unable to locate object: ' + createdCust.adtechId));
-                });
+                return q.allSettled([adtech.campaignAdmin.getCampaignById(createdGroup.adtechId).catch(adtechErr)]);
+            }).then(function(results) {
+                expect(results[0].state).toBe('rejected');
+                expect(results[0].reason && results[0].reason.message).toMatch(/^Unable to locate object: /);
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
-        it('should handle customers that have no adtechId', function(done) {
-            var options = {jar: cookieJar, url: config.adsUrl + '/account/customer/e2e-del2'};
+        it('should handle groups that have no adtechId', function(done) {
+            var options = {jar: cookieJar, url: config.adsUrl + '/minireelGroup/e2e-del2'};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -551,60 +589,46 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'DELETE /api/account/customer/:id',
+                expect(results[0].data).toEqual({route: 'DELETE /api/minireelGroup/:id',
                                                  params: { id: 'e2e-del2' }, query: {} });
                 
-                options = {url: config.adsUrl + '/account/customer/e2e-del2' + createdCust.id, jar: cookieJar};
+                options = {url: config.adsUrl + '/minireelGroup/e2e-del2' + createdGroup.id, jar: cookieJar};
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('Object not found');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
-        it('should still return a 204 if the customer has been deleted', function(done) {
-            var options = {jar: cookieJar, url: config.adsUrl + '/account/customer/e2e-del1'};
+        it('should still return a 204 if the group has been deleted', function(done) {
+            var options = {jar: cookieJar, url: config.adsUrl + '/minireelGroup/e2e-del1'};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
-        it('should still return a 204 if the customer does not exist', function(done) {
-            var options = {jar: cookieJar, url: config.adsUrl + '/account/customer/LDFJDKJFWOI'};
+        it('should still return a 204 if the group does not exist', function(done) {
+            var options = {jar: cookieJar, url: config.adsUrl + '/minireelGroup/LDFJDKJFWOI'};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
         it('should throw a 401 error if the user is not authenticated', function(done) {
-            requestUtils.qRequest('delete', {url: config.adsUrl + '/account/customer/e2e-del1'})
+            requestUtils.qRequest('delete', {url: config.adsUrl + '/minireelGroup/e2e-del1'})
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-            }).done(done);
-        });
-    });
-    
-    
-    describe('cleaning up advertisers', function() {
-        it('should use the API to delete some advertisers', function(done) {
-            q.all(createdAdverts.map(function(body) {
-                var options = { url: config.adsUrl + '/account/advertiser/' + body.id, jar: cookieJar };
-                return requestUtils.qRequest('delete', options);
-            })).then(function(results) {
-                results.forEach(function(resp) {
-                    expect(resp.response.statusCode).toBe(204);
-                });
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });

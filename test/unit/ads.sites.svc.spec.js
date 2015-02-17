@@ -56,6 +56,7 @@ describe('ads-sites (UT)', function() {
             expect(FieldValidator.orgFunc).toHaveBeenCalledWith('sites', 'create');
             expect(FieldValidator.orgFunc).toHaveBeenCalledWith('sites', 'edit');
             expect(CrudSvc.prototype.validateUniqueProp.bind).toHaveBeenCalledWith(svc, 'host', /^([\w-]+\.)+[\w-]+$/);
+            expect(CrudSvc.prototype.validateUniqueProp.bind).toHaveBeenCalledWith(svc, 'name', null);
 
             expect(svc instanceof CrudSvc).toBe(true);
             expect(svc._prefix).toBe('s');

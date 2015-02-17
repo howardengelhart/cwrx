@@ -1226,3 +1226,9 @@ describe('user (E2E):', function() {
         });
     });
 });
+
+describe('test cleanup', function() {
+    it('should close db connections', function() {
+        testUtils.closeDbs();
+    });
+});
