@@ -3,6 +3,7 @@
 ### 1.1.0: 
 * [FEATURE]: Add campaign and group endpoints: [#369](https://github.com/cinema6/cwrx/pull/369)
 * [FIX]: Ensure site names are unique: [#369](https://github.com/cinema6/cwrx/pull/369)
+* [FIX]: Get list of advertisers for each customer retrieved in `GET /api/account/customers`: [#377](https://github.com/cinema6/cwrx/pull/377)
 * Extra deployment steps:
     * Deploy new ads cookbook
     * Create default advertiser and customer for content groups
