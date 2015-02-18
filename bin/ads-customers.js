@@ -27,30 +27,43 @@
         return svc;
     };
     
-    custModule.getAdvertAdtechIds = function(svc, c6Ids) {
-        var log = logger.getLog();
-        if (!(c6Ids instanceof Array) || c6Ids.length === 0) {
-            return q(c6Ids);
+    /* Get advertisers lists for each customer in resp.body, using decorateCustomers.
+     * Should be called in route handler with response from appropriate CrudSvc method. */
+    custModule.getAdvertLists = function(svc, req, resp) {
+        var log = logger.getLog(),
+            aove = new adtech.AOVE(),
+            customers;
+        
+        if (resp.code < 200 || resp.code >= 300 || typeof resp.body !== 'object') {
+            return q(resp);
         }
         
-        var query = { id: { $in: c6Ids }, status: { $ne: 'deleted' } },
-            cursor = svc._advertColl.find(query, {id: 1, adtechId: 1});
+        aove.addExpression(new adtech.AOVE.IntExpression('archiveStatus', 0));
         
-        return q.npost(cursor, 'toArray')
-        .then(function(advertisers) {
-            if (advertisers.length !== c6Ids.length) {
-                log.warn('Looking up advertisers [%1] but only found [%2]', c6Ids,
-                         advertisers.map(function(advertiser) { return advertiser.id; }));
+        if (resp.body instanceof Array) {
+            customers = resp.body;
+            if (resp.body.length === 1) { // query adtech smarter if only 1 customer in body
+                aove.addExpression(new adtech.AOVE.StringExpression('extId', resp.body[0].id));
             }
-            return advertisers.map(function(advertiser) { return advertiser.adtechId; });
-        })
+        } else {
+            customers = [resp.body];
+            aove.addExpression(new adtech.AOVE.StringExpression('extId', resp.body.id));
+        }
+        
+        return adtech.customerAdmin.getCustomerList(null, null, aove)
         .catch(function(error) {
-            log.error('Failed looking up advertisers with c6Ids [%1]: %2', c6Ids, error);
-            return q.reject('Mongo error');
-        });
+            log.error('[%1] Failed retrieving customers: %2', req.uuid, error);
+            return q.reject('Adtech failure');
+        })
+        .then(function(adtechCusts) {
+            return custModule.decorateCustomers(req.uuid, svc, customers, adtechCusts);
+        })
+        .thenResolve(resp);
     };
     
-    //TODO: comment and test
+    /* Decorates each customer (retrieved from mongo) in `customers` with an `advertisers` property.
+     * This will be a list of C6 advertiser ids, retrieved from svc._advertColl, using the list of
+     * adtech customers `adtechCusts` */
     custModule.decorateCustomers = function(reqId, svc, customers, adtechCusts) {
         var log = logger.getLog(),
             adtechIds = [];
@@ -108,39 +121,33 @@
             return q.reject('Mongo error');
         });
     };
-    
-    custModule.getAdvertLists = function(svc, req, resp) {
-        var log = logger.getLog(),
-            aove = new adtech.AOVE(),
-            customers;
-        
-        if (resp.code < 200 || resp.code >= 300 || typeof resp.body !== 'object') {
-            return q(resp);
+
+    // Query svc._advertColl for advertisers, returning a list of adtech ids for the list of c6Ids
+    custModule.getAdvertAdtechIds = function(svc, c6Ids) {
+        var log = logger.getLog();
+        if (!(c6Ids instanceof Array) || c6Ids.length === 0) {
+            return q(c6Ids);
         }
         
-        aove.addExpression(new adtech.AOVE.IntExpression('archiveStatus', 0));
+        var query = { id: { $in: c6Ids }, status: { $ne: 'deleted' } },
+            cursor = svc._advertColl.find(query, {id: 1, adtechId: 1});
         
-        if (resp.body instanceof Array) {
-            customers = resp.body;
-            if (resp.body.length === 1) { // query adtech smarter if only 1 customer in body
-                aove.addExpression(new adtech.AOVE.StringExpression('extId', resp.body[0].id));
+        return q.npost(cursor, 'toArray')
+        .then(function(advertisers) {
+            if (advertisers.length !== c6Ids.length) {
+                log.warn('Looking up advertisers [%1] but only found [%2]', c6Ids,
+                         advertisers.map(function(advertiser) { return advertiser.id; }));
             }
-        } else {
-            customers = [resp.body];
-            aove.addExpression(new adtech.AOVE.StringExpression('extId', resp.body.id));
-        }
-        
-        return adtech.customerAdmin.getCustomerList(null, null, aove)
+            return advertisers.map(function(advertiser) { return advertiser.adtechId; });
+        })
         .catch(function(error) {
-            log.error('[%1] Failed retrieving customers: %2', req.uuid, error);
-            return q.reject('Adtech failure');
-        })
-        .then(function(adtechCusts) {
-            return custModule.decorateCustomers(req.uuid, svc, customers, adtechCusts);
-        })
-        .thenResolve(resp);
+            log.error('Failed looking up advertisers with c6Ids [%1]: %2', c6Ids, error);
+            return q.reject('Mongo error');
+        });
     };
-    
+
+    /* Formats a customer for sending to adtech. orig may be the original object (from Adtech),
+     * and advertList should be a list of adtech ids */
     custModule.formatAdtechCust = function(body, orig, advertList) {
         var log = logger.getLog(),
             c6Id = body.id || (orig && orig.extId),
@@ -178,6 +185,7 @@
         return record;
     };
     
+    // Middleware to create a customer in Adtech
     custModule.createAdtechCust = function(svc, req, next/*, done*/) {
         var log = logger.getLog();
         
@@ -200,6 +208,7 @@
         });
     };
     
+    // Middleware to edit a customer in Adtech. Only pays attention to `name` and `advertisers`
     custModule.editAdtechCust = function(svc, req, next/*, done*/) {
         var log = logger.getLog(),
             oldCust;
@@ -231,6 +240,7 @@
         });
     };
 
+    // Middleware to delete a customer from Adtech
     custModule.deleteAdtechCust = function(req, next/*, done*/) {
         var log = logger.getLog();
         
