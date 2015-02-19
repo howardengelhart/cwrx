@@ -1,6 +1,6 @@
 var flush = true;
 describe('ads-advertisers (UT)', function() {
-    var mockLog, CrudSvc, logger, q, adtech, mockClient, nextSpy, doneSpy, errorSpy, req;
+    var mockLog, CrudSvc, logger, q, adtech, mockClient, advertModule, nextSpy, doneSpy, errorSpy, req;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }

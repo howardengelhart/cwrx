@@ -123,7 +123,7 @@ describe('ads-groups (UT)', function() {
         });
         
         it('should next fall back to the advertiserId and customerId on the origObj', function(done) {
-            req.body = {}, req.origObj = {};
+            req.body = {}; req.origObj = {};
             groupModule.getAccountIds(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
@@ -136,7 +136,7 @@ describe('ads-groups (UT)', function() {
         });
         
         it('should be able to take each id from different locations', function(done) {
-            req.body = { customerId: 321 }, req.origObj = {};
+            req.body = { customerId: 321 }; req.origObj = {};
             groupModule.getAccountIds(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
@@ -246,7 +246,7 @@ describe('ads-groups (UT)', function() {
             var req1 = { body: {}, origObj: req.origObj },
                 req2 = { body: { adtechId: 234, miniReels: req.body.miniReels } };
 
-            groupModule.createBanners(req1, nextSpy, doneSpy).catch(errorSpy);            
+            groupModule.createBanners(req1, nextSpy, doneSpy).catch(errorSpy);
             groupModule.createBanners(req2, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
@@ -298,7 +298,7 @@ describe('ads-groups (UT)', function() {
             var req1 = { body: {}, origObj: req.origObj },
                 req2 = { body: req.body, origObj: { adtechId: 123 } };
 
-            groupModule.cleanBanners(req1, nextSpy, doneSpy).catch(errorSpy);            
+            groupModule.cleanBanners(req1, nextSpy, doneSpy).catch(errorSpy);
             groupModule.cleanBanners(req2, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();

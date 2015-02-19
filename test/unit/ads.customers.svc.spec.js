@@ -152,7 +152,7 @@ describe('ads-customers (UT)', function() {
         });
         
         it('should log a warning if adtechCusts is empty or undefined', function(done) {
-            custs2 = JSON.parse(JSON.stringify(custs));
+            var custs2 = JSON.parse(JSON.stringify(custs));
             q.all([
                 custModule.decorateCustomers('1234', svc, custs, []),
                 custModule.decorateCustomers('1234', svc, custs2, undefined)
