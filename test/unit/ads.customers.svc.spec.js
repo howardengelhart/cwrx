@@ -74,50 +74,6 @@ describe('ads-customers (UT)', function() {
             expect(svc._middleware.delete).toContain(custModule.deleteAdtechCust);
         });
     });
-    
-    describe('getAdvertC6Ids', function() {
-        var svc, mockCursor, advertisers;
-        beforeEach(function() {
-            advertisers = [ {id: 'a-1', adtechId: 12}, {id: 'a-2', adtechId: 23} ];
-            mockCursor = { toArray: jasmine.createSpy('cursor.toArray()').andCallFake(function(cb) {
-                cb(null, advertisers);
-            }) };
-            svc = { _advertColl: { find: jasmine.createSpy('coll.find()').andReturn(mockCursor) } };
-        });
-        
-        it('should get a list of advertiser C6 ids', function(done) {
-            custModule.getAdvertC6Ids(svc, [12, 23]).then(function(ids) {
-                expect(ids).toEqual(['a-1', 'a-2']);
-                expect(svc._advertColl.find).toHaveBeenCalledWith(
-                    {adtechId: {$in: [12, 23]}, status: {$ne: 'deleted'}}, {id: 1, adtechId: 1});
-                expect(mockCursor.toArray).toHaveBeenCalledWith(jasmine.any(Function));
-                expect(mockLog.warn).not.toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should log a warning if mongo doesn\'t find all the advertisers', function(done) {
-            advertisers.pop();
-            custModule.getAdvertC6Ids(svc, [12, 23]).then(function(ids) {
-                expect(ids).toEqual(['a-1']);
-                expect(mockLog.warn).toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should log an error if mongo fails', function(done) {
-            mockCursor.toArray.andCallFake(function(cb) { cb('I GOT A PROBLEM'); });
-            custModule.getAdvertC6Ids(svc, [12, 23]).then(function(ids) {
-                expect(ids).not.toBeDefiend();
-            }).catch(function(error) {
-                expect(error).toBe('Mongo error');
-                expect(mockLog.error).toHaveBeenCalled();
-                expect(mockCursor.toArray).toHaveBeenCalledWith(jasmine.any(Function));
-            }).done(done);
-        });
-    });
 
     describe('getAdvertAdtechIds', function() {
         var svc, mockCursor, advertisers;
@@ -162,21 +118,179 @@ describe('ads-customers (UT)', function() {
             }).done(done);
         });
     });
-    
-    describe('getAdvertList', function() {
-        var resp;
+
+    describe('decorateCustomers', function() {
+        var svc, mockCursor, advertisers, custs, adtechCusts;
         beforeEach(function() {
+            custs = [{id: 'cu-1'}, {id: 'cu-2'}, {id: 'cu-3'}];
+            adtechCusts = [
+                {id: 11, extId: 'cu-1', advertiser: [21]},
+                {id: 12, extId: 'cu-2', advertiser: []},
+                {id: 13, extId: 'cu-3', advertiser: [21, 22]}
+            ];
+            advertisers = [ {id: 'a-1', adtechId: 21}, {id: 'a-2', adtechId: 22} ];
+            mockCursor = { toArray: jasmine.createSpy('cursor.toArray()').andCallFake(function(cb) {
+                cb(null, advertisers);
+            }) };
+            svc = { _advertColl: { find: jasmine.createSpy('coll.find()').andReturn(mockCursor) } };
+        });
+        
+        it('should get a list of advertiser C6 ids', function(done) {
+            custModule.decorateCustomers('1234', svc, custs, adtechCusts).then(function() {
+                expect(custs).toEqual([
+                    { id: 'cu-1', advertisers: ['a-1'] },
+                    { id: 'cu-2', advertisers: [] },
+                    { id: 'cu-3', advertisers: ['a-1', 'a-2'] }
+                ]);
+                expect(svc._advertColl.find).toHaveBeenCalledWith(
+                    {adtechId: {$in: [21, 22]}, status: {$ne: 'deleted'}}, {id: 1, adtechId: 1});
+                expect(mockCursor.toArray).toHaveBeenCalledWith(jasmine.any(Function));
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should log a warning if adtechCusts is empty or undefined', function(done) {
+            custs2 = JSON.parse(JSON.stringify(custs));
+            q.all([
+                custModule.decorateCustomers('1234', svc, custs, []),
+                custModule.decorateCustomers('1234', svc, custs2, undefined)
+            ]).then(function() {
+                expect(custs).toEqual([
+                    { id: 'cu-1', advertisers: [] },
+                    { id: 'cu-2', advertisers: [] },
+                    { id: 'cu-3', advertisers: [] }
+                ]);
+                expect(custs2).toEqual(custs);
+                expect(svc._advertColl.find).not.toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should ignore any extra adtech customers', function(done) {
+            custs.pop();
+            custModule.decorateCustomers('1234', svc, custs, adtechCusts).then(function() {
+                expect(custs).toEqual([
+                    { id: 'cu-1', advertisers: ['a-1'] },
+                    { id: 'cu-2', advertisers: [] }
+                ]);
+                expect(svc._advertColl.find).toHaveBeenCalledWith(
+                    {adtechId: {$in: [21]}, status: {$ne: 'deleted'}}, {id: 1, adtechId: 1});
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should log a warning if no adtech cust is found for a given customer', function(done) {
+            adtechCusts.pop();
+            custModule.decorateCustomers('1234', svc, custs, adtechCusts).then(function() {
+                expect(custs).toEqual([
+                    { id: 'cu-1', advertisers: ['a-1'] },
+                    { id: 'cu-2', advertisers: [] },
+                    { id: 'cu-3', advertisers: [] }
+                ]);
+                expect(svc._advertColl.find).toHaveBeenCalledWith(
+                    {adtechId: {$in: [21]}, status: {$ne: 'deleted'}}, {id: 1, adtechId: 1});
+                expect(mockLog.warn).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should log a warning if an advertiser is not found in mongo', function(done) {
+            advertisers.shift();
+            custModule.decorateCustomers('1234', svc, custs, adtechCusts).then(function() {
+                expect(custs).toEqual([
+                    { id: 'cu-1', advertisers: [] },
+                    { id: 'cu-2', advertisers: [] },
+                    { id: 'cu-3', advertisers: ['a-2'] }
+                ]);
+                expect(mockLog.warn.calls.length).toBe(1);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should log an error if mongo fails', function(done) {
+            mockCursor.toArray.andCallFake(function(cb) { cb('I GOT A PROBLEM'); });
+            custModule.decorateCustomers('1234', svc, custs, adtechCusts).then(function() {
+                expect('resolved').not.toBe('resolved');
+            }).catch(function(error) {
+                expect(error).toBe('Mongo error');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(mockCursor.toArray).toHaveBeenCalledWith(jasmine.any(Function));
+            }).done(done);
+        });
+    });
+    
+    describe('getAdvertLists', function() {
+        var resp, callCount;
+        beforeEach(function() {
+            callCount = 0;
             resp = { code: 200, body: { id: 'cu-1', adtechId: 123, name: 'testy' } };
-            adtech.customerAdmin.getCustomerById.andReturn(q({id: 123, advertiser: ['456', '789']}));
-            spyOn(custModule, 'getAdvertC6Ids').andReturn(q(['a-1', 'a-2']));
+            adtech.customerAdmin.getCustomerList.andReturn(q([{id: 123}, {id: 234}]));
+            spyOn(custModule, 'decorateCustomers').andCallFake(function(reqId, svc, custs) {
+                custs.forEach(function(cust) { cust.advertisers = ['a-' + callCount++]; });
+                return q();
+            });
         });
         
         it('should attach a customer\'s advertiser list to the resp', function(done) {
-            custModule.getAdvertList('mockService', req, resp).then(function(resp) {
+            custModule.getAdvertLists('mockService', req, resp).then(function(resp) {
                 expect(resp).toEqual({code: 200, body: { id: 'cu-1', adtechId: 123, name: 'testy',
-                                                         advertisers: ['a-1', 'a-2'] } });
-                expect(adtech.customerAdmin.getCustomerById).toHaveBeenCalledWith(123);
-                expect(custModule.getAdvertC6Ids).toHaveBeenCalledWith('mockService', [456, 789]);
+                                                         advertisers: ['a-0'] } });
+                expect(adtech.customerAdmin.getCustomerList).toHaveBeenCalledWith(null, null, jasmine.any(adtech.AOVE));
+                var aove = adtech.customerAdmin.getCustomerList.calls[0].args[2];
+                expect(aove.expressions).toEqual([
+                    {attr: 'archiveStatus', val: 0, op: '==', type: 'xsd:int'},
+                    {attr: 'extId', val: 'cu-1', op: '==', type: 'xsd:string'}
+                ]);
+                expect(custModule.decorateCustomers).toHaveBeenCalledWith('1234', 'mockService', [resp.body], [{id: 123}, {id: 234}]);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should handle a list of customers in the body', function(done) {
+            resp.body = [
+                { id: 'cu-1', adtechId: 123, name: 'testy' },
+                { id: 'cu-2', adtechId: 456, name: 'pesty' }
+            ];
+            custModule.getAdvertLists('mockService', req, resp).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: [
+                    { id: 'cu-1', adtechId: 123, name: 'testy', advertisers: ['a-0'] },
+                    { id: 'cu-2', adtechId: 456, name: 'pesty', advertisers: ['a-1'] }
+                ]});
+                expect(adtech.customerAdmin.getCustomerList).toHaveBeenCalledWith(null, null, jasmine.any(adtech.AOVE));
+                var aove = adtech.customerAdmin.getCustomerList.calls[0].args[2];
+                expect(aove.expressions).toEqual([
+                    {attr: 'archiveStatus', val: 0, op: '==', type: 'xsd:int'}
+                ]);
+                expect(custModule.decorateCustomers).toHaveBeenCalledWith('1234', 'mockService', resp.body, [{id: 123}, {id: 234}]);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should add extra query params if the body only has one item', function(done) {
+            resp.body = [
+                { id: 'cu-1', adtechId: 123, name: 'testy' }
+            ];
+            custModule.getAdvertLists('mockService', req, resp).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: [
+                    { id: 'cu-1', adtechId: 123, name: 'testy', advertisers: ['a-0'] }
+                ]});
+                expect(adtech.customerAdmin.getCustomerList).toHaveBeenCalledWith(null, null, jasmine.any(adtech.AOVE));
+                var aove = adtech.customerAdmin.getCustomerList.calls[0].args[2];
+                expect(aove.expressions).toEqual([
+                    {attr: 'archiveStatus', val: 0, op: '==', type: 'xsd:int'},
+                    {attr: 'extId', val: 'cu-1', op: '==', type: 'xsd:string'}
+                ]);
+                expect(custModule.decorateCustomers).toHaveBeenCalledWith('1234', 'mockService', resp.body, [{id: 123}, {id: 234}]);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -186,49 +300,35 @@ describe('ads-customers (UT)', function() {
             var codes = [100, 300, 400, 500];
             q.all(codes.map(function(code) {
                 var response = { code: code, body: resp.body };
-                return custModule.getAdvertList('mockService', req, response).then(function(result) {
+                return custModule.getAdvertLists('mockService', req, response).then(function(result) {
                     expect(result.code).toBe(code);
                     expect(result.body.advertisers).not.toBeDefined();
                 });
             })).then(function(results) {
-                expect(adtech.customerAdmin.getCustomerById).not.toHaveBeenCalled();
-                expect(custModule.getAdvertC6Ids).not.toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should log a warning if the response has no adtechId', function(done) {
-            delete resp.body.adtechId;
-            custModule.getAdvertList('mockService', req, resp).then(function(resp) {
-                expect(resp.code).toBe(200);
-                expect(resp.body.advertisers).not.toBeDefined();
-                expect(mockLog.warn).toHaveBeenCalled();
-                expect(adtech.customerAdmin.getCustomerById).not.toHaveBeenCalled();
-                expect(custModule.getAdvertC6Ids).not.toHaveBeenCalled();
+                expect(adtech.customerAdmin.getCustomerList).not.toHaveBeenCalled();
+                expect(custModule.decorateCustomers).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
         
         it('should reject if adtech fails', function(done) {
-            adtech.customerAdmin.getCustomerById.andReturn(q.reject('I GOT A PROBLEM'));
-            custModule.getAdvertList('mockService', req, resp).then(function(resp) {
+            adtech.customerAdmin.getCustomerList.andReturn(q.reject('I GOT A PROBLEM'));
+            custModule.getAdvertLists('mockService', req, resp).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).toEqual(new Error('Adtech failure'));
+                expect(error).toEqual('Adtech failure');
                 expect(mockLog.error).toHaveBeenCalled();
-                expect(custModule.getAdvertC6Ids).not.toHaveBeenCalled();
+                expect(custModule.decorateCustomers).not.toHaveBeenCalled();
             }).done(done);
         });
         
-        it('should reject if mongo fails', function(done) {
-            custModule.getAdvertC6Ids.andReturn(q.reject('I GOT A PROBLEM'));
-            custModule.getAdvertList('mockService', req, resp).then(function(resp) {
+        it('should reject if decorateCustomers fails', function(done) {
+            custModule.decorateCustomers.andReturn(q.reject('I GOT A PROBLEM'));
+            custModule.getAdvertLists('mockService', req, resp).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).toEqual(new Error('Adtech failure'));
-                expect(mockLog.error).toHaveBeenCalled();
+                expect(error).toEqual('I GOT A PROBLEM');
             }).done(done);
         });
     });

@@ -122,6 +122,17 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
+        
+        it('should set the advertisers list to an empty array for customers without advertisers', function(done) {
+            var options = {url: config.adsUrl + '/account/customer/e2e-getid1', jar: cookieJar};
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.advertisers).toEqual([]);
+                expect(resp.response.headers['content-range']).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
 
         it('should not show deleted customers', function(done) {
             var options = {url: config.adsUrl + '/account/customer/e2e-getid2', jar: cookieJar};
@@ -172,11 +183,11 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(3);
                 expect(resp.body[0].id).toBe('e2e-cu-keepme');
+                expect(resp.body[0].advertisers).toEqual(['e2e-a-keepme']);
                 expect(resp.body[1].id).toBe('e2e-getquery1');
+                expect(resp.body[1].advertisers).toEqual([]);
                 expect(resp.body[2].id).toBe('e2e-getquery2');
-                resp.body.forEach(function(cust) {
-                    expect(cust.advertisers).not.toBeDefined();
-                });
+                expect(resp.body[2].advertisers).toEqual([]);
                 expect(resp.response.headers['content-range']).toBe('items 1-3/3');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();

@@ -27,29 +27,102 @@
         return svc;
     };
     
-    custModule.getAdvertC6Ids = function(svc, adtechIds) {
-        var log = logger.getLog();
-        if (!(adtechIds instanceof Array) || adtechIds.length === 0) {
-            return q(adtechIds);
+    /* Get advertisers lists for each customer in resp.body, using decorateCustomers.
+     * Should be called in route handler with response from appropriate CrudSvc method. */
+    custModule.getAdvertLists = function(svc, req, resp) {
+        var log = logger.getLog(),
+            aove = new adtech.AOVE(),
+            customers;
+        
+        if (resp.code < 200 || resp.code >= 300 || typeof resp.body !== 'object') {
+            return q(resp);
         }
         
+        aove.addExpression(new adtech.AOVE.IntExpression('archiveStatus', 0));
+        
+        if (resp.body instanceof Array) {
+            customers = resp.body;
+            if (resp.body.length === 1) { // query adtech smarter if only 1 customer in body
+                aove.addExpression(new adtech.AOVE.StringExpression('extId', resp.body[0].id));
+            }
+        } else {
+            customers = [resp.body];
+            aove.addExpression(new adtech.AOVE.StringExpression('extId', resp.body.id));
+        }
+        
+        return adtech.customerAdmin.getCustomerList(null, null, aove)
+        .catch(function(error) {
+            log.error('[%1] Failed retrieving customers: %2', req.uuid, error);
+            return q.reject('Adtech failure');
+        })
+        .then(function(adtechCusts) {
+            return custModule.decorateCustomers(req.uuid, svc, customers, adtechCusts);
+        })
+        .thenResolve(resp);
+    };
+    
+    /* Decorates each customer (retrieved from mongo) in `customers` with an `advertisers` property.
+     * This will be a list of C6 advertiser ids, retrieved from svc._advertColl, using the list of
+     * adtech customers `adtechCusts` */
+    custModule.decorateCustomers = function(reqId, svc, customers, adtechCusts) {
+        var log = logger.getLog(),
+            adtechIds = [];
+        if ((!(adtechCusts instanceof Array) || adtechCusts.length === 0) && customers.length) {
+            log.warn('[%1] Retrieved no custs from Adtech, not looking up advertisers', reqId);
+            customers.forEach(function(cust) { cust.advertisers = []; });
+            return q();
+        }
+        
+        // get list of unique advertiser adtechIds from relevant adtech customers
+        adtechCusts.filter(function(adtechCust) {
+            return customers.some(function(cust) { return cust.id === adtechCust.extId; });
+        }).forEach(function(adtechCust) {
+            adtechCust.advertiser.forEach(function(adtechId) {
+                if (adtechIds.indexOf(parseInt(adtechId)) === -1) {
+                    adtechIds.push(parseInt(adtechId));
+                }
+            });
+        });
+        
+        log.trace('[%1] Querying for advertisers with adtechIds = [%2]', reqId, adtechIds.join());
         var query = { adtechId: { $in: adtechIds }, status: { $ne: 'deleted' } },
             cursor = svc._advertColl.find(query, {id: 1, adtechId: 1});
 
         return q.npost(cursor, 'toArray')
         .then(function(advertisers) {
-            if (advertisers.length !== adtechIds.length) {
-                log.warn('Looking up advertisers [%1] but only found [%2]', adtechIds,
-                         advertisers.map(function(advertiser) { return advertiser.adtechId; }));
-            }
-            return advertisers.map(function(advertiser) { return advertiser.id; });
+            var mapping = {};
+            advertisers.forEach(function(advert) { mapping[advert.adtechId] = advert.id; });
+            
+            customers.forEach(function(cust) {
+                var adtechCust = adtechCusts.filter(function(item) {
+                    return item.extId === cust.id;
+                })[0];
+                
+                if (!adtechCust) {
+                    log.warn('[%1] No customer in Adtech found for %2', reqId, cust.id);
+                    cust.advertisers = [];
+                    return;
+                }
+                
+                cust.advertisers = adtechCust.advertiser.map(function(adtechId) {
+                    var c6Id = mapping[adtechId];
+                    
+                    if (c6Id === undefined) {
+                        log.warn('[%1] No advertiser in mongo found for %2', reqId, adtechId);
+                        mapping[adtechId] = null; // ensures we only log once per adtechId
+                    }
+                    return c6Id;
+                }).filter(function(c6Id) { return !!c6Id; });
+            });
         })
         .catch(function(error) {
-            log.error('Failed looking up advertisers with adtechIds [%1]: %2', adtechIds, error);
+            log.error('[%1] Failed looking up advertisers with adtechIds [%2]: %3',
+                      reqId, adtechIds, error);
             return q.reject('Mongo error');
         });
     };
-    
+
+    // Query svc._advertColl for advertisers, returning a list of adtech ids for the list of c6Ids
     custModule.getAdvertAdtechIds = function(svc, c6Ids) {
         var log = logger.getLog();
         if (!(c6Ids instanceof Array) || c6Ids.length === 0) {
@@ -72,35 +145,9 @@
             return q.reject('Mongo error');
         });
     };
-    
-    custModule.getAdvertList = function(svc, req, resp) {
-        var log = logger.getLog();
-        
-        if (resp.code < 200 || resp.code >= 300 || typeof resp.body !== 'object') {
-            return q(resp);
-        }
-        
-        if (!resp.body.adtechId) {
-            log.warn('[%1] Customer %2 has no adtechId', req.uuid, resp.body.id);
-            return q(resp);
-        }
-        
-        return adtech.customerAdmin.getCustomerById(resp.body.adtechId)
-        .then(function(customer) {
-            return custModule.getAdvertC6Ids(svc, customer.advertiser.map(Number));
-        }).then(function(advertisers) {
-            log.info('[%1] Retrieved list of advertisers for %2: [%3]',
-                     req.uuid, resp.body.adtechId, advertisers);
-            resp.body.advertisers = advertisers;
-            return q(resp);
-        })
-        .catch(function(error) {
-            log.error('[%1] Failed retrieving customer %2: %3',
-                      req.uuid, resp.body.adtechId, error);
-            return q.reject(new Error('Adtech failure'));
-        });
-    };
-    
+
+    /* Formats a customer for sending to adtech. orig may be the original object (from Adtech),
+     * and advertList should be a list of adtech ids */
     custModule.formatAdtechCust = function(body, orig, advertList) {
         var log = logger.getLog(),
             c6Id = body.id || (orig && orig.extId),
@@ -138,6 +185,7 @@
         return record;
     };
     
+    // Middleware to create a customer in Adtech
     custModule.createAdtechCust = function(svc, req, next/*, done*/) {
         var log = logger.getLog();
         
@@ -160,6 +208,7 @@
         });
     };
     
+    // Middleware to edit a customer in Adtech. Only pays attention to `name` and `advertisers`
     custModule.editAdtechCust = function(svc, req, next/*, done*/) {
         var log = logger.getLog(),
             oldCust;
@@ -191,6 +240,7 @@
         });
     };
 
+    // Middleware to delete a customer from Adtech
     custModule.deleteAdtechCust = function(req, next/*, done*/) {
         var log = logger.getLog();
         
@@ -217,7 +267,7 @@
         app.get('/api/account/customer/:id', sessions, authGetCust, audit, function(req, res) {
             svc.getObjs({id: req.params.id}, req, false)
             .then(function(resp) {
-                return custModule.getAdvertList(svc, req, resp);
+                return custModule.getAdvertLists(svc, req, resp);
             }).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
@@ -240,6 +290,8 @@
                                                 resp.pagination.end + '/' + resp.pagination.total);
 
                 }
+                return custModule.getAdvertLists(svc, req, resp);
+            }).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error retrieving customers', detail: error });
@@ -249,7 +301,7 @@
         var authPostCust = authUtils.middlewarify({customers: 'create'});
         app.post('/api/account/customer', sessions, authPostCust, audit, function(req, res) {
             svc.createObj(req).then(function(resp) {
-                return custModule.getAdvertList(svc, req, resp);
+                return custModule.getAdvertLists(svc, req, resp);
             }).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
@@ -260,7 +312,7 @@
         var authPutCust = authUtils.middlewarify({customers: 'edit'});
         app.put('/api/account/customer/:id', sessions, authPutCust, audit, function(req, res) {
             svc.editObj(req).then(function(resp) {
-                return custModule.getAdvertList(svc, req, resp);
+                return custModule.getAdvertLists(svc, req, resp);
             }).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
