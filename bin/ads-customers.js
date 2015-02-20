@@ -32,23 +32,15 @@
     custModule.getAdvertLists = function(svc, req, resp) {
         var log = logger.getLog(),
             aove = new adtech.AOVE(),
-            customers;
+            customers = resp.body instanceof Array ? resp.body : [resp.body],
+            ids = customers.map(function(cust) { return cust.id; });
         
         if (resp.code < 200 || resp.code >= 300 || typeof resp.body !== 'object') {
             return q(resp);
         }
         
         aove.addExpression(new adtech.AOVE.IntExpression('archiveStatus', 0));
-        
-        if (resp.body instanceof Array) {
-            customers = resp.body;
-            if (resp.body.length === 1) { // query adtech smarter if only 1 customer in body
-                aove.addExpression(new adtech.AOVE.StringExpression('extId', resp.body[0].id));
-            }
-        } else {
-            customers = [resp.body];
-            aove.addExpression(new adtech.AOVE.StringExpression('extId', resp.body.id));
-        }
+        aove.addExpression(new adtech.AOVE.StringListExpression('extId', ids));
         
         return adtech.customerAdmin.getCustomerList(null, null, aove)
         .catch(function(error) {
@@ -56,6 +48,8 @@
             return q.reject('Adtech failure');
         })
         .then(function(adtechCusts) {
+            log.trace('[%1] Retrieved %2 customers for %3 ids',
+                      req.uuid, adtechCusts.length, ids.length);
             return custModule.decorateCustomers(req.uuid, svc, customers, adtechCusts);
         })
         .thenResolve(resp);
