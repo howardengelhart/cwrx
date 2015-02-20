@@ -471,8 +471,8 @@ describe('ads-campaigns (UT)', function() {
         });
         
         it('should do nothing if the body or origObj has no miniReelGroups property', function(done) {
-            req1 = { params: req.params, body: req.body, origObj: {} };
-            req2 = { params: req.params, body: {}, origObj: req.origObj };
+            var req1 = { params: req.params, body: req.body, origObj: {} };
+            var req2 = { params: req.params, body: {}, origObj: req.origObj };
             campModule.cleanTargetCamps(req1, nextSpy, doneSpy).catch(errorSpy);
             campModule.cleanTargetCamps(req2, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
@@ -550,8 +550,8 @@ describe('ads-campaigns (UT)', function() {
         });
 
         it('should do nothing if the body or origObj has no miniReelGroups property', function(done) {
-            req1 = { params: req.params, body: req.body, origObj: {} };
-            req2 = { params: req.params, body: {}, origObj: req.origObj };
+            var req1 = { params: req.params, body: req.body, origObj: {} };
+            var req2 = { params: req.params, body: {}, origObj: req.origObj };
             campModule.editTargetCamps(req1, nextSpy, doneSpy).catch(errorSpy);
             campModule.editTargetCamps(req2, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
@@ -616,7 +616,7 @@ describe('ads-campaigns (UT)', function() {
 
         it('should reject if creating banners fails', function(done) {
             bannerUtils.createBanners.andCallFake(function(oldList, newList, type, id) {
-                if (adtechId === 13) return q.reject('ADTECH IS THE WORST');
+                if (id === 13) return q.reject('ADTECH IS THE WORST');
                 else return q();
             });
             campModule.editTargetCamps(req, nextSpy, doneSpy).catch(errorSpy);
@@ -680,8 +680,8 @@ describe('ads-campaigns (UT)', function() {
         });
         
         it('should do nothing if there are no miniReelGroups', function(done) {
-            req1 = { body: { id: 'cam-1' } };
-            req2 = { body: { id: 'cam-1', miniReelGroups: [] } };
+            var req1 = { body: { id: 'cam-1' } };
+            var req2 = { body: { id: 'cam-1', miniReelGroups: [] } };
             campModule.createTargetCamps(req1, nextSpy, doneSpy).catch(errorSpy);
             campModule.createTargetCamps(req2, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
@@ -695,17 +695,30 @@ describe('ads-campaigns (UT)', function() {
             });
         });
         
-        it('should skip groups without cards or miniReels', function(done) {
-            delete req.body.miniReelGroups[0].cards;
-            req.body.miniReelGroups[2].miniReels = [];
-            campModule.createTargetCamps(req1, nextSpy, doneSpy).catch(errorSpy);
+        it('should allow groups without cards or miniReels', function(done) {
+            req.body.miniReelGroups = [
+                {cards: ['rc-1'], miniReels: []},
+                {cards: []},
+                {miniReels: ['e-3']}
+            ];
+            campModule.createTargetCamps(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(campaignUtils.makeKeywordLevels).not.toHaveBeenCalled();
-                expect(campaignUtils.createCampaign).not.toHaveBeenCalled();
-                expect(bannerUtils.createBanners).not.toHaveBeenCalled();
+                expect(req.body.miniReelGroups).toEqual([
+                    {adtechId: 1000, cards: ['rc-1'], miniReels: []},
+                    {adtechId: 2000, cards: [], miniReels: []},
+                    {adtechId: 3000, cards: [], miniReels: [{id: 'e-3'}]}
+                ]);
+                expect(campaignUtils.makeKeywordLevels.calls.length).toBe(3);
+                expect(campaignUtils.makeKeywordLevels).toHaveBeenCalledWith({level1: ['rc-1']});
+                expect(campaignUtils.makeKeywordLevels).toHaveBeenCalledWith({level1: []});
+                expect(campaignUtils.createCampaign.calls.length).toBe(3);
+                expect(bannerUtils.createBanners.calls.length).toBe(3);
+                expect(bannerUtils.createBanners).toHaveBeenCalledWith([], null, 'contentMiniReel', 1000);
+                expect(bannerUtils.createBanners).toHaveBeenCalledWith([], null, 'contentMiniReel', 2000);
+                expect(bannerUtils.createBanners).toHaveBeenCalledWith([{id: 'e-3'}], null, 'contentMiniReel', 3000);
                 done();
             });
         });

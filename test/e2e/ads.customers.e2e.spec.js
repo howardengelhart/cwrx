@@ -518,6 +518,7 @@ describe('ads customers endpoints (E2E):', function() {
             var mockCusts = [
                 { id: 'e2e-del1', status: 'deleted', adtechId: 1234 },
                 { id: 'e2e-del2', status: 'active' },
+                keptCust,
                 createdCust
             ];
             testUtils.resetCollection('customers', mockCusts).done(done);

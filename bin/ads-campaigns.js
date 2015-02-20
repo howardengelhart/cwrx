@@ -341,19 +341,14 @@
             return q(next());
         }
         
-        return q.all(req.body.miniReelGroups.map(function(obj, idx) {
+        return q.all(req.body.miniReelGroups.map(function(obj) {
             if (obj.adtechId) {
                 log.trace('[%1] Group campaign %2 already created', req.uuid, obj.adtechId);
                 return q();
             }
-            if (!(obj.cards instanceof Array) || obj.cards.length === 0) {
-                log.info('[%1] Cards array was empty, skipping group %2', req.uuid, idx);
-                return q();
-            }
-            if (!(obj.miniReels instanceof Array) || obj.miniReels.length === 0) {
-                log.info('[%1] Minireels array was empty, skipping group %2', req.uuid, idx);
-                return q();
-            }
+            
+            obj.cards = obj.cards || [];
+            obj.miniReels = obj.miniReels || [];
 
             var name = id + '_group_' + uuid.createUuid().substr(0, 8);
             

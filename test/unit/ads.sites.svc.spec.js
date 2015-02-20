@@ -107,7 +107,7 @@ describe('ads-sites (UT)', function() {
             expect(siteModule.formatAdtechSite({name: 'site 1.1'}, orig)).toEqual({
                 URL: 'http://foo.com', archiveDate: now.toISOString(),
                 assignedUsers: { Items: {
-                    attributes: { 'xmlns:cm': 'http://www.w3.org/2001/XMLSchema' }, 
+                    attributes: { 'xmlns:cm': 'http://www.w3.org/2001/XMLSchema' },
                     Item: [{ attributes: { 'xsi:type': 'cm:long' }, $value: '1234' }]
                 } },
                 contact: { firstName: 'Johnny', lastName: 'Testmonkey' },
@@ -251,7 +251,7 @@ describe('ads-sites (UT)', function() {
         it('should handle placements that still have active campaigns', function(done) {
             adtech.websiteAdmin.deletePlacement.andCallFake(function(id) {
                 if (id === 345) return q();
-                else return q.reject({root: {Envelope: {Body: {Fault: {faultstring: 
+                else return q.reject({root: {Envelope: {Body: {Fault: {faultstring:
                     'Placement deletion cannot be performed because 1 campaign(s) run on the affected placement'}}}}});
             });
             siteModule.cleanPlacements(req, nextSpy, doneSpy).catch(errorSpy);

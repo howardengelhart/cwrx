@@ -5,7 +5,7 @@ var q               = require('q'),
     testUtils       = require('./testUtils'),
     adtechErr       = testUtils.handleAdtechError,
     requestUtils    = require('../../lib/requestUtils'),
-    host            = process.env['host'] || 'localhost',
+    host            = process.env.host || 'localhost',
     config = {
         adsUrl      : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api',
         contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api',
@@ -118,12 +118,12 @@ describe('ads campaigns endpoints (E2E):', function() {
     // only do this once, so their state is preserved in between tests
     describe('setting up experiences and cards', function() {
         it('creates some mock experiences and cards', function(done) {
-            mockCards = [
+            var mockCards = [
                 {id: 'rc-1', status: 'active', user: 'not-e2e-user', org: 'e2e-org'},
                 {id: 'rc-2', status: 'active', user: 'not-e2e-user', org: 'e2e-org'},
                 {id: 'rc-3', status: 'active', user: 'not-e2e-user', org: 'not-e2e-org'}
             ];
-            mockExps = [
+            var mockExps = [
                 {id: 'e-1', status: [{status: 'active'}], user: 'not-e2e-user', org: 'not-e2e-org'},
                 {id: 'e-2', status: [{status: 'active'}], user: 'not-e2e-user', org: 'e2e-org'},
                 {id: 'e-3', status: [{status: 'active'}], user: 'not-e2e-user', org: 'e2e-org'}
@@ -634,11 +634,11 @@ describe('ads campaigns endpoints (E2E):', function() {
                 return q.all([
                     createdCamp.cards.map(function(id) {
                         return adtech.campaignAdmin.getCampaignByExtId(id).then(function(camp) {
-                            checkCardCampaign(camp, createCamp, id, ['1002744', '1003562']);
+                            checkCardCampaign(camp, createdCamp, id, ['1024286', '1003562']);
                         });
                     }).concat(createdCamp.miniReels.map(function(id) {
                         return adtech.campaignAdmin.getCampaignByExtId(id).then(function(camp) {
-                            checkMinireelCampaign(camp, createCamp, id, ['1002744', '1003562']);
+                            checkMinireelCampaign(camp, createdCamp, id, ['1024286', '1003562']);
                         });
                     }))
                 ]);
@@ -802,7 +802,7 @@ describe('ads campaigns endpoints (E2E):', function() {
 
     describe('DELETE /api/campaign/:id', function() {
         beforeEach(function(done) {
-            mockCamps = [
+            var mockCamps = [
                 { id: 'e2e-del1', status: 'deleted' },
                 { id: 'e2e-del2', status: 'active' }
             ];
