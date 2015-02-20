@@ -247,8 +247,9 @@ describe('ads-customers (UT)', function() {
                 var aove = adtech.customerAdmin.getCustomerList.calls[0].args[2];
                 expect(aove.expressions).toEqual([
                     {attr: 'archiveStatus', val: 0, op: '==', type: 'xsd:int'},
-                    {attr: 'extId', val: 'cu-1', op: '==', type: 'xsd:string'}
+                    {attr: 'extId', val: ['cu-1'], op: 'IN', type: 'string'}
                 ]);
+                expect(aove.expressions[1] instanceof adtech.AOVE.StringListExpression).toBeTruthy();
                 expect(custModule.decorateCustomers).toHaveBeenCalledWith('1234', 'mockService', [resp.body], [{id: 123}, {id: 234}]);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -268,27 +269,8 @@ describe('ads-customers (UT)', function() {
                 expect(adtech.customerAdmin.getCustomerList).toHaveBeenCalledWith(null, null, jasmine.any(adtech.AOVE));
                 var aove = adtech.customerAdmin.getCustomerList.calls[0].args[2];
                 expect(aove.expressions).toEqual([
-                    {attr: 'archiveStatus', val: 0, op: '==', type: 'xsd:int'}
-                ]);
-                expect(custModule.decorateCustomers).toHaveBeenCalledWith('1234', 'mockService', resp.body, [{id: 123}, {id: 234}]);
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should add extra query params if the body only has one item', function(done) {
-            resp.body = [
-                { id: 'cu-1', adtechId: 123, name: 'testy' }
-            ];
-            custModule.getAdvertLists('mockService', req, resp).then(function(resp) {
-                expect(resp).toEqual({code: 200, body: [
-                    { id: 'cu-1', adtechId: 123, name: 'testy', advertisers: ['a-0'] }
-                ]});
-                expect(adtech.customerAdmin.getCustomerList).toHaveBeenCalledWith(null, null, jasmine.any(adtech.AOVE));
-                var aove = adtech.customerAdmin.getCustomerList.calls[0].args[2];
-                expect(aove.expressions).toEqual([
                     {attr: 'archiveStatus', val: 0, op: '==', type: 'xsd:int'},
-                    {attr: 'extId', val: 'cu-1', op: '==', type: 'xsd:string'}
+                    {attr: 'extId', val: ['cu-1', 'cu-2'], op: 'IN', type: 'string'}
                 ]);
                 expect(custModule.decorateCustomers).toHaveBeenCalledWith('1234', 'mockService', resp.body, [{id: 123}, {id: 234}]);
             }).catch(function(error) {
