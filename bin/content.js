@@ -33,17 +33,21 @@
             run     : path.normalize('/usr/local/share/cwrx/content/caches/run/'),
         },
         cacheTTLs: {  // units here are minutes
+            cards: { //TODO: update cookbook; also set all maxTTLs to 4 there
+                freshTTL: 1,
+                maxTTL: 4
+            },
             experiences: {
                 freshTTL: 1,
-                maxTTL: 10
+                maxTTL: 4
             },
             orgs: {
                 freshTTL: 1,
-                maxTTL: 10
+                maxTTL: 4
             },
             sites: {
                 freshTTL: 1,
-                maxTTL: 10
+                maxTTL: 4
             },
             cloudFront: 5
         },
@@ -930,7 +934,7 @@
         });
         
         // adds endpoints for managing cards
-        cardModule.setupEndpoints(app, cardSvc, sessWrap, audit);
+        cardModule.setupEndpoints(app, cardSvc, sessWrap, audit, state.config);
         
         // adds endpoints for managing categories
         catModule.setupEndpoints(app, catSvc, sessWrap, audit);

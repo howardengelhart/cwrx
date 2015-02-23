@@ -1,6 +1,6 @@
 var flush = true;
 describe('content-categories (UT)', function() {
-    var mockLog, CrudSvc, logger, enums, Scope, q;
+    var catModule, mockLog, CrudSvc, logger, enums, Scope, q;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }

@@ -91,14 +91,12 @@ describe('content (UT)', function() {
             expect(content.canGetExperience(exp, user, false)).toBe(false);
             exp.status = Status.Active;
             expect(content.canGetExperience(exp, user, false)).toBe(true);
-            origin = 'http://staging.cinema6.com';
             expect(content.canGetExperience(exp, user, true)).toBe(false);
         });
         
         it('should let a guest see a public experience from cinema6.com', function() {
             exp.access = Access.Public;
             expect(content.canGetExperience(exp, user, false)).toBe(false);
-            origin = 'http://staging.cinema6.com';
             expect(content.canGetExperience(exp, user, true)).toBe(true);
         });
         
@@ -479,7 +477,7 @@ describe('content (UT)', function() {
         });
         
         it('should reject if getPromise returns a rejected promise', function(done) {
-            orgCache.getPromise.andReturn(q.reject('I GOT A PROBLEM'))
+            orgCache.getPromise.andReturn(q.reject('I GOT A PROBLEM'));
             content.getAdConfig(exp, 'o-1', orgCache).then(function(result) {
                 expect(result).not.toBeDefined();
             }).catch(function(error) {

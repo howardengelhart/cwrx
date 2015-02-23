@@ -139,7 +139,7 @@ describe('content (UT)', function() {
     });
 
     describe('getExperiences', function() {
-        var req, expColl, query, pubList;
+        var req, expColl, query, pubList, fakeCursor;
         beforeEach(function() {
             req = {
                 isC6Origin: false,
@@ -628,7 +628,7 @@ describe('content (UT)', function() {
 
         it('should prevent ordinary users from editing the adConfig', function(done) {
             content.checkScope.andCallFake(function(user, orig, obj, verb) {
-                if (verb == 'editAdConfig') return false;
+                if (verb === 'editAdConfig') return false;
                 else return true;
             });
             req.body.data.adConfig = { ads: 'good' };
@@ -648,7 +648,7 @@ describe('content (UT)', function() {
 
         it('should allow the edit if the adConfig is unchanged', function(done) {
             content.checkScope.andCallFake(function(user, orig, obj, verb) {
-                if (verb == 'editAdConfig') return false;
+                if (verb === 'editAdConfig') return false;
                 else return true;
             });
             req.body.data.adConfig = { ads: 'good' };

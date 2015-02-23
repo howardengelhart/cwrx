@@ -1,8 +1,9 @@
 var q               = require('q'),
+    util            = require('util'),
     request         = require('request'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
-    host            = process.env['host'] || 'localhost',
+    host            = process.env.host || 'localhost',
     config = {
         contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
@@ -139,7 +140,7 @@ describe('content experience endpoints (E2E):', function() {
             q.all([testUtils.resetCollection('experiences', mockExps),
                    testUtils.resetCollection('orgs', mockOrg),
                    testUtils.resetCollection('sites', mockSites)
-            ]).done(function() { done() });
+            ]).done(function() { done(); });
         });
 
         it('should get an experience by id', function(done) {
@@ -159,7 +160,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
                 expect(resp.response.headers['cache-control']).not.toBe('max-age=0');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -171,7 +172,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body.id).toBe('e2e-org-adConfig');
                 expect(resp.body.data.adConfig).toEqual({foo: 'bar'});
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -183,7 +184,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body.id).toBe('e2e-adConfig');
                 expect(resp.body.data.adConfig).toEqual({foo: 'baz'});
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -197,7 +198,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body.data.placementId).toBe('789');
                 expect(resp.body.data.wildCardPlacement).toBe('987');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -210,7 +211,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body.data.placementId).toBe('456');
                 expect(resp.body.data.wildCardPlacement).toBe('654');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -225,7 +226,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body.data.placementId).toBe(7331);
                 expect(resp.body.data.wildCardPlacement).toBe(1337);
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -240,7 +241,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body.data.placementId).toBe(864);
                 expect(resp.body.data.wildCardPlacement).toBe(246);
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -258,7 +259,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body.data.placementId).toBe('246');
                 expect(resp.body.data.wildCardPlacement).toBe('642');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -276,7 +277,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body.data.wildCardPlacement).toBeDefined();
                 expect(resp.body.data.wildCardPlacement).not.toBe(11);
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -292,7 +293,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body.data.wildCardPlacement).toBeDefined();
                 expect(resp.body.data.wildCardPlacement).not.toBe('654');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -309,7 +310,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body.data.wildCardPlacement).toBeDefined();
                 expect(resp.body.data.wildCardPlacement).not.toBe('654');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -332,7 +333,7 @@ describe('content experience endpoints (E2E):', function() {
             }).then(function(resp) {
                 expect(resp.body.data.branding).toBe('foo');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -354,7 +355,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body.data.placementId).toBeDefined();
                 expect(resp.body.data.wildCardPlacement).toBeDefined();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -369,7 +370,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual({id: 'e2e-pubget2', status: 'pending', access: 'public'});
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -384,7 +385,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('Experience not found');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -400,7 +401,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('Experience not found');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -414,7 +415,7 @@ describe('content experience endpoints (E2E):', function() {
                     expect(resp.response.headers['cache-control']).toBe('max-age=0');
                 });
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -426,7 +427,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('Experience not found');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });
@@ -434,7 +435,7 @@ describe('content experience endpoints (E2E):', function() {
     /* Currently, this endpoint is identical to GET /api/public/experience/:id, so only one test is
      * included here as a sanity check. If the endpoints diverge, additional tests should be written. */
     describe('GET /api/public/experience/:id.json', function() {
-        var mockExps, mockOrg, options;
+        var mockExp, mockOrg, options;
         beforeEach(function(done) {
             options = { url: config.contentUrl + '/public/content/experience/e2e-pubgetjson1.json' };
             mockExp = { id: 'e2e-pubgetjson1', access: 'public', status: 'active' };
@@ -453,7 +454,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body.org).not.toBeDefined();
                 expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });
@@ -462,7 +463,7 @@ describe('content experience endpoints (E2E):', function() {
      * are included to verify that the output is formatted correctly. If the endpoints diverge,
      * additional tests should be written. */
     describe('GET /api/public/experience/:id.js', function() {
-        var mockExps, mockOrg, options;
+        var mockExp, mockOrg, options;
         beforeEach(function(done) {
             options = { url: config.contentUrl + '/public/content/experience/e2e-pubgetjs1.js' };
             mockExp = { id: 'e2e-pubgetjs1', access: 'public', status: 'active' };
@@ -475,7 +476,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body.match(/module\.exports = {.*"id":"e2e-pubgetjs1".*};/)).toBeTruthy();
                 expect(resp.response.headers['content-type']).toBe('application/javascript');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -486,7 +487,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body).toBe('Experience not found');
                 expect(resp.response.headers['content-type']).toBe('text/html; charset=utf-8');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });
@@ -538,7 +539,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body.org).toBe('e2e-org');
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -574,7 +575,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('Experience not found');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -587,7 +588,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body.user).toBe('admin');
                 expect(resp.body.org).toBe('admin');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -597,7 +598,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -607,7 +608,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('Experience not found');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });
@@ -700,7 +701,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body[1].data).toEqual({foo: 'bar', title: 'foo Bar'});
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -738,7 +739,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body[1].id).toBe('e2e-getquery7');
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -755,7 +756,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body[1].id).toBe('e2e-getquery3');
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -773,7 +774,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body[2].id).toBe('e2e-getquery7');
                 expect(resp.response.headers['content-range']).toBe('items 1-3/3');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -790,7 +791,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body[1].id).toBe('e2e-getquery2');
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -818,7 +819,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body[1].id).toBe('e2e-getquery2');
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).finally(done);
         });
         
@@ -836,7 +837,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body[2].id).toBe('e2e-getquery7');
                 expect(resp.response.headers['content-range']).toBe('items 1-3/3');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -853,7 +854,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body[1].id).toBe('e2e-getquery3');
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -870,7 +871,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body[1].id).toBe('e2e-getquery7');
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -884,7 +885,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body).toBe('Cannot get deleted experiences');
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -900,7 +901,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body[0].id).toBe('e2e-getquery1');
                 expect(resp.response.headers['content-range']).toBe('items 1-1/1');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -914,7 +915,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body).toBe('Must specify at least one supported query param');
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -930,7 +931,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body[0].id).toBe('e2e-getquery2');
                 expect(resp.response.headers['content-range']).toBe('items 1-1/1');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -948,7 +949,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body[1].id).toBe('e2e-getquery5');
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -962,7 +963,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body).toEqual([]);
                 expect(resp.response.headers['content-range']).toBe('items 0-0/0');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -988,7 +989,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body[0].id).toBe('e2e-getquery1');
                 expect(resp.response.headers['content-range']).toBe('items 3-3/3');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -1002,7 +1003,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body).toEqual([]);
                 expect(resp.response.headers['content-range']).toBe('items 0-0/0');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -1015,7 +1016,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body).toBe('Unauthorized');
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });
@@ -1054,7 +1055,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body.access).toBe('public');
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
                 done();
             });
         });
@@ -1090,7 +1091,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(new Date(resp.body.lastStatusChange).toString()).not.toEqual('Invalid Date');
                 expect(resp.body.access).toBe('private');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -1105,7 +1106,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body.title).toBe('data title');
                 expect(resp.body.versionId).toBe('14eb66c8');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -1142,7 +1143,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body).toBe('Invalid request body');
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
                 done();
             });
         });
@@ -1167,7 +1168,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(results[1].body.data).toEqual({foo: 'bar', adConfig: {ads: 'good'}});
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
                 done();
             });
         });
@@ -1180,7 +1181,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body).toBe('Unauthorized');
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
                 done();
             });
         });
@@ -1188,7 +1189,7 @@ describe('content experience endpoints (E2E):', function() {
     });
 
     describe('PUT /api/content/experience/:id', function() {
-        var mockExps, now;
+        var mockExps, now, updatedExp;
         beforeEach(function(done) {
             // created = yesterday to allow for clock differences b/t server and test runner
             now = new Date(new Date() - 24*60*60*1000);
@@ -1220,7 +1221,7 @@ describe('content experience endpoints (E2E):', function() {
                 url: config.contentUrl + '/content/experience/e2e-put1',
                 jar: cookieJar,
                 json: { tag: 'newTag' }
-            }, updatedExp;
+            };
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 updatedExp = resp.body;
@@ -1236,7 +1237,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(new Date(updatedExp.lastUpdated)).toBeGreaterThan(now);
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
                 done();
             });
         });
@@ -1284,7 +1285,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(new Date(updatedExp.lastUpdated)).toBeGreaterThan(now);
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
                 done();
             });
         });
@@ -1294,13 +1295,13 @@ describe('content experience endpoints (E2E):', function() {
                 url: config.contentUrl + '/content/experience/e2e-putfake',
                 jar: cookieJar,
                 json: { tag: 'fakeTag' }
-            }, updatedExp;
+            };
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('That experience does not exist');
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
                 done();
             });
         });
@@ -1312,13 +1313,13 @@ describe('content experience endpoints (E2E):', function() {
             requestUtils.qRequest('delete', deleteOpts).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
-                return requestUtils.qRequest('put', putOpts)
+                return requestUtils.qRequest('put', putOpts);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('That experience does not exist');
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
                 done();
             });
         });
@@ -1328,13 +1329,13 @@ describe('content experience endpoints (E2E):', function() {
                 url: config.contentUrl + '/content/experience/e2e-put2',
                 jar: cookieJar,
                 json: { tag: 'newTag' }
-            }, updatedExp;
+            };
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Not authorized to edit this experience');
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
                 done();
             });
         });
@@ -1361,7 +1362,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body.user).toBe('another-user');
                 expect(resp.body.org).toBe('another-org');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -1375,7 +1376,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Invalid request body');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -1384,13 +1385,13 @@ describe('content experience endpoints (E2E):', function() {
                 url: config.contentUrl + '/content/experience/e2e-put1',
                 jar: cookieJar,
                 json: { data: { adConfig: { ads: 'bad' } } }
-            }, updatedExp;
+            };
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Not authorized to edit adConfig of this experience');
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
                 done();
             });
         });
@@ -1400,13 +1401,13 @@ describe('content experience endpoints (E2E):', function() {
                 url: config.contentUrl + '/content/experience/e2e-put1',
                 jar: cookieJar,
                 json: { data: { foo: 'baz', adConfig: { ads: 'good' } } }
-            }, updatedExp;
+            };
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.data).toEqual({ foo: 'baz', adConfig: { ads: 'good' } });
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
                 done();
             });
         });
@@ -1435,7 +1436,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(results[1].body).toBe('Not authorized to edit adConfig of this experience');
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
                 done();
             });
         });
@@ -1450,7 +1451,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body).toBe('Unauthorized');
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
                 done();
             });
         });
@@ -1487,7 +1488,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body).toBe('Experience not found');
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
                 done();
             });
         });
@@ -1520,7 +1521,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body).toBe('Not authorized to delete this experience');
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
                 done();
             });
         });
@@ -1536,7 +1537,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body).toBe('');
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
                 done();
             });
         });
@@ -1548,7 +1549,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body).toBe('');
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
                 done();
             });
         });
@@ -1560,7 +1561,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(resp.body).toBe('Unauthorized');
                 done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
                 done();
             });
         });

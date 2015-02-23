@@ -1,8 +1,9 @@
 var q               = require('q'),
+    util            = require('util'),
     request         = require('request'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
-    host            = process.env['host'] || 'localhost',
+    host            = process.env.host || 'localhost',
     config = {
         contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
@@ -95,7 +96,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.body.org).not.toBeDefined();
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -116,7 +117,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(results[0].data).toEqual({route: 'GET /api/content/category/:id',
                                                  params: { 'id': 'e2e-id1' }, query: {} });
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -126,7 +127,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('Object not found');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -145,7 +146,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.body.name).toBe('snuffles');
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -155,7 +156,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('Object not found');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -165,7 +166,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('Object not found');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -175,7 +176,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });
@@ -202,7 +203,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.body[1].name).toBe('soterios_johnson');
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -222,7 +223,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(results[0].data).toEqual({route: 'GET /api/content/categories',
                                                  params: {}, query: { sort: 'id,1' } });
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -237,7 +238,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.body[0].name).toBe('snuffles');
                 expect(resp.response.headers['content-range']).toBe('items 1-1/1');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -253,7 +254,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.body[3].name).toBe('soterios_johnson');
                 expect(resp.response.headers['content-range']).toBe('items 1-4/4');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -270,7 +271,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.body[3].status).toBe('active');
                 expect(resp.response.headers['content-range']).toBe('items 1-4/4');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -281,7 +282,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.body).toEqual([]);
                 expect(resp.response.headers['content-range']).toBe('items 0-0/0');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -306,7 +307,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.body[1].name).toBe('soterios_johnson');
                 expect(resp.response.headers['content-range']).toBe('items 3-4/4');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -320,7 +321,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.body).toEqual([]);
                 expect(resp.response.headers['content-range']).toBe('items 0-0/0');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -331,7 +332,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.body).toBe('Unauthorized');
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });
@@ -339,7 +340,7 @@ describe('content category endpoints (E2E):', function() {
     describe('POST /api/content/category', function() {
         var mockCat, options;
         beforeEach(function(done) {
-            mockCat = { name: 'snuffles', label: 'Snuffles The Cat' },
+            mockCat = { name: 'snuffles', label: 'Snuffles The Cat' };
             options = {
                 url: config.contentUrl + '/content/category',
                 jar: adminJar,
@@ -363,7 +364,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.body.lastUpdated).toEqual(resp.body.created);
                 expect(resp.body.status).toBe('active');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).finally(done);
         });
 
@@ -382,7 +383,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'POST /api/content/category', params: {}, query: {} });
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -394,7 +395,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.body.name).toBe('snuffles');
                 expect(resp.body.status).toBe('inactive');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -404,7 +405,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Invalid request body');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -418,7 +419,7 @@ describe('content category endpoints (E2E):', function() {
                     expect(resp.body).toBe('Invalid name');
                 });
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -431,7 +432,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(409);
                 expect(resp.body).toBe('An object with that name already exists');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -445,7 +446,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(results[1].response.statusCode).toBe(403);
                 expect(results[1].body).toBe('Not authorized to create categories');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -456,7 +457,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -493,7 +494,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(new Date(updatedCat.created)).toEqual(now);
                 expect(new Date(updatedCat.lastUpdated)).toBeGreaterThan(now);
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -523,7 +524,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('That does not exist');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -533,7 +534,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('That has been deleted');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -543,7 +544,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Invalid request body');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -557,7 +558,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(results[1].response.statusCode).toBe(403);
                 expect(results[1].body).toBe('Not authorized to edit this');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -570,7 +571,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });
@@ -591,7 +592,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('Object not found');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -626,7 +627,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -636,7 +637,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -650,7 +651,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(results[1].response.statusCode).toBe(403);
                 expect(results[1].body).toBe('Not authorized to delete this');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -660,7 +661,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });
