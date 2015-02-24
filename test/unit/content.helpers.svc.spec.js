@@ -532,6 +532,33 @@ describe('content (UT)', function() {
             expect(content.chooseSite([sites[0]])).toEqual({id: 's1', status: Status.Active, host: 'foo'});
         });
     });
+    
+    describe('chooseBranding', function() {
+        beforeEach(function() {
+            content.brandCache = {};
+        });
+        
+        it('should just return the brandString if it\'s undefined or not a csv list', function() {
+            expect(content.chooseBranding(null, 's-1', 'e-1')).toBe(null);
+            expect(content.chooseBranding('', 's-1', 'e-1')).toBe('');
+            expect(content.chooseBranding('asdf,', 's-1', 'e-1')).toBe('asdf,');
+        });
+
+        it('should cycle through a list of brandings', function() {
+            expect(content.chooseBranding('foo,bar,baz', 's-1', 'e-1')).toBe('foo');
+            expect(content.brandCache['s-1:foo,bar,baz']).toBe(1);
+            expect(content.chooseBranding('foo,bar,baz', 's-1', 'e-1')).toBe('bar');
+            expect(content.chooseBranding('foo,bar,baz', 's-1', 'e-1')).toBe('baz');
+            expect(content.chooseBranding('foo,bar,baz', 's-1', 'e-1')).toBe('foo');
+        });
+        
+        it('should maintain separate lists for different combos of prefix + brandString', function() {
+            expect(content.chooseBranding('foo,bar,baz', 's-1', 'e-1')).toBe('foo');
+            expect(content.chooseBranding('foo,bar,baz,buz', 's-1', 'e-1')).toBe('foo');
+            expect(content.chooseBranding('foo,bar,baz', 'o-1', 'e-1')).toBe('foo');
+            expect(content.brandCache).toEqual({'s-1:foo,bar,baz': 1, 's-1:foo,bar,baz,buz': 1, 'o-1:foo,bar,baz': 1});
+        });
+    });
 
     describe('getSiteConfig', function() {
         var exp, queryParams, host, mockSite, mockOrg, siteCache, orgCache, defaultSiteCfg;
@@ -776,30 +803,219 @@ describe('content (UT)', function() {
         });
     });
     
-    describe('chooseBranding', function() {
+    describe('swapCard', function() {
+        var req, exp, camp, cardSvc;
         beforeEach(function() {
-            content.brandCache = {};
+            req = { uuid: '1234' };
+            exp = { id: 'e-1', data: { deck: [
+                { id: 'rc-p1', title: 'placeholder 1' },
+                { id: 'rc-real1', title: 'card 1' },
+                { id: 'rc-p2', title: 'placeholder 2' }
+            ] } };
+            camp = {
+                id: 'cam-1',
+                cards: [{id: 'rc-1', adtechId: 11}, {id: 'rc-2', adtechId: 12}],
+                staticCardMap: { 'e-1': { 'rc-p1': 'rc-2', 'rc-p2': 'rc-fake' } }
+            };
+            cardSvc = { getPublicCard: jasmine.createSpy('getPubCard').andCallFake(function(newId, req) {
+                return q({ id: newId, title: 'sp card ' + newId });
+            }) };
         });
         
-        it('should just return the brandString if it\'s undefined or not a csv list', function() {
-            expect(content.chooseBranding(null, 's-1', 'e-1')).toBe(null);
-            expect(content.chooseBranding('', 's-1', 'e-1')).toBe('');
-            expect(content.chooseBranding('asdf,', 's-1', 'e-1')).toBe('asdf,');
+        it('should swap a placeholder with a card retrieved from the cardSvc', function(done) {
+            content.swapCard(req, exp, 0, camp, cardSvc).then(function() {
+                expect(exp.data.deck).toEqual([
+                    { id: 'rc-2', title: 'sp card rc-2', adtechId: 12 },
+                    { id: 'rc-real1', title: 'card 1' },
+                    { id: 'rc-p2', title: 'placeholder 2' }
+                ]);
+                expect(cardSvc.getPublicCard).toHaveBeenCalledWith('rc-2', req);
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should log a warning if the card is not in the campaign\'s cards list', function(done) {
+            content.swapCard(req, exp, 2, camp, cardSvc).then(function() {
+                expect(exp.data.deck[2]).toEqual({ id: 'rc-p2', title: 'placeholder 2' });
+                expect(cardSvc.getPublicCard).not.toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should log a warning if the entry in the campaign\'s cards list has no adtechId', function(done) {
+            delete camp.cards[1].adtechId;
+            content.swapCard(req, exp, 0, camp, cardSvc).then(function() {
+                expect(exp.data.deck[0]).toEqual({ id: 'rc-p1', title: 'placeholder 1' });
+                expect(cardSvc.getPublicCard).not.toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should log a warning if the card cannot be found', function(done) {
+            cardSvc.getPublicCard.andReturn(q());
+            content.swapCard(req, exp, 0, camp, cardSvc).then(function() {
+                expect(exp.data.deck[0]).toEqual({ id: 'rc-p1', title: 'placeholder 1' });
+                expect(cardSvc.getPublicCard).toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should reject if the card service fails', function(done) {
+            cardSvc.getPublicCard.andReturn(q.reject('I GOT A PROBLEM'));
+            content.swapCard(req, exp, 0, camp, cardSvc).then(function() {
+                expect('resolved').not.toBe('resolved');
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(exp.data.deck[0]).toEqual({ id: 'rc-p1', title: 'placeholder 1' });
+                expect(cardSvc.getPublicCard).toHaveBeenCalled();
+            }).done(done);
+        });
+    });
+    
+    describe('handleCampaign', function() {
+        var req, exp, campCache, cardSvc, mockCamp;
+        beforeEach(function() {
+            req = { uuid: '1234' };
+            exp = { id: 'e-1', data: { deck: [
+                { id: 'rc-p1', title: 'placeholder 1' },
+                { id: 'rc-real1', title: 'card 1' },
+                { id: 'rc-p2', title: 'placeholder 2' },
+                { id: 'rc-p3', title: 'placeholder 3' }
+            ] } };
+            mockCamp = {
+                id: 'cam-1',
+                status: Status.Active,
+                staticCardMap: { 'e-1': { 'rc-p1': 'rc-2', 'rc-p2': 'rc-3' } }
+            };
+            campCache = { getPromise: jasmine.createSpy('getPromise').andCallFake(function() { return q([mockCamp]); }) };
+            cardSvc = 'fakeCardSvc';
+            spyOn(content, 'swapCard').andReturn(q());
+        });
+        
+        it('should get the campaign and call swapCard for each mapping the staticCardMap', function(done) {
+            content.handleCampaign(req, exp, 'cam-1', campCache, cardSvc).then(function(resp) {
+                expect(resp).toEqual({id: 'e-1', data: { deck: [
+                    { id: 'rc-p1', title: 'placeholder 1' },
+                    { id: 'rc-real1', title: 'card 1' },
+                    { id: 'rc-p2', title: 'placeholder 2' },
+                    { id: 'rc-p3', title: 'placeholder 3' }
+                ] } });
+                expect(campCache.getPromise).toHaveBeenCalledWith({id: 'cam-1'});
+                expect(content.swapCard.calls.length).toBe(2);
+                expect(content.swapCard).toHaveBeenCalledWith(req, exp, 0, mockCamp, 'fakeCardSvc');
+                expect(content.swapCard).toHaveBeenCalledWith(req, exp, 2, mockCamp, 'fakeCardSvc');
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should skip if there\'s no campaign id', function(done) {
+            content.handleCampaign(req, exp, undefined, campCache, cardSvc).then(function(resp) {
+                expect(resp).toBe(exp);
+                expect(campCache.getPromise).not.toHaveBeenCalled();
+                expect(content.swapCard).not.toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should skip if the experience has no cards', function(done) {
+            var exps = [{ id: 'e-1' }, { id: 'e-1', data: {} }, { id: 'e-1', data: { deck: [] } }];
+            q.all(exps.map(function(obj) {
+                return content.handleCampaign(req, obj, 'cam-1', campCache, cardSvc).then(function(resp) {
+                    expect(resp).toBe(obj);
+                });
+            })).then(function(results) {
+                expect(campCache.getPromise).not.toHaveBeenCalled();
+                expect(content.swapCard).not.toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should skip if the campaign has no staticCardMap', function(done) {
+            delete mockCamp.staticCardMap;
+            content.handleCampaign(req, exp, 'cam-1', campCache, cardSvc).then(function(resp) {
+                expect(resp).toBe(exp);
+                expect(campCache.getPromise).toHaveBeenCalled();
+                expect(content.swapCard).not.toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should skip if the campaign has no mapping for the current experience', function(done) {
+            exp.id = 'e-2';
+            content.handleCampaign(req, exp, 'cam-1', campCache, cardSvc).then(function(resp) {
+                expect(resp).toBe(exp);
+                expect(campCache.getPromise).toHaveBeenCalled();
+                expect(content.swapCard).not.toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should log a warning if the campaign is not found or not active', function(done) {
+            mockCamp.status = Status.Inactive;
+            content.handleCampaign(req, exp, 'cam-1', campCache, cardSvc).then(function(resp) {
+                expect(resp).toBe(exp);
+                campCache.getPromise.andReturn(q([]));
+                return content.handleCampaign(req, exp, 'cam-1', campCache, cardSvc);
+            }).then(function(resp) {
+                expect(resp).toBe(exp);
+                expect(campCache.getPromise).toHaveBeenCalled();
+                expect(content.swapCard).not.toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
         });
 
-        it('should cycle through a list of brandings', function() {
-            expect(content.chooseBranding('foo,bar,baz', 's-1', 'e-1')).toBe('foo');
-            expect(content.brandCache['s-1:foo,bar,baz']).toBe(1);
-            expect(content.chooseBranding('foo,bar,baz', 's-1', 'e-1')).toBe('bar');
-            expect(content.chooseBranding('foo,bar,baz', 's-1', 'e-1')).toBe('baz');
-            expect(content.chooseBranding('foo,bar,baz', 's-1', 'e-1')).toBe('foo');
+        it('should defend against query selection injector attacks', function(done) {
+            content.handleCampaign(req, exp, {$gt: ''}, campCache, cardSvc).then(function(resp) {
+                expect(resp).toBe(exp);
+                expect(campCache.getPromise).toHaveBeenCalledWith({id: '[object Object]'});
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
         });
         
-        it('should maintain separate lists for different combos of prefix + brandString', function() {
-            expect(content.chooseBranding('foo,bar,baz', 's-1', 'e-1')).toBe('foo');
-            expect(content.chooseBranding('foo,bar,baz,buz', 's-1', 'e-1')).toBe('foo');
-            expect(content.chooseBranding('foo,bar,baz', 'o-1', 'e-1')).toBe('foo');
-            expect(content.brandCache).toEqual({'s-1:foo,bar,baz': 1, 's-1:foo,bar,baz,buz': 1, 'o-1:foo,bar,baz': 1});
+        it('should reject if retrieving the campaign fails', function(done) {
+            campCache.getPromise.andReturn(q.reject('I GOT A PROBLEM'));
+            content.handleCampaign(req, exp, 'cam-1', campCache, cardSvc).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(campCache.getPromise).toHaveBeenCalled();
+                expect(content.swapCard).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should reject if one of the swapCard calls fails', function(done) {
+            content.swapCard.andCallFake(function(req, exp, idx, camp, cardSvc) {
+                if (idx === 0) return q.reject('I GOT A PROBLEM');
+                else return q();
+            });
+            content.handleCampaign(req, exp, 'cam-1', campCache, cardSvc).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(campCache.getPromise).toHaveBeenCalled();
+                expect(content.swapCard.calls.length).toBe(2);
+            }).done(done);
         });
     });
     
