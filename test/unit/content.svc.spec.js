@@ -414,7 +414,8 @@ describe('content (UT)', function() {
 
     describe('createExperience', function() {
         beforeEach(function() {
-            req.body = {tag: 'fakeExp', data: { foo: 'bar' } };
+            req.body = { tag: 'fakeExp', data: { foo: 'bar' }, user: 'u-1', org: 'o-1',
+                         status: Status.Active, access: Access.Private };
             req.user = {id: 'u-1234', org: 'o-1234', email: 'otter'};
             experiences.insert = jasmine.createSpy('experiences.insert')
                 .andCallFake(function(obj, opts, cb) { cb(); });
@@ -447,10 +448,10 @@ describe('content (UT)', function() {
                 expect(resp.body.created instanceof Date).toBeTruthy('created is a Date');
                 expect(resp.body.lastUpdated instanceof Date).toBeTruthy('lastUpdated is a Date');
                 expect(resp.body.data).toEqual({foo: 'bar'});
-                expect(resp.body.user).toBe('u-1234');
-                expect(resp.body.org).toBe('o-1234');
-                expect(resp.body.status).toBe(Status.Pending);
-                expect(resp.body.access).toBe(Access.Public);
+                expect(resp.body.user).toBe('u-1');
+                expect(resp.body.org).toBe('o-1');
+                expect(resp.body.status).toBe(Status.Active);
+                expect(resp.body.access).toBe(Access.Private);
                 expect(content.createValidator.validate).toHaveBeenCalledWith(req.body, {}, req.user);
                 expect(experiences.insert).toHaveBeenCalled();
                 expect(experiences.insert.calls[0].args[0].data[0]).toEqual({user:'otter',userId:'u-1234',
@@ -465,27 +466,24 @@ describe('content (UT)', function() {
                 done();
             });
         });
-
-        it('should trim off certain fields not allowed on the top-level', function(done) {
-            req.body.title = 'this is a title';
-            req.body.versionId = 'thabestversion';
-            req.body.data.title = 'data title';
+        
+        it('should set default values for some fields if not specified in the request', function(done) {
+            req.body = { tag: 'fakeExp' };
             content.createExperience(req, experiences).then(function(resp) {
-                expect(resp).toBeDefined();
                 expect(resp.code).toBe(201);
                 expect(resp.body.id).toBe('e-1234');
-                expect(resp.body.title).toBe('data title');
+                expect(resp.body.tag).toBe('fakeExp');
+                expect(resp.body.data).toEqual({});
                 expect(resp.body.versionId).toBe('fakeVers');
-                expect(resp.body.data).toEqual({foo: 'bar', title: 'data title'});
-                expect(content.createValidator.validate).toHaveBeenCalled();
-                expect(experiences.insert).toHaveBeenCalled();
-                expect(content.formatOutput).toHaveBeenCalled();
-                expect(mongoUtils.escapeKeys).toHaveBeenCalled();
-                done();
+                expect(resp.body.user).toBe('u-1234');
+                expect(resp.body.org).toBe('o-1234');
+                expect(resp.body.status).toBe(Status.Pending);
+                expect(resp.body.access).toBe(Access.Public);
+                expect(experiences.insert.calls[0].args[0].data[0]).toEqual({user:'otter',userId:'u-1234',
+                    date:jasmine.any(Date),versionId:'fakeVers',data:{}});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).finally(done);
         });
 
         it('should prevent ordinary users from setting the adConfig', function(done) {

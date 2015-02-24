@@ -587,20 +587,16 @@
         if (!obj.access) {
             obj.access = Access.Public;
         }
+        obj.data = obj.data || {};
 
-        if (obj.data) {
-            if (obj.data.adConfig && !content.checkScope(user, obj, 'experiences', 'editAdConfig')){
-                log.info('[%1] User %2 not authorized to set adConfig of new exp',req.uuid,user.id);
-                return q({ code: 403, body: 'Not authorized to set adConfig' });
-            }
-
-            var versionId = uuid.hashText(JSON.stringify(obj.data)).substr(0, 8);
-            obj.data = [ { user: user.email, userId: user.id, date: now,
-                           data: obj.data, versionId: versionId } ];
-            if (obj.status[0].status === Status.Active) {
-                obj.data[0].active = true;
-            }
+        if (obj.data.adConfig && !content.checkScope(user, obj, 'experiences', 'editAdConfig')){
+            log.info('[%1] User %2 not authorized to set adConfig of new exp',req.uuid,user.id);
+            return q({ code: 403, body: 'Not authorized to set adConfig' });
         }
+
+        var versionId = uuid.hashText(JSON.stringify(obj.data)).substr(0, 8);
+        obj.data = [ { user: user.email, userId: user.id, date: now,
+                       data: obj.data, versionId: versionId } ];
 
         return q.npost(experiences, 'insert', [mongoUtils.escapeKeys(obj), {w: 1, journal: true}])
         .then(function() {
@@ -613,15 +609,20 @@
         });
     };
 
+    // Format updates to an experience; trimming virtual props & formatting data + status arrays
     content.formatUpdates = function(req, orig, updates, user) {
         var log = logger.getLog(),
             now = new Date();
 
+        // don't allow client to set virtual props (which are copied from elsewhere)
+        delete updates.title;
+        delete updates.versionId;
+        delete updates.lastPublished;
+        delete updates.lastStatusChange;
+
         if (!(orig.data instanceof Array)) {
             log.warn('[%1] Original exp %2 does not have an array of data', req.uuid, orig.id);
-            var oldVersion = uuid.hashText(JSON.stringify(orig.data || {})).substr(0, 8);
-            orig.data = [ { user: user.email, userId: user.id, date: orig.created, data: orig.data,
-                            versionId: oldVersion } ];
+            orig.data = [{}];
         }
         if (!(orig.status instanceof Array)) {
             log.warn('[%1] Original exp %2 does not have an array of statuses', req.uuid, orig.id);
@@ -633,15 +634,7 @@
                 var versionId = uuid.hashText(JSON.stringify(updates.data)).substr(0, 8),
                     dataWrapper = { user: user.email, userId: user.id, date: now,
                                     data: updates.data, versionId: versionId };
-                if (orig.status[0].status === Status.Active) {
-                    dataWrapper.active = true;
-                    orig.data.unshift(dataWrapper);
-                } else if (orig.data[0].active) { // preserve previously active data
-                    orig.data.unshift(dataWrapper);
-                } else {
-                    orig.data[0] = dataWrapper;
-                }
-                updates.data = orig.data;
+                updates.data = [ dataWrapper ];
             } else {
                 delete updates.data;
             }
@@ -650,12 +643,6 @@
         if (updates.status) {
             if (updates.status !== orig.status[0].status) {
                 var statWrapper = {user:user.email,userId:user.id,date:now,status:updates.status};
-                if (updates.status === Status.Active) {
-                    orig.data[0].active = true;
-                    updates.data = orig.data;
-                } else if (updates.data) {
-                    delete updates.data[0].active;
-                }
                 orig.status.unshift(statWrapper);
                 updates.status = orig.status;
             } else {
@@ -675,13 +662,6 @@
         if (!updates || typeof updates !== 'object') {
             return q({code: 400, body: 'You must provide an object in the body'});
         }
-
-        // these props are copied from elsewhere when returning to the client, so don't allow them
-        // to be set here
-        delete updates.title;
-        delete updates.versionId;
-        delete updates.lastPublished;
-        delete updates.lastStatusChange;
 
         log.info('[%1] User %2 is attempting to update experience %3',req.uuid,user.id,id);
         return q.npost(experiences, 'findOne', [{id: id}])

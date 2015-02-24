@@ -1036,6 +1036,13 @@ describe('content (UT)', function() {
                 return dataString === JSON.stringify({foo:'bar'}) ? 'version1.0' : 'version2.0';
             });
         });
+
+        it('should trim off certain fields not allowed on the top-level', function() {
+            updates = { title: 'this is a title', versionId: 'thabestversion',
+                        lastStatusChange: 'yesterday', tag: 'bloop' };
+            content.formatUpdates(req, orig, updates, user);
+            expect(updates).toEqual({tag: 'bloop', lastUpdated: jasmine.any(Date)});
+        });
         
         it('should append a new status entry on each change', function() {
             updates.status = Status.Deleted;
@@ -1055,96 +1062,40 @@ describe('content (UT)', function() {
             expect(mongoUtils.escapeKeys).toHaveBeenCalled();
         });
         
-        it('should set the current data to active if the experience becomes active', function() {
-            updates.status = Status.Active;
-            content.formatUpdates(req, orig, updates, user);
-            expect(updates.status.length).toBe(2);
-            expect(updates.data.length).toBe(1);
-            expect(updates.data[0].active).toBe(true);
-        });
-        
-        it('should append a new data entry if the experience is active', function() {
-            orig.status[0].status = Status.Active;
+        it('should update the first data entry if the req data differs from the original', function() {
             updates.data = {foo: 'baz'};
             content.formatUpdates(req, orig, updates, user);
             expect(updates.data instanceof Array).toBe(true);
-            expect(updates.data.length).toBe(2);
-            expect(updates.data[0].user).toBe('otter');
-            expect(updates.data[0].userId).toBe('u-1');
-            expect(updates.data[0].date).toBeGreaterThan(start);
-            expect(updates.data[0].data).toEqual({foo: 'baz'});
-            expect(updates.data[0].active).toBe(true);
-            expect(updates.data[0].versionId).toBe('version2');
-            expect(updates.data[1].user).toBe('johnny');
-            expect(updates.data[1].userId).toBe('u-2');
-            expect(updates.data[1].date).toBe(start);
-            expect(updates.data[1].data).toEqual({foo: 'bar'});
-            expect(updates.data[1].active).not.toBeDefined();
-            expect(updates.data[1].versionId).toBe('v1');
-            expect(updates.status).not.toBeDefined();
-        });
-
-        it('should edit the current data entry if the experience is not active', function() {
-            updates.data = {foo: 'baz'};
-            content.formatUpdates(req, orig, updates, user);
             expect(updates.data.length).toBe(1);
             expect(updates.data[0].user).toBe('otter');
             expect(updates.data[0].userId).toBe('u-1');
             expect(updates.data[0].date).toBeGreaterThan(start);
             expect(updates.data[0].data).toEqual({foo: 'baz'});
             expect(updates.data[0].versionId).toBe('version2');
-        });
-        
-        it('should append a new data entry if the current data was active', function() {
-            orig.data[0].active = true;
-            updates.data = {foo: 'baz'};
-            content.formatUpdates(req, orig, updates, user);
-            expect(updates.data.length).toBe(2);
-            expect(updates.data[0].active).not.toBeDefined();
-        });
-        
-        it('should not create a new data entry if the status is just becoming active', function() {
-            updates.status = Status.Active;
-            updates.data = {foo: 'baz'};
-            content.formatUpdates(req, orig, updates, user);
-            expect(updates.data.length).toBe(1);
-            expect(updates.status.length).toBe(2);
-            expect(updates.data[0].active).toBe(true);
-            expect(updates.data[0].user).toBe('otter');
-            expect(updates.data[0].versionId).toBe('version2');
-        });
-        
-        it('should create a new data entry if the status is just becoming not active', function() {
-            orig.status[0].status = Status.Active;
-            updates.status = Status.Pending;
-            updates.data = {foo: 'baz'};
-            content.formatUpdates(req, orig, updates, user);
-            expect(updates.data.length).toBe(2);
-            expect(updates.status.length).toBe(2);
-            expect(updates.data[0].active).not.toBeDefined();
         });
 
         it('should prune out updates to the status and data if there\'s no change', function() {
-            updates = {foo: 'bar'};
-            updates.status = Status.Pending;
+            updates = { tag: 'bloop', data: { foo: 'bar' }, status: Status.Pending };
             content.formatUpdates(req, orig, updates, user);
-            expect(updates.data).not.toBeDefined();
-            expect(updates.status).not.toBeDefined();
+            expect(updates).toEqual({tag: 'bloop', lastUpdated: jasmine.any(Date)});
         });
         
         it('should turn the data and status props into arrays if necessary', function() {
-            updates = { data: { foo: 'baz' }, status: Status.Deleted };
+            updates = { data: { foo: 'bar' }, status: Status.Deleted };
             orig.data = { foo: 'bar' };
             orig.status = Status.Active;
             content.formatUpdates(req, orig, updates, user);
-            expect(updates.data.length).toBe(2);
+            expect(updates.data.length).toBe(1);
             expect(updates.status.length).toBe(2);
-            expect(updates.data[1].user).toBe('otter');
-            expect(updates.data[1].userId).toBe('u-1');
-            expect(updates.data[1].date).toBe(start);
-            expect(updates.data[1].data).toEqual({foo: 'bar'});
-            expect(updates.data[1].versionId).toBe('version1');
-            expect(updates.data[0].versionId).toBe('version2');
+            expect(updates.data[0].user).toBe('otter');
+            expect(updates.data[0].userId).toBe('u-1');
+            expect(updates.data[0].date).toBeGreaterThan(start);
+            expect(updates.data[0].data).toEqual({foo: 'bar'});
+            expect(updates.data[0].versionId).toBe('version1');
+            expect(updates.status[0].user).toBe('otter');
+            expect(updates.status[0].userId).toBe('u-1');
+            expect(updates.status[0].date).toBeGreaterThan(start);
+            expect(updates.status[0].status).toBe(Status.Deleted);
             expect(updates.status[1].user).toBe('otter');
             expect(updates.status[1].userId).toBe('u-1');
             expect(updates.status[1].date).toBe(start);
