@@ -31,11 +31,9 @@ describe('content-cards (UT)', function() {
             spyOn(FieldValidator, 'orgFunc').andCallThrough();
             spyOn(FieldValidator, 'userFunc').andCallThrough();
 
-            var config = { cacheTTLs: { cards: { freshTTL: 2, maxTTL: 3 } } },
-                mockColl = { collectionName: 'cards' },
-                cardSvc = cardModule.setupCardSvc(mockColl, config);
+            var mockColl = { collectionName: 'cards' },
+                cardSvc = cardModule.setupCardSvc(mockColl, 'fakeCache');
                 
-            expect(cardModule.cacheTTLs).toEqual({ cards: { freshTTL: 2, maxTTL: 3 } });
             expect(cardModule.getPublicCard.bind).toHaveBeenCalledWith(cardModule, cardSvc);
             
             expect(cardSvc instanceof CrudSvc).toBe(true);
@@ -45,10 +43,7 @@ describe('content-cards (UT)', function() {
             expect(cardSvc._orgProp).toBe(true);
             expect(cardSvc._allowPublic).toBe(true);
             expect(cardSvc._coll).toBe(mockColl);
-            expect(cardSvc._cache instanceof QueryCache).toBeTruthy();
-            expect(cardSvc._cache._coll).toBe(mockColl);
-            expect(cardSvc._cache.freshTTL).toBe(2*60*1000);
-            expect(cardSvc._cache.maxTTL).toBe(3*60*1000);
+            expect(cardSvc._cache).toBe('fakeCache');
             
             expect(cardSvc.createValidator._required).toContain('campaignId');
             expect(Object.keys(cardSvc.createValidator._condForbidden)).toEqual(['user', 'org']);

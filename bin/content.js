@@ -33,7 +33,7 @@
             run     : path.normalize('/usr/local/share/cwrx/content/caches/run/'),
         },
         cacheTTLs: {  // units here are minutes
-            cards: { //TODO: update cookbook; also set all maxTTLs to 4 there
+            cards: {
                 freshTTL: 1,
                 maxTTL: 4
             },
@@ -407,6 +407,7 @@
             
             var mapping = camp.staticCardMap && camp.staticCardMap[exp.id];
             if (!mapping || Object.keys(mapping).length === 0) {
+                log.trace('[%1] No static mapping for %2 in %3', req.uuid, exp.id, camp.id);
                 return q();
             }
             
@@ -766,7 +767,7 @@
         var express      = require('express'),
             app          = express(),
             collKeys     = ['experiences','orgs','users','sites','campaigns','cards','categories'],
-            cacheKeys    = ['experiences', 'orgs', 'sites', 'campaigns'],
+            cacheKeys    = ['experiences', 'orgs', 'sites', 'campaigns', 'cards'],
             collections  = {},
             caches       = {},
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
@@ -783,7 +784,7 @@
         });
 
         authUtils._coll = collections.users;
-        cardSvc = cardModule.setupCardSvc(collections.cards, state.config);
+        cardSvc = cardModule.setupCardSvc(collections.cards, caches.cards);
         catSvc = catModule.setupCatSvc(collections.categories);
 
 
@@ -799,7 +800,7 @@
             store: state.sessionStore
         });
 
-        state.dbStatus.c6Db.on('reconnected', function() { //TODO: probs need to retest this
+        state.dbStatus.c6Db.on('reconnected', function() {
             collKeys.forEach(function(key) {
                 collections[key] = state.dbs.c6Db.collection(key);
             });
@@ -993,7 +994,7 @@
         });
         
         // adds endpoints for managing cards
-        cardModule.setupEndpoints(app, cardSvc, sessWrap, audit);
+        cardModule.setupEndpoints(app, cardSvc, sessWrap, audit, state.config);
         
         // adds endpoints for managing categories
         catModule.setupEndpoints(app, catSvc, sessWrap, audit);

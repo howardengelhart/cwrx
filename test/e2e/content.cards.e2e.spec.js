@@ -846,7 +846,7 @@ describe('content card endpoints (E2E):', function() {
 });
 
 describe('test cleanup', function() {
-    it('should close db connections', function() {
-        testUtils.closeDbs();
+    it('should close db connections', function(done) {
+        testUtils.closeDbs().done(done);
     });
 });

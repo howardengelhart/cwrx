@@ -20,11 +20,17 @@ var request         = require('request'),
 
 // Close all dbs stored in the cache; should be called in a test spec at the end of each file
 testUtils.closeDbs = function() {
-    Object.keys(testUtils._dbCache).forEach(function(key) { testUtils._dbCache[key].close(); });
-    testUtils._dbCache = {};
+    return q.all(Object.keys(testUtils._dbCache).map(function(key) {
+        return testUtils._dbCache[key].promise.then(function(db) {
+            db.close();
+        });
+    })).then(function() {
+        testUtils._dbCache = {};
+    });
 };
   
 testUtils._getDb = function(userCfg) {
+    // console.log('calling getDb');
     userCfg = userCfg || {};
     var procCfg = process.env['mongo'] ? JSON.parse(process.env['mongo']) : {};
     var dbConfig = {
@@ -37,12 +43,13 @@ testUtils._getDb = function(userCfg) {
     var key = dbConfig.host + ':' + dbConfig.port + '/' + dbConfig.db;
     
     if (testUtils._dbCache[key]) {
-        return q(testUtils._dbCache[key]);
+        return testUtils._dbCache[key].promise;
     } else {
-        return mongoUtils.connect(dbConfig.host,dbConfig.port,dbConfig.db,dbConfig.user,dbConfig.pass).then(function(db) {
-            testUtils._dbCache[key] = db;
-            return q(db);
+        testUtils._dbCache[key] = q.defer();
+        mongoUtils.connect(dbConfig.host,dbConfig.port,dbConfig.db,dbConfig.user,dbConfig.pass).then(function(db) {
+            testUtils._dbCache[key].resolve(db);
         });
+        return testUtils._dbCache[key].promise;
     }
 };
 
@@ -63,7 +70,7 @@ testUtils.resetCollection = function(collection,data,userCfg){
         .then(function(database){
             db      = database;
             coll    = db.collection(collection);
-            return q.npost(db, 'collectionNames', [collection]);
+            return q.npost(db, 'collectionNames', [collection])
         })
         .then(function(names){
             if (names.length === 0 ) {

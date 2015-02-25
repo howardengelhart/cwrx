@@ -4,7 +4,6 @@
     var q               = require('q'),
         logger          = require('../lib/logger'),
         authUtils       = require('../lib/authUtils'),
-        QueryCache      = require('../lib/queryCache'),
         FieldValidator  = require('../lib/fieldValidator'),
         CrudSvc         = require('../lib/crudSvc'),
         Status          = require('../lib/enums').Status,
@@ -12,13 +11,10 @@
         cardModule = {};
 
         
-    cardModule.setupCardSvc = function(cardColl, config) {
-        cardModule.cacheTTLs = config.cacheTTLs;
-        var cardSvc = new CrudSvc(cardColl, 'rc', {allowPublic: true}),
-            cardTTLs = config.cacheTTLs.cards;
+    cardModule.setupCardSvc = function(cardColl, cache) {
+        var cardSvc = new CrudSvc(cardColl, 'rc', {allowPublic: true});
         
-        //TODO: test that reconnecting mongo doesn't break this connection
-        cardSvc._cache = new QueryCache(cardTTLs.freshTTL, cardTTLs.maxTTL, cardSvc._coll);
+        cardSvc._cache = cache;
             
         cardSvc.createValidator._required.push('campaignId');
         cardSvc.createValidator._condForbidden.user = FieldValidator.userFunc('cards', 'create');
@@ -27,7 +23,6 @@
         cardSvc.editValidator._condForbidden.org = FieldValidator.orgFunc('cards', 'edit');
         cardSvc.use('read', cardSvc.preventGetAll.bind(cardSvc));
         
-        //TODO: still not quite sure this makes sense
         cardSvc.getPublicCard = cardModule.getPublicCard.bind(cardModule, cardSvc);
         
         return cardSvc;
@@ -59,11 +54,11 @@
     };
     
     // Handle requests for cards from /api/public/content/card/:id endpoints
-    cardModule.handlePublicGet = function(req, res, cardSvc) {
+    cardModule.handlePublicGet = function(req, res, cardSvc, config) {
         return cardSvc.getPublicCard(req.params.id, req)
         .then(function(card) {
             if (!req.originHost.match(/(portal|staging).cinema6.com/)) {
-                res.header('cache-control', 'max-age=' + cardModule.cacheTTLs.cloudFront*60);
+                res.header('cache-control', 'max-age=' + config.cacheTTLs.cloudFront*60);
             }
             return card ? q({ code: 200, body: card }) : q({ code: 404, body: 'Card not found' });
         })
@@ -74,17 +69,17 @@
     };
 
     
-    cardModule.setupEndpoints = function(app, cardSvc, sessions, audit) {
+    cardModule.setupEndpoints = function(app, cardSvc, sessions, audit, config) {
         // Retrieve a json representation of a card
         app.get('/api/public/content/card/:id.json', function(req, res) {
-            cardModule.handlePublicGet(req, res, cardSvc).then(function(resp) {
+            cardModule.handlePublicGet(req, res, cardSvc, config).then(function(resp) {
                 res.send(resp.code, resp.body);
             });
         });
 
         // Retrieve a CommonJS style representation of a card
         app.get('/api/public/content/card/:id.js', function(req, res) {
-            cardModule.handlePublicGet(req, res, cardSvc).then(function(resp) {
+            cardModule.handlePublicGet(req, res, cardSvc, config).then(function(resp) {
                 if (resp.code < 200 || resp.code >= 300) {
                     res.send(resp.code, resp.body);
                 } else {
@@ -96,7 +91,7 @@
 
         // Default for retrieving a card, which returns JSON
         app.get('/api/public/content/card/:id', function(req, res) {
-            cardModule.handlePublicGet(req, res, cardSvc).then(function(resp) {
+            cardModule.handlePublicGet(req, res, cardSvc, config).then(function(resp) {
                 res.send(resp.code, resp.body);
             });
         });
