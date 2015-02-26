@@ -33,10 +33,12 @@
         svc.editValidator._formats.categories = ['string'];
 
         svc.use('read', svc.preventGetAll.bind(svc));
+        svc.use('create', groupModule.ensureDistinctList);
         svc.use('create', svc.validateUniqueProp.bind(svc, 'name', null));
         svc.use('create', groupModule.getAccountIds.bind(groupModule, svc));
         svc.use('create', groupModule.createAdtechGroup);
         svc.use('create', groupModule.createBanners);
+        svc.use('edit', groupModule.ensureDistinctList);
         svc.use('edit', svc.validateUniqueProp.bind(svc, 'name', null));
         svc.use('edit', groupModule.getAccountIds.bind(groupModule, svc));
         svc.use('edit', groupModule.cleanBanners);
@@ -47,6 +49,19 @@
         svc.formatOutput = groupModule.formatOutput.bind(groupModule, svc);
         
         return svc;
+    };
+    
+    // Ensure the miniReels list in the request has all distinct entires
+    groupModule.ensureDistinctList = function(req, next, done) {
+        var log = logger.getLog();
+        
+        if (!objUtils.isListDistinct(req.body.miniReels)) {
+            log.info('[%1] miniReels list in req is not distinct: [%2]',
+                     req.uuid, req.body.miniReels);
+            return q(done({code: 400, body: 'miniReels must be distinct'}));
+        } else {
+            return q(next());
+        }
     };
 
     // Extends CrudSvc.prototype.formatOutput, processing miniReels
@@ -113,7 +128,7 @@
             origCats = req.origObj.categories || [];
             
         if ((!req.body.name || req.body.name === req.origObj.name) &&
-            (!cats || objUtils.compareObjects(cats.sort(), origCats.sort()))) {
+            (!cats || objUtils.compareObjects(cats.slice().sort(), origCats.slice().sort()))) {
             log.info('[%1] Adtech props unchanged, not updating adtech group campaign', req.uuid);
             return q(next());
         }

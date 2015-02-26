@@ -453,6 +453,28 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+
+        it('should throw a 400 if any of the lists are not distinct', function(done) {
+            q.all([ { cards: ['rc-1', 'rc-1'] }, { miniReels: ['e-1', 'e-1'] }, 
+                    { miniReelGroups: [{ cards: ['rc-1', 'rc-1'] }] },
+                    { miniReelGroups: [{ miniReels: ['e-1', 'e-1'] }] } ].map(function(obj) {
+                obj.advertiserId = keptAdvert.id;
+                obj.customerId = keptCust.id;
+                options.json = obj;
+                return requestUtils.qRequest('post', options);
+            })).then(function(results) {
+                expect(results[0].response.statusCode).toBe(400);
+                expect(results[0].body).toBe('cards must be distinct');
+                expect(results[1].response.statusCode).toBe(400);
+                expect(results[1].body).toBe('miniReels must be distinct');
+                expect(results[2].response.statusCode).toBe(400);
+                expect(results[2].body).toBe('miniReelGroups[0].cards must be distinct');
+                expect(results[3].response.statusCode).toBe(400);
+                expect(results[3].body).toBe('miniReelGroups[0].miniReels must be distinct');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
         
         it('should throw a 400 if the advertiser or customer don\'t exist', function(done) {
             q.all([
@@ -619,14 +641,14 @@ describe('ads campaigns endpoints (E2E):', function() {
         it('should edit sponsored campaigns\' keywords if the categories change', function(done) {
             options = {
                 url: config.adsUrl + '/campaign/' + createdCamp.id,
-                json: { categories: ['bacon', 'food'] },
+                json: { categories: ['food', 'bacon'] },
                 jar: cookieJar
             };
             
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body._id).not.toBeDefined();
-                expect(resp.body.categories).toEqual(['bacon', 'food']);
+                expect(resp.body.categories).toEqual(['food', 'bacon']);
                 expect(resp.body.created).toBe(createdCamp.created);
                 expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(createdCamp.lastUpdated));
                 createdCamp = resp.body;
@@ -722,7 +744,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 url: config.adsUrl + '/campaign/' + createdCamp.id,
                 json: { miniReelGroups: [{
                     adtechId: createdCamp.miniReelGroups[0].adtechId,
-                    cards: ['rc-4', 'rc-6'],
+                    cards: ['rc-6', 'rc-4'],
                     miniReels: createdCamp.miniReelGroups[0].miniReels
                 }] },
                 jar: cookieJar
@@ -732,7 +754,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.miniReelGroups).toEqual([{adtechId: jasmine.any(Number),
-                    cards: ['rc-4', 'rc-6'], miniReels: ['e-4', 'e-6']}]);
+                    cards: ['rc-6', 'rc-4'], miniReels: ['e-4', 'e-6']}]);
                 expect(resp.body.miniReelGroups[0].adtechId).toBe(currentAdtechId);
                 expect(resp.body.created).toBe(createdCamp.created);
                 expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(createdCamp.lastUpdated));
@@ -784,6 +806,28 @@ describe('ads campaigns endpoints (E2E):', function() {
                     expect(resp.response.statusCode).toBe(400);
                     expect(resp.body).toBe('Invalid request body');
                 });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should throw a 400 if any of the lists are not distinct', function(done) {
+            options = { url: config.adsUrl + '/campaign/e2e-put1', jar: cookieJar };
+
+            q.all([ { cards: ['rc-1', 'rc-1'] }, { miniReels: ['e-1', 'e-1'] },
+                    { miniReelGroups: [{ cards: ['rc-1', 'rc-1'] }] },
+                    { miniReelGroups: [{ miniReels: ['e-1', 'e-1'] }] } ].map(function(obj) {
+                options.json = obj;
+                return requestUtils.qRequest('put', options);
+            })).then(function(results) {
+                expect(results[0].response.statusCode).toBe(400);
+                expect(results[0].body).toBe('cards must be distinct');
+                expect(results[1].response.statusCode).toBe(400);
+                expect(results[1].body).toBe('miniReels must be distinct');
+                expect(results[2].response.statusCode).toBe(400);
+                expect(results[2].body).toBe('miniReelGroups[0].cards must be distinct');
+                expect(results[3].response.statusCode).toBe(400);
+                expect(results[3].body).toBe('miniReelGroups[0].miniReels must be distinct');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
