@@ -349,6 +349,18 @@ describe('ads minireelGroups endpoints (E2E):', function() {
             }).done(done);
         });
         
+        it('should throw a 400 if the miniReels list is not distinct', function(done) {
+            options.json.name = 'some new group';
+            options.json.miniReels = ['e-1', 'e-2', 'e-1']
+            requestUtils.qRequest('post', options)
+            .then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('miniReels must be distinct');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
         it('should throw a 400 if the advertiser or customer don\'t exist', function(done) {
             q.all([
                 {name: 'test', advertiserId: 'fake', customerId: mockGroup.customerId},
@@ -396,7 +408,7 @@ describe('ads minireelGroups endpoints (E2E):', function() {
         it('should successfully update a group in mongo and adtech', function(done) {
             options = {
                 url: config.adsUrl + '/minireelGroup/' + createdGroup.id,
-                json: { name: 'e2e_test_updated', categories: ['food'] },
+                json: { name: 'e2e_test_updated', categories: ['sport', 'food'] },
                 jar: cookieJar
             };
             requestUtils.qRequest('put', options).then(function(resp) {
@@ -405,7 +417,7 @@ describe('ads minireelGroups endpoints (E2E):', function() {
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBe(createdGroup.id);
                 expect(resp.body.name).toBe('e2e_test_updated');
-                expect(resp.body.categories).toEqual(['food']);
+                expect(resp.body.categories).toEqual(['sport', 'food']);
                 expect(resp.body.created).toBe(createdGroup.created);
                 expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(createdGroup.lastUpdated));
                 expect(resp.body.miniReels).toEqual(createdGroup.miniReels);
@@ -414,7 +426,7 @@ describe('ads minireelGroups endpoints (E2E):', function() {
                 return adtech.campaignAdmin.getCampaignById(createdGroup.adtechId).catch(adtechErr);
             }).then(function(group) {
                 expect(group.name).toBe('e2e_test_updated');
-                expect(group.priorityLevelThreeKeywordIdList).toEqual(['1003562']);
+                expect(group.priorityLevelThreeKeywordIdList.sort()).toEqual(['1001864', '1003562'].sort());
                 expect(group.extId).toBe(createdGroup.id);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -509,6 +521,21 @@ describe('ads minireelGroups endpoints (E2E):', function() {
                     expect(resp.response.statusCode).toBe(400);
                     expect(resp.body).toBe('Invalid request body');
                 });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should throw a 400 if the miniReels list is not distinct', function(done) {
+            options = {
+                url: config.adsUrl + '/minireelGroup/' + createdGroup.id,
+                json: { miniReels: ['e-1', 'e-1'] },
+                jar: cookieJar
+            };
+            requestUtils.qRequest('put', options)
+            .then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('miniReels must be distinct');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

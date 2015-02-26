@@ -38,10 +38,12 @@
         svc.use('read', svc.preventGetAll.bind(svc));
         svc.use('create', campaignUtils.getAccountIds.bind(campaignUtils, svc._advertColl,
                                                            svc._custColl));
+        svc.use('create', campModule.ensureDistinctLists);
         svc.use('create', campModule.createSponsoredCamps);
         svc.use('create', campModule.createTargetCamps);
         svc.use('edit', campaignUtils.getAccountIds.bind(campaignUtils, svc._advertColl,
                                                          svc._custColl));
+        svc.use('edit', campModule.ensureDistinctLists);
         svc.use('edit', campModule.cleanSponsoredCamps);
         svc.use('edit', campModule.editSponsoredCamps);
         svc.use('edit', campModule.createSponsoredCamps);
@@ -54,6 +56,29 @@
         svc.formatOutput = campModule.formatOutput.bind(campModule, svc);
         
         return svc;
+    };
+
+    // Ensures that cards and miniReels lists are distinct for camp + each miniReelGroup
+    campModule.ensureDistinctLists = function(req, next, done) {
+        var log = logger.getLog(),
+            groups = req.body.miniReelGroups || [],
+            keys = ['miniReels', 'cards'];
+
+        for (var i = 0; i < keys.length; i++) {
+            if (!objUtils.isListDistinct(req.body[keys[i]])) {
+                log.info('[%1] %2 must be distinct: %3', req.uuid, keys[i], req.body[keys[i]]);
+                return q(done({code: 400, body: keys[i] + ' must be distinct'}));
+            }
+            
+            for (var j = 0; j < groups.length; j++) {
+                if (!objUtils.isListDistinct(groups[j][keys[i]])) {
+                    var msg = 'miniReelGroups[' + j + '].' + keys[i] + ' must be distinct';
+                    log.info('[%1] %2: %3', req.uuid, msg, groups[j][keys[i]]);
+                    return q(done({code: 400, body: msg}));
+                }
+            }
+        }
+        return q(next());
     };
 
     // Extends CrudSvc.prototype.formatOutput, processing cards, miniReels, and miniReelGroups
@@ -156,7 +181,7 @@
             origCats = req.origObj.categories || [],
             id = req.params.id;
         
-        if (!cats || objUtils.compareObjects(cats.sort(), origCats.sort())) {
+        if (!cats || objUtils.compareObjects(cats.slice().sort(), origCats.slice().sort())) {
             log.trace('[%1] Categories unchanged, not editing sponsored campaigns', req.uuid);
             return q(next());
         }
@@ -286,7 +311,8 @@
     // Middleware to edit target group campaigns, updating banner list + keywords
     campModule.editTargetCamps = function(req, next/*, done*/) {
         var log = logger.getLog(),
-            id = req.params.id;
+            id = req.params.id,
+            promise;
             
         if (!req.body.miniReelGroups || !req.origObj.miniReelGroups) {
             return q(next());
@@ -303,12 +329,16 @@
                 return q();
             }
             
-            return ( (objUtils.compareObjects(group.cards.sort(), existing.cards.sort())) ? q() :
-                campaignUtils.makeKeywordLevels({level1: group.cards}).then(function(keys) {
+            if (objUtils.compareObjects(group.cards.slice().sort(), existing.cards.slice().sort())){
+                promise = q();
+            } else {
+                promise = campaignUtils.makeKeywordLevels({level1: group.cards})
+                .then(function(keys) {
                     return campaignUtils.editCampaign(group.adtechId, null, keys);
-                })
-            )
-            .then(function() {
+                });
+            }
+            
+            return promise.then(function() {
                 return bannerUtils.cleanBanners(group.miniReels,existing.miniReels,group.adtechId);
             })
             .then(function() {

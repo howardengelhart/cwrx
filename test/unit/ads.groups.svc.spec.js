@@ -72,11 +72,48 @@ describe('ads-groups (UT)', function() {
 
             expect(svc._middleware.read).toContain(svc.preventGetAll);
             expect(svc._middleware.create).toContain(CrudSvc.prototype.validateUniqueProp,
-                groupModule.getAccountIds, groupModule.createAdtechGroup, groupModule.createBanners);
+                groupModule.getAccountIds, groupModule.createAdtechGroup, groupModule.createBanners,
+                groupModule.ensureDistinctList);
             expect(svc._middleware.edit).toContain(CrudSvc.prototype.validateUniqueProp, groupModule.getAccountIds,
-                groupModule.cleanBanners, groupModule.createBanners, groupModule.editAdtechGroup);
+                groupModule.cleanBanners, groupModule.createBanners, groupModule.editAdtechGroup,
+                groupModule.ensureDistinctList);
             expect(svc._middleware.delete).toContain(groupModule.deleteAdtechGroup);
             expect(svc.formatOutput).toBe(groupModule.formatOutput);
+        });
+    });
+    
+    describe('ensureDistinctList', function() {
+        it('should call next if all entries in the miniReels list are distinct', function(done) {
+            req.body = { miniReels: ['e-1', 'e-2', 'e-11'] };
+            groupModule.ensureDistinctList(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should call done if there are repeated entries in the miniReels list', function(done) {
+            req.body = { miniReels: ['e-1', 'e-2', 'e-1'] };
+            groupModule.ensureDistinctList(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({code: 400, body: 'miniReels must be distinct'});
+                expect(errorSpy).not.toHaveBeenCalled();
+                done();
+            });
+        });
+
+        it('should call next if miniReels is not defined', function(done) {
+            req.body = {};
+            groupModule.ensureDistinctList(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                done();
+            });
         });
     });
     
@@ -328,8 +365,8 @@ describe('ads-groups (UT)', function() {
     
     describe('editAdtechGroup', function() {
         beforeEach(function() {
-            req.body = { name: 'new name', categories: ['food', 'sports'] };
-            req.origObj = { adtechId: 123, name: 'old name', categories: ['food', 'sport'] };
+            req.body = { name: 'new name', categories: ['sports', 'food'] };
+            req.origObj = { adtechId: 123, name: 'old name', categories: ['sport', 'food'] };
             spyOn(campaignUtils, 'editCampaign').andReturn(q());
             spyOn(campaignUtils, 'makeKeywordLevels').andReturn(q({keys: 'yes'}));
         });
@@ -340,7 +377,7 @@ describe('ads-groups (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(campaignUtils.makeKeywordLevels).toHaveBeenCalledWith({level3: ['food', 'sports']});
+                expect(campaignUtils.makeKeywordLevels).toHaveBeenCalledWith({level3: ['sports', 'food']});
                 expect(campaignUtils.editCampaign).toHaveBeenCalledWith(123, 'new name', {keys: 'yes'});
                 done();
             });
@@ -363,6 +400,8 @@ describe('ads-groups (UT)', function() {
             req.body = { categories: ['sport', 'food'] };
             groupModule.editAdtechGroup(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
+                expect(req.body.categories).toEqual(['sport','food']);
+                expect(req.origObj.categories).toEqual(['sport','food']);
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();

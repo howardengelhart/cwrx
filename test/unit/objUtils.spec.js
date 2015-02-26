@@ -62,4 +62,17 @@ describe('objUtils', function() {
             expect(obj).toBe('foo');
         });
     });
+    
+    describe('isListDistinct', function() {
+        it('should return true if the return true if a list has all distinct elements', function() {
+            expect(objUtils.isListDistinct(['a', 'b', 'aa'])).toBe(true);
+            expect(objUtils.isListDistinct(['a', 'b', 'a'])).toBe(false);
+            expect(objUtils.isListDistinct([1, '1', 2])).toBe(true);
+            expect(objUtils.isListDistinct([1, 1, 2])).toBe(false);
+        });
+        
+        it('should return true if the list is undefined', function() {
+            expect(objUtils.isListDistinct(undefined)).toBe(true);
+        });
+    });
 });
