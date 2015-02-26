@@ -1,5 +1,11 @@
 # Content Service Changelog
 
+### 1.15.0: Thu Feb 26 11:01:27 EST 2015
+* [FEATURE]: Add `GET /api/public/content/card/:id` endpoint: [#382](https://github.com/cinema6/cwrx/pull/382)
+* [FEATURE]: Update `GET /api/public/content/experience/:id` endpoint to handle campaigns: [#382](https://github.com/cinema6/cwrx/pull/382)
+* [FIX]: Only update latest entry in `data` array for experience: [#382](https://github.com/cinema6/cwrx/pull/382)
+* Extra deployment steps: None
+
 ### 1.14.3: Fri Feb 13 16:04:45 EST 2015
 * [FIX]: Rotate branding for csv-style branding lists: [#373](https://github.com/cinema6/cwrx/pull/373)
 * [FIX]: Set `lastStatusChange` virtual property for minireels: [#373](https://github.com/cinema6/cwrx/pull/373)
