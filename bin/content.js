@@ -33,17 +33,25 @@
             run     : path.normalize('/usr/local/share/cwrx/content/caches/run/'),
         },
         cacheTTLs: {  // units here are minutes
+            cards: {
+                freshTTL: 1,
+                maxTTL: 4
+            },
             experiences: {
                 freshTTL: 1,
-                maxTTL: 10
+                maxTTL: 4
             },
             orgs: {
                 freshTTL: 1,
-                maxTTL: 10
+                maxTTL: 4
             },
             sites: {
                 freshTTL: 1,
-                maxTTL: 10
+                maxTTL: 4
+            },
+            campaigns: {
+                freshTTL: 1,
+                maxTTL: 4
             },
             cloudFront: 5
         },
@@ -285,7 +293,7 @@
     };
 
     // Ensure experience has branding and placements, getting from current site or org if necessary
-    content.getSiteConfig = function(exp, orgId, qps, host, siteCache, orgCache, defaultSiteCfg) {
+    content.getSiteConfig = function(exp, orgId, qps, host, siteCache, orgCache, defaults) {
         var log = logger.getLog(),
             props = ['branding', 'placementId', 'wildCardPlacement'],
             siteQuery;
@@ -341,19 +349,88 @@
             if (results && results.length !== 0 && results[0].status === Status.Active) {
                 setProps(exp, results[0], results[0].id, exp.id);
             }
-            setProps(exp, defaultSiteCfg, 'default', exp.id);
+            setProps(exp, defaults, 'default', exp.id);
             return q(exp);
         });
     };
     
-    content.getPublicExp = function(id, req, expCache, orgCache, siteCache, defaultSiteCfg) {
+    /* Swap the placeholder in the exp deck at position idx with the appropriate card, retrieved
+     * from the cardSvc. Also attaches the new card's adtechId from the camp's cards list */
+    content.swapCard = function(req, exp, idx, camp, cardSvc) {
+        var log = logger.getLog(),
+            oldId = exp.data.deck[idx].id,
+            newId = camp.staticCardMap[exp.id][oldId],
+            adtechId = (camp.cards && camp.cards.filter(function(cardObj) {
+                return cardObj.id === newId;
+            })[0] || {}).adtechId;
+        
+        if (!adtechId) {
+            log.warn('[%1] No adtechId for %2 in cards list of %3', req.uuid, newId, camp.id);
+            return q();
+        }
+        
+        log.trace('[%1] Swapping card %2 for placeholder %3 in experience %4',
+                  req.uuid, newId, oldId, exp.id);
+        
+        return cardSvc.getPublicCard(newId, req)
+        .then(function(newCard) {
+            if (!newCard) {
+                log.warn('[%1] Could not retrieve card %2 for experience %3',
+                         req.uuid, newId, exp.id);
+                return q();
+            } else {
+                newCard.adtechId = adtechId;
+                exp.data.deck[idx] = newCard;
+            }
+        });
+    };
+    
+    /* Look up campaign by campId. If it has staticCardPlacements for this exp, look up those cards
+     * and insert them in the appropriate slots */
+    content.handleCampaign = function(req, exp, campId, campCache, cardSvc) {
+        var log = logger.getLog();
+        
+        if (!campId) {
+            return q(exp);
+        }
+        if (!exp.data || !exp.data.deck || !exp.data.deck.length) {
+            log.info('[%1] Experience %2 has no cards', req.uuid, exp.id);
+            return q(exp);
+        }
+        
+        return campCache.getPromise({id: String(campId)}).then(function(results) {
+            var camp = results[0];
+            if (!camp || camp.status !== Status.Active) {
+                log.warn('[%1] Campaign %2 not found', req.uuid, campId);
+                return q();
+            }
+            
+            var mapping = camp.staticCardMap && camp.staticCardMap[exp.id];
+            if (!mapping || Object.keys(mapping).length === 0) {
+                log.trace('[%1] No static mapping for %2 in %3', req.uuid, exp.id, camp.id);
+                return q();
+            }
+            
+            return q.all(exp.data.deck.map(function(card, idx) {
+                if (!mapping[card.id]) {
+                    return q();
+                }
+
+                return content.swapCard(req, exp, idx, camp, cardSvc);
+            }));
+        })
+        .thenResolve(exp);
+    };
+
+
+    content.getPublicExp = function(id, req, caches, cardSvc, defaults) {
         var log = logger.getLog(),
             qps = req.query,
             query = {id: id};
 
         log.info('[%1] Guest user trying to get experience %2', req.uuid, id);
 
-        return expCache.getPromise(query).then(function(results) {
+        return caches.experiences.getPromise(query).then(function(results) {
             var experiences = results.map(function(result) {
                 var formatted = content.formatOutput(result, true);
                 if (!content.canGetExperience(formatted, null, req.isC6Origin)) {
@@ -368,17 +445,20 @@
             }
             log.info('[%1] Retrieved experience %2', req.uuid, id);
 
-            return content.getAdConfig(experiences[0], results[0].org, orgCache)
+            return content.getAdConfig(experiences[0], results[0].org, caches.orgs)
             .then(function(exp) {
-                return content.getSiteConfig(exp, results[0].org, qps, req.originHost, siteCache,
-                                             orgCache, defaultSiteCfg);
+                return content.getSiteConfig(exp, results[0].org, qps, req.originHost, caches.sites,
+                                             caches.orgs, defaults);
+            })
+            .then(function(exp) {
+                return content.handleCampaign(req, exp, qps.campaign, caches.campaigns, cardSvc);
             })
             .then(function(exp) {
                 return q({code: 200, body: exp});
             });
         })
         .catch(function(error) {
-            log.error('[%1] Error getting experiences: %2', req.uuid, error);
+            log.error('[%1] Error getting experience %2: %3', req.uuid, id, error);
             return q.reject(error);
         });
     };
@@ -508,20 +588,16 @@
         if (!obj.access) {
             obj.access = Access.Public;
         }
+        obj.data = obj.data || {};
 
-        if (obj.data) {
-            if (obj.data.adConfig && !content.checkScope(user, obj, 'experiences', 'editAdConfig')){
-                log.info('[%1] User %2 not authorized to set adConfig of new exp',req.uuid,user.id);
-                return q({ code: 403, body: 'Not authorized to set adConfig' });
-            }
-
-            var versionId = uuid.hashText(JSON.stringify(obj.data)).substr(0, 8);
-            obj.data = [ { user: user.email, userId: user.id, date: now,
-                           data: obj.data, versionId: versionId } ];
-            if (obj.status[0].status === Status.Active) {
-                obj.data[0].active = true;
-            }
+        if (obj.data.adConfig && !content.checkScope(user, obj, 'experiences', 'editAdConfig')){
+            log.info('[%1] User %2 not authorized to set adConfig of new exp',req.uuid,user.id);
+            return q({ code: 403, body: 'Not authorized to set adConfig' });
         }
+
+        var versionId = uuid.hashText(JSON.stringify(obj.data)).substr(0, 8);
+        obj.data = [ { user: user.email, userId: user.id, date: now,
+                       data: obj.data, versionId: versionId } ];
 
         return q.npost(experiences, 'insert', [mongoUtils.escapeKeys(obj), {w: 1, journal: true}])
         .then(function() {
@@ -534,15 +610,20 @@
         });
     };
 
+    // Format updates to an experience; trimming virtual props & formatting data + status arrays
     content.formatUpdates = function(req, orig, updates, user) {
         var log = logger.getLog(),
             now = new Date();
 
+        // don't allow client to set virtual props (which are copied from elsewhere)
+        delete updates.title;
+        delete updates.versionId;
+        delete updates.lastPublished;
+        delete updates.lastStatusChange;
+
         if (!(orig.data instanceof Array)) {
             log.warn('[%1] Original exp %2 does not have an array of data', req.uuid, orig.id);
-            var oldVersion = uuid.hashText(JSON.stringify(orig.data || {})).substr(0, 8);
-            orig.data = [ { user: user.email, userId: user.id, date: orig.created, data: orig.data,
-                            versionId: oldVersion } ];
+            orig.data = [{}];
         }
         if (!(orig.status instanceof Array)) {
             log.warn('[%1] Original exp %2 does not have an array of statuses', req.uuid, orig.id);
@@ -554,15 +635,7 @@
                 var versionId = uuid.hashText(JSON.stringify(updates.data)).substr(0, 8),
                     dataWrapper = { user: user.email, userId: user.id, date: now,
                                     data: updates.data, versionId: versionId };
-                if (orig.status[0].status === Status.Active) {
-                    dataWrapper.active = true;
-                    orig.data.unshift(dataWrapper);
-                } else if (orig.data[0].active) { // preserve previously active data
-                    orig.data.unshift(dataWrapper);
-                } else {
-                    orig.data[0] = dataWrapper;
-                }
-                updates.data = orig.data;
+                updates.data = [ dataWrapper ];
             } else {
                 delete updates.data;
             }
@@ -571,12 +644,6 @@
         if (updates.status) {
             if (updates.status !== orig.status[0].status) {
                 var statWrapper = {user:user.email,userId:user.id,date:now,status:updates.status};
-                if (updates.status === Status.Active) {
-                    orig.data[0].active = true;
-                    updates.data = orig.data;
-                } else if (updates.data) {
-                    delete updates.data[0].active;
-                }
                 orig.status.unshift(statWrapper);
                 updates.status = orig.status;
             } else {
@@ -596,13 +663,6 @@
         if (!updates || typeof updates !== 'object') {
             return q({code: 400, body: 'You must provide an object in the body'});
         }
-
-        // these props are copied from elsewhere when returning to the client, so don't allow them
-        // to be set here
-        delete updates.title;
-        delete updates.versionId;
-        delete updates.lastPublished;
-        delete updates.lastStatusChange;
 
         log.info('[%1] User %2 is attempting to update experience %3',req.uuid,user.id,id);
         return q.npost(experiences, 'findOne', [{id: id}])
@@ -706,23 +766,27 @@
 
         var express      = require('express'),
             app          = express(),
-            experiences  = state.dbs.c6Db.collection('experiences'),
-            users        = state.dbs.c6Db.collection('users'),
-            orgs         = state.dbs.c6Db.collection('orgs'),
-            sites        = state.dbs.c6Db.collection('sites'),
-            cardSvc      = cardModule.setupCardSvc(state.dbs.c6Db.collection('cards')),
-            catSvc       = catModule.setupCatSvc(state.dbs.c6Db.collection('categories')),
-            expTTLs      = state.config.cacheTTLs.experiences,
-            expCache     = new QueryCache(expTTLs.freshTTL, expTTLs.maxTTL, experiences),
-            orgTTLs      = state.config.cacheTTLs.orgs,
-            orgCache     = new QueryCache(orgTTLs.freshTTL, orgTTLs.maxTTL, orgs),
-            siteTTLs     = state.config.cacheTTLs.sites,
-            siteCache    = new QueryCache(siteTTLs.freshTTL, siteTTLs.maxTTL, sites),
+            collKeys     = ['experiences','orgs','users','sites','campaigns','cards','categories'],
+            cacheKeys    = ['experiences', 'orgs', 'sites', 'campaigns', 'cards'],
+            collections  = {},
+            caches       = {},
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName),
-            audit        = auditJournal.middleware.bind(auditJournal);
+            audit        = auditJournal.middleware.bind(auditJournal),
+            catSvc, cardSvc;
+            
+        collKeys.forEach(function(key) {
+            collections[key] = state.dbs.c6Db.collection(key);
+        });
+        cacheKeys.forEach(function(key) {
+            var ttls = state.config.cacheTTLs[key];
+            caches[key] = new QueryCache(ttls.freshTTL, ttls.maxTTL, collections[key]);
+        });
 
-        authUtils._coll = users;
+        authUtils._coll = collections.users;
+        cardSvc = cardModule.setupCardSvc(collections.cards, caches.cards);
+        catSvc = catModule.setupCatSvc(collections.categories);
+
 
         app.use(express.bodyParser());
         app.use(express.cookieParser(state.secrets.cookieParser || ''));
@@ -737,16 +801,16 @@
         });
 
         state.dbStatus.c6Db.on('reconnected', function() {
-            experiences = state.dbs.c6Db.collection('experiences');
-            users = state.dbs.c6Db.collection('users');
-            orgs = state.dbs.c6Db.collection('orgs');
-            sites = state.dbs.c6Db.collection('sites');
-            cardSvc._coll = state.dbs.c6Db.collection('cards');
-            catSvc._coll = state.dbs.c6Db.collection('categories');
-            expCache._coll = experiences;
-            orgCache._coll = orgs;
-            siteCache._coll = sites;
-            authUtils._coll = users;
+            collKeys.forEach(function(key) {
+                collections[key] = state.dbs.c6Db.collection(key);
+            });
+            cacheKeys.forEach(function(key) {
+                caches[key]._coll = collections[key];
+            });
+            
+            cardSvc._coll = collections.cards;
+            catSvc._coll = collections.categories;
+            authUtils._coll = collections.users;
             log.info('Recreated collections from restarted c6Db');
         });
 
@@ -804,7 +868,7 @@
         
         // Used for handling public requests for experiences by id methods:
         function handlePublicGet(req, res) {
-            return content.getPublicExp(req.params.id, req, expCache, orgCache, siteCache,
+            return content.getPublicExp(req.params.id, req, caches, cardSvc,
                                         state.config.defaultSiteConfig)
             .then(function(resp) {
                 if (!req.originHost.match(/(portal|staging).cinema6.com/)) {
@@ -847,7 +911,7 @@
         
         // private get experience by id
         app.get('/api/content/experience/:id', sessWrap, authGetExp, audit, function(req, res) {
-            content.getExperiences({id:req.params.id}, req, experiences)
+            content.getExperiences({id:req.params.id}, req, collections.experiences)
             .then(function(resp) {
                 if (resp.body && resp.body instanceof Array) {
                     if (resp.body.length === 0) {
@@ -886,7 +950,7 @@
                 return res.send(400, 'Must specify at least one supported query param');
             }
 
-            content.getExperiences(query, req, experiences, true)
+            content.getExperiences(query, req, collections.experiences, true)
             .then(function(resp) {
                 if (resp.pagination) {
                     res.header('content-range', 'items ' + resp.pagination.start + '-' +
@@ -901,7 +965,7 @@
 
         var authPostExp = authUtils.middlewarify({experiences: 'create'});
         app.post('/api/content/experience', sessWrap, authPostExp, audit, function(req, res) {
-            content.createExperience(req, experiences)
+            content.createExperience(req, collections.experiences)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
@@ -911,7 +975,7 @@
 
         var authPutExp = authUtils.middlewarify({experiences: 'edit'});
         app.put('/api/content/experience/:id', sessWrap, authPutExp, audit, function(req, res) {
-            content.updateExperience(req, experiences)
+            content.updateExperience(req, collections.experiences)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
@@ -921,7 +985,7 @@
 
         var authDelExp = authUtils.middlewarify({experiences: 'delete'});
         app.delete('/api/content/experience/:id', sessWrap, authDelExp, audit, function(req, res) {
-            content.deleteExperience(req, experiences)
+            content.deleteExperience(req, collections.experiences)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
@@ -930,7 +994,7 @@
         });
         
         // adds endpoints for managing cards
-        cardModule.setupEndpoints(app, cardSvc, sessWrap, audit);
+        cardModule.setupEndpoints(app, cardSvc, sessWrap, audit, state.config);
         
         // adds endpoints for managing categories
         catModule.setupEndpoints(app, catSvc, sessWrap, audit);
@@ -976,8 +1040,8 @@
         .then(content.main)
         .catch(function(err) {
             var log = logger.getLog();
-            console.log(err.message || err);
-            log.error(err.message || err);
+            console.log(err.stack || err);
+            log.error(err.stack || err);
             if (err.code)   {
                 process.exit(err.code);
             }

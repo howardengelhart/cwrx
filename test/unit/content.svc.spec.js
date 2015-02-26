@@ -35,47 +35,67 @@ describe('content (UT)', function() {
     });
     
     describe('getPublicExp', function() {
-        var id, req, expCache, orgCache, siteCache, pubList, siteCfg;
+        var id, req, caches, cardSvc, siteCfg;
         beforeEach(function() {
             id = 'e-1';
             req = { isC6Origin: false, originHost: 'c6.com', uuid: '1234', query: {foo: 'bar'} };
             siteCfg = { sites: 'good' };
-            expCache = {
-                getPromise: jasmine.createSpy('expCache.getPromise').andReturn(q([{id: 'e-1', org: 'o-1'}]))
+            caches = {
+                experiences: {
+                    getPromise: jasmine.createSpy('expCache.getPromise').andReturn(q([{id: 'e-1', org: 'o-1'}]))
+                },
+                orgs: 'fakeOrgCache',
+                sites: 'fakeSiteCache',
+                campaigns: 'fakeCampCache'
             };
-            orgCache = 'fakeOrgCache';
-            siteCache = 'fakeSiteCache';
+            cardSvc = 'fakeCardSvc';
             spyOn(content, 'canGetExperience').andReturn(true);
             content.formatOutput.andReturn('formatted');
             spyOn(content, 'getAdConfig').andReturn(q('withAdConfig'));
             spyOn(content, 'getSiteConfig').andReturn(q('withSiteConfig'));
+            spyOn(content, 'handleCampaign').andReturn(q('withCampSwaps'));
         });
 
         it('should call cache.getPromise to get the experience', function(done) {
-            content.getPublicExp(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
+            content.getPublicExp(id, req, caches, cardSvc, siteCfg).then(function(resp) {
                 expect(resp.code).toBe(200);
-                expect(resp.body).toBe('withSiteConfig');
-                expect(expCache.getPromise).toHaveBeenCalledWith({id: 'e-1'});
+                expect(resp.body).toBe('withCampSwaps');
+                expect(caches.experiences.getPromise).toHaveBeenCalledWith({id: 'e-1'});
                 expect(content.formatOutput).toHaveBeenCalledWith({id: 'e-1', org: 'o-1'}, true);
                 expect(content.canGetExperience).toHaveBeenCalledWith('formatted', null, false);
                 expect(content.getAdConfig).toHaveBeenCalledWith('formatted', 'o-1', 'fakeOrgCache');
                 expect(content.getSiteConfig).toHaveBeenCalledWith('withAdConfig', 'o-1', {foo: 'bar'},
                     'c6.com', 'fakeSiteCache', 'fakeOrgCache', {sites: 'good'});
+                expect(content.handleCampaign).toHaveBeenCalledWith(req, 'withSiteConfig', undefined,
+                    'fakeCampCache', 'fakeCardSvc');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should pass the campaign query param to handleCampaign', function(done) {
+            req.query.campaign = 'cam-1';
+            content.getPublicExp(id, req, caches, cardSvc, siteCfg).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toBe('withCampSwaps');
+                expect(content.handleCampaign).toHaveBeenCalledWith(req, 'withSiteConfig', 'cam-1',
+                    'fakeCampCache', 'fakeCardSvc');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
 
         it('should return a 404 if nothing was found', function(done) {
-            expCache.getPromise.andReturn(q([]));
-            content.getPublicExp(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
+            caches.experiences.getPromise.andReturn(q([]));
+            content.getPublicExp(id, req, caches, cardSvc, siteCfg).then(function(resp) {
                 expect(resp.code).toBe(404);
                 expect(resp.body).toBe('Experience not found');
-                expect(expCache.getPromise).toHaveBeenCalled();
+                expect(caches.experiences.getPromise).toHaveBeenCalled();
                 expect(content.formatOutput).not.toHaveBeenCalled();
                 expect(content.canGetExperience).not.toHaveBeenCalled();
                 expect(content.getAdConfig).not.toHaveBeenCalled();
                 expect(content.getSiteConfig).not.toHaveBeenCalled();
+                expect(content.handleCampaign).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -83,63 +103,86 @@ describe('content (UT)', function() {
 
         it('should return a 404 if the user cannot see the experience', function(done) {
             content.canGetExperience.andReturn(false);
-            content.getPublicExp(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
+            content.getPublicExp(id, req, caches, cardSvc, siteCfg).then(function(resp) {
                 expect(resp.code).toBe(404);
                 expect(resp.body).toBe('Experience not found');
-                expect(expCache.getPromise).toHaveBeenCalled();
+                expect(caches.experiences.getPromise).toHaveBeenCalled();
                 expect(content.formatOutput).toHaveBeenCalled();
                 expect(content.canGetExperience).toHaveBeenCalled();
                 expect(content.getAdConfig).not.toHaveBeenCalled();
                 expect(content.getSiteConfig).not.toHaveBeenCalled();
+                expect(content.handleCampaign).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
 
         it('should fail if the promise was rejected', function(done) {
-            expCache.getPromise.andReturn(q.reject('I GOT A PROBLEM'));
-            content.getPublicExp(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
+            caches.experiences.getPromise.andReturn(q.reject('I GOT A PROBLEM'));
+            content.getPublicExp(id, req, caches, cardSvc, siteCfg).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
-                expect(expCache.getPromise).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(caches.experiences.getPromise).toHaveBeenCalled();
                 expect(content.formatOutput).not.toHaveBeenCalled();
                 expect(content.canGetExperience).not.toHaveBeenCalled();
                 expect(content.getAdConfig).not.toHaveBeenCalled();
+                expect(content.handleCampaign).not.toHaveBeenCalled();
             }).done(done);
         });
 
         it('should fail if calling getAdConfig fails', function(done) {
             content.getAdConfig.andReturn(q.reject('I GOT A PROBLEM'));
-            content.getPublicExp(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
+            content.getPublicExp(id, req, caches, cardSvc, siteCfg).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
-                expect(expCache.getPromise).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(caches.experiences.getPromise).toHaveBeenCalled();
                 expect(content.formatOutput).toHaveBeenCalled();
                 expect(content.canGetExperience).toHaveBeenCalled();
                 expect(content.getAdConfig).toHaveBeenCalled();
                 expect(content.getSiteConfig).not.toHaveBeenCalled();
+                expect(content.handleCampaign).not.toHaveBeenCalled();
             }).done(done);
         });
 
         it('should fail if calling getSiteConfig fails', function(done) {
             content.getSiteConfig.andReturn(q.reject('I GOT A PROBLEM'));
-            content.getPublicExp(id, req, expCache, orgCache, siteCache, siteCfg).then(function(resp) {
+            content.getPublicExp(id, req, caches, cardSvc, siteCfg).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
-                expect(expCache.getPromise).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(caches.experiences.getPromise).toHaveBeenCalled();
                 expect(content.formatOutput).toHaveBeenCalled();
                 expect(content.canGetExperience).toHaveBeenCalled();
                 expect(content.getAdConfig).toHaveBeenCalled();
                 expect(content.getSiteConfig).toHaveBeenCalled();
+                expect(content.handleCampaign).not.toHaveBeenCalled();
+            }).done(done);
+        });
+
+        it('should fail if calling handleCampaign fails', function(done) {
+            content.handleCampaign.andReturn(q.reject('I GOT A PROBLEM'));
+            content.getPublicExp(id, req, caches, cardSvc, siteCfg).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(caches.experiences.getPromise).toHaveBeenCalled();
+                expect(content.formatOutput).toHaveBeenCalled();
+                expect(content.canGetExperience).toHaveBeenCalled();
+                expect(content.getAdConfig).toHaveBeenCalled();
+                expect(content.getSiteConfig).toHaveBeenCalled();
+                expect(content.handleCampaign).toHaveBeenCalled();
             }).done(done);
         });
     });
 
     describe('getExperiences', function() {
-        var req, expColl, query, pubList;
+        var req, expColl, query, fakeCursor;
         beforeEach(function() {
             req = {
                 isC6Origin: false,
@@ -371,7 +414,8 @@ describe('content (UT)', function() {
 
     describe('createExperience', function() {
         beforeEach(function() {
-            req.body = {tag: 'fakeExp', data: { foo: 'bar' } };
+            req.body = { tag: 'fakeExp', data: { foo: 'bar' }, user: 'u-1', org: 'o-1',
+                         status: Status.Active, access: Access.Private };
             req.user = {id: 'u-1234', org: 'o-1234', email: 'otter'};
             experiences.insert = jasmine.createSpy('experiences.insert')
                 .andCallFake(function(obj, opts, cb) { cb(); });
@@ -404,10 +448,10 @@ describe('content (UT)', function() {
                 expect(resp.body.created instanceof Date).toBeTruthy('created is a Date');
                 expect(resp.body.lastUpdated instanceof Date).toBeTruthy('lastUpdated is a Date');
                 expect(resp.body.data).toEqual({foo: 'bar'});
-                expect(resp.body.user).toBe('u-1234');
-                expect(resp.body.org).toBe('o-1234');
-                expect(resp.body.status).toBe(Status.Pending);
-                expect(resp.body.access).toBe(Access.Public);
+                expect(resp.body.user).toBe('u-1');
+                expect(resp.body.org).toBe('o-1');
+                expect(resp.body.status).toBe(Status.Active);
+                expect(resp.body.access).toBe(Access.Private);
                 expect(content.createValidator.validate).toHaveBeenCalledWith(req.body, {}, req.user);
                 expect(experiences.insert).toHaveBeenCalled();
                 expect(experiences.insert.calls[0].args[0].data[0]).toEqual({user:'otter',userId:'u-1234',
@@ -422,27 +466,24 @@ describe('content (UT)', function() {
                 done();
             });
         });
-
-        it('should trim off certain fields not allowed on the top-level', function(done) {
-            req.body.title = 'this is a title';
-            req.body.versionId = 'thabestversion';
-            req.body.data.title = 'data title';
+        
+        it('should set default values for some fields if not specified in the request', function(done) {
+            req.body = { tag: 'fakeExp' };
             content.createExperience(req, experiences).then(function(resp) {
-                expect(resp).toBeDefined();
                 expect(resp.code).toBe(201);
                 expect(resp.body.id).toBe('e-1234');
-                expect(resp.body.title).toBe('data title');
+                expect(resp.body.tag).toBe('fakeExp');
+                expect(resp.body.data).toEqual({});
                 expect(resp.body.versionId).toBe('fakeVers');
-                expect(resp.body.data).toEqual({foo: 'bar', title: 'data title'});
-                expect(content.createValidator.validate).toHaveBeenCalled();
-                expect(experiences.insert).toHaveBeenCalled();
-                expect(content.formatOutput).toHaveBeenCalled();
-                expect(mongoUtils.escapeKeys).toHaveBeenCalled();
-                done();
+                expect(resp.body.user).toBe('u-1234');
+                expect(resp.body.org).toBe('o-1234');
+                expect(resp.body.status).toBe(Status.Pending);
+                expect(resp.body.access).toBe(Access.Public);
+                expect(experiences.insert.calls[0].args[0].data[0]).toEqual({user:'otter',userId:'u-1234',
+                    date:jasmine.any(Date),versionId:'fakeVers',data:{}});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).finally(done);
         });
 
         it('should prevent ordinary users from setting the adConfig', function(done) {
@@ -628,7 +669,7 @@ describe('content (UT)', function() {
 
         it('should prevent ordinary users from editing the adConfig', function(done) {
             content.checkScope.andCallFake(function(user, orig, obj, verb) {
-                if (verb == 'editAdConfig') return false;
+                if (verb === 'editAdConfig') return false;
                 else return true;
             });
             req.body.data.adConfig = { ads: 'good' };
@@ -648,7 +689,7 @@ describe('content (UT)', function() {
 
         it('should allow the edit if the adConfig is unchanged', function(done) {
             content.checkScope.andCallFake(function(user, orig, obj, verb) {
-                if (verb == 'editAdConfig') return false;
+                if (verb === 'editAdConfig') return false;
                 else return true;
             });
             req.body.data.adConfig = { ads: 'good' };

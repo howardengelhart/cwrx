@@ -1,8 +1,9 @@
 var q               = require('q'),
+    util            = require('util'),
     request         = require('request'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
-    host            = process.env['host'] || 'localhost',
+    host            = process.env.host || 'localhost',
     config = {
         contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
@@ -61,8 +62,131 @@ describe('content card endpoints (E2E):', function() {
         });
     });
 
-    xdescribe('GET /api/public/content/card/:id', function() {
-        //TODO: impl this
+    describe('GET /api/public/content/card/:id', function() {
+        var options;
+        beforeEach(function(done) {
+            var mockCards = [
+                { id: 'e2e-pubget1', campaignId: 'cam-1', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'e2e-pubget2', campaignId: 'cam-2', status: 'inactive', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'e2e-pubget3', campaignId: 'cam-3', status: 'deleted', user: 'e2e-user', org: 'e2e-org' }
+            ];
+            testUtils.resetCollection('cards', mockCards).done(done);
+            options = {
+                url: config.contentUrl + '/public/content/card/e2e-pubget1',
+                headers: { origin: 'http://test.com' }
+            };
+        });
+        
+        it('should get an active card by id', function(done) {
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({id: 'e2e-pubget1', status: 'active', campaignId: 'cam-1'});
+                expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
+                expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
+                expect(resp.response.headers['cache-control']).not.toBe('max-age=0');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should not show inactive or deleted cards', function(done) {
+            q.all(['e2e-pubget2', 'e2e-pubget3'].map(function(id) {
+                options.url = options.url.replace('e2e-pubget1', id);
+                return requestUtils.qRequest('get', options);
+            }))
+            .then(function(results) {
+                results.forEach(function(resp) {
+                    expect(resp.response.statusCode).toBe(404);
+                    expect(resp.body).toBe('Card not found');
+                    expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
+                    expect(resp.response.headers['cache-control']).not.toBe('max-age=0');
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a 404 for nonexistent cards', function(done) {
+            options.url = options.url.replace('e2e-pubget1', 'e2e-fake');
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toBe('Card not found');
+                expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
+                expect(resp.response.headers['cache-control']).not.toBe('max-age=0');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should not cache if the origin is staging.cinema6.com or portal.cinema6.com', function(done) {
+            q.all(['http://staging.cinema6.com', 'http://portal.cinema6.com'].map(function(origin) {
+                options.headers.origin = origin;
+                return requestUtils.qRequest('get', options);
+            })).then(function(results) {
+                results.forEach(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.response.headers['cache-control']).toBe('max-age=0');
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+    });
+
+    /* Currently, this endpoint is identical to GET /api/public/card/:id, so only one test is
+     * included here as a sanity check. If the endpoints diverge, additional tests should be written. */
+    describe('GET /api/public/card/:id.json', function() {
+        var mockCard, mockOrg, options;
+        beforeEach(function(done) {
+            options = { url: config.contentUrl + '/public/content/card/e2e-pubgetjson1.json' };
+            mockCard = { id: 'e2e-pubgetjson1', status: 'active', campaignId: 'cam-1' };
+            testUtils.resetCollection('cards', mockCard).done(done);
+        });
+
+        it('should get a card by id', function(done) {
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({id: 'e2e-pubgetjson1', status: 'active', campaignId: 'cam-1'});
+                expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
+                expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
+                expect(resp.response.headers['cache-control']).not.toBe('max-age=0');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+    });
+
+    /* Currently this endpoint is mostly identical to GET /api/public/card/:id, so two tests
+     * are included to verify that the output is formatted correctly. If the endpoints diverge,
+     * additional tests should be written. */
+    describe('GET /api/public/card/:id.js', function() {
+        var mockCard, mockOrg, options;
+        beforeEach(function(done) {
+            options = { url: config.contentUrl + '/public/content/card/e2e-pubgetjs1.js' };
+            mockCard = { id: 'e2e-pubgetjs1', status: 'active', campaignId: 'cam-1' };
+            testUtils.resetCollection('cards', mockCard).done(done);
+        });
+
+        it('should get a card by id', function(done) {
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.match(/module\.exports = {.*"id":"e2e-pubgetjs1".*};/)).toBeTruthy();
+                expect(resp.response.headers['content-type']).toBe('application/javascript');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should return errors in normal format', function(done) {
+            options = { url: config.contentUrl + '/public/content/card/e2e-fake.js' };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toBe('Card not found');
+                expect(resp.response.headers['content-type']).toBe('text/html; charset=utf-8');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
     });
 
     describe('GET /api/content/card/:id', function() {
@@ -70,21 +194,21 @@ describe('content card endpoints (E2E):', function() {
             var mockCards = [
                 {
                     id: 'e2e-getid1',
-                    campaignId: '123',
+                    campaignId: 'cam-1',
                     status: 'inactive',
                     user: 'e2e-user',
                     org: 'e2e-org'
                 },
                 {
                     id: 'e2e-getid2',
-                    campaignId: '234',
+                    campaignId: 'cam-2',
                     status: 'active',
                     user: 'not-e2e-user',
                     org: 'not-e2e-org'
                 },
                 {
                     id: 'e2e-getid3',
-                    campaignId: '345',
+                    campaignId: 'cam-3',
                     status: 'inactive',
                     user: 'not-e2e-user',
                     org: 'not-e2e-org'
@@ -99,11 +223,12 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBe('e2e-getid1');
+                expect(resp.body.campaignId).toBe('cam-1');
                 expect(resp.body.user).toBe('e2e-user');
                 expect(resp.body.org).toBe('e2e-org');
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -124,7 +249,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(results[0].data).toEqual({route: 'GET /api/content/card/:id',
                                                  params: { 'id': 'e2e-getid1' }, query: {} });
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -139,7 +264,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('Object not found');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -149,7 +274,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -159,7 +284,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('Object not found');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });
@@ -217,7 +342,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.body[0].id).toBe('e2e-getquery1');
                 expect(resp.response.headers['content-range']).toBe('items 1-1/1');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -238,7 +363,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(results[0].data).toEqual({route: 'GET /api/content/cards',
                                                  params: {}, query: { user: 'e2e-user', sort: 'id,1' } });
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -252,7 +377,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.body[1].id).toBe('e2e-getquery2');
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -265,7 +390,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.body[0].id).toBe('e2e-getquery1');
                 expect(resp.response.headers['content-range']).toBe('items 1-1/1');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -279,7 +404,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.body[0].id).toBe('e2e-getquery2');
                 expect(resp.response.headers['content-range']).toBe('items 1-1/1');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -290,7 +415,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.body).toBe('Not authorized to read all cards');
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -303,7 +428,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.body[0].id).toBe('e2e-getquery3');
                 expect(resp.response.headers['content-range']).toBe('items 1-1/1');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -313,7 +438,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.body).toBe('Not authorized to read all cards');
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -338,7 +463,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.body[3].id).toBe('e2e-getquery4');
                 expect(resp.response.headers['content-range']).toBe('items 1-4/4');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -349,7 +474,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.body).toEqual([]);
                 expect(resp.response.headers['content-range']).toBe('items 0-0/0');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -372,7 +497,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.body[0].id).toBe('e2e-getquery1');
                 expect(resp.response.headers['content-range']).toBe('items 2-2/2');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -384,7 +509,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.body).toEqual([]);
                 expect(resp.response.headers['content-range']).toBe('items 0-0/0');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -396,7 +521,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.body).toBe('Unauthorized');
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });
@@ -404,7 +529,7 @@ describe('content card endpoints (E2E):', function() {
     describe('POST /api/content/card', function() {
         var mockCard, options;
         beforeEach(function(done) {
-            mockCard = { data: { foo: 'bar' }, campaignId: '12345', org: 'e2e-org' };
+            mockCard = { data: { foo: 'bar' }, campaignId: 'cam-1', org: 'e2e-org' };
             options = {
                 url: config.contentUrl + '/content/card',
                 jar: cookieJar,
@@ -418,7 +543,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBeDefined();
-                expect(resp.body.campaignId).toBe('12345');
+                expect(resp.body.campaignId).toBe('cam-1');
                 expect(resp.body.data).toEqual({foo: 'bar'});
                 expect(resp.body.user).toBe('e2e-user');
                 expect(resp.body.org).toBe('e2e-org');
@@ -427,7 +552,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.body.lastUpdated).toEqual(resp.body.created);
                 expect(resp.body.status).toBe('active');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -446,7 +571,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'POST /api/content/card', params: {}, query: {} });
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -456,7 +581,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body.status).toBe('inactive');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -466,7 +591,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Invalid request body');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -489,7 +614,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.body.user).toBe('another-user');
                 expect(resp.body.org).toBe('another-org');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -500,7 +625,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Invalid request body');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -511,7 +636,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -560,7 +685,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(new Date(resp.body.created)).toEqual(now);
                 expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(now);
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -580,7 +705,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(results[0].data).toEqual({route: 'PUT /api/content/card/:id',
                                                  params: { id: 'e2e-put1' }, query: {} });
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -590,7 +715,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('That does not exist');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -599,12 +724,12 @@ describe('content card endpoints (E2E):', function() {
             requestUtils.qRequest('delete', deleteOpts).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
-                return requestUtils.qRequest('put', options)
+                return requestUtils.qRequest('put', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('That has been deleted');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -614,7 +739,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Not authorized to edit this');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -624,7 +749,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });
@@ -632,16 +757,8 @@ describe('content card endpoints (E2E):', function() {
     describe('DELETE /api/content/card/:id', function() {
         beforeEach(function(done) {
             var mockCards = [
-                {
-                    id: 'e2e-del1',
-                    status: 'active',
-                    user: 'e2e-user'
-                },
-                {
-                    id: 'e2e-del2',
-                    status: 'active',
-                    user: 'not-e2e-user'
-                }
+                { id: 'e2e-del1', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'e2e-del2', status: 'active', user: 'not-e2e-user', org: 'e2e-org' }
             ];
             testUtils.resetCollection('cards', mockCards).done(done);
         });
@@ -657,7 +774,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('Object not found');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -678,7 +795,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(results[0].data).toEqual({route: 'DELETE /api/content/card/:id',
                                                  params: { id: 'e2e-del1' }, query: {} });
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -688,7 +805,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Not authorized to delete this');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -702,7 +819,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -712,7 +829,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -722,14 +839,14 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
     });
 });
 
 describe('test cleanup', function() {
-    it('should close db connections', function() {
-        testUtils.closeDbs();
+    it('should close db connections', function(done) {
+        testUtils.closeDbs().done(done);
     });
 });
