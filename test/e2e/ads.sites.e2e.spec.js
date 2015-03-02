@@ -11,7 +11,7 @@ var q               = require('q'),
         authUrl : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
     };
     
-jasmine.getEnv().defaultTimeoutInterval = 30000;
+jasmine.getEnv().defaultTimeoutInterval = 90000;
 
 
 function getPlacementsBySite(siteId) {
