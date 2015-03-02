@@ -159,8 +159,9 @@
                 case 'rumble':
                     formatted.videoid = (item.link.match(/[^\/]+(?=(\.html))/) || [])[0];
                     break;
-                case 'default':
+                default:
                     log.warn('Unexpected site %1, cannot set videoid', formatted.site);
+                    break;
             }
 
             return formatted;

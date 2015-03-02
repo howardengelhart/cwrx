@@ -199,6 +199,24 @@ describe('search (UT)', function() {
           });
           expect(mockLog.warn).not.toHaveBeenCalled();
         });
+        
+        it('should log a warning if the site is an unexpected string', function() {
+            var items = [
+                { title: 'YT Test', link: 'http://www.youtube.com/watch?v=GdEKSyad_rk', displayLink: 'foo.youtube.com',
+                  pagemap: { videoobject: [{description: 'YT desc', duration: 'PT1M13S', height: 1080}],
+                             cse_thumbnail: [{width: 300, height: 168, src: 'http://img.com'}] } }
+            ];
+
+            expect(search.formatGoogleResults(stats, items)).toEqual({
+                meta: {skipped: 10, numResults: 20, totalResults: 50},
+                items: [
+                    { title: 'YT Test', link: 'http://www.youtube.com/watch?v=GdEKSyad_rk', siteLink: 'foo.youtube.com',
+                      description: 'YT desc', site: 'foo.youtube', hd: true, duration: 73,
+                      thumbnail: { width: 300, height: 168, src: 'http://img.com' } }
+                ]
+            });
+            expect(mockLog.warn).toHaveBeenCalled();
+        });
 
         it('should filter out invalid items received from google', function() {
             stats.count = 6;
