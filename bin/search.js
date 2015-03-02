@@ -128,7 +128,7 @@
                 description : item.pagemap.videoobject[0].description || item.snippet,
                 thumbnail   : item.pagemap.cse_thumbnail && item.pagemap.cse_thumbnail[0] ||
                               { src: item.pagemap.videoobject[0].thumbnailurl },
-                site        : (item.displayLink || '').replace('www.', '').replace('.com', ''),
+                site        : (item.displayLink || '').replace(/(www|m)\./, '').replace('.com', ''),
                 hd          : item.pagemap.videoobject[0].height >= 720,
                 duration    : search.parseDuration(item.pagemap.videoobject[0].duration, item.link)
             };
@@ -159,6 +159,8 @@
                 case 'rumble':
                     formatted.videoid = (item.link.match(/[^\/]+(?=(\.html))/) || [])[0];
                     break;
+                case 'default':
+                    log.warn('Unexpected site %1, cannot set videoid', formatted.site);
             }
 
             return formatted;

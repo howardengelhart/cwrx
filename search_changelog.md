@@ -1,5 +1,9 @@
 # Search Service Changelog
 
+### 1.3.3: Mon Mar  2 12:21:15 EST 2015
+* [FIX]: Handle `m.youtube.com` links: [#387](https://github.com/cinema6/cwrx/pull/387)
+* Extra deployment steps: None
+
 ### 1.3.2: Fri Jan 30 11:41:29 EST 2015
 * [FIX]: Support all of vimeo's duration formats: [#361](https://github.com/cinema6/cwrx/pull/361)
 * Extra deployment steps: None

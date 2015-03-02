@@ -92,6 +92,9 @@ describe('search (UT)', function() {
             var items = [
                 { title: 'YT Test', link: 'http://www.youtube.com/watch?v=GdEKSyad_rk', displayLink: 'www.youtube.com',
                   pagemap: { videoobject: [{description: 'YT desc', duration: 'PT1M13S', height: 1080}],
+                             cse_thumbnail: [{width: 300, height: 168, src: 'http://img.com'}] } },
+                { title: 'YT Test', link: 'http://m.youtube.com/watch?v=GdEKSyad_rk', displayLink: 'm.youtube.com',
+                  pagemap: { videoobject: [{description: 'YT desc', duration: 'PT1M13S', height: 1080}],
                              cse_thumbnail: [{width: 300, height: 168, src: 'http://img.com'}] } }
             ];
 
@@ -99,6 +102,9 @@ describe('search (UT)', function() {
                 meta: {skipped: 10, numResults: 20, totalResults: 50},
                 items: [
                     { title: 'YT Test', link: 'http://www.youtube.com/watch?v=GdEKSyad_rk', siteLink: 'www.youtube.com',
+                      description: 'YT desc', site: 'youtube', hd: true, duration: 73, videoid: 'GdEKSyad_rk',
+                      thumbnail: { width: 300, height: 168, src: 'http://img.com' } },
+                    { title: 'YT Test', link: 'http://m.youtube.com/watch?v=GdEKSyad_rk', siteLink: 'm.youtube.com',
                       description: 'YT desc', site: 'youtube', hd: true, duration: 73, videoid: 'GdEKSyad_rk',
                       thumbnail: { width: 300, height: 168, src: 'http://img.com' } }
                 ]

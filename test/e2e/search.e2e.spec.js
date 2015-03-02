@@ -62,9 +62,9 @@ describe('search (E2E):', function() {
                 resp.body.items.forEach(function(item) {
                     expect(item.title).toBeDefined();
                     expect(item.description).toBeDefined();
-                    expect(!!item.site.match(/^((youtube)|(vimeo)|(dailymotion))$/)).toBe(true);
-                    expect(!!item.siteLink.match(item.site)).toBe(true);
-                    expect(!!item.link.match(item.site)).toBe(true);
+                    expect(item.site).toMatch(/^((youtube)|(vimeo)|(dailymotion))$/);
+                    expect(item.siteLink).toMatch(item.site);
+                    expect(item.link).toMatch(item.site);
                     expect(item.hd).toBeDefined();
                     expect(item.videoid).toBeDefined();
                     expect(item.duration).toBeDefined();
@@ -144,9 +144,9 @@ describe('search (E2E):', function() {
                 expect(resp.body.meta.totalResults >= 10).toBeTruthy();
                 expect(resp.body.items.length).toBe(10);
                 resp.body.items.forEach(function(item) {
-                    expect(!!item.site.match(/^((vimeo)|(dailymotion))$/)).toBe(true);
-                    expect(!!item.siteLink.match(item.site)).toBe(true);
-                    expect(!!item.link.match(item.site)).toBe(true);
+                    expect(item.site).toMatch(/^((vimeo)|(dailymotion))$/);
+                    expect(item.siteLink).toMatch(item.site);
+                    expect(item.link).toMatch(item.site);
                     expect(item.description).toBeDefined();
                 });
             }).catch(function(error) {
@@ -166,7 +166,7 @@ describe('search (E2E):', function() {
                 resp.body.items.forEach(function(item) {
                     expect(item.site).toBe('yahoo');
                     expect(item.siteLink).toBe('screen.yahoo.com');
-                    expect(!!item.link.match('screen.yahoo.com')).toBe(true);
+                    expect(item.link).toMatch('screen.yahoo.com');
                     expect(item.description).toBeDefined();
                     expect(item.duration).toBeDefined();
                 });
@@ -187,7 +187,7 @@ describe('search (E2E):', function() {
                 resp.body.items.forEach(function(item) {
                     expect(item.site).toBe('aol');
                     expect(item.siteLink).toBe('on.aol.com');
-                    expect(!!item.link.match('on.aol.com')).toBe(true);
+                    expect(item.link).toMatch('on.aol.com');
                     expect(item.duration).not.toBeDefined();
                     expect(item.description).toBeDefined();
                 });
@@ -208,7 +208,7 @@ describe('search (E2E):', function() {
             resp.body.items.forEach(function(item) {
                expect(item.site).toBe('rumble');
                expect(item.siteLink).toBe('rumble.com');
-               expect(!!item.link.match('rumble.com')).toBe(true);
+               expect(item.link).toMatch('rumble.com');
                expect(item.duration).toBeDefined();
                expect(item.description).toBeDefined();
                expect(item.videoid).toBeDefined();
