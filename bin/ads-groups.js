@@ -33,11 +33,13 @@
         svc.editValidator._formats.categories = ['string'];
 
         svc.use('read', svc.preventGetAll.bind(svc));
+        svc.use('create', groupModule.validateDates);
         svc.use('create', groupModule.ensureDistinctList);
         svc.use('create', svc.validateUniqueProp.bind(svc, 'name', null));
         svc.use('create', groupModule.getAccountIds.bind(groupModule, svc));
         svc.use('create', groupModule.createAdtechGroup);
         svc.use('create', groupModule.createBanners);
+        svc.use('edit', groupModule.validateDates);
         svc.use('edit', groupModule.ensureDistinctList);
         svc.use('edit', svc.validateUniqueProp.bind(svc, 'name', null));
         svc.use('edit', groupModule.getAccountIds.bind(groupModule, svc));
@@ -49,6 +51,15 @@
         svc.formatOutput = groupModule.formatOutput.bind(groupModule, svc);
         
         return svc;
+    };
+    
+    //TODO: comment, test
+    groupModule.validateDates = function(req, next, done) {
+        if (!campaignUtils.validateDates(req.body, groupModule.campsCfg.dateDelays, req.uuid)) {
+            return q(done({code: 400, body: 'group has invalid dates'}));
+        } else {
+            return q(next());
+        }
     };
     
     // Ensure the miniReels list in the request has all distinct entires
@@ -83,10 +94,19 @@
 
     // Setup the group's campaign, calling makeKeywordLevels and createCampaign
     groupModule.createAdtechGroup = function(req, next/*, done*/) {
+        
         return campaignUtils.makeKeywordLevels({ level3: req.body.categories })
-        .then(function(keys) {
-            return campaignUtils.createCampaign(req.body.id, req.body.name, false, keys,
-                                                req._advertiserId, req._customerId);
+        .then(function(keywords) {
+            return campaignUtils.createCampaign(req.uuid, {
+                id              : req.body.id,
+                name            : req.body.name,
+                startDate       : req.body.startDate,
+                endDate         : req.body.endDate,
+                isSponsored     : false,
+                keywords        : keywords,
+                advertiserId    : req._advertiserId,
+                customerId      : req._customerId
+            });
         })
         .then(function(resp) {
             req.body.adtechId = parseInt(resp.id);
@@ -127,15 +147,24 @@
             cats = req.body.categories,
             origCats = req.origObj.categories || [];
             
-        if ((!req.body.name || req.body.name === req.origObj.name) &&
-            (!cats || objUtils.compareObjects(cats.slice().sort(), origCats.slice().sort()))) {
+        if ((!cats || objUtils.compareObjects(cats.slice().sort(), origCats.slice().sort())) &&
+            ['name', 'startDate', 'endDate'].every(function(field) {
+                return !req.body[field] || req.body[field] === req.origObj[field];
+            })
+        ) {
             log.info('[%1] Adtech props unchanged, not updating adtech group campaign', req.uuid);
             return q(next());
         }
         
         return (cats ? campaignUtils.makeKeywordLevels({ level3: cats }) : q())
         .then(function(keys) {
-            return campaignUtils.editCampaign(req.origObj.adtechId, req.body.name, keys);
+            return campaignUtils.editCampaign(
+                req.origObj.adtechId,
+                req.body.name,
+                req.body.startDate,
+                req.body.endDate,
+                keys
+            );
         })
         .then(function() {
             next();

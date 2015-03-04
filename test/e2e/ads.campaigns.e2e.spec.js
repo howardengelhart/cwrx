@@ -321,8 +321,8 @@ describe('ads campaigns endpoints (E2E):', function() {
                 categories: ['food', 'sports'],
                 advertiserId: keptAdvert.id,
                 customerId: keptCust.id,
-                miniReels: ['e-1', 'e-2'],
-                cards: ['rc-1', 'rc-2'],
+                miniReels: [{id: 'e-1'}, {id: 'e-2'}],
+                cards: [{id: 'rc-1'}, {id: 'rc-2'}],
                 miniReelGroups: [{cards: ['rc-1'], miniReels: ['e-1', 'e-2']}]
             };
             options = {
@@ -339,8 +339,8 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body.id).toBeDefined();
                 expect(resp.body.name).toBe(mockCamp.name);
                 expect(resp.body.categories).toEqual(['food', 'sports']);
-                expect(resp.body.miniReels).toEqual(['e-1', 'e-2']);
-                expect(resp.body.cards).toEqual(['rc-1', 'rc-2']);
+                expect(resp.body.miniReels).toEqual([{id: 'e-1'}, {id: 'e-2'}]);
+                expect(resp.body.cards).toEqual([{id: 'rc-1'}, {id: 'rc-2'}]);
                 expect(resp.body.miniReelGroups).toEqual([{adtechId: jasmine.any(Number),
                                                            cards: ['rc-1'], miniReels: ['e-1', 'e-2']}]);
                 expect(new Date(resp.body.created).toString()).not.toEqual('Invalid Date');
@@ -354,13 +354,13 @@ describe('ads campaigns endpoints (E2E):', function() {
         
         describe('created campaign', function() {
             it('should have a sponsored campaign for each entry in cards', function(done) {
-                q.all(createdCamp.cards.map(function(cardId) {
-                    return adtech.campaignAdmin.getCampaignByExtId(cardId).catch(adtechErr).then(function(camp) {
+                q.all(createdCamp.cards.map(function(card) {
+                    return adtech.campaignAdmin.getCampaignByExtId(card.id).catch(adtechErr).then(function(camp) {
                         // these keyword ids for the category names should never change, so we can hardcode
-                        checkCardCampaign(camp, createdCamp, cardId, ['1002744', '1003562']);
+                        checkCardCampaign(camp, createdCamp, card.id, ['1002744', '1003562']);
                         return testUtils.getCampaignBanners(camp.id);
                     }).then(function(banners) {
-                        testUtils.compareBanners(banners, [cardId], 'card');
+                        testUtils.compareBanners(banners, [card.id], 'card');
                     });
                 })).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
@@ -368,12 +368,12 @@ describe('ads campaigns endpoints (E2E):', function() {
             });
             
             it('should have a sponsored campaign for each entry in miniReels', function(done) {
-                q.all(createdCamp.miniReels.map(function(mrId) {
-                    return adtech.campaignAdmin.getCampaignByExtId(mrId).catch(adtechErr).then(function(camp) {
-                        checkMinireelCampaign(camp, createdCamp, mrId, ['1002744', '1003562']);
+                q.all(createdCamp.miniReels.map(function(exp) {
+                    return adtech.campaignAdmin.getCampaignByExtId(exp.id).catch(adtechErr).then(function(camp) {
+                        checkMinireelCampaign(camp, createdCamp, exp.id, ['1002744', '1003562']);
                         return testUtils.getCampaignBanners(camp.id);
                     }).then(function(banners) {
-                        testUtils.compareBanners(banners, [mrId], 'miniReel');
+                        testUtils.compareBanners(banners, [exp.id], 'miniReel');
                     });
                 })).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
@@ -455,9 +455,9 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
 
         it('should throw a 400 if any of the lists are not distinct', function(done) {
-            q.all([ { cards: ['rc-1', 'rc-1'] }, { miniReels: ['e-1', 'e-1'] }, 
-                    { miniReelGroups: [{ cards: ['rc-1', 'rc-1'] }] },
-                    { miniReelGroups: [{ miniReels: ['e-1', 'e-1'] }] } ].map(function(obj) {
+            q.all([ { cards: [{id: 'rc-1'}, {id: 'rc-1'}] }, { miniReels: [{id: 'e-1'}, {id: 'e-1'}] }, 
+                    { miniReelGroups: [{ cards: [{id: 'rc-1'}, {id: 'rc-1'}] }] },
+                    { miniReelGroups: [{ miniReels: [{id: 'e-1'}, {id: 'e-1'}] }] } ].map(function(obj) {
                 obj.advertiserId = keptAdvert.id;
                 obj.customerId = keptCust.id;
                 options.json = obj;
@@ -549,7 +549,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         it('should be able to add+remove sponsored cards', function(done) {
             options = {
                 url: config.adsUrl + '/campaign/' + createdCamp.id,
-                json: { cards: ['rc-1', 'rc-3'] },
+                json: { cards: [{id: 'rc-1'}, {id: 'rc-3'}] },
                 jar: cookieJar
             };
 
@@ -557,7 +557,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.name).toBe(createdCamp.name);
-                expect(resp.body.cards).toEqual(['rc-1', 'rc-3']);
+                expect(resp.body.cards).toEqual([{id: 'rc-1'}, {id: 'rc-3'}]);
                 expect(resp.body.created).toBe(createdCamp.created);
                 expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(createdCamp.lastUpdated));
                 createdCamp = resp.body;
@@ -595,7 +595,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         it('should be able to add+remove sponsored minireels', function(done) {
             options = {
                 url: config.adsUrl + '/campaign/' + createdCamp.id,
-                json: { miniReels: ['e-1', 'e-3'] },
+                json: { miniReels: [{id: 'e-1'}, {id: 'e-3'}] },
                 jar: cookieJar
             };
 
@@ -603,7 +603,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.name).toBe(createdCamp.name);
-                expect(resp.body.miniReels).toEqual(['e-1', 'e-3']);
+                expect(resp.body.miniReels).toEqual([{id: 'e-1'}, {id: 'e-3'}]);
                 expect(resp.body.created).toBe(createdCamp.created);
                 expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(createdCamp.lastUpdated));
                 createdCamp = resp.body;
@@ -814,9 +814,9 @@ describe('ads campaigns endpoints (E2E):', function() {
         it('should throw a 400 if any of the lists are not distinct', function(done) {
             options = { url: config.adsUrl + '/campaign/e2e-put1', jar: cookieJar };
 
-            q.all([ { cards: ['rc-1', 'rc-1'] }, { miniReels: ['e-1', 'e-1'] },
-                    { miniReelGroups: [{ cards: ['rc-1', 'rc-1'] }] },
-                    { miniReelGroups: [{ miniReels: ['e-1', 'e-1'] }] } ].map(function(obj) {
+            q.all([ { cards: [{id: 'rc-1'}, {id: 'rc-1'}] }, { miniReels: [{id: 'e-1'}, {id: 'e-1'}] },
+                    { miniReelGroups: [{ cards: [{id: 'rc-1'}, {id: 'rc-1'}] }] },
+                    { miniReelGroups: [{ miniReels: [{id: 'e-1'}, {id: 'e-1'}] }] } ].map(function(obj) {
                 options.json = obj;
                 return requestUtils.qRequest('put', options);
             })).then(function(results) {
