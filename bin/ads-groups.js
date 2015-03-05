@@ -97,7 +97,7 @@
         
         return campaignUtils.makeKeywordLevels({ level3: req.body.categories })
         .then(function(keywords) {
-            return campaignUtils.createCampaign(req.uuid, {
+            return campaignUtils.createCampaign({
                 id              : req.body.id,
                 name            : req.body.name,
                 startDate       : req.body.startDate,
@@ -106,7 +106,7 @@
                 keywords        : keywords,
                 advertiserId    : req._advertiserId,
                 customerId      : req._customerId
-            });
+            }, req.uuid);
         })
         .then(function(resp) {
             req.body.adtechId = parseInt(resp.id);

@@ -50,6 +50,46 @@ describe('campaignUtils', function() {
         });
     });
     
+    describe('validateDates', function() {
+        var delays, obj;
+        beforeEach(function() {
+            delays = { start: 1000, end: 2000 };
+            obj = {};
+        });
+        
+        it('should default both the startDate and endDate if undefined', function() {
+            expect(campaignUtils.validateDates(obj, delays)).toBe(true);
+            expect(mockLog.info).not.toHaveBeenCalled();
+            expect(obj).toEqual({startDate: jasmine.any(String), endDate: jasmine.any(String)});
+            expect(new Date(obj.endDate) - new Date(obj.startDate)).toBe(1000);
+        });
+
+        it('should return false if the startDate is not a valid date string', function() {
+            obj.startDate = new Date().toISOString() + 'foo';
+            expect(campaignUtils.validateDates(obj, delays)).toBe(false);
+            expect(mockLog.info).toHaveBeenCalled();
+        });
+
+        it('should return false if the endDate is not a valid date string', function() {
+            obj.endDate = {foo: 'bar'};
+            expect(campaignUtils.validateDates(obj, delays)).toBe(false);
+            expect(mockLog.info).toHaveBeenCalled();
+        });
+
+        it('should return false if the startDate is greater than the endDate', function() {
+            obj = { startDate: new Date().toISOString(), endDate: new Date(new Date() - 1000).toISOString() };
+            expect(campaignUtils.validateDates(obj, delays)).toBe(false);
+            expect(mockLog.info).toHaveBeenCalled();
+        });
+
+        it('should handle an undefined delays object', function() {
+            expect(campaignUtils.validateDates(obj)).toBe(true);
+            expect(mockLog.info).not.toHaveBeenCalled();
+            expect(obj).toEqual({startDate: jasmine.any(String), endDate: jasmine.any(String)});
+            expect(new Date(obj.endDate)).toBeGreaterThan(new Date(obj.startDate));
+        });
+    });
+    
     describe('objectify', function() {
         it('should transform all of a list\'s items into objects', function() {
             expect(campaignUtils.objectify(['e1', 'e2', 'bananas'])).toEqual([{id: 'e1'}, {id: 'e2'}, {id: 'bananas'}]);
@@ -255,8 +295,8 @@ describe('campaignUtils', function() {
         var campaign, now, keywords, features;
         beforeEach(function() {
            now = new Date();
-           campaign = {id: 'cam-1', name: 'camp1', created: now, advertiserId: '123', customerId: '456'};
-           keywords = { level1: [12, 23], level3: [34] };
+           campaign = { id: 'cam-1', name: 'camp1', advertiserId: '123', customerId: '456',
+                        startDate: now.toISOString(), endDate: new Date(now.valueOf() + 1000).toISOString() };
            features = {targeting:true,placements:true,frequency:true,schedule:true,
                        ngkeyword:true,keywordLevel:true,volume:true};
         });
@@ -269,7 +309,7 @@ describe('campaignUtils', function() {
             expect(fmt.campaignTypeId).toBe(26954);
             expect(fmt.customerId).toBe(456);
             expect(fmt.dateRangeList).toEqual([{deliveryGoal: {desiredImpressions: 1000000000},
-                endDate: jasmine.any(String), startDate: jasmine.any(String)}]);
+                endDate: campaign.endDate, startDate: campaign.startDate}]);
             expect(fmt.extId).toBe('cam-1');
             expect(fmt.frequencyConfig).toEqual({type: -1});
             expect(fmt.id).not.toBeDefined();
@@ -284,13 +324,15 @@ describe('campaignUtils', function() {
         });
         
         it('should be able to set keywords', function() {
-            var fmt = campaignUtils.formatCampaign(campaign, keywords);
+            campaign.keywords = { level1: [12, 23], level3: [34] };
+            var fmt = campaignUtils.formatCampaign(campaign);
             expect(fmt.priorityLevelOneKeywordIdList).toEqual([12, 23]);
             expect(fmt.priorityLevelThreeKeywordIdList).toEqual([34]);
         });
         
         it('should set a higher priority if the campaign is sponsored', function() {
-            var fmt = campaignUtils.formatCampaign(campaign, null, true);
+            campaign.isSponsored = true;
+            var fmt = campaignUtils.formatCampaign(campaign);
             expect(fmt.priority).toBe(2);
         });
         
@@ -302,16 +344,17 @@ describe('campaignUtils', function() {
     });
     
     describe('createCampaign', function() {
+        var campaign;
         beforeEach(function() {
+            campaign = { id: 'e-1', name: 'test camp' };
             spyOn(campaignUtils, 'formatCampaign').andReturn({formatted: 'yes'});
-            adtech.campaignAdmin.createCampaign.andReturn(q({id: 123, campaign: 'yes'}));
+            adtech.campaignAdmin.createCampaign.andReturn(q({id: 123, properties: 'yes'}));
         });
         
         it('should format and create a campaign', function(done) {
-            campaignUtils.createCampaign('cam-1', 'camp 1', true, {keys: 'yes'}, 45, 56).then(function(resp) {
-                expect(resp).toEqual({id: 123, campaign: 'yes'});
-                expect(campaignUtils.formatCampaign).toHaveBeenCalledWith({id: 'cam-1', name: 'camp 1',
-                    advertiserId: 45, customerId: 56, created: jasmine.any(Date)}, {keys: 'yes'}, true);
+            campaignUtils.createCampaign(campaign).then(function(resp) {
+                expect(resp).toEqual({id: 123, properties: 'yes'});
+                expect(campaignUtils.formatCampaign).toHaveBeenCalledWith({id: 'e-1', name: 'test camp'});
                 expect(adtech.campaignAdmin.createCampaign).toHaveBeenCalledWith({formatted: 'yes'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -320,7 +363,7 @@ describe('campaignUtils', function() {
         
         it('should reject if creating the campaign fails', function(done) {
             adtech.campaignAdmin.createCampaign.andReturn(q.reject('ADTECH IS THE WORST'));
-            campaignUtils.createCampaign('cam-1', 'camp 1', true, {keys: 'yes'}, 45, 56).then(function(resp) {
+            campaignUtils.createCampaign(campaign).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toEqual(new Error('ADTECH IS THE WORST'));
@@ -330,29 +373,42 @@ describe('campaignUtils', function() {
     });
     
     describe('editCampaign', function() {
-        var name, keys;
+        var name, keys, now, startDate, endDate;
         beforeEach(function() {
+            now = new Date();
             name = 'new';
             keys = { level1: [31, 32, 33], level3: [41] };
-            adtech.campaignAdmin.getCampaignById.andReturn(q({id: 123, foo: null, name: 'old',
-                priorityLevelOneKeywordIdList: [11, 12], priorityLevelThreeKeywordIdList: [21, 22]}));
+            startDate = now.toISOString();
+            endDate = new Date(now + 1000).toISOString();
+            adtech.campaignAdmin.getCampaignById.andReturn(q({
+                id: 123, foo: null, name: 'old',
+                dateRangeList: [{endDate: 'oldEndDate', startDate: 'newEndDate'}],
+                priorityLevelOneKeywordIdList: [11, 12], priorityLevelThreeKeywordIdList: [21, 22]
+            }));
             adtech.campaignAdmin.updateCampaign.andReturn(q());
         });
         
-        it('should be capable of editing the name and keywords', function(done) {
-            campaignUtils.editCampaign(123, name, keys).then(function() {
+        it('should be capable of editing name, dates, and keywords', function(done) {
+            campaignUtils.editCampaign(123, name, startDate, endDate, keys).then(function() {
                 expect(adtech.campaignAdmin.getCampaignById).toHaveBeenCalledWith(123);
-                expect(adtech.campaignAdmin.updateCampaign).toHaveBeenCalledWith({id: 123, name: 'new',
-                    priorityLevelOneKeywordIdList: [31, 32, 33], priorityLevelThreeKeywordIdList: [41]});
+                expect(adtech.campaignAdmin.updateCampaign).toHaveBeenCalledWith({
+                    id: 123, name: 'new',
+                    dateRangeList: [{endDate: endDate, startDate: startDate}],
+                    priorityLevelOneKeywordIdList: [31, 32, 33], priorityLevelThreeKeywordIdList: [41]
+                });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
         
-        it('should not change the name if no new name is provided', function(done) {
-            campaignUtils.editCampaign(123, undefined, keys).then(function() {
-                expect(adtech.campaignAdmin.updateCampaign).toHaveBeenCalledWith({id: 123, name: 'old',
-                    priorityLevelOneKeywordIdList: [31, 32, 33], priorityLevelThreeKeywordIdList: [41]});
+        it('should not change any properties whose new values are undefined', function(done) {
+            campaignUtils.editCampaign(123).then(function() {
+                expect(adtech.campaignAdmin.getCampaignById).toHaveBeenCalledWith(123);
+                expect(adtech.campaignAdmin.updateCampaign).toHaveBeenCalledWith({
+                    id: 123, name: 'old',
+                    dateRangeList: [{endDate: 'oldEndDate', startDate: 'newEndDate'}],
+                    priorityLevelOneKeywordIdList: [11, 12], priorityLevelThreeKeywordIdList: [21, 22]
+                });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -360,18 +416,12 @@ describe('campaignUtils', function() {
         
         it('should not update a keyword list if a new list of that level is not provided', function(done) {
             delete keys.level1;
-            campaignUtils.editCampaign(123, 'new', keys).then(function() {
-                expect(adtech.campaignAdmin.updateCampaign).toHaveBeenCalledWith({id: 123, name: 'new',
-                    priorityLevelOneKeywordIdList: [11, 12], priorityLevelThreeKeywordIdList: [41]});
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should not update the keywords if new keys are not provided at all', function(done) {
-            campaignUtils.editCampaign(123, 'new', undefined).then(function() {
-                expect(adtech.campaignAdmin.updateCampaign).toHaveBeenCalledWith({id: 123, name: 'new',
-                    priorityLevelOneKeywordIdList: [11, 12], priorityLevelThreeKeywordIdList: [21, 22]});
+            campaignUtils.editCampaign(123, name, startDate, endDate, keys).then(function() {
+                expect(adtech.campaignAdmin.updateCampaign).toHaveBeenCalledWith({
+                    id: 123, name: 'new',
+                    dateRangeList: [{endDate: endDate, startDate: startDate}],
+                    priorityLevelOneKeywordIdList: [11, 12], priorityLevelThreeKeywordIdList: [41]
+                });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -379,7 +429,7 @@ describe('campaignUtils', function() {
         
         it('should reject if retrieving the campaign failed', function(done) {
             adtech.campaignAdmin.getCampaignById.andReturn(q.reject('ADTECH IS THE WORST'));
-            campaignUtils.editCampaign(123, 'new', keys).then(function() {
+            campaignUtils.editCampaign(123, name, startDate, endDate, keys).then(function() {
                 expect('resolved').not.toBe('resolved');
             }).catch(function(error) {
                 expect(error).toEqual(new Error('ADTECH IS THE WORST'));
@@ -390,7 +440,7 @@ describe('campaignUtils', function() {
         
         it('should reject if updating the campaign failed', function(done) {
             adtech.campaignAdmin.updateCampaign.andReturn(q.reject('ADTECH IS THE WORST'));
-            campaignUtils.editCampaign(123, 'new', keys).then(function() {
+            campaignUtils.editCampaign(123, name, startDate, endDate, keys).then(function() {
                 expect('resolved').not.toBe('resolved');
             }).catch(function(error) {
                 expect(error).toEqual(new Error('ADTECH IS THE WORST'));

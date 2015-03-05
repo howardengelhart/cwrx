@@ -26,11 +26,10 @@
         svc.createValidator._required.push('advertiserId', 'customerId');
         svc.editValidator._forbidden.push('advertiserId', 'customerId');
 
-        //TODO: should we use validator to check format of start/endDate? Will require big changes
-        svc.createValidator._formats.cards = ['object'];
-        svc.editValidator._formats.cards = ['object'];
-        svc.createValidator._formats.miniReels = ['object'];
-        svc.editValidator._formats.miniReels = ['object'];
+        svc.createValidator._formats.cards = ['string'];
+        svc.editValidator._formats.cards = ['string'];
+        svc.createValidator._formats.miniReels = ['string'];
+        svc.editValidator._formats.miniReels = ['string'];
         svc.createValidator._formats.miniReelGroups = ['object'];
         svc.editValidator._formats.miniReelGroups = ['object'];
         svc.createValidator._formats.categories = ['string'];
@@ -40,14 +39,14 @@
         svc.use('create', campaignUtils.getAccountIds.bind(campaignUtils, svc._advertColl,
                                                            svc._custColl));
         svc.use('create', campModule.validateDates);
-        svc.use('create', campModule.ensureDistinctLists);
+        svc.use('create', campModule.ensureUniqueIds);
         svc.use('create', campModule.ensureUniqueNames);
         svc.use('create', campModule.createSponsoredCamps);
         svc.use('create', campModule.createTargetCamps);
         svc.use('edit', campaignUtils.getAccountIds.bind(campaignUtils, svc._advertColl,
                                                          svc._custColl));
         svc.use('edit', campModule.validateDates);
-        svc.use('edit', campModule.ensureDistinctLists);
+        svc.use('edit', campModule.ensureUniqueIds);
         svc.use('edit', campModule.ensureUniqueNames);
         svc.use('edit', campModule.extendListObjects);
         svc.use('edit', campModule.cleanSponsoredCamps);
@@ -64,9 +63,9 @@
         return svc;
     };
     
-    //TODO: comment, test
+    // Calls campaignUtils.validateDates for every object in cards, miniReels, and miniReelGroups
     campModule.validateDates = function(req, next, done) {
-        var keys = ['miniReels', 'cards', 'miniReelGroups'];
+        var keys = ['cards', 'miniReels', 'miniReelGroups'];
             
         for (var i = 0; i < keys.length; i++) {
             if (!req.body[keys[i]]) {
@@ -84,7 +83,7 @@
     };
 
     // Ensures that cards and miniReels lists have unique ids for camp + each miniReelGroup
-    campModule.ensureDistinctLists = function(req, next, done) {
+    campModule.ensureUniqueIds = function(req, next, done) {
         var log = logger.getLog(),
             groups = req.body.miniReelGroups || [],
             keys = ['miniReels', 'cards'];
@@ -109,7 +108,7 @@
         return q(next());
     };
 
-    //TODO: comment, test
+    // Ensures that names are unique across all miniReels, cards, and miniReelGroups in campaign
     campModule.ensureUniqueNames = function(req, next, done) {
         var log = logger.getLog(),
             names = [],
@@ -127,8 +126,8 @@
                 }
                 
                 if (names.indexOf(obj.name) !== -1) {
-                    var msg = keys[i] + '[' + j + ']' + ' has a non-unique name: ' + obj.name;
-                    log.info('[%1] %2', req.uuid, msg);
+                    var msg = keys[i] + '[' + j + ']' + ' has a non-unique name';
+                    log.info('[%1] %2: %3', req.uuid, msg, obj.name);
                     return q(done({code: 400, body: msg}));
                 } else {
                     names.push(obj.name);
@@ -138,7 +137,7 @@
         return q(next());
     };
     
-    //TODO: comment, test
+    // Copy props from origObj for each sub-campaign object that still exists in req.body
     campModule.extendListObjects = function(req, next/*, done*/) {
         ['miniReels', 'cards', 'miniReelGroups'].forEach(function(key) {
             if (!req.body[key] || !req.origObj[key]) {
@@ -147,7 +146,8 @@
             
             req.body[key].forEach(function(newObj) {
                 var existing = req.origObj[key].filter(function(oldObj) {
-                    return oldObj.id === newObj.id;
+                    return (key === 'miniReelGroups' && oldObj.adtechId === newObj.adtechId) ||
+                            oldObj.id === newObj.id;
                 })[0];
                     
                 objUtils.extend(newObj, existing);
@@ -158,8 +158,6 @@
     
     // Extends CrudSvc.prototype.formatOutput, processing cards, miniReels, and miniReelGroups
     campModule.formatOutput = function(svc, obj) {
-        //TODO: trim any properties out of cards + miniReels objects?
-        
         (obj.miniReelGroups || []).forEach(function(group) {
             if (!(group.miniReels instanceof Array)) {
                 return;
@@ -334,7 +332,7 @@
                     
                     obj.name = obj.name || type + '_' + obj.id;
                     
-                    return campaignUtils.createCampaign(req.uuid, {
+                    return campaignUtils.createCampaign({
                         id              : obj.id,
                         name            : obj.name + ' (' + id + ')',
                         startDate       : obj.startDate,
@@ -343,7 +341,7 @@
                         keywords        : keywords,
                         advertiserId    : req._advertiserId,
                         customerId      : req._customerId
-                    })
+                    }, req.uuid)
                     .then(function(resp) {
                         obj.adtechId = parseInt(resp.id);
                         return bannerUtils.createBanners([obj], null, type, obj.adtechId);
@@ -489,7 +487,7 @@
             .then(function(keywords) {
                 obj.name = obj.name || 'group_' + uuid.createUuid().substr(0, 8);
 
-                return campaignUtils.createCampaign(req.uuid, {
+                return campaignUtils.createCampaign({
                     id              : id,
                     name            : obj.name + ' (' + id + ')',
                     startDate       : obj.startDate,
@@ -498,7 +496,7 @@
                     keywords        : keywords,
                     advertiserId    : req._advertiserId,
                     customerId      : req._customerId
-                });
+                }, req.uuid);
             })
             .then(function(resp) {
                 obj.adtechId = parseInt(resp.id);
