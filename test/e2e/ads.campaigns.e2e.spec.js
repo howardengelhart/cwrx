@@ -14,6 +14,8 @@ var q               = require('q'),
     
 jasmine.getEnv().defaultTimeoutInterval = 90000;
 
+//TODO: replace 'rc-1' etc. with 'e2e-' prefixed ids to prevent conflicts
+
 describe('ads campaigns endpoints (E2E):', function() {
     var cookieJar, mockUser, createdCamp, keptAdvert, keptCust;
 

@@ -53,7 +53,7 @@
         return svc;
     };
     
-    //TODO: comment, test
+    // Calls campaignUtils.validateDates to validate/default start + end date
     groupModule.validateDates = function(req, next, done) {
         if (!campaignUtils.validateDates(req.body, groupModule.campsCfg.dateDelays, req.uuid)) {
             return q(done({code: 400, body: 'group has invalid dates'}));
@@ -145,19 +145,23 @@
     groupModule.editAdtechGroup = function(req, next/*, done*/) {
         var log = logger.getLog(),
             cats = req.body.categories,
-            origCats = req.origObj.categories || [];
+            origCats = req.origObj.categories || [],
+            promise;
             
-        if ((!cats || objUtils.compareObjects(cats.slice().sort(), origCats.slice().sort())) &&
-            ['name', 'startDate', 'endDate'].every(function(field) {
-                return !req.body[field] || req.body[field] === req.origObj[field];
-            })
-        ) {
-            log.info('[%1] Adtech props unchanged, not updating adtech group campaign', req.uuid);
-            return q(next());
+        if (!cats || objUtils.compareObjects(cats.slice().sort(), origCats.slice().sort())) {
+            promise = q();
+        } else {
+            promise = campaignUtils.makeKeywordLevels({ level3: cats });
         }
         
-        return (cats ? campaignUtils.makeKeywordLevels({ level3: cats }) : q())
-        .then(function(keys) {
+        return promise.then(function(keys) {
+            if (!keys && ['name', 'startDate', 'endDate'].every(function(field) {
+                return !req.body[field] || req.body[field] === req.origObj[field];
+            })) {
+                log.info('[%1] Adtech props unchanged, not updating adtech campaign', req.uuid);
+                return q();
+            }
+            
             return campaignUtils.editCampaign(
                 req.origObj.adtechId,
                 req.body.name,

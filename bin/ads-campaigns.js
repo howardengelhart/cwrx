@@ -244,7 +244,7 @@
         });
     };
 
-    // Middleware to edit sponsored campaigns. TODO: update comment
+    // Middleware to edit sponsored campaigns. Can edit keywords, name, startDate, & endDate
     campModule.editSponsoredCamps = function(req, next/*, done*/) {
         var log = logger.getLog(),
             cats = req.body.categories,
@@ -401,7 +401,7 @@
         });
     };
     
-    // Middleware to edit target group campaigns //TODO: update comment
+    // Middleware to edit target group campaigns. Can edit keywords, name, startDate, & endDate
     campModule.editTargetCamps = function(req, next/*, done*/) {
         var log = logger.getLog(),
             id = req.params.id,
@@ -418,20 +418,26 @@
                 return oldGroup.adtechId === group.adtechId;
             })[0];
             
-            if (!orig) {
+            if (!orig) { // only edit already existing groups
                 return q();
             }
             
-            // only edit the campaign if the cards list or name has changed
-            if (objUtils.compareObjects(group.cards.slice().sort(), orig.cards.slice().sort()) &&
-                group.name === orig.name) {
+            if (objUtils.compareObjects(group.cards.slice().sort(), orig.cards.slice().sort())) {
                 promise = q();
             } else {
-                log.info('[%1] Campaign %2 for "%3" changed, updating',
-                         req.uuid, group.adtechId, group.name);
+                promise = campaignUtils.makeKeywordLevels({level1: group.cards});
+            }
+            
+            return promise.then(function(keys) {
+                // Only edit group campaign if some fields have changed
+                if (!keys && ['name', 'startDate', 'endDate'].every(function(field) {
+                    return group[field] === orig[field];
+                })) {
+                    return q();
+                } else {
+                    log.info('[%1] Campaign %2 for "%3" changed, updating',
+                             req.uuid, group.adtechId, group.name);
 
-                promise = campaignUtils.makeKeywordLevels({level1: group.cards})
-                .then(function(keys) {
                     return campaignUtils.editCampaign(
                         group.adtechId,
                         group.name + ' (' + id + ')',
@@ -439,10 +445,9 @@
                         group.endDate,
                         keys
                     );
-                });
-            }
-            
-            return promise.then(function() {
+                }
+            })
+            .then(function() {
                 return bannerUtils.cleanBanners(group.miniReels, orig.miniReels, group.adtechId);
             })
             .then(function() {

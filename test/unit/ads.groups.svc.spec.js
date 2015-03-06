@@ -32,7 +32,7 @@ describe('ads-groups (UT)', function() {
         errorSpy = jasmine.createSpy('caught error');
     });
     
-    ddescribe('setupSvc', function() {
+    describe('setupSvc', function() {
         it('should setup the group service', function() {
             spyOn(CrudSvc.prototype.preventGetAll, 'bind').andReturn(CrudSvc.prototype.preventGetAll);
             spyOn(CrudSvc.prototype.validateUniqueProp, 'bind').andReturn(CrudSvc.prototype.validateUniqueProp);
@@ -82,7 +82,7 @@ describe('ads-groups (UT)', function() {
         });
     });
     
-    ddescribe('validateDates', function() {
+    describe('validateDates', function() {
         beforeEach(function() {
             req.body = { name: 'group 1', startDate: 'start', endDate: 'end' };
             spyOn(campaignUtils, 'validateDates').andReturn(true);
@@ -110,7 +110,7 @@ describe('ads-groups (UT)', function() {
         });
     });
     
-    ddescribe('ensureDistinctList', function() {
+    describe('ensureDistinctList', function() {
         it('should call next if all entries in the miniReels list are distinct', function(done) {
             req.body = { miniReels: ['e-1', 'e-2', 'e-11'] };
             groupModule.ensureDistinctList(req, nextSpy, doneSpy).catch(errorSpy);
@@ -145,14 +145,14 @@ describe('ads-groups (UT)', function() {
         });
     });
     
-    ddescribe('formatOutput', function() {
+    describe('formatOutput', function() {
         it('should replace the list of minireel objects with a list of ids', function() {
             var group = { _id: 'qwer124', id: 123, miniReels: [{id: 'e-1', bannerId: 12}, {id: 'e-2', bannerId: 23}] };
             expect(groupModule.formatOutput(CrudSvc, group)).toEqual({id: 123, miniReels: ['e-1', 'e-2']});
         });
     });
     
-    ddescribe('getAccountIds', function() {
+    describe('getAccountIds', function() {
         var svc;
         beforeEach(function() {
             req.body = { advertiserId: 123, customerId: 321 };
@@ -247,7 +247,7 @@ describe('ads-groups (UT)', function() {
                     keywords: {keys: 'yes'},
                     advertiserId: 987,
                     customerId: 876
-                });
+                }, '1234');
                 done();
             });
         });
@@ -410,8 +410,10 @@ describe('ads-groups (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.body.categories).toEqual(['sports', 'food']);
                 expect(campaignUtils.makeKeywordLevels).toHaveBeenCalledWith({level3: ['sports', 'food']});
-                expect(campaignUtils.editCampaign).toHaveBeenCalledWith(123, 'new name', {keys: 'yes'});
+                expect(campaignUtils.editCampaign).toHaveBeenCalledWith(123, 'new name', undefined,
+                    undefined, {keys: 'yes'});
                 done();
             });
         });
@@ -424,17 +426,33 @@ describe('ads-groups (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(campaignUtils.makeKeywordLevels).not.toHaveBeenCalled();
-                expect(campaignUtils.editCampaign).toHaveBeenCalledWith(123, 'new name', undefined);
+                expect(campaignUtils.editCampaign).toHaveBeenCalledWith(123, 'new name', undefined,
+                    undefined, undefined);
                 done();
             });
         });
         
-        it('should do nothing if the name and categories are unchanged', function(done) {
-            req.body = { categories: ['sport', 'food'] };
+        it('should be able to edit the startDate and endDate', function(done) {
+            req.body = { name: 'name', startDate: 'newStart', endDate: 'newEnd', categories: ['food'] };
+            req.origObj = { adtechId: 123, name: 'name', startDate: 'oldStart', endDate: 'oldEnd', categories: ['food'] };
             groupModule.editAdtechGroup(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
-                expect(req.body.categories).toEqual(['sport','food']);
-                expect(req.origObj.categories).toEqual(['sport','food']);
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(campaignUtils.makeKeywordLevels).not.toHaveBeenCalled();
+                expect(campaignUtils.editCampaign).toHaveBeenCalledWith(123, 'name', 'newStart',
+                    'newEnd', undefined);
+                done();
+            });
+        });
+        
+        it('should do nothing if all properties are are unchanged', function(done) {
+            req.body = { name: 'name', endDate: 'end', categories: ['food'] };
+            req.origObj = { adtechId: 123, name: 'name', startDate: 'oldStart', endDate: 'end', categories: ['food'] };
+            groupModule.editAdtechGroup(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(req.body.categories).toEqual(['food']);
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
