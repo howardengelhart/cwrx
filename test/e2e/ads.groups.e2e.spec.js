@@ -286,6 +286,8 @@ describe('ads minireelGroups endpoints (E2E):', function() {
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBeDefined();
                 expect(resp.body.name).toBe(mockGroup.name);
+                expect(new Date(resp.body.startDate).toString()).not.toEqual('Invalid Date');
+                expect(new Date(resp.body.endDate).toString()).not.toEqual('Invalid Date');
                 expect(resp.body.categories).toEqual(['food', 'sports']);
                 expect(resp.body.miniReels).toEqual(['e-1', 'e-2']);
                 expect(resp.body.adtechId).toEqual(jasmine.any(Number));
@@ -298,6 +300,8 @@ describe('ads minireelGroups endpoints (E2E):', function() {
             }).then(function(group)  {
                 expect(group.name).toBe(createdGroup.name);
                 expect(group.extId).toBe(createdGroup.id);
+                expect(group.dateRangeList[0].startDate.toUTCString()).toBe(new Date(createdGroup.startDate).toUTCString());
+                expect(group.dateRangeList[0].endDate.toUTCString()).toBe(new Date(createdGroup.endDate).toUTCString());
                 expect(group.priorityLevelOneKeywordIdList).toEqual([]);
                 // the keyword ids for 'food' and 'sports' should never change, so we can hardcode them
                 expect(group.priorityLevelThreeKeywordIdList.sort()).toEqual(['1002744', '1003562']);
@@ -417,6 +421,8 @@ describe('ads minireelGroups endpoints (E2E):', function() {
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBe(createdGroup.id);
                 expect(resp.body.name).toBe('e2e_test_updated');
+                expect(resp.body.startDate).toBe(createdGroup.startDate);
+                expect(resp.body.endDate).toBe(createdGroup.endDate);
                 expect(resp.body.categories).toEqual(['sport', 'food']);
                 expect(resp.body.created).toBe(createdGroup.created);
                 expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(createdGroup.lastUpdated));
@@ -540,7 +546,7 @@ describe('ads minireelGroups endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should throw a 409 if a group with that name exists', function(done) {
             options = {
                 url: config.adsUrl + '/minireelGroup/e2e-put1',

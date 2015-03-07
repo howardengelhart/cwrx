@@ -33,13 +33,11 @@
         svc.editValidator._formats.categories = ['string'];
 
         svc.use('read', svc.preventGetAll.bind(svc));
-        svc.use('create', groupModule.validateDates);
         svc.use('create', groupModule.ensureDistinctList);
         svc.use('create', svc.validateUniqueProp.bind(svc, 'name', null));
         svc.use('create', groupModule.getAccountIds.bind(groupModule, svc));
         svc.use('create', groupModule.createAdtechGroup);
         svc.use('create', groupModule.createBanners);
-        svc.use('edit', groupModule.validateDates);
         svc.use('edit', groupModule.ensureDistinctList);
         svc.use('edit', svc.validateUniqueProp.bind(svc, 'name', null));
         svc.use('edit', groupModule.getAccountIds.bind(groupModule, svc));
@@ -51,15 +49,6 @@
         svc.formatOutput = groupModule.formatOutput.bind(groupModule, svc);
         
         return svc;
-    };
-    
-    // Calls campaignUtils.validateDates to validate/default start + end date
-    groupModule.validateDates = function(req, next, done) {
-        if (!campaignUtils.validateDates(req.body, groupModule.campsCfg.dateDelays, req.uuid)) {
-            return q(done({code: 400, body: 'group has invalid dates'}));
-        } else {
-            return q(next());
-        }
     };
     
     // Ensure the miniReels list in the request has all distinct entires
@@ -94,6 +83,11 @@
 
     // Setup the group's campaign, calling makeKeywordLevels and createCampaign
     groupModule.createAdtechGroup = function(req, next/*, done*/) {
+        var now = new Date(),
+            delays = groupModule.campsCfg.dateDelays;
+            
+        req.body.startDate = new Date(now.valueOf()+ delays.start).toISOString();
+        req.body.endDate = new Date(now.valueOf()+ delays.end).toISOString();
         
         return campaignUtils.makeKeywordLevels({ level3: req.body.categories })
         .then(function(keywords) {
@@ -155,9 +149,7 @@
         }
         
         return promise.then(function(keys) {
-            if (!keys && ['name', 'startDate', 'endDate'].every(function(field) {
-                return !req.body[field] || req.body[field] === req.origObj[field];
-            })) {
+            if (!keys && (!req.body.name || req.body.name === req.origObj.name)) {
                 log.info('[%1] Adtech props unchanged, not updating adtech campaign', req.uuid);
                 return q();
             }
@@ -165,8 +157,8 @@
             return campaignUtils.editCampaign(
                 req.origObj.adtechId,
                 req.body.name,
-                req.body.startDate,
-                req.body.endDate,
+                undefined,
+                undefined,
                 keys
             );
         })

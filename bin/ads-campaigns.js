@@ -26,10 +26,10 @@
         svc.createValidator._required.push('advertiserId', 'customerId');
         svc.editValidator._forbidden.push('advertiserId', 'customerId');
 
-        svc.createValidator._formats.cards = ['string'];
-        svc.editValidator._formats.cards = ['string'];
-        svc.createValidator._formats.miniReels = ['string'];
-        svc.editValidator._formats.miniReels = ['string'];
+        svc.createValidator._formats.cards = ['object'];
+        svc.editValidator._formats.cards = ['object'];
+        svc.createValidator._formats.miniReels = ['object'];
+        svc.editValidator._formats.miniReels = ['object'];
         svc.createValidator._formats.miniReelGroups = ['object'];
         svc.editValidator._formats.miniReelGroups = ['object'];
         svc.createValidator._formats.categories = ['string'];
@@ -45,10 +45,10 @@
         svc.use('create', campModule.createTargetCamps);
         svc.use('edit', campaignUtils.getAccountIds.bind(campaignUtils, svc._advertColl,
                                                          svc._custColl));
+        svc.use('edit', campModule.extendListObjects);
         svc.use('edit', campModule.validateDates);
         svc.use('edit', campModule.ensureUniqueIds);
         svc.use('edit', campModule.ensureUniqueNames);
-        svc.use('edit', campModule.extendListObjects);
         svc.use('edit', campModule.cleanSponsoredCamps);
         svc.use('edit', campModule.editSponsoredCamps);
         svc.use('edit', campModule.createSponsoredCamps);
@@ -61,6 +61,25 @@
         svc.formatOutput = campModule.formatOutput.bind(campModule, svc);
         
         return svc;
+    };
+
+    // Copy props from origObj for each sub-campaign object that still exists in req.body
+    campModule.extendListObjects = function(req, next/*, done*/) {
+        ['miniReels', 'cards', 'miniReelGroups'].forEach(function(key) {
+            if (!req.body[key] || !req.origObj[key]) {
+                return;
+            }
+            
+            req.body[key].forEach(function(newObj) {
+                var existing = req.origObj[key].filter(function(oldObj) {
+                    return key === 'miniReelGroups' ? oldObj.adtechId === newObj.adtechId :
+                           oldObj.id === newObj.id;
+                })[0];
+                    
+                objUtils.extend(newObj, existing);
+            });
+        });
+        return q(next());
     };
     
     // Calls campaignUtils.validateDates for every object in cards, miniReels, and miniReelGroups
@@ -134,25 +153,6 @@
                 }
             }
         }
-        return q(next());
-    };
-    
-    // Copy props from origObj for each sub-campaign object that still exists in req.body
-    campModule.extendListObjects = function(req, next/*, done*/) {
-        ['miniReels', 'cards', 'miniReelGroups'].forEach(function(key) {
-            if (!req.body[key] || !req.origObj[key]) {
-                return;
-            }
-            
-            req.body[key].forEach(function(newObj) {
-                var existing = req.origObj[key].filter(function(oldObj) {
-                    return (key === 'miniReelGroups' && oldObj.adtechId === newObj.adtechId) ||
-                            oldObj.id === newObj.id;
-                })[0];
-                    
-                objUtils.extend(newObj, existing);
-            });
-        });
         return q(next());
     };
     

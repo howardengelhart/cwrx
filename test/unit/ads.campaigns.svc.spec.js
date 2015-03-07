@@ -78,12 +78,12 @@ describe('ads-campaigns (UT)', function() {
             
             expect(svc.createValidator._required).toContain('advertiserId', 'customerId');
             expect(svc.editValidator._forbidden).toContain('advertiserId', 'customerId');
-            ['cards', 'miniReels', 'categories'].forEach(function(key) {
-                expect(svc.createValidator._formats[key]).toEqual(['string']);
-                expect(svc.editValidator._formats[key]).toEqual(['string']);
+            ['cards', 'miniReels', 'miniReelGroups'].forEach(function(key) {
+                expect(svc.createValidator._formats[key]).toEqual(['object']);
+                expect(svc.editValidator._formats[key]).toEqual(['object']);
             });
-            expect(svc.createValidator._formats.miniReelGroups).toEqual(['object']);
-            expect(svc.editValidator._formats.miniReelGroups).toEqual(['object']);
+            expect(svc.createValidator._formats.categories).toEqual(['string']);
+            expect(svc.editValidator._formats.categories).toEqual(['string']);
 
             expect(svc._middleware.read).toContain(svc.preventGetAll);
             expect(svc._middleware.create).toContain(campaignUtils.getAccountIds,
@@ -96,6 +96,52 @@ describe('ads-campaigns (UT)', function() {
                 campModule.cleanTargetCamps, campModule.editTargetCamps, campModule.createTargetCamps);
             expect(svc._middleware.delete).toContain(campModule.deleteContent);
             expect(svc.formatOutput).toBe(campModule.formatOutput);
+        });
+    });
+
+    describe('extendListObjects', function() {
+        beforeEach(function() {
+            req.body = {
+                cards: [ { id: 'rc-1' }, { id: 'rc-2' } ],
+                miniReels: [ { id: 'e-1' } ],
+                miniReelGroups: [ { adtechId: 1234 }, { name: 'buz' } ]
+            };
+            req.origObj = {
+                cards: [ { id: 'rc-2', name: 'foo' }, { id: 'rc-3', name: 'bar' } ],
+                miniReels: [ { id: 'e-1', name: 'foo', startDate: 'now' } ],
+                miniReelGroups: [ { adtechId: 1234, name: 'baz', startDate: 'now' } ]
+            };
+        });
+        
+        it('should extend objects in req.body with matching objects in req.origObj', function(done) {
+            campModule.extendListObjects(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.body).toEqual({
+                    cards: [ { id: 'rc-1' }, { id: 'rc-2', name: 'foo' } ],
+                    miniReels: [ { id: 'e-1', name: 'foo', startDate: 'now' } ],
+                    miniReelGroups: [ { adtechId: 1234, name: 'baz', startDate: 'now' }, { name: 'buz' } ]
+                });
+                done();
+            });
+        });
+        
+        it('should handle lists being undefined', function(done) {
+            delete req.body.cards;
+            delete req.origObj.miniReels;
+            campModule.extendListObjects(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.body).toEqual({
+                    miniReels: [ { id: 'e-1' } ],
+                    miniReelGroups: [ { adtechId: 1234, name: 'baz', startDate: 'now' }, { name: 'buz' } ]
+                });
+                done();
+            });
         });
     });
     
@@ -245,52 +291,6 @@ describe('ads-campaigns (UT)', function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({code: 400, body: 'miniReelGroups[0] has a non-unique name'});
                 expect(errorSpy).not.toHaveBeenCalled();
-                done();
-            });
-        });
-    });
-    
-    describe('extendListObjects', function() {
-        beforeEach(function() {
-            req.body = {
-                cards: [ { id: 'rc-1' }, { id: 'rc-2' } ],
-                miniReels: [ { id: 'e-1' } ],
-                miniReelGroups: [ { adtechId: 1234 } ]
-            };
-            req.origObj = {
-                cards: [ { id: 'rc-2', name: 'foo' }, { id: 'rc-3', name: 'bar' } ],
-                miniReels: [ { id: 'e-1', name: 'foo', startDate: 'now' } ],
-                miniReelGroups: [ { adtechId: 1234, name: 'baz' } ]
-            };
-        });
-        
-        it('should extend objects in req.body with matching objects in req.origObj', function(done) {
-            campModule.extendListObjects(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.body).toEqual({
-                    cards: [ { id: 'rc-1' }, { id: 'rc-2', name: 'foo' } ],
-                    miniReels: [ { id: 'e-1', name: 'foo', startDate: 'now' } ],
-                    miniReelGroups: [ { adtechId: 1234, name: 'baz' } ]
-                });
-                done();
-            });
-        });
-        
-        it('should handle lists being undefined', function(done) {
-            delete req.body.cards;
-            delete req.origObj.miniReels;
-            campModule.extendListObjects(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.body).toEqual({
-                    miniReels: [ { id: 'e-1' } ],
-                    miniReelGroups: [ { adtechId: 1234, name: 'baz' } ]
-                });
                 done();
             });
         });

@@ -208,8 +208,8 @@
         }).then(ads.main)
         .catch(function(err) {
             var log = logger.getLog();
-            console.log(err.message || err);
-            log.error(err.message || err);
+            console.log(err.stack || err);
+            log.error(err.stack || err);
             if (err.code)   {
                 process.exit(err.code);
             }
