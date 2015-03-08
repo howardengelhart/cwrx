@@ -63,7 +63,7 @@
         return svc;
     };
 
-    // Copy props from origObj for each sub-campaign object that still exists in req.body
+    // Copy props from origObj missing from each sub-campaign object that still exists in req.body
     campModule.extendListObjects = function(req, next/*, done*/) {
         ['miniReels', 'cards', 'miniReelGroups'].forEach(function(key) {
             if (!req.body[key] || !req.origObj[key]) {
@@ -73,7 +73,7 @@
             req.body[key].forEach(function(newObj) {
                 var existing = req.origObj[key].filter(function(oldObj) {
                     return key === 'miniReelGroups' ? oldObj.adtechId === newObj.adtechId :
-                           oldObj.id === newObj.id;
+                                                      oldObj.id === newObj.id;
                 })[0];
                     
                 objUtils.extend(newObj, existing);
