@@ -1,5 +1,9 @@
 # Search Service Changelog
 
+### 1.3.4: Mon Mar  9 10:29:12 EDT 2015
+* [FIX]: Handle long vimeo durations: [#391](https://github.com/cinema6/cwrx/pull/391)
+* Extra deployment steps: None
+
 ### 1.3.3: Mon Mar  2 12:21:15 EST 2015
 * [FIX]: Handle `m.youtube.com` links: [#387](https://github.com/cinema6/cwrx/pull/387)
 * Extra deployment steps: None

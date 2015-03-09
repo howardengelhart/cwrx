@@ -65,7 +65,9 @@ describe('search (UT)', function() {
         it('should properly parse vimeo\'s strings of the format "# (hours|minutes|seconds)"', function() {
             var durs = [{str: '12 mins', val: 720}, {str: '02 mins', val: 120}, {str: '12 minutes', val: 720},
                         {str: '1 hour 2 minutes', val: 3720}, {str: '5 hours 21 mins', val: 19260},
-                        {str: '23 seconds', val: 23}, {str: '2 hours 1 second', val: 7201}];
+                        {str: '23 seconds', val: 23}, {str: '2 hours 1 second', val: 7201},
+                        {str: '1 year', val: 31536000}, {str: '3 days 5 minutes', val: 259500},
+                        {str: '2 months 5 seconds', val: 5184005}];
             durs.forEach(function(durObj) {
                 expect(search.parseDuration(durObj.str)).toBe(durObj.val);
             });
