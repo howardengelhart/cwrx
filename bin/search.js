@@ -76,8 +76,11 @@
         dur = dur.trim();
 
         // some vimeo vids have durs like '90 mins' or '1 hour 20 minutes'
-        if (dur.match(/^(\d+ (hours?|minutes?|mins?|seconds?)\s?)+$/)) {
-            return Number( ( dur.match(/(\d+) hours?/) || [0, 0] )[1] )*60*60 +
+        if (dur.match(/^(\d+ (years?|months?|days?|hours?|minutes?|mins?|seconds?)\s?)+$/)) {
+            return Number( ( dur.match(/(\d+) years?/) || [0, 0] )[1] )*365*24*60*60 +
+                   Number( ( dur.match(/(\d+) months?/) || [0, 0] )[1] )*30*24*60*60 +
+                   Number( ( dur.match(/(\d+) days?/) || [0, 0] )[1] )*24*60*60 +
+                   Number( ( dur.match(/(\d+) hours?/) || [0, 0] )[1] )*60*60 +
                    Number( ( dur.match(/(\d+) (mins|minutes)/) || [0, 0] )[1] )*60 +
                    Number( ( dur.match(/(\d+) seconds?/) || [0, 0] )[1] );
         }
