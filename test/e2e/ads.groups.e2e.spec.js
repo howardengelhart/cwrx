@@ -421,8 +421,8 @@ describe('ads minireelGroups endpoints (E2E):', function() {
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBe(createdGroup.id);
                 expect(resp.body.name).toBe('e2e_test_updated');
-                expect(resp.body.startDate).toBe(createdGroup.startDate);
-                expect(resp.body.endDate).toBe(createdGroup.endDate);
+                expect(new Date(resp.body.startDate).toUTCString()).toBe(new Date(createdGroup.startDate).toUTCString());
+                expect(new Date(resp.body.endDate).toUTCString()).toBe(new Date(createdGroup.endDate).toUTCString());
                 expect(resp.body.categories).toEqual(['sport', 'food']);
                 expect(resp.body.created).toBe(createdGroup.created);
                 expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(createdGroup.lastUpdated));

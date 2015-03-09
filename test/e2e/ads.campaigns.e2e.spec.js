@@ -329,7 +329,8 @@ describe('ads campaigns endpoints (E2E):', function() {
 
     describe('POST /api/campaign', function() {
         var name = 'e2e_test-' + new Date().toISOString(),
-            now = new Date(),
+            start = new Date(new Date().valueOf() + 2*60*60*1000),
+            end = new Date(new Date().valueOf() + 3*60*60*1000),
             mockCamp, options;
         beforeEach(function() {
             mockCamp = {
@@ -339,10 +340,10 @@ describe('ads campaigns endpoints (E2E):', function() {
                 customerId: keptCust.id,
                 miniReels: [
                     {id: 'e2e-e-1', name: 'exp 1' },
-                    {id: 'e2e-e-2', startDate: now, endDate: new Date(now.valueOf() + 1000) }
+                    {id: 'e2e-e-2', startDate: start.toISOString(), endDate: end.toISOString() }
                 ],
                 cards: [
-                    {id: 'e2e-rc-1', startDate: now },
+                    {id: 'e2e-rc-1', startDate: start.toISOString() },
                     {id: 'e2e-rc-2', name: 'card 2' }
                 ],
                 miniReelGroups: [{cards: ['e2e-rc-1'], miniReels: ['e2e-e-1', 'e2e-e-2']}]
@@ -369,14 +370,14 @@ describe('ads campaigns endpoints (E2E):', function() {
                     },
                     {
                         id: 'e2e-e-2', name: 'miniReel_e2e-e-2',
-                        startDate: now.toISOString(), endDate: new Date(now.valueOf() + 1000).toISOString(),
+                        startDate: start.toISOString(), endDate: end.toISOString(),
                         adtechId: jasmine.any(Number), bannerId: jasmine.any(Number), bannerNumber: jasmine.any(Number)
                     }
                 ]);
                 expect(resp.body.cards).toEqual([
                     {
                         id: 'e2e-rc-1', name: 'card_e2e-rc-1',
-                        startDate: now.toISOString(), endDate: jasmine.any(String),
+                        startDate: start.toISOString(), endDate: jasmine.any(String),
                         adtechId: jasmine.any(Number), bannerId: jasmine.any(Number), bannerNumber: jasmine.any(Number)
                     },
                     {
@@ -539,8 +540,8 @@ describe('ads campaigns endpoints (E2E):', function() {
             mockCamps = [{}, {}, {}].map(function() { return JSON.parse(JSON.stringify(mockCamp)); });
             mockCamps[0].miniReels[0].startDate = 'foo';
             mockCamps[1].cards[1].endDate = 'bar';
-            mockCamps[2].miniReelGroups[0].startDate = now;
-            mockCamps[2].miniReelGroups[0].endDate = new Date(now.valueOf() - 1000);
+            mockCamps[2].miniReelGroups[0].startDate = end;
+            mockCamps[2].miniReelGroups[0].endDate = start;
 
             q.all(mockCamps.map(function(body) {
                 options.json = body;
@@ -912,6 +913,38 @@ describe('ads campaigns endpoints (E2E):', function() {
                     adtechId: createdCamp.miniReels[1].adtechId, bannerId: createdCamp.miniReels[1].bannerId,
                     bannerNumber: createdCamp.miniReels[0].bannerNumber
                 });
+                createdCamp = resp.body;
+                
+                return adtech.campaignAdmin.getCampaignByExtId('e2e-e-3')
+            }).then(function(camp) {
+                checkMinireelCampaign(camp, createdCamp, createdCamp.miniReels[1], [keywords.bacon, keywords.food]);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should ensure dates are at least one hour into the future', function(done) {
+            var now = new Date();
+            createdCamp.miniReels[1].startDate = now.toISOString();
+            createdCamp.miniReels[1].endDate = new Date(now.valueOf() + 1000).toISOString();
+            options = {
+                url: config.adsUrl + '/campaign/' + createdCamp.id,
+                json: { miniReels: createdCamp.miniReels },
+                jar: cookieJar
+            };
+            
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body._id).not.toBeDefined();
+                expect(resp.body.miniReels[1]).toEqual({
+                    id: 'e2e-e-3', name: 'miniReel_e2e-e-3',
+                    startDate: jasmine.any(String),
+                    endDate: jasmine.any(String),
+                    adtechId: createdCamp.miniReels[1].adtechId, bannerId: createdCamp.miniReels[1].bannerId,
+                    bannerNumber: createdCamp.miniReels[0].bannerNumber
+                });
+                expect(new Date(resp.body.miniReels[1].startDate) - now).toBeGreaterThan(60*60*1000);
+                expect(new Date(resp.body.miniReels[1].endDate) - now).toBeGreaterThan(60*60*1000);
                 createdCamp = resp.body;
                 
                 return adtech.campaignAdmin.getCampaignByExtId('e2e-e-3')

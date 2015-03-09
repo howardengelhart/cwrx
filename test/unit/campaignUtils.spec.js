@@ -53,7 +53,7 @@ describe('campaignUtils', function() {
     describe('validateDates', function() {
         var delays, obj;
         beforeEach(function() {
-            delays = { start: 1000, end: 2000 };
+            delays = { start: 2*60*60*1000, end: 3*60*60*1000 };
             obj = {};
         });
         
@@ -61,7 +61,7 @@ describe('campaignUtils', function() {
             expect(campaignUtils.validateDates(obj, delays)).toBe(true);
             expect(mockLog.info).not.toHaveBeenCalled();
             expect(obj).toEqual({startDate: jasmine.any(String), endDate: jasmine.any(String)});
-            expect(new Date(obj.endDate) - new Date(obj.startDate)).toBe(1000);
+            expect(new Date(obj.endDate) - new Date(obj.startDate)).toBe(60*60*1000);
         });
 
         it('should return false if the startDate is not a valid date string', function() {
@@ -86,6 +86,13 @@ describe('campaignUtils', function() {
             expect(campaignUtils.validateDates(obj)).toBe(true);
             expect(mockLog.info).not.toHaveBeenCalled();
             expect(obj).toEqual({startDate: jasmine.any(String), endDate: jasmine.any(String)});
+            expect(new Date(obj.endDate)).toBeGreaterThan(new Date(obj.startDate));
+        });
+        
+        it('should ensure both dates are at least 1 hour into the future', function() {
+            obj = { startDate: new Date(), endDate: new Date(new Date().valueOf() + 1) };
+            expect(campaignUtils.validateDates(obj)).toBe(true);
+            expect(new Date(obj.startDate) - new Date()).toBeGreaterThan(60*60*1000);
             expect(new Date(obj.endDate)).toBeGreaterThan(new Date(obj.startDate));
         });
     });

@@ -33,11 +33,13 @@
         svc.editValidator._formats.categories = ['string'];
 
         svc.use('read', svc.preventGetAll.bind(svc));
+        svc.use('create', groupModule.validateDates);
         svc.use('create', groupModule.ensureDistinctList);
         svc.use('create', svc.validateUniqueProp.bind(svc, 'name', null));
         svc.use('create', groupModule.getAccountIds.bind(groupModule, svc));
         svc.use('create', groupModule.createAdtechGroup);
         svc.use('create', groupModule.createBanners);
+        svc.use('edit', groupModule.validateDates);
         svc.use('edit', groupModule.ensureDistinctList);
         svc.use('edit', svc.validateUniqueProp.bind(svc, 'name', null));
         svc.use('edit', groupModule.getAccountIds.bind(groupModule, svc));
@@ -59,6 +61,17 @@
             log.info('[%1] miniReels list in req is not distinct: [%2]',
                      req.uuid, req.body.miniReels);
             return q(done({code: 400, body: 'miniReels must be distinct'}));
+        } else {
+            return q(next());
+        }
+    };
+    
+    // Validate/default in startDate + endDate
+    groupModule.validateDates = function(req, next, done) {
+        req.body.startDate = req.body.startDate || (req.origObj && req.origObj.startDate);
+        req.body.endDate = req.body.endDate || (req.origObj && req.origObj.endDate);
+        if (!campaignUtils.validateDates(req.body, groupModule.campsCfg.dateDelays, req.uuid)) {
+            return q(done({code: 400, body: 'group has invalid dates'}));
         } else {
             return q(next());
         }
