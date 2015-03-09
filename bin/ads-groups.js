@@ -83,10 +83,24 @@
 
     // Setup the group's campaign, calling makeKeywordLevels and createCampaign
     groupModule.createAdtechGroup = function(req, next/*, done*/) {
+        var now = new Date(),
+            delays = groupModule.campsCfg.dateDelays;
+            
+        req.body.startDate = new Date(now.valueOf()+ delays.start).toISOString();
+        req.body.endDate = new Date(now.valueOf()+ delays.end).toISOString();
+        
         return campaignUtils.makeKeywordLevels({ level3: req.body.categories })
-        .then(function(keys) {
-            return campaignUtils.createCampaign(req.body.id, req.body.name, false, keys,
-                                                req._advertiserId, req._customerId);
+        .then(function(keywords) {
+            return campaignUtils.createCampaign({
+                id              : req.body.id,
+                name            : req.body.name,
+                startDate       : req.body.startDate,
+                endDate         : req.body.endDate,
+                isSponsored     : false,
+                keywords        : keywords,
+                advertiserId    : req._advertiserId,
+                customerId      : req._customerId
+            }, req.uuid);
         })
         .then(function(resp) {
             req.body.adtechId = parseInt(resp.id);
@@ -125,17 +139,28 @@
     groupModule.editAdtechGroup = function(req, next/*, done*/) {
         var log = logger.getLog(),
             cats = req.body.categories,
-            origCats = req.origObj.categories || [];
+            origCats = req.origObj.categories || [],
+            promise;
             
-        if ((!req.body.name || req.body.name === req.origObj.name) &&
-            (!cats || objUtils.compareObjects(cats.slice().sort(), origCats.slice().sort()))) {
-            log.info('[%1] Adtech props unchanged, not updating adtech group campaign', req.uuid);
-            return q(next());
+        if (!cats || objUtils.compareObjects(cats.slice().sort(), origCats.slice().sort())) {
+            promise = q();
+        } else {
+            promise = campaignUtils.makeKeywordLevels({ level3: cats });
         }
         
-        return (cats ? campaignUtils.makeKeywordLevels({ level3: cats }) : q())
-        .then(function(keys) {
-            return campaignUtils.editCampaign(req.origObj.adtechId, req.body.name, keys);
+        return promise.then(function(keys) {
+            if (!keys && (!req.body.name || req.body.name === req.origObj.name)) {
+                log.info('[%1] Adtech props unchanged, not updating adtech campaign', req.uuid);
+                return q();
+            }
+            
+            return campaignUtils.editCampaign(
+                req.origObj.adtechId,
+                req.body.name,
+                undefined,
+                undefined,
+                keys
+            );
         })
         .then(function() {
             next();

@@ -75,4 +75,23 @@ describe('objUtils', function() {
             expect(objUtils.isListDistinct(undefined)).toBe(true);
         });
     });
+    
+    describe('extend', function() {
+        it('should copy properties from newObj to orig if not defined on orig', function() {
+            var orig = { a: 1, b: null },
+                newObj = { a: 2, b: 'foo', c: 'bar', d: { foo: 'bar' } };
+                
+            expect(objUtils.extend(orig, newObj)).toBe(orig);
+            expect(orig).toEqual({a: 1, b: null, c: 'bar', d: { foo: 'bar' } });
+        });
+        
+        it('should handle either param being a non-object', function() {
+            var obj = { foo: 'bar' };
+            expect(objUtils.extend(obj, 'baz')).toBe(obj);
+            expect(objUtils.extend(obj)).toBe(obj);
+            expect(obj).toEqual({foo: 'bar'});
+
+            expect(objUtils.extend(null, {foo: 'baz'})).toBe(null);
+        });
+    });
 });

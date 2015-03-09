@@ -31,7 +31,11 @@
         },
         campaigns: {
             statusDelay: 1000,      // How long to delay between polls for campaigns' statuses
-            statusAttempts: 10      // How many times to try polling for campaigns' statuses
+            statusAttempts: 10,      // How many times to try polling for campaigns' statuses
+            dateDelays: {
+                start: 24*60*60*1000,   // new campaigns default to starting now + this (ms)
+                end: 366*24*60*60*1000  // new campaigns default to ending now + this (ms)
+            }
         },
         contentHost: 'localhost',   // Hostname of the content service to proxy delete requests to
         minireelGroups: {
@@ -204,8 +208,8 @@
         }).then(ads.main)
         .catch(function(err) {
             var log = logger.getLog();
-            console.log(err.message || err);
-            log.error(err.message || err);
+            console.log(err.stack || err);
+            log.error(err.stack || err);
             if (err.code)   {
                 process.exit(err.code);
             }

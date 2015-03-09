@@ -1,5 +1,9 @@
 # Ads Service Changelog
 
+### 1.2.0: 
+* [FEATURE]: Allow client to set `name`, `startDate` and `endDate` on C6 campaign's sub-campaigns: [#390](https://github.com/cinema6/cwrx/pull/390)
+* Extra deployment steps: None
+
 ### 1.1.0: 
 * [FEATURE]: Add campaign and group endpoints: [#369](https://github.com/cinema6/cwrx/pull/369)
 * [FIX]: Ensure site names are unique: [#369](https://github.com/cinema6/cwrx/pull/369)
