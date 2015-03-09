@@ -422,8 +422,8 @@ describe('ads-campaigns (UT)', function() {
             req.body = {
                 categories: ['food'],
                 miniReels: [
-                    {id: 'e-1', name: 'new 1', startDate: 'newStart1', endDate: 'newEnd1'},
-                    {id: 'e-2', name: 'new 2', startDate: 'newStart2', endDate: 'newEnd2'}
+                    {id: 'e-1', name: 'new 1', startDate: 'newStart1', endDate: 'newEnd1', adtechId: 11},
+                    {id: 'e-2', name: 'new 2', startDate: 'newStart2', endDate: 'newEnd2', adtechId: 12}
                 ],
                 cards: [{id: 'rc-1', name: 'old card 1', adtechId: 21}]
             };
@@ -449,8 +449,8 @@ describe('ads-campaigns (UT)', function() {
                 expect(req.body.categories).toEqual(['food']);
                 expect(campaignUtils.makeKeywordLevels).not.toHaveBeenCalled();
                 expect(campaignUtils.editCampaign.calls.length).toBe(2);
-                expect(campaignUtils.editCampaign).toHaveBeenCalledWith(11, 'new 1 (cam-1)', 'newStart1', 'newEnd1', undefined);
-                expect(campaignUtils.editCampaign).toHaveBeenCalledWith(12, 'new 2 (cam-1)', 'newStart2', 'newEnd2', undefined);
+                expect(campaignUtils.editCampaign).toHaveBeenCalledWith('new 1 (cam-1)', req.body.miniReels[0], undefined, '1234');
+                expect(campaignUtils.editCampaign).toHaveBeenCalledWith('new 2 (cam-1)', req.body.miniReels[1], undefined, '1234');
                 done();
             });
         });
@@ -467,10 +467,10 @@ describe('ads-campaigns (UT)', function() {
                 expect(campaignUtils.makeKeywordLevels).toHaveBeenCalledWith({level3: ['sports', 'food']});
                 expect(campaignUtils.makeKeywordLevels).toHaveBeenCalledWith({level1: ['cam-1'], level3: ['sports', 'food']});
                 expect(campaignUtils.editCampaign.calls.length).toBe(3);
-                expect(campaignUtils.editCampaign).toHaveBeenCalledWith(11, 'new 1 (cam-1)', 'newStart1', 'newEnd1', {level3: [anyNum, anyNum]});
-                expect(campaignUtils.editCampaign).toHaveBeenCalledWith(12, 'new 2 (cam-1)', 'newStart2', 'newEnd2', {level3: [anyNum, anyNum]});
-                expect(campaignUtils.editCampaign).toHaveBeenCalledWith(21, 'old card 1 (cam-1)',
-                    undefined, undefined, {level1: [anyNum], level3: [anyNum, anyNum]});
+                expect(campaignUtils.editCampaign).toHaveBeenCalledWith('new 1 (cam-1)', req.body.miniReels[0], {level3: [anyNum, anyNum]}, '1234');
+                expect(campaignUtils.editCampaign).toHaveBeenCalledWith('new 2 (cam-1)', req.body.miniReels[1], {level3: [anyNum, anyNum]}, '1234');
+                expect(campaignUtils.editCampaign).toHaveBeenCalledWith('old card 1 (cam-1)', req.body.cards[0],
+                    {level1: [anyNum], level3: [anyNum, anyNum]}, '1234');
                 done();
             });
         });
@@ -519,8 +519,8 @@ describe('ads-campaigns (UT)', function() {
         });
         
         it('should reject if updating a campaign fails', function(done) {
-            campaignUtils.editCampaign.andCallFake(function(id, name, keys) {
-                if (id === 11) return q.reject(new Error('I GOT A PROBLEM'));
+            campaignUtils.editCampaign.andCallFake(function(name, campaign, keys, reqId) {
+                if (campaign.adtechId === 11) return q.reject(new Error('I GOT A PROBLEM'));
                 else return q();
             });
             campModule.editSponsoredCamps(req, nextSpy, doneSpy).catch(errorSpy);
@@ -774,7 +774,8 @@ describe('ads-campaigns (UT)', function() {
                 ]);
                 expect(campaignUtils.makeKeywordLevels).not.toHaveBeenCalled();
                 expect(campaignUtils.editCampaign.calls.length).toBe(1);
-                expect(campaignUtils.editCampaign).toHaveBeenCalledWith(12, 'grp 1.1 (cam-1)', 'start1', 'end1', undefined);
+                expect(campaignUtils.editCampaign).toHaveBeenCalledWith('grp 1.1 (cam-1)',
+                    req.body.miniReelGroups[1], undefined, '1234');
                 expect(bannerUtils.cleanBanners.calls.length).toBe(2);
                 expect(bannerUtils.cleanBanners).toHaveBeenCalledWith([{id: 'e-2'}], [{id: 'e-2'}], 12);
                 expect(bannerUtils.cleanBanners).toHaveBeenCalledWith([{id: 'e-3'}], [{id: 'e-4'}], 13);
@@ -799,8 +800,10 @@ describe('ads-campaigns (UT)', function() {
                 ]);
                 expect(campaignUtils.makeKeywordLevels).toHaveBeenCalledWith({level1: ['rc-3', 'rc-33', 'rc-12']});
                 expect(campaignUtils.editCampaign.calls.length).toBe(2);
-                expect(campaignUtils.editCampaign).toHaveBeenCalledWith(12, 'grp 1.1 (cam-1)', 'start1', 'end1', undefined);
-                expect(campaignUtils.editCampaign).toHaveBeenCalledWith(13, 'grp 2 (cam-1)', undefined, undefined, {level1: [100, 200, 300]});
+                expect(campaignUtils.editCampaign).toHaveBeenCalledWith('grp 1.1 (cam-1)',
+                    req.body.miniReelGroups[1], undefined, '1234');
+                expect(campaignUtils.editCampaign).toHaveBeenCalledWith('grp 2 (cam-1)',
+                    req.body.miniReelGroups[2], {level1: [100, 200, 300]}, '1234');
                 expect(bannerUtils.cleanBanners.calls.length).toBe(2);
                 expect(bannerUtils.createBanners.calls.length).toBe(2);
                 done();

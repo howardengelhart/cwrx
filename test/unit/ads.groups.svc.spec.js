@@ -71,14 +71,59 @@ describe('ads-groups (UT)', function() {
             });
 
             expect(svc._middleware.read).toContain(svc.preventGetAll);
-            expect(svc._middleware.create).toContain(CrudSvc.prototype.validateUniqueProp,
+            expect(svc._middleware.create).toContain(groupModule.validateDates,
+                CrudSvc.prototype.validateUniqueProp,
                 groupModule.getAccountIds, groupModule.createAdtechGroup,
                 groupModule.createBanners, groupModule.ensureDistinctList);
-            expect(svc._middleware.edit).toContain(CrudSvc.prototype.validateUniqueProp,
+            expect(svc._middleware.edit).toContain(groupModule.validateDates,
+                CrudSvc.prototype.validateUniqueProp,
                 groupModule.getAccountIds, groupModule.cleanBanners, groupModule.createBanners,
                 groupModule.editAdtechGroup, groupModule.ensureDistinctList);
             expect(svc._middleware.delete).toContain(groupModule.deleteAdtechGroup);
             expect(svc.formatOutput).toBe(groupModule.formatOutput);
+        });
+    });
+    
+    describe('validateDates', function() {
+        beforeEach(function() {
+            req.body = { name: 'group 1' };
+            spyOn(campaignUtils, 'validateDates').andCallThrough();
+        });
+        
+        it('should call next if campaignUtils.validateDates returns true', function(done) {
+            groupModule.validateDates(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.body).toEqual({name: 'group 1', startDate: jasmine.any(String), endDate: jasmine.any(String)});
+                done();
+            });
+        });
+        
+        it('should call done if campaignUtils.validateDates returns false', function(done) {
+            req.body = { name: 'group 1', startDate: 'foo' };
+            groupModule.validateDates(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({code: 400, body: 'group has invalid dates'});
+                expect(errorSpy).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should preserve dates from req.origObj', function(done) {
+            var start = new Date(new Date().valueOf() + 3*60*60*1000),
+                end = new Date(new Date().valueOf() + 4*60*60*1000);
+            req.origObj = { startDate: start, endDate: end };
+            groupModule.validateDates(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.body).toEqual({name: 'group 1', startDate: start.toISOString(), endDate: end.toISOString()});
+                done();
+            });
         });
     });
     
@@ -390,10 +435,10 @@ describe('ads-groups (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.body.adtechId).toBe(123);
                 expect(req.body.categories).toEqual(['sports', 'food']);
                 expect(campaignUtils.makeKeywordLevels).toHaveBeenCalledWith({level3: ['sports', 'food']});
-                expect(campaignUtils.editCampaign).toHaveBeenCalledWith(123, 'new name', undefined,
-                    undefined, {keys: 'yes'});
+                expect(campaignUtils.editCampaign).toHaveBeenCalledWith('new name', req.body, {keys: 'yes'}, '1234');
                 done();
             });
         });
@@ -406,8 +451,7 @@ describe('ads-groups (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(campaignUtils.makeKeywordLevels).not.toHaveBeenCalled();
-                expect(campaignUtils.editCampaign).toHaveBeenCalledWith(123, 'new name', undefined,
-                    undefined, undefined);
+                expect(campaignUtils.editCampaign).toHaveBeenCalledWith('new name', req.body, undefined, '1234');
                 done();
             });
         });
@@ -441,14 +485,14 @@ describe('ads-groups (UT)', function() {
         });
         
         it('should reject if editing the campaign fails', function(done) {
-            campaignUtils.makeKeywordLevels.andReturn(q.reject('I GOT A PROBLEM'));
+            campaignUtils.editCampaign.andReturn(q.reject('I GOT A PROBLEM'));
             groupModule.editAdtechGroup(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
                 expect(campaignUtils.makeKeywordLevels).toHaveBeenCalled();
-                expect(campaignUtils.editCampaign).not.toHaveBeenCalled();
+                expect(campaignUtils.editCampaign).toHaveBeenCalled();
                 done();
             });
         });
