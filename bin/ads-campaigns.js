@@ -285,11 +285,10 @@
                                  req.uuid, oldCamp.adtechId, oldCamp.id);
 
                         return campaignUtils.editCampaign(
-                            oldCamp.adtechId,
                             matching.name + ' (' + id + ')',
-                            matching.startDate,
-                            matching.endDate,
-                            keys
+                            matching,
+                            keys,
+                            req.uuid
                         );
                     }
                 }));
@@ -439,11 +438,10 @@
                              req.uuid, group.adtechId, group.name);
 
                     return campaignUtils.editCampaign(
-                        group.adtechId,
                         group.name + ' (' + id + ')',
-                        group.startDate,
-                        group.endDate,
-                        keys
+                        group,
+                        keys,
+                        req.uuid
                     );
                 }
             })

@@ -142,6 +142,8 @@
             origCats = req.origObj.categories || [],
             promise;
             
+        req.body.adtechId = req.body.adtechId || req.origObj.adtechId;
+            
         if (!cats || objUtils.compareObjects(cats.slice().sort(), origCats.slice().sort())) {
             promise = q();
         } else {
@@ -155,11 +157,10 @@
             }
             
             return campaignUtils.editCampaign(
-                req.origObj.adtechId,
                 req.body.name,
-                undefined,
-                undefined,
-                keys
+                req.body,
+                keys,
+                req.uuid
             );
         })
         .then(function() {

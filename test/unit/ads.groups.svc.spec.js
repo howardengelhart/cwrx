@@ -390,10 +390,10 @@ describe('ads-groups (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.body.adtechId).toBe(123);
                 expect(req.body.categories).toEqual(['sports', 'food']);
                 expect(campaignUtils.makeKeywordLevels).toHaveBeenCalledWith({level3: ['sports', 'food']});
-                expect(campaignUtils.editCampaign).toHaveBeenCalledWith(123, 'new name', undefined,
-                    undefined, {keys: 'yes'});
+                expect(campaignUtils.editCampaign).toHaveBeenCalledWith('new name', req.body, {keys: 'yes'}, '1234');
                 done();
             });
         });
@@ -406,8 +406,7 @@ describe('ads-groups (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(campaignUtils.makeKeywordLevels).not.toHaveBeenCalled();
-                expect(campaignUtils.editCampaign).toHaveBeenCalledWith(123, 'new name', undefined,
-                    undefined, undefined);
+                expect(campaignUtils.editCampaign).toHaveBeenCalledWith('new name', req.body, undefined, '1234');
                 done();
             });
         });
@@ -441,14 +440,14 @@ describe('ads-groups (UT)', function() {
         });
         
         it('should reject if editing the campaign fails', function(done) {
-            campaignUtils.makeKeywordLevels.andReturn(q.reject('I GOT A PROBLEM'));
+            campaignUtils.editCampaign.andReturn(q.reject('I GOT A PROBLEM'));
             groupModule.editAdtechGroup(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
                 expect(campaignUtils.makeKeywordLevels).toHaveBeenCalled();
-                expect(campaignUtils.editCampaign).not.toHaveBeenCalled();
+                expect(campaignUtils.editCampaign).toHaveBeenCalled();
                 done();
             });
         });

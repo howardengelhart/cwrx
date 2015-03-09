@@ -373,27 +373,33 @@ describe('campaignUtils', function() {
     });
     
     describe('editCampaign', function() {
-        var name, keys, now, startDate, endDate;
+        var name, campaign, keys, now, oldStart, oldEnd, origCamp;
         beforeEach(function() {
             now = new Date();
+            oldStart = new Date(now.valueOf() - 4000);
+            oldEnd = new Date(now.valueOf() - 2000);
             name = 'new';
             keys = { level1: [31, 32, 33], level3: [41] };
-            startDate = now.toISOString();
-            endDate = new Date(now + 1000).toISOString();
-            adtech.campaignAdmin.getCampaignById.andReturn(q({
-                id: 123, foo: null, name: 'old',
-                dateRangeList: [{endDate: 'oldEndDate', startDate: 'newEndDate'}],
+            campaign = {
+                adtechId: 123,
+                startDate: now.toISOString(),
+                endDate: new Date(now + 1000).toISOString()
+            };
+            origCamp = {
+                id: 123, foo: null, name: 'old', statusTypeId: kCamp.STATUS_ENTERED,
+                dateRangeList: [{endDate: oldEnd, startDate: oldStart}],
                 priorityLevelOneKeywordIdList: [11, 12], priorityLevelThreeKeywordIdList: [21, 22]
-            }));
+            };
+            adtech.campaignAdmin.getCampaignById.andCallFake(function() { return q(origCamp); });
             adtech.campaignAdmin.updateCampaign.andReturn(q());
         });
         
         it('should be capable of editing name, dates, and keywords', function(done) {
-            campaignUtils.editCampaign(123, name, startDate, endDate, keys).then(function() {
+            campaignUtils.editCampaign(name, campaign, keys, '1234').then(function() {
                 expect(adtech.campaignAdmin.getCampaignById).toHaveBeenCalledWith(123);
                 expect(adtech.campaignAdmin.updateCampaign).toHaveBeenCalledWith({
-                    id: 123, name: 'new',
-                    dateRangeList: [{endDate: endDate, startDate: startDate}],
+                    id: 123, name: 'new', statusTypeId: kCamp.STATUS_ENTERED,
+                    dateRangeList: [{endDate: new Date(now + 1000).toISOString(), startDate: now.toISOString()}],
                     priorityLevelOneKeywordIdList: [31, 32, 33], priorityLevelThreeKeywordIdList: [41]
                 });
             }).catch(function(error) {
@@ -402,11 +408,12 @@ describe('campaignUtils', function() {
         });
         
         it('should not change any properties whose new values are undefined', function(done) {
-            campaignUtils.editCampaign(123).then(function() {
+            campaign = { adtechId: 123 };
+            campaignUtils.editCampaign(undefined, campaign).then(function() {
                 expect(adtech.campaignAdmin.getCampaignById).toHaveBeenCalledWith(123);
                 expect(adtech.campaignAdmin.updateCampaign).toHaveBeenCalledWith({
-                    id: 123, name: 'old',
-                    dateRangeList: [{endDate: 'oldEndDate', startDate: 'newEndDate'}],
+                    id: 123, name: 'old', statusTypeId: kCamp.STATUS_ENTERED,
+                    dateRangeList: [{endDate: oldEnd.toISOString(), startDate: oldStart.toISOString()}],
                     priorityLevelOneKeywordIdList: [11, 12], priorityLevelThreeKeywordIdList: [21, 22]
                 });
             }).catch(function(error) {
@@ -416,10 +423,10 @@ describe('campaignUtils', function() {
         
         it('should not update a keyword list if a new list of that level is not provided', function(done) {
             delete keys.level1;
-            campaignUtils.editCampaign(123, name, startDate, endDate, keys).then(function() {
+            campaignUtils.editCampaign(name, campaign, keys, '1234').then(function() {
                 expect(adtech.campaignAdmin.updateCampaign).toHaveBeenCalledWith({
-                    id: 123, name: 'new',
-                    dateRangeList: [{endDate: endDate, startDate: startDate}],
+                    id: 123, name: 'new', statusTypeId: kCamp.STATUS_ENTERED,
+                    dateRangeList: [{endDate: new Date(now + 1000).toISOString(), startDate: now.toISOString()}],
                     priorityLevelOneKeywordIdList: [11, 12], priorityLevelThreeKeywordIdList: [41]
                 });
             }).catch(function(error) {
@@ -427,9 +434,24 @@ describe('campaignUtils', function() {
             }).done(done);
         });
         
+        it('should not update an active campaign\'s startDate', function(done) {
+            origCamp.statusTypeId = kCamp.STATUS_ACTIVE;
+            campaignUtils.editCampaign(name, campaign, keys, '1234').then(function() {
+                expect(adtech.campaignAdmin.getCampaignById).toHaveBeenCalledWith(123);
+                expect(adtech.campaignAdmin.updateCampaign).toHaveBeenCalledWith({
+                    id: 123, name: 'new', statusTypeId: kCamp.STATUS_ACTIVE,
+                    dateRangeList: [{endDate: new Date(now + 1000).toISOString(), startDate: oldStart.toISOString()}],
+                    priorityLevelOneKeywordIdList: [31, 32, 33], priorityLevelThreeKeywordIdList: [41]
+                });
+                expect(campaign.startDate).toBe(oldStart.toISOString());
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
         it('should reject if retrieving the campaign failed', function(done) {
             adtech.campaignAdmin.getCampaignById.andReturn(q.reject('ADTECH IS THE WORST'));
-            campaignUtils.editCampaign(123, name, startDate, endDate, keys).then(function() {
+            campaignUtils.editCampaign(name, campaign, keys, '1234').then(function() {
                 expect('resolved').not.toBe('resolved');
             }).catch(function(error) {
                 expect(error).toEqual(new Error('ADTECH IS THE WORST'));
@@ -440,7 +462,7 @@ describe('campaignUtils', function() {
         
         it('should reject if updating the campaign failed', function(done) {
             adtech.campaignAdmin.updateCampaign.andReturn(q.reject('ADTECH IS THE WORST'));
-            campaignUtils.editCampaign(123, name, startDate, endDate, keys).then(function() {
+            campaignUtils.editCampaign(name, campaign, keys, '1234').then(function() {
                 expect('resolved').not.toBe('resolved');
             }).catch(function(error) {
                 expect(error).toEqual(new Error('ADTECH IS THE WORST'));
