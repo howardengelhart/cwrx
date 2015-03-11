@@ -12,13 +12,13 @@ var q               = require('q'),
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
     },
     keywords = { // mapping of keywords used here to known ids
-        sports: '1002744',
-        food: '1003562',
-        bacon: '1024286',
-        'e2e-rc-1': '3206688',
-        'e2e-rc-4': '3206827',
-        'e2e-rc-5': '3206830',
-        'e2e-rc-6': '3206828'
+        sports      : '1002744',
+        food        : '1003562',
+        bacon       : '1024286',
+        'e2e-rc-1'  : '3206688',
+        'e2e-rc-4'  : '3206827',
+        'e2e-rc-5'  : '3206830',
+        'e2e-rc-6'  : '3206828'
     };
     
 jasmine.getEnv().defaultTimeoutInterval = 90000;
@@ -40,7 +40,7 @@ describe('ads campaigns endpoints (E2E):', function() {
             permissions: {
                 cards: { delete: 'org' },
                 experiences: { delete: 'org' },
-                campaigns: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
+                campaigns: { read: 'org', create: 'org', edit: 'org', delete: 'own' }
             }
         };
         var loginOpts = {
@@ -155,8 +155,9 @@ describe('ads campaigns endpoints (E2E):', function() {
     describe('GET /api/campaign/:id', function() {
         beforeEach(function(done) {
             var mockCamps = [
-                { id: 'e2e-getid1', name: 'camp 1', status: 'active' },
-                { id: 'e2e-getid2', name: 'camp 2', status: 'deleted' }
+                { id: 'e2e-getid1', name: 'camp 1', status: 'active', user: 'not-e2e-user', org: 'e2e-org' },
+                { id: 'e2e-getid2', name: 'camp 2', status: 'deleted', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'e2e-getid3', name: 'camp 2', status: 'active', user: 'not-e2e-user', org: 'not-e2e-org' },
             ];
             testUtils.resetCollection('campaigns', mockCamps).done(done);
         });
@@ -165,7 +166,8 @@ describe('ads campaigns endpoints (E2E):', function() {
             var options = {url: config.adsUrl + '/campaign/e2e-getid1', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toEqual({id: 'e2e-getid1', name: 'camp 1', status: 'active'});
+                expect(resp.body).toEqual({ id: 'e2e-getid1', name: 'camp 1', status: 'active',
+                    user: 'not-e2e-user', org: 'e2e-org' });
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -202,6 +204,16 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+
+        it('should not show campaigns the user does not have permission to see', function(done) {
+            var options = {url: config.adsUrl + '/campaign/e2e-getid3', jar: cookieJar};
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toEqual('Object not found');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
         
         it('should throw a 401 error if the user is not authenticated', function(done) {
             var options = { url: config.adsUrl + '/campaign/e2e-getid1' };
@@ -229,15 +241,16 @@ describe('ads campaigns endpoints (E2E):', function() {
         beforeEach(function(done) {
             options = { url: config.adsUrl + '/campaigns', qs: {sort: 'id,1'}, jar: cookieJar };
             var mockCamps = [
-                { id: 'e2e-getquery1', name: 'camp 1', status: 'active' },
-                { id: 'e2e-getquery2', name: 'camp 2', status: 'inactive' },
-                { id: 'e2e-getquery3', name: 'camp 3', status: 'active' },
-                { id: 'e2e-getgone', name: 'camp deleted', status: 'deleted' }
+                { id: 'e2e-getquery1', name: 'camp 1', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'e2e-getquery2', name: 'camp 2', status: 'inactive', user: 'not-e2e-user', org: 'e2e-org' },
+                { id: 'e2e-getquery3', name: 'camp 3', status: 'active', user: 'e2e-user', org: 'not-e2e-org' },
+                { id: 'e2e-getquery4', name: 'camp 4', status: 'active', user: 'not-e2e-user', org: 'not-e2e-org' },
+                { id: 'e2e-getgone', name: 'camp deleted', status: 'deleted', user: 'e2e-user', org: 'e2e-org' }
             ];
             testUtils.resetCollection('campaigns', mockCamps).done(done);
         });
 
-        it('should get all campaigns', function(done) {
+        it('should get all campaigns a user can see', function(done) {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(3);
@@ -277,6 +290,32 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body.length).toBe(1);
                 expect(resp.body[0].id).toBe('e2e-getquery3');
                 expect(resp.response.headers['content-range']).toBe('items 1-1/1');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should get campaigns by user', function(done) {
+            options.qs.user = 'e2e-user';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0].id).toBe('e2e-getquery1');
+                expect(resp.body[1].id).toBe('e2e-getquery3');
+                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should get campaigns by org', function(done) {
+            options.qs.org = 'e2e-org';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0].id).toBe('e2e-getquery1');
+                expect(resp.body[1].id).toBe('e2e-getquery2');
+                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -360,6 +399,8 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBeDefined();
+                expect(resp.body.user).toBe('e2e-user');
+                expect(resp.body.org).toBe('e2e-org');
                 expect(resp.body.name).toBe(mockCamp.name);
                 expect(resp.body.categories).toEqual(['food', 'sports']);
                 expect(resp.body.miniReels).toEqual([
@@ -591,10 +632,18 @@ describe('ads campaigns endpoints (E2E):', function() {
         var mockCamps, options;
         beforeEach(function(done) {
             mockCamps = [
-                { id: 'e2e-put1', status: 'active', advertiserId: keptAdvert.id, customerId: keptCust.id,
-                  name: 'fake camp' },
-                { id: 'e2e-deleted', status: 'deleted', advertiserId: keptAdvert.id, customerId: keptCust.id,
-                  name: 'deleted camp' }
+                {
+                    id: 'e2e-put1', status: 'active', advertiserId: keptAdvert.id, customerId: keptCust.id,
+                    name: 'fake camp', user: 'not-e2e-user', org: 'e2e-org'
+                },
+                {
+                    id: 'e2e-put2', status: 'active', advertiserId: keptAdvert.id, customerId: keptCust.id,
+                    name: 'fake camp 2', user: 'not-e2e-user', org: 'not-e2e-org'
+                },
+                {
+                    id: 'e2e-deleted', status: 'deleted', advertiserId: keptAdvert.id, customerId: keptCust.id,
+                    name: 'deleted camp'
+                }
             ];
             return testUtils.mongoFind('campaigns', {id: createdCamp.id}).then(function(results) {
                 mockCamps.push(results[0]);
@@ -611,6 +660,8 @@ describe('ads campaigns endpoints (E2E):', function() {
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body._id).not.toBeDefined();
+                expect(resp.body.user).toBe('not-e2e-user');
+                expect(resp.body.org).toBe('e2e-org');
                 expect(resp.body.name).toBe('updated fake camp');
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
             }).then(function(results) {
@@ -955,6 +1006,20 @@ describe('ads campaigns endpoints (E2E):', function() {
             }).done(done);
         });
         
+        it('should not edit a campaign the user does not have permission over', function(done) {
+            options = {
+                url: config.adsUrl + '/campaign/e2e-put2',
+                json: { name: 'mine now' },
+                jar: cookieJar
+            };
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(403);
+                expect(resp.body).toBe('Not authorized to edit this');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
         it('should not edit a campaign that has been deleted', function(done) {
             options = {
                 url: config.adsUrl + '/campaign/e2e-deleted',
@@ -1069,7 +1134,8 @@ describe('ads campaigns endpoints (E2E):', function() {
         beforeEach(function(done) {
             var mockCamps = [
                 { id: 'e2e-del1', status: 'deleted' },
-                { id: 'e2e-del2', status: 'active' }
+                { id: 'e2e-del2', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                { id: 'e2e-del3', status: 'active', user: 'not-e2e-user', org: 'e2e-org' }
             ];
             
             testUtils.mongoFind('campaigns', {id: createdCamp.id}).then(function(results) {
@@ -1181,6 +1247,16 @@ describe('ads campaigns endpoints (E2E):', function() {
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should not allow a user to delete campaigns they do not have permission over', function(done) {
+            var options = {jar: cookieJar, url: config.adsUrl + '/campaign/e2e-del3'};
+            requestUtils.qRequest('delete', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(403);
+                expect(resp.body).toBe('Not authorized to delete this');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

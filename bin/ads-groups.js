@@ -128,6 +128,7 @@
             req.body.miniReels,
             req.origObj && req.origObj.miniReels || [],
             'contentMiniReel',
+            false,
             req.body.adtechId || (req.origObj && req.origObj.adtechId)
         )
         .then(function() {

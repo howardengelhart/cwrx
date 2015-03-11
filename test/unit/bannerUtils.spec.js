@@ -1,3 +1,4 @@
+
 var flush = true;
 describe('bannerUtils', function() {
     var q, path, fs, mockLog, logger, adtech, bannerUtils, mockClient;
@@ -44,20 +45,49 @@ describe('bannerUtils', function() {
         });
 
         it('should format a banner for saving to adtech', function() {
-            var obj = bannerUtils.formatBanner('card', 'rc-1');
+            var obj = bannerUtils.formatBanner('card', 'rc-1', false);
             expect(obj).toEqual({ banner: jasmine.any(Object), bannerInfo: jasmine.any(Object) });
             expect(obj.banner).toEqual({
-                data: cardTempl.toString('base64'), extId: 'rc-1', fileType: 'html', id: -1, mainFileName: 'index.html',
-                name: 'card rc-1', originalData: cardTempl.toString('base64'), sizeTypeId: 277, statusId: 1, styleTypeId: 3 });
+                data: cardTempl.toString('base64'),
+                extId: 'rc-1',
+                fileType: 'html',
+                id: -1,
+                mainFileName: 'index.html',
+                name: 'card rc-1',
+                originalData: cardTempl.toString('base64'),
+                sizeTypeId: 277,
+                statusId: 1,
+                styleTypeId: 3
+            });
             expect(obj.bannerInfo).toEqual({
-                bannerReferenceId: -1, entityFrequencyConfig: { frequencyCookiesOnly: true, frequencyDistributed: true,
-                frequencyInterval: 30, frequencyTypeId: 18 }, name: 'card rc-1', statusId: 1 });
+                bannerReferenceId: -1,
+                entityFrequencyConfig: {
+                    frequencyCookiesOnly: true,
+                    frequencyDistributed: true,
+                    frequencyInterval: 30,
+                    frequencyTypeId: 18
+                },
+                name: 'card rc-1',
+                statusId: 1
+            });
+        });
+
+        it('should leave out the frequency config if the banner is sponsored', function() {
+            var obj = bannerUtils.formatBanner('card', 'rc-1', true);
+            expect(obj).toEqual({ banner: jasmine.any(Object), bannerInfo: jasmine.any(Object) });
+            expect(obj.bannerInfo).toEqual({
+                bannerReferenceId: -1,
+                entityFrequencyConfig: {},
+                name: 'card rc-1',
+                statusId: 1
+            });
         });
         
         it('should correctly handle different banner types', function() {
             var banners = {};
             ['card', 'miniReel', 'contentMiniReel'].forEach(function(type) {
-                banners[type] = bannerUtils.formatBanner(type, 'rc-1');
+                banners[type] = bannerUtils.formatBanner(type, 'rc-1', false);
+                
                 if (type === 'card') expect(banners[type].banner.data).toBe(cardTempl.toString('base64'));
                 else expect(banners[type].banner.data).toBe(reelTempl.toString('base64'));
                 expect(banners[type].banner.originalData).toBe(banners[type].banner.data);
@@ -79,13 +109,13 @@ describe('bannerUtils', function() {
                 var num = this.createBanner.calls.length;
                 return q({name: banner.name, extId: banner.extId, bannerNumber: num, id: num*100});
             });
-            spyOn(bannerUtils, 'formatBanner').andCallFake(function(type, id) {
+            spyOn(bannerUtils, 'formatBanner').andCallFake(function(type, id, isSponsored) {
                 return {banner: {extId: id, name: type + ' ' + id}, bannerInfo: {name: type + ' ' + id}};
             });
         });
         
         it('should skip if the new banner list is not defined', function(done) {
-            bannerUtils.createBanners(null, oldBanns, 'card', 12345).then(function(resp) {
+            bannerUtils.createBanners(null, oldBanns, 'card', false, 12345).then(function(resp) {
                 expect(adtech.bannerAdmin.createBanner).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -93,13 +123,13 @@ describe('bannerUtils', function() {
         });
         
         it('should create a batch of banners', function(done) {
-            bannerUtils.createBanners(newBanns, oldBanns, 'card', 12345).then(function(resp) {
+            bannerUtils.createBanners(newBanns, oldBanns, 'card', false, 12345).then(function(resp) {
                 expect(newBanns).toEqual([
                     {id: 'rc-1', bannerId: 100, bannerNumber: 1},
                     {id: 'rc-2', bannerId: 200, bannerNumber: 2}
                 ]);
-                expect(bannerUtils.formatBanner).toHaveBeenCalledWith('card', 'rc-1');
-                expect(bannerUtils.formatBanner).toHaveBeenCalledWith('card', 'rc-2');
+                expect(bannerUtils.formatBanner).toHaveBeenCalledWith('card', 'rc-1', false);
+                expect(bannerUtils.formatBanner).toHaveBeenCalledWith('card', 'rc-2', false);
                 expect(adtech.bannerAdmin.createBanner.calls.length).toBe(2);
                 expect(adtech.bannerAdmin.createBanner).toHaveBeenCalledWith(12345,
                     {extId: 'rc-1', name: 'card rc-1'}, {name: 'card rc-1'});
@@ -115,13 +145,13 @@ describe('bannerUtils', function() {
                 { id: 'rc-2', bannerId: 200, bannerNumber: 2 },
                 { id: 'rc-3', bannerId: 300, bannerNumber: 3 }
             ];
-            bannerUtils.createBanners(newBanns, oldBanns, 'card', 12345).then(function() {
+            bannerUtils.createBanners(newBanns, oldBanns, 'card', false, 12345).then(function() {
                 expect(newBanns).toEqual([
                     {id: 'rc-1', bannerId: 100, bannerNumber: 1},
                     {id: 'rc-2', bannerId: 200, bannerNumber: 2}
                 ]);
                 expect(bannerUtils.formatBanner.calls.length).toBe(1);
-                expect(bannerUtils.formatBanner).toHaveBeenCalledWith('card', 'rc-1');
+                expect(bannerUtils.formatBanner).toHaveBeenCalledWith('card', 'rc-1', false);
                 expect(adtech.bannerAdmin.createBanner.calls.length).toBe(1);
                 expect(adtech.bannerAdmin.createBanner).toHaveBeenCalledWith(12345,
                     {extId: 'rc-1', name: 'card rc-1'}, {name: 'card rc-1'});
@@ -130,9 +160,23 @@ describe('bannerUtils', function() {
             }).done(done);
         });
         
+        it('should properly pass the isSponsored value to formatBanners', function(done) {
+            bannerUtils.createBanners(newBanns, oldBanns, 'card', true, 12345).then(function(resp) {
+                expect(newBanns).toEqual([
+                    {id: 'rc-1', bannerId: 100, bannerNumber: 1},
+                    {id: 'rc-2', bannerId: 200, bannerNumber: 2}
+                ]);
+                expect(bannerUtils.formatBanner).toHaveBeenCalledWith('card', 'rc-1', true);
+                expect(bannerUtils.formatBanner).toHaveBeenCalledWith('card', 'rc-2', true);
+                expect(adtech.bannerAdmin.createBanner.calls.length).toBe(2);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
         it('should reject if one of the adtech calls fails', function(done) {
             adtech.bannerAdmin.createBanner.andReturn(q.reject('I GOT A PROBLEM'));
-            bannerUtils.createBanners(newBanns, oldBanns, 'card', 12345).then(function() {
+            bannerUtils.createBanners(newBanns, oldBanns, 'card', false, 12345).then(function() {
                 expect('resolved').not.toBe('resolved');
             }).catch(function(error) {
                 expect(error).toEqual(new Error('I GOT A PROBLEM'));

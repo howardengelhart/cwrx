@@ -50,7 +50,6 @@ describe('ads-campaigns (UT)', function() {
 
     describe('setupSvc', function() {
         it('should setup the campaign service', function() {
-            spyOn(CrudSvc.prototype.preventGetAll, 'bind').andReturn(CrudSvc.prototype.preventGetAll);
             spyOn(campaignUtils.getAccountIds, 'bind').andReturn(campaignUtils.getAccountIds);
             spyOn(campModule.formatOutput, 'bind').andReturn(campModule.formatOutput);
             
@@ -69,8 +68,8 @@ describe('ads-campaigns (UT)', function() {
             expect(svc instanceof CrudSvc).toBe(true);
             expect(svc._prefix).toBe('cam');
             expect(svc.objName).toBe('campaigns');
-            expect(svc._userProp).toBe(false);
-            expect(svc._orgProp).toBe(false);
+            expect(svc._userProp).toBe(true);
+            expect(svc._orgProp).toBe(true);
             expect(svc._allowPublic).toBe(false);
             expect(svc._coll).toEqual({collectionName: 'campaigns'});
             expect(svc._advertColl).toEqual({collectionName: 'advertisers'});
@@ -85,7 +84,6 @@ describe('ads-campaigns (UT)', function() {
             expect(svc.createValidator._formats.categories).toEqual(['string']);
             expect(svc.editValidator._formats.categories).toEqual(['string']);
 
-            expect(svc._middleware.read).toContain(svc.preventGetAll);
             expect(svc._middleware.create).toContain(campaignUtils.getAccountIds,
                 campModule.validateDates, campModule.ensureUniqueIds, campModule.ensureUniqueNames,
                 campModule.createSponsoredCamps, campModule.createTargetCamps);
@@ -572,8 +570,8 @@ describe('ads-campaigns (UT)', function() {
                     startDate: 'cardStart1', endDate: 'cardEnd1', isSponsored: true, keywords: {level1: [anyNum], level3: [anyNum]},
                     advertiserId: 987, customerId: 876 }, '1234');
                 expect(bannerUtils.createBanners.calls.length).toBe(2);
-                expect(bannerUtils.createBanners).toHaveBeenCalledWith([req.body.miniReels[0]], null, 'miniReel', 1000);
-                expect(bannerUtils.createBanners).toHaveBeenCalledWith([req.body.cards[0]], null, 'card', 2000);
+                expect(bannerUtils.createBanners).toHaveBeenCalledWith([req.body.miniReels[0]], null, 'miniReel', true, 1000);
+                expect(bannerUtils.createBanners).toHaveBeenCalledWith([req.body.cards[0]], null, 'card', true, 2000);
                 done();
             });
         });
@@ -625,7 +623,7 @@ describe('ads-campaigns (UT)', function() {
                     startDate: 'expStart1', endDate: 'expEnd1', isSponsored: true, keywords: {level3: [anyNum]},
                     advertiserId: 987, customerId: 876 }, '1234');
                 expect(bannerUtils.createBanners.calls.length).toBe(1);
-                expect(bannerUtils.createBanners).toHaveBeenCalledWith([req.body.miniReels[0]], null, 'miniReel', 1000);
+                expect(bannerUtils.createBanners).toHaveBeenCalledWith([req.body.miniReels[0]], null, 'miniReel', true, 1000);
                 done();
             });
         });
@@ -660,13 +658,13 @@ describe('ads-campaigns (UT)', function() {
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(campaignUtils.createCampaign.calls.length).toBe(2);
                 expect(bannerUtils.createBanners.calls.length).toBe(1);
-                expect(bannerUtils.createBanners).toHaveBeenCalledWith([req.body.cards[0]], null, 'card', 2000);
+                expect(bannerUtils.createBanners).toHaveBeenCalledWith([req.body.cards[0]], null, 'card', true, 2000);
                 done();
             });
         });
         
         it('should reject if creating banners fails', function(done) {
-            bannerUtils.createBanners.andCallFake(function(newList, oldList, type, adtechId) {
+            bannerUtils.createBanners.andCallFake(function(newList, oldList, type, isSponsored, adtechId) {
                 if (type === 'card') return q.reject(new Error('I GOT A PROBLEM'));
                 else return q();
             });
@@ -780,8 +778,8 @@ describe('ads-campaigns (UT)', function() {
                 expect(bannerUtils.cleanBanners).toHaveBeenCalledWith([{id: 'e-2'}], [{id: 'e-2'}], 12);
                 expect(bannerUtils.cleanBanners).toHaveBeenCalledWith([{id: 'e-3'}], [{id: 'e-4'}], 13);
                 expect(bannerUtils.createBanners.calls.length).toBe(2);
-                expect(bannerUtils.createBanners).toHaveBeenCalledWith([{id: 'e-2'}], [{id: 'e-2'}], 'contentMiniReel', 12);
-                expect(bannerUtils.createBanners).toHaveBeenCalledWith([{id: 'e-3'}], [{id: 'e-4'}], 'contentMiniReel', 13);
+                expect(bannerUtils.createBanners).toHaveBeenCalledWith([{id: 'e-2'}], [{id: 'e-2'}], 'contentMiniReel', false, 12);
+                expect(bannerUtils.createBanners).toHaveBeenCalledWith([{id: 'e-3'}], [{id: 'e-4'}], 'contentMiniReel', false, 13);
                 done();
             });
         });
@@ -876,7 +874,7 @@ describe('ads-campaigns (UT)', function() {
         });
 
         it('should reject if creating banners fails', function(done) {
-            bannerUtils.createBanners.andCallFake(function(oldList, newList, type, id) {
+            bannerUtils.createBanners.andCallFake(function(oldList, newList, type, isSponsored, id) {
                 if (id === 13) return q.reject('ADTECH IS THE WORST');
                 else return q();
             });
@@ -925,8 +923,8 @@ describe('ads-campaigns (UT)', function() {
                     name: 'group_111 (cam-1)', startDate: 'start3', isSponsored: false,
                     keywords: {level1: [200, 300]}, advertiserId: 987, customerId: 876}, '1234');
                 expect(bannerUtils.createBanners.calls.length).toBe(2);
-                expect(bannerUtils.createBanners).toHaveBeenCalledWith([{id: 'e-1'}, {id: 'e-11'}], null, 'contentMiniReel', 1000);
-                expect(bannerUtils.createBanners).toHaveBeenCalledWith([{id: 'e-3'}], null, 'contentMiniReel', 2000);
+                expect(bannerUtils.createBanners).toHaveBeenCalledWith([{id: 'e-1'}, {id: 'e-11'}], null, 'contentMiniReel', false, 1000);
+                expect(bannerUtils.createBanners).toHaveBeenCalledWith([{id: 'e-3'}], null, 'contentMiniReel', false, 2000);
                 done();
             });
         });
@@ -983,9 +981,9 @@ describe('ads-campaigns (UT)', function() {
                 expect(campaignUtils.makeKeywordLevels).toHaveBeenCalledWith({level1: []});
                 expect(campaignUtils.createCampaign.calls.length).toBe(3);
                 expect(bannerUtils.createBanners.calls.length).toBe(3);
-                expect(bannerUtils.createBanners).toHaveBeenCalledWith([], null, 'contentMiniReel', 1000);
-                expect(bannerUtils.createBanners).toHaveBeenCalledWith([], null, 'contentMiniReel', 2000);
-                expect(bannerUtils.createBanners).toHaveBeenCalledWith([{id: 'e-3'}], null, 'contentMiniReel', 3000);
+                expect(bannerUtils.createBanners).toHaveBeenCalledWith([], null, 'contentMiniReel', false, 1000);
+                expect(bannerUtils.createBanners).toHaveBeenCalledWith([], null, 'contentMiniReel', false, 2000);
+                expect(bannerUtils.createBanners).toHaveBeenCalledWith([{id: 'e-3'}], null, 'contentMiniReel', false, 3000);
                 done();
             });
         });
@@ -1023,7 +1021,7 @@ describe('ads-campaigns (UT)', function() {
         });
         
         it('should reject if creating banners fails', function(done) {
-            bannerUtils.createBanners.andCallFake(function(oldList, newList, type, adtechId) {
+            bannerUtils.createBanners.andCallFake(function(oldList, newList, type, isSponsored, adtechId) {
                 if (adtechId === 2000) return q.reject('ADTECH IS THE WORST');
                 else return q();
             });
