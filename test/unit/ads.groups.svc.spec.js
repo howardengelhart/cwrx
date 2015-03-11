@@ -332,7 +332,7 @@ describe('ads-groups (UT)', function() {
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body).toEqual({ miniReels: [{id: 'e-1'}, {id: 'e-2'}] });
                 expect(bannerUtils.createBanners).toHaveBeenCalledWith([{id: 'e-1'}, {id: 'e-2'}],
-                    [{id: 'e-2'}, {id: 'e-3'}], 'contentMiniReel', 123);
+                    [{id: 'e-2'}, {id: 'e-3'}], 'contentMiniReel', false, 123);
                 done();
             });
         });
@@ -350,9 +350,9 @@ describe('ads-groups (UT)', function() {
                 expect(req1.body).toEqual({});
                 expect(req2.body).toEqual({ adtechId: 234, miniReels: [{id: 'e-1'}, {id: 'e-2'}] });
                 expect(bannerUtils.createBanners.calls[0].args).toEqual([undefined,
-                    [{id: 'e-2'}, {id: 'e-3'}], 'contentMiniReel', 123]);
+                    [{id: 'e-2'}, {id: 'e-3'}], 'contentMiniReel', false, 123]);
                 expect(bannerUtils.createBanners.calls[1].args).toEqual([[{id: 'e-1'}, {id: 'e-2'}],
-                    [], 'contentMiniReel', 234]);
+                    [], 'contentMiniReel', false, 234]);
                 done();
             });
         });

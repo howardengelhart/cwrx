@@ -19,7 +19,7 @@
         campModule.contentHost = config.contentHost;
     
         var campColl = db.collection('campaigns'),
-            svc = new CrudSvc(campColl, 'cam', { userProp: false, orgProp: false });
+            svc = new CrudSvc(campColl, 'cam', {});
         svc._advertColl = db.collection('advertisers');
         svc._custColl = db.collection('customers');
         
@@ -35,7 +35,6 @@
         svc.createValidator._formats.categories = ['string'];
         svc.editValidator._formats.categories = ['string'];
 
-        svc.use('read', svc.preventGetAll.bind(svc));
         svc.use('create', campaignUtils.getAccountIds.bind(campaignUtils, svc._advertColl,
                                                            svc._custColl));
         svc.use('create', campModule.validateDates);
@@ -343,7 +342,7 @@
                     }, req.uuid)
                     .then(function(resp) {
                         obj.adtechId = parseInt(resp.id);
-                        return bannerUtils.createBanners([obj], null, type, obj.adtechId);
+                        return bannerUtils.createBanners([obj], null, type, true, obj.adtechId);
                     });
                 }));
             });
@@ -453,6 +452,7 @@
                     group.miniReels,
                     orig.miniReels,
                     'contentMiniReel',
+                    false,
                     group.adtechId
                 );
             });
@@ -505,7 +505,13 @@
                 obj.adtechId = parseInt(resp.id);
                 obj.miniReels = campaignUtils.objectify(obj.miniReels);
                 
-                return bannerUtils.createBanners(obj.miniReels,null,'contentMiniReel',obj.adtechId);
+                return bannerUtils.createBanners(
+                    obj.miniReels,
+                    null,
+                    'contentMiniReel',
+                    false,
+                    obj.adtechId
+                );
             });
         }))
         .then(function() {
@@ -578,9 +584,12 @@
 
         app.get('/api/campaigns', sessions, authGetCamp, audit, function(req, res) {
             var query = {};
-            if (req.query.name) {
-                query.name = String(req.query.name);
-            }
+            ['user', 'org', 'name']
+            .forEach(function(field) {
+                if (req.query[field]) {
+                    query[field] = String(req.query[field]);
+                }
+            });
 
             svc.getObjs(query, req, true).then(function(resp) {
                 if (resp.pagination) {
