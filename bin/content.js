@@ -360,13 +360,18 @@
         var log = logger.getLog(),
             oldId = exp.data.deck[idx].id,
             newId = camp.staticCardMap[exp.id][oldId],
+            adtechId;
+        
+        // Don't append adtechId in preview mode, so c6embed will not try to get Adtech campaign
+        if (req.query.preview !== 'true') {
             adtechId = (camp.cards && camp.cards.filter(function(cardObj) {
                 return cardObj.id === newId;
             })[0] || {}).adtechId;
-        
-        if (!adtechId) {
-            log.warn('[%1] No adtechId for %2 in cards list of %3', req.uuid, newId, camp.id);
-            return q();
+
+            if (!adtechId) {
+                log.warn('[%1] No adtechId for %2 in cards list of %3', req.uuid, newId, camp.id);
+                return q();
+            }
         }
         
         log.trace('[%1] Swapping card %2 for placeholder %3 in experience %4',
@@ -379,7 +384,7 @@
                          req.uuid, newId, exp.id);
                 return q();
             } else {
-                newCard.adtechId = adtechId;
+                newCard.adtechId = adtechId; // undefined if req.query.preview === 'true'
                 exp.data.deck[idx] = newCard;
             }
         });

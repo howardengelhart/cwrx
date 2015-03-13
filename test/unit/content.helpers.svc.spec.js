@@ -806,7 +806,7 @@ describe('content (UT)', function() {
     describe('swapCard', function() {
         var req, exp, camp, cardSvc;
         beforeEach(function() {
-            req = { uuid: '1234' };
+            req = { uuid: '1234', query: {} };
             exp = { id: 'e-1', data: { deck: [
                 { id: 'rc-p1', title: 'placeholder 1' },
                 { id: 'rc-real1', title: 'card 1' },
@@ -852,6 +852,17 @@ describe('content (UT)', function() {
                 expect(exp.data.deck[0]).toEqual({ id: 'rc-p1', title: 'placeholder 1' });
                 expect(cardSvc.getPublicCard).not.toHaveBeenCalled();
                 expect(mockLog.warn).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should not append the adtechId if req.query.preview = true', function(done) {
+            req.query.preview = 'true';
+            content.swapCard(req, exp, 0, camp, cardSvc).then(function() {
+                expect(exp.data.deck[0]).toEqual({ id: 'rc-2', title: 'sp card rc-2' });
+                expect(cardSvc.getPublicCard).toHaveBeenCalledWith('rc-2', req);
+                expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
