@@ -428,6 +428,22 @@ describe('content public experience endpoints (E2E):', function() {
                 }).done(done);
             });
             
+            it('should not append adtechIds if the preview=true param is passed up ', function(done) {
+                options.qs.preview = true;
+                requestUtils.qRequest('get', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.id).toBe('e2e-getcamps1');
+                    expect(resp.body.data.deck).toEqual([
+                        { id: 'rc-1', foo: 'bar' },
+                        { id: 'rc-sp1', status: 'active', foo: 'baz' },
+                        { id: 'rc-sp2', status: 'active', foo: 'buz' },
+                        { id: 'rc-p3' }
+                    ]);
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
             it('should not alter the deck if the campaign has no staticCardMap for this experience', function(done) {
                 options.qs.campaign = 'e2e-cam2';
                 requestUtils.qRequest('get', options).then(function(resp) {

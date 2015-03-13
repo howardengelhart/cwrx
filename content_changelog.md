@@ -3,6 +3,7 @@
 ### 1.15.0: Thu Feb 26 11:01:27 EST 2015
 * [FEATURE]: Add `GET /api/public/content/card/:id` endpoint: [#382](https://github.com/cinema6/cwrx/pull/382)
 * [FEATURE]: Update `GET /api/public/content/experience/:id` endpoint to handle campaigns: [#382](https://github.com/cinema6/cwrx/pull/382)
+* [FIX]: Public experience endpoint handles the `preview` param: [#400](https://github.com/cinema6/cwrx/pull/400)
 * [FIX]: Only update latest entry in `data` array for experience: [#382](https://github.com/cinema6/cwrx/pull/382)
 * Extra deployment steps: None
 
