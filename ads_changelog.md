@@ -1,5 +1,9 @@
 # Ads Service Changelog
 
+### 1.2.1:
+* [FIX]: Make `campaignTypeId` configurable: [#401](https://github.com/cinema6/cwrx/pull/401)
+* Extra deployment steps: Deploy new cookbook
+
 ### 1.2.0: 
 * [FEATURE]: Allow client to set `name`, `startDate` and `endDate` on C6 campaign's sub-campaigns: [#390](https://github.com/cinema6/cwrx/pull/390)
 * Extra deployment steps: None
