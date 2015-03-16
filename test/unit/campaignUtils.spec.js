@@ -302,7 +302,7 @@ describe('campaignUtils', function() {
         var campaign, now, keywords, features;
         beforeEach(function() {
            now = new Date();
-           campaign = { id: 'cam-1', name: 'camp1', advertiserId: '123', customerId: '456',
+           campaign = { id: 'cam-1', name: 'camp1', advertiserId: '123', customerId: '456', campaignTypeId: 232323,
                         startDate: now.toISOString(), endDate: new Date(now.valueOf() + 1000).toISOString() };
            features = {targeting:true,placements:true,frequency:true,schedule:true,
                        ngkeyword:true,keywordLevel:true,volume:true};
@@ -313,7 +313,7 @@ describe('campaignUtils', function() {
             expect(fmt.adGoalTypeId).toBe(1);
             expect(fmt.advertiserId).toBe(123);
             expect(fmt.campaignFeatures).toEqual(features);
-            expect(fmt.campaignTypeId).toBe(26954);
+            expect(fmt.campaignTypeId).toBe(232323);
             expect(fmt.customerId).toBe(456);
             expect(fmt.dateRangeList).toEqual([{deliveryGoal: {desiredImpressions: 1000000000},
                 endDate: campaign.endDate, startDate: campaign.startDate}]);

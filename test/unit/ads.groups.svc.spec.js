@@ -24,7 +24,10 @@ describe('ads-groups (UT)', function() {
         spyOn(logger, 'getLog').andReturn(mockLog);
 
         groupModule.groupsCfg = { advertiserId: 987, customerId: 876 };
-        groupModule.campsCfg = { dateDelays: { start: 100, end: 200 }, statusDelay: 1000, statusAttempts: 10 };
+        groupModule.campsCfg = {
+            campaignTypeId: 343434, statusDelay: 1000, statusAttempts: 10,
+            dateDelays: { start: 100, end: 200 }
+        };
 
         req = { uuid: '1234', _advertiserId: 987, _customerId: 876 };
         nextSpy = jasmine.createSpy('next');
@@ -267,6 +270,7 @@ describe('ads-groups (UT)', function() {
                     name: 'group 1',
                     startDate: req.body.startDate,
                     endDate: req.body.endDate,
+                    campaignTypeId: 343434,
                     isSponsored: false,
                     keywords: {keys: 'yes'},
                     advertiserId: 987,
