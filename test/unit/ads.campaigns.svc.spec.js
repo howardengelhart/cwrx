@@ -39,7 +39,10 @@ describe('ads-campaigns (UT)', function() {
         spyOn(bannerUtils, 'createBanners').andReturn(q());
         spyOn(bannerUtils, 'cleanBanners').andReturn(q());
         
-        campModule.campsCfg = { statusDelay: 1000, statusAttempts: 10, dateDelays: { start: 100, end: 200 } };
+        campModule.campsCfg = {
+            statusDelay: 1000, statusAttempts: 10, campaignTypeId: 454545,
+            dateDelays: { start: 100, end: 200 }
+        };
         campModule.contentHost = 'test.com';
 
         req = { uuid: '1234', _advertiserId: 987, _customerId: 876, params: {} };
@@ -564,11 +567,11 @@ describe('ads-campaigns (UT)', function() {
                 expect(campaignUtils.makeKeywordLevels).toHaveBeenCalledWith({level1: ['cam-1'], level3: ['food']});
                 expect(campaignUtils.createCampaign.calls.length).toBe(2);
                 expect(campaignUtils.createCampaign).toHaveBeenCalledWith({ id: 'e-1', name: 'exp 1 (cam-1)',
-                    startDate: 'expStart1', endDate: 'expEnd1', isSponsored: true, keywords: {level3: [anyNum]},
-                    advertiserId: 987, customerId: 876 }, '1234');
+                    startDate: 'expStart1', endDate: 'expEnd1', campaignTypeId: 454545, isSponsored: true,
+                    keywords: {level3: [anyNum]}, advertiserId: 987, customerId: 876 }, '1234');
                 expect(campaignUtils.createCampaign).toHaveBeenCalledWith({ id: 'rc-1', name: 'card 1 (cam-1)',
-                    startDate: 'cardStart1', endDate: 'cardEnd1', isSponsored: true, keywords: {level1: [anyNum], level3: [anyNum]},
-                    advertiserId: 987, customerId: 876 }, '1234');
+                    startDate: 'cardStart1', endDate: 'cardEnd1', campaignTypeId: 454545, isSponsored: true,
+                    keywords: {level1: [anyNum], level3: [anyNum]}, advertiserId: 987, customerId: 876 }, '1234');
                 expect(bannerUtils.createBanners.calls.length).toBe(2);
                 expect(bannerUtils.createBanners).toHaveBeenCalledWith([req.body.miniReels[0]], null, 'miniReel', true, 1000);
                 expect(bannerUtils.createBanners).toHaveBeenCalledWith([req.body.cards[0]], null, 'card', true, 2000);
@@ -620,8 +623,8 @@ describe('ads-campaigns (UT)', function() {
                 expect(campaignUtils.makeKeywordLevels).toHaveBeenCalledWith({level3: ['food']});
                 expect(campaignUtils.createCampaign.calls.length).toBe(1);
                 expect(campaignUtils.createCampaign).toHaveBeenCalledWith({ id: 'e-1', name: 'exp 1 (cam-1)',
-                    startDate: 'expStart1', endDate: 'expEnd1', isSponsored: true, keywords: {level3: [anyNum]},
-                    advertiserId: 987, customerId: 876 }, '1234');
+                    startDate: 'expStart1', endDate: 'expEnd1', campaignTypeId: 454545, 
+                    isSponsored: true, keywords: {level3: [anyNum]}, advertiserId: 987, customerId: 876 }, '1234');
                 expect(bannerUtils.createBanners.calls.length).toBe(1);
                 expect(bannerUtils.createBanners).toHaveBeenCalledWith([req.body.miniReels[0]], null, 'miniReel', true, 1000);
                 done();
@@ -917,10 +920,10 @@ describe('ads-campaigns (UT)', function() {
                 expect(campaignUtils.makeKeywordLevels).toHaveBeenCalledWith({level1: ['rc-3', 'rc-33']});
                 expect(campaignUtils.createCampaign.calls.length).toBe(2);
                 expect(campaignUtils.createCampaign).toHaveBeenCalledWith({id: 'cam-1',
-                    name: 'grp 1 (cam-1)', endDate: 'end1', isSponsored: false,
+                    name: 'grp 1 (cam-1)', endDate: 'end1', campaignTypeId: 454545, isSponsored: false,
                     keywords: {level1: [100]}, advertiserId: 987, customerId: 876}, '1234');
                 expect(campaignUtils.createCampaign).toHaveBeenCalledWith({id: 'cam-1',
-                    name: 'group_111 (cam-1)', startDate: 'start3', isSponsored: false,
+                    name: 'group_111 (cam-1)', startDate: 'start3', campaignTypeId: 454545, isSponsored: false,
                     keywords: {level1: [200, 300]}, advertiserId: 987, customerId: 876}, '1234');
                 expect(bannerUtils.createBanners.calls.length).toBe(2);
                 expect(bannerUtils.createBanners).toHaveBeenCalledWith([{id: 'e-1'}, {id: 'e-11'}], null, 'contentMiniReel', false, 1000);
