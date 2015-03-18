@@ -45,7 +45,8 @@
         svc.use('edit', campaignUtils.getAccountIds.bind(campaignUtils, svc._advertColl,
                                                          svc._custColl));
         svc.use('edit', campModule.extendListObjects);
-        svc.use('edit', campModule.validateDates);
+        // Removing validateDates from edit due to cinema6/cwrx#403
+        // svc.use('edit', campModule.validateDates);
         svc.use('edit', campModule.ensureUniqueIds);
         svc.use('edit', campModule.ensureUniqueNames);
         svc.use('edit', campModule.cleanSponsoredCamps);
