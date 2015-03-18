@@ -1,5 +1,8 @@
 # Ads Service Changelog
 
+### 1.2.2:
+* [FIX]: Disable date validation on campaign updates (cinema6/cwrx#403).
+
 ### 1.2.1:
 * [FIX]: Make `campaignTypeId` configurable: [#401](https://github.com/cinema6/cwrx/pull/401)
 * Extra deployment steps: Deploy new cookbook
