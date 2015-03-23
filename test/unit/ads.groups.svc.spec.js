@@ -116,15 +116,15 @@ describe('ads-groups (UT)', function() {
         });
         
         it('should preserve dates from req.origObj', function(done) {
-            var start = new Date(new Date().valueOf() + 3*60*60*1000),
-                end = new Date(new Date().valueOf() + 4*60*60*1000);
+            var start = new Date(new Date().valueOf() + 3*60*60*1000).toISOString(),
+                end = new Date(new Date().valueOf() + 4*60*60*1000).toISOString();
             req.origObj = { startDate: start, endDate: end };
             groupModule.validateDates(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.body).toEqual({name: 'group 1', startDate: start.toISOString(), endDate: end.toISOString()});
+                expect(req.body).toEqual({name: 'group 1', startDate: start, endDate: end});
                 done();
             });
         });
@@ -287,7 +287,7 @@ describe('ads-groups (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.body).toEqual({id: 'g-1', adtechId: 1234, name: 'group 1', 
+                expect(req.body).toEqual({id: 'g-1', adtechId: 1234, name: 'group 1',
                     startDate: jasmine.any(String), endDate: jasmine.any(String)});
                 expect(campaignUtils.makeKeywordLevels).toHaveBeenCalledWith({level3: undefined});
                 expect(campaignUtils.createCampaign.calls[0].args[0].keywords).toEqual({keys: 'yes'});

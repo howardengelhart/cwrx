@@ -623,7 +623,7 @@ describe('ads-campaigns (UT)', function() {
                 expect(campaignUtils.makeKeywordLevels).toHaveBeenCalledWith({level3: ['food']});
                 expect(campaignUtils.createCampaign.calls.length).toBe(1);
                 expect(campaignUtils.createCampaign).toHaveBeenCalledWith({ id: 'e-1', name: 'exp 1 (cam-1)',
-                    startDate: 'expStart1', endDate: 'expEnd1', campaignTypeId: 454545, 
+                    startDate: 'expStart1', endDate: 'expEnd1', campaignTypeId: 454545,
                     isSponsored: true, keywords: {level3: [anyNum]}, advertiserId: 987, customerId: 876 }, '1234');
                 expect(bannerUtils.createBanners.calls.length).toBe(1);
                 expect(bannerUtils.createBanners).toHaveBeenCalledWith([req.body.miniReels[0]], null, 'miniReel', true, 1000);

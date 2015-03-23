@@ -88,13 +88,6 @@ describe('campaignUtils', function() {
             expect(obj).toEqual({startDate: jasmine.any(String), endDate: jasmine.any(String)});
             expect(new Date(obj.endDate)).toBeGreaterThan(new Date(obj.startDate));
         });
-        
-        it('should ensure both dates are at least 1 hour into the future', function() {
-            obj = { startDate: new Date(), endDate: new Date(new Date().valueOf() + 1) };
-            expect(campaignUtils.validateDates(obj)).toBe(true);
-            expect(new Date(obj.startDate) - new Date()).toBeGreaterThan(60*60*1000);
-            expect(new Date(obj.endDate)).toBeGreaterThan(new Date(obj.startDate));
-        });
     });
     
     describe('objectify', function() {
@@ -318,6 +311,7 @@ describe('campaignUtils', function() {
             expect(fmt.dateRangeList).toEqual([{deliveryGoal: {desiredImpressions: 1000000000},
                 endDate: campaign.endDate, startDate: campaign.startDate}]);
             expect(fmt.extId).toBe('cam-1');
+            expect(fmt.exclusiveType).toBe(kCamp.EXCLUSIVE_TYPE_END_DATE);
             expect(fmt.frequencyConfig).toEqual({type: -1});
             expect(fmt.id).not.toBeDefined();
             expect(fmt.name).toBe('camp1');

@@ -1,24 +1,17 @@
 var q               = require('q'),
     adtech          = require('adtech'),
+    kCamp           = adtech.constants.ICampaign,
     request         = require('request'),
     util            = require('util'),
     testUtils       = require('./testUtils'),
     adtechErr       = testUtils.handleAdtechError,
+    keywords        = testUtils.keyMap,
     requestUtils    = require('../../lib/requestUtils'),
     host            = process.env.host || 'localhost',
     config = {
         adsUrl      : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api',
         contentUrl  : 'http://' + (host === 'localhost' ? host + ':3300' : host) + '/api',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
-    },
-    keywords = { // mapping of keywords used here to known ids
-        sports      : '1002744',
-        food        : '1003562',
-        bacon       : '1024286',
-        'e2e-rc-1'  : '3206688',
-        'e2e-rc-4'  : '3206827',
-        'e2e-rc-5'  : '3206830',
-        'e2e-rc-6'  : '3206828'
     };
     
 jasmine.getEnv().defaultTimeoutInterval = 90000;
@@ -88,6 +81,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         if (!camp) return;
 
         expect(camp.extId).toBe(card.id);
+        expect(camp.exclusiveType).toBe(kCamp.EXCLUSIVE_TYPE_END_DATE);
         expect(camp.name).toBe(card.name + ' (' + parentCamp.id + ')');
         expect(camp.dateRangeList[0].startDate.toUTCString()).toBe(new Date(card.startDate).toUTCString());
         expect(camp.dateRangeList[0].endDate.toUTCString()).toBe(new Date(card.endDate).toUTCString());
@@ -104,6 +98,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         if (!camp) return;
 
         expect(camp.extId).toBe(exp.id);
+        expect(camp.exclusiveType).toBe(kCamp.EXCLUSIVE_TYPE_END_DATE);
         expect(camp.name).toBe(exp.name + ' (' + parentCamp.id + ')');
         expect(camp.dateRangeList[0].startDate.toUTCString()).toBe(new Date(exp.startDate).toUTCString());
         expect(camp.dateRangeList[0].endDate.toUTCString()).toBe(new Date(exp.endDate).toUTCString());
@@ -120,6 +115,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         if (!camp) return;
 
         expect(camp.extId).toBe(parentCamp.id);
+        expect(camp.exclusiveType).toBe(kCamp.EXCLUSIVE_TYPE_END_DATE);
         expect(camp.name).toBe(group.name + ' (' + parentCamp.id + ')');
         expect(camp.dateRangeList[0].startDate.toUTCString()).toBe(new Date(group.startDate).toUTCString());
         expect(camp.dateRangeList[0].endDate.toUTCString()).toBe(new Date(group.endDate).toUTCString());
@@ -545,7 +541,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
 
         it('should throw a 400 if any of the lists are not distinct', function(done) {
-            q.all([ { cards: [{id: 'e2e-rc-1'}, {id: 'e2e-rc-1'}] }, { miniReels: [{id: 'e2e-e-1'}, {id: 'e2e-e-1'}] }, 
+            q.all([ { cards: [{id: 'e2e-rc-1'}, {id: 'e2e-rc-1'}] }, { miniReels: [{id: 'e2e-e-1'}, {id: 'e2e-e-1'}] },
                     { miniReelGroups: [{ cards: ['e2e-rc-1', 'e2e-rc-1'] }] },
                     { miniReelGroups: [{ miniReels: ['e2e-e-1', 'e2e-e-1'] }] } ].map(function(obj) {
                 obj.advertiserId = keptAdvert.id;
@@ -578,7 +574,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
         
         it('should throw a 400 if dates are invalid', function(done) {
-            mockCamps = [{}, {}, {}].map(function() { return JSON.parse(JSON.stringify(mockCamp)); });
+            var mockCamps = [{}, {}, {}].map(function() { return JSON.parse(JSON.stringify(mockCamp)); });
             mockCamps[0].miniReels[0].startDate = 'foo';
             mockCamps[1].cards[1].endDate = 'bar';
             mockCamps[2].miniReelGroups[0].startDate = end;
@@ -936,7 +932,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 });
                 createdCamp = resp.body;
                 
-                return adtech.campaignAdmin.getCampaignByExtId('e2e-rc-1')
+                return adtech.campaignAdmin.getCampaignByExtId('e2e-rc-1');
             }).then(function(camp) {
                 checkCardCampaign(camp, createdCamp, createdCamp.cards[0], [keywords.bacon, keywords.food]);
             }).catch(function(error) {
@@ -966,39 +962,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 });
                 createdCamp = resp.body;
                 
-                return adtech.campaignAdmin.getCampaignByExtId('e2e-e-3')
-            }).then(function(camp) {
-                checkMinireelCampaign(camp, createdCamp, createdCamp.miniReels[1], [keywords.bacon, keywords.food]);
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should ensure dates are at least one hour into the future', function(done) {
-            var now = new Date();
-            createdCamp.miniReels[1].startDate = now.toISOString();
-            createdCamp.miniReels[1].endDate = new Date(now.valueOf() + 1000).toISOString();
-            options = {
-                url: config.adsUrl + '/campaign/' + createdCamp.id,
-                json: { miniReels: createdCamp.miniReels },
-                jar: cookieJar
-            };
-            
-            requestUtils.qRequest('put', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body._id).not.toBeDefined();
-                expect(resp.body.miniReels[1]).toEqual({
-                    id: 'e2e-e-3', name: 'miniReel_e2e-e-3',
-                    startDate: jasmine.any(String),
-                    endDate: jasmine.any(String),
-                    adtechId: createdCamp.miniReels[1].adtechId, bannerId: createdCamp.miniReels[1].bannerId,
-                    bannerNumber: createdCamp.miniReels[0].bannerNumber
-                });
-                expect(new Date(resp.body.miniReels[1].startDate) - now).toBeGreaterThan(60*60*1000);
-                expect(new Date(resp.body.miniReels[1].endDate) - now).toBeGreaterThan(60*60*1000);
-                createdCamp = resp.body;
-                
-                return adtech.campaignAdmin.getCampaignByExtId('e2e-e-3')
+                return adtech.campaignAdmin.getCampaignByExtId('e2e-e-3');
             }).then(function(camp) {
                 checkMinireelCampaign(camp, createdCamp, createdCamp.miniReels[1], [keywords.bacon, keywords.food]);
             }).catch(function(error) {

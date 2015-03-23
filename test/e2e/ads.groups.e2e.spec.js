@@ -1,11 +1,13 @@
 var q               = require('q'),
     adtech          = require('adtech'),
+    kCamp           = adtech.constants.ICampaign,
     request         = require('request'),
     util            = require('util'),
     testUtils       = require('./testUtils'),
+    keywords        = testUtils.keyMap,
     adtechErr       = testUtils.handleAdtechError,
     requestUtils    = require('../../lib/requestUtils'),
-    host            = process.env['host'] || 'localhost',
+    host            = process.env.host || 'localhost',
     config = {
         adsUrl  : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api',
         authUrl : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
@@ -300,11 +302,11 @@ describe('ads minireelGroups endpoints (E2E):', function() {
             }).then(function(group)  {
                 expect(group.name).toBe(createdGroup.name);
                 expect(group.extId).toBe(createdGroup.id);
+                expect(group.exclusiveType).toBe(kCamp.EXCLUSIVE_TYPE_END_DATE);
                 expect(group.dateRangeList[0].startDate.toUTCString()).toBe(new Date(createdGroup.startDate).toUTCString());
                 expect(group.dateRangeList[0].endDate.toUTCString()).toBe(new Date(createdGroup.endDate).toUTCString());
                 expect(group.priorityLevelOneKeywordIdList).toEqual([]);
-                // the keyword ids for 'food' and 'sports' should never change, so we can hardcode them
-                expect(group.priorityLevelThreeKeywordIdList.sort()).toEqual(['1002744', '1003562']);
+                expect(group.priorityLevelThreeKeywordIdList.sort()).toEqual([keywords.sports, keywords.food]);
                 expect(group.priority).toBe(3);
                 expect(group.advertiserId).toBe(keptAdvert.adtechId);
                 expect(group.customerId).toBe(keptCust.adtechId);
@@ -355,7 +357,7 @@ describe('ads minireelGroups endpoints (E2E):', function() {
         
         it('should throw a 400 if the miniReels list is not distinct', function(done) {
             options.json.name = 'some new group';
-            options.json.miniReels = ['e-1', 'e-2', 'e-1']
+            options.json.miniReels = ['e-1', 'e-2', 'e-1'];
             requestUtils.qRequest('post', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
@@ -432,7 +434,7 @@ describe('ads minireelGroups endpoints (E2E):', function() {
                 return adtech.campaignAdmin.getCampaignById(createdGroup.adtechId).catch(adtechErr);
             }).then(function(group) {
                 expect(group.name).toBe('e2e_test_updated');
-                expect(group.priorityLevelThreeKeywordIdList.sort()).toEqual(['1001864', '1003562'].sort());
+                expect(group.priorityLevelThreeKeywordIdList.sort()).toEqual([keywords.sport, keywords.food].sort());
                 expect(group.extId).toBe(createdGroup.id);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -575,7 +577,7 @@ describe('ads minireelGroups endpoints (E2E):', function() {
 
     describe('DELETE /api/minireelGroup/:id', function() {
         beforeEach(function(done) {
-            mockGroups = [
+            var mockGroups = [
                 { id: 'e2e-del1', status: 'deleted', adtechId: 1234 },
                 { id: 'e2e-del2', status: 'active' }
             ];
