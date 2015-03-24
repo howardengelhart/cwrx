@@ -3,6 +3,7 @@
 ### 1.2.2: Mon Mar 23 16:36:38 EDT 2015
 * [FIX]: Stop setting campaign dates to one hour in future: [#407](https://github.com/cinema6/cwrx/pull/407)
 * [FIX]: Set campaigns' `exclusiveType` to `EXCLUSIVE_TYPE_END_DATE`: [#407](https://github.com/cinema6/cwrx/pull/407)
+* [FIX]: Campaigns are invalid if their `endDate` has changed and is in the past: [#407](https://github.com/cinema6/cwrx/pull/407)
 * Extra deployment steps: Deploy new cookbook
 
 ### 1.2.1: Fri Mar 8 12:00:00 EDT 2015
