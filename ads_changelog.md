@@ -1,14 +1,20 @@
 # Ads Service Changelog
 
-### 1.2.1:
+### 1.2.2: Mon Mar 23 16:36:38 EDT 2015
+* [FIX]: Stop setting campaign dates to one hour in future: [#407](https://github.com/cinema6/cwrx/pull/407)
+* [FIX]: Set campaigns' `exclusiveType` to `EXCLUSIVE_TYPE_END_DATE`: [#407](https://github.com/cinema6/cwrx/pull/407)
+* [FIX]: Campaigns are invalid if their `endDate` has changed and is in the past: [#407](https://github.com/cinema6/cwrx/pull/407)
+* Extra deployment steps: Deploy new cookbook
+
+### 1.2.1: Fri Mar 8 12:00:00 EDT 2015
 * [FIX]: Make `campaignTypeId` configurable: [#401](https://github.com/cinema6/cwrx/pull/401)
 * Extra deployment steps: Deploy new cookbook
 
-### 1.2.0: 
+### 1.2.0: Fri Feb 18 12:00:00 EST 2015
 * [FEATURE]: Allow client to set `name`, `startDate` and `endDate` on C6 campaign's sub-campaigns: [#390](https://github.com/cinema6/cwrx/pull/390)
 * Extra deployment steps: None
 
-### 1.1.0: 
+### 1.1.0: Fri Feb 17 12:00:00 EST 2015
 * [FEATURE]: Add campaign and group endpoints: [#369](https://github.com/cinema6/cwrx/pull/369)
 * [FIX]: Ensure site names are unique: [#369](https://github.com/cinema6/cwrx/pull/369)
 * [FIX]: Get list of advertisers for each customer retrieved in `GET /api/account/customers`: [#377](https://github.com/cinema6/cwrx/pull/377)

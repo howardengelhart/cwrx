@@ -68,9 +68,12 @@
     
     // Validate/default in startDate + endDate
     groupModule.validateDates = function(req, next, done) {
+        var delays = groupModule.campsCfg.dateDelays;
+    
         req.body.startDate = req.body.startDate || (req.origObj && req.origObj.startDate);
         req.body.endDate = req.body.endDate || (req.origObj && req.origObj.endDate);
-        if (!campaignUtils.validateDates(req.body, groupModule.campsCfg.dateDelays, req.uuid)) {
+        
+        if (!campaignUtils.validateDates(req.body, req.origObj, delays, req.uuid)) {
             return q(done({code: 400, body: 'group has invalid dates'}));
         } else {
             return q(next());

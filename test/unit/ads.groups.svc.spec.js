@@ -39,7 +39,7 @@ describe('ads-groups (UT)', function() {
         it('should setup the group service', function() {
             spyOn(CrudSvc.prototype.preventGetAll, 'bind').andReturn(CrudSvc.prototype.preventGetAll);
             spyOn(CrudSvc.prototype.validateUniqueProp, 'bind').andReturn(CrudSvc.prototype.validateUniqueProp);
-            spyOn(groupModule.getAccountIds, 'bind').andReturn(campaignUtils.getAccountIds);
+            spyOn(groupModule.getAccountIds, 'bind').andReturn(groupModule.getAccountIds);
             spyOn(groupModule.formatOutput, 'bind').andReturn(groupModule.formatOutput);
             
             var config = { campaigns: { statusDelay: 100, statusAttempts: 5 },
@@ -73,16 +73,15 @@ describe('ads-groups (UT)', function() {
                 expect(svc.editValidator._formats[key]).toEqual(['string']);
             });
 
-            expect(svc._middleware.read).toContain(svc.preventGetAll);
-            expect(svc._middleware.create).toContain(groupModule.validateDates,
-                CrudSvc.prototype.validateUniqueProp,
-                groupModule.getAccountIds, groupModule.createAdtechGroup,
-                groupModule.createBanners, groupModule.ensureDistinctList);
-            expect(svc._middleware.edit).toContain(groupModule.validateDates,
-                CrudSvc.prototype.validateUniqueProp,
+            expect(svc._middleware.read).toEqual([svc.preventGetAll]);
+            expect(svc._middleware.create).toEqual([jasmine.any(Function), jasmine.any(Function),
+                groupModule.validateDates, groupModule.ensureDistinctList, CrudSvc.prototype.validateUniqueProp,
+                groupModule.getAccountIds, groupModule.createAdtechGroup, groupModule.createBanners]);
+            expect(svc._middleware.edit).toEqual([jasmine.any(Function), jasmine.any(Function),
+                groupModule.validateDates, groupModule.ensureDistinctList, CrudSvc.prototype.validateUniqueProp,
                 groupModule.getAccountIds, groupModule.cleanBanners, groupModule.createBanners,
-                groupModule.editAdtechGroup, groupModule.ensureDistinctList);
-            expect(svc._middleware.delete).toContain(groupModule.deleteAdtechGroup);
+                groupModule.editAdtechGroup]);
+            expect(svc._middleware.delete).toEqual([jasmine.any(Function), groupModule.deleteAdtechGroup]);
             expect(svc.formatOutput).toBe(groupModule.formatOutput);
         });
     });
@@ -100,6 +99,7 @@ describe('ads-groups (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body).toEqual({name: 'group 1', startDate: jasmine.any(String), endDate: jasmine.any(String)});
+                expect(campaignUtils.validateDates).toHaveBeenCalledWith(req.body, undefined, {start: 100, end: 200}, '1234');
                 done();
             });
         });
@@ -116,15 +116,16 @@ describe('ads-groups (UT)', function() {
         });
         
         it('should preserve dates from req.origObj', function(done) {
-            var start = new Date(new Date().valueOf() + 3*60*60*1000),
-                end = new Date(new Date().valueOf() + 4*60*60*1000);
+            var start = new Date(new Date().valueOf() + 3*60*60*1000).toISOString(),
+                end = new Date(new Date().valueOf() + 4*60*60*1000).toISOString();
             req.origObj = { startDate: start, endDate: end };
             groupModule.validateDates(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.body).toEqual({name: 'group 1', startDate: start.toISOString(), endDate: end.toISOString()});
+                expect(req.body).toEqual({name: 'group 1', startDate: start, endDate: end});
+                expect(campaignUtils.validateDates).toHaveBeenCalledWith(req.body, req.origObj, {start: 100, end: 200}, '1234');
                 done();
             });
         });
@@ -287,7 +288,7 @@ describe('ads-groups (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.body).toEqual({id: 'g-1', adtechId: 1234, name: 'group 1', 
+                expect(req.body).toEqual({id: 'g-1', adtechId: 1234, name: 'group 1',
                     startDate: jasmine.any(String), endDate: jasmine.any(String)});
                 expect(campaignUtils.makeKeywordLevels).toHaveBeenCalledWith({level3: undefined});
                 expect(campaignUtils.createCampaign.calls[0].args[0].keywords).toEqual({keys: 'yes'});

@@ -13,7 +13,19 @@ var request         = require('request'),
     s3util          = require('../../lib/s3util'),
     awsAuth         = process.env['awsAuth'] || path.join(process.env.HOME,'.aws.json'),
     
-    testUtils = { _dbCache: {} };
+    testUtils = {
+        _dbCache    : {},
+        keyMap      : { // mapping of keywords used here to known ids
+            sports      : '1002744',
+            sport       : '1001864',
+            food        : '1003562',
+            bacon       : '1024286',
+            'e2e-rc-1'  : '3206688',
+            'e2e-rc-4'  : '3206827',
+            'e2e-rc-5'  : '3206830',
+            'e2e-rc-6'  : '3206828'
+        }
+    };
 
 
 ///////////////////////////// Mongo Helper Methods /////////////////////////////

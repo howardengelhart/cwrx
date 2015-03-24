@@ -52,7 +52,8 @@ describe('content-cards (UT)', function() {
             expect(FieldValidator.userFunc).toHaveBeenCalledWith('cards', 'edit');
             expect(FieldValidator.orgFunc).toHaveBeenCalledWith('cards', 'create');
             expect(FieldValidator.orgFunc).toHaveBeenCalledWith('cards', 'edit');
-            expect(cardSvc._middleware.read).toContain(CrudSvc.prototype.preventGetAll);
+            
+            expect(cardSvc._middleware.read).toEqual([CrudSvc.prototype.preventGetAll]);
         });
     });
     

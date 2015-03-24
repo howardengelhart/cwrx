@@ -54,10 +54,12 @@ describe('ads-advertisers (UT)', function() {
             expect(svc._coll).toBe(mockColl);
             expect(svc.createValidator._required).toContain('name');
             expect(svc.createValidator._forbidden).toContain('adtechId');
-            expect(svc._middleware.read).toContain(svc.preventGetAll);
-            expect(svc._middleware.create).toContain(advertModule.createAdtechAdvert);
-            expect(svc._middleware.edit).toContain(advertModule.editAdtechAdvert);
-            expect(svc._middleware.delete).toContain(advertModule.deleteAdtechAdvert);
+            expect(svc._middleware.read).toEqual([svc.preventGetAll]);
+            expect(svc._middleware.create).toEqual([jasmine.any(Function), jasmine.any(Function),
+                advertModule.createAdtechAdvert]);
+            expect(svc._middleware.edit).toEqual([jasmine.any(Function), jasmine.any(Function),
+                advertModule.editAdtechAdvert]);
+            expect(svc._middleware.delete).toEqual([jasmine.any(Function), advertModule.deleteAdtechAdvert]);
         });
     });
     

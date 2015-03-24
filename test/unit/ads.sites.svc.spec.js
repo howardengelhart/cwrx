@@ -71,12 +71,16 @@ describe('ads-sites (UT)', function() {
             expect(svc.editValidator._formats.containers).toEqual(['object']);
             expect(svc.createValidator._condForbidden.org).toEqual(jasmine.any(Function));
             expect(svc.editValidator._condForbidden.org).toEqual(jasmine.any(Function));
-            expect(svc._middleware.read).toContain(svc.preventGetAll);
-            expect(svc._middleware.create).toContain(CrudSvc.prototype.validateUniqueProp,
-                siteModule.validateContainers, siteModule.createAdtechSite, siteModule.createPlacements);
-            expect(svc._middleware.edit).toContain(CrudSvc.prototype.validateUniqueProp,
-                siteModule.validateContainers, siteModule.cleanPlacements, siteModule.editAdtechSite, siteModule.createPlacements);
-            expect(svc._middleware.delete).toContain(siteModule.deleteAdtechSite);
+
+            expect(svc._middleware.read).toEqual([svc.preventGetAll]);
+            expect(svc._middleware.create).toEqual([jasmine.any(Function), jasmine.any(Function),
+                CrudSvc.prototype.validateUniqueProp, CrudSvc.prototype.validateUniqueProp,
+                siteModule.validateContainers, siteModule.createAdtechSite, siteModule.createPlacements]);
+            expect(svc._middleware.edit).toEqual([jasmine.any(Function), jasmine.any(Function),
+                CrudSvc.prototype.validateUniqueProp, CrudSvc.prototype.validateUniqueProp,
+                siteModule.validateContainers, siteModule.cleanPlacements, siteModule.createPlacements,
+                siteModule.editAdtechSite]);
+            expect(svc._middleware.delete).toEqual([jasmine.any(Function), siteModule.deleteAdtechSite]);
         });
     });
     
