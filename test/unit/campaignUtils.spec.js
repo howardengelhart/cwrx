@@ -51,14 +51,19 @@ describe('campaignUtils', function() {
     });
     
     describe('validateDates', function() {
-        var delays, obj;
+        var now = new Date(),
+            delays, obj, existing;
         beforeEach(function() {
             delays = { start: 2*60*60*1000, end: 3*60*60*1000 };
             obj = {};
+            existing = {
+                startDate: new Date(now.valueOf() - 5000).toISOString(),
+                endDate: new Date(now.valueOf() - 4000).toISOString()
+            };
         });
         
         it('should default both the startDate and endDate if undefined', function() {
-            expect(campaignUtils.validateDates(obj, delays)).toBe(true);
+            expect(campaignUtils.validateDates(obj, existing, delays)).toBe(true);
             expect(mockLog.info).not.toHaveBeenCalled();
             expect(obj).toEqual({startDate: jasmine.any(String), endDate: jasmine.any(String)});
             expect(new Date(obj.endDate) - new Date(obj.startDate)).toBe(60*60*1000);
@@ -66,24 +71,38 @@ describe('campaignUtils', function() {
 
         it('should return false if the startDate is not a valid date string', function() {
             obj.startDate = new Date().toISOString() + 'foo';
-            expect(campaignUtils.validateDates(obj, delays)).toBe(false);
+            expect(campaignUtils.validateDates(obj, existing, delays)).toBe(false);
             expect(mockLog.info).toHaveBeenCalled();
         });
 
         it('should return false if the endDate is not a valid date string', function() {
             obj.endDate = {foo: 'bar'};
-            expect(campaignUtils.validateDates(obj, delays)).toBe(false);
+            expect(campaignUtils.validateDates(obj, existing, delays)).toBe(false);
             expect(mockLog.info).toHaveBeenCalled();
         });
 
         it('should return false if the startDate is greater than the endDate', function() {
-            obj = { startDate: new Date().toISOString(), endDate: new Date(new Date() - 1000).toISOString() };
-            expect(campaignUtils.validateDates(obj, delays)).toBe(false);
+            obj = { startDate: now.toISOString(), endDate: new Date(now.valueOf() - 1000).toISOString() };
+            expect(campaignUtils.validateDates(obj, existing, delays)).toBe(false);
             expect(mockLog.info).toHaveBeenCalled();
+        });
+        
+        it('should return false if the endDate is in the past and has changed', function() {
+            obj = {
+                startDate: new Date(now.valueOf() - 5000).toISOString(),
+                endDate: new Date(now.valueOf() - 1000).toISOString()
+            };
+            expect(campaignUtils.validateDates(obj, existing, delays)).toBe(false);
+            expect(mockLog.info).toHaveBeenCalled();
+            expect(campaignUtils.validateDates(obj, undefined, delays)).toBe(false);
+            obj.endDate = new Date(now.valueOf() - 4000).toISOString();
+            expect(campaignUtils.validateDates(obj, existing, delays)).toBe(true);
+            obj.endDate = new Date(new Date().valueOf() + 4000).toISOString();
+            expect(campaignUtils.validateDates(obj, existing, delays)).toBe(true);
         });
 
         it('should handle an undefined delays object', function() {
-            expect(campaignUtils.validateDates(obj)).toBe(true);
+            expect(campaignUtils.validateDates(obj, existing)).toBe(true);
             expect(mockLog.info).not.toHaveBeenCalled();
             expect(obj).toEqual({startDate: jasmine.any(String), endDate: jasmine.any(String)});
             expect(new Date(obj.endDate)).toBeGreaterThan(new Date(obj.startDate));

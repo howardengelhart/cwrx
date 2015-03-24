@@ -574,11 +574,13 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
         
         it('should throw a 400 if dates are invalid', function(done) {
-            var mockCamps = [{}, {}, {}].map(function() { return JSON.parse(JSON.stringify(mockCamp)); });
+            var mockCamps = [{}, {}, {}, {}].map(function() { return JSON.parse(JSON.stringify(mockCamp)); });
             mockCamps[0].miniReels[0].startDate = 'foo';
             mockCamps[1].cards[1].endDate = 'bar';
             mockCamps[2].miniReelGroups[0].startDate = end;
             mockCamps[2].miniReelGroups[0].endDate = start;
+            mockCamps[3].miniReels[0].startDate = new Date(new Date().valueOf() - 5000);
+            mockCamps[3].miniReels[0].endDate = new Date(new Date().valueOf() - 4000);
 
             q.all(mockCamps.map(function(body) {
                 options.json = body;
@@ -590,6 +592,8 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(results[1].body).toBe('cards[1] has invalid dates');
                 expect(results[2].response.statusCode).toBe(400);
                 expect(results[2].body).toBe('miniReelGroups[0] has invalid dates');
+                expect(results[3].response.statusCode).toBe(400);
+                expect(results[3].body).toBe('miniReels[0] has invalid dates');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

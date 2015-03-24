@@ -61,7 +61,19 @@
         
         return svc;
     };
-
+    
+    // Attempts to find a sub-object in body[key] that matches target
+    campModule.findMatchingObj = function(target, body, key) {
+        if (!target) {
+            return undefined;
+        }
+    
+        return (body && body[key] || []).filter(function(obj) {
+            return key === 'miniReelGroups' ? obj.adtechId === target.adtechId :
+                                              obj.id === target.id;
+        })[0];
+    };
+    
     // Copy props from origObj missing from each sub-campaign object that still exists in req.body
     campModule.extendListObjects = function(req, next/*, done*/) {
         ['miniReels', 'cards', 'miniReelGroups'].forEach(function(key) {
@@ -70,10 +82,7 @@
             }
             
             req.body[key].forEach(function(newObj) {
-                var existing = req.origObj[key].filter(function(oldObj) {
-                    return key === 'miniReelGroups' ? oldObj.adtechId === newObj.adtechId :
-                                                      oldObj.id === newObj.id;
-                })[0];
+                var existing = campModule.findMatchingObj(newObj, req.origObj, key);
                     
                 objUtils.extend(newObj, existing);
             });
@@ -83,7 +92,8 @@
     
     // Calls campaignUtils.validateDates for every object in cards, miniReels, and miniReelGroups
     campModule.validateDates = function(req, next, done) {
-        var keys = ['cards', 'miniReels', 'miniReelGroups'];
+        var keys = ['cards', 'miniReels', 'miniReelGroups'],
+            delays = campModule.campsCfg.dateDelays;
             
         for (var i = 0; i < keys.length; i++) {
             if (!req.body[keys[i]]) {
@@ -91,8 +101,10 @@
             }
             
             for (var j = 0; j < req.body[keys[i]].length; j++) {
-                var obj = req.body[keys[i]][j];
-                if (!campaignUtils.validateDates(obj, campModule.campsCfg.dateDelays, req.uuid)) {
+                var obj = req.body[keys[i]][j],
+                    existing = campModule.findMatchingObj(obj, req.origObj, keys[i]);
+                    
+                if (!campaignUtils.validateDates(obj, existing, delays, req.uuid)) {
                     return q(done({code: 400, body: keys[i] + '[' + j + '] has invalid dates'}));
                 }
             }
@@ -266,9 +278,7 @@
             return promise.then(function(keys) {
                 
                 return q.all(req.origObj[prop].map(function(oldCamp) {
-                    var matching = (req.body[prop] || []).filter(function(newCamp) {
-                        return newCamp.id === oldCamp.id;
-                    })[0];
+                    var matching = campModule.findMatchingObj(oldCamp, req.body, prop);
                     
                     if (!matching) { // don't edit old camps that no longer exist in new version
                         return q();
@@ -413,9 +423,7 @@
         return q.all((req.body.miniReelGroups).map(function(group) {
             group.miniReels = campaignUtils.objectify(group.miniReels);
             
-            var orig = req.origObj.miniReelGroups.filter(function(oldGroup) {
-                return oldGroup.adtechId === group.adtechId;
-            })[0];
+            var orig = campModule.findMatchingObj(group, req.origObj, 'miniReelGroups');
             
             if (!orig) { // only edit already existing groups
                 return q();

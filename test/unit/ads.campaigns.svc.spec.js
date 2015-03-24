@@ -50,7 +50,7 @@ describe('ads-campaigns (UT)', function() {
         doneSpy = jasmine.createSpy('done');
         errorSpy = jasmine.createSpy('caught error');
     });
-
+    
     describe('setupSvc', function() {
         it('should setup the campaign service', function() {
             spyOn(campaignUtils.getAccountIds, 'bind').andReturn(campaignUtils.getAccountIds);
@@ -98,6 +98,40 @@ describe('ads-campaigns (UT)', function() {
             expect(svc._middleware.delete).toEqual([jasmine.any(Function),
                 campModule.deleteContent, campModule.deleteAdtechCamps]);
             expect(svc.formatOutput).toBe(campModule.formatOutput);
+        });
+    });
+
+    describe('findMatchingObj', function() {
+        var obj, body;
+        beforeEach(function() {
+            obj = { id: 'e-1', adtechId: 123, foo: 'bar' };
+            body = {
+                miniReels: [
+                    { id: 'e-2', adtechId: 123, foo: 'baz' },
+                    { id: 'e-1', adtechId: 456, foo: 'bez' }
+                ],
+                cards: [ { id: 'rc-1', adtechId: 789 } ],
+                miniReelGroups: [ { adtechId: 123, foo: 'buz' } ]
+            };
+        });
+
+        it('should find an object that matches the target', function() {
+            expect(campModule.findMatchingObj(obj, body, 'miniReels')).toEqual({id: 'e-1', adtechId: 456, foo: 'bez'});
+            expect(campModule.findMatchingObj(obj, body, 'miniReelGroups')).toEqual({adtechId: 123, foo: 'buz'});
+        });
+        
+        it('should return undefined if no matching object is found', function() {
+            expect(campModule.findMatchingObj(obj, body, 'cards')).toEqual(undefined);
+        });
+
+        it('should return undefined if the target is undefined', function() {
+            expect(campModule.findMatchingObj(undefined, body, 'miniReels')).toEqual(undefined);
+        });
+
+        it('should return undefined if there is no list to search', function() {
+            delete body.miniReels;
+            expect(campModule.findMatchingObj(obj, body, 'miniReels')).toEqual(undefined);
+            expect(campModule.findMatchingObj(obj, undefined, 'miniReels')).toEqual(undefined);
         });
     });
 
@@ -161,10 +195,26 @@ describe('ads-campaigns (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(campaignUtils.validateDates.calls.length).toBe(4);
-                expect(campaignUtils.validateDates).toHaveBeenCalledWith({id: 'rc-1'}, {start: 100, end: 200}, '1234');
-                expect(campaignUtils.validateDates).toHaveBeenCalledWith({id: 'e-1'}, {start: 100, end: 200}, '1234');
-                expect(campaignUtils.validateDates).toHaveBeenCalledWith({id: 'e-2'}, {start: 100, end: 200}, '1234');
-                expect(campaignUtils.validateDates).toHaveBeenCalledWith({adtechId: 1234}, {start: 100, end: 200}, '1234');
+                expect(campaignUtils.validateDates).toHaveBeenCalledWith({id: 'rc-1'}, undefined, {start: 100, end: 200}, '1234');
+                expect(campaignUtils.validateDates).toHaveBeenCalledWith({id: 'e-1'}, undefined, {start: 100, end: 200}, '1234');
+                expect(campaignUtils.validateDates).toHaveBeenCalledWith({id: 'e-2'}, undefined, {start: 100, end: 200}, '1234');
+                expect(campaignUtils.validateDates).toHaveBeenCalledWith({adtechId: 1234}, undefined, {start: 100, end: 200}, '1234');
+                done();
+            });
+        });
+        
+        it('should pass in existing sub-objects if they exist', function(done) {
+            req.origObj = { cards: [{id: 'rc-1', foo: 'bar'}], miniReels: [{id: 'e-2', foo: 'baz'}] };
+            campModule.validateDates(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(campaignUtils.validateDates.calls.length).toBe(4);
+                expect(campaignUtils.validateDates).toHaveBeenCalledWith({id: 'rc-1'}, {id: 'rc-1', foo: 'bar'}, {start: 100, end: 200}, '1234');
+                expect(campaignUtils.validateDates).toHaveBeenCalledWith({id: 'e-1'}, undefined, {start: 100, end: 200}, '1234');
+                expect(campaignUtils.validateDates).toHaveBeenCalledWith({id: 'e-2'}, {id: 'e-2', foo: 'baz'}, {start: 100, end: 200}, '1234');
+                expect(campaignUtils.validateDates).toHaveBeenCalledWith({adtechId: 1234}, undefined, {start: 100, end: 200}, '1234');
                 done();
             });
         });
@@ -177,7 +227,7 @@ describe('ads-campaigns (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(campaignUtils.validateDates.calls.length).toBe(3);
-                expect(campaignUtils.validateDates).not.toHaveBeenCalledWith({id: 'rc-1'}, {start: 100, end: 200}, '1234');
+                expect(campaignUtils.validateDates).not.toHaveBeenCalledWith({id: 'rc-1'}, undefined, {start: 100, end: 200}, '1234');
                 done();
             });
         });
