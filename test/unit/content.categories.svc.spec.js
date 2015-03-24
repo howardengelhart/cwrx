@@ -29,6 +29,8 @@ describe('content-categories (UT)', function() {
             var mockColl = { collectionName: 'categories' },
                 catSvc = catModule.setupCatSvc(mockColl);
 
+            expect(CrudSvc.prototype.validateUniqueProp.bind).toHaveBeenCalledWith(catSvc, 'name', /^\w+$/);
+
             expect(catSvc instanceof CrudSvc).toBe(true);
             expect(catSvc._prefix).toBe('cat');
             expect(catSvc.objName).toBe('categories');
@@ -38,9 +40,9 @@ describe('content-categories (UT)', function() {
             expect(catSvc._coll).toBe(mockColl);
             expect(catSvc.createValidator._required).toContain('name');
             expect(catSvc.editValidator._forbidden).toContain('name');
-            expect(catSvc._middleware.create).toContain(catModule.adminCreateCheck);
-            expect(catSvc._middleware.create).toContain(CrudSvc.prototype.validateUniqueProp);
-            expect(CrudSvc.prototype.validateUniqueProp.bind).toHaveBeenCalledWith(catSvc, 'name', /^\w+$/);
+
+            expect(catSvc._middleware.create).toEqual([jasmine.any(Function), jasmine.any(Function),
+                catModule.adminCreateCheck, CrudSvc.prototype.validateUniqueProp]);
         });
     });
     

@@ -68,10 +68,12 @@ describe('ads-customers (UT)', function() {
             expect(svc.createValidator._formats.advertisers).toEqual(['string']);
             expect(svc.editValidator._formats.advertisers).toEqual(['string']);
             
-            expect(svc._middleware.read).toContain(svc.preventGetAll);
-            expect(svc._middleware.create).toContain(custModule.createAdtechCust);
-            expect(svc._middleware.edit).toContain(custModule.editAdtechCust);
-            expect(svc._middleware.delete).toContain(custModule.deleteAdtechCust);
+            expect(svc._middleware.read).toEqual([svc.preventGetAll]);
+            expect(svc._middleware.create).toEqual([jasmine.any(Function), jasmine.any(Function),
+                custModule.createAdtechCust]);
+            expect(svc._middleware.edit).toEqual([jasmine.any(Function), jasmine.any(Function),
+                custModule.editAdtechCust]);
+            expect(svc._middleware.delete).toEqual([jasmine.any(Function), custModule.deleteAdtechCust]);
         });
     });
 

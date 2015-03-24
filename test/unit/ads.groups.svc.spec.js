@@ -39,7 +39,7 @@ describe('ads-groups (UT)', function() {
         it('should setup the group service', function() {
             spyOn(CrudSvc.prototype.preventGetAll, 'bind').andReturn(CrudSvc.prototype.preventGetAll);
             spyOn(CrudSvc.prototype.validateUniqueProp, 'bind').andReturn(CrudSvc.prototype.validateUniqueProp);
-            spyOn(groupModule.getAccountIds, 'bind').andReturn(campaignUtils.getAccountIds);
+            spyOn(groupModule.getAccountIds, 'bind').andReturn(groupModule.getAccountIds);
             spyOn(groupModule.formatOutput, 'bind').andReturn(groupModule.formatOutput);
             
             var config = { campaigns: { statusDelay: 100, statusAttempts: 5 },
@@ -73,16 +73,15 @@ describe('ads-groups (UT)', function() {
                 expect(svc.editValidator._formats[key]).toEqual(['string']);
             });
 
-            expect(svc._middleware.read).toContain(svc.preventGetAll);
-            expect(svc._middleware.create).toContain(groupModule.validateDates,
-                CrudSvc.prototype.validateUniqueProp,
-                groupModule.getAccountIds, groupModule.createAdtechGroup,
-                groupModule.createBanners, groupModule.ensureDistinctList);
-            expect(svc._middleware.edit).toContain(groupModule.validateDates,
-                CrudSvc.prototype.validateUniqueProp,
+            expect(svc._middleware.read).toEqual([svc.preventGetAll]);
+            expect(svc._middleware.create).toEqual([jasmine.any(Function), jasmine.any(Function),
+                groupModule.validateDates, groupModule.ensureDistinctList, CrudSvc.prototype.validateUniqueProp,
+                groupModule.getAccountIds, groupModule.createAdtechGroup, groupModule.createBanners]);
+            expect(svc._middleware.edit).toEqual([jasmine.any(Function), jasmine.any(Function),
+                groupModule.validateDates, groupModule.ensureDistinctList, CrudSvc.prototype.validateUniqueProp,
                 groupModule.getAccountIds, groupModule.cleanBanners, groupModule.createBanners,
-                groupModule.editAdtechGroup, groupModule.ensureDistinctList);
-            expect(svc._middleware.delete).toContain(groupModule.deleteAdtechGroup);
+                groupModule.editAdtechGroup]);
+            expect(svc._middleware.delete).toEqual([jasmine.any(Function), groupModule.deleteAdtechGroup]);
             expect(svc.formatOutput).toBe(groupModule.formatOutput);
         });
     });

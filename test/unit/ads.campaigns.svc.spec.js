@@ -11,7 +11,7 @@ describe('ads-campaigns (UT)', function() {
         requestUtils    = require('../../lib/requestUtils');
         campModule      = require('../../bin/ads-campaigns');
         campaignUtils   = require('../../lib/campaignUtils');
-        bannerUtils   = require('../../lib/bannerUtils');
+        bannerUtils     = require('../../lib/bannerUtils');
         CrudSvc         = require('../../lib/crudSvc');
         anyNum = jasmine.any(Number);
 
@@ -87,15 +87,16 @@ describe('ads-campaigns (UT)', function() {
             expect(svc.createValidator._formats.categories).toEqual(['string']);
             expect(svc.editValidator._formats.categories).toEqual(['string']);
 
-            expect(svc._middleware.create).toContain(campaignUtils.getAccountIds,
-                campModule.validateDates, campModule.ensureUniqueIds, campModule.ensureUniqueNames,
-                campModule.createSponsoredCamps, campModule.createTargetCamps);
-            expect(svc._middleware.edit).toContain(campaignUtils.getAccountIds,
-                campModule.validateDates, campModule.ensureUniqueIds, campModule.ensureUniqueNames,
-                campModule.extendListObjects, campModule.cleanSponsoredCamps,
-                campModule.editSponsoredCamps, campModule.createSponsoredCamps,
-                campModule.cleanTargetCamps, campModule.editTargetCamps, campModule.createTargetCamps);
-            expect(svc._middleware.delete).toContain(campModule.deleteContent);
+            expect(svc._middleware.create).toEqual([jasmine.any(Function), jasmine.any(Function),
+                campaignUtils.getAccountIds, campModule.validateDates, campModule.ensureUniqueIds,
+                campModule.ensureUniqueNames, campModule.createSponsoredCamps, campModule.createTargetCamps]);
+            expect(svc._middleware.edit).toEqual([jasmine.any(Function), jasmine.any(Function),
+                campaignUtils.getAccountIds, campModule.extendListObjects, campModule.validateDates,
+                campModule.ensureUniqueIds, campModule.ensureUniqueNames,
+                campModule.cleanSponsoredCamps, campModule.editSponsoredCamps, campModule.createSponsoredCamps,
+                campModule.cleanTargetCamps, campModule.editTargetCamps, campModule.createTargetCamps]);
+            expect(svc._middleware.delete).toEqual([jasmine.any(Function),
+                campModule.deleteContent, campModule.deleteAdtechCamps]);
             expect(svc.formatOutput).toBe(campModule.formatOutput);
         });
     });
