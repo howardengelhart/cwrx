@@ -1,5 +1,9 @@
 # Ads Service Changelog
 
+### 1.2.3: Fri Mar 27 16:19:45 EDT 2015
+* [FIX]: Update card banner template to pass back `sub1` Adtech var: [#409](https://github.com/cinema6/cwrx/pull/409)
+* Extra deployment steps: None
+
 ### 1.2.2: Mon Mar 23 16:36:38 EDT 2015
 * [FIX]: Stop setting campaign dates to one hour in future: [#407](https://github.com/cinema6/cwrx/pull/407)
 * [FIX]: Set campaigns' `exclusiveType` to `EXCLUSIVE_TYPE_END_DATE`: [#407](https://github.com/cinema6/cwrx/pull/407)
