@@ -86,6 +86,8 @@ describe('ads-campaigns (UT)', function() {
             });
             expect(svc.createValidator._formats.categories).toEqual(['string']);
             expect(svc.editValidator._formats.categories).toEqual(['string']);
+            expect(svc.createValidator._formats.staticCardMap).toEqual('object');
+            expect(svc.editValidator._formats.staticCardMap).toEqual('object');
 
             expect(svc._middleware.create).toEqual([jasmine.any(Function), jasmine.any(Function),
                 campaignUtils.getAccountIds, campModule.validateDates, campModule.ensureUniqueIds,
@@ -375,13 +377,64 @@ describe('ads-campaigns (UT)', function() {
         });
     });
     
+    describe('cleanStaticMap', function() {
+        var toDelete;
+        beforeEach(function() {
+            toDelete = ['rc-1', 'rc-2', 'rc-3'];
+            req.body = { staticCardMap: {
+                'e-1': { 'rc-pl1': 'rc-1', 'rc-pl2': 'rc-2', 'rc-pl3': 'rc-11' },
+                'e-2': { 'rc-pl4': 'rc-2' }
+            } };
+            req.origObj = { staticCardMap: { 'e-3': { 'rc-pl1': 'rc-1', 'rc-pl5': 'rc-33' } } };
+        });
+
+        it('should remove entries including sponsored cards that have been deleted', function() {
+            campModule.cleanStaticMap(req, toDelete);
+            expect(req.body.staticCardMap).toEqual({
+                'e-1': { 'rc-pl3': 'rc-11' },
+                'e-2': {}
+            });
+        });
+        
+        it('should use the origObj staticCardMap if its not defined in req.body', function() {
+            delete req.body.staticCardMap;
+            campModule.cleanStaticMap(req, toDelete);
+            expect(req.body.staticCardMap).toEqual({
+                'e-3': { 'rc-pl5': 'rc-33' }
+            });
+        });
+        
+        it('should skip if there\'s no map or toDelete list', function() {
+            campModule.cleanStaticMap(req, undefined);
+            expect(req.body.staticCardMap).toEqual({
+                'e-1': { 'rc-pl1': 'rc-1', 'rc-pl2': 'rc-2', 'rc-pl3': 'rc-11' },
+                'e-2': { 'rc-pl4': 'rc-2' }
+            });
+            req = { body: { foo: 'bar' }, origObj: { foo: 'baz' } };
+            campModule.cleanStaticMap(req, toDelete);
+            expect(req).toEqual({ body: { foo: 'bar' }, origObj: { foo: 'baz' } });
+        });
+        
+        it('should skip over non-object entries', function() {
+            req.body.staticCardMap['e-3'] = null;
+            campModule.cleanStaticMap(req, toDelete);
+            expect(req.body.staticCardMap).toEqual({
+                'e-1': { 'rc-pl3': 'rc-11' },
+                'e-2': {},
+                'e-3': null
+            });
+        });
+    });
+    
     describe('cleanSponsoredCamps', function() {
         beforeEach(function() {
             req.params.id = 'cam-1';
-            req.body = { miniReels: [{id: 'e-1'}, {id: 'e-3'}], cards: [{id: 'rc-2'}, {id: 'rc-3'}] };
+            req.body = { miniReels: [{id: 'e-1'}, {id: 'e-3'}], cards: [{id: 'rc-2'}, {id: 'rc-3'}],
+                         staticCardMap: { 'e-11': { 'rc-pl1': 'rc-1' } } };
             req.origObj = { miniReels: [{id: 'e-1', adtechId: 11}, {id: 'e-2', adtechId: 12}],
                             cards: [{id: 'rc-1', adtechId: 21}, {id: 'rc-2', adtechId: 22}] };
             spyOn(campModule, 'sendDeleteRequest').andReturn(q());
+            spyOn(campModule, 'cleanStaticMap').andCallThrough();
         });
         
         it('should delete unused campaigns', function(done) {
@@ -392,6 +445,8 @@ describe('ads-campaigns (UT)', function() {
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body.miniReels).toEqual([{id: 'e-1'}, {id: 'e-3'}]);
                 expect(req.body.cards).toEqual([{id: 'rc-2'}, {id: 'rc-3'}]);
+                expect(req.body.staticCardMap).toEqual({'e-11': {}});
+                expect(campModule.cleanStaticMap).toHaveBeenCalledWith(req, ['rc-1']);
                 expect(campaignUtils.deleteCampaigns).toHaveBeenCalledWith([12, 21], 1000, 10);
                 expect(campModule.sendDeleteRequest.calls.length).toBe(2);
                 expect(campModule.sendDeleteRequest).toHaveBeenCalledWith(req, 'e-2', 'experience');
@@ -423,6 +478,8 @@ describe('ads-campaigns (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(campaignUtils.deleteCampaigns).toHaveBeenCalledWith([12], 1000, 10);
+                expect(campModule.cleanStaticMap).toHaveBeenCalledWith(req, []);
+                expect(req.body.staticCardMap).toEqual({ 'e-11': { 'rc-pl1': 'rc-1' } });
                 expect(campModule.sendDeleteRequest).toHaveBeenCalledWith(req, 'e-2', 'experience');
                 done();
             });

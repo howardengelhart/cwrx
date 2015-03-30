@@ -2,6 +2,7 @@
 
 ### 1.2.3: Fri Mar 27 16:19:45 EDT 2015
 * [FIX]: Update card banner template to pass back `sub1` Adtech var: [#409](https://github.com/cinema6/cwrx/pull/409)
+* [FIX]: Remove deleted cards from a campaign's `staticCardMap`: [#411](https://github.com/cinema6/cwrx/pull/411)
 * Extra deployment steps: None
 
 ### 1.2.2: Mon Mar 23 16:36:38 EDT 2015

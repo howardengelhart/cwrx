@@ -381,7 +381,10 @@ describe('ads campaigns endpoints (E2E):', function() {
                     {id: 'e2e-rc-1', startDate: start.toISOString() },
                     {id: 'e2e-rc-2', name: 'card 2' }
                 ],
-                miniReelGroups: [{cards: ['e2e-rc-1'], miniReels: ['e2e-e-1', 'e2e-e-2']}]
+                miniReelGroups: [{cards: ['e2e-rc-1'], miniReels: ['e2e-e-1', 'e2e-e-2']}],
+                staticCardMap: {
+                    'e2e-fake': { 'rc-pl1': 'e2e-rc-1', 'rc-pl2': 'e2e-rc-2' }
+                }
             };
             options = {
                 url: config.adsUrl + '/campaign',
@@ -428,6 +431,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                     startDate: jasmine.any(String), endDate: jasmine.any(String),
                     cards: ['e2e-rc-1'], miniReels: ['e2e-e-1', 'e2e-e-2']
                 }]);
+                expect(resp.body.staticCardMap).toEqual({'e2e-fake':{'rc-pl1': 'e2e-rc-1', 'rc-pl2': 'e2e-rc-2'}});
                 expect(resp.body.miniReelGroups[0].name).toMatch(/group_\w+/);
                 expect(new Date(resp.body.created).toString()).not.toEqual('Invalid Date');
                 expect(resp.body.lastUpdated).toEqual(resp.body.created);
@@ -704,6 +708,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                         adtechId: jasmine.any(Number), bannerId: jasmine.any(Number), bannerNumber: jasmine.any(Number)
                     }
                 ]);
+                expect(resp.body.staticCardMap).toEqual({'e2e-fake':{'rc-pl1': 'e2e-rc-1'}});
                 createdCamp = resp.body;
                 
                 return q.allSettled([
