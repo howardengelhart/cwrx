@@ -34,6 +34,8 @@
         svc.editValidator._formats.miniReelGroups = ['object'];
         svc.createValidator._formats.categories = ['string'];
         svc.editValidator._formats.categories = ['string'];
+        svc.createValidator._formats.staticCardMap = 'object';
+        svc.editValidator._formats.staticCardMap = 'object';
 
         svc.use('create', campaignUtils.getAccountIds.bind(campaignUtils, svc._advertColl,
                                                            svc._custColl));
@@ -202,7 +204,28 @@
             return q.reject(new Error('Failed sending delete request to content service'));
         });
     };
-
+    
+    // Remove entries from the staticCardMap for deleted sponsored cards //TODO: test
+    campModule.cleanStaticMap = function(req, toDelete) {
+        var map = req.body.staticCardMap = req.body.staticCardMap ||
+                  (req.origObj && req.origObj.staticCardMap) || undefined;
+        
+        if (!toDelete || !(map instanceof Object)) {
+            return;
+        }
+        
+        Object.keys(map).forEach(function(expId) {
+            if (!(map[expId] instanceof Object)) {
+                return;
+            }
+            
+            Object.keys(map[expId]).forEach(function(plId) {
+                if (toDelete.indexOf(map[expId][plId]) !== -1) {
+                    delete map[expId][plId];
+                }
+            });
+        });
+    };
 
     /* Middleware to delete unused sponsored miniReels and cards. Deletes their campaigns from
      * Adtech, as well their objects in mongo through the content service */
@@ -237,6 +260,8 @@
                 
             });
         });
+        
+        campModule.cleanStaticMap(req, toDelete.cards);
         
         return campaignUtils.deleteCampaigns(toDelete.adtechIds, delay, attempts)
         .then(function() {
