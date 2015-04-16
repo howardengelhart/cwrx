@@ -113,7 +113,6 @@
                 startDate       : req.body.startDate,
                 endDate         : req.body.endDate,
                 campaignTypeId  : groupModule.campsCfg.campaignTypeId,
-                isSponsored     : false,
                 keywords        : keywords,
                 advertiserId    : req._advertiserId,
                 customerId      : req._customerId
