@@ -7,14 +7,20 @@
         FieldValidator  = require('../lib/fieldValidator'),
         CrudSvc         = require('../lib/crudSvc'),
         Status          = require('../lib/enums').Status,
+        cache           = require('../lib/cache'),
 
         cardModule = {};
 
         
     cardModule.setupCardSvc = function(cardColl, cache) {
-        var cardSvc = new CrudSvc(cardColl, 'rc', {allowPublic: true});
+        // var cardSvc = new CrudSvc(cardColl, 'rc', {allowPublic: true}); //TODO
+        var cardSvc = new CrudSvc(cardColl, 'rc', {
+            allowPublic: true,
+            reqTimeout: 2000,
+            reqCacheTTL: 20*1000
+        });
         
-        cardSvc._cache = cache;
+        cardSvc._cache = cache; //TODO: this might be confusingly named now...
             
         cardSvc.createValidator._required.push('campaignId');
         cardSvc.createValidator._condForbidden.user = FieldValidator.userFunc('cards', 'create');
@@ -22,6 +28,27 @@
         cardSvc.editValidator._condForbidden.user = FieldValidator.userFunc('cards', 'edit');
         cardSvc.editValidator._condForbidden.org = FieldValidator.orgFunc('cards', 'edit');
         cardSvc.use('read', cardSvc.preventGetAll.bind(cardSvc));
+
+        cardSvc.use('read', function delay(req, next, done) { //TODO
+            var log = logger.getLog(),
+                deferred = q.defer();
+
+            if (req.query.delay) {
+                log.info('[%1] delaying...', req.uuid);
+                setTimeout(function() {
+                    log.info('[%1] proceeding...', req.uuid);
+                    deferred.resolve();
+                }, cardSvc.reqTimeout + 10*1000);
+            } else {
+                return q(next());
+            }
+            
+            return deferred.promise.then(function() {
+                next();
+                // done({code: 400, body: 'I HATE YOU'});
+                //throw new Error('I GOT A PROBLEM CROSBY');
+            });
+        });
         
         cardSvc.getPublicCard = cardModule.getPublicCard.bind(cardModule, cardSvc);
         
@@ -68,8 +95,19 @@
         });
     };
 
-    
+    //TODO: ???? PERMISSIONS ON THE GET RESULT ENDPOINT ????
     cardModule.setupEndpoints = function(app, cardSvc, sessions, audit, config) {
+        app.get('/api/content/result/:reqId', function(req, res) { //TODO
+            cache.get('req:' + req.params.reqId).then(function(resp) {
+                if (!resp) {
+                    res.send(404, 'No job with that id found');
+                }
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, { error: 'Error retrieving status', detail: error });
+            });
+        });
+
         // Retrieve a json representation of a card
         app.get('/api/public/content/card/:id.json', function(req, res) {
             cardModule.handlePublicGet(req, res, cardSvc, config).then(function(resp) {
@@ -99,7 +137,7 @@
 
         var authGetCard = authUtils.middlewarify({cards: 'read'});
         app.get('/api/content/card/:id', sessions, authGetCard, audit, function(req, res) {
-            cardSvc.getObjs({id: req.params.id}, req, false).then(function(resp) {
+            cardSvc.getObjs({id: req.params.id}, req, res, false).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error retrieving card', detail: error });
@@ -114,7 +152,7 @@
                 }
             });
 
-            cardSvc.getObjs(query, req, true).then(function(resp) {
+            cardSvc.getObjs(query, req, res, true).then(function(resp) {
                 if (resp.pagination) {
                     res.header('content-range', 'items ' + resp.pagination.start + '-' +
                                                 resp.pagination.end + '/' + resp.pagination.total);
