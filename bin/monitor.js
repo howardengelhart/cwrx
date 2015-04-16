@@ -283,6 +283,27 @@
 
         return q(state);
     };
+    
+    // Look up a request id in our cache and see if there is a stored result
+    app.getRequestResult = function(req, id, cache) { //TODO: test, cookbook; may not want to enable this yet?
+        var log = logger.getLog();
+
+        log.info('[%1] Looking up result for %2', req.uuid, id);
+        return cache.get('req:' + id)
+        .then(function(resp) {
+            if (!resp) {
+                log.info('[%1] No result found for %2', req.uuid, id);
+                //TODO: can client handle this? what if orig req's result is 404?
+                return q({code: 404, body: 'No result with that id found'});
+            }
+            log.info('[%1] Found result with code %2 for %3', req.uuid, resp.code, id);
+            return q(resp);
+        })
+        .catch(function(error) {
+            log.error('[%1] Failed to lookup %2 in cache: %3', req.uuid, id, error);
+            return q.reject('Cache error');
+        });
+    };
 
     app.main = function(state){
         var log = logger.getLog(), webServer;
@@ -325,6 +346,24 @@
             res.send(200, state.config.appVersion );
         });
 
+        // TODO: are we sure this should be public?
+        webServer.get('/api/result/:reqId', function(req, res) {
+            app.getRequestResult(req, req.params.reqId, state.cache).then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, { error: 'Error retrieving result', detail: error });
+            });
+        });
+
+        webServer.use(function(err, req, res, next) {
+            if (err) {
+                log.error('Error: %1', err);
+                res.send(500, 'Internal error');
+            } else {
+                next();
+            }
+        });
+
         webServer.listen(state.config.port);
         log.info('Service is listening on port: ' + state.config.port);
     };
@@ -338,6 +377,7 @@
         .then(service.prepareServer)
         .then(service.daemonize)
         .then(service.cluster)
+        .then(service.initCache)
         .then(app.main)
         .catch( function(err){
             var log = logger.getLog();
@@ -357,8 +397,5 @@
             'app'         : app
         };
     }
-
-
-
 
 }());

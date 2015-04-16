@@ -14,12 +14,12 @@
             campsCfg: null
         };
 
-    groupModule.setupSvc = function(db, config) {
+    groupModule.setupSvc = function(db, config, cache) {
         groupModule.groupsCfg = config.minireelGroups;
         groupModule.campsCfg = config.campaigns;
     
         var groupColl = db.collection('minireelGroups'),
-            svc = new CrudSvc(groupColl, 'g', { userProp: false, orgProp: false });
+            svc = new CrudSvc(groupColl, 'g', { userProp: false, orgProp: false }, cache);
         svc._advertColl = db.collection('advertisers');
         svc._custColl = db.collection('customers');
         
@@ -206,7 +206,7 @@
     groupModule.setupEndpoints = function(app, svc, sessions, audit) {
         var authGetGroup = authUtils.middlewarify({minireelGroups: 'read'});
         app.get('/api/minireelGroup/:id', sessions, authGetGroup, audit, function(req, res) {
-            svc.getObjs({id: req.params.id}, req, false).then(function(resp) {
+            svc.getObjs({id: req.params.id}, req, res, false).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error retrieving minireelGroup', detail: error });
@@ -222,7 +222,7 @@
                 query.adtechId = Number(req.query.adtechId);
             }
 
-            svc.getObjs(query, req, true).then(function(resp) {
+            svc.getObjs(query, req, res, true).then(function(resp) {
                 if (resp.pagination) {
                     res.header('content-range', 'items ' + resp.pagination.start + '-' +
                                                 resp.pagination.end + '/' + resp.pagination.total);
@@ -236,7 +236,7 @@
 
         var authPostGroup = authUtils.middlewarify({minireelGroups: 'create'});
         app.post('/api/minireelGroup', sessions, authPostGroup, audit, function(req, res) {
-            svc.createObj(req).then(function(resp) {
+            svc.createObj(req, res).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error creating minireelGroup', detail: error });
@@ -245,7 +245,7 @@
 
         var authPutGroup = authUtils.middlewarify({minireelGroups: 'edit'});
         app.put('/api/minireelGroup/:id', sessions, authPutGroup, audit, function(req, res) {
-            svc.editObj(req).then(function(resp) {
+            svc.editObj(req, res).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error updating minireelGroup', detail: error });
@@ -254,7 +254,7 @@
 
         var authDelGroup = authUtils.middlewarify({minireelGroups: 'delete'});
         app.delete('/api/minireelGroup/:id', sessions, authDelGroup, audit, function(req, res) {
-            svc.deleteObj(req).then(function(resp) {
+            svc.deleteObj(req, res).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error deleting minireelGroup', detail: error });

@@ -7,20 +7,14 @@
         FieldValidator  = require('../lib/fieldValidator'),
         CrudSvc         = require('../lib/crudSvc'),
         Status          = require('../lib/enums').Status,
-        cache           = require('../lib/cache'),
 
         cardModule = {};
 
         
-    cardModule.setupCardSvc = function(cardColl, cache) {
-        // var cardSvc = new CrudSvc(cardColl, 'rc', {allowPublic: true}); //TODO
-        var cardSvc = new CrudSvc(cardColl, 'rc', {
-            allowPublic: true,
-            reqTimeout: 2000,
-            reqCacheTTL: 20*1000
-        });
+    cardModule.setupCardSvc = function(cardColl, cardCache, cache) { //TODO: naming...
+        var cardSvc = new CrudSvc(cardColl, 'rc', {allowPublic: true}, cache);
         
-        cardSvc._cache = cache; //TODO: this might be confusingly named now...
+        cardSvc._cardCache = cardCache;
             
         cardSvc.createValidator._required.push('campaignId');
         cardSvc.createValidator._condForbidden.user = FieldValidator.userFunc('cards', 'create');
@@ -28,27 +22,6 @@
         cardSvc.editValidator._condForbidden.user = FieldValidator.userFunc('cards', 'edit');
         cardSvc.editValidator._condForbidden.org = FieldValidator.orgFunc('cards', 'edit');
         cardSvc.use('read', cardSvc.preventGetAll.bind(cardSvc));
-
-        cardSvc.use('read', function delay(req, next, done) { //TODO
-            var log = logger.getLog(),
-                deferred = q.defer();
-
-            if (req.query.delay) {
-                log.info('[%1] delaying...', req.uuid);
-                setTimeout(function() {
-                    log.info('[%1] proceeding...', req.uuid);
-                    deferred.resolve();
-                }, cardSvc.reqTimeout + 10*1000);
-            } else {
-                return q(next());
-            }
-            
-            return deferred.promise.then(function() {
-                next();
-                // done({code: 400, body: 'I HATE YOU'});
-                //throw new Error('I GOT A PROBLEM CROSBY');
-            });
-        });
         
         cardSvc.getPublicCard = cardModule.getPublicCard.bind(cardModule, cardSvc);
         
@@ -63,7 +36,7 @@
 
         log.info('[%1] Guest user trying to get card %2', req.uuid, id);
 
-        return cardSvc._cache.getPromise(query).then(function(results) {
+        return cardSvc._cardCache.getPromise(query).then(function(results) {
             if (!results[0] || results[0].status !== Status.Active) { // only show active cards
                 return q();
             }
@@ -95,18 +68,7 @@
         });
     };
 
-    //TODO: ???? PERMISSIONS ON THE GET RESULT ENDPOINT ????
     cardModule.setupEndpoints = function(app, cardSvc, sessions, audit, config) {
-        app.get('/api/content/result/:reqId', function(req, res) { //TODO
-            cache.get('req:' + req.params.reqId).then(function(resp) {
-                if (!resp) {
-                    res.send(404, 'No job with that id found');
-                }
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error retrieving status', detail: error });
-            });
-        });
 
         // Retrieve a json representation of a card
         app.get('/api/public/content/card/:id.json', function(req, res) {
@@ -166,7 +128,7 @@
 
         var authPostCard = authUtils.middlewarify({cards: 'create'});
         app.post('/api/content/card', sessions, authPostCard, audit, function(req, res) {
-            cardSvc.createObj(req).then(function(resp) {
+            cardSvc.createObj(req, res).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error creating card', detail: error });
@@ -175,7 +137,7 @@
 
         var authPutCard = authUtils.middlewarify({cards: 'edit'});
         app.put('/api/content/card/:id', sessions, authPutCard, audit, function(req, res) {
-            cardSvc.editObj(req).then(function(resp) {
+            cardSvc.editObj(req, res).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error updating card', detail: error });
@@ -184,7 +146,7 @@
 
         var authDelCard = authUtils.middlewarify({cards: 'delete'});
         app.delete('/api/content/card/:id', sessions, authDelCard, audit, function(req, res) {
-            cardSvc.deleteObj(req)
+            cardSvc.deleteObj(req, res)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {

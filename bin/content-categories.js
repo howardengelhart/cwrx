@@ -9,8 +9,13 @@
 
         catModule = {};
 
-    catModule.setupCatSvc = function(catColl) {
-        var catSvc = new CrudSvc(catColl, 'cat', {userProp:false, orgProp:false, allowPublic:true});
+    catModule.setupCatSvc = function(catColl, cache) {
+        var catSvc = new CrudSvc(
+            catColl,
+            'cat',
+            { userProp: false, orgProp: false, allowPublic: true },
+            cache
+        );
             
         catSvc.createValidator._required.push('name');
         catSvc.editValidator._forbidden.push('name');
@@ -37,7 +42,7 @@
     catModule.setupEndpoints = function(app, catSvc, sessions, audit) {
         var authGetCat = authUtils.middlewarify({});
         app.get('/api/content/category/:id', sessions, authGetCat, audit, function(req, res) {
-            catSvc.getObjs({id: req.params.id}, req, false).then(function(resp) {
+            catSvc.getObjs({id: req.params.id}, req, res, false).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error retrieving category', detail: error });
@@ -50,7 +55,7 @@
                 query.name = String(req.query.name);
             }
 
-            catSvc.getObjs(query, req, true).then(function(resp) {
+            catSvc.getObjs(query, req, res, true).then(function(resp) {
                 if (resp.pagination) {
                     res.header('content-range', 'items ' + resp.pagination.start + '-' +
                                                 resp.pagination.end + '/' + resp.pagination.total);
@@ -64,7 +69,7 @@
 
         var authPostCat = authUtils.middlewarify({categories: 'create'});
         app.post('/api/content/category', sessions, authPostCat, audit, function(req, res) {
-            catSvc.createObj(req).then(function(resp) {
+            catSvc.createObj(req, res).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error creating category', detail: error });
@@ -73,7 +78,7 @@
 
         var authPutCat = authUtils.middlewarify({categories: 'edit'});
         app.put('/api/content/category/:id', sessions, authPutCat, audit, function(req, res) {
-            catSvc.editObj(req).then(function(resp) {
+            catSvc.editObj(req, res).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error updating category', detail: error });
@@ -82,7 +87,7 @@
 
         var authDelCat = authUtils.middlewarify({categories: 'delete'});
         app.delete('/api/content/category/:id', sessions, authDelCat, audit, function(req, res) {
-            catSvc.deleteObj(req)
+            catSvc.deleteObj(req, res)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {

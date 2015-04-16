@@ -22,7 +22,7 @@
     state.defaultConfig = {
         appName: 'ads',
         appDir: __dirname,
-        caches : {
+        caches : { //TODO: may want to rename this now...
             run     : path.normalize('/usr/local/share/cwrx/' + state.name + '/caches/run/'),
         },
         adtechCreds: {
@@ -80,11 +80,12 @@
         var express      = require('express'),
             app          = express(),
             users        = state.dbs.c6Db.collection('users'),
-            advertSvc    = advertModule.setupSvc(state.dbs.c6Db.collection('advertisers')),
-            custSvc      = custModule.setupSvc(state.dbs.c6Db),
-            campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config),
-            groupSvc     = groupModule.setupSvc(state.dbs.c6Db, state.config),
-            siteSvc      = siteModule.setupSvc(state.dbs.c6Db.collection('sites')),
+            adverts      = state.dbs.c6Db.collection('advertisers'),
+            advertSvc    = advertModule.setupSvc(adverts, state.cache),
+            custSvc      = custModule.setupSvc(state.dbs.c6Db, state.cache),
+            campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config, state.cache),
+            groupSvc     = groupModule.setupSvc(state.dbs.c6Db, state.config, state.cache),
+            siteSvc      = siteModule.setupSvc(state.dbs.c6Db.collection('sites'), state.cache),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._coll = users;
@@ -201,6 +202,7 @@
         .then(service.cluster)
         .then(service.initMongo)
         .then(service.initSessionStore)
+        .then(service.initCache)
         .then(function(state) {
             return adtech.createClient(
                 state.config.adtechCreds.keyPath,
