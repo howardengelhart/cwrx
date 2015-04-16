@@ -350,12 +350,6 @@ describe('campaignUtils', function() {
             expect(fmt.priorityLevelThreeKeywordIdList).toEqual([34]);
         });
         
-        it('should set a higher priority if the campaign is sponsored', function() {
-            campaign.isSponsored = true;
-            var fmt = campaignUtils.formatCampaign(campaign);
-            expect(fmt.priority).toBe(2);
-        });
-        
         it('should set the campaign adtech id if defined', function() {
             campaign.adtechId = 987;
             var fmt = campaignUtils.formatCampaign(campaign);

@@ -371,7 +371,6 @@
                         startDate       : obj.startDate,
                         endDate         : obj.endDate,
                         campaignTypeId  : campModule.campsCfg.campaignTypeId,
-                        isSponsored     : true,
                         keywords        : keywords,
                         advertiserId    : req._advertiserId,
                         customerId      : req._customerId
@@ -530,7 +529,6 @@
                     startDate       : obj.startDate,
                     endDate         : obj.endDate,
                     campaignTypeId  : campModule.campsCfg.campaignTypeId,
-                    isSponsored     : false,
                     keywords        : keywords,
                     advertiserId    : req._advertiserId,
                     customerId      : req._customerId

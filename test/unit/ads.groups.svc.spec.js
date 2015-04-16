@@ -272,7 +272,6 @@ describe('ads-groups (UT)', function() {
                     startDate: req.body.startDate,
                     endDate: req.body.endDate,
                     campaignTypeId: 343434,
-                    isSponsored: false,
                     keywords: {keys: 'yes'},
                     advertiserId: 987,
                     customerId: 876

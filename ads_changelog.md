@@ -1,5 +1,9 @@
 # Ads Service Changelog
 
+### 1.2.4: Thu Apr 16 10:36:19 EDT 2015
+* [FIX]: Stop giving sponsored campaigns priority "High": [#414](https://github.com/cinema6/cwrx/pull/414)
+* Extra deployment steps: None
+
 ### 1.2.3: Fri Mar 27 16:19:45 EDT 2015
 * [FIX]: Update card banner template to pass back `sub1` Adtech var: [#409](https://github.com/cinema6/cwrx/pull/409)
 * [FIX]: Remove deleted cards from a campaign's `staticCardMap`: [#411](https://github.com/cinema6/cwrx/pull/411)

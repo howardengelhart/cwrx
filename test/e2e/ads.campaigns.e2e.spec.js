@@ -87,7 +87,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         expect(camp.dateRangeList[0].endDate.toUTCString()).toBe(new Date(card.endDate).toUTCString());
         expect(camp.priorityLevelOneKeywordIdList).toEqual([jasmine.any(String)]);
         expect(camp.priorityLevelThreeKeywordIdList.sort()).toEqual(catKeys.sort());
-        expect(camp.priority).toBe(2);
+        expect(camp.priority).toBe(3);
         expect(camp.advertiserId).toBe(keptAdvert.adtechId);
         expect(camp.customerId).toBe(keptCust.adtechId);
     }
@@ -104,7 +104,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         expect(camp.dateRangeList[0].endDate.toUTCString()).toBe(new Date(exp.endDate).toUTCString());
         expect(camp.priorityLevelOneKeywordIdList).toEqual([]);
         expect(camp.priorityLevelThreeKeywordIdList.sort()).toEqual(catKeys.sort());
-        expect(camp.priority).toBe(2);
+        expect(camp.priority).toBe(3);
         expect(camp.advertiserId).toBe(keptAdvert.adtechId);
         expect(camp.customerId).toBe(keptCust.adtechId);
     }
