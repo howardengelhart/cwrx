@@ -11,8 +11,8 @@
 
         siteModule = {};
 
-    siteModule.setupSvc = function(coll) {
-        var svc = new CrudSvc(coll, 's', { userProp: false, orgProp: false });
+    siteModule.setupSvc = function(coll, cache) {
+        var svc = new CrudSvc(coll, 's', { userProp: false, orgProp: false }, cache);
         svc.createValidator._required.push('host', 'name');
         svc.createValidator._forbidden.push('adtechId');
         svc.createValidator._condForbidden.org = FieldValidator.orgFunc('sites', 'create');
@@ -278,7 +278,7 @@
     siteModule.setupEndpoints = function(app, svc, sessions, audit) {
         var authGetSite = authUtils.middlewarify({sites: 'read'});
         app.get('/api/site/:id', sessions, authGetSite, audit, function(req, res) {
-            svc.getObjs({id: req.params.id}, req, false).then(function(resp) {
+            svc.getObjs({id: req.params.id}, req, res, false).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error retrieving site', detail: error });
@@ -296,7 +296,7 @@
                 query.adtechId = Number(req.query.adtechId);
             }
 
-            svc.getObjs(query, req, true).then(function(resp) {
+            svc.getObjs(query, req, res, true).then(function(resp) {
                 if (resp.pagination) {
                     res.header('content-range', 'items ' + resp.pagination.start + '-' +
                                                 resp.pagination.end + '/' + resp.pagination.total);
@@ -310,7 +310,7 @@
 
         var authPostSite = authUtils.middlewarify({sites: 'create'});
         app.post('/api/site', sessions, authPostSite, audit, function(req, res) {
-            svc.createObj(req).then(function(resp) {
+            svc.createObj(req, res).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error creating site', detail: error });
@@ -319,7 +319,7 @@
 
         var authPutSite = authUtils.middlewarify({sites: 'edit'});
         app.put('/api/site/:id', sessions, authPutSite, audit, function(req, res) {
-            svc.editObj(req).then(function(resp) {
+            svc.editObj(req, res).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error updating site', detail: error });
@@ -328,7 +328,7 @@
 
         var authDelSite = authUtils.middlewarify({sites: 'delete'});
         app.delete('/api/site/:id', sessions, authDelSite, audit, function(req, res) {
-            svc.deleteObj(req)
+            svc.deleteObj(req, res)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {

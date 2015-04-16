@@ -789,8 +789,8 @@
         });
 
         authUtils._coll = collections.users;
-        cardSvc = cardModule.setupCardSvc(collections.cards, caches.cards);
-        catSvc = catModule.setupCatSvc(collections.categories);
+        cardSvc = cardModule.setupCardSvc(collections.cards, caches.cards, state.cache);
+        catSvc = catModule.setupCatSvc(collections.categories, state.cache);
 
 
         app.use(express.bodyParser());
@@ -1041,6 +1041,7 @@
         .then(service.cluster)
         .then(service.initMongo)
         .then(service.initSessionStore)
+        .then(service.initCache)
         .then(service.ensureIndices)
         .then(content.main)
         .catch(function(err) {
