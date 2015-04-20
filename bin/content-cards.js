@@ -11,8 +11,9 @@
         cardModule = {};
 
         
-    cardModule.setupCardSvc = function(cardColl, cardCache, cache) { //TODO: naming...
-        var cardSvc = new CrudSvc(cardColl, 'rc', {allowPublic: true}, cache);
+    cardModule.setupCardSvc = function(cardColl, config, cardCache, cache) {
+        var opts = { allowPublic: true, reqTimeouts: config.reqTimeouts },
+            cardSvc = new CrudSvc(cardColl, 'rc', opts, cache);
         
         cardSvc._cardCache = cardCache;
             

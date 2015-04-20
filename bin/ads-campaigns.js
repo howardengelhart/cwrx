@@ -19,7 +19,7 @@
         campModule.contentHost = config.contentHost;
     
         var campColl = db.collection('campaigns'),
-            svc = new CrudSvc(campColl, 'cam', {}, cache);
+            svc = new CrudSvc(campColl, 'cam', { reqTimeouts: config.reqTimeouts }, cache);
         svc._advertColl = db.collection('advertisers');
         svc._custColl = db.collection('customers');
         
@@ -205,7 +205,7 @@
         });
     };
     
-    // Remove entries from the staticCardMap for deleted sponsored cards //TODO: test
+    // Remove entries from the staticCardMap for deleted sponsored cards
     campModule.cleanStaticMap = function(req, toDelete) {
         var map = req.body.staticCardMap = req.body.staticCardMap ||
                   (req.origObj && req.origObj.staticCardMap) || undefined;
