@@ -65,6 +65,16 @@
                 port: null,
                 retryConnect : true
             }
+        },
+        cache: {
+            servers: null,
+            getTimeout: 500,
+            setTimeout: 2000
+        },
+        reqTimeouts: {
+            enabled: false,
+            timeout: 5*1000,
+            cacheTTL: 24*60*60*1000,
         }
     };
     

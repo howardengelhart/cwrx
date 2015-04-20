@@ -10,9 +10,10 @@
 
         custModule = {};
 
-    custModule.setupSvc = function(db, cache) {
+    custModule.setupSvc = function(db, config, cache) {
         var coll = db.collection('customers'),
-            svc = new CrudSvc(coll, 'cu', { userProp: false, orgProp: false }, cache);
+            opts = { userProp: false, orgProp: false, reqTimeouts: config.reqTimeouts },
+            svc = new CrudSvc(coll, 'cu', opts, cache);
         svc._advertColl = db.collection('advertisers');
         svc.createValidator._required.push('name');
         svc.createValidator._forbidden.push('adtechId');

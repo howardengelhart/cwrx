@@ -43,7 +43,7 @@ describe('ads-advertisers (UT)', function() {
         it('should setup the advertiser service', function() {
             spyOn(CrudSvc.prototype.preventGetAll, 'bind').andReturn(CrudSvc.prototype.preventGetAll);
             var mockColl = { collectionName: 'advertisers' },
-                svc = advertModule.setupSvc(mockColl);
+                svc = advertModule.setupSvc(mockColl, 'mockCache');
 
             expect(svc instanceof CrudSvc).toBe(true);
             expect(svc._prefix).toBe('a');
@@ -52,6 +52,7 @@ describe('ads-advertisers (UT)', function() {
             expect(svc._orgProp).toBe(false);
             expect(svc._allowPublic).toBe(false);
             expect(svc._coll).toBe(mockColl);
+            expect(svc.cache).toBe('mockCache');
             expect(svc.createValidator._required).toContain('name');
             expect(svc.createValidator._forbidden).toContain('adtechId');
             expect(svc._middleware.read).toEqual([svc.preventGetAll]);

@@ -285,15 +285,19 @@
     };
     
     // Look up a request id in our cache and see if there is a stored result
-    app.getRequestResult = function(req, id, cache) { //TODO: test, cookbook; may not want to enable this yet?
+    app.getRequestResult = function(req, id, cache) { //TODO: test, cookbook;
         var log = logger.getLog();
+        
+        if (!cache) {
+            log.warn('[%1] No cache initalized, cannot lookup result for %2', req.uuid, id);
+            return q({code: 404, body: 'No result with that id found'});
+        }
 
         log.info('[%1] Looking up result for %2', req.uuid, id);
         return cache.get('req:' + id)
         .then(function(resp) {
             if (!resp) {
-                log.info('[%1] No result found for %2', req.uuid, id);
-                //TODO: can client handle this? what if orig req's result is 404?
+                log.info('[%1] No result found for request %2', req.uuid, id);
                 return q({code: 404, body: 'No result with that id found'});
             }
             log.info('[%1] Found result with code %2 for %3', req.uuid, resp.code, id);
