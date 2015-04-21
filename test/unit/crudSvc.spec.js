@@ -708,7 +708,9 @@ describe('CrudSvc', function() {
             promiseResult = q.reject('I GOT A PROBLEM').inspect();
             jasmine.Clock.tick(svc.reqTimeouts.timeout + 1000);
             svc.checkReqTimeout(req, promiseResult, timeoutObj).then(function() {
-                expect(mockCache.set).toHaveBeenCalledWith('req:1234', {code: 500, body: 'Internal Error'}, svc.reqTimeouts.cacheTTL);
+                expect(mockCache.set).toHaveBeenCalledWith('req:1234', 
+                    { code: 500, body: { error: 'Internal Error', detail: '\'I GOT A PROBLEM\'' } },
+                    svc.reqTimeouts.cacheTTL);
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

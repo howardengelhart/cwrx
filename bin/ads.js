@@ -91,11 +91,12 @@
             app          = express(),
             users        = state.dbs.c6Db.collection('users'),
             adverts      = state.dbs.c6Db.collection('advertisers'),
-            advertSvc    = advertModule.setupSvc(adverts, state.cache),
-            custSvc      = custModule.setupSvc(state.dbs.c6Db, state.cache),
+            sites        = state.dbs.c6Db.collection('sites'),
+            advertSvc    = advertModule.setupSvc(adverts, state.config, state.cache),
+            custSvc      = custModule.setupSvc(state.dbs.c6Db, state.config, state.cache),
             campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config, state.cache),
             groupSvc     = groupModule.setupSvc(state.dbs.c6Db, state.config, state.cache),
-            siteSvc      = siteModule.setupSvc(state.dbs.c6Db.collection('sites'), state.cache),
+            siteSvc      = siteModule.setupSvc(sites, state.config, state.cache),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._coll = users;
