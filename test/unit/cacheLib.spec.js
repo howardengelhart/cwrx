@@ -47,7 +47,7 @@ describe('CrudSvc', function() {
                     retries: 1,
                     minTimeout: 1000,
                     maxTimeout: 1000,
-                    reconnect: 5000,
+                    reconnect: 2000,
                     timeout: 1000,
                     failures: 0,
                     failuresTimeout: 1000,
@@ -84,7 +84,7 @@ describe('CrudSvc', function() {
                 mockMemClient.set.andCallFake(function(key, val, ttl, cb) { cb(); });
             });
             
-            it('should call the command on the memcached connection', function(done) {
+            it('should call the appropriate command on the memcached client', function(done) {
                 cache._memcachedCommand('stats', 'read').then(function(resp) {
                     expect(resp).toEqual(['stats1', 'stats2']);
                     expect(mockMemClient.stats).toHaveBeenCalledWith(anyFunc);
@@ -148,8 +148,8 @@ describe('CrudSvc', function() {
             });
             
             it('should reject if an unknown or undefined command is passed', function(done) {
-                cache._memcachedCommand('do cool shit', 'read').catch(function(error) {
-                    expect(error).toBe('"do cool shit" is not a valid memcached command');
+                cache._memcachedCommand('doCoolShit', 'read').catch(function(error) {
+                    expect(error).toBe('"doCoolShit" is not a valid memcached command');
                     return cache._memcachedCommand();
                 }).catch(function(error) {
                     expect(error).toBe('"undefined" is not a valid memcached command');
@@ -189,13 +189,13 @@ describe('CrudSvc', function() {
             var cache;
             beforeEach(function() {
                 cache = new cacheLib.Cache('localhost:11211');
-                spyOn(cache, '_memcachedCommand').andReturn(q(['stats1', 'stats2']));
+                spyOn(cache, '_memcachedCommand').andReturn(q('bar'));
             });
             
-            it('should call _memcachedCommand with stats', function(done) {
-                cache.checkConnection().then(function(resp) {
-                    expect(resp).toBe(true);
-                    expect(cache._memcachedCommand).toHaveBeenCalledWith('stats', 'read');
+            it('should call _memcachedCommand with get', function(done) {
+                cache.get('foo').then(function(resp) {
+                    expect(resp).toBe('bar');
+                    expect(cache._memcachedCommand).toHaveBeenCalledWith('get', 'read', ['foo']);
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);
@@ -203,7 +203,7 @@ describe('CrudSvc', function() {
             
             it('should pass through errors', function(done) {
                 cache._memcachedCommand.andReturn(q.reject('I GOT A PROBLEM'));
-                cache.checkConnection().then(function() {
+                cache.get('foo').then(function() {
                     expect('resolved').not.toBe('resolved');
                 }).catch(function(error) {
                     expect(error).toBe('I GOT A PROBLEM');
@@ -240,25 +240,55 @@ describe('CrudSvc', function() {
         describe('add', function() {
             var cache;
             beforeEach(function() {
-                cache = new cacheLib.Cache('localhost:11211');
-                spyOn(cache, '_memcachedCommand').andReturn(q('success'));
+                cache = new cacheLib.Cache('localhost:11211', 1000, 2000);
+                mockMemClient.add.andCallFake(function(key, val, ttl, cb) { cb(null, 'success'); });
             });
             
-            it('should call _memcachedCommand with set', function(done) {
-                cache.add('foo', {a: 1, aKey: 'aVal'}, 60*60*1000).then(function(resp) {
-                    expect(resp).toBe('success');
-                    expect(cache._memcachedCommand).toHaveBeenCalledWith('add', 'write', ['foo', {a: 1, aKey: 'aVal'}, 60*60]);
+            it('should call the appropriate command on the memcached client', function(done) {
+                cache.add('foo', 'bar', 5000).then(function(resp) {
+                    expect(resp).toEqual('success');
+                    expect(mockMemClient.add).toHaveBeenCalledWith('foo', 'bar', 5, anyFunc);
+                    expect(mockLog.error).not.toHaveBeenCalled();
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);
             });
             
-            it('should pass through errors', function(done) {
-                cache._memcachedCommand.andReturn(q.reject('I GOT A PROBLEM'));
-                cache.add('foo', {a: 1, aKey: 'aVal'}, 60*60*1000).then(function(resp) {
-                    expect('resolved').not.toBe('resolved');
+            it('should reject if the command fails', function(done) {
+                mockMemClient.add.andCallFake(function(cb) { cb('I GOT A PROBLEM'); });
+                cache.add('foo', 'bar', 5000).then(function(resp) {
+                    expect(resp).not.toBeDefined();
                 }).catch(function(error) {
-                    expect(error).toBe('I GOT A PROBLEM');
+                    expect(error.message).toBe('Memcache failure');
+                    expect(mockLog.error).toHaveBeenCalled();
+                    expect(mockMemClient.add).toHaveBeenCalled();
+                }).done(done);
+            });
+            
+            it('should reject if the command times out', function(done) {
+                mockMemClient.add.andCallFake(function(key, val, ttl, cb) {
+                    setTimeout(function() { cb(null, 'success'); }, cache.timeouts.write + 10);
+                });
+                var promise = cache.add('foo', 'bar', 5000);
+                process.nextTick(function() { jasmine.Clock.tick(cache.timeouts.write + 5); });
+
+                promise.then(function(resp) {
+                    expect(resp).not.toBeDefined();
+                }).catch(function(error) {
+                    expect(error.message).toBe('Memcache failure');
+                    expect(mockLog.error).toHaveBeenCalled();
+                    expect(mockMemClient.add).toHaveBeenCalled();
+                }).done(done);
+            });
+            
+            it('should resolve if memcached.add fails because the key was already stored', function(done) {
+                mockMemClient.add.andCallFake(function(key, val, ttl, cb) { cb(new Error('Item is not stored')); });
+                cache.add('foo', 'bar', 5000).then(function(resp) {
+                    expect(resp).toBe();
+                    expect(mockMemClient.add).toHaveBeenCalledWith('foo', 'bar', 5, anyFunc);
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
                 }).done(done);
             });
         });
@@ -270,7 +300,7 @@ describe('CrudSvc', function() {
                 spyOn(cache, '_memcachedCommand').andReturn(q('success'));
             });
             
-            it('should call _memcachedCommand with set', function(done) {
+            it('should call _memcachedCommand with delete', function(done) {
                 cache.delete('foo').then(function(resp) {
                     expect(resp).toBe('success');
                     expect(cache._memcachedCommand).toHaveBeenCalledWith('delete', 'write', ['foo']);
