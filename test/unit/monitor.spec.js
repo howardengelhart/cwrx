@@ -10,8 +10,8 @@ describe('monitor',function(){
         q           = require('q');
         mockGlob    = require('glob');
         mockFs      = require('fs-extra');
-        mockHttp    = require('http'),
-        mockHttps   = require('https'),
+        mockHttp    = require('http');
+        mockHttps   = require('https');
         mockLogger  = require('../../lib/logger');
         app         = require('../../bin/monitor').app;
 
@@ -99,7 +99,7 @@ describe('monitor',function(){
             mockHttpRes.statusCode = 200;
             mockHttpRes.headers = {
                 'content-type' : 'application/json'
-            }
+            };
             reqCb(mockHttpRes);
             mockHttpRes._on.data('{ "key1" : "value1", "key2" : "value2" }');
             mockHttpRes._on.end();
@@ -121,7 +121,7 @@ describe('monitor',function(){
             mockHttpRes.statusCode = 400;
             mockHttpRes.headers = {
                 'content-type' : 'text/plain'
-            }
+            };
             reqCb(mockHttpRes);
             mockHttpRes._on.data('This is an error.');
             mockHttpRes._on.end();
@@ -409,11 +409,11 @@ describe('monitor',function(){
         });
 
         it('will reject if any of the service checks fail',function(done){
-            app.checkProcess.andCallFake(function(p){ 
+            app.checkProcess.andCallFake(function(p){
                 if (p.checkProcess.pidPath === 'pidPath_serviceB'){
                     return q.reject({ message : 'FAIL!', httpCode : 500});
                 }
-                return q(p); 
+                return q(p);
             });
             app.checkHttp.andCallFake(function(p){ return q(p); });
             
@@ -486,11 +486,11 @@ describe('monitor',function(){
 
 
         it('will generate a 502 response if an http check fails', function(done){
-            app.checkHttp.andCallFake(function(p){ 
+            app.checkHttp.andCallFake(function(p){
                 if (p.name === 'serviceC'){
                     return q.reject({ httpCode : 502, message : 'Failed' });
                 }
-                return q(p); 
+                return q(p);
             });
             app.handleGetStatus(state,mockHttpReq,mockHttpRes)
             .then(resolveSpy,rejectSpy)
@@ -509,13 +509,13 @@ describe('monitor',function(){
                 if (p.name === 'serviceB'){
                     return q.reject({ httpCode : 503, message : 'Process unavailable' });
                 }
-                return q(p); 
+                return q(p);
             });
-            app.checkHttp.andCallFake(function(p){ 
+            app.checkHttp.andCallFake(function(p){
                 if (p.name === 'serviceC'){
                     return q.reject({ httpCode : 502, message : 'Failed' });
                 }
-                return q(p); 
+                return q(p);
             });
             app.handleGetStatus(state,mockHttpReq,mockHttpRes)
             .then(resolveSpy,rejectSpy)
@@ -530,9 +530,9 @@ describe('monitor',function(){
         });
         
         it('will generate a 504 response if a check times out', function(done){
-            app.checkHttp.andCallFake(function(p){ 
+            app.checkHttp.andCallFake(function(p){
                 setTimeout(function(){
-                    return q(p); 
+                    return q(p);
                 },2000);
             });
             state.config.requestTimeout = 1000;
@@ -579,7 +579,7 @@ describe('monitor',function(){
 
         it('adds the contents of the monitor files to the state.services array',function(done){
             mockGlob.Glob.andCallFake(function(pattern,callback){
-                callback(null,['fileA.json','fileB.json']);      
+                callback(null,['fileA.json','fileB.json']);
             });
             mockFs.readJsonSync.andCallFake(function(fpath){
                 if (fpath === 'fileA.json'){
@@ -601,7 +601,7 @@ describe('monitor',function(){
         
         it('rejects if there is an error reading a config file',function(done){
             mockGlob.Glob.andCallFake(function(pattern,callback){
-                callback(null,['fileA.json','fileB.json']);      
+                callback(null,['fileA.json','fileB.json']);
             });
             mockFs.readJsonSync.andCallFake(function(fpath){
                 if (fpath === 'fileA.json'){
@@ -762,5 +762,61 @@ describe('monitor',function(){
     });
     /* verifyConfiguration -- end */
 
+    /* getRequestResult -- begin */
+    describe('getRequestResult', function() {
+        var req, cache;
+        beforeEach(function() {
+            req = { uuid: '1234' };
+            cache = {
+                get: jasmine.createSpy('cache.get').andReturn(q({code: 200, body: 'all good'}))
+            };
+        });
+        
+        it('should log a warning and send a 404 if there is no cache', function(done) {
+            app.getRequestResult(req, '5678').then(function(resp) {
+                expect(resp).toEqual({code: 404, body: 'No result with that id found'});
+                expect(cache.get).not.toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
 
+        it('should look up a request id in the cache and return the result', function(done) {
+            app.getRequestResult(req, '5678', cache).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'all good'});
+                expect(cache.get).toHaveBeenCalledWith('req:5678');
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should send a 404 if the result is not found in the cache', function(done) {
+            cache.get.andReturn(q());
+            app.getRequestResult(req, '5678', cache).then(function(resp) {
+                expect(resp).toEqual({code: 404, body: 'No result with that id found'});
+                expect(cache.get).toHaveBeenCalledWith('req:5678');
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should reject if cache.get fails', function(done) {
+            cache.get.andReturn(q.reject('I GOT A PROBLEM'));
+            app.getRequestResult(req, '5678', cache).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('Cache error');
+                expect(cache.get).toHaveBeenCalledWith('req:5678');
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
+        });
+    });
+    /* getRequestResult -- end */
 });

@@ -92,8 +92,8 @@
         },
         cache: {
             servers: null,
-            getTimeout: 500,
-            setTimeout: 2000
+            readTimeout: 500,
+            writeTimeout: 2000
         },
         reqTimeouts: {
             enabled: false,
@@ -799,8 +799,8 @@
         });
 
         authUtils._coll = collections.users;
-        cardSvc = cardModule.setupCardSvc(collections.cards, caches.cards, state.cache);
-        catSvc = catModule.setupCatSvc(collections.categories, state.cache);
+        cardSvc = cardModule.setupCardSvc(collections.cards,state.config,caches.cards,state.cache);
+        catSvc = catModule.setupCatSvc(collections.categories, state.config, state.cache);
 
 
         app.use(express.bodyParser());
