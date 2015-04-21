@@ -42,14 +42,17 @@ describe('ads-groups (UT)', function() {
             spyOn(groupModule.getAccountIds, 'bind').andReturn(groupModule.getAccountIds);
             spyOn(groupModule.formatOutput, 'bind').andReturn(groupModule.formatOutput);
             
-            var config = { campaigns: { statusDelay: 100, statusAttempts: 5 },
-                           minireelGroups: { advertiserId: 123, customerId: 234 } };
+            var config = {
+                campaigns: { statusDelay: 100, statusAttempts: 5 },
+                minireelGroups: { advertiserId: 123, customerId: 234 },
+                reqTimeouts: { enabled: true, timeout: 1000, cacheTTL: 2000 }
+            };
             var mockDb = {
                 collection: jasmine.createSpy('db.collection()').andCallFake(function(name) {
                     return { collectionName: name };
                 })
             };
-            var svc = groupModule.setupSvc(mockDb, config);
+            var svc = groupModule.setupSvc(mockDb, config, 'mockCache');
             expect(groupModule.getAccountIds.bind).toHaveBeenCalledWith(groupModule, svc);
             expect(groupModule.formatOutput.bind).toHaveBeenCalledWith(groupModule, svc);
             expect(groupModule.groupsCfg).toEqual({ advertiserId: 123, customerId: 234 });
@@ -64,6 +67,8 @@ describe('ads-groups (UT)', function() {
             expect(svc._coll).toEqual({collectionName: 'minireelGroups'});
             expect(svc._advertColl).toEqual({collectionName: 'advertisers'});
             expect(svc._custColl).toEqual({collectionName: 'customers'});
+            expect(svc.cache).toBe('mockCache');
+            expect(svc.reqTimeouts).toEqual({ enabled: true, timeout: 1000, cacheTTL: 2000 });
             
             expect(svc.createValidator._required).toContain('name');
             expect(svc.createValidator._forbidden).toContain('adtechId');

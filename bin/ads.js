@@ -68,8 +68,8 @@
         },
         cache: {
             servers: null,
-            getTimeout: 500,
-            setTimeout: 2000
+            readTimeout: 500,
+            writeTimeout: 2000
         },
         reqTimeouts: {
             enabled: false,

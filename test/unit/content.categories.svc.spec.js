@@ -27,7 +27,8 @@ describe('content-categories (UT)', function() {
         it('should setup the category service', function() {
             spyOn(CrudSvc.prototype.validateUniqueProp, 'bind').andReturn(CrudSvc.prototype.validateUniqueProp);
             var mockColl = { collectionName: 'categories' },
-                catSvc = catModule.setupCatSvc(mockColl);
+                config = { reqTimeouts: { enabled: true, timeout: 1000, cacheTTL: 2000 } },
+                catSvc = catModule.setupCatSvc(mockColl, config, 'mockCache');
 
             expect(CrudSvc.prototype.validateUniqueProp.bind).toHaveBeenCalledWith(catSvc, 'name', /^\w+$/);
 
@@ -38,6 +39,8 @@ describe('content-categories (UT)', function() {
             expect(catSvc._orgProp).toBe(false);
             expect(catSvc._allowPublic).toBe(true);
             expect(catSvc._coll).toBe(mockColl);
+            expect(catSvc.cache).toBe('mockCache');
+            expect(catSvc.reqTimeouts).toEqual({ enabled: true, timeout: 1000, cacheTTL: 2000 });
             expect(catSvc.createValidator._required).toContain('name');
             expect(catSvc.editValidator._forbidden).toContain('name');
 

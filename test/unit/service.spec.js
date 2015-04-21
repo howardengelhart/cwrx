@@ -17,7 +17,7 @@ describe('service (UT)',function(){
         logger      = require('../../lib/logger');
         daemon      = require('../../lib/daemon');
         mongoUtils  = require('../../lib/mongoUtils');
-        cacheLib    = require('../../lib/cache');
+        cacheLib    = require('../../lib/cacheLib');
         service     = require('../../lib/service');
 
         state       = { cmdl : {}, defaultConfig : {}, config : {}  };
@@ -752,8 +752,8 @@ describe('service (UT)',function(){
         beforeEach(function() {
             state.config.cache = {
                 servers: 'localhost:123,localhost:456',
-                getTimeout: 200,
-                setTimeout: 300
+                readTimeout: 200,
+                writeTimeout: 300
             };
             spyOn(cacheLib, 'createCache').andReturn(q('fakeCache'));
         });

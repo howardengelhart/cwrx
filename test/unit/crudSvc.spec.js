@@ -1,7 +1,7 @@
 var flush = true;
 describe('CrudSvc', function() {
-    var q, mockLog, logger, CrudSvc, enums, uuid, mongoUtils, FieldValidator, mockColl, anyFunc,
-        req, res, svc, mockCache;
+    var q, mockLog, logger, CrudSvc, uuid, mongoUtils, FieldValidator, mockColl, anyFunc,
+        req, res, svc, mockCache, enums, Scope, Status;
     
     beforeEach(function() {
         jasmine.Clock.useMock();
@@ -88,8 +88,10 @@ describe('CrudSvc', function() {
         });
         
         it('should allow setting various options', function() {
-            var opts = {objName: 'bananas', userProp: false, orgProp: false, allowPublic: true,
-                        enableReqTimeouts: true, reqTimeout: 2000, cacheTTL: 60*60*1000}
+            var opts = {
+                objName: 'bananas', userProp: false, orgProp: false, allowPublic: true,
+                reqTimeouts: { enabled: true, timeout: 2000, cacheTTL: 60*60*1000 }
+            };
             svc = new CrudSvc(mockColl, 't', opts, mockCache);
             expect(svc.objName).toBe('bananas');
             expect(svc._userProp).toBe(false);
@@ -224,7 +226,7 @@ describe('CrudSvc', function() {
         });
         
         it('should default in the user and org if those props are enabled', function() {
-            svc._userProp = true, svc._orgProp = true;
+            svc._userProp = true; svc._orgProp = true;
             svc.setupObj(req, next, doneSpy);
             expect(req.body).toEqual({id: 't-1234567890abcd', created: anyDate, foo: 'bar', user: 'u1',
                                       org: 'o1', lastUpdated: anyDate, status: Status.Active});
@@ -232,7 +234,7 @@ describe('CrudSvc', function() {
         });
         
         it('should return a 403 if a non-admin is creating an object for a different user/org', function() {
-            svc._userProp = true, svc._orgProp = true;
+            svc._userProp = true; svc._orgProp = true;
             req.body = { user: 'u2' };
             svc.setupObj(req, next, doneSpy);
             expect(doneSpy).toHaveBeenCalledWith({code: 403, body: 'Not authorized to create objects for another user'});
@@ -243,7 +245,7 @@ describe('CrudSvc', function() {
         });
         
         it('should allow an admin to create an object for a different user/org', function() {
-            svc._userProp = true, svc._orgProp = true;
+            svc._userProp = true; svc._orgProp = true;
             req.user.permissions.thangs.create = Scope.All;
             req.body = { user: 'u2' };
             svc.setupObj(req, next, doneSpy);
@@ -400,7 +402,7 @@ describe('CrudSvc', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(catchSpy).not.toHaveBeenCalled();
                 expect(mockColl.findOne).toHaveBeenCalledWith({name: 'scruffles'}, anyFunc);
-                done(); 
+                done();
             });
         });
         
@@ -412,7 +414,7 @@ describe('CrudSvc', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(catchSpy).not.toHaveBeenCalled();
                 expect(mockColl.findOne).toHaveBeenCalledWith({name: 'scruffles', id: {$ne: 'cat-1'}}, anyFunc);
-                done(); 
+                done();
             });
         });
         
@@ -423,7 +425,7 @@ describe('CrudSvc', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(catchSpy).not.toHaveBeenCalled();
                 expect(mockColl.findOne).not.toHaveBeenCalled();
-                done(); 
+                done();
             });
         });
         
@@ -450,7 +452,7 @@ describe('CrudSvc', function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({code: 409, body: 'An object with that name already exists'});
                 expect(catchSpy).not.toHaveBeenCalled();
-                done(); 
+                done();
             });
         });
         
@@ -461,7 +463,7 @@ describe('CrudSvc', function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(catchSpy).toHaveBeenCalledWith('CAT IS TOO CUTE HALP');
-                done(); 
+                done();
             });
         });
     });

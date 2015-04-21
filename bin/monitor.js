@@ -30,7 +30,12 @@
         port    : 3333,
         checkHttpTimeout : 2000,
         requestTimeout  : 3000,
-        monitorInc : './monitor.*.json'
+        monitorInc : './monitor.*.json',
+        cache: {
+            servers: null,
+            readTimeout: 2000,
+            writeTimeout: 2000
+        }
     };
 
     app.checkProcess = function(params){
@@ -285,7 +290,7 @@
     };
     
     // Look up a request id in our cache and see if there is a stored result
-    app.getRequestResult = function(req, id, cache) { //TODO: test, cookbook;
+    app.getRequestResult = function(req, id, cache) {
         var log = logger.getLog();
         
         if (!cache) {
@@ -350,7 +355,6 @@
             res.send(200, state.config.appVersion );
         });
 
-        // TODO: are we sure this should be public?
         webServer.get('/api/result/:reqId', function(req, res) {
             app.getRequestResult(req, req.params.reqId, state.cache).then(function(resp) {
                 res.send(resp.code, resp.body);
