@@ -70,7 +70,7 @@ describe('CrudSvc', function() {
             expect(svc._orgProp).toBe(true);
             expect(svc._allowPublic).toBe(false);
             expect(svc.cache).toBe(mockCache);
-            expect(svc.reqTimeouts).toEqual({ enabled: false, timeout: 5*1000, cacheTTL: 24*60*60*1000 });
+            expect(svc.reqTimeouts).toEqual({ enabled: false, timeout: 5*1000, cacheTTL: 60*60*1000 });
             expect(svc.createValidator instanceof FieldValidator).toBe(true);
             expect(svc.createValidator._forbidden).toEqual(['id', 'created']);
             expect(svc.editValidator instanceof FieldValidator).toBe(true);

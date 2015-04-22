@@ -74,7 +74,7 @@
         reqTimeouts: {
             enabled: false,
             timeout: 5*1000,
-            cacheTTL: 24*60*60*1000,
+            cacheTTL: 60*60*1000,
         }
     };
     
