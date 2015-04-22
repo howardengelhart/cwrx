@@ -14,12 +14,12 @@
         
         campModule = {};
 
-    campModule.setupSvc = function(db, config) {
+    campModule.setupSvc = function(db, config, cache) {
         campModule.campsCfg = config.campaigns;
         campModule.contentHost = config.contentHost;
     
         var campColl = db.collection('campaigns'),
-            svc = new CrudSvc(campColl, 'cam', {});
+            svc = new CrudSvc(campColl, 'cam', { reqTimeouts: config.reqTimeouts }, cache);
         svc._advertColl = db.collection('advertisers');
         svc._custColl = db.collection('customers');
         
@@ -58,7 +58,7 @@
         svc.use('edit', campModule.createTargetCamps);
         svc.use('delete', campModule.deleteContent);
         svc.use('delete', campModule.deleteAdtechCamps);
-        
+
         svc.formatOutput = campModule.formatOutput.bind(campModule, svc);
         
         return svc;
@@ -205,7 +205,7 @@
         });
     };
     
-    // Remove entries from the staticCardMap for deleted sponsored cards //TODO: test
+    // Remove entries from the staticCardMap for deleted sponsored cards
     campModule.cleanStaticMap = function(req, toDelete) {
         var map = req.body.staticCardMap = req.body.staticCardMap ||
                   (req.origObj && req.origObj.staticCardMap) || undefined;
@@ -608,7 +608,7 @@
     campModule.setupEndpoints = function(app, svc, sessions, audit) {
         var authGetCamp = authUtils.middlewarify({campaigns: 'read'});
         app.get('/api/campaign/:id', sessions, authGetCamp, audit, function(req, res) {
-            svc.getObjs({id: req.params.id}, req, false).then(function(resp) {
+            svc.getObjs({id: req.params.id}, req, res, false).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error retrieving campaign', detail: error });
@@ -624,7 +624,7 @@
                 }
             });
 
-            svc.getObjs(query, req, true).then(function(resp) {
+            svc.getObjs(query, req, res, true).then(function(resp) {
                 if (resp.pagination) {
                     res.header('content-range', 'items ' + resp.pagination.start + '-' +
                                                 resp.pagination.end + '/' + resp.pagination.total);
@@ -638,7 +638,7 @@
 
         var authPostCamp = authUtils.middlewarify({campaigns: 'create'});
         app.post('/api/campaign', sessions, authPostCamp, audit, function(req, res) {
-            svc.createObj(req).then(function(resp) {
+            svc.createObj(req, res).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error creating campaign', detail: error });
@@ -647,7 +647,7 @@
 
         var authPutCamp = authUtils.middlewarify({campaigns: 'edit'});
         app.put('/api/campaign/:id', sessions, authPutCamp, audit, function(req, res) {
-            svc.editObj(req).then(function(resp) {
+            svc.editObj(req, res).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error updating campaign', detail: error });
@@ -656,7 +656,7 @@
 
         var authDelCamp = authUtils.middlewarify({campaigns: 'delete'});
         app.delete('/api/campaign/:id', sessions, authDelCamp, audit, function(req, res) {
-            svc.deleteObj(req).then(function(resp) {
+            svc.deleteObj(req, res).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error deleting campaign', detail: error });

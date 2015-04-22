@@ -89,6 +89,16 @@
                 port: null,
                 retryConnect : true
             }
+        },
+        cache: {
+            servers: null,
+            readTimeout: 500,
+            writeTimeout: 2000
+        },
+        reqTimeouts: {
+            enabled: false,
+            timeout: 5*1000,
+            cacheTTL: 60*60*1000,
         }
     };
     
@@ -789,8 +799,8 @@
         });
 
         authUtils._coll = collections.users;
-        cardSvc = cardModule.setupCardSvc(collections.cards, caches.cards);
-        catSvc = catModule.setupCatSvc(collections.categories);
+        cardSvc = cardModule.setupCardSvc(collections.cards,state.config,caches.cards,state.cache);
+        catSvc = catModule.setupCatSvc(collections.categories, state.config, state.cache);
 
 
         app.use(express.bodyParser());
@@ -1041,6 +1051,7 @@
         .then(service.cluster)
         .then(service.initMongo)
         .then(service.initSessionStore)
+        .then(service.initCache)
         .then(service.ensureIndices)
         .then(content.main)
         .catch(function(err) {

@@ -11,10 +11,11 @@
         cardModule = {};
 
         
-    cardModule.setupCardSvc = function(cardColl, cache) {
-        var cardSvc = new CrudSvc(cardColl, 'rc', {allowPublic: true});
+    cardModule.setupCardSvc = function(cardColl, config, cardCache, cache) {
+        var opts = { allowPublic: true, reqTimeouts: config.reqTimeouts },
+            cardSvc = new CrudSvc(cardColl, 'rc', opts, cache);
         
-        cardSvc._cache = cache;
+        cardSvc._cardCache = cardCache;
             
         cardSvc.createValidator._required.push('campaignId');
         cardSvc.createValidator._condForbidden.user = FieldValidator.userFunc('cards', 'create');
@@ -36,7 +37,7 @@
 
         log.info('[%1] Guest user trying to get card %2', req.uuid, id);
 
-        return cardSvc._cache.getPromise(query).then(function(results) {
+        return cardSvc._cardCache.getPromise(query).then(function(results) {
             if (!results[0] || results[0].status !== Status.Active) { // only show active cards
                 return q();
             }
@@ -68,8 +69,8 @@
         });
     };
 
-    
     cardModule.setupEndpoints = function(app, cardSvc, sessions, audit, config) {
+
         // Retrieve a json representation of a card
         app.get('/api/public/content/card/:id.json', function(req, res) {
             cardModule.handlePublicGet(req, res, cardSvc, config).then(function(resp) {
@@ -99,7 +100,7 @@
 
         var authGetCard = authUtils.middlewarify({cards: 'read'});
         app.get('/api/content/card/:id', sessions, authGetCard, audit, function(req, res) {
-            cardSvc.getObjs({id: req.params.id}, req, false).then(function(resp) {
+            cardSvc.getObjs({id: req.params.id}, req, res, false).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error retrieving card', detail: error });
@@ -114,7 +115,7 @@
                 }
             });
 
-            cardSvc.getObjs(query, req, true).then(function(resp) {
+            cardSvc.getObjs(query, req, res, true).then(function(resp) {
                 if (resp.pagination) {
                     res.header('content-range', 'items ' + resp.pagination.start + '-' +
                                                 resp.pagination.end + '/' + resp.pagination.total);
@@ -128,7 +129,7 @@
 
         var authPostCard = authUtils.middlewarify({cards: 'create'});
         app.post('/api/content/card', sessions, authPostCard, audit, function(req, res) {
-            cardSvc.createObj(req).then(function(resp) {
+            cardSvc.createObj(req, res).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error creating card', detail: error });
@@ -137,7 +138,7 @@
 
         var authPutCard = authUtils.middlewarify({cards: 'edit'});
         app.put('/api/content/card/:id', sessions, authPutCard, audit, function(req, res) {
-            cardSvc.editObj(req).then(function(resp) {
+            cardSvc.editObj(req, res).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error updating card', detail: error });
@@ -146,7 +147,7 @@
 
         var authDelCard = authUtils.middlewarify({cards: 'delete'});
         app.delete('/api/content/card/:id', sessions, authDelCard, audit, function(req, res) {
-            cardSvc.deleteObj(req)
+            cardSvc.deleteObj(req, res)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {

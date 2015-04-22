@@ -10,9 +10,10 @@
 
         custModule = {};
 
-    custModule.setupSvc = function(db) {
+    custModule.setupSvc = function(db, config, cache) {
         var coll = db.collection('customers'),
-            svc = new CrudSvc(coll, 'cu', { userProp: false, orgProp: false });
+            opts = { userProp: false, orgProp: false, reqTimeouts: config.reqTimeouts },
+            svc = new CrudSvc(coll, 'cu', opts, cache);
         svc._advertColl = db.collection('advertisers');
         svc.createValidator._required.push('name');
         svc.createValidator._forbidden.push('adtechId');
@@ -259,7 +260,7 @@
     custModule.setupEndpoints = function(app, svc, sessions, audit) {
         var authGetCust = authUtils.middlewarify({customers: 'read'});
         app.get('/api/account/customer/:id', sessions, authGetCust, audit, function(req, res) {
-            svc.getObjs({id: req.params.id}, req, false)
+            svc.getObjs({id: req.params.id}, req, res, false)
             .then(function(resp) {
                 return custModule.getAdvertLists(svc, req, resp);
             }).then(function(resp) {
@@ -278,7 +279,7 @@
                 query.adtechId = Number(req.query.adtechId);
             }
 
-            svc.getObjs(query, req, true).then(function(resp) {
+            svc.getObjs(query, req, res, true).then(function(resp) {
                 if (resp.pagination) {
                     res.header('content-range', 'items ' + resp.pagination.start + '-' +
                                                 resp.pagination.end + '/' + resp.pagination.total);
@@ -294,7 +295,7 @@
 
         var authPostCust = authUtils.middlewarify({customers: 'create'});
         app.post('/api/account/customer', sessions, authPostCust, audit, function(req, res) {
-            svc.createObj(req).then(function(resp) {
+            svc.createObj(req, res).then(function(resp) {
                 return custModule.getAdvertLists(svc, req, resp);
             }).then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -305,7 +306,7 @@
 
         var authPutCust = authUtils.middlewarify({customers: 'edit'});
         app.put('/api/account/customer/:id', sessions, authPutCust, audit, function(req, res) {
-            svc.editObj(req).then(function(resp) {
+            svc.editObj(req, res).then(function(resp) {
                 return custModule.getAdvertLists(svc, req, resp);
             }).then(function(resp) {
                 res.send(resp.code, resp.body);

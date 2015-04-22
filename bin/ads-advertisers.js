@@ -10,8 +10,9 @@
 
         advertModule = {};
 
-    advertModule.setupSvc = function(coll) {
-        var svc = new CrudSvc(coll, 'a', { userProp: false, orgProp: false });
+    advertModule.setupSvc = function(coll, config, cache) {
+        var opts = { userProp: false, orgProp: false, reqTimeouts: config.reqTimeouts },
+            svc = new CrudSvc(coll, 'a', opts, cache);
         svc.createValidator._required.push('name');
         svc.createValidator._forbidden.push('adtechId');
         svc.use('read', svc.preventGetAll.bind(svc));
@@ -112,7 +113,7 @@
     advertModule.setupEndpoints = function(app, svc, sessions, audit) {
         var authGetAd = authUtils.middlewarify({advertisers: 'read'});
         app.get('/api/account/advertiser/:id', sessions, authGetAd, audit, function(req, res) {
-            svc.getObjs({id: req.params.id}, req, false).then(function(resp) {
+            svc.getObjs({id: req.params.id}, req, res, false).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error retrieving advertiser', detail: error });
@@ -128,7 +129,7 @@
                 query.adtechId = Number(req.query.adtechId);
             }
 
-            svc.getObjs(query, req, true).then(function(resp) {
+            svc.getObjs(query, req, res, true).then(function(resp) {
                 if (resp.pagination) {
                     res.header('content-range', 'items ' + resp.pagination.start + '-' +
                                                 resp.pagination.end + '/' + resp.pagination.total);
@@ -142,7 +143,7 @@
 
         var authPostAd = authUtils.middlewarify({advertisers: 'create'});
         app.post('/api/account/advertiser', sessions, authPostAd, audit, function(req, res) {
-            svc.createObj(req).then(function(resp) {
+            svc.createObj(req, res).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error creating advertiser', detail: error });
@@ -151,7 +152,7 @@
 
         var authPutAd = authUtils.middlewarify({advertisers: 'edit'});
         app.put('/api/account/advertiser/:id', sessions, authPutAd, audit, function(req, res) {
-            svc.editObj(req).then(function(resp) {
+            svc.editObj(req, res).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Error updating advertiser', detail: error });
@@ -160,7 +161,7 @@
 
         var authDelAd = authUtils.middlewarify({advertisers: 'delete'});
         app.delete('/api/account/advertiser/:id', sessions, authDelAd, audit, function(req, res) {
-            svc.deleteObj(req)
+            svc.deleteObj(req, res)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {

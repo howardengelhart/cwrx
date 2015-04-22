@@ -30,6 +30,9 @@ module.exports = function(grunt) {
             args.push('--config', 'statusHost',
                 lookupIp(ec2Data,grunt.option('statusHost'),'public'));
         }
+        if (grunt.option('cacheHost')) {
+            args.push('--config', 'cacheHost', lookupIp(ec2Data,grunt.option('cacheHost'),'public'));
+        }
         if (grunt.option('bucket')) {
             args.push('--config', 'bucket', grunt.option('bucket'));
         }
