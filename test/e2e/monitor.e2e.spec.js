@@ -5,6 +5,10 @@ var q               = require('q'),
     urlBase         = 'http://' + (process.env.host ? process.env.host : 'localhost'),
     makeUrl         = function(fragment) { return urlBase + fragment; },
     cacheServers    = process.env.cacheHost || 'localhost:11211';
+    
+if (cacheServers.match(/^[\w\.]+$/)) {
+    cacheServers += ':11211';
+}
 
 describe('monitor (E2E)', function(){
     describe('GET /api/status', function() {
