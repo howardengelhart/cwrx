@@ -95,7 +95,7 @@
             readTimeout: 500,
             writeTimeout: 2000
         },
-        reqTimeouts: {
+        jobTimeouts: {
             enabled: false,
             timeout: 5*1000,
             cacheTTL: 60*60*1000,
