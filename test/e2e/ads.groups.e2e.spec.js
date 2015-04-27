@@ -302,6 +302,7 @@ describe('ads minireelGroups endpoints (E2E):', function() {
             }).then(function(group)  {
                 expect(group.name).toBe(createdGroup.name);
                 expect(group.extId).toBe(createdGroup.id);
+                expect(camp.exclusive).toBe(true);
                 expect(group.exclusiveType).toBe(kCamp.EXCLUSIVE_TYPE_END_DATE);
                 expect(group.dateRangeList[0].startDate.toUTCString()).toBe(new Date(createdGroup.startDate).toUTCString());
                 expect(group.dateRangeList[0].endDate.toUTCString()).toBe(new Date(createdGroup.endDate).toUTCString());

@@ -81,6 +81,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         if (!camp) return;
 
         expect(camp.extId).toBe(card.id);
+        expect(camp.exclusive).toBe(true);
         expect(camp.exclusiveType).toBe(kCamp.EXCLUSIVE_TYPE_END_DATE);
         expect(camp.name).toBe(card.name + ' (' + parentCamp.id + ')');
         expect(camp.dateRangeList[0].startDate.toUTCString()).toBe(new Date(card.startDate).toUTCString());
@@ -98,6 +99,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         if (!camp) return;
 
         expect(camp.extId).toBe(exp.id);
+        expect(camp.exclusive).toBe(true);
         expect(camp.exclusiveType).toBe(kCamp.EXCLUSIVE_TYPE_END_DATE);
         expect(camp.name).toBe(exp.name + ' (' + parentCamp.id + ')');
         expect(camp.dateRangeList[0].startDate.toUTCString()).toBe(new Date(exp.startDate).toUTCString());
@@ -115,6 +117,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         if (!camp) return;
 
         expect(camp.extId).toBe(parentCamp.id);
+        expect(camp.exclusive).toBe(true);
         expect(camp.exclusiveType).toBe(kCamp.EXCLUSIVE_TYPE_END_DATE);
         expect(camp.name).toBe(group.name + ' (' + parentCamp.id + ')');
         expect(camp.dateRangeList[0].startDate.toUTCString()).toBe(new Date(group.startDate).toUTCString());

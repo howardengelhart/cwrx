@@ -1,5 +1,9 @@
 # Ads Service Changelog
 
+### 1.2.5: Mon Apr 27 14:56:43 EDT 2015
+* [FIX]: Properly set new campaigns to be exclusive: [#419](https://github.com/cinema6/cwrx/pull/419)
+* Extra deployment steps: None
+
 ### 1.2.4: Thu Apr 16 10:36:19 EDT 2015
 * [FIX]: Stop giving sponsored campaigns priority "High": [#414](https://github.com/cinema6/cwrx/pull/414)
 * Extra deployment steps: None
