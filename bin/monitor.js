@@ -8,6 +8,8 @@
         glob        = require('glob'),
         http        = require('http'),
         https       = require('https'),
+        util        = require('util'),
+        aws         = require('aws-sdk'),
         service     = require('../lib/service'),
         uuid        = require('../lib/uuid'),
         logger      = require('../lib/logger'),
@@ -282,6 +284,49 @@
         }
 
         return q(state);
+    };
+
+
+    //TODO: test, comment, where to call this?
+    app.getMemcachedServers = function(config) {
+        var log = logger.getLog();
+        
+        aws.config.region = config.aws.region; //TODO: setup config??
+        var elb = new aws.ELB(), //TODO: probs want to init these once elsewhere...
+            ec2 = new aws.EC2();
+        
+        // TODO: for dev/non-ASG nodes, should we be able to override this?
+        return q.npost(elb, 'describeInstanceHealth', [{LoadBalancerName: config.elbName}])
+        .then(function(data) {
+            var instanceIds = data.InstanceStates.filter(function(instance) {
+                return instance.State === 'InService'; //TODO: how to handle OutofService? research Desc/ReasonCode
+            }).map(function(instance) {
+                return instance.InstanceId;
+            });
+            
+            if (instanceIds.length === 0) {
+                log.warn('No active instances in load balancer %1', config.elbName);
+                return q();
+            }
+            
+            return q.npost(ec2, 'describeInstances', [{ InstanceIds: instanceIds }]);
+        })
+        .then(function(data) {
+            var privateIps = data && data.Reservations.reduce(function(arr, reserv) {
+                return arr.concat(reserv.Instances.map(function(inst) {
+                    return inst.PrivateIpAddress;
+                }));
+            }, []) || [];
+            
+            var hosts = privateIps.map(function(ip) { return ip + ':' + config.memcPort; });
+            
+            //TODO: should we check that memcached is running on each host?
+            // ipc.broadcast(hosts); //TODO
+        })
+        .catch(function(error) {
+            log.error('Failed looking up current memcached servers: %1', util.inspect(error));
+            return q.reject(error);
+        });
     };
 
     app.main = function(state){

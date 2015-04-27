@@ -1,5 +1,5 @@
 var flush = true;
-describe('CrudSvc', function() {
+describe('cacheLib', function() {
     var q, mockLog, logger, cacheLib, mockMemcached, mockMemClient, anyFunc, Memcached;
     
     beforeEach(function() {
