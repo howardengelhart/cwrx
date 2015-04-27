@@ -330,6 +330,7 @@ describe('campaignUtils', function() {
             expect(fmt.dateRangeList).toEqual([{deliveryGoal: {desiredImpressions: 1000000000},
                 endDate: campaign.endDate, startDate: campaign.startDate}]);
             expect(fmt.extId).toBe('cam-1');
+            expect(fmt.exclusive).toBe(true);
             expect(fmt.exclusiveType).toBe(kCamp.EXCLUSIVE_TYPE_END_DATE);
             expect(fmt.frequencyConfig).toEqual({type: -1});
             expect(fmt.id).not.toBeDefined();
