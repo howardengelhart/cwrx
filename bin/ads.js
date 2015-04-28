@@ -66,6 +66,12 @@
                 retryConnect : true
             }
         },
+        pubsub: {
+            cacheCfg: {
+                port: 21211,
+                isPublisher: false
+            }
+        },
         cache: {
             servers: null,
             readTimeout: 500,
@@ -86,6 +92,16 @@
             return state;
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
+
+        //TODO: test code
+        // var pubsub = require('../lib/pubsub'),
+        var util = require('util');
+        
+        // var client = new pubsub.Subscriber({ port: 21211 });
+        // client.on('message', function(data) {
+        state.subscribers.cacheCfg.on('message', function(data) {
+            log.info('Client got %1: %2', typeof data, util.inspect(data));
+        });
             
         var express      = require('express'),
             app          = express(),
@@ -213,13 +229,15 @@
         .then(service.cluster)
         .then(service.initMongo)
         .then(service.initSessionStore)
+        .then(service.initPubSubs)
         .then(service.initCache)
         .then(function(state) {
             return adtech.createClient(
                 state.config.adtechCreds.keyPath,
                 state.config.adtechCreds.certPath
             ).thenResolve(state);
-        }).then(ads.main)
+        })
+        .then(ads.main)
         .catch(function(err) {
             var log = logger.getLog();
             console.log(err.stack || err);

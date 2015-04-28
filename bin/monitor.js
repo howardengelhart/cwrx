@@ -32,7 +32,13 @@
         port    : 3333,
         checkHttpTimeout : 2000,
         requestTimeout  : 3000,
-        monitorInc : './monitor.*.json'
+        monitorInc : './monitor.*.json',
+        pubsub: {
+            cacheCfg: {
+                port: 21211,
+                isPublisher: true
+            }
+        }
     };
 
     app.checkProcess = function(params){
@@ -321,7 +327,7 @@
             var hosts = privateIps.map(function(ip) { return ip + ':' + config.memcPort; });
             
             //TODO: should we check that memcached is running on each host?
-            // ipc.broadcast(hosts); //TODO
+            // pubsub.broadcast(hosts); //TODO
         })
         .catch(function(error) {
             log.error('Failed looking up current memcached servers: %1', util.inspect(error));
@@ -331,7 +337,21 @@
 
     app.main = function(state){
         var log = logger.getLog(), webServer;
-
+        
+        //TODO: test code
+        // var pubsub = require('../lib/pubsub');
+        // var server = new pubsub.Publisher({ port: 21211 });
+        setInterval(function() {
+            var msg = { rand: Math.random() };
+            // server.broadcast(msg).then(function() {
+            //     log.info('Successfully broadcasted ' + util.inspect(msg));
+            // })
+            state.publishers.cacheCfg.broadcast(msg)
+            .catch(function(error) {
+                log.error('Failed to broadcast: %1', util.inspect(error));
+            });
+        }, 5000);
+        
         if (state.clusterMaster){
             log.info('Cluster master, not a worker');
             return state;
@@ -383,6 +403,7 @@
         .then(service.prepareServer)
         .then(service.daemonize)
         .then(service.cluster)
+        .then(service.initPubSubs)
         .then(app.main)
         .catch( function(err){
             var log = logger.getLog();
@@ -402,8 +423,4 @@
             'app'         : app
         };
     }
-
-
-
-
 }());
