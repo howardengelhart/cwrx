@@ -2,11 +2,8 @@
   "name": "cwrx",
   "version": "0.2.0",
   "description": "Cinema6 node framework",
-  "main": "lib/index.js",
   "scripts": {
     "test": "jasmine-node --junitreport -m 'core.*' test",
-    "test-av": "jasmine-node --junitreport -m 'av.*' test",
-    "test-vw": "jasmine-node --junitreport -m 'vocalware.*' test",
     "test-all": "jasmine-node --junitreport test",
     "lint": "node_modules/jshint/bin/jshint --config jshint.json lib/*.js"
   },
