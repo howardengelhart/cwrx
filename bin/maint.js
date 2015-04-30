@@ -5,18 +5,16 @@
 
     process.env.maint = true;
 
-    var include     = require('../lib/inject').require,
-        fs          = include('fs-extra'),
-        express     = include('express'),
-        path        = include('path'),
-        q           = include('q'),
-        aws         = include('aws-sdk'),
-        request     = include('request'),
-        logger      = include('../lib/logger'),
-        daemon      = include('../lib/daemon'),
-        uuid        = include('../lib/uuid'),
-        cwrxConfig  = include('../lib/config'),
-        dub         = include(path.join(__dirname,'dub')),
+    var fs          = require('fs-extra'),
+        express     = require('express'),
+        path        = require('path'),
+        q           = require('q'),
+        aws         = require('aws-sdk'),
+        request     = require('request'),
+        logger      = require('../lib/logger'),
+        daemon      = require('../lib/daemon'),
+        uuid        = require('../lib/uuid'),
+        cwrxConfig  = require('../lib/config'),
         app         = express(),
 
         // This is the template for maint's configuration
@@ -186,7 +184,7 @@
     }
 
     function main(done) {
-        var program  = include('commander'),
+        var program  = require('commander'),
             config = {},
             log;
 
@@ -386,80 +384,6 @@
                     log.info('Successfully wrote file ' + req.body.fname);
                     res.send(200, {msg: 'Successfully wrote file ' + req.body.fname});
                 }
-            });
-        });
-
-        app.post('/maint/clean_cache', function(req, res/*, next*/) {
-            var job;
-            log.info('Starting clean cache');
-            try {
-                job = dub.createDubJob(uuid.createUuid().substr(0,10), req.body, config);
-            } catch (e){
-                log.error('Create job error: ' + e.message);
-                res.send(500,{
-                    error  : 'Unable to process request.',
-                    detail : e.message
-                });
-                return;
-            }
-            log.info('Removing cached files for ' + job.videoPath.match(/[^\/]*\..*$/)[0]);
-            var remList = [job.videoPath, job.scriptPath, job.outputPath, job.videoMetadataPath];
-            job.tracks.forEach(function(track) {
-                remList.push(track.fpath);
-                remList.push(track.metapath);
-            });
-
-            removeFiles(remList).then(
-                function(val) {
-                    log.info('Successfully removed ' + val + ' objects');
-                    res.send(200, {msg: 'Successfully removed ' + val + ' objects'}) ;
-                }, function(error) {
-                    log.error('Remove files error: ' + error);
-                    res.send(500,{
-                        error  : 'Unable to process request.',
-                        detail : error
-                    });
-                }
-            );
-        });
-
-        app.post('/maint/clean_track', function(req, res/*, next*/) {
-            var job;
-            log.info('Starting clean track');
-            try {
-                job = dub.createTrackJob(uuid.createUuid().substr(0,10), req.body, config);
-            } catch (e){
-                log.error('Create job error: ' + e.message);
-                res.send(500,{
-                    error  : 'Unable to process request.',
-                    detail : e.message
-                });
-                return;
-            }
-            var remList = [job.outputPath],
-                s3 = new aws.S3(),
-                outParams = job.getS3OutParams(),
-                params = {
-                    Bucket: outParams.Bucket,
-                    Key: outParams.Key
-                };
-
-            log.info('Removing cached file ' + job.outputFname);
-            removeFiles(remList)
-            .then(function(/*val*/) {
-                log.info('Successfully removed local file ' + job.outputPath);
-                log.info('Removing track on S3: Bucket = ' +
-                    params.Bucket + ', Key = ' + params.Key);
-                return q.npost(s3, 'deleteObject', [params]);
-            }).then(function() {
-                log.info('Successfully removed track on S3');
-                res.send(200, 'Successfully removed track');
-            }).catch(function(error) {
-                log.error('Error removing track: ' + error);
-                res.send(500,{
-                    error  : 'Unable to process request.',
-                    detail : error
-                });
             });
         });
 

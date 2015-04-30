@@ -1,7 +1,7 @@
 var flush = true;
 describe('maint (UT)', function() {
     var maint, traceSpy, errorSpy, warnSpy, infoSpy, fatalSpy, logSpy, mockLogger, mockAws, request,
-        path, fs, q, cwrxConfig, sanitize, child_process;
+        path, fs, q, cwrxConfig, logger, aws, child_process;
     
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -13,8 +13,9 @@ describe('maint (UT)', function() {
         q               = require('q');
         request         = require('request');
         child_process   = require('child_process');
-        cwrxConfig  = require('../../lib/config');
-        sanitize    = require('../sanitize');
+        aws             = require('aws-sdk');
+        logger          = require('../../lib/logger');
+        cwrxConfig      = require('../../lib/config');
 
 
         traceSpy    = jasmine.createSpy('log_trace');
@@ -33,19 +34,10 @@ describe('maint (UT)', function() {
             fatal : fatalSpy,
             log   : logSpy        
         };
-        mockLogger = {
-            createLog: jasmine.createSpy('create_log').andReturn(mockLog),
-            getLog : jasmine.createSpy('get_log').andReturn(mockLog)
-        };
-        mockAws = {
-            config: {
-                loadFromPath: jasmine.createSpy('aws_config_loadFromPath')
-            }
-        };
-
-        maint = sanitize(['../bin/maint'])
-                .andConfigure([['../lib/logger', mockLogger], ['aws-sdk', mockAws]])
-                .andRequire();
+        spyOn(logger, 'createLog').andReturn(mockLog);
+        spyOn(logger, 'getLog').andReturn(mockLog);
+        spyOn(aws.config, 'loadFromPath');
+        maint = require('../../bin/maint');
     });
 
     describe('getVersion', function() {
@@ -111,8 +103,8 @@ describe('maint (UT)', function() {
         it('should correctly setup the config object', function() {
             var cfgObject = maint.createConfiguration({config: 'utConfig'});
             expect(createConfig).toHaveBeenCalledWith('utConfig', maint.defaultConfiguration);
-            expect(mockLogger.createLog).toHaveBeenCalledWith(mockConfig.log);
-            expect(mockAws.config.loadFromPath).toHaveBeenCalledWith('fakeAuth.json');
+            expect(logger.createLog).toHaveBeenCalledWith(mockConfig.log);
+            expect(aws.config.loadFromPath).toHaveBeenCalledWith('fakeAuth.json');
             
             expect(cfgObject.caches.line).toBe('ut/line/');
             expect(cfgObject.caches.script).toBe('ut/script/');
@@ -121,10 +113,10 @@ describe('maint (UT)', function() {
         });
         
         it('should throw an error if it can\'t load the s3 config', function() {
-            mockAws.config.loadFromPath.andThrow('Exception!');
+            aws.config.loadFromPath.andThrow('Exception!');
             expect(function() {maint.createConfiguration({config: 'utConfig'})}).toThrow();
 
-            mockAws.config.loadFromPath.andReturn();
+            aws.config.loadFromPath.andReturn();
             delete mockConfig.s3;
             expect(function() {maint.createConfiguration({config: 'utConfig'})}).toThrow();
         });
