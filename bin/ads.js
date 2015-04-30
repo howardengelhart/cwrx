@@ -73,6 +73,7 @@
             }
         },
         cache: {
+            enabled: true,
             servers: null,
             readTimeout: 500,
             writeTimeout: 2000
@@ -93,16 +94,6 @@
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
 
-        //TODO: test code
-        // var pubsub = require('../lib/pubsub'),
-        var util = require('util');
-        
-        // var client = new pubsub.Subscriber({ port: 21211 });
-        // client.on('message', function(data) {
-        state.subscribers.cacheCfg.on('message', function(data) {
-            log.info('Client got %1: %2', typeof data, util.inspect(data));
-        });
-            
         var express      = require('express'),
             app          = express(),
             users        = state.dbs.c6Db.collection('users'),
@@ -183,6 +174,31 @@
             next();
         });
 
+        //TODO: test code
+        var util = require('util');
+        app.get('/api/ads/cache/:key', function(req, res) {
+            log.info('[%1] Getting value of %2 in cache', req.uuid, req.params.key);
+            state.cache.get(req.params.key).then(function(val) {
+                log.trace('[%1] Successfully got val %2 for %3', req.uuid, val, req.params.key);
+                res.send(200, val);
+            })
+            .catch(function(error) {
+                log.error('[%1] cache.get had error: %2', req.uuid, error && error.stack || error);
+                res.send(500, error);
+            });
+        });
+        
+        app.put('/api/ads/cache/:key', function(req, res) {
+            log.info('[%1] Setting value of %2 in cache to %3', req.uuid, req.params.key, util.inspect(req.body));
+            var ttl = req.query.ttl || 60*60*1000;
+            state.cache.set(req.params.key, req.body, ttl).then(function(val) {
+                res.send(200, val);
+            })
+            .catch(function(error) {
+                log.error('[%1] cache.set had error: %2', req.uuid, error && error.stack || error);
+                res.send(500, error);
+            });
+        });
 
         
         advertModule.setupEndpoints(app, advertSvc, sessWrap, audit);
