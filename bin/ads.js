@@ -7,6 +7,7 @@
         logger          = require('../lib/logger'),
         uuid            = require('../lib/uuid'),
         journal         = require('../lib/journal'),
+        jobTimeouts     = require('../lib/jobTimeouts'),
         advertModule    = require('./ads-advertisers'),
         custModule      = require('./ads-customers'),
         campModule      = require('./ads-campaigns'),
@@ -80,6 +81,7 @@
         },
         jobTimeouts: {
             enabled: false,
+            urlPrefix: '/api/ads/job',
             timeout: 5*1000,
             cacheTTL: 60*60*1000,
         }
@@ -189,7 +191,8 @@
         });
         
         app.put('/api/ads/cache/:key', function(req, res) {
-            log.info('[%1] Setting value of %2 in cache to %3', req.uuid, req.params.key, util.inspect(req.body));
+            log.info('[%1] Setting value of %2 in cache to %3',
+                     req.uuid, req.params.key, util.inspect(req.body));
             var ttl = req.query.ttl || 60*60*1000;
             state.cache.set(req.params.key, req.body, ttl).then(function(val) {
                 res.send(200, val);
@@ -207,6 +210,14 @@
         siteModule.setupEndpoints(app, siteSvc, sessWrap, audit);
         groupModule.setupEndpoints(app, groupSvc, sessWrap, audit);
 
+        
+        app.get('/api/ads/job/:id', function(req, res) {
+            jobTimeouts.getJobResult(state.cache, req, req.params.id).then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, { error: 'Internal error', detail: error });
+            });
+        });
         
         app.get('/api/ads/meta', function(req, res){
             var data = {

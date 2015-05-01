@@ -438,23 +438,19 @@
             next();
         });
 
-        /* TODO: do we want an endpoint to hit getCacheServers?
-        webServer.get('/api/monitor/hosts', function(req, res) {
-            log.trace('Starting getCacheServers request');
-            app.getCacheServers({ aws: { region: 'us-east-1' }, elbName: 'elb-api-production', memcPort: 11211 })
-            .then(function(resp) {
-                log.trace('Finished getCacheServers with %1', util.inspect(resp));
-                res.send(200, resp);
+        webServer.get('/api/status',function(req, res){
+            app.handleGetStatus(state, req, res);
+        });
+
+        webServer.get('/api/monitor/cacheHosts', function(req, res) { //TODO: reconsider?
+            log.info('Starting getCacheServers in response to request');
+            app.getCacheServers(ASG, EC2, state.config.cacheDiscovery).then(function(servers) {
+                res.send(200, { servers: servers });
             })
             .catch(function(error) {
                 log.error('Failed getCacheServers: %1', error && error.stack || error);
                 res.send(500, error);
             });
-        });
-        */
-
-        webServer.get('/api/status',function(req, res){
-            app.handleGetStatus(state, req, res);
         });
         
         webServer.get('/api/monitor/version',function(req, res ){

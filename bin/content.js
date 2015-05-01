@@ -16,6 +16,7 @@
         authUtils       = require('../lib/authUtils'),
         service         = require('../lib/service'),
         enums           = require('../lib/enums'),
+        jobTimeouts     = require('../lib/jobTimeouts'),
         cardModule      = require('./content-cards'),
         catModule       = require('./content-categories'),
         Status          = enums.Status,
@@ -97,6 +98,7 @@
         },
         jobTimeouts: {
             enabled: false,
+            urlPrefix: '/api/content/job',
             timeout: 5*1000,
             cacheTTL: 60*60*1000,
         }
@@ -1013,6 +1015,14 @@
         
         // adds endpoints for managing categories
         catModule.setupEndpoints(app, catSvc, sessWrap, audit);
+
+        app.get('/api/content/job/:id', function(req, res) {
+            jobTimeouts.getJobResult(state.cache, req, req.params.id).then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, { error: 'Internal error', detail: error });
+            });
+        });
 
         app.get('/api/content/meta', function(req, res){
             var data = {
