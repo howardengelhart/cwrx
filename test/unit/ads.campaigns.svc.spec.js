@@ -59,7 +59,7 @@ describe('ads-campaigns (UT)', function() {
             var config = {
                 contentHost: 'foo.com',
                 campaigns: { statusDelay: 100, statusAttempts: 5 },
-                reqTimeouts: { enabled: true, timeout: 1000, cacheTTL: 2000 },
+                jobTimeouts: { enabled: true, timeout: 1000, cacheTTL: 2000 },
             };
             var mockDb = {
                 collection: jasmine.createSpy('db.collection()').andCallFake(function(name) {
@@ -82,7 +82,7 @@ describe('ads-campaigns (UT)', function() {
             expect(svc._advertColl).toEqual({collectionName: 'advertisers'});
             expect(svc._custColl).toEqual({collectionName: 'customers'});
             expect(svc.cache).toBe('mockCache');
-            expect(svc.reqTimeouts).toEqual({ enabled: true, timeout: 1000, cacheTTL: 2000 });
+            expect(svc.jobCfg).toEqual({ enabled: true, timeout: 1000, cacheTTL: 2000, urlPrefix: '' });
             
             expect(svc.createValidator._required).toContain('advertiserId', 'customerId');
             expect(svc.editValidator._forbidden).toContain('advertiserId', 'customerId');

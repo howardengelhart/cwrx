@@ -49,7 +49,7 @@ describe('ads-customers (UT)', function() {
                     return { collectionName: name };
                 })
             };
-            var config = { reqTimeouts: { enabled: true, timeout: 1000, cacheTTL: 2000 } },
+            var config = { jobTimeouts: { enabled: true, timeout: 1000, cacheTTL: 2000 } },
                 svc = custModule.setupSvc(mockDb, config, 'mockCache');
             
             expect(custModule.createAdtechCust.bind).toHaveBeenCalledWith(custModule, svc);
@@ -64,7 +64,7 @@ describe('ads-customers (UT)', function() {
             expect(svc._coll).toEqual({ collectionName: 'customers' });
             expect(svc._advertColl).toEqual({ collectionName: 'advertisers' });
             expect(svc.cache).toBe('mockCache');
-            expect(svc.reqTimeouts).toEqual({ enabled: true, timeout: 1000, cacheTTL: 2000 });
+            expect(svc.jobCfg).toEqual({ enabled: true, timeout: 1000, cacheTTL: 2000, urlPrefix: '' });
             
             expect(svc.createValidator._required).toContain('name');
             expect(svc.createValidator._forbidden).toContain('adtechId');

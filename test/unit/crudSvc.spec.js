@@ -1,18 +1,9 @@
 var flush = true;
 describe('CrudSvc', function() {
     var q, mockLog, logger, CrudSvc, uuid, mongoUtils, FieldValidator, mockColl, anyFunc,
-        req, res, svc, mockCache, enums, Scope, Status;
+        jobTimeouts, req, res, svc, enums, Scope, Status;
     
     beforeEach(function() {
-        jasmine.Clock.useMock();
-        // clearTimeout/clearInterval not properly mocked in jasmine-node: https://github.com/mhevery/jasmine-node/issues/276
-        spyOn(global, 'clearTimeout').andCallFake(function() {
-            return jasmine.Clock.installed.clearTimeout.apply(this, arguments);
-        });
-        spyOn(global, 'clearInterval').andCallFake(function() {
-            return jasmine.Clock.installed.clearInterval.apply(this, arguments);
-        });
-
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q               = require('q');
         CrudSvc         = require('../../lib/crudSvc');
@@ -21,6 +12,7 @@ describe('CrudSvc', function() {
         uuid            = require('../../lib/uuid');
         mongoUtils      = require('../../lib/mongoUtils');
         FieldValidator  = require('../../lib/fieldValidator');
+        jobTimeouts     = require('../../lib/jobTimeouts');
         Scope           = enums.Scope;
         Status          = enums.Status;
         anyFunc = jasmine.any(Function);
@@ -32,10 +24,6 @@ describe('CrudSvc', function() {
             insert: jasmine.createSpy('coll.insert'),
             update: jasmine.createSpy('coll.update'),
             findAndModify: jasmine.createSpy('coll.findAndModify'),
-        };
-        mockCache = {
-            set: jasmine.createSpy('cache.set').andReturn(q()),
-            add: jasmine.createSpy('cache.add').andReturn(q())
         };
         req = { uuid: '1234', user: { id: 'u1', org: 'o1' } };
         res = { send: jasmine.createSpy('res.send()') };
@@ -56,9 +44,11 @@ describe('CrudSvc', function() {
         spyOn(CrudSvc.prototype.checkExisting, 'bind').andReturn(CrudSvc.prototype.checkExisting);
         spyOn(CrudSvc.prototype.setupObj, 'bind').andReturn(CrudSvc.prototype.setupObj);
         
-        svc = new CrudSvc(mockColl, 't', undefined, mockCache);
+        svc = new CrudSvc(mockColl, 't', undefined, 'mockCache');
         spyOn(svc, 'formatOutput').andReturn('formatted');
         spyOn(svc, 'runMiddleware').andCallThrough();
+        spyOn(jobTimeouts, 'setJobTimeout').andReturn('fakeTimeoutObj');
+        spyOn(jobTimeouts, 'checkJobTimeout').andReturn(q());
     });
 
     describe('initialization', function() {
@@ -69,8 +59,8 @@ describe('CrudSvc', function() {
             expect(svc._userProp).toBe(true);
             expect(svc._orgProp).toBe(true);
             expect(svc._allowPublic).toBe(false);
-            expect(svc.cache).toBe(mockCache);
-            expect(svc.reqTimeouts).toEqual({ enabled: false, timeout: 5*1000, cacheTTL: 60*60*1000 });
+            expect(svc.cache).toBe('mockCache');
+            expect(svc.jobCfg).toEqual({ enabled: false, timeout: 5*1000, cacheTTL: 60*60*1000, urlPrefix: '' });
             expect(svc.createValidator instanceof FieldValidator).toBe(true);
             expect(svc.createValidator._forbidden).toEqual(['id', 'created']);
             expect(svc.editValidator instanceof FieldValidator).toBe(true);
@@ -90,14 +80,14 @@ describe('CrudSvc', function() {
         it('should allow setting various options', function() {
             var opts = {
                 objName: 'bananas', userProp: false, orgProp: false, allowPublic: true,
-                reqTimeouts: { enabled: true, timeout: 2000, cacheTTL: 60*60*1000 }
+                jobTimeouts: { enabled: true, timeout: 2000, cacheTTL: 60*60*1000, urlPrefix: '/api/test' }
             };
-            svc = new CrudSvc(mockColl, 't', opts, mockCache);
+            svc = new CrudSvc(mockColl, 't', opts, 'mockCache');
             expect(svc.objName).toBe('bananas');
             expect(svc._userProp).toBe(false);
             expect(svc._orgProp).toBe(false);
             expect(svc._allowPublic).toBe(true);
-            expect(svc.reqTimeouts).toEqual({ enabled: true, timeout: 2000, cacheTTL: 60*60*1000 });
+            expect(svc.jobCfg).toEqual({ enabled: true, timeout: 2000, cacheTTL: 60*60*1000, urlPrefix: '/api/test' });
             svc = new CrudSvc(mockColl, 't', {orgProp: false});
             expect(svc.objName).toBe('thangs');
             expect(svc._userProp).toBe(true);
@@ -610,124 +600,6 @@ describe('CrudSvc', function() {
             });
         });
     });
-
-    describe('setReqTimeout', function() {
-        beforeEach(function() {
-            svc.reqTimeouts.enabled = true;
-        });
-
-        it('should do nothing if req timeouts are not enabled', function() {
-            svc.reqTimeouts.enabled = false;
-            var timeoutObj = svc.setReqTimeout(req, res);
-            expect(timeoutObj.timedOut).toBe(false);
-            expect(timeoutObj.timeout).not.toBeDefined();
-        });
-        
-        it('should create and return a timeout object', function() {
-            var timeoutObj = svc.setReqTimeout(req, res);
-            expect(timeoutObj.timedOut).toBe(false);
-            expect(timeoutObj.timeout).toBeDefined();
-            clearTimeout(timeoutObj.timeout);
-        });
-        
-        describe('timeout function', function() {
-            it('should call cache.add and res.send', function(done) {
-                var timeoutObj = svc.setReqTimeout(req, res);
-                expect(timeoutObj.timedOut).toBe(false);
-                jasmine.Clock.tick(svc.reqTimeouts.timeout + 1);
-                process.nextTick(function() {
-                    expect(timeoutObj.timedOut).toBe(true);
-                    expect(mockCache.add).toHaveBeenCalledWith('req:1234', {code: 202, body: {reqId: '1234'}}, svc.reqTimeouts.cacheTTL);
-                    expect(res.send).toHaveBeenCalledWith(202, {reqId: '1234'});
-                    expect(mockLog.error).not.toHaveBeenCalled();
-                    done();
-                });
-            });
-            
-            it('should just log an error if writing to the cache fails', function(done) {
-                mockCache.add.andReturn(q.reject('I GOT A PROBLEM'));
-                var timeoutObj = svc.setReqTimeout(req, res);
-                expect(timeoutObj.timedOut).toBe(false);
-                jasmine.Clock.tick(svc.reqTimeouts.timeout + 1);
-                process.nextTick(function() {
-                    expect(timeoutObj.timedOut).toBe(true);
-                    expect(mockCache.add).toHaveBeenCalled();
-                    expect(res.send).not.toHaveBeenCalled();
-                    expect(mockLog.error).toHaveBeenCalled();
-                    done();
-                });
-            });
-        });
-    });
-
-    describe('checkReqTimeout', function() {
-        var promiseResult, timeoutObj;
-        beforeEach(function() {
-            svc.reqTimeouts.enabled = true;
-            promiseResult = q({code: 200, body: 'all good'}).inspect();
-            timeoutObj = svc.setReqTimeout(req, res);
-        });
-        
-        it('should do nothing if req timeouts are not enabled', function(done) {
-            svc.reqTimeouts.enabled = false;
-            jasmine.Clock.tick(svc.reqTimeouts.timeout + 1000);
-            svc.checkReqTimeout(req, promiseResult, timeoutObj).then(function() {
-                expect(timeoutObj.timedOut).toBe(true);
-                expect(mockCache.set).not.toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-
-        it('should just clear the timeout if it has not fired yet', function(done) {
-            jasmine.Clock.tick(svc.reqTimeouts.timeout - 1000);
-            svc.checkReqTimeout(req, promiseResult, timeoutObj).then(function() {
-                expect(timeoutObj.timedOut).toBe(false);
-                expect(mockCache.set).not.toHaveBeenCalled();
-                jasmine.Clock.tick(1000);
-                expect(timeoutObj.timedOut).toBe(false);
-                expect(mockCache.add).not.toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should write the final result to the cache', function(done) {
-            jasmine.Clock.tick(svc.reqTimeouts.timeout + 1000);
-            expect(mockCache.add).toHaveBeenCalled();
-            svc.checkReqTimeout(req, promiseResult, timeoutObj).then(function() {
-                expect(timeoutObj.timedOut).toBe(true);
-                expect(mockCache.set).toHaveBeenCalledWith('req:1234', {code: 200, body: 'all good'}, svc.reqTimeouts.cacheTTL);
-                expect(mockLog.error).not.toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should write a 500 to the cache if the promiseResult was rejected', function(done) {
-            promiseResult = q.reject('I GOT A PROBLEM').inspect();
-            jasmine.Clock.tick(svc.reqTimeouts.timeout + 1000);
-            svc.checkReqTimeout(req, promiseResult, timeoutObj).then(function() {
-                expect(mockCache.set).toHaveBeenCalledWith('req:1234', 
-                    { code: 500, body: { error: 'Internal Error', detail: '\'I GOT A PROBLEM\'' } },
-                    svc.reqTimeouts.cacheTTL);
-                expect(mockLog.error).not.toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-
-        it('should just log an error if cache.set fails', function(done) {
-            mockCache.set.andReturn(q.reject('I GOT A PROBLEM'));
-            jasmine.Clock.tick(svc.reqTimeouts.timeout + 1000);
-            svc.checkReqTimeout(req, promiseResult, timeoutObj).then(function() {
-                expect(mockCache.set).toHaveBeenCalled();
-                expect(mockLog.error).toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-    });
     
     describe('getObjs', function() {
         var query, fakeCursor;
@@ -740,14 +612,12 @@ describe('CrudSvc', function() {
             };
             mockColl.find.andReturn(fakeCursor);
             spyOn(svc, 'userPermQuery').andReturn('userPermQuery');
-            spyOn(svc, 'setReqTimeout').andReturn('fakeTimeoutObj');
-            spyOn(svc, 'checkReqTimeout').andReturn(q());
         });
         
         it('should format the query and call coll.find', function(done) {
             svc.getObjs(query, req, res, false).then(function(resp) {
                 expect(resp).toEqual({code: 200, body: 'formatted'});
-                expect(svc.setReqTimeout).toHaveBeenCalledWith(req, res);
+                expect(jobTimeouts.setJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req, res);
                 expect(svc.runMiddleware).toHaveBeenCalledWith(req, 'read', anyFunc);
                 expect(svc.runMiddleware.callCount).toBe(1);
                 expect(svc.userPermQuery).toHaveBeenCalledWith({ type: 'foo' }, { id: 'u1', org: 'o1' });
@@ -755,7 +625,8 @@ describe('CrudSvc', function() {
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(fakeCursor.count).not.toHaveBeenCalled();
                 expect(svc.formatOutput).toHaveBeenCalledWith({id: 't1'}, 0, [{id: 't1'}]);
-                expect(svc.checkReqTimeout).toHaveBeenCalledWith(req, {state: 'fulfilled', value: {code: 200, body: 'formatted'}}, 'fakeTimeoutObj');
+                expect(jobTimeouts.checkJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req,
+                    {state: 'fulfilled', value: {code: 200, body: 'formatted'}}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -766,8 +637,9 @@ describe('CrudSvc', function() {
             svc.getObjs(query, req, res, false).then(function(resp) {
                 expect(resp).toEqual({code: 200, body: 'formatted'});
                 expect(mockColl.find).toHaveBeenCalledWith('userPermQuery', {sort: {}, limit: 0, skip: 0});
-                expect(svc.setReqTimeout).toHaveBeenCalledWith(req, res);
-                expect(svc.checkReqTimeout).toHaveBeenCalledWith(req, {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
+                expect(jobTimeouts.setJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req, res);
+                expect(jobTimeouts.checkJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req,
+                    {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -778,8 +650,9 @@ describe('CrudSvc', function() {
             svc.getObjs(query, req, res, false).then(function(resp) {
                 expect(resp).toEqual({code: 200, body: 'formatted'});
                 expect(mockColl.find).toHaveBeenCalledWith('userPermQuery', {sort: {}, limit: 20, skip: 10});
-                expect(svc.setReqTimeout).toHaveBeenCalledWith(req, res);
-                expect(svc.checkReqTimeout).toHaveBeenCalledWith(req, {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
+                expect(jobTimeouts.setJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req, res);
+                expect(jobTimeouts.checkJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req,
+                    {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -789,8 +662,9 @@ describe('CrudSvc', function() {
             svc.getObjs(query, req, res, true).then(function(resp) {
                 expect(resp).toEqual({code: 200, body: ['formatted'], pagination: {start: 11, end: 30, total: 50}});
                 expect(fakeCursor.count).toHaveBeenCalled();
-                expect(svc.setReqTimeout).toHaveBeenCalledWith(req, res);
-                expect(svc.checkReqTimeout).toHaveBeenCalledWith(req, {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
+                expect(jobTimeouts.setJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req, res);
+                expect(jobTimeouts.checkJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req,
+                    {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -801,8 +675,9 @@ describe('CrudSvc', function() {
             svc.getObjs(query, req, res, true).then(function(resp) {
                 expect(resp).toEqual({code: 200, body: ['formatted'], pagination: {start: 46, end: 50, total: 50}});
                 expect(fakeCursor.count).toHaveBeenCalled();
-                expect(svc.setReqTimeout).toHaveBeenCalledWith(req, res);
-                expect(svc.checkReqTimeout).toHaveBeenCalledWith(req, {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
+                expect(jobTimeouts.setJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req, res);
+                expect(jobTimeouts.checkJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req,
+                    {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -814,8 +689,9 @@ describe('CrudSvc', function() {
                 expect(resp).toEqual({code: 400, body: 'NOPE'});
                 expect(mockColl.find).not.toHaveBeenCalled();
                 expect(svc.formatOutput).not.toHaveBeenCalled();
-                expect(svc.setReqTimeout).toHaveBeenCalledWith(req, res);
-                expect(svc.checkReqTimeout).toHaveBeenCalledWith(req, {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
+                expect(jobTimeouts.setJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req, res);
+                expect(jobTimeouts.checkJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req,
+                    {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -828,8 +704,9 @@ describe('CrudSvc', function() {
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(mockColl.find).not.toHaveBeenCalled();
-                expect(svc.setReqTimeout).toHaveBeenCalledWith(req, res);
-                expect(svc.checkReqTimeout).toHaveBeenCalledWith(req, {state: 'rejected', reason: 'I GOT A PROBLEM'}, 'fakeTimeoutObj');
+                expect(jobTimeouts.setJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req, res);
+                expect(jobTimeouts.checkJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req,
+                    {state: 'rejected', reason: 'I GOT A PROBLEM'}, 'fakeTimeoutObj');
             }).done(done);
         });
         
@@ -840,8 +717,9 @@ describe('CrudSvc', function() {
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(fakeCursor.count).not.toHaveBeenCalled();
                 expect(svc.formatOutput).not.toHaveBeenCalled();
-                expect(svc.setReqTimeout).toHaveBeenCalledWith(req, res);
-                expect(svc.checkReqTimeout).toHaveBeenCalledWith(req, {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
+                expect(jobTimeouts.setJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req, res);
+                expect(jobTimeouts.checkJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req,
+                    {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -855,8 +733,9 @@ describe('CrudSvc', function() {
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(fakeCursor.count).toHaveBeenCalled();
                 expect(svc.formatOutput).not.toHaveBeenCalled();
-                expect(svc.setReqTimeout).toHaveBeenCalledWith(req, res);
-                expect(svc.checkReqTimeout).toHaveBeenCalledWith(req, {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
+                expect(jobTimeouts.setJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req, res);
+                expect(jobTimeouts.checkJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req,
+                    {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -872,8 +751,9 @@ describe('CrudSvc', function() {
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(fakeCursor.count).not.toHaveBeenCalled();
-                expect(svc.setReqTimeout).toHaveBeenCalledWith(req, res);
-                expect(svc.checkReqTimeout).toHaveBeenCalledWith(req, {state: 'rejected', reason: error}, 'fakeTimeoutObj');
+                expect(jobTimeouts.setJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req, res);
+                expect(jobTimeouts.checkJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req,
+                    {state: 'rejected', reason: error}, 'fakeTimeoutObj');
             }).done(done);
         });
 
@@ -887,8 +767,9 @@ describe('CrudSvc', function() {
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(fakeCursor.toArray).not.toHaveBeenCalled();
                 expect(fakeCursor.count).toHaveBeenCalled();
-                expect(svc.setReqTimeout).toHaveBeenCalledWith(req, res);
-                expect(svc.checkReqTimeout).toHaveBeenCalledWith(req, {state: 'rejected', reason: error}, 'fakeTimeoutObj');
+                expect(jobTimeouts.setJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req, res);
+                expect(jobTimeouts.checkJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req,
+                    {state: 'rejected', reason: error}, 'fakeTimeoutObj');
             }).done(done);
         });
     });
@@ -902,8 +783,6 @@ describe('CrudSvc', function() {
             })];
             spyOn(svc, 'setupObj').andReturn({ id: 't1', setup: true });
             mockColl.insert.andCallFake(function(obj, opts, cb) { cb(); });
-            spyOn(svc, 'setReqTimeout').andReturn('fakeTimeoutObj');
-            spyOn(svc, 'checkReqTimeout').andReturn(q());
         });
         
         it('should setup the new object and insert it', function(done) {
@@ -914,8 +793,9 @@ describe('CrudSvc', function() {
                 expect(svc._middleware.create[0]).toHaveBeenCalledWith(req, anyFunc, anyFunc);
                 expect(mockColl.insert).toHaveBeenCalledWith({id:'t1',setup:true},{w:1,journal:true},anyFunc);
                 expect(svc.formatOutput).toHaveBeenCalledWith({ id: 't1', setup: true });
-                expect(svc.setReqTimeout).toHaveBeenCalledWith(req, res);
-                expect(svc.checkReqTimeout).toHaveBeenCalledWith(req, {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
+                expect(jobTimeouts.setJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req, res);
+                expect(jobTimeouts.checkJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req,
+                    {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -927,8 +807,9 @@ describe('CrudSvc', function() {
                 expect(resp).toEqual({code: 400, body: 'NOPE'});
                 expect(svc.runMiddleware.callCount).toBe(1);
                 expect(mockColl.insert).not.toHaveBeenCalled();
-                expect(svc.setReqTimeout).toHaveBeenCalledWith(req, res);
-                expect(svc.checkReqTimeout).toHaveBeenCalledWith(req, {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
+                expect(jobTimeouts.setJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req, res);
+                expect(jobTimeouts.checkJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req,
+                    {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -944,8 +825,9 @@ describe('CrudSvc', function() {
                 expect(svc.runMiddleware.callCount).toBe(2);
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(mockColl.insert).not.toHaveBeenCalled();
-                expect(svc.setReqTimeout).toHaveBeenCalledWith(req, res);
-                expect(svc.checkReqTimeout).toHaveBeenCalledWith(req, {state: 'rejected', reason: error}, 'fakeTimeoutObj');
+                expect(jobTimeouts.setJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req, res);
+                expect(jobTimeouts.checkJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req,
+                    {state: 'rejected', reason: error}, 'fakeTimeoutObj');
             }).done(done);
         });
         
@@ -958,8 +840,9 @@ describe('CrudSvc', function() {
                 expect(svc.runMiddleware.callCount).toBe(2);
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(mockColl.insert).toHaveBeenCalled();
-                expect(svc.setReqTimeout).toHaveBeenCalledWith(req, res);
-                expect(svc.checkReqTimeout).toHaveBeenCalledWith(req, {state: 'rejected', reason: error}, 'fakeTimeoutObj');
+                expect(jobTimeouts.setJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req, res);
+                expect(jobTimeouts.checkJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req,
+                    {state: 'rejected', reason: error}, 'fakeTimeoutObj');
             }).done(done);
         });
     });
@@ -975,8 +858,6 @@ describe('CrudSvc', function() {
                 next();
             })];
             mockColl.findAndModify.andCallFake(function(query, sort, obj, opts, cb) { cb(null, [{id: 't1', updated: true}]); });
-            spyOn(svc, 'setReqTimeout').andReturn('fakeTimeoutObj');
-            spyOn(svc, 'checkReqTimeout').andReturn(q());
         });
         
         it('should successfully update an object', function(done) {
@@ -989,8 +870,9 @@ describe('CrudSvc', function() {
                 expect(mockColl.findAndModify).toHaveBeenCalledWith({id: 't1'}, {id: 1},
                     {$set: {lastUpdated: jasmine.any(Date), name: 'foo'}},{w:1,journal:true,new:true},anyFunc);
                 expect(svc.formatOutput).toHaveBeenCalledWith({ id: 't1', updated: true });
-                expect(svc.setReqTimeout).toHaveBeenCalledWith(req, res);
-                expect(svc.checkReqTimeout).toHaveBeenCalledWith(req, {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
+                expect(jobTimeouts.setJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req, res);
+                expect(jobTimeouts.checkJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req,
+                    {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -1002,8 +884,9 @@ describe('CrudSvc', function() {
                 expect(resp).toEqual({code: 404, body: 'That does not exist'});
                 expect(svc._middleware.edit[0]).toHaveBeenCalled();
                 expect(mockColl.findAndModify).not.toHaveBeenCalled();
-                expect(svc.setReqTimeout).toHaveBeenCalledWith(req, res);
-                expect(svc.checkReqTimeout).toHaveBeenCalledWith(req, {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
+                expect(jobTimeouts.setJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req, res);
+                expect(jobTimeouts.checkJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req,
+                    {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -1016,8 +899,9 @@ describe('CrudSvc', function() {
                 expect(svc._middleware.edit[0]).toHaveBeenCalled();
                 expect(svc.runMiddleware.callCount).toBe(2);
                 expect(mockColl.findAndModify).not.toHaveBeenCalled();
-                expect(svc.setReqTimeout).toHaveBeenCalledWith(req, res);
-                expect(svc.checkReqTimeout).toHaveBeenCalledWith(req, {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
+                expect(jobTimeouts.setJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req, res);
+                expect(jobTimeouts.checkJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req,
+                    {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -1033,8 +917,9 @@ describe('CrudSvc', function() {
                 expect(svc.runMiddleware.callCount).toBe(1);
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(mockColl.findAndModify).not.toHaveBeenCalled();
-                expect(svc.setReqTimeout).toHaveBeenCalledWith(req, res);
-                expect(svc.checkReqTimeout).toHaveBeenCalledWith(req, {state: 'rejected', reason: error}, 'fakeTimeoutObj');
+                expect(jobTimeouts.setJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req, res);
+                expect(jobTimeouts.checkJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req,
+                    {state: 'rejected', reason: error}, 'fakeTimeoutObj');
             }).done(done);
         });
         
@@ -1047,8 +932,9 @@ describe('CrudSvc', function() {
                 expect(svc.runMiddleware.callCount).toBe(2);
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(mockColl.findAndModify).toHaveBeenCalled();
-                expect(svc.setReqTimeout).toHaveBeenCalledWith(req, res);
-                expect(svc.checkReqTimeout).toHaveBeenCalledWith(req, {state: 'rejected', reason: error}, 'fakeTimeoutObj');
+                expect(jobTimeouts.setJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req, res);
+                expect(jobTimeouts.checkJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req,
+                    {state: 'rejected', reason: error}, 'fakeTimeoutObj');
             }).done(done);
         });
     });
@@ -1061,8 +947,6 @@ describe('CrudSvc', function() {
                 next();
             })];
             mockColl.update.andCallFake(function(query, obj, opts, cb) { cb(); });
-            spyOn(svc, 'setReqTimeout').andReturn('fakeTimeoutObj');
-            spyOn(svc, 'checkReqTimeout').andReturn(q());
         });
         
         it('should successfully update an object', function(done) {
@@ -1073,8 +957,9 @@ describe('CrudSvc', function() {
                 expect(svc._middleware.delete[0]).toHaveBeenCalledWith(req, anyFunc, anyFunc);
                 expect(mockColl.update).toHaveBeenCalledWith({id: 't1'},
                     {$set: {lastUpdated: jasmine.any(Date), status: Status.Deleted}},{w:1,journal:true},anyFunc);
-                expect(svc.setReqTimeout).toHaveBeenCalledWith(req, res);
-                expect(svc.checkReqTimeout).toHaveBeenCalledWith(req, {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
+                expect(jobTimeouts.setJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req, res);
+                expect(jobTimeouts.checkJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req,
+                    {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -1089,8 +974,9 @@ describe('CrudSvc', function() {
                 expect(resp).toEqual({code: 204});
                 expect(svc.runMiddleware.callCount).toBe(2);
                 expect(mockColl.update).not.toHaveBeenCalled();
-                expect(svc.setReqTimeout).toHaveBeenCalledWith(req, res);
-                expect(svc.checkReqTimeout).toHaveBeenCalledWith(req, {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
+                expect(jobTimeouts.setJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req, res);
+                expect(jobTimeouts.checkJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req,
+                    {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -1103,8 +989,9 @@ describe('CrudSvc', function() {
                 expect(svc._middleware.delete[0]).toHaveBeenCalled();
                 expect(svc.runMiddleware.callCount).toBe(2);
                 expect(mockColl.update).not.toHaveBeenCalled();
-                expect(svc.setReqTimeout).toHaveBeenCalledWith(req, res);
-                expect(svc.checkReqTimeout).toHaveBeenCalledWith(req, {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
+                expect(jobTimeouts.setJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req, res);
+                expect(jobTimeouts.checkJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req,
+                    {state: 'fulfilled', value: resp}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -1120,8 +1007,9 @@ describe('CrudSvc', function() {
                 expect(svc.runMiddleware.callCount).toBe(1);
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(mockColl.update).not.toHaveBeenCalled();
-                expect(svc.setReqTimeout).toHaveBeenCalledWith(req, res);
-                expect(svc.checkReqTimeout).toHaveBeenCalledWith(req, {state: 'rejected', reason: error}, 'fakeTimeoutObj');
+                expect(jobTimeouts.setJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req, res);
+                expect(jobTimeouts.checkJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req,
+                    {state: 'rejected', reason: error}, 'fakeTimeoutObj');
             }).done(done);
         });
         
@@ -1134,8 +1022,9 @@ describe('CrudSvc', function() {
                 expect(svc.runMiddleware.callCount).toBe(2);
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(mockColl.update).toHaveBeenCalled();
-                expect(svc.setReqTimeout).toHaveBeenCalledWith(req, res);
-                expect(svc.checkReqTimeout).toHaveBeenCalledWith(req, {state: 'rejected', reason: error}, 'fakeTimeoutObj');
+                expect(jobTimeouts.setJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req, res);
+                expect(jobTimeouts.checkJobTimeout).toHaveBeenCalledWith('mockCache', svc.jobCfg, req,
+                    {state: 'rejected', reason: error}, 'fakeTimeoutObj');
             }).done(done);
         });
     });

@@ -19,7 +19,7 @@
         groupModule.campsCfg = config.campaigns;
     
         var groupColl = db.collection('minireelGroups'),
-            opts = { userProp: false, orgProp: false, reqTimeouts: config.reqTimeouts },
+            opts = { userProp: false, orgProp: false, jobTimeouts: config.jobTimeouts },
             svc = new CrudSvc(groupColl, 'g', opts, cache);
         svc._advertColl = db.collection('advertisers');
         svc._custColl = db.collection('customers');

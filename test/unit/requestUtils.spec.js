@@ -1,12 +1,23 @@
 var flush = true;
 describe('requestUtils', function() {
-    var requestUtils, fs, q;
+    var requestUtils, fs, q, net, events;
     
     beforeEach(function() {
+        jasmine.Clock.useMock();
+        // clearTimeout/clearInterval not properly mocked in jasmine-node: https://github.com/mhevery/jasmine-node/issues/276
+        spyOn(global, 'clearTimeout').andCallFake(function() {
+            return jasmine.Clock.installed.clearTimeout.apply(this, arguments);
+        });
+        spyOn(global, 'clearInterval').andCallFake(function() {
+            return jasmine.Clock.installed.clearInterval.apply(this, arguments);
+        });
+
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         requestUtils    = require('../../lib/requestUtils');
         fs              = require('fs-extra');
         q               = require('q');
+        net             = require('net');
+        events          = require('events');
     });
     
     describe('qRequest', function() {
@@ -116,6 +127,63 @@ describe('requestUtils', function() {
                 expect(resp).toEqual({response: {statusCode: 500}, body: {foo: 'bar'}});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+    });
+    
+    describe('portScan', function() {
+        var mockSock;
+        beforeEach(function() {
+            mockSock = new events.EventEmitter();
+            mockSock.destroy = jasmine.createSpy('destroy');
+            mockSock.setTimeout = jasmine.createSpy('setTimeout').andCallFake(function(delay, fn) {
+                var timeout = setTimeout(fn, delay);
+                mockSock.on('connect', function() { clearTimeout(timeout); });
+                mockSock.on('error', function() { clearTimeout(timeout); });
+            });
+            spyOn(net, 'connect').andReturn(mockSock);
+        });
+        
+        it('should resolve with true if the connection is made', function(done) {
+            var promise = requestUtils.portScan('host1', 80, 2000);
+            jasmine.Clock.tick(1000);
+            mockSock.emit('connect');
+            jasmine.Clock.tick(1001);
+
+            promise.then(function(val) {
+                expect(val).toBe(true);
+                expect(net.connect).toHaveBeenCalledWith({host: 'host1', port: 80});
+                expect(mockSock.setTimeout).toHaveBeenCalledWith(2000, jasmine.any(Function));
+                expect(mockSock.destroy.calls.length).toBe(1);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should reject if the connection has an error', function(done) {
+            var promise = requestUtils.portScan('host1', 80, 2000);
+            jasmine.Clock.tick(1000);
+            mockSock.emit('error', new Error('I GOT A PROBLEM'));
+            jasmine.Clock.tick(1001);
+
+            promise.then(function(val) {
+                expect(val).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('Connection received error: [Error: I GOT A PROBLEM]');
+                expect(mockSock.destroy.calls.length).toBe(1);
+            }).done(done);
+        });
+        
+        it('should reject if the connection times out', function(done) {
+            var promise = requestUtils.portScan('host1', 80, 2000);
+            jasmine.Clock.tick(1000);
+            jasmine.Clock.tick(1001);
+            mockSock.emit('connect');
+
+            promise.then(function(val) {
+                expect(val).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('Connection timed out after 2000 ms');
             }).done(done);
         });
     });

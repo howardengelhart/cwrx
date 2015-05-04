@@ -19,7 +19,7 @@
         campModule.contentHost = config.contentHost;
     
         var campColl = db.collection('campaigns'),
-            svc = new CrudSvc(campColl, 'cam', { reqTimeouts: config.reqTimeouts }, cache);
+            svc = new CrudSvc(campColl, 'cam', { jobTimeouts: config.jobTimeouts }, cache);
         svc._advertColl = db.collection('advertisers');
         svc._custColl = db.collection('customers');
         

@@ -51,7 +51,7 @@ describe('ads-sites (UT)', function() {
             spyOn(CrudSvc.prototype.validateUniqueProp, 'bind').andReturn(CrudSvc.prototype.validateUniqueProp);
             spyOn(FieldValidator, 'orgFunc').andCallThrough();
             var mockColl = { collectionName: 'sites' },
-                config = { reqTimeouts: { enabled: true, timeout: 1000, cacheTTL: 2000 } },
+                config = { jobTimeouts: { enabled: true, timeout: 1000, cacheTTL: 2000 } },
                 svc = siteModule.setupSvc(mockColl, config, 'mockCache');
 
             expect(FieldValidator.orgFunc).toHaveBeenCalledWith('sites', 'create');
@@ -67,7 +67,7 @@ describe('ads-sites (UT)', function() {
             expect(svc._allowPublic).toBe(false);
             expect(svc._coll).toBe(mockColl);
             expect(svc.cache).toBe('mockCache');
-            expect(svc.reqTimeouts).toEqual({ enabled: true, timeout: 1000, cacheTTL: 2000 });
+            expect(svc.jobCfg).toEqual({ enabled: true, timeout: 1000, cacheTTL: 2000, urlPrefix: '' });
             expect(svc.createValidator._required).toContain('host', 'name');
             expect(svc.createValidator._forbidden).toContain('adtechId');
             expect(svc.createValidator._formats.containers).toEqual(['object']);

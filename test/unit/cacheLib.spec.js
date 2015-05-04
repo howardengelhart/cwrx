@@ -138,7 +138,7 @@ describe('cacheLib', function() {
             var cache, end1, end2;
             beforeEach(function() {
                 cache = new cacheLib.Cache('host1:123');
-                end1 = jasmine.createSpy('end'), end2 = jasmine.createSpy('end');
+                end1 = jasmine.createSpy('end'); end2 = jasmine.createSpy('end');
                 mockMemClient.servers = ['h1:11', 'h1:22'];
                 mockMemClient.connections = {
                     'h1:11': { end: end1, conn: 'yes' },

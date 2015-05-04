@@ -12,7 +12,7 @@
 
     custModule.setupSvc = function(db, config, cache) {
         var coll = db.collection('customers'),
-            opts = { userProp: false, orgProp: false, reqTimeouts: config.reqTimeouts },
+            opts = { userProp: false, orgProp: false, jobTimeouts: config.jobTimeouts },
             svc = new CrudSvc(coll, 'cu', opts, cache);
         svc._advertColl = db.collection('advertisers');
         svc.createValidator._required.push('name');

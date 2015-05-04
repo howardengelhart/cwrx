@@ -1,0 +1,342 @@
+var util = require('util'),
+    events = require('events'),
+    flush = true;
+describe('pubsub', function() {
+    var q, mockLog, logger, pubsub, net, anyFunc, mockServer;
+    
+    function MockSocket() {
+        var self = this;
+        self.connect = jasmine.createSpy('socket.connect()');
+        self.end = jasmine.createSpy('socket.end()').andCallFake(function() {
+            self.emit('end');
+        });
+        self.write = jasmine.createSpy('socket.write()').andCallFake(function(data, cb) {
+            if (typeof cb === 'function') cb();
+        });
+    }
+    util.inherits(MockSocket, events.EventEmitter);
+    
+    beforeEach(function() {
+        jasmine.Clock.useMock();
+        // clearTimeout/clearInterval not properly mocked in jasmine-node: https://github.com/mhevery/jasmine-node/issues/276
+        spyOn(global, 'clearTimeout').andCallFake(function() {
+            return jasmine.Clock.installed.clearTimeout.apply(this, arguments);
+        });
+        spyOn(global, 'clearInterval').andCallFake(function() {
+            return jasmine.Clock.installed.clearInterval.apply(this, arguments);
+        });
+
+        if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
+        q           = require('q');
+        net         = require('net');
+        logger      = require('../../lib/logger');
+        pubsub      = require('../../lib/pubsub');
+        anyFunc     = jasmine.any(Function);
+        
+        mockLog = {
+            trace : jasmine.createSpy('log_trace'),
+            error : jasmine.createSpy('log_error'),
+            warn  : jasmine.createSpy('log_warn'),
+            info  : jasmine.createSpy('log_info'),
+            fatal : jasmine.createSpy('log_fatal'),
+            log   : jasmine.createSpy('log_log')
+        };
+        spyOn(logger, 'createLog').andReturn(mockLog);
+        spyOn(logger, 'getLog').andReturn(mockLog);
+        
+        mockServer = new events.EventEmitter();
+        mockServer.close = jasmine.createSpy('server.close()');
+        mockServer.listen = jasmine.createSpy('server.listen()');
+        spyOn(net, 'createServer').andReturn(mockServer);
+
+        spyOn(net, 'connect').andReturn(new MockSocket());
+    });
+    
+    //TODO: some integration test with publisher + subscriber???
+    
+    describe('Publisher', function() {
+        var pub, sock1, sock2;
+        beforeEach(function() {
+            pub = new pubsub.Publisher('test', { port: 123 });
+            sock1 = new MockSocket();
+            sock2 = new MockSocket();
+        });
+
+        describe('initialization', function() {
+            it('should successfully initialize the server', function() {
+                var p = new pubsub.Publisher('test', { port: 456, host: 'h1' });
+                expect(p.name).toBe('test');
+                expect(p._sockets).toEqual([]);
+                expect(p._lastClientId).toBe(0);
+                expect(p.lastMsg).toBe('');
+                expect(p._server).toBe(mockServer);
+                expect(net.createServer).toHaveBeenCalled();
+                expect(mockServer.listen).toHaveBeenCalledWith(456, 'h1', anyFunc);
+            });
+
+            it('should throw an error if not provided with a complete connection config', function() {
+                var msg = 'Must provide a cfg object with port or socket path';
+                expect(function() { var p = new pubsub.Publisher('test'); }).toThrow(msg);
+                expect(function() { var p = new pubsub.Publisher('test', {}); }).toThrow(msg);
+                expect(function() { var p = new pubsub.Publisher('test', { host: 'h1' }); }).toThrow(msg);
+                expect(function() { var p = new pubsub.Publisher('test', { port: 123 }); }).not.toThrow();
+                expect(function() { var p = new pubsub.Publisher('test', { path: '/tmp/test' }); }).not.toThrow();
+            });
+            
+            it('should be able to listen on a unix socket', function() {
+                var p = new pubsub.Publisher('test', { path: '/tmp/test' });
+                expect(p._server).toBe(mockServer);
+                expect(mockServer.listen).toHaveBeenCalledWith('/tmp/test', anyFunc);
+            });
+        });
+        
+        describe('on receiving a client connection', function() {
+            it('should save the socket internally and send it the last message', function() {
+                pub._server.emit('connection', sock1);
+                expect(pub._sockets).toEqual([sock1]);
+                expect(sock1._id).toBe(1);
+                expect(sock1.write).toHaveBeenCalledWith('');
+                
+                pub.lastMsg = 'foo';
+                mockServer.emit('connection', sock2);
+                expect(pub._sockets).toEqual([sock1, sock2]);
+                expect(sock2._id).toBe(2);
+                expect(sock2.write).toHaveBeenCalledWith('foo');
+                expect(sock1.write.calls.length).toBe(1);
+            });
+        });
+        
+        describe('on a client disconnecting', function() {
+            it('should remove the socket from its internal array', function() {
+                pub._server.emit('connection', sock1); pub._server.emit('connection', sock2);
+                expect(pub._sockets).toEqual([sock1, sock2]);
+
+                sock1.emit('end');
+                expect(pub._sockets).toEqual([sock2]);
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            });
+        });
+        
+        describe('on a client connection getting an error', function() {
+            it('should log a warning and remove the socket from its internal array', function() {
+                pub._server.emit('connection', sock1); pub._server.emit('connection', sock2);
+                expect(pub._sockets).toEqual([sock1, sock2]);
+
+                sock2.emit('error');
+                expect(pub._sockets).toEqual([sock1]);
+                expect(sock2.end).toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+            });
+        });
+        
+        describe('close', function() {
+            it('should close the server and all client connections', function() {
+                pub._server.emit('connection', sock1); pub._server.emit('connection', sock2);
+                expect(pub._sockets).toEqual([sock1, sock2]);
+                
+                pub.close();
+                expect(pub._server.close).toHaveBeenCalled();
+                expect(pub._sockets).toEqual([]);
+                expect(sock1.end).toHaveBeenCalled();
+                expect(sock2.end).toHaveBeenCalled();
+            });
+            
+            it('should just close the server if there are no client connections', function() {
+                pub.close();
+                expect(pub._server.close).toHaveBeenCalled();
+                expect(pub._sockets).toEqual([]);
+                expect(sock1.end).not.toHaveBeenCalled();
+                expect(sock2.end).not.toHaveBeenCalled();
+            });
+        });
+        
+        describe('broadcast', function() {
+            it('should write a message to all clients', function(done) {
+                pub._server.emit('connection', sock1); pub._server.emit('connection', sock2);
+                
+                pub.broadcast({foo: 'bar'}).then(function(results) {
+                    expect(pub.lastMsg).toEqual(JSON.stringify({foo: 'bar'}));
+                    expect(sock1.write).toHaveBeenCalledWith(JSON.stringify({foo: 'bar'}), anyFunc);
+                    expect(sock2.write).toHaveBeenCalledWith(JSON.stringify({foo: 'bar'}), anyFunc);
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should just set the lastMsg if no clients are connected', function(done) {
+                pub.broadcast({foo: 'bar'}).then(function(results) {
+                    expect(pub.lastMsg).toEqual(JSON.stringify({foo: 'bar'}));
+                    expect(sock1.write).not.toHaveBeenCalled();
+                    expect(sock2.write).not.toHaveBeenCalled();
+                    expect(mockLog.error).not.toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should reject if one of the writes fails', function(done) {
+                sock2.write.andCallFake(function(data, cb) {
+                    if (typeof cb === 'function') cb('I GOT A PROBLEM');
+                });
+                pub._server.emit('connection', sock1); pub._server.emit('connection', sock2);
+
+                pub.broadcast({foo: 'bar'}).then(function(results) {
+                    expect(results).not.toBeDefined();
+                }).catch(function(error) {
+                    expect(error).toBe('Socket error');
+                    expect(pub.lastMsg).toEqual(JSON.stringify({foo: 'bar'}));
+                    expect(sock1.write).toHaveBeenCalledWith(JSON.stringify({foo: 'bar'}), anyFunc);
+                    expect(sock2.write).toHaveBeenCalledWith(JSON.stringify({foo: 'bar'}), anyFunc);
+                    expect(mockLog.error).toHaveBeenCalled();
+                }).done(done);
+            });
+        });
+    });
+
+    describe('Subscriber', function() {
+        describe('initialization', function() {
+            it('should initalize the underlying socket and other properties', function() {
+                var sub = new pubsub.Subscriber('test', {port: 123}, 2000);
+                expect(sub instanceof events.EventEmitter).toBe(true);
+                expect(sub.name).toBe('test');
+                expect(sub.connCfg).toEqual({port: 123});
+                expect(sub.reconnectDelay).toBe(2000);
+                expect(sub.isConnected).toBe(false);
+                expect(sub.lastMsg).toBe(null);
+                expect(sub._socket instanceof MockSocket).toBe(true);
+                expect(net.connect).toHaveBeenCalledWith({port: 123});
+            });
+            
+            it('should have a default reconnectDelay', function() {
+                var sub = new pubsub.Subscriber('test', {port: 123});
+                expect(sub.reconnectDelay).toBe(5000);
+            });
+            
+            it('should throw an error if not provided with a complete connection config', function() {
+                var msg = 'Must provide a cfg object with port or socket path';
+                expect(function() { var s = new pubsub.Subscriber('test'); }).toThrow(msg);
+                expect(function() { var s = new pubsub.Subscriber('test', {}); }).toThrow(msg);
+                expect(function() { var s = new pubsub.Subscriber('test', { host: 'h1' }); }).toThrow(msg);
+                expect(function() { var s = new pubsub.Subscriber('test', { port: 123 }); }).not.toThrow();
+                expect(function() { var s = new pubsub.Subscriber('test', { path: '/tmp/test' }); }).not.toThrow();
+            });
+        });
+
+        describe('on connecting', function() {
+            it('should set isConnected to true', function() {
+                var sub = new pubsub.Subscriber('test', {port: 123}, 2000);
+                expect(sub.isConnected).toBe(false);
+                sub._socket.emit('connect');
+                expect(sub.isConnected).toBe(true);
+            });
+        });
+        
+        describe('on receiving data', function() {
+            it('should try to parse the data and emit a message event', function(done) {
+                var sub = new pubsub.Subscriber('test', {port: 123});
+                sub.on('message', function(msg) {
+                    expect(msg).toEqual({ sup: 'dawg' });
+                    expect(sub.lastMsg).toEqual({ sup: 'dawg' });
+                    done();
+                });
+                sub._socket.emit('data', new Buffer(JSON.stringify({ sup: 'dawg' })));
+            });
+            
+            it('should still emit a message if it can\'t be parsed', function(done) {
+                var sub = new pubsub.Subscriber('test', {port: 123});
+                sub.on('message', function(msg) {
+                    expect(msg).toEqual('sup dawg');
+                    expect(sub.lastMsg).toEqual('sup dawg');
+                    done();
+                });
+                sub._socket.emit('data', new Buffer('sup dawg'));
+            });
+        });
+        
+        describe('on disconnecting', function() {
+            it('should set isConnected to false and call enableConnPoll', function() {
+                var sub = new pubsub.Subscriber('test', {port: 123});
+                spyOn(sub, 'enableConnPoll');
+                expect(sub.isConnected).toBe(false);
+                sub._socket.emit('connect');
+                expect(sub.isConnected).toBe(true);
+                sub._socket.emit('end');
+                expect(sub.isConnected).toBe(false);
+                expect(sub.enableConnPoll).toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            });
+        });
+
+        describe('on receiving an error', function() {
+            it('should set isConnected to false call enableConnPoll', function() {
+                var sub = new pubsub.Subscriber('test', {port: 123});
+                spyOn(sub, 'enableConnPoll');
+                expect(sub.isConnected).toBe(false);
+                sub._socket.emit('connect');
+                expect(sub.isConnected).toBe(true);
+                sub._socket.emit('error', 'I GOT A PROBLEM');
+                expect(sub.isConnected).toBe(false);
+                expect(sub.enableConnPoll).toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+            });
+        });
+        
+        describe('enableConnPoll', function() {
+            it('should set an interval to call socket.connect', function() {
+                var sub = new pubsub.Subscriber('test', {port: 123}, 2000);
+                sub.enableConnPoll();
+                expect(sub._pollInterval).toBeDefined();
+                jasmine.Clock.tick(2001);
+                expect(sub._socket.connect).toHaveBeenCalledWith({port: 123});
+                expect(sub._socket.connect.calls.length).toBe(1);
+                jasmine.Clock.tick(2001);
+                jasmine.Clock.tick(2001);
+                expect(sub._socket.connect.calls.length).toBe(3);
+            });
+            
+            it('should do nothing if the interval has already been created', function() {
+                var sub = new pubsub.Subscriber('test', {port: 123}, 2000);
+                sub.enableConnPoll();
+                sub.enableConnPoll();
+                expect(sub._pollInterval).toBeDefined();
+                jasmine.Clock.tick(2001);
+                jasmine.Clock.tick(2001);
+                expect(sub._socket.connect.calls.length).toBe(2);
+            });
+        });
+        
+        // integration test for connection polling/reconnect system
+        describe('when the connection is lost', function() {
+            it('should periodically try to reconnect, and stop once it succeeds', function() {
+                // initial setup and connect
+                var sub = new pubsub.Subscriber('test', {port: 123}, 2000);
+                expect(sub.isConnected).toBe(false);
+                sub._socket.emit('connect');
+                expect(sub.isConnected).toBe(true);
+                
+                // subscriber disconnects
+                sub._socket.emit('end');
+                expect(sub.isConnected).toBe(false);
+                expect(sub._pollInterval).toBeDefined();
+
+                // reconnect attempts, but no success yet
+                jasmine.Clock.tick(2001);
+                jasmine.Clock.tick(2001);
+                jasmine.Clock.tick(2001);
+                expect(sub._socket.connect.calls.length).toBe(3);
+                expect(sub.isConnected).toBe(false);
+                
+                // reconnect
+                sub._socket.emit('connect');
+                expect(sub.isConnected).toBe(true);
+                expect(sub._pollInterval).not.toBeDefined();
+
+                // should not be calling socket.connect anymore
+                jasmine.Clock.tick(2001);
+                expect(sub._socket.connect.calls.length).toBe(3);
+            });
+        });
+    });
+});
+

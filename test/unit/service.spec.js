@@ -2,7 +2,7 @@ var flush = true;
 describe('service (UT)',function(){
     
     var vote, state, mockLog, processProperties, resolveSpy, rejectSpy, events,
-        path, q, cluster, fs, logger, daemon, mongoUtils, cacheLib;
+        path, q, cluster, fs, logger, daemon, mongoUtils, cacheLib, service;
     
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -112,7 +112,7 @@ describe('service (UT)',function(){
                 .finally(function(){
                     expect(rejectSpy).not.toHaveBeenCalled();
                     expect(resolveSpy).toHaveBeenCalledWith(state);
-                    expect(state.cmdl).toBeDefined(); 
+                    expect(state.cmdl).toBeDefined();
                     expect(state.cmdl.port).toEqual(3100);
                     expect(state.cmdl.config).not.toBeDefined('cmdl.config');
                     expect(state.cmdl.daemon).not.toBeDefined('cmdl.daemon');
@@ -540,7 +540,7 @@ describe('service (UT)',function(){
                 if (this.connect.callCount >= 5){
                     return q(db1);
                 }
-                return q.reject('Error!')
+                return q.reject('Error!');
             });
             service.initMongo(state).then(resolveSpy, rejectSpy)
             .progress(function(p){
@@ -685,7 +685,7 @@ describe('service (UT)',function(){
                 if (this.connect.callCount >= 5){
                     return q(fakeDb);
                 }
-                return q.reject('Error!')
+                return q.reject('Error!');
             });
             service.initSessionStore(state).then(resolveSpy, rejectSpy)
             .progress(function(p){
@@ -747,15 +747,21 @@ describe('service (UT)',function(){
             });
         });
     });
-    
+
+    describe('initPubsubs', function() {
+        //TODO
+    });
+
     describe('initCache', function() {
         beforeEach(function() {
             state.config.cache = {
+                enabled: true,
                 servers: 'localhost:123,localhost:456',
                 readTimeout: 200,
                 writeTimeout: 300
             };
-            spyOn(cacheLib, 'createCache').andReturn(q('fakeCache'));
+            spyOn(cacheLib.Cache.prototype, '_initClient');
+            spyOn(cacheLib.Cache.prototype, 'updateServers').andReturn(q());
         });
         
         it('should initialize a cache instance based on config', function(done) {
@@ -763,8 +769,24 @@ describe('service (UT)',function(){
             .finally(function() {
                 expect(resolveSpy).toHaveBeenCalledWith(state);
                 expect(rejectSpy).not.toHaveBeenCalled();
-                expect(cacheLib.createCache).toHaveBeenCalledWith('localhost:123,localhost:456', 200, 300);
-                expect(state.cache).toBe('fakeCache');
+                expect(state.cache instanceof cacheLib.Cache).toBe(true);
+                expect(state.cache.timeouts.read).toBe(200);
+                expect(state.cache.timeouts.write).toBe(300);
+                expect(state.cache._initClient).toHaveBeenCalledWith(['localhost:123', 'localhost:456']);
+            }).done(done);
+        });
+        
+        it('should be able to initialize the client with no initial servers', function(done) {
+            delete state.config.cache.servers;
+            service.initCache(state).then(resolveSpy, rejectSpy)
+            .finally(function() {
+                expect(resolveSpy).toHaveBeenCalledWith(state);
+                expect(rejectSpy).not.toHaveBeenCalled();
+                expect(state.cache instanceof cacheLib.Cache).toBe(true);
+                expect(state.cache.timeouts.read).toBe(200);
+                expect(state.cache.timeouts.write).toBe(300);
+                expect(state.cache._initClient).toHaveBeenCalledWith([]);
+                expect(state.cache.cacheReady).toBe(false);
             }).done(done);
         });
         
@@ -774,31 +796,48 @@ describe('service (UT)',function(){
             .finally(function() {
                 expect(resolveSpy).toHaveBeenCalledWith(state);
                 expect(rejectSpy).not.toHaveBeenCalled();
-                expect(cacheLib.createCache).not.toHaveBeenCalled();
+                expect(cacheLib.Cache.prototype._initClient).not.toHaveBeenCalled();
                 expect(state.cache).not.toBeDefined();
             }).done(done);
         });
 
-        it('should skip if config.cache.servers is undefined', function(done) {
-            state.config.cache.servers = '';
+        it('should skip if config.cache.enabled is false', function(done) {
+            state.config.cache.enabled = false;
             service.initCache(state).then(resolveSpy, rejectSpy)
             .finally(function() {
                 expect(resolveSpy).toHaveBeenCalledWith(state);
                 expect(rejectSpy).not.toHaveBeenCalled();
-                expect(cacheLib.createCache).not.toHaveBeenCalled();
+                expect(cacheLib.Cache.prototype._initClient).not.toHaveBeenCalled();
                 expect(state.cache).not.toBeDefined();
             }).done(done);
         });
         
-        it('should return errors from createCache', function(done) {
-            cacheLib.createCache.andReturn(q.reject('I GOT A PROBLEM'));
-            service.initCache(state).then(resolveSpy, rejectSpy)
-            .finally(function() {
-                expect(resolveSpy).not.toHaveBeenCalled();
-                expect(rejectSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
-                expect(cacheLib.createCache).toHaveBeenCalled();
-                expect(state.cache).not.toBeDefined();
-            }).done(done);
+        describe('when there is a cfgChannel', function() {
+            beforeEach(function() {
+                state.subscribers = { cacheCfg: new events.EventEmitter() };
+            });
+
+            it('should setup a handler to call updateServers with the cfgChannel\'s messages', function(done) {
+                service.initCache(state).then(resolveSpy, rejectSpy)
+                .finally(function() {
+                    expect(resolveSpy).toHaveBeenCalledWith(state);
+                    expect(rejectSpy).not.toHaveBeenCalled();
+                    expect(state.cache instanceof cacheLib.Cache).toBe(true);
+                    state.subscribers.cacheCfg.emit('message', { servers: ['h1:11'] });
+                    expect(state.cache.updateServers).toHaveBeenCalledWith(['h1:11']);
+                }).done(done);
+            });
+            
+            it('should use the cfgChannel\'s last message to initialize the cache client', function(done) {
+                state.subscribers.cacheCfg.lastMsg = { servers: ['h2:22'] };
+                service.initCache(state).then(resolveSpy, rejectSpy)
+                .finally(function() {
+                    expect(resolveSpy).toHaveBeenCalledWith(state);
+                    expect(rejectSpy).not.toHaveBeenCalled();
+                    expect(state.cache instanceof cacheLib.Cache).toBe(true);
+                    expect(state.cache._initClient).toHaveBeenCalledWith(['h2:22']);
+                }).done(done);
+            });
         });
     });
     
@@ -822,7 +861,7 @@ describe('service (UT)',function(){
                         };
                         return collections[collName];
                     })
-                }
+                };
             });
         });
         

@@ -12,7 +12,7 @@
         siteModule = {};
 
     siteModule.setupSvc = function(coll, config, cache) {
-        var opts = { userProp: false, orgProp: false, reqTimeouts: config.reqTimeouts },
+        var opts = { userProp: false, orgProp: false, jobTimeouts: config.jobTimeouts },
             svc = new CrudSvc(coll, 's', opts, cache);
         svc.createValidator._required.push('host', 'name');
         svc.createValidator._forbidden.push('adtechId');

@@ -12,7 +12,7 @@
 
         
     cardModule.setupCardSvc = function(cardColl, config, cardCache, cache) {
-        var opts = { allowPublic: true, reqTimeouts: config.reqTimeouts },
+        var opts = { allowPublic: true, jobTimeouts: config.jobTimeouts },
             cardSvc = new CrudSvc(cardColl, 'rc', opts, cache);
         
         cardSvc._cardCache = cardCache;

@@ -14,7 +14,7 @@
             userProp: false,
             orgProp: false,
             allowPublic: true,
-            reqTimeouts: config.reqTimeouts
+            jobTimeouts: config.jobTimeouts
         };
         var catSvc = new CrudSvc(catColl, 'cat', opts, cache);
             
