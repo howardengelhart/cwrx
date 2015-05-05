@@ -32,7 +32,7 @@
     cardModule.createAdtechLink = function(linkObj, campId, placementId) {
         return 'http://adserver.adtechus.com/?adlink|3.0|' +
                cardModule.config.clickCommands.adServerId + '|' +
-               placementId + '|1|16|' + 
+               placementId + '|1|16|' +
                'AdId=' + campId +
                ';BnId=' + linkObj.bannerNumber +
                ';link=' + linkObj.targetLink;
@@ -98,7 +98,7 @@
             return q(card);
         })
         .catch(function(error) {
-            log.error('[%1] Error getting campaign %2: %3', req.uuid, card.campaignId, error && error.stack || error    );
+            log.error('[%1] Error getting campaign %2: %3', req.uuid, card.campaignId, error);
             return q(card);
         });
     };

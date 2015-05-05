@@ -150,8 +150,8 @@ describe('campaignUtils', function() {
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req._advertiserId).toBe(123);
                 expect(req._customerId).toBe(456);
-                expect(advertColl.findOne).toHaveBeenCalledWith({id: 'a-1'}, {id: 1, adtechId: 1}, jasmine.any(Function));
-                expect(custColl.findOne).toHaveBeenCalledWith({id: 'cu-1'}, {id: 1, adtechId: 1}, jasmine.any(Function));
+                expect(advertColl.findOne).toHaveBeenCalledWith({id: 'a-1'}, {id: 1, adtechId: 1, name: 1}, jasmine.any(Function));
+                expect(custColl.findOne).toHaveBeenCalledWith({id: 'cu-1'}, {id: 1, adtechId: 1, name: 1}, jasmine.any(Function));
                 done();
             });
         });

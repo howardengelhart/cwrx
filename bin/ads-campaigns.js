@@ -56,8 +56,10 @@
         svc.use('edit', campModule.cleanSponsoredCamps);
         svc.use('edit', campModule.editSponsoredCamps);
         svc.use('edit', campModule.createSponsoredCamps);
+        /*
         svc.use('edit', campModule.cleanClickCamps);
         svc.use('edit', campModule.editClickCamps);
+        */
         svc.use('edit', campModule.createClickCamps);
         svc.use('edit', campModule.cleanTargetCamps);
         svc.use('edit', campModule.editTargetCamps);

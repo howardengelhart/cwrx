@@ -32,7 +32,8 @@ describe('content-cards (UT)', function() {
             spyOn(FieldValidator, 'userFunc').andCallThrough();
 
             var mockColl = { collectionName: 'cards' },
-                cardSvc = cardModule.setupCardSvc(mockColl, 'fakeCache');
+                mockCaches = { cards: 'cardCache', campaigns: 'campCache' },
+                cardSvc = cardModule.setupCardSvc(mockColl, {}, mockCaches);
                 
             expect(cardModule.getPublicCard.bind).toHaveBeenCalledWith(cardModule, cardSvc);
             
@@ -43,7 +44,7 @@ describe('content-cards (UT)', function() {
             expect(cardSvc._orgProp).toBe(true);
             expect(cardSvc._allowPublic).toBe(true);
             expect(cardSvc._coll).toBe(mockColl);
-            expect(cardSvc._cache).toBe('fakeCache');
+            expect(cardSvc._caches).toEqual({ cards: 'cardCache', campaigns: 'campCache' });
             
             expect(cardSvc.createValidator._required).toContain('campaignId');
             expect(Object.keys(cardSvc.createValidator._condForbidden)).toEqual(['user', 'org']);
@@ -64,18 +65,21 @@ describe('content-cards (UT)', function() {
             mockCard = { id: 'rc-1', status: Status.Active, user: 'u-1', org: 'o-1', foo: 'bar' };
             cardSvc = {
                 formatOutput: jasmine.createSpy('svc.formatOutput').andReturn('formatted'),
-                _cache: {
-                    getPromise: jasmine.createSpy('cache.getPromise').andCallFake(function() {
-                        return q([mockCard]);
-                    })
+                _caches: {
+                    cards: {
+                        getPromise: jasmine.createSpy('cache.getPromise').andCallFake(function() {
+                            return q([mockCard]);
+                        })
+                    }   
                 }
             };
+            spyOn(cardModule, 'substituteLinks').andReturn(q('withLinks'));
         });
         
         it('should retrieve a card from the cache', function(done) {
             cardModule.getPublicCard(cardSvc, 'rc-1', req).then(function(resp) {
-                expect(resp).toEqual('formatted');
-                expect(cardSvc._cache.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
+                expect(resp).toEqual('withLinks');
+                expect(cardSvc._caches.cards.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
                 expect(cardSvc.formatOutput).toHaveBeenCalledWith({id: 'rc-1', status: Status.Active, foo: 'bar'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -83,10 +87,10 @@ describe('content-cards (UT)', function() {
         });
         
         it('should return a 404 if nothing was found', function(done) {
-            cardSvc._cache.getPromise.andReturn(q([]));
+            cardSvc._caches.cards.getPromise.andReturn(q([]));
             cardModule.getPublicCard(cardSvc, 'rc-1', req).then(function(resp) {
                 expect(resp).not.toBeDefined();
-                expect(cardSvc._cache.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
+                expect(cardSvc._caches.cards.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
                 expect(cardSvc.formatOutput).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -97,7 +101,7 @@ describe('content-cards (UT)', function() {
             mockCard.status = Status.Pending;
             cardModule.getPublicCard(cardSvc, 'rc-1', req).then(function(resp) {
                 expect(resp).not.toBeDefined();
-                expect(cardSvc._cache.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
+                expect(cardSvc._caches.cards.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
                 expect(cardSvc.formatOutput).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -105,13 +109,13 @@ describe('content-cards (UT)', function() {
         });
 
         it('should fail if the promise was rejected', function(done) {
-            cardSvc._cache.getPromise.andReturn(q.reject('I GOT A PROBLEM'));
+            cardSvc._caches.cards.getPromise.andReturn(q.reject('I GOT A PROBLEM'));
             cardModule.getPublicCard(cardSvc, 'rc-1', req).then(function(resp) {
                 expect('resolved').not.toBe('resolved');
             }).catch(function(error) {
                 expect(error).toBe('Mongo error');
                 expect(mockLog.error).toHaveBeenCalled();
-                expect(cardSvc._cache.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
+                expect(cardSvc._caches.cards.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
                 expect(cardSvc.formatOutput).not.toHaveBeenCalled();
             }).done(done);
         });
