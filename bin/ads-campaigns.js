@@ -484,7 +484,10 @@
     campModule.createClickCamps = function(req, next/*, done*/) {
         var log = logger.getLog(),
             origObj = req.origObj || {},
-            id = req.body.id || origObj.id;
+            id = req.body.id || origObj.id,
+            delay = 2000, // campModule.config.campaigns.statusDelay,
+            attempts = 30, // campModule.config.campaigns.statusAttempts,
+            toStart = [];
         
         if (!req.body.clickCommandsEnabled && !origObj.clickCommandsEnabled) {
             log.trace('[%1] Click campaigns disabled, not creating them', req.uuid);
@@ -529,6 +532,7 @@
                     }, req.uuid)
                     .then(function(resp) {
                         obj.adtechId = parseInt(resp.id);
+                        toStart.push(obj.adtechId);
                         obj.links = campModule.findTargetLinks(card);
 
                         return bannerUtils.createBanners(obj.links, null, 'clickCommand',
@@ -538,7 +542,10 @@
             }));
         })
         .then(function() {
-            log.trace('[%1] All click command campaigns for %2 have been created', req.uuid, id);
+            return campaignUtils.startCampaigns(toStart, delay, attempts);
+        })
+        .then(function() {
+            log.trace('[%1] All click command campaigns for %2 have been started', req.uuid, id);
             next();
         })
         .catch(function(error) {
