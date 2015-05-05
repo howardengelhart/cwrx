@@ -39,7 +39,7 @@ describe('ads-groups (UT)', function() {
         it('should setup the group service', function() {
             spyOn(CrudSvc.prototype.preventGetAll, 'bind').andReturn(CrudSvc.prototype.preventGetAll);
             spyOn(CrudSvc.prototype.validateUniqueProp, 'bind').andReturn(CrudSvc.prototype.validateUniqueProp);
-            spyOn(groupModule.getAccountIds, 'bind').andReturn(groupModule.getAccountIds);
+            spyOn(groupModule.getAccounts, 'bind').andReturn(groupModule.getAccounts);
             spyOn(groupModule.formatOutput, 'bind').andReturn(groupModule.formatOutput);
             
             var config = { campaigns: { statusDelay: 100, statusAttempts: 5 },
@@ -50,7 +50,7 @@ describe('ads-groups (UT)', function() {
                 })
             };
             var svc = groupModule.setupSvc(mockDb, config);
-            expect(groupModule.getAccountIds.bind).toHaveBeenCalledWith(groupModule, svc);
+            expect(groupModule.getAccounts.bind).toHaveBeenCalledWith(groupModule, svc);
             expect(groupModule.formatOutput.bind).toHaveBeenCalledWith(groupModule, svc);
             expect(groupModule.groupsCfg).toEqual({ advertiserId: 123, customerId: 234 });
             expect(groupModule.campsCfg).toEqual({ statusDelay: 100, statusAttempts: 5 });
@@ -76,10 +76,10 @@ describe('ads-groups (UT)', function() {
             expect(svc._middleware.read).toEqual([svc.preventGetAll]);
             expect(svc._middleware.create).toEqual([jasmine.any(Function), jasmine.any(Function),
                 groupModule.validateDates, groupModule.ensureDistinctList, CrudSvc.prototype.validateUniqueProp,
-                groupModule.getAccountIds, groupModule.createAdtechGroup, groupModule.createBanners]);
+                groupModule.getAccounts, groupModule.createAdtechGroup, groupModule.createBanners]);
             expect(svc._middleware.edit).toEqual([jasmine.any(Function), jasmine.any(Function),
                 groupModule.validateDates, groupModule.ensureDistinctList, CrudSvc.prototype.validateUniqueProp,
-                groupModule.getAccountIds, groupModule.cleanBanners, groupModule.createBanners,
+                groupModule.getAccounts, groupModule.cleanBanners, groupModule.createBanners,
                 groupModule.editAdtechGroup]);
             expect(svc._middleware.delete).toEqual([jasmine.any(Function), groupModule.deleteAdtechGroup]);
             expect(svc.formatOutput).toBe(groupModule.formatOutput);
@@ -173,70 +173,70 @@ describe('ads-groups (UT)', function() {
         });
     });
     
-    describe('getAccountIds', function() {
+    describe('getAccounts', function() {
         var svc;
         beforeEach(function() {
             req.body = { advertiserId: 123, customerId: 321 };
             req.origObj = { advertiserId: 234, customerId: 432 };
             svc = { _advertColl: 'fakeAdvertColl', _custColl: 'fakeCustColl' };
-            spyOn(campaignUtils, 'getAccountIds')
+            spyOn(campaignUtils, 'getAccounts')
                 .andCallFake(function(advertColl, custColl, req, next, done) { return q(next()); });
         });
         
         it('should take the advertiserId and customerId from the body', function(done) {
-            groupModule.getAccountIds(svc, req, nextSpy, doneSpy).catch(errorSpy);
+            groupModule.getAccounts(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body).toEqual({ advertiserId: 123, customerId: 321 });
-                expect(campaignUtils.getAccountIds).toHaveBeenCalledWith('fakeAdvertColl', 'fakeCustColl', req, nextSpy, doneSpy);
+                expect(campaignUtils.getAccounts).toHaveBeenCalledWith('fakeAdvertColl', 'fakeCustColl', req, nextSpy, doneSpy);
                 done();
             });
         });
         
         it('should fall back to the advertiserId and customerId on the origObj', function(done) {
             req.body = { name: 'foo' };
-            groupModule.getAccountIds(svc, req, nextSpy, doneSpy).catch(errorSpy);
+            groupModule.getAccounts(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body).toEqual({ advertiserId: 234, customerId: 432, name: 'foo' });
-                expect(campaignUtils.getAccountIds).toHaveBeenCalled();
+                expect(campaignUtils.getAccounts).toHaveBeenCalled();
                 done();
             });
         });
         
         it('should next fall back to the advertiserId and customerId on the origObj', function(done) {
             req.body = {}; req.origObj = {};
-            groupModule.getAccountIds(svc, req, nextSpy, doneSpy).catch(errorSpy);
+            groupModule.getAccounts(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body).toEqual({ advertiserId: 987, customerId: 876 });
-                expect(campaignUtils.getAccountIds).toHaveBeenCalled();
+                expect(campaignUtils.getAccounts).toHaveBeenCalled();
                 done();
             });
         });
         
         it('should be able to take each id from different locations', function(done) {
             req.body = { customerId: 321 }; req.origObj = {};
-            groupModule.getAccountIds(svc, req, nextSpy, doneSpy).catch(errorSpy);
+            groupModule.getAccounts(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body).toEqual({ advertiserId: 987, customerId: 321 });
-                expect(campaignUtils.getAccountIds).toHaveBeenCalled();
+                expect(campaignUtils.getAccounts).toHaveBeenCalled();
                 done();
             });
         });
         
-        it('should reject if campaignUtils.getAccountIds rejects', function(done) {
-            campaignUtils.getAccountIds.andReturn(q.reject('I GOT A PROBLEM'));
-            groupModule.getAccountIds(svc, req, nextSpy, doneSpy).catch(errorSpy);
+        it('should reject if campaignUtils.getAccounts rejects', function(done) {
+            campaignUtils.getAccounts.andReturn(q.reject('I GOT A PROBLEM'));
+            groupModule.getAccounts(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();

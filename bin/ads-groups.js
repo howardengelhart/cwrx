@@ -36,13 +36,13 @@
         svc.use('create', groupModule.validateDates);
         svc.use('create', groupModule.ensureDistinctList);
         svc.use('create', svc.validateUniqueProp.bind(svc, 'name', null));
-        svc.use('create', groupModule.getAccountIds.bind(groupModule, svc));
+        svc.use('create', groupModule.getAccounts.bind(groupModule, svc));
         svc.use('create', groupModule.createAdtechGroup);
         svc.use('create', groupModule.createBanners);
         svc.use('edit', groupModule.validateDates);
         svc.use('edit', groupModule.ensureDistinctList);
         svc.use('edit', svc.validateUniqueProp.bind(svc, 'name', null));
-        svc.use('edit', groupModule.getAccountIds.bind(groupModule, svc));
+        svc.use('edit', groupModule.getAccounts.bind(groupModule, svc));
         svc.use('edit', groupModule.cleanBanners);
         svc.use('edit', groupModule.createBanners);
         svc.use('edit', groupModule.editAdtechGroup);
@@ -86,15 +86,15 @@
         return CrudSvc.prototype.formatOutput.call(svc, obj);
     };
     
-    /* Wrap campaignUtils.getAccountIds, defaulting advertiserId and customerId to values from
+    /* Wrap campaignUtils.getAccounts, defaulting advertiserId and customerId to values from
        config if not in req.body or req.origObj */
-    groupModule.getAccountIds = function(svc, req, next, done) {
+    groupModule.getAccounts = function(svc, req, next, done) {
         ['advertiserId', 'customerId'].forEach(function(key) {
             req.body[key] = req.body[key] || (req.origObj && req.origObj[key]) ||
                             groupModule.groupsCfg[key];
         });
         
-        return campaignUtils.getAccountIds(svc._advertColl, svc._custColl, req, next, done);
+        return campaignUtils.getAccounts(svc._advertColl, svc._custColl, req, next, done);
     };
 
     // Setup the group's campaign, calling makeKeywordLevels and createCampaign

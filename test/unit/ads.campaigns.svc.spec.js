@@ -53,7 +53,7 @@ describe('ads-campaigns (UT)', function() {
     
     describe('setupSvc', function() {
         it('should setup the campaign service', function() {
-            spyOn(campaignUtils.getAccountIds, 'bind').andReturn(campaignUtils.getAccountIds);
+            spyOn(campaignUtils.getAccounts, 'bind').andReturn(campaignUtils.getAccounts);
             spyOn(campModule.formatOutput, 'bind').andReturn(campModule.formatOutput);
             
             var config = { contentHost: 'foo.com', campaigns: { statusDelay: 100, statusAttempts: 5 } };
@@ -63,7 +63,7 @@ describe('ads-campaigns (UT)', function() {
                 })
             };
             var svc = campModule.setupSvc(mockDb, config);
-            expect(campaignUtils.getAccountIds.bind).toHaveBeenCalledWith(campaignUtils, svc._advertColl, svc._custColl);
+            expect(campaignUtils.getAccounts.bind).toHaveBeenCalledWith(campaignUtils, svc._advertColl, svc._custColl);
             expect(campModule.formatOutput.bind).toHaveBeenCalledWith(campModule, svc);
             expect(campModule.contentHost).toBe('foo.com');
             expect(campModule.campsCfg).toEqual({statusDelay: 100, statusAttempts: 5});
@@ -90,10 +90,10 @@ describe('ads-campaigns (UT)', function() {
             expect(svc.editValidator._formats.staticCardMap).toEqual('object');
 
             expect(svc._middleware.create).toEqual([jasmine.any(Function), jasmine.any(Function),
-                campaignUtils.getAccountIds, campModule.validateDates, campModule.ensureUniqueIds,
+                campaignUtils.getAccounts, campModule.validateDates, campModule.ensureUniqueIds,
                 campModule.ensureUniqueNames, campModule.createSponsoredCamps, campModule.createTargetCamps]);
             expect(svc._middleware.edit).toEqual([jasmine.any(Function), jasmine.any(Function),
-                campaignUtils.getAccountIds, campModule.extendListObjects, campModule.validateDates,
+                campaignUtils.getAccounts, campModule.extendListObjects, campModule.validateDates,
                 campModule.ensureUniqueIds, campModule.ensureUniqueNames,
                 campModule.cleanSponsoredCamps, campModule.editSponsoredCamps, campModule.createSponsoredCamps,
                 campModule.cleanTargetCamps, campModule.editTargetCamps, campModule.createTargetCamps]);

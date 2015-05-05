@@ -38,6 +38,13 @@
                 end: 366*24*60*60*1000  // new campaigns default to ending now + this (ms)
             }
         },
+        clickCommands: {
+            websiteId: 234083,      // Adtech id of Cinema6 Website
+            pageId: 763072,         // Adtech id of Cinema6's "Click Commands" Page
+            campaignTypeId: 26956,  // id for Click Command Campaign type; differs across networks
+            adServerId: 5491,       // Adtech network id; needed for constructing Click Command URLs
+            
+        },
         contentHost: 'localhost',   // Hostname of the content service to proxy delete requests to
         minireelGroups: {
             advertiserId: null,     // C6 advertiser id; must be overriden in a config file

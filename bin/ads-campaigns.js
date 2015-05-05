@@ -3,6 +3,7 @@
 
     var q               = require('q'),
         util            = require('util'),
+        adtech          = require('adtech'),
         requestUtils    = require('../lib/requestUtils'),
         uuid            = require('../lib/uuid'),
         campaignUtils   = require('../lib/campaignUtils'),
@@ -12,11 +13,12 @@
         CrudSvc         = require('../lib/crudSvc'),
         logger          = require('../lib/logger'),
         
-        campModule = {};
+        campModule = { config: {} };
 
     campModule.setupSvc = function(db, config) {
-        campModule.campsCfg = config.campaigns;
-        campModule.contentHost = config.contentHost;
+        campModule.config.campaigns = config.campaigns;
+        campModule.config.contentHost = config.contentHost;
+        campModule.config.clickCommands = config.clickCommands;
     
         var campColl = db.collection('campaigns'),
             svc = new CrudSvc(campColl, 'cam', {});
@@ -37,14 +39,15 @@
         svc.createValidator._formats.staticCardMap = 'object';
         svc.editValidator._formats.staticCardMap = 'object';
 
-        svc.use('create', campaignUtils.getAccountIds.bind(campaignUtils, svc._advertColl,
+        svc.use('create', campaignUtils.getAccounts.bind(campaignUtils, svc._advertColl,
                                                            svc._custColl));
         svc.use('create', campModule.validateDates);
         svc.use('create', campModule.ensureUniqueIds);
         svc.use('create', campModule.ensureUniqueNames);
         svc.use('create', campModule.createSponsoredCamps);
+        svc.use('create', campModule.createClickCamps);
         svc.use('create', campModule.createTargetCamps);
-        svc.use('edit', campaignUtils.getAccountIds.bind(campaignUtils, svc._advertColl,
+        svc.use('edit', campaignUtils.getAccounts.bind(campaignUtils, svc._advertColl,
                                                          svc._custColl));
         svc.use('edit', campModule.extendListObjects);
         svc.use('edit', campModule.validateDates);
@@ -53,6 +56,9 @@
         svc.use('edit', campModule.cleanSponsoredCamps);
         svc.use('edit', campModule.editSponsoredCamps);
         svc.use('edit', campModule.createSponsoredCamps);
+        svc.use('edit', campModule.cleanClickCamps);
+        svc.use('edit', campModule.editClickCamps);
+        svc.use('edit', campModule.createClickCamps);
         svc.use('edit', campModule.cleanTargetCamps);
         svc.use('edit', campModule.editTargetCamps);
         svc.use('edit', campModule.createTargetCamps);
@@ -95,7 +101,7 @@
     // Calls campaignUtils.validateDates for every object in cards, miniReels, and miniReelGroups
     campModule.validateDates = function(req, next, done) {
         var keys = ['cards', 'miniReels', 'miniReelGroups'],
-            delays = campModule.campsCfg.dateDelays;
+            delays = campModule.config.campaigns.dateDelays;
             
         for (var i = 0; i < keys.length; i++) {
             if (!req.body[keys[i]]) {
@@ -182,26 +188,30 @@
         return CrudSvc.prototype.formatOutput.call(svc, obj);
     };
 
-    /* Send a DELETE request to the content service. type should be "card" or "experience"
+    /* Send a request to the content service. type should be "card" or "experience"
      * Logs + swallows 4xx failures, but rejects 5xx failures. */
-    campModule.sendDeleteRequest = function(req, id, type) {
+    campModule.proxyContentRequest = function(req, method, type, id) {
         var log = logger.getLog();
         
-        return requestUtils.qRequest('delete', {
-            url: req.protocol + '://' + campModule.contentHost + '/api/content/' + type + '/' + id,
+        return requestUtils.qRequest(method, {
+            url: req.protocol + '://' + campModule.config.contentHost +
+                 '/api/content/' + type + '/' + id,
             headers: { cookie: req.headers.cookie }
         })
         .then(function(resp) {
-            if (resp.response.statusCode !== 204) {
-                log.warn('[%1] Could not delete %2 %3. Received (%4, %5)',
-                         req.uuid, type, id, resp.response.statusCode, resp.body);
+            if (resp.response.statusCode < 200 || resp.response.statusCode >= 300) {
+                log.warn('[%1] Could not %2 %3 %4. Received (%5, %6)',
+                         req.uuid, method, type, id, resp.response.statusCode, resp.body);
+                return q();
             } else {
-                log.info('[%1] Succesfully deleted %2 %3', req.uuid, type, id);
+                log.info('[%1] Succesfully called %2 for %3 %4', req.uuid, method, type, id);
+                return q(resp.body);
             }
         })
         .catch(function(error) {
-            log.error('[%1] Error deleting %2 %3: %4', req.uuid, type, id, util.inspect(error));
-            return q.reject(new Error('Failed sending delete request to content service'));
+            log.error('[%1] Error calling %2 for %3: %4',
+                      req.uuid, method, type, id, util.inspect(error));
+            return q.reject(new Error('Failed sending request to content service'));
         });
     };
     
@@ -232,8 +242,8 @@
     campModule.cleanSponsoredCamps = function(req, next/*, done*/) {
         var log = logger.getLog(),
             id = req.body.id || (req.origObj && req.origObj.id),
-            delay = campModule.campsCfg.statusDelay,
-            attempts = campModule.campsCfg.statusAttempts,
+            delay = campModule.config.campaigns.statusDelay,
+            attempts = campModule.config.campaigns.statusAttempts,
             toDelete = { adtechIds: [], miniReels: [], cards: [] };
         
         ['miniReels', 'cards'].forEach(function(prop) {
@@ -269,9 +279,9 @@
             
             return q.all(
                 toDelete.miniReels.map(function(id) {
-                    return campModule.sendDeleteRequest(req, id, 'experience');
+                    return campModule.proxyContentRequest(req, 'delete', 'experience', id);
                 }).concat(toDelete.cards.map(function(id) {
-                    return campModule.sendDeleteRequest(req, id, 'card');
+                    return campModule.proxyContentRequest(req, 'delete', 'card', id);
                 }))
             );
         }).then(function() {
@@ -370,7 +380,7 @@
                         name            : obj.name + ' (' + id + ')',
                         startDate       : obj.startDate,
                         endDate         : obj.endDate,
-                        campaignTypeId  : campModule.campsCfg.campaignTypeId,
+                        campaignTypeId  : campModule.config.campaigns.campaignTypeId,
                         keywords        : keywords,
                         advertiserId    : req._advertiserId,
                         customerId      : req._customerId
@@ -393,12 +403,154 @@
         });
     };
     
+    campModule.createClickPlacement = function(req) {
+        var log = logger.getLog(),
+            origObj = req.origObj || {},
+            id = req.body.id || origObj.id,
+            name = req.body.name || origObj.name,
+            existingPlacement = req.body.clickPlacementId || origObj.clickPlacementId;
+        
+        if (existingPlacement) {
+            log.trace('[%1] Placement %2 already exists for click campaigns for campaign %3',
+                      req.uuid, existingPlacement, id);
+            return q();
+        }
+
+        var formatted = {
+            name: req._advertiserName + ' - ' + name, //TODO: substring each name?
+            pageId: parseInt(campModule.config.clickCommands.pageId),
+            tagTypeId: 3,
+            websiteId: parseInt(campModule.config.clickCommands.websiteId)
+        };
+
+        return adtech.websiteAdmin.createPlacement(formatted)
+        .then(function(result) {
+            log.info('[%1] Created Click Command placement %2, id = %3, for campaign %4',
+                     req.uuid, result.name, result.id, id);
+            req.body.clickPlacementId = parseInt(result.id);
+        })
+        .catch(function(error) {
+            log.error('[%1] Error creating placement %2 for Cinema6 Click Commands: %3',
+                      req.uuid, formatted.name, error);
+            return q.reject(new Error('Adtech failure'));
+        });
+    };
+    
+    // goes through card and finds all links to be turned into click commands.
+    campModule.findTargetLinks = function(card) { //TODO: rename
+        var links = [];
+        
+        Object.keys(card.links || []).forEach(function(key) {
+            links.push({
+                id: card.id + ' : ' + key.toLowerCase(),
+                description: key,
+                targetLink: card.links[key]
+            });
+        });
+        
+        if (card.data && card.data.slides instanceof Array) {
+            card.data.slides.forEach(function(slide) {
+                if (slide && slide.data && slide.data.url) {
+                    links.push({ // TODO: may want to reconsider id generation here...
+                        id: card.id + ' : ' + uuid.hashText(slide.data.url).substr(0, 10),
+                        description: 'Store Link',
+                        targetLink: slide.data.url
+                    });
+                }
+            });
+        }
+        
+        return links;
+    };
+    
+    //TODO
+    campModule.cleanClickCamps = function(req, next/*, done*/) {
+        var log = logger.getLog();
+        log.warn('[%1] cleanClickCamps NOT IMPLEMENTED YET', req.uuid);
+        return q(next());
+    };
+
+    //TODO
+    campModule.editClickCamps = function(req, next/*, done*/) {
+        var log = logger.getLog();
+        log.warn('[%1] editClickCamps NOT IMPLEMENTED YET', req.uuid);
+        return q(next());
+    };
+
+
+    campModule.createClickCamps = function(req, next/*, done*/) {
+        var log = logger.getLog(),
+            origObj = req.origObj || {},
+            id = req.body.id || origObj.id;
+        
+        if (!req.body.clickCommandsEnabled && !origObj.clickCommandsEnabled) {
+            log.trace('[%1] Click campaigns disabled, not creating them', req.uuid);
+            return q(next());
+        }
+        if (!(req.body.cards instanceof Array) || req.body.cards.length === 0) {
+            log.trace('[%1] No cards to make click campaigns for', req.uuid);
+            return q(next());
+        }
+        
+        //TODO: this might fuck up when used with cleanClickCamps on PUT...
+        req.body.clickCommands = req.body.clickCommands || origObj.clickCommands || {};
+        
+        return campModule.createClickPlacement(req)
+        .then(function() {
+            return q.all(req.body.cards.map(function(campCardObj) {
+                
+                return campModule.proxyContentRequest(req, 'get', 'card', campCardObj.id)
+                .then(function(card) {
+                    if (!card) {
+                        log.trace('[%1] Skipping card %2', req.uuid, campCardObj.id);
+                        return q();
+                    }
+                    if (req.body.clickCommands[card.id]) { //TODO: check anything else?
+                        log.trace('[%1] Click Campaign %2 already exists for %3',
+                                  req.uuid, req.body.clickCommands[card.id].adtechId, card.id);
+                        return q();
+                    }
+                    
+                    var obj = req.body.clickCommands[card.id] = {};
+                    
+                    return campaignUtils.createCampaign({
+                        id              : card.id,
+                        name            : campCardObj.name + ' - Click Commands (' + id + ')',
+                        startDate       : campCardObj.startDate,
+                        endDate         : campCardObj.endDate,
+                        campaignTypeId  : campModule.config.clickCommands.campaignTypeId,
+                        advertiserId    : req._advertiserId,
+                        customerId      : req._customerId,
+                        clickCommand    : true,
+                        placements      : [ req.body.clickPlacementId ]
+                    }, req.uuid)
+                    .then(function(resp) {
+                        obj.adtechId = parseInt(resp.id);
+                        obj.links = campModule.findTargetLinks(card);
+
+                        return bannerUtils.createBanners(obj.links, null, 'clickCommand',
+                                                         null, obj.adtechId);
+                    });
+                });
+            }));
+        })
+        .then(function() {
+            log.trace('[%1] All click command campaigns for %2 have been created', req.uuid, id);
+            next();
+        })
+        .catch(function(error) {
+            log.error('[%1] Error creating click campaigns: %2',
+                      req.uuid, error && error.stack || error);
+            return q.reject('Adtech failure');
+        });
+    };
+    
     // Middleware to delete unused target minireel group campaigns on an edit
     campModule.cleanTargetCamps = function(req, next/*, done*/) {
         var log = logger.getLog(),
             id = req.params.id,
-            delay = campModule.campsCfg.statusDelay,
-            attempts = campModule.campsCfg.statusAttempts,
+            delay = campModule.config.campaigns.statusDelay,
+            attempts = campModule.config.campaigns.statusAttempts,
             toDelete = [];
         
         if (!req.origObj.miniReelGroups || !req.body.miniReelGroups) {
@@ -528,7 +680,7 @@
                     name            : obj.name + ' (' + id + ')',
                     startDate       : obj.startDate,
                     endDate         : obj.endDate,
-                    campaignTypeId  : campModule.campsCfg.campaignTypeId,
+                    campaignTypeId  : campModule.config.campaigns.campaignTypeId,
                     keywords        : keywords,
                     advertiserId    : req._advertiserId,
                     customerId      : req._customerId
@@ -563,10 +715,10 @@
             
         return q.all(
             (req.origObj.cards || []).map(function(card) {
-                return campModule.sendDeleteRequest(req, card.id, 'card');
+                return campModule.proxyContentRequest(req, 'delete', 'card', card.id);
             })
             .concat((req.origObj.miniReels || []).map(function(exp) {
-                return campModule.sendDeleteRequest(req, exp.id, 'experience');
+                return campModule.proxyContentRequest(req, 'delete', 'experience', exp.id);
             }))
         )
         .then(function() {
@@ -576,10 +728,11 @@
     };
     
     // Middleware to delete all sponsored and target adtech campaigns for this C6 campaign
+    //TODO: update to delete click campaigns as well, plus click command Placement?
     campModule.deleteAdtechCamps = function(req, next/*, done*/) {
         var log = logger.getLog(),
-            delay = campModule.campsCfg.statusDelay,
-            attempts = campModule.campsCfg.statusAttempts,
+            delay = campModule.config.campaigns.statusDelay,
+            attempts = campModule.config.campaigns.statusAttempts,
             toDelete = [];
             
         log.trace('[%1] Deleting all sponsored + target campaigns for %2', req.uuid, req.params.id);
@@ -598,9 +751,28 @@
             }
         });
         
+        Object.keys(req.origObj.clickCommands || {}).forEach(function(cardId) {
+            if (!req.origObj.clickCommands[cardId].adtechId) {
+                log.warn('[%1] clickCommand for %2 has no adtechId', req.uuid, cardId);
+                return;
+            }
+            toDelete.push(req.origObj.clickCommands[cardId].adtechId);
+        });
+        
         return campaignUtils.deleteCampaigns(toDelete, delay, attempts)
         .then(function() {
             log.info('[%1] Deleted all adtech campaigns for %2', req.uuid, req.params.id);
+            
+            if (!req.origObj.clickPlacementId) {
+                return q();
+            }
+
+            return adtech.websiteAdmin.deletePlacement(req.origObj.clickPlacementId)
+            .then(function() {
+                log.info('[%1] Deleted click command placement %2 for %3',
+                         req.uuid, req.origObj.clickPlacementId, req.params.id);
+            });
+        }).then(function() {
             next();
         });
     };
