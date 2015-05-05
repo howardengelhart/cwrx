@@ -453,6 +453,7 @@
                 if (slide && slide.data && slide.data.url) {
                     links.push({ // TODO: may want to reconsider id generation here...
                         id: card.id + ' : ' + uuid.hashText(slide.data.url).substr(0, 10),
+                        slideLink: true,
                         description: 'Store Link',
                         targetLink: slide.data.url
                     });

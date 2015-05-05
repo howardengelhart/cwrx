@@ -8,13 +8,14 @@
         CrudSvc         = require('../lib/crudSvc'),
         Status          = require('../lib/enums').Status,
 
-        cardModule = {};
+        cardModule = { config: {} };
 
         
-    cardModule.setupCardSvc = function(cardColl, cache) {
+    cardModule.setupCardSvc = function(cardColl, config, caches) {
+        cardModule.config.clickCommands = config.clickCommands;
+
         var cardSvc = new CrudSvc(cardColl, 'rc', {allowPublic: true});
-        
-        cardSvc._cache = cache;
+        cardSvc._caches = caches;
             
         cardSvc.createValidator._required.push('campaignId');
         cardSvc.createValidator._condForbidden.user = FieldValidator.userFunc('cards', 'create');
@@ -27,6 +28,80 @@
         
         return cardSvc;
     };
+    
+    cardModule.createAdtechLink = function(linkObj, campId, placementId) {
+        return 'http://adserver.adtechus.com/?adlink|3.0|' +
+               cardModule.config.clickCommands.adServerId + '|' +
+               placementId + '|1|16|' + 
+               'AdId=' + campId +
+               ';BnId=' + linkObj.bannerNumber +
+               ';link=' + linkObj.targetLink;
+    };
+    
+    // look up a campaign, 
+    cardModule.substituteLinks = function(cardSvc, card, req) {
+        var log = logger.getLog();
+        
+        if (!card.campaignId) {
+            log.warn('[%1] No campaignId on card %2', req.uuid, card.id);
+            return q(card);
+        }
+        
+        return cardSvc._caches.campaigns.getPromise({id: card.campaignId}).then(function(results) {
+            var camp = results && results[0] || null;
+            if (!camp || camp.status !== Status.Active) { // only show active camps
+                log.warn('[%1] Campaign %2 not found for card %3',req.uuid,card.campaignId,card.id);
+                return q(card);
+            }
+            if (!camp.clickCommands || !camp.clickCommands[card.id]) {
+                log.trace('[%1] Campaign has no clickCommands for card %2', req.uuid, card.id);
+                return q(card);
+            }
+
+            var clickCamp = camp.clickCommands[card.id];
+            
+            (clickCamp.links || []).forEach(function(linkObj) {
+                if (!linkObj.slideLink) {
+                    if (!card.links || !card.links[linkObj.description]) {
+                        log.warn('[%1] No link for %2 on card %3',
+                                 req.uuid, linkObj.description, card.id);
+                        return;
+                    }
+                    
+                    card.links[linkObj.description] = cardModule.createAdtechLink(
+                        linkObj,
+                        clickCamp.adtechId,
+                        camp.clickPlacementId
+                    );
+                }
+                else {
+                    if (!card.data || !card.data.slides) {
+                        log.warn('[%1] No slides in card %2 for slide link %3',
+                                 req.uuid, card.id, linkObj.id);
+                        return;
+                    }
+                    
+                    card.data.slides.forEach(function(slide) {
+                        if (!slide.data || slide.data.url !== linkObj.targetLink) {
+                            return;
+                        }
+                        
+                        slide.url = cardModule.createAdtechLink(
+                            linkObj,
+                            clickCamp.adtechId,
+                            camp.clickPlacementId
+                        );
+                    });
+                }
+            });
+            
+            return q(card);
+        })
+        .catch(function(error) {
+            log.error('[%1] Error getting campaign %2: %3', req.uuid, card.campaignId, error && error.stack || error    );
+            return q(card);
+        });
+    };
 
     // Get a card, using internal cache. Can be used across modules when 1st two args bound in
     cardModule.getPublicCard = function(cardSvc, id, req) {
@@ -36,7 +111,7 @@
 
         log.info('[%1] Guest user trying to get card %2', req.uuid, id);
 
-        return cardSvc._cache.getPromise(query).then(function(results) {
+        return cardSvc._caches.cards.getPromise(query).then(function(results) {
             if (!results[0] || results[0].status !== Status.Active) { // only show active cards
                 return q();
             }
@@ -45,7 +120,7 @@
 
             privateFields.forEach(function(key) { delete results[0][key]; });
 
-            return q(cardSvc.formatOutput(results[0]));
+            return cardModule.substituteLinks(cardSvc, cardSvc.formatOutput(results[0]), req);
         })
         .catch(function(error) {
             log.error('[%1] Error getting card %2: %3', req.uuid, id, error);

@@ -41,9 +41,7 @@
         clickCommands: {
             websiteId: 234083,      // Adtech id of Cinema6 Website
             pageId: 763072,         // Adtech id of Cinema6's "Click Commands" Page
-            campaignTypeId: 26956,  // id for Click Command Campaign type; differs across networks
-            adServerId: 5491,       // Adtech network id; needed for constructing Click Command URLs
-            
+            campaignTypeId: 26956  // id for Click Command Campaign type; differs across networks
         },
         contentHost: 'localhost',   // Hostname of the content service to proxy delete requests to
         minireelGroups: {

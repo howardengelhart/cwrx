@@ -74,6 +74,9 @@
             public: ['www.cinema6.com', 'demo.cinema6.com'],
             cinema6: ['c-6.co', 'ci6.co']
         },
+        clickCommands: {
+            adServerId: 5491 // Adtech network id; needed for constructing Click Command URLs
+        },
         secretsPath: path.join(process.env.HOME,'.content.secrets.json'),
         mongo: {
             c6Db: {
@@ -789,7 +792,7 @@
         });
 
         authUtils._coll = collections.users;
-        cardSvc = cardModule.setupCardSvc(collections.cards, caches.cards);
+        cardSvc = cardModule.setupCardSvc(collections.cards, state.config, caches);
         catSvc = catModule.setupCatSvc(collections.categories);
 
 
