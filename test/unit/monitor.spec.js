@@ -1,19 +1,20 @@
 describe('monitor',function(){
     var mockLogger, mockLog, mockHttp, mockHttps, mockHttpReq, mockHttpRes, mockFs, mockGlob,
-        resolveSpy, rejectSpy, flush = true, app, q;
+        requestUtils, resolveSpy, rejectSpy, flush = true, app, q, anyFunc;
     
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
 
         jasmine.Clock.useMock();
         
-        q           = require('q');
-        mockGlob    = require('glob');
-        mockFs      = require('fs-extra');
-        mockHttp    = require('http');
-        mockHttps   = require('https');
-        mockLogger  = require('../../lib/logger');
-        app         = require('../../bin/monitor').app;
+        q               = require('q');
+        mockGlob        = require('glob');
+        mockFs          = require('fs-extra');
+        mockHttp        = require('http');
+        mockHttps       = require('https');
+        mockLogger      = require('../../lib/logger');
+        requestUtils    = require('../../lib/requestUtils');
+        app             = require('../../bin/monitor').app;
 
         mockLog     = {
             trace : jasmine.createSpy('log_trace'),
@@ -38,6 +39,7 @@ describe('monitor',function(){
             setEncoding : jasmine.createSpy('httpRes.setEncoding')
         };
 
+        anyFunc = jasmine.any(Function);
 
         mockHttpReq.on.andCallFake(function(eventName,handler){
             mockHttpReq._on[eventName] = handler;
@@ -761,4 +763,177 @@ describe('monitor',function(){
         });
     });
     /* verifyConfiguration -- end */
+    
+    /* getASGInstances -- begin */
+    describe('getASGInstances', function() {
+        var ASG, EC2, config, mockGroups, mockReservations;
+        beforeEach(function() {
+            mockGroups = [{
+                Instances: [
+                    { InstanceId: 'i-1', LifecycleState: 'InService' },
+                    { InstanceId: 'i-2', LifecycleState: 'Terminating' },
+                    { InstanceId: 'i-3', LifecycleState: 'InService' }
+                ]
+            }];
+            mockReservations = [
+                { Instances: [ { InstanceId: 'i-1', PrivateIpAddress: '1.2.3.4' } ] },
+                { Instances: [ { InstanceId: 'i-3', PrivateIpAddress: '5.6.7.8' } ] }
+            ];
+            ASG = { describeAutoScalingGroups: jasmine.createSpy('describeASGs').andCallFake(function(params, cb) {
+                cb(null, { AutoScalingGroups: mockGroups });
+            }) };
+            EC2 = { describeInstances: jasmine.createSpy('describeInstances').andCallFake(function(params, cb) {
+                cb(null, { Reservations: mockReservations });
+            }) };
+        });
+        
+        it('should return a list of instances\' private ip addresses', function(done) {
+            app.getASGInstances(ASG, EC2, 'testGroup').then(function(ips) {
+                expect(ips).toEqual(['1.2.3.4', '5.6.7.8']);
+                expect(ASG.describeAutoScalingGroups).toHaveBeenCalledWith({ AutoScalingGroupNames: ['testGroup'] }, anyFunc);
+                expect(EC2.describeInstances).toHaveBeenCalledWith({ InstanceIds: ['i-1', 'i-3'] }, anyFunc);
+                expect(mockLog.error).not.toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should log a warning if there are no active instances in the group', function(done) {
+            mockGroups[0].Instances[0].LifecycleState = 'Pending';
+            mockGroups[0].Instances[2].LifecycleState = 'Detaching';
+
+            app.getASGInstances(ASG, EC2, 'testGroup').then(function(ips) {
+                expect(ips).toEqual([]);
+                expect(ASG.describeAutoScalingGroups).toHaveBeenCalled();
+                expect(EC2.describeInstances).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should reject if incomplete data is returned from describing the ASG', function(done) {
+            mockGroups = [];
+
+            app.getASGInstances(ASG, EC2, 'testGroup').then(function(ips) {
+                expect(ips).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('AWS Error');
+                expect(ASG.describeAutoScalingGroups).toHaveBeenCalled();
+                expect(EC2.describeInstances).not.toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
+        });
+
+        it('should reject if describing the ASG fails', function(done) {
+            ASG.describeAutoScalingGroups.andCallFake(function(params, cb) { cb('I GOT A PROBLEM'); });
+
+            app.getASGInstances(ASG, EC2, 'testGroup').then(function(ips) {
+                expect(ips).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('AWS Error');
+                expect(ASG.describeAutoScalingGroups).toHaveBeenCalled();
+                expect(EC2.describeInstances).not.toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
+        });
+
+        it('should reject if describing the instances fails', function(done) {
+            EC2.describeInstances.andCallFake(function(params, cb) { cb('I GOT A PROBLEM'); });
+
+            app.getASGInstances(ASG, EC2, 'testGroup').then(function(ips) {
+                expect(ips).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('AWS Error');
+                expect(ASG.describeAutoScalingGroups).toHaveBeenCalled();
+                expect(EC2.describeInstances).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
+        });
+    });
+    /* getASGInstances -- end */
+
+    /* getCacheServers -- begin */
+    describe('getCacheServers', function() {
+        var cfg;
+        beforeEach(function() {
+            cfg = { groupName: 'testGroup', cachePort: 123, scanTimeout: 2000, serverIps: ['3.3.3.3', '4.4.4.4'] };
+            spyOn(app, 'getASGInstances').andReturn(q(['1.1.1.1', '2.2.2.2']));
+            spyOn(requestUtils, 'portScan').andReturn(q(true));
+        });
+        
+        it('should lookup servers from the ASG and verify that the cache is running on each', function(done) {
+            app.getCacheServers('mockASG', 'mockEC2', cfg).then(function(hosts) {
+                expect(hosts).toEqual(['1.1.1.1:123', '2.2.2.2:123']);
+                expect(app.getASGInstances).toHaveBeenCalledWith('mockASG', 'mockEC2', 'testGroup');
+                expect(requestUtils.portScan.calls.length).toBe(2);
+                expect(requestUtils.portScan).toHaveBeenCalledWith('1.1.1.1', 123, 2000);
+                expect(requestUtils.portScan).toHaveBeenCalledWith('2.2.2.2', 123, 2000);
+                expect(mockLog.error).not.toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should use a static list of ips if no ASG groupName is provided', function(done) {
+            delete cfg.groupName;
+            app.getCacheServers('mockASG', 'mockEC2', cfg).then(function(hosts) {
+                expect(hosts).toEqual(['3.3.3.3:123', '4.4.4.4:123']);
+                expect(app.getASGInstances).not.toHaveBeenCalled();
+                expect(requestUtils.portScan.calls.length).toBe(2);
+                expect(requestUtils.portScan).toHaveBeenCalledWith('3.3.3.3', 123, 2000);
+                expect(requestUtils.portScan).toHaveBeenCalledWith('4.4.4.4', 123, 2000);
+                expect(mockLog.error).not.toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should reject if no list of serverIps or groupName is provided', function(done) {
+            delete cfg.groupName;
+            delete cfg.serverIps;
+            app.getCacheServers('mockASG', 'mockEC2', cfg).then(function(hosts) {
+                expect(hosts).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('No way to get servers');
+                expect(app.getASGInstances).not.toHaveBeenCalled();
+                expect(requestUtils.portScan).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should log a warning if the cache is not running on a server', function(done) {
+            requestUtils.portScan.andCallFake(function(host, port, timeout) {
+                if (host === '1.1.1.1') return q.reject('nope');
+                else return q(true);
+            });
+            app.getCacheServers('mockASG', 'mockEC2', cfg).then(function(hosts) {
+                expect(hosts).toEqual(['2.2.2.2:123']);
+                expect(requestUtils.portScan.calls.length).toBe(2);
+                expect(mockLog.error).not.toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should reject if getASGInstances fails', function(done) {
+            app.getASGInstances.andReturn(q.reject('I GOT A PROBLEM'));
+            app.getCacheServers('mockASG', 'mockEC2', cfg).then(function(hosts) {
+                expect(hosts).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(app.getASGInstances).toHaveBeenCalled();
+                expect(requestUtils.portScan).not.toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).done(done);
+        });
+    });
+    /* getCacheServers -- end */
 });

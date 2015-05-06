@@ -2,7 +2,7 @@ var flush = true;
 describe('service (UT)',function(){
     
     var vote, state, mockLog, processProperties, resolveSpy, rejectSpy, events,
-        path, q, cluster, fs, logger, daemon, mongoUtils, cacheLib, service;
+        path, q, cluster, fs, logger, daemon, mongoUtils, cacheLib, pubsub, service;
     
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -18,6 +18,7 @@ describe('service (UT)',function(){
         daemon      = require('../../lib/daemon');
         mongoUtils  = require('../../lib/mongoUtils');
         cacheLib    = require('../../lib/cacheLib');
+        pubsub      = require('../../lib/pubsub');
         service     = require('../../lib/service');
 
         state       = { cmdl : {}, defaultConfig : {}, config : {}  };
@@ -748,8 +749,65 @@ describe('service (UT)',function(){
         });
     });
 
-    describe('initPubsubs', function() {
-        //TODO
+    describe('initPubSubs', function() {
+        beforeEach(function() {
+            state.config.pubsub = {
+                test1: { port: 111, pollDelay: 2000 },
+                test2: { port: 222, host: 'h1' },
+                test3: { path: '/tmp/test3', isPublisher: false }
+            };
+            spyOn(pubsub, 'Subscriber')//.andCallFake(function() { return this; });
+            spyOn(pubsub, 'Publisher')//.andCallFake(function() { return this; });
+        });
+
+        it('should be able to setup multiple clients with a variety of options', function(done) {
+            service.initPubSubs(state).then(resolveSpy, rejectSpy)
+            .finally(function() {
+                expect(resolveSpy).toHaveBeenCalledWith(state);
+                expect(rejectSpy).not.toHaveBeenCalled();
+                expect(state.publishers).toEqual({});
+                expect(state.subscribers).toEqual({
+                    test1: jasmine.any(pubsub.Subscriber),
+                    test2: jasmine.any(pubsub.Subscriber),
+                    test3: jasmine.any(pubsub.Subscriber)
+                });
+                expect(pubsub.Subscriber.calls[0].args).toEqual(['test1', { port: 111 }, 2000]);
+                expect(pubsub.Subscriber.calls[1].args).toEqual(['test2', { port: 222, host: 'h1' }, undefined]);
+                expect(pubsub.Subscriber.calls[2].args).toEqual(['test3', { path: '/tmp/test3' }, undefined]);
+            }).done(done);
+        });
+        
+        it('should initialize a client as a Publisher if isPublisher is true', function(done) {
+            state.config.pubsub.test2.isPublisher = true;
+            service.initPubSubs(state).then(resolveSpy, rejectSpy)
+            .finally(function() {
+                expect(resolveSpy).toHaveBeenCalledWith(state);
+                expect(rejectSpy).not.toHaveBeenCalled();
+                expect(state.publishers).toEqual({
+                    test2: jasmine.any(pubsub.Publisher)
+                });
+                expect(state.subscribers).toEqual({
+                    test1: jasmine.any(pubsub.Subscriber),
+                    test3: jasmine.any(pubsub.Subscriber)
+                });
+                expect(pubsub.Publisher.calls[0].args).toEqual(['test2', { port: 222, host: 'h1' }]);
+                expect(pubsub.Subscriber.calls[0].args).toEqual(['test1', { port: 111 }, 2000]);
+                expect(pubsub.Subscriber.calls[1].args).toEqual(['test3', { path: '/tmp/test3' }, undefined]);
+            }).done(done);
+        });
+
+        it('should skip if there are no clients to initialize', function(done) {
+            delete state.config.pubsub;
+            service.initPubSubs(state).then(resolveSpy, rejectSpy)
+            .finally(function() {
+                expect(resolveSpy).toHaveBeenCalledWith(state);
+                expect(rejectSpy).not.toHaveBeenCalled();
+                expect(state.publishers).toEqual({});
+                expect(state.subscribers).toEqual({});
+                expect(pubsub.Publisher).not.toHaveBeenCalled();
+                expect(pubsub.Subscriber).not.toHaveBeenCalled();
+            }).done(done);
+        });
     });
 
     describe('initCache', function() {

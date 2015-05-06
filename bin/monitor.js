@@ -303,6 +303,7 @@
     };
     
     //TODO: test, comment
+    //TODO: might want to update cookbook to allow loading AWS creds through Vagrantfile
     app.getASGInstances = function(ASG, EC2, groupName) {
         var log = logger.getLog();
         
@@ -346,16 +347,16 @@
     };
 
     //TODO: test, comment
-    app.getCacheServers = function(ASG, EC2, config) {
+    app.getCacheServers = function(ASG, EC2, cfg) {
         var log = logger.getLog(),
             ipPromise;
         
-        if (config.groupName) {
-            ipPromise = app.getASGInstances(ASG, EC2, config.groupName);
+        if (cfg.groupName) {
+            ipPromise = app.getASGInstances(ASG, EC2, cfg.groupName);
         } else {
-            if (config.serverIps) {
-                log.trace('Using static list of server ips: [%1]', config.serverIps);
-                ipPromise = q(config.serverIps);
+            if (cfg.serverIps) {
+                log.trace('Using static list of server ips: [%1]', cfg.serverIps);
+                ipPromise = q(cfg.serverIps);
             } else {
                 log.warn('No ASG groupName or list of serverIps, not getting cache servers');
                 return q.reject('No way to get servers');
@@ -366,15 +367,15 @@
             var activeHosts = [];
             
             return q.allSettled(ips.map(function(ip) {
-                return requestUtils.portScan(ip, config.cachePort, config.scanTimeout);
+                return requestUtils.portScan(ip, cfg.cachePort, cfg.scanTimeout);
             }))
             .then(function(results) {
                 results.forEach(function(result, idx) {
                     if (result.state === 'rejected') {
                         log.warn('Cache not running on InService server %1:%2: %3',
-                                 ips[idx], config.cachePort, util.inspect(result.reason));
+                                 ips[idx], cfg.cachePort, util.inspect(result.reason));
                     } else {
-                        activeHosts.push(ips[idx] + ':' + config.cachePort);
+                        activeHosts.push(ips[idx] + ':' + cfg.cachePort);
                     }
                 });
 
