@@ -542,7 +542,9 @@
             }));
         })
         .then(function() {
-            return campaignUtils.startCampaigns(toStart, delay, attempts);
+            campaignUtils.startCampaigns(toStart, delay, attempts).then(function() {
+                log.info('[%1] Successfully started campaigns: [%2]', req.uuid, toStart);
+            });
         })
         .then(function() {
             log.trace('[%1] All click command campaigns for %2 have been started', req.uuid, id);
