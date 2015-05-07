@@ -35,12 +35,12 @@
         requestTimeout  : 3000,
         monitorInc : './monitor.*.json',
         cacheDiscovery: {
-            awsRegion   : 'us-east-1',  // needed to initiate AWS API clients
-            groupName   : null,         // name of ASG to check
-            serverIps   : null,         // in lieu of groupName, provide static array of ips
-            cachePort   : 11211,        // port we expect cache to run on
-            scanTimeout : 2000,         // ms to wait when scanning cachePort on discovered hosts
-            interval    : 60*1000       // how often to re-discover cache servers
+            awsRegion   : 'us-east-1',      // needed to initiate AWS API clients
+            groupName   : null,             // name of ASG to check
+            serverIps   : ['localhost'],    // in lieu of groupName, provide static array of ips
+            cachePort   : 11211,            // port we expect cache to run on
+            scanTimeout : 2000,             // ms to wait when scanning cachePort on hosts
+            interval    : 60*1000           // how often to re-discover cache servers
         },
         pubsub: {
             cacheCfg: {
@@ -258,7 +258,6 @@
         return deferred.promise;
     };
 
-
     app.verifyConfiguration = function(state){
         var log = logger.getLog();
         if (!state.services || !state.services.length){
@@ -301,9 +300,10 @@
 
         return q(state);
     };
+
     
-    //TODO: test, comment
     //TODO: might want to update cookbook to allow loading AWS creds through Vagrantfile
+    // Get a list of private ip addresses for the InService instances in an AutoScaling group.
     app.getASGInstances = function(ASG, EC2, groupName) {
         var log = logger.getLog();
         
@@ -346,7 +346,10 @@
         });
     };
 
-    //TODO: test, comment
+    /* Get a list of active hosts ("ip:port") running the cache. If cfg.groupName is provided,
+     * queries the AWS API for the instances in this ASG; otherwise, uses cfg.serverIps, a static
+     * list of instance ips. Then checks that a server is actually listening on cfg.cachePort on
+     * each ip. */
     app.getCacheServers = function(ASG, EC2, cfg) {
         var log = logger.getLog(),
             ipPromise;
@@ -471,7 +474,7 @@
         .then(service.prepareServer)
         .then(service.daemonize)
         .then(service.cluster)
-        .then(service.initPubSubs)
+        .then(service.initPubSubChannels)
         .then(app.main)
         .catch( function(err){
             var log = logger.getLog();

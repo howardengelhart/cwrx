@@ -1,16 +1,17 @@
 var flush = true;
 describe('content (UT)', function() {
-    var mockLog, experiences, req, uuid, logger, content, q, objUtils,
-        mongoUtils, enums, Status, Scope, Access;
+    var mockLog, experiences, uuid, logger, content, q, objUtils, JobManager, jobMgr,
+        mongoUtils, enums, Status, Scope, Access, req, res;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
+        q               = require('q');
         uuid            = require('../../lib/uuid');
         logger          = require('../../lib/logger');
         content         = require('../../bin/content');
         mongoUtils      = require('../../lib/mongoUtils');
         objUtils        = require('../../lib/objUtils');
-        q               = require('q');
+        JobManager      = require('../../lib/jobManager');
         enums           = require('../../lib/enums');
         Status          = enums.Status;
         Access          = enums.Access;
@@ -29,9 +30,14 @@ describe('content (UT)', function() {
         spyOn(content, 'formatOutput').andCallThrough();
         spyOn(mongoUtils, 'escapeKeys').andCallThrough();
         spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
+        
+        jobMgr = new JobManager('fakeCache', { enabled: true });
+        spyOn(jobMgr, 'setJobTimeout').andReturn('fakeTimeoutObj');
+        spyOn(jobMgr, 'checkJobTimeout').andReturn(q());
 
         experiences = {};
         req = {uuid: '1234'};
+        res = { send: jasmine.createSpy('res.send()') };
     });
     
     describe('getPublicExp', function() {
@@ -210,7 +216,7 @@ describe('content (UT)', function() {
         });
 
         it('should format the query and call expColl.find', function(done) {
-            content.getExperiences(query, req, expColl, false).then(function(resp) {
+            content.getExperiences(query, req, res, expColl, false, jobMgr).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual(['formatted']);
                 expect(content.userPermQuery).toHaveBeenCalledWith({type:'minireel'},'fakeUser',false);
@@ -218,6 +224,9 @@ describe('content (UT)', function() {
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(fakeCursor.count).not.toHaveBeenCalled();
                 expect(content.formatOutput).toHaveBeenCalledWith({id: 'e1'}, false);
+                expect(jobMgr.setJobTimeout).toHaveBeenCalledWith(req, res);
+                expect(jobMgr.checkJobTimeout).toHaveBeenCalledWith(req,
+                    {state: 'fulfilled', value: {code: 200, body: ['formatted']}}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -225,7 +234,7 @@ describe('content (UT)', function() {
 
         it('should use defaults if some params are not defined', function(done) {
             req = { uuid: '1234', user: 'fakeUser' };
-            content.getExperiences(query, req, expColl, false).then(function(resp) {
+            content.getExperiences(query, req, res, expColl, false, jobMgr).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual(['formatted']);
                 expect(expColl.find).toHaveBeenCalledWith('userPermQuery', {sort: {}, limit: 0, skip: 0});
@@ -236,7 +245,7 @@ describe('content (UT)', function() {
 
         it('should just ignore the sort param if invalid', function(done) {
             req.query.sort = 'foo';
-            content.getExperiences(query, req, expColl, false).then(function(resp) {
+            content.getExperiences(query, req, res, expColl, false, jobMgr).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual(['formatted']);
                 expect(expColl.find).toHaveBeenCalledWith('userPermQuery', {sort: {}, limit: 20, skip: 10});
@@ -247,11 +256,11 @@ describe('content (UT)', function() {
 
         it('should properly use hints if querying by user or org', function(done) {
             content.userPermQuery.andCallFake(function(orig) { return orig; });
-            content.getExperiences({user: 'u-1'}, req, expColl, false).then(function(resp) {
+            content.getExperiences({user: 'u-1'}, req, res, expColl, false, jobMgr).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual(['formatted']);
                 expect(expColl.find).toHaveBeenCalledWith({user: 'u-1'}, {sort: {id: 1}, limit: 20, skip: 10, hint: {user: 1}});
-                return content.getExperiences({org: 'o-1'}, req, expColl, false);
+                return content.getExperiences({org: 'o-1'}, req, res, expColl, false, jobMgr);
             }).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual(['formatted']);
@@ -263,7 +272,7 @@ describe('content (UT)', function() {
 
         it('should prefer to hint on the user index if querying by user and org', function(done) {
             content.userPermQuery.andCallFake(function(orig) { return orig; });
-            content.getExperiences({org: 'o-1', user: 'u-1'}, req, expColl, false).then(function(resp) {
+            content.getExperiences({org: 'o-1', user: 'u-1'}, req, res, expColl, false, jobMgr).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual(['formatted']);
                 expect(expColl.find).toHaveBeenCalledWith({org: 'o-1', user: 'u-1'},
@@ -275,13 +284,15 @@ describe('content (UT)', function() {
 
         it('should not allow a user to query for deleted experiences', function(done) {
             query.status = Status.Deleted;
-            content.getExperiences(query, req, expColl, false).then(function(resp) {
+            content.getExperiences(query, req, res, expColl, false, jobMgr).then(function(resp) {
                 expect(resp.code).toBe(400);
                 expect(resp.body).toEqual('Cannot get deleted experiences');
                 expect(mockLog.warn).toHaveBeenCalled();
                 expect(content.userPermQuery).not.toHaveBeenCalled();
                 expect(expColl.find).not.toHaveBeenCalled();
                 expect(content.formatOutput).not.toHaveBeenCalled();
+                expect(jobMgr.setJobTimeout).not.toHaveBeenCalled();
+                expect(jobMgr.checkJobTimeout).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -289,7 +300,7 @@ describe('content (UT)', function() {
 
         it('should properly format a query by multiple ids', function(done) {
             query = { id: ['e-1', 'e-2'] };
-            content.getExperiences(query, req, expColl, false).then(function(resp) {
+            content.getExperiences(query, req, res, expColl, false, jobMgr).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual(['formatted']);
                 expect(content.userPermQuery).toHaveBeenCalledWith({id: {$in: ['e-1', 'e-2']}}, 'fakeUser', false);
@@ -300,7 +311,7 @@ describe('content (UT)', function() {
 
         it('should properly format a query by multiple categories', function(done) {
             query = { categories: ['food', 'sports'] };
-            content.getExperiences(query, req, expColl, false).then(function(resp) {
+            content.getExperiences(query, req, res, expColl, false, jobMgr).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual(['formatted']);
                 expect(content.userPermQuery).toHaveBeenCalledWith({categories: {$in: ['food', 'sports']}}, 'fakeUser', false);
@@ -310,8 +321,8 @@ describe('content (UT)', function() {
         });
 
         it('should properly format queries for sponsored/non-sponsored minireels', function(done) {
-            content.getExperiences({sponsored: true}, req, expColl, false).then(function(resp) {
-                return content.getExperiences({sponsored: false}, req, expColl, false);
+            content.getExperiences({sponsored: true}, req, res, expColl, false, jobMgr).then(function(resp) {
+                return content.getExperiences({sponsored: false}, req, res, expColl, false, jobMgr);
             }).then(function() {
                 expect(content.userPermQuery.calls[0].args).toEqual([{campaignId: {$exists: true}}, 'fakeUser', false]);
                 expect(content.userPermQuery.calls[1].args).toEqual([{campaignId: {$exists: false}}, 'fakeUser', false]);
@@ -322,7 +333,7 @@ describe('content (UT)', function() {
 
         it('should properly format a query on the status field', function(done) {
             query.status = Status.Active;
-            content.getExperiences(query, req, expColl, false).then(function(resp) {
+            content.getExperiences(query, req, res, expColl, false, jobMgr).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual(['formatted']);
                 expect(content.userPermQuery).toHaveBeenCalledWith({type: 'minireel',
@@ -334,7 +345,7 @@ describe('content (UT)', function() {
         
         it('should format a text query', function(done) {
             query.text = 'foo bar';
-            content.getExperiences(query, req, expColl, false).then(function(resp) {
+            content.getExperiences(query, req, res, expColl, false, jobMgr).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual(['formatted']);
                 expect(content.formatTextQuery).toHaveBeenCalledWith({type: 'minireel', text: 'foo bar'});
@@ -342,11 +353,11 @@ describe('content (UT)', function() {
                     'data.0.data.title': {$regex: '.*foo.*bar.*', $options: 'i'}}, 'fakeUser', false);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
         it('should set resp.pagination if multiExp is true', function(done) {
-            content.getExperiences(query, req, expColl, true).then(function(resp) {
+            content.getExperiences(query, req, res, expColl, true, jobMgr).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual(['formatted']);
                 expect(resp.pagination).toEqual({start: 11, end: 30, total: 50});
@@ -358,7 +369,7 @@ describe('content (UT)', function() {
 
         it('should handle end behavior properly when paginating', function(done) {
             req.query.skip = 45;
-            content.getExperiences(query, req, expColl, true).then(function(resp) {
+            content.getExperiences(query, req, res, expColl, true, jobMgr).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual(['formatted']);
                 expect(resp.pagination).toEqual({start: 46, end: 50, total: 50});
@@ -371,13 +382,16 @@ describe('content (UT)', function() {
         it('should return a 200 and empty array if nothing was found', function(done) {
             fakeCursor.toArray.andCallFake(function(cb) { cb(null, []); });
             fakeCursor.count.andCallFake(function(cb) { cb(null, 0); });
-            content.getExperiences(query, req, expColl, true).then(function(resp) {
+            content.getExperiences(query, req, res, expColl, true, jobMgr).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual([]);
                 expect(resp.pagination).toEqual({start: 0, end: 0, total: 0});
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(fakeCursor.count).toHaveBeenCalled();
                 expect(content.formatOutput).not.toHaveBeenCalled();
+                expect(jobMgr.setJobTimeout).toHaveBeenCalledWith(req, res);
+                expect(jobMgr.checkJobTimeout).toHaveBeenCalledWith(req, {state: 'fulfilled', 
+                    value: {code: 200, body: [], pagination: {start: 0, end: 0, total: 0}}}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -386,7 +400,7 @@ describe('content (UT)', function() {
         it('should fail if cursor.toArray has an error', function(done) {
             fakeCursor.toArray.andCallFake(function(cb) { cb('Find Error!'); });
             fakeCursor.count.andCallFake(function(cb) { cb('Count Error!'); });
-            content.getExperiences(query, req, expColl, false).then(function(resp) {
+            content.getExperiences(query, req, res, expColl, false, jobMgr).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Find Error!');
@@ -394,13 +408,16 @@ describe('content (UT)', function() {
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(fakeCursor.count).not.toHaveBeenCalled();
                 expect(content.formatOutput).not.toHaveBeenCalled();
+                expect(jobMgr.setJobTimeout).toHaveBeenCalledWith(req, res);
+                expect(jobMgr.checkJobTimeout).toHaveBeenCalledWith(req,
+                    {state: 'rejected', reason: 'Find Error!'}, 'fakeTimeoutObj');
             }).done(done);
         });
 
         it('should fail if cursor.count has an error and multiExp is true', function(done) {
             fakeCursor.toArray.andCallFake(function(cb) { cb('Find Error!'); });
             fakeCursor.count.andCallFake(function(cb) { cb('Count Error!'); });
-            content.getExperiences(query, req, expColl, true).then(function(resp) {
+            content.getExperiences(query, req, res, expColl, true, jobMgr).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Count Error!');
@@ -408,6 +425,9 @@ describe('content (UT)', function() {
                 expect(fakeCursor.toArray).not.toHaveBeenCalled();
                 expect(fakeCursor.count).toHaveBeenCalled();
                 expect(content.formatOutput).not.toHaveBeenCalled();
+                expect(jobMgr.setJobTimeout).toHaveBeenCalledWith(req, res);
+                expect(jobMgr.checkJobTimeout).toHaveBeenCalledWith(req,
+                    {state: 'rejected', reason: 'Count Error!'}, 'fakeTimeoutObj');
             }).done(done);
         });
     });
@@ -427,19 +447,19 @@ describe('content (UT)', function() {
 
         it('should fail with a 400 if no experience is provided', function(done) {
             delete req.body;
-            content.createExperience(req, experiences).then(function(resp) {
+            content.createExperience(req, res, experiences, jobMgr).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(400);
                 expect(experiences.insert).not.toHaveBeenCalled();
-                done();
+                expect(jobMgr.setJobTimeout).not.toHaveBeenCalled();
+                expect(jobMgr.checkJobTimeout).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should successfully create an experience', function(done) {
-            content.createExperience(req, experiences).then(function(resp) {
+            content.createExperience(req, res, experiences, jobMgr).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(201);
                 expect(resp.body.id).toBe('e-1234');
@@ -460,16 +480,17 @@ describe('content (UT)', function() {
                 expect(content.formatOutput).toHaveBeenCalled();
                 expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                 expect(content.checkScope).not.toHaveBeenCalled();
-                done();
+                expect(jobMgr.setJobTimeout).toHaveBeenCalledWith(req, res);
+                expect(jobMgr.checkJobTimeout).toHaveBeenCalledWith(req,
+                    {state: 'fulfilled', value: {code: 201, body: resp.body}}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
         
         it('should set default values for some fields if not specified in the request', function(done) {
             req.body = { tag: 'fakeExp' };
-            content.createExperience(req, experiences).then(function(resp) {
+            content.createExperience(req, res, experiences, jobMgr).then(function(resp) {
                 expect(resp.code).toBe(201);
                 expect(resp.body.id).toBe('e-1234');
                 expect(resp.body.tag).toBe('fakeExp');
@@ -483,29 +504,29 @@ describe('content (UT)', function() {
                     date:jasmine.any(Date),versionId:'fakeVers',data:{}});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should prevent ordinary users from setting the adConfig', function(done) {
             req.body.data.adConfig = {ads: 'good'};
-            content.createExperience(req, experiences).then(function(resp) {
+            content.createExperience(req, res, experiences, jobMgr).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(403);
                 expect(resp.body).toBe('Not authorized to set adConfig');
                 expect(content.checkScope).toHaveBeenCalledWith(req.user, req.body, 'experiences', 'editAdConfig');
                 expect(experiences.insert).not.toHaveBeenCalled();
                 expect(content.formatOutput).not.toHaveBeenCalled();
-                done();
+                expect(jobMgr.setJobTimeout).not.toHaveBeenCalled();
+                expect(jobMgr.checkJobTimeout).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should let users set the adConfig if they have permission to do so', function(done) {
             content.checkScope.andReturn(true);
             req.body.data.adConfig = {ads: 'good'};
-            content.createExperience(req, experiences).then(function(resp) {
+            content.createExperience(req, res, experiences, jobMgr).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(201);
                 expect(resp.body.id).toBe('e-1234');
@@ -513,38 +534,37 @@ describe('content (UT)', function() {
                 expect(content.checkScope).toHaveBeenCalledWith(req.user, req.body, 'experiences', 'editAdConfig');
                 expect(experiences.insert).toHaveBeenCalled();
                 expect(experiences.insert.calls[0].args[0].data[0].data).toEqual({foo:'bar',adConfig:{ads:'good'}});
-                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should fail with a 400 if the request body contains illegal fields', function(done) {
             content.createValidator.validate.andReturn(false);
-            content.createExperience(req, experiences).then(function(resp) {
+            content.createExperience(req, res, experiences, jobMgr).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(400);
                 expect(content.createValidator.validate).toHaveBeenCalled();
                 expect(experiences.insert).not.toHaveBeenCalled();
-                done();
+                expect(jobMgr.setJobTimeout).not.toHaveBeenCalled();
+                expect(jobMgr.checkJobTimeout).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should fail with an error if inserting the record fails', function(done) {
             experiences.insert.andCallFake(function(obj, opts, cb) { cb('Error!'); });
-            content.createExperience(req, experiences).then(function(resp) {
+            content.createExperience(req, res, experiences, jobMgr).then(function(resp) {
                 expect(resp).not.toBeDefined();
-                done();
             }).catch(function(error) {
                 expect(error).toBe('Error!');
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(experiences.insert).toHaveBeenCalled();
-                done();
-            });
+                expect(jobMgr.setJobTimeout).toHaveBeenCalledWith(req, res);
+                expect(jobMgr.checkJobTimeout).toHaveBeenCalledWith(req,
+                    {state: 'rejected', reason: 'Error!'}, 'fakeTimeoutObj');
+            }).done(done);
         });
     });
 
@@ -573,19 +593,19 @@ describe('content (UT)', function() {
 
         it('should fail with a 400 if no update object is provided', function(done) {
             delete req.body;
-            content.updateExperience(req, experiences).then(function(resp) {
+            content.updateExperience(req, res, experiences, jobMgr).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(400);
                 expect(experiences.findOne).not.toHaveBeenCalled();
-                done();
+                expect(jobMgr.setJobTimeout).not.toHaveBeenCalled();
+                expect(jobMgr.checkJobTimeout).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should successfully update an experience', function(done) {
-            content.updateExperience(req, experiences).then(function(resp) {
+            content.updateExperience(req, res, experiences, jobMgr).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({id: 'e-1234', data: {foo:'baz'}, versionId: 'fakeVers'});
                 expect(experiences.findOne).toHaveBeenCalled();
@@ -609,18 +629,19 @@ describe('content (UT)', function() {
                 expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                 expect(content.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'edit');
                 expect(content.checkScope).not.toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'editAdConfig');
-                done();
+                expect(jobMgr.setJobTimeout).toHaveBeenCalledWith(req, res);
+                expect(jobMgr.checkJobTimeout).toHaveBeenCalledWith(req,
+                    {state: 'fulfilled', value: {code: 200, body: resp.body}}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should prevent improper direct edits to some properties', function(done) {
             req.body.title = 'a title';
             req.body.versionId = 'qwer1234';
             req.body.lastStatusChange = new Date();
-            content.updateExperience(req, experiences).then(function(resp) {
+            content.updateExperience(req, res, experiences, jobMgr).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({id: 'e-1234', data: {foo:'baz'}, versionId: 'fakeVers'});
                 expect(experiences.findOne).toHaveBeenCalled();
@@ -631,40 +652,40 @@ describe('content (UT)', function() {
                 expect(updates.$set.versionId).not.toBeDefined();
                 expect(updates.$set.lastStatusChange).not.toBeDefined();
                 expect(content.formatOutput).toHaveBeenCalled();
-                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should not edit the experience if the updates contain illegal fields', function(done) {
             content.updateValidator.validate.andReturn(false);
-            content.updateExperience(req, experiences).then(function(resp) {
+            content.updateExperience(req, res, experiences, jobMgr).then(function(resp) {
                 expect(resp.code).toBe(400);
                 expect(resp.body).toBe('Invalid request body');
                 expect(content.updateValidator.validate).toHaveBeenCalled();
                 expect(experiences.findAndModify).not.toHaveBeenCalled();
-                done();
+                expect(jobMgr.setJobTimeout).toHaveBeenCalledWith(req, res);
+                expect(jobMgr.checkJobTimeout).toHaveBeenCalledWith(req,
+                    {state: 'fulfilled', value: {code: 400, body: 'Invalid request body'}}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should only let a user edit experiences they are authorized to edit', function(done) {
             content.checkScope.andReturn(false);
-            content.updateExperience(req, experiences).then(function(resp) {
+            content.updateExperience(req, res, experiences, jobMgr).then(function(resp) {
                 expect(resp.code).toBe(403);
                 expect(resp.body).toBe('Not authorized to edit this experience');
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findAndModify).not.toHaveBeenCalled();
                 expect(content.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'edit');
-                done();
+                expect(jobMgr.setJobTimeout).toHaveBeenCalledWith(req, res);
+                expect(jobMgr.checkJobTimeout).toHaveBeenCalledWith(req,
+                    {state: 'fulfilled', value: {code: 403, body: 'Not authorized to edit this experience'}}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should prevent ordinary users from editing the adConfig', function(done) {
@@ -673,18 +694,19 @@ describe('content (UT)', function() {
                 else return true;
             });
             req.body.data.adConfig = { ads: 'good' };
-            content.updateExperience(req, experiences).then(function(resp) {
+            content.updateExperience(req, res, experiences, jobMgr).then(function(resp) {
                 expect(resp.code).toBe(403);
                 expect(resp.body).toBe('Not authorized to edit adConfig of this experience');
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findAndModify).not.toHaveBeenCalled();
                 expect(content.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'editAdConfig');
                 expect(objUtils.compareObjects).toHaveBeenCalledWith({ ads: 'good' }, null);
-                done();
+                expect(jobMgr.setJobTimeout).toHaveBeenCalledWith(req, res);
+                expect(jobMgr.checkJobTimeout).toHaveBeenCalledWith(req, {state: 'fulfilled',
+                    value: {code: 403, body: 'Not authorized to edit adConfig of this experience'}}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should allow the edit if the adConfig is unchanged', function(done) {
@@ -694,7 +716,7 @@ describe('content (UT)', function() {
             });
             req.body.data.adConfig = { ads: 'good' };
             oldExp.data[0].data.adConfig = { ads: 'good' };
-            content.updateExperience(req, experiences).then(function(resp) {
+            content.updateExperience(req, res, experiences, jobMgr).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({id:'e-1234',data:{foo:'baz',adConfig:{ads:'good'}},versionId:'fakeVers'});
                 expect(experiences.findAndModify).toHaveBeenCalled();
@@ -702,17 +724,15 @@ describe('content (UT)', function() {
                 expect(updates.$set.data[0].data.adConfig).toEqual({ ads: 'good' });
                 expect(objUtils.compareObjects).toHaveBeenCalledWith({ads: 'good'}, {ads: 'good'});
                 expect(content.checkScope).not.toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'editAdConfig');
-                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should let users edit the adConfig if they have permission to do so', function(done) {
             content.checkScope.andReturn(true);
             req.body.data.adConfig = { ads: 'bad' };
-            content.updateExperience(req, experiences).then(function(resp) {
+            content.updateExperience(req, res, experiences, jobMgr).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({id:'e-1234',data:{foo:'baz',adConfig:{ads:'bad'}},versionId:'fakeVers'});
                 expect(experiences.findOne).toHaveBeenCalled();
@@ -720,64 +740,63 @@ describe('content (UT)', function() {
                 var updates = experiences.findAndModify.calls[0].args[2];
                 expect(updates.$set.data[0].data.adConfig).toEqual({ ads: 'bad' });
                 expect(content.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'editAdConfig');
-                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should not create an experience if it does not already exist', function(done) {
             experiences.findOne.andCallFake(function(query, cb) { cb(); });
-            content.updateExperience(req, experiences).then(function(resp) {
+            content.updateExperience(req, res, experiences, jobMgr).then(function(resp) {
                 expect(resp.code).toBe(404);
                 expect(resp.body).toBe('That experience does not exist');
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findAndModify).not.toHaveBeenCalled();
-                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should not edit an experience that has been deleted', function(done) {
             oldExp.status = [{user: 'otter', status: Status.Deleted}];
-            content.updateExperience(req, experiences).then(function(resp) {
+            content.updateExperience(req, res, experiences, jobMgr).then(function(resp) {
                 expect(resp.code).toBe(404);
                 expect(resp.body).toBe('That experience does not exist');
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findAndModify).not.toHaveBeenCalled();
-                done();
+                expect(jobMgr.setJobTimeout).toHaveBeenCalledWith(req, res);
+                expect(jobMgr.checkJobTimeout).toHaveBeenCalledWith(req, {state: 'fulfilled',
+                    value: {code: 404, body: 'That experience does not exist'}}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should fail with an error if modifying the record fails', function(done) {
             experiences.findAndModify.andCallFake(function(query, sort, obj, opts, cb) { cb('Error!'); });
-            content.updateExperience(req, experiences).then(function(resp) {
+            content.updateExperience(req, res, experiences, jobMgr).then(function(resp) {
                 expect(resp).not.toBeDefined();
-                done();
             }).catch(function(error) {
                 expect(error).toBe('Error!');
                 expect(experiences.findAndModify).toHaveBeenCalled();
-                done();
-            });
+                expect(jobMgr.setJobTimeout).toHaveBeenCalledWith(req, res);
+                expect(jobMgr.checkJobTimeout).toHaveBeenCalledWith(req,
+                    {state: 'rejected', reason: 'Error!'}, 'fakeTimeoutObj');
+            }).done(done);
         });
 
         it('should fail with an error if looking up the record fails', function(done) {
             experiences.findOne.andCallFake(function(query, cb) { cb('Error!'); });
-            content.updateExperience(req, experiences).then(function(resp) {
+            content.updateExperience(req, res, experiences, jobMgr).then(function(resp) {
                 expect(resp).not.toBeDefined();
-                done();
             }).catch(function(error) {
                 expect(error).toBe('Error!');
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findAndModify).not.toHaveBeenCalled();
-                done();
-            });
+                expect(jobMgr.setJobTimeout).toHaveBeenCalledWith(req, res);
+                expect(jobMgr.checkJobTimeout).toHaveBeenCalledWith(req,
+                    {state: 'rejected', reason: 'Error!'}, 'fakeTimeoutObj');
+            }).done(done);
         });
     });
 
@@ -799,7 +818,7 @@ describe('content (UT)', function() {
         });
 
         it('should successfully delete an experience', function(done) {
-            content.deleteExperience(req, experiences).then(function(resp) {
+            content.deleteExperience(req, res, experiences, jobMgr).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(204);
                 expect(resp.body).not.toBeDefined();
@@ -818,82 +837,88 @@ describe('content (UT)', function() {
                 expect(setProps.lastUpdated).toBeGreaterThan(start);
                 expect(experiences.update.calls[0].args[2]).toEqual({w: 1, journal: true});
                 expect(mongoUtils.escapeKeys).toHaveBeenCalled();
-                done();
+                expect(jobMgr.setJobTimeout).toHaveBeenCalledWith(req, res);
+                expect(jobMgr.checkJobTimeout).toHaveBeenCalledWith(req,
+                    {state: 'fulfilled', value: { code: 204 }}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should not do anything if the experience does not exist', function(done) {
             experiences.findOne.andCallFake(function(query, cb) { cb(); });
-            content.deleteExperience(req, experiences).then(function(resp) {
+            content.deleteExperience(req, res, experiences, jobMgr).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(204);
                 expect(resp.body).not.toBeDefined();
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.update).not.toHaveBeenCalled();
-                done();
+                expect(jobMgr.setJobTimeout).toHaveBeenCalledWith(req, res);
+                expect(jobMgr.checkJobTimeout).toHaveBeenCalledWith(req,
+                    {state: 'fulfilled', value: { code: 204 }}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should not do anything if the experience has been deleted', function(done) {
             oldExp.status[0].status = Status.Deleted;
-            content.deleteExperience(req, experiences).then(function(resp) {
+            content.deleteExperience(req, res, experiences, jobMgr).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(204);
                 expect(resp.body).not.toBeDefined();
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.update).not.toHaveBeenCalled();
-                done();
+                expect(jobMgr.setJobTimeout).toHaveBeenCalledWith(req, res);
+                expect(jobMgr.checkJobTimeout).toHaveBeenCalledWith(req,
+                    {state: 'fulfilled', value: { code: 204 }}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should only let a user delete experiences they are authorized to delete', function(done) {
             content.checkScope.andReturn(false);
-            content.deleteExperience(req, experiences).then(function(resp) {
+            content.deleteExperience(req, res, experiences, jobMgr).then(function(resp) {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(403);
                 expect(resp.body).toBe('Not authorized to delete this experience');
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(content.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'delete');
                 expect(experiences.update).not.toHaveBeenCalled();
-                done();
+                expect(jobMgr.setJobTimeout).toHaveBeenCalledWith(req, res);
+                expect(jobMgr.checkJobTimeout).toHaveBeenCalledWith(req, {state: 'fulfilled',
+                    value: {code: 403, body: 'Not authorized to delete this experience'}}, 'fakeTimeoutObj');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should fail with an error if modifying the record fails', function(done) {
             experiences.update.andCallFake(function(query, obj, opts, cb) { cb('Error!'); });
-            content.deleteExperience(req, experiences).then(function(resp) {
+            content.deleteExperience(req, res, experiences, jobMgr).then(function(resp) {
                 expect(resp).not.toBeDefined();
-                done();
             }).catch(function(error) {
                 expect(error.toString()).toBe('Error!');
                 expect(experiences.update).toHaveBeenCalled();
-                done();
-            });
+                expect(jobMgr.setJobTimeout).toHaveBeenCalledWith(req, res);
+                expect(jobMgr.checkJobTimeout).toHaveBeenCalledWith(req,
+                    {state: 'rejected', reason: 'Error!'}, 'fakeTimeoutObj');
+            }).done(done);
         });
 
         it('should fail with an error if looking up the record fails', function(done) {
             experiences.findOne.andCallFake(function(query, cb) { cb('Error!'); });
-            content.deleteExperience(req, experiences).then(function(resp) {
+            content.deleteExperience(req, res, experiences, jobMgr).then(function(resp) {
                 expect(resp).not.toBeDefined();
-                done();
             }).catch(function(error) {
                 expect(error.toString()).toBe('Error!');
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.update).not.toHaveBeenCalled();
-                done();
-            });
+                expect(jobMgr.setJobTimeout).toHaveBeenCalledWith(req, res);
+                expect(jobMgr.checkJobTimeout).toHaveBeenCalledWith(req,
+                    {state: 'rejected', reason: 'Error!'}, 'fakeTimeoutObj');
+            }).done(done);
         });
     });  // end -- describe deleteExperience
 });  // end -- describe content

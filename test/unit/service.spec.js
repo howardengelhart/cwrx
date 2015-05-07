@@ -749,7 +749,7 @@ describe('service (UT)',function(){
         });
     });
 
-    describe('initPubSubs', function() {
+    describe('initPubSubChannels', function() {
         beforeEach(function() {
             state.config.pubsub = {
                 test1: { port: 111, pollDelay: 2000 },
@@ -761,7 +761,7 @@ describe('service (UT)',function(){
         });
 
         it('should be able to setup multiple clients with a variety of options', function(done) {
-            service.initPubSubs(state).then(resolveSpy, rejectSpy)
+            service.initPubSubChannels(state).then(resolveSpy, rejectSpy)
             .finally(function() {
                 expect(resolveSpy).toHaveBeenCalledWith(state);
                 expect(rejectSpy).not.toHaveBeenCalled();
@@ -779,7 +779,7 @@ describe('service (UT)',function(){
         
         it('should initialize a client as a Publisher if isPublisher is true', function(done) {
             state.config.pubsub.test2.isPublisher = true;
-            service.initPubSubs(state).then(resolveSpy, rejectSpy)
+            service.initPubSubChannels(state).then(resolveSpy, rejectSpy)
             .finally(function() {
                 expect(resolveSpy).toHaveBeenCalledWith(state);
                 expect(rejectSpy).not.toHaveBeenCalled();
@@ -798,7 +798,7 @@ describe('service (UT)',function(){
 
         it('should skip if there are no clients to initialize', function(done) {
             delete state.config.pubsub;
-            service.initPubSubs(state).then(resolveSpy, rejectSpy)
+            service.initPubSubChannels(state).then(resolveSpy, rejectSpy)
             .finally(function() {
                 expect(resolveSpy).toHaveBeenCalledWith(state);
                 expect(rejectSpy).not.toHaveBeenCalled();

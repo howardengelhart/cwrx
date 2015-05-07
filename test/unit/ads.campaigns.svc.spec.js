@@ -58,15 +58,14 @@ describe('ads-campaigns (UT)', function() {
             
             var config = {
                 contentHost: 'foo.com',
-                campaigns: { statusDelay: 100, statusAttempts: 5 },
-                jobTimeouts: { enabled: true, timeout: 1000, cacheTTL: 2000 },
+                campaigns: { statusDelay: 100, statusAttempts: 5 }
             };
             var mockDb = {
                 collection: jasmine.createSpy('db.collection()').andCallFake(function(name) {
                     return { collectionName: name };
                 })
             };
-            var svc = campModule.setupSvc(mockDb, config, 'mockCache');
+            var svc = campModule.setupSvc(mockDb, config, 'jobMgr');
             expect(campaignUtils.getAccountIds.bind).toHaveBeenCalledWith(campaignUtils, svc._advertColl, svc._custColl);
             expect(campModule.formatOutput.bind).toHaveBeenCalledWith(campModule, svc);
             expect(campModule.contentHost).toBe('foo.com');
@@ -81,8 +80,7 @@ describe('ads-campaigns (UT)', function() {
             expect(svc._coll).toEqual({collectionName: 'campaigns'});
             expect(svc._advertColl).toEqual({collectionName: 'advertisers'});
             expect(svc._custColl).toEqual({collectionName: 'customers'});
-            expect(svc.cache).toBe('mockCache');
-            expect(svc.jobCfg).toEqual({ enabled: true, timeout: 1000, cacheTTL: 2000, urlPrefix: '' });
+            expect(svc.jobManager).toBe('jobMgr');
             
             expect(svc.createValidator._required).toContain('advertiserId', 'customerId');
             expect(svc.editValidator._forbidden).toContain('advertiserId', 'customerId');

@@ -10,10 +10,10 @@
 
         custModule = {};
 
-    custModule.setupSvc = function(db, config, cache) {
+    custModule.setupSvc = function(db, jobManager) {
         var coll = db.collection('customers'),
-            opts = { userProp: false, orgProp: false, jobTimeouts: config.jobTimeouts },
-            svc = new CrudSvc(coll, 'cu', opts, cache);
+            opts = { userProp: false, orgProp: false },
+            svc = new CrudSvc(coll, 'cu', opts, jobManager);
         svc._advertColl = db.collection('advertisers');
         svc.createValidator._required.push('name');
         svc.createValidator._forbidden.push('adtechId');

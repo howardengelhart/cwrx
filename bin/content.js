@@ -16,7 +16,7 @@
         authUtils       = require('../lib/authUtils'),
         service         = require('../lib/service'),
         enums           = require('../lib/enums'),
-        jobTimeouts     = require('../lib/jobTimeouts'),
+        JobManager      = require('../lib/jobManager'),
         cardModule      = require('./content-cards'),
         catModule       = require('./content-categories'),
         Status          = enums.Status,
@@ -91,13 +91,20 @@
                 retryConnect : true
             }
         },
+        pubsub: {
+            cacheCfg: {
+                port: 21211,
+                isPublisher: false
+            }
+        },
         cache: {
+            enabled: true,
             servers: null,
             readTimeout: 500,
             writeTimeout: 2000
         },
         jobTimeouts: {
-            enabled: false,
+            enabled: true,
             urlPrefix: '/api/content/job',
             timeout: 5*1000,
             cacheTTL: 60*60*1000,
@@ -480,14 +487,14 @@
         });
     };
 
-    content.getExperiences = function(query, req, experiences, multiExp) {
+    content.getExperiences = function(query, req, res, experiences, multiExp, jobManager) {
         var limit = req.query && Number(req.query.limit) || 0,
             skip = req.query && Number(req.query.skip) || 0,
             sort = req.query && req.query.sort,
             sortObj = {},
             resp = {},
             log = logger.getLog(),
-            promise;
+            deferred = q.defer();
         if (sort) {
             var sortParts = sort.split(',');
             if (sortParts.length !== 2 || (sortParts[1] !== '-1' && sortParts[1] !== '1' )) {
@@ -535,14 +542,13 @@
             opts.hint = { org: 1 };
         }
 
+        var timeoutObj = jobManager.setJobTimeout(req, res);
+
         cursor = experiences.find(permQuery, opts);
 
-        if (multiExp) {
-            promise = q.npost(cursor, 'count');
-        } else {
-            promise = q();
-        }
-        return promise.then(function(count) {
+        (multiExp ? q.npost(cursor, 'count') : q())
+        .delay(!!req.query.delay ? 10000 : 0) //TODO: test code
+        .then(function(count) {
             if (count !== undefined) {
                 resp.pagination = {
                     start: count !== 0 ? skip + 1 : 0,
@@ -559,20 +565,26 @@
             log.info('[%1] Showing the user %2 experiences', req.uuid, exps.length);
             resp.code = 200;
             resp.body = exps;
-            return q(resp);
+            return deferred.resolve(resp);
         })
         .catch(function(error) {
             log.error('[%1] Error getting experiences: %2', req.uuid, error);
-            return q.reject(error);
+            return deferred.reject(error);
+        });
+
+        return deferred.promise.finally(function() {
+            return jobManager.checkJobTimeout(req, deferred.promise.inspect(), timeoutObj);
         });
     };
 
 
-    content.createExperience = function(req, experiences) {
+    content.createExperience = function(req, res, experiences, jobManager) {
         var obj = req.body,
             user = req.user,
             log = logger.getLog(),
-            now = new Date();
+            now = new Date(),
+            deferred = q.defer();
+
         if (!obj || typeof obj !== 'object') {
             return q({code: 400, body: 'You must provide an object in the body'});
         }
@@ -616,14 +628,20 @@
         obj.data = [ { user: user.email, userId: user.id, date: now,
                        data: obj.data, versionId: versionId } ];
 
-        return q.npost(experiences, 'insert', [mongoUtils.escapeKeys(obj), {w: 1, journal: true}])
+        var timeoutObj = jobManager.setJobTimeout(req, res);
+
+        q.npost(experiences, 'insert', [mongoUtils.escapeKeys(obj), {w: 1, journal: true}])
         .then(function() {
             log.info('[%1] User %2 successfully created experience %3', req.uuid, user.id, obj.id);
-            return q({code: 201, body: content.formatOutput(obj)});
+            return deferred.resolve({ code: 201, body: content.formatOutput(obj) });
         }).catch(function(error) {
             log.error('[%1] Error creating experience %2 for user %3: %4',
                       req.uuid, obj.id, user.id, error);
-            return q.reject(error);
+            return deferred.reject(error);
+        });
+
+        return deferred.promise.finally(function() {
+            return jobManager.checkJobTimeout(req, deferred.promise.inspect(), timeoutObj);
         });
     };
 
@@ -672,35 +690,51 @@
         return mongoUtils.escapeKeys(updates);
     };
 
-    content.updateExperience = function(req, experiences) {
+    content.updateExperience = function(req, res, experiences, jobManager) {
         var updates = req.body,
             id = req.params.id,
             user = req.user,
-            log = logger.getLog();
+            log = logger.getLog(),
+            deferred = q.defer();
+
         if (!updates || typeof updates !== 'object') {
             return q({code: 400, body: 'You must provide an object in the body'});
         }
 
+        var timeoutObj = jobManager.setJobTimeout(req, res);
+
         log.info('[%1] User %2 is attempting to update experience %3',req.uuid,user.id,id);
-        return q.npost(experiences, 'findOne', [{id: id}])
+        q.npost(experiences, 'findOne', [{id: id}])
         .then(function(orig) {
             if (!orig) {
                 log.info('[%1] Experience %2 does not exist; not creating it', req.uuid, id);
-                return q({code: 404, body: 'That experience does not exist'});
+                return deferred.resolve({
+                    code: 404,
+                    body: 'That experience does not exist'
+                });
             }
             if (orig.status && orig.status[0] && orig.status[0].status === Status.Deleted) {
                 log.info('[%1] User %2 trying to update deleted experience %3',req.uuid,user.id,id);
-                return q({code: 404, body: 'That experience does not exist'});
+                return deferred.resolve({
+                    code: 404,
+                    body: 'That experience does not exist'
+                });
             }
             if (!content.updateValidator.validate(updates, orig, user)) {
                 log.warn('[%1] updates contain illegal fields', req.uuid);
                 log.trace('exp: %1  |  orig: %2  |  requester: %3',
                           JSON.stringify(updates), JSON.stringify(orig), JSON.stringify(user));
-                return q({code: 400, body: 'Invalid request body'});
+                return deferred.resolve({
+                    code: 400,
+                    body: 'Invalid request body'
+                });
             }
             if (!content.checkScope(user, orig, 'experiences', 'edit')) {
                 log.info('[%1] User %2 is not authorized to edit %3', req.uuid, user.id, id);
-                return q({ code: 403, body: 'Not authorized to edit this experience' });
+                return deferred.resolve({
+                    code: 403,
+                    body: 'Not authorized to edit this experience'
+                });
             }
 
             var origAdConfig = orig.data && orig.data[0] && orig.data[0].data.adConfig || null;
@@ -709,7 +743,10 @@
                 !objUtils.compareObjects(updates.data.adConfig, origAdConfig) &&
                 !content.checkScope(user, orig, 'experiences', 'editAdConfig')) {
                 log.info('[%1] User %2 not authorized to edit adConfig of %3',req.uuid,user.id,id);
-                return q({ code: 403, body: 'Not authorized to edit adConfig of this experience' });
+                return deferred.resolve({
+                    code: 403,
+                    body: 'Not authorized to edit adConfig of this experience'
+                });
             }
 
             updates = content.formatUpdates(req, orig, updates, user);
@@ -720,21 +757,30 @@
                 var updated = results[0];
                 log.info('[%1] User %2 successfully updated experience %3',
                          req.uuid, user.id, updated.id);
-                return q({code: 200, body: content.formatOutput(updated)});
+                return deferred.resolve({ code: 200, body: content.formatOutput(updated) });
             });
-        }).catch(function(error) {
+        })
+        .catch(function(error) {
             log.error('[%1] Error updating experience %2 for user %3: %4',
                       req.uuid, id, user.id, error);
-            return q.reject(error);
+            return deferred.reject(error);
+        });
+
+        return deferred.promise.finally(function() {
+            return jobManager.checkJobTimeout(req, deferred.promise.inspect(), timeoutObj);
         });
     };
 
-    content.deleteExperience = function(req, experiences) {
+    content.deleteExperience = function(req, res, experiences, jobManager) {
         var id = req.params.id,
             user = req.user,
             log = logger.getLog(),
             deferred = q.defer();
+
+        var timeoutObj = jobManager.setJobTimeout(req, res);
+
         log.info('[%1] User %2 is attempting to delete experience %3', req.uuid, user.id, id);
+
         q.npost(experiences, 'findOne', [{id: id}])
         .then(function(orig) {
             if (!orig) {
@@ -767,7 +813,10 @@
                       req.uuid, id, user.id, error);
             deferred.reject(error);
         });
-        return deferred.promise;
+
+        return deferred.promise.finally(function() {
+            return jobManager.checkJobTimeout(req, deferred.promise.inspect(), timeoutObj);
+        });
     };
 
     ///////////////////////////////////////////////////////////////////////////
@@ -787,6 +836,7 @@
             cacheKeys    = ['experiences', 'orgs', 'sites', 'campaigns', 'cards'],
             collections  = {},
             caches       = {},
+            jobManager   = new JobManager(state.cache, state.config.jobTimeouts),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName),
             audit        = auditJournal.middleware.bind(auditJournal),
@@ -801,8 +851,8 @@
         });
 
         authUtils._coll = collections.users;
-        cardSvc = cardModule.setupCardSvc(collections.cards,state.config,caches.cards,state.cache);
-        catSvc = catModule.setupCatSvc(collections.categories, state.config, state.cache);
+        cardSvc = cardModule.setupCardSvc(collections.cards, caches.cards, jobManager);
+        catSvc = catModule.setupCatSvc(collections.categories, jobManager);
 
 
         app.use(express.bodyParser());
@@ -928,7 +978,8 @@
         
         // private get experience by id
         app.get('/api/content/experience/:id', sessWrap, authGetExp, audit, function(req, res) {
-            content.getExperiences({id:req.params.id}, req, collections.experiences)
+            var query = { id: req.params.id };
+            content.getExperiences(query, req, res, collections.experiences, jobManager)
             .then(function(resp) {
                 if (resp.body && resp.body instanceof Array) {
                     if (resp.body.length === 0) {
@@ -967,7 +1018,7 @@
                 return res.send(400, 'Must specify at least one supported query param');
             }
 
-            content.getExperiences(query, req, collections.experiences, true)
+            content.getExperiences(query, req, res, collections.experiences, true, jobManager)
             .then(function(resp) {
                 if (resp.pagination) {
                     res.header('content-range', 'items ' + resp.pagination.start + '-' +
@@ -982,7 +1033,7 @@
 
         var authPostExp = authUtils.middlewarify({experiences: 'create'});
         app.post('/api/content/experience', sessWrap, authPostExp, audit, function(req, res) {
-            content.createExperience(req, collections.experiences)
+            content.createExperience(req, res, collections.experiences, jobManager)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
@@ -992,7 +1043,7 @@
 
         var authPutExp = authUtils.middlewarify({experiences: 'edit'});
         app.put('/api/content/experience/:id', sessWrap, authPutExp, audit, function(req, res) {
-            content.updateExperience(req, collections.experiences)
+            content.updateExperience(req, res, collections.experiences, jobManager)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
@@ -1002,7 +1053,7 @@
 
         var authDelExp = authUtils.middlewarify({experiences: 'delete'});
         app.delete('/api/content/experience/:id', sessWrap, authDelExp, audit, function(req, res) {
-            content.deleteExperience(req, collections.experiences)
+            content.deleteExperience(req, res, collections.experiences, jobManager)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
@@ -1017,7 +1068,7 @@
         catModule.setupEndpoints(app, catSvc, sessWrap, audit);
 
         app.get('/api/content/job/:id', function(req, res) {
-            jobTimeouts.getJobResult(state.cache, req, req.params.id).then(function(resp) {
+            jobManager.getJobResult(req, req.params.id).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Internal error', detail: error });
@@ -1061,6 +1112,7 @@
         .then(service.cluster)
         .then(service.initMongo)
         .then(service.initSessionStore)
+        .then(service.initPubSubChannels)
         .then(service.initCache)
         .then(service.ensureIndices)
         .then(content.main)

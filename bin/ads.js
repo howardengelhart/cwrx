@@ -7,7 +7,7 @@
         logger          = require('../lib/logger'),
         uuid            = require('../lib/uuid'),
         journal         = require('../lib/journal'),
-        jobTimeouts     = require('../lib/jobTimeouts'),
+        JobManager      = require('../lib/jobManager'),
         advertModule    = require('./ads-advertisers'),
         custModule      = require('./ads-customers'),
         campModule      = require('./ads-campaigns'),
@@ -80,7 +80,7 @@
             writeTimeout: 2000
         },
         jobTimeouts: {
-            enabled: false,
+            enabled: true,
             urlPrefix: '/api/ads/job',
             timeout: 5*1000,
             cacheTTL: 60*60*1000,
@@ -101,11 +101,12 @@
             users        = state.dbs.c6Db.collection('users'),
             adverts      = state.dbs.c6Db.collection('advertisers'),
             sites        = state.dbs.c6Db.collection('sites'),
-            advertSvc    = advertModule.setupSvc(adverts, state.config, state.cache),
-            custSvc      = custModule.setupSvc(state.dbs.c6Db, state.config, state.cache),
-            campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config, state.cache),
-            groupSvc     = groupModule.setupSvc(state.dbs.c6Db, state.config, state.cache),
-            siteSvc      = siteModule.setupSvc(sites, state.config, state.cache),
+            jobManager   = new JobManager(state.cache, state.config.jobTimeouts),
+            advertSvc    = advertModule.setupSvc(adverts, jobManager),
+            custSvc      = custModule.setupSvc(state.dbs.c6Db, jobManager),
+            campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config, jobManager),
+            groupSvc     = groupModule.setupSvc(state.dbs.c6Db, state.config, jobManager),
+            siteSvc      = siteModule.setupSvc(sites, jobManager),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._coll = users;
@@ -175,34 +176,6 @@
             }
             next();
         });
-
-        //TODO: test code
-        var util = require('util');
-        app.get('/api/ads/cache/:key', function(req, res) {
-            log.info('[%1] Getting value of %2 in cache', req.uuid, req.params.key);
-            state.cache.get(req.params.key).then(function(val) {
-                log.trace('[%1] Successfully got val %2 for %3', req.uuid, val, req.params.key);
-                res.send(200, val);
-            })
-            .catch(function(error) {
-                log.error('[%1] cache.get had error: %2', req.uuid, error && error.stack || error);
-                res.send(500, error);
-            });
-        });
-        
-        app.put('/api/ads/cache/:key', function(req, res) {
-            log.info('[%1] Setting value of %2 in cache to %3',
-                     req.uuid, req.params.key, util.inspect(req.body));
-            var ttl = req.query.ttl || 60*60*1000;
-            state.cache.set(req.params.key, req.body, ttl).then(function(val) {
-                res.send(200, val);
-            })
-            .catch(function(error) {
-                log.error('[%1] cache.set had error: %2', req.uuid, error && error.stack || error);
-                res.send(500, error);
-            });
-        });
-
         
         advertModule.setupEndpoints(app, advertSvc, sessWrap, audit);
         custModule.setupEndpoints(app, custSvc, sessWrap, audit);
@@ -212,7 +185,7 @@
 
         
         app.get('/api/ads/job/:id', function(req, res) {
-            jobTimeouts.getJobResult(state.cache, req, req.params.id).then(function(resp) {
+            jobManager.getJobResult(req, req.params.id).then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, { error: 'Internal error', detail: error });
@@ -256,7 +229,7 @@
         .then(service.cluster)
         .then(service.initMongo)
         .then(service.initSessionStore)
-        .then(service.initPubSubs)
+        .then(service.initPubSubChannels)
         .then(service.initCache)
         .then(function(state) {
             return adtech.createClient(

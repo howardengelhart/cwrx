@@ -14,13 +14,13 @@
             campsCfg: null
         };
 
-    groupModule.setupSvc = function(db, config, cache) {
+    groupModule.setupSvc = function(db, config, jobManager) {
         groupModule.groupsCfg = config.minireelGroups;
         groupModule.campsCfg = config.campaigns;
     
         var groupColl = db.collection('minireelGroups'),
-            opts = { userProp: false, orgProp: false, jobTimeouts: config.jobTimeouts },
-            svc = new CrudSvc(groupColl, 'g', opts, cache);
+            opts = { userProp: false, orgProp: false },
+            svc = new CrudSvc(groupColl, 'g', opts, jobManager);
         svc._advertColl = db.collection('advertisers');
         svc._custColl = db.collection('customers');
         

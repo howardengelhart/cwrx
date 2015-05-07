@@ -11,9 +11,9 @@
         cardModule = {};
 
         
-    cardModule.setupCardSvc = function(cardColl, config, cardCache, cache) {
-        var opts = { allowPublic: true, jobTimeouts: config.jobTimeouts },
-            cardSvc = new CrudSvc(cardColl, 'rc', opts, cache);
+    cardModule.setupCardSvc = function(cardColl, cardCache, jobManager) {
+        var opts = { allowPublic: true },
+            cardSvc = new CrudSvc(cardColl, 'rc', opts, jobManager);
         
         cardSvc._cardCache = cardCache;
             

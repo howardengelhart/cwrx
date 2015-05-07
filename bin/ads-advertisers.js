@@ -10,9 +10,9 @@
 
         advertModule = {};
 
-    advertModule.setupSvc = function(coll, config, cache) {
-        var opts = { userProp: false, orgProp: false, jobTimeouts: config.jobTimeouts },
-            svc = new CrudSvc(coll, 'a', opts, cache);
+    advertModule.setupSvc = function(coll, jobManager) {
+        var opts = { userProp: false, orgProp: false },
+            svc = new CrudSvc(coll, 'a', opts, jobManager);
         svc.createValidator._required.push('name');
         svc.createValidator._forbidden.push('adtechId');
         svc.use('read', svc.preventGetAll.bind(svc));

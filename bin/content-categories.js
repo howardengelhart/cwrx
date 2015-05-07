@@ -9,14 +9,13 @@
 
         catModule = {};
 
-    catModule.setupCatSvc = function(catColl, config, cache) {
+    catModule.setupCatSvc = function(catColl, jobManager) {
         var opts = {
             userProp: false,
             orgProp: false,
-            allowPublic: true,
-            jobTimeouts: config.jobTimeouts
+            allowPublic: true
         };
-        var catSvc = new CrudSvc(catColl, 'cat', opts, cache);
+        var catSvc = new CrudSvc(catColl, 'cat', opts, jobManager);
             
         catSvc.createValidator._required.push('name');
         catSvc.editValidator._forbidden.push('name');

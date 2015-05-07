@@ -49,8 +49,7 @@ describe('ads-customers (UT)', function() {
                     return { collectionName: name };
                 })
             };
-            var config = { jobTimeouts: { enabled: true, timeout: 1000, cacheTTL: 2000 } },
-                svc = custModule.setupSvc(mockDb, config, 'mockCache');
+            var svc = custModule.setupSvc(mockDb, 'jobMgr');
             
             expect(custModule.createAdtechCust.bind).toHaveBeenCalledWith(custModule, svc);
             expect(custModule.editAdtechCust.bind).toHaveBeenCalledWith(custModule, svc);
@@ -63,8 +62,7 @@ describe('ads-customers (UT)', function() {
             expect(svc._allowPublic).toBe(false);
             expect(svc._coll).toEqual({ collectionName: 'customers' });
             expect(svc._advertColl).toEqual({ collectionName: 'advertisers' });
-            expect(svc.cache).toBe('mockCache');
-            expect(svc.jobCfg).toEqual({ enabled: true, timeout: 1000, cacheTTL: 2000, urlPrefix: '' });
+            expect(svc.jobManager).toBe('jobMgr');
             
             expect(svc.createValidator._required).toContain('name');
             expect(svc.createValidator._forbidden).toContain('adtechId');
