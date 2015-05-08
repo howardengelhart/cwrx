@@ -98,10 +98,8 @@
             }
         },
         cache: {
-            enabled: true,
-            servers: null,
-            readTimeout: 500,
-            writeTimeout: 2000
+            timeouts: {},
+            servers: null
         },
         jobTimeouts: {
             enabled: true,
@@ -547,7 +545,6 @@
         cursor = experiences.find(permQuery, opts);
 
         (multiExp ? q.npost(cursor, 'count') : q())
-        .delay(!!req.query.delay ? 10000 : 0) //TODO: test code
         .then(function(count) {
             if (count !== undefined) {
                 resp.pagination = {

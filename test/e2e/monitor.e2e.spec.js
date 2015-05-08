@@ -1,7 +1,10 @@
 var q               = require('q'),
     util            = require('util'),
     requestUtils    = require('../../lib/requestUtils'),
-    urlBase         = 'http://' + (process.env.host ? process.env.host : 'localhost'),
+    pubsub          = require('../../lib/pubsub'),
+    cacheServer     = process.env.cacheServer || 'localhost:11211',
+    cacheCfgPort    = process.env.cacheCfgPort || 21211,
+    urlBase         = 'http://' + (process.env.host || 'localhost'),
     makeUrl         = function(fragment) { return urlBase + fragment; };
     
 describe('monitor (E2E)', function(){
@@ -194,5 +197,32 @@ describe('monitor (E2E)', function(){
             })
             .done(done);
         },10000);
+    });
+    
+    describe('GET /api/monitor/cacheServers', function() {
+        it('should get a list of cache servers', function(done) {
+            requestUtils.qRequest('get', { url: makeUrl('/api/monitor/cacheServers') }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({ servers: [cacheServer] });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return the same list monitor is broadcasting on the cacheCfg channel', function(done) {
+            requestUtils.qRequest('get', { url: makeUrl('/api/monitor/cacheServers') }).then(function(resp) {
+                var servers = resp.body.servers;
+                
+                var sub = new pubsub.Subscriber('cacheCfg', { port: cacheCfgPort }, { reconnect: false })
+                .on('message', function(msg) {
+                    expect(msg).toEqual({ servers: servers });
+                    sub.close();
+                    done();
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+                done();
+            });
+        });
     });
 });

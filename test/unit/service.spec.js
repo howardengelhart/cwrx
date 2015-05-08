@@ -752,12 +752,12 @@ describe('service (UT)',function(){
     describe('initPubSubChannels', function() {
         beforeEach(function() {
             state.config.pubsub = {
-                test1: { port: 111, pollDelay: 2000 },
+                test1: { port: 111, opts: { reconnectDelay: 2000 } },
                 test2: { port: 222, host: 'h1' },
                 test3: { path: '/tmp/test3', isPublisher: false }
             };
-            spyOn(pubsub, 'Subscriber')//.andCallFake(function() { return this; });
-            spyOn(pubsub, 'Publisher')//.andCallFake(function() { return this; });
+            spyOn(pubsub, 'Subscriber');
+            spyOn(pubsub, 'Publisher');
         });
 
         it('should be able to setup multiple clients with a variety of options', function(done) {
@@ -771,7 +771,7 @@ describe('service (UT)',function(){
                     test2: jasmine.any(pubsub.Subscriber),
                     test3: jasmine.any(pubsub.Subscriber)
                 });
-                expect(pubsub.Subscriber.calls[0].args).toEqual(['test1', { port: 111 }, 2000]);
+                expect(pubsub.Subscriber.calls[0].args).toEqual(['test1', { port: 111 }, { reconnectDelay: 2000 }]);
                 expect(pubsub.Subscriber.calls[1].args).toEqual(['test2', { port: 222, host: 'h1' }, undefined]);
                 expect(pubsub.Subscriber.calls[2].args).toEqual(['test3', { path: '/tmp/test3' }, undefined]);
             }).done(done);
@@ -791,7 +791,7 @@ describe('service (UT)',function(){
                     test3: jasmine.any(pubsub.Subscriber)
                 });
                 expect(pubsub.Publisher.calls[0].args).toEqual(['test2', { port: 222, host: 'h1' }]);
-                expect(pubsub.Subscriber.calls[0].args).toEqual(['test1', { port: 111 }, 2000]);
+                expect(pubsub.Subscriber.calls[0].args).toEqual(['test1', { port: 111 }, { reconnectDelay: 2000 }]);
                 expect(pubsub.Subscriber.calls[1].args).toEqual(['test3', { path: '/tmp/test3' }, undefined]);
             }).done(done);
         });
@@ -813,10 +813,8 @@ describe('service (UT)',function(){
     describe('initCache', function() {
         beforeEach(function() {
             state.config.cache = {
-                enabled: true,
                 servers: 'localhost:123,localhost:456',
-                readTimeout: 200,
-                writeTimeout: 300
+                timeouts: { read: 200, stats: 300, write: 400 }
             };
             spyOn(cacheLib.Cache.prototype, '_initClient');
             spyOn(cacheLib.Cache.prototype, 'updateServers').andReturn(q());
@@ -828,8 +826,7 @@ describe('service (UT)',function(){
                 expect(resolveSpy).toHaveBeenCalledWith(state);
                 expect(rejectSpy).not.toHaveBeenCalled();
                 expect(state.cache instanceof cacheLib.Cache).toBe(true);
-                expect(state.cache.timeouts.read).toBe(200);
-                expect(state.cache.timeouts.write).toBe(300);
+                expect(state.cache.timeouts).toEqual({ read: 200, stats: 300, write: 400 });
                 expect(state.cache._initClient).toHaveBeenCalledWith(['localhost:123', 'localhost:456']);
             }).done(done);
         });
@@ -841,8 +838,7 @@ describe('service (UT)',function(){
                 expect(resolveSpy).toHaveBeenCalledWith(state);
                 expect(rejectSpy).not.toHaveBeenCalled();
                 expect(state.cache instanceof cacheLib.Cache).toBe(true);
-                expect(state.cache.timeouts.read).toBe(200);
-                expect(state.cache.timeouts.write).toBe(300);
+                expect(state.cache.timeouts).toEqual({ read: 200, stats: 300, write: 400 });
                 expect(state.cache._initClient).toHaveBeenCalledWith([]);
                 expect(state.cache.cacheReady).toBe(false);
             }).done(done);
@@ -859,17 +855,6 @@ describe('service (UT)',function(){
             }).done(done);
         });
 
-        it('should skip if config.cache.enabled is false', function(done) {
-            state.config.cache.enabled = false;
-            service.initCache(state).then(resolveSpy, rejectSpy)
-            .finally(function() {
-                expect(resolveSpy).toHaveBeenCalledWith(state);
-                expect(rejectSpy).not.toHaveBeenCalled();
-                expect(cacheLib.Cache.prototype._initClient).not.toHaveBeenCalled();
-                expect(state.cache).not.toBeDefined();
-            }).done(done);
-        });
-        
         describe('when there is a cfgChannel', function() {
             beforeEach(function() {
                 state.subscribers = { cacheCfg: new events.EventEmitter() };

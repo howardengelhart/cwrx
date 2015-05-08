@@ -46,8 +46,8 @@ describe('cacheLib', function() {
     describe('Cache', function() {
         describe('initialization', function() {
             it('should call _initClient with the servers', function() {
-                var cache = new cacheLib.Cache('host1:123,host2:456', 5000, 6000);
-                expect(cache.timeouts).toEqual({read: 5000, write: 6000});
+                var cache = new cacheLib.Cache('host1:123,host2:456', { read: 5000, stats: 6000, write: 7000 });
+                expect(cache.timeouts).toEqual({ read: 5000, stats: 6000, write: 7000 });
                 expect(cache._initClient).toHaveBeenCalledWith(['host1:123', 'host2:456']);
             });
             
@@ -62,7 +62,7 @@ describe('cacheLib', function() {
             
             it('should have defaults for the timeouts', function() {
                 var cache = new cacheLib.Cache('host1:123,host2:456');
-                expect(cache.timeouts).toEqual({read: 500, write: 2000});
+                expect(cache.timeouts).toEqual({ read: 500, stats: 2000, write: 2000 });
                 expect(cache._initClient).toHaveBeenCalled();
             });
 
@@ -357,7 +357,7 @@ describe('cacheLib', function() {
             it('should call _memcachedCommand with stats', function(done) {
                 cache.checkConnection().then(function(resp) {
                     expect(resp).toBe(true);
-                    expect(cache._memcachedCommand).toHaveBeenCalledWith('stats', 'read');
+                    expect(cache._memcachedCommand).toHaveBeenCalledWith('stats', 'stats');
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);

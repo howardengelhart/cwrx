@@ -3,7 +3,8 @@
     'use strict';
     var __ut__      = (global.jasmine !== undefined) ? true : false;
     
-    var path            = require('path'),
+    var q               = require('q'),
+        path            = require('path'),
         logger          = require('../lib/logger'),
         uuid            = require('../lib/uuid'),
         journal         = require('../lib/journal'),
@@ -74,10 +75,8 @@
             }
         },
         cache: {
-            enabled: true,
-            servers: null,
-            readTimeout: 500,
-            writeTimeout: 2000
+            timeouts: {},
+            servers: null
         },
         jobTimeouts: {
             enabled: true,
@@ -227,16 +226,21 @@
         .then(service.prepareServer)
         .then(service.daemonize)
         .then(service.cluster)
+        .then(function(state) { // NOTE: adtech.createClient() blocks for ~2-3s!
+            var log = logger.getLog();
+            log.info('Creating adtech client');
+            return adtech.createClient(
+                state.config.adtechCreds.keyPath,
+                state.config.adtechCreds.certPath
+            ).then(function() {
+                log.info('Finished creating adtech client');
+                return q(state);
+            });
+        })
         .then(service.initMongo)
         .then(service.initSessionStore)
         .then(service.initPubSubChannels)
         .then(service.initCache)
-        .then(function(state) {
-            return adtech.createClient(
-                state.config.adtechCreds.keyPath,
-                state.config.adtechCreds.certPath
-            ).thenResolve(state);
-        })
         .then(ads.main)
         .catch(function(err) {
             var log = logger.getLog();

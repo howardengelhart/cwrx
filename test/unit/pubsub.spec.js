@@ -52,8 +52,6 @@ describe('pubsub', function() {
         spyOn(net, 'connect').andReturn(new MockSocket());
     });
     
-    //TODO: some integration test with publisher + subscriber???
-    
     describe('Publisher', function() {
         var pub, sock1, sock2;
         beforeEach(function() {
@@ -197,20 +195,19 @@ describe('pubsub', function() {
     describe('Subscriber', function() {
         describe('initialization', function() {
             it('should initalize the underlying socket and other properties', function() {
-                var sub = new pubsub.Subscriber('test', {port: 123}, 2000);
+                var sub = new pubsub.Subscriber('test', {port: 123}, { reconnect: false, reconnectDelay: 2000 });
                 expect(sub instanceof events.EventEmitter).toBe(true);
                 expect(sub.name).toBe('test');
                 expect(sub.connCfg).toEqual({port: 123});
-                expect(sub.reconnectDelay).toBe(2000);
-                expect(sub.isConnected).toBe(false);
+                expect(sub.reconnect).toEqual({ enabled: false, delay: 2000 });
                 expect(sub.lastMsg).toBe(null);
                 expect(sub._socket instanceof MockSocket).toBe(true);
                 expect(net.connect).toHaveBeenCalledWith({port: 123});
             });
             
-            it('should have a default reconnectDelay', function() {
+            it('should have default opts', function() {
                 var sub = new pubsub.Subscriber('test', {port: 123});
-                expect(sub.reconnectDelay).toBe(5000);
+                expect(sub.reconnect).toEqual({ enabled: true, delay: 5000 });
             });
             
             it('should throw an error if not provided with a complete connection config', function() {
@@ -220,15 +217,6 @@ describe('pubsub', function() {
                 expect(function() { var s = new pubsub.Subscriber('test', { host: 'h1' }); }).toThrow(msg);
                 expect(function() { var s = new pubsub.Subscriber('test', { port: 123 }); }).not.toThrow();
                 expect(function() { var s = new pubsub.Subscriber('test', { path: '/tmp/test' }); }).not.toThrow();
-            });
-        });
-
-        describe('on connecting', function() {
-            it('should set isConnected to true', function() {
-                var sub = new pubsub.Subscriber('test', {port: 123}, 2000);
-                expect(sub.isConnected).toBe(false);
-                sub._socket.emit('connect');
-                expect(sub.isConnected).toBe(true);
             });
         });
         
@@ -255,38 +243,32 @@ describe('pubsub', function() {
         });
         
         describe('on disconnecting', function() {
-            it('should set isConnected to false and call enableConnPoll', function() {
+            it('should call beginReconnect', function() {
                 var sub = new pubsub.Subscriber('test', {port: 123});
-                spyOn(sub, 'enableConnPoll');
-                expect(sub.isConnected).toBe(false);
+                spyOn(sub, 'beginReconnect');
                 sub._socket.emit('connect');
-                expect(sub.isConnected).toBe(true);
                 sub._socket.emit('end');
-                expect(sub.isConnected).toBe(false);
-                expect(sub.enableConnPoll).toHaveBeenCalled();
+                expect(sub.beginReconnect).toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
             });
         });
 
         describe('on receiving an error', function() {
-            it('should set isConnected to false call enableConnPoll', function() {
+            it('should call beginReconnect', function() {
                 var sub = new pubsub.Subscriber('test', {port: 123});
-                spyOn(sub, 'enableConnPoll');
-                expect(sub.isConnected).toBe(false);
+                spyOn(sub, 'beginReconnect');
                 sub._socket.emit('connect');
-                expect(sub.isConnected).toBe(true);
                 sub._socket.emit('error', 'I GOT A PROBLEM');
-                expect(sub.isConnected).toBe(false);
-                expect(sub.enableConnPoll).toHaveBeenCalled();
+                expect(sub.beginReconnect).toHaveBeenCalled();
                 expect(mockLog.warn).toHaveBeenCalled();
             });
         });
         
-        describe('enableConnPoll', function() {
+        describe('beginReconnect', function() {
             it('should set an interval to call socket.connect', function() {
-                var sub = new pubsub.Subscriber('test', {port: 123}, 2000);
-                sub.enableConnPoll();
-                expect(sub._pollInterval).toBeDefined();
+                var sub = new pubsub.Subscriber('test', {port: 123}, { reconnectDelay: 2000 });
+                sub.beginReconnect();
+                expect(sub.reconnect._interval).toBeDefined();
                 jasmine.Clock.tick(2001);
                 expect(sub._socket.connect).toHaveBeenCalledWith({port: 123});
                 expect(sub._socket.connect.calls.length).toBe(1);
@@ -296,13 +278,31 @@ describe('pubsub', function() {
             });
             
             it('should do nothing if the interval has already been created', function() {
-                var sub = new pubsub.Subscriber('test', {port: 123}, 2000);
-                sub.enableConnPoll();
-                sub.enableConnPoll();
-                expect(sub._pollInterval).toBeDefined();
+                var sub = new pubsub.Subscriber('test', {port: 123}, { reconnectDelay: 2000 });
+                sub.beginReconnect();
+                sub.beginReconnect();
+                expect(sub.reconnect._interval).toBeDefined();
                 jasmine.Clock.tick(2001);
+                expect(sub._socket.connect.calls.length).toBe(1);
+            });
+            
+            it('should do nothing if reconnecting is disabled', function() {
+                var sub = new pubsub.Subscriber('test', {port: 123}, { reconnect: false });
+                sub.beginReconnect();
+                expect(sub.reconnect._interval).not.toBeDefined();
                 jasmine.Clock.tick(2001);
-                expect(sub._socket.connect.calls.length).toBe(2);
+                expect(sub._socket.connect).not.toHaveBeenCalled();
+            });
+        });
+        
+        describe('close', function() {
+            it('should close the socket and not reconnect', function() {
+                var sub = new pubsub.Subscriber('test', {port: 123}, { reconnect: true, reconnectDelay: 2000 });
+                sub.close();
+                expect(sub.reconnect._interval).not.toBeDefined();
+                expect(sub.reconnect.enabled).toBe(false);
+                jasmine.Clock.tick(2001);
+                expect(sub._socket.connect).not.toHaveBeenCalled();
             });
         });
         
@@ -310,27 +310,22 @@ describe('pubsub', function() {
         describe('when the connection is lost', function() {
             it('should periodically try to reconnect, and stop once it succeeds', function() {
                 // initial setup and connect
-                var sub = new pubsub.Subscriber('test', {port: 123}, 2000);
-                expect(sub.isConnected).toBe(false);
+                var sub = new pubsub.Subscriber('test', {port: 123}, { reconnectDelay: 2000 });
                 sub._socket.emit('connect');
-                expect(sub.isConnected).toBe(true);
                 
                 // subscriber disconnects
                 sub._socket.emit('end');
-                expect(sub.isConnected).toBe(false);
-                expect(sub._pollInterval).toBeDefined();
+                expect(sub.reconnect._interval).toBeDefined();
 
                 // reconnect attempts, but no success yet
                 jasmine.Clock.tick(2001);
                 jasmine.Clock.tick(2001);
                 jasmine.Clock.tick(2001);
                 expect(sub._socket.connect.calls.length).toBe(3);
-                expect(sub.isConnected).toBe(false);
                 
                 // reconnect
                 sub._socket.emit('connect');
-                expect(sub.isConnected).toBe(true);
-                expect(sub._pollInterval).not.toBeDefined();
+                expect(sub.reconnect._interval).not.toBeDefined();
 
                 // should not be calling socket.connect anymore
                 jasmine.Clock.tick(2001);

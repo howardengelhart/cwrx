@@ -302,7 +302,6 @@
     };
 
     
-    //TODO: might want to update cookbook to allow loading AWS creds through Vagrantfile
     // Get a list of private ip addresses for the InService instances in an AutoScaling group.
     app.getASGInstances = function(ASG, EC2, groupName) {
         var log = logger.getLog();
@@ -446,7 +445,7 @@
             app.handleGetStatus(state, req, res);
         });
 
-        webServer.get('/api/monitor/cacheHosts', function(req, res) { //TODO: reconsider?
+        webServer.get('/api/monitor/cacheServers', function(req, res) {
             log.info('Starting getCacheServers in response to request');
             app.getCacheServers(ASG, EC2, state.config.cacheDiscovery).then(function(servers) {
                 res.send(200, { servers: servers });

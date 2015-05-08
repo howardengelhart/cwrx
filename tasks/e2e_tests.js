@@ -31,7 +31,12 @@ module.exports = function(grunt) {
                 lookupIp(ec2Data,grunt.option('statusHost'),'public'));
         }
         if (grunt.option('cacheHost')) {
-            args.push('--config', 'cacheHost', lookupIp(ec2Data,grunt.option('cacheHost'),'public'));
+            var host = lookupIp(ec2Data,grunt.option('cacheHost'),'public'),
+                port = grunt.option('cachePort') || 11211;
+            args.push('--config', 'cacheServer', host + ':' + port);
+        }
+        if (grunt.option('cacheCfgPort')) {
+            args.push('--config', 'cacheCfgPort', grunt.option('cacheCfgPort'));
         }
         if (grunt.option('bucket')) {
             args.push('--config', 'bucket', grunt.option('bucket'));
