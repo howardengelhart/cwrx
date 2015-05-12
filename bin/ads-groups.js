@@ -204,13 +204,15 @@
     };
 
     
-    groupModule.setupEndpoints = function(app, svc, sessions, audit) {
+    groupModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
         var authGetGroup = authUtils.middlewarify({minireelGroups: 'read'});
         app.get('/api/minireelGroup/:id', sessions, authGetGroup, audit, function(req, res) {
-            svc.getObjs({id: req.params.id}, req, res, false).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error retrieving minireelGroup', detail: error });
+            var promise = svc.getObjs({id: req.params.id}, req, false);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error retrieving minireelGroup', detail: error });
+                });
             });
         });
 
@@ -223,42 +225,45 @@
                 query.adtechId = Number(req.query.adtechId);
             }
 
-            svc.getObjs(query, req, res, true).then(function(resp) {
-                if (resp.pagination) {
-                    res.header('content-range', 'items ' + resp.pagination.start + '-' +
-                                                resp.pagination.end + '/' + resp.pagination.total);
-
-                }
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error retrieving minireelGroups', detail: error });
+            var promise = svc.getObjs(query, req, true);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error retrieving minireelGroups', detail: error });
+                });
             });
         });
 
         var authPostGroup = authUtils.middlewarify({minireelGroups: 'create'});
         app.post('/api/minireelGroup', sessions, authPostGroup, audit, function(req, res) {
-            svc.createObj(req, res).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error creating minireelGroup', detail: error });
+            var promise = svc.createObj(req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error creating minireelGroup', detail: error });
+                });
             });
         });
 
         var authPutGroup = authUtils.middlewarify({minireelGroups: 'edit'});
         app.put('/api/minireelGroup/:id', sessions, authPutGroup, audit, function(req, res) {
-            svc.editObj(req, res).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error updating minireelGroup', detail: error });
+            var promise = svc.editObj(req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error updating minireelGroup', detail: error });
+                });
             });
         });
 
         var authDelGroup = authUtils.middlewarify({minireelGroups: 'delete'});
         app.delete('/api/minireelGroup/:id', sessions, authDelGroup, audit, function(req, res) {
-            svc.deleteObj(req, res).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error deleting minireelGroup', detail: error });
+            var promise = svc.deleteObj(req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error deleting minireelGroup', detail: error });
+                });
             });
         });
     };

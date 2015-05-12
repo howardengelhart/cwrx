@@ -32,7 +32,7 @@ describe('content-cards (UT)', function() {
             spyOn(FieldValidator, 'userFunc').andCallThrough();
 
             var mockColl = { collectionName: 'cards' },
-                cardSvc = cardModule.setupCardSvc(mockColl, 'fakeCardCache', 'jobMgr');
+                cardSvc = cardModule.setupCardSvc(mockColl, 'fakeCardCache');
                 
             expect(cardModule.getPublicCard.bind).toHaveBeenCalledWith(cardModule, cardSvc);
             
@@ -44,7 +44,6 @@ describe('content-cards (UT)', function() {
             expect(cardSvc._allowPublic).toBe(true);
             expect(cardSvc._coll).toBe(mockColl);
             expect(cardSvc._cardCache).toBe('fakeCardCache');
-            expect(cardSvc.jobManager).toBe('jobMgr');
             
             expect(cardSvc.createValidator._required).toContain('campaignId');
             expect(Object.keys(cardSvc.createValidator._condForbidden)).toEqual(['user', 'org']);

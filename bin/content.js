@@ -485,14 +485,13 @@
         });
     };
 
-    content.getExperiences = function(query, req, res, experiences, multiExp, jobManager) {
+    content.getExperiences = function(query, req, res, experiences, multiGet) {
         var limit = req.query && Number(req.query.limit) || 0,
             skip = req.query && Number(req.query.skip) || 0,
             sort = req.query && req.query.sort,
             sortObj = {},
             resp = {},
-            log = logger.getLog(),
-            deferred = q.defer();
+            log = logger.getLog();
         if (sort) {
             var sortParts = sort.split(',');
             if (sortParts.length !== 2 || (sortParts[1] !== '-1' && sortParts[1] !== '1' )) {
@@ -540,17 +539,16 @@
             opts.hint = { org: 1 };
         }
 
-        var timeoutObj = jobManager.setJobTimeout(req, res);
-
         cursor = experiences.find(permQuery, opts);
 
-        (multiExp ? q.npost(cursor, 'count') : q())
+        return (multiGet ? q.npost(cursor, 'count') : q())
         .then(function(count) {
             if (count !== undefined) {
-                resp.pagination = {
-                    start: count !== 0 ? skip + 1 : 0,
-                    end: limit ? Math.min(skip + limit , count) : count,
-                    total: count
+                var start = count !== 0 ? skip + 1 : 0,
+                    end = limit ? Math.min(skip + limit , count) : count;
+
+                resp.headers = {
+                    'content-range': 'items ' + start + '-' + end + '/' + count
                 };
             }
             return q.npost(cursor, 'toArray');
@@ -559,28 +557,30 @@
             var exps = results.map(function(exp) {
                 return content.formatOutput(exp, false);
             });
+
             log.info('[%1] Showing the user %2 experiences', req.uuid, exps.length);
-            resp.code = 200;
-            resp.body = exps;
-            return deferred.resolve(resp);
+
+            if (multiGet) {
+                resp.code = 200;
+                resp.body = exps;
+            } else {
+                resp.code = exps.length > 0 ? 200 : 404;
+                resp.body = exps.length > 0 ? exps[0] : 'Experience not found';
+            }
+            return q(resp);
         })
         .catch(function(error) {
             log.error('[%1] Error getting experiences: %2', req.uuid, error);
-            return deferred.reject(error);
-        });
-
-        return deferred.promise.finally(function() {
-            return jobManager.checkJobTimeout(req, deferred.promise.inspect(), timeoutObj);
+            return q.reject(error);
         });
     };
 
 
-    content.createExperience = function(req, res, experiences, jobManager) {
+    content.createExperience = function(req, res, experiences) {
         var obj = req.body,
             user = req.user,
             log = logger.getLog(),
-            now = new Date(),
-            deferred = q.defer();
+            now = new Date();
 
         if (!obj || typeof obj !== 'object') {
             return q({code: 400, body: 'You must provide an object in the body'});
@@ -625,20 +625,15 @@
         obj.data = [ { user: user.email, userId: user.id, date: now,
                        data: obj.data, versionId: versionId } ];
 
-        var timeoutObj = jobManager.setJobTimeout(req, res);
 
-        q.npost(experiences, 'insert', [mongoUtils.escapeKeys(obj), {w: 1, journal: true}])
+        return q.npost(experiences, 'insert', [mongoUtils.escapeKeys(obj), {w: 1, journal: true}])
         .then(function() {
             log.info('[%1] User %2 successfully created experience %3', req.uuid, user.id, obj.id);
-            return deferred.resolve({ code: 201, body: content.formatOutput(obj) });
+            return q({ code: 201, body: content.formatOutput(obj) });
         }).catch(function(error) {
             log.error('[%1] Error creating experience %2 for user %3: %4',
                       req.uuid, obj.id, user.id, error);
-            return deferred.reject(error);
-        });
-
-        return deferred.promise.finally(function() {
-            return jobManager.checkJobTimeout(req, deferred.promise.inspect(), timeoutObj);
+            return q.reject(error);
         });
     };
 
@@ -687,32 +682,29 @@
         return mongoUtils.escapeKeys(updates);
     };
 
-    content.updateExperience = function(req, res, experiences, jobManager) {
+    content.updateExperience = function(req, res, experiences) {
         var updates = req.body,
             id = req.params.id,
             user = req.user,
-            log = logger.getLog(),
-            deferred = q.defer();
+            log = logger.getLog();
 
         if (!updates || typeof updates !== 'object') {
             return q({code: 400, body: 'You must provide an object in the body'});
         }
 
-        var timeoutObj = jobManager.setJobTimeout(req, res);
-
         log.info('[%1] User %2 is attempting to update experience %3',req.uuid,user.id,id);
-        q.npost(experiences, 'findOne', [{id: id}])
+        return q.npost(experiences, 'findOne', [{id: id}])
         .then(function(orig) {
             if (!orig) {
                 log.info('[%1] Experience %2 does not exist; not creating it', req.uuid, id);
-                return deferred.resolve({
+                return q({
                     code: 404,
                     body: 'That experience does not exist'
                 });
             }
             if (orig.status && orig.status[0] && orig.status[0].status === Status.Deleted) {
                 log.info('[%1] User %2 trying to update deleted experience %3',req.uuid,user.id,id);
-                return deferred.resolve({
+                return q({
                     code: 404,
                     body: 'That experience does not exist'
                 });
@@ -721,14 +713,14 @@
                 log.warn('[%1] updates contain illegal fields', req.uuid);
                 log.trace('exp: %1  |  orig: %2  |  requester: %3',
                           JSON.stringify(updates), JSON.stringify(orig), JSON.stringify(user));
-                return deferred.resolve({
+                return q({
                     code: 400,
                     body: 'Invalid request body'
                 });
             }
             if (!content.checkScope(user, orig, 'experiences', 'edit')) {
                 log.info('[%1] User %2 is not authorized to edit %3', req.uuid, user.id, id);
-                return deferred.resolve({
+                return q({
                     code: 403,
                     body: 'Not authorized to edit this experience'
                 });
@@ -740,7 +732,7 @@
                 !objUtils.compareObjects(updates.data.adConfig, origAdConfig) &&
                 !content.checkScope(user, orig, 'experiences', 'editAdConfig')) {
                 log.info('[%1] User %2 not authorized to edit adConfig of %3',req.uuid,user.id,id);
-                return deferred.resolve({
+                return q({
                     code: 403,
                     body: 'Not authorized to edit adConfig of this experience'
                 });
@@ -754,39 +746,32 @@
                 var updated = results[0];
                 log.info('[%1] User %2 successfully updated experience %3',
                          req.uuid, user.id, updated.id);
-                return deferred.resolve({ code: 200, body: content.formatOutput(updated) });
+                return q({ code: 200, body: content.formatOutput(updated) });
             });
         })
         .catch(function(error) {
             log.error('[%1] Error updating experience %2 for user %3: %4',
                       req.uuid, id, user.id, error);
-            return deferred.reject(error);
-        });
-
-        return deferred.promise.finally(function() {
-            return jobManager.checkJobTimeout(req, deferred.promise.inspect(), timeoutObj);
+            return q.reject(error);
         });
     };
 
-    content.deleteExperience = function(req, res, experiences, jobManager) {
+    content.deleteExperience = function(req, res, experiences) {
         var id = req.params.id,
             user = req.user,
-            log = logger.getLog(),
-            deferred = q.defer();
-
-        var timeoutObj = jobManager.setJobTimeout(req, res);
+            log = logger.getLog();
 
         log.info('[%1] User %2 is attempting to delete experience %3', req.uuid, user.id, id);
 
-        q.npost(experiences, 'findOne', [{id: id}])
+        return q.npost(experiences, 'findOne', [{id: id}])
         .then(function(orig) {
             if (!orig) {
                 log.info('[%1] Experience %2 does not exist', req.uuid, id);
-                return deferred.resolve({code: 204});
+                return q({code: 204});
             }
             if (!content.checkScope(user, orig, 'experiences', 'delete')) {
                 log.info('[%1] User %2 is not authorized to delete %3', req.uuid, user.id, id);
-                return deferred.resolve({
+                return q({
                     code: 403,
                     body: 'Not authorized to delete this experience'
                 });
@@ -794,7 +779,7 @@
 
             if (orig.status[0] && orig.status[0].status === Status.Deleted) {
                 log.info('[%1] Experience %2 has already been deleted', req.uuid, id);
-                return deferred.resolve({code: 204});
+                return q({ code: 204 });
             }
 
             var updates = { status: Status.Deleted };
@@ -803,16 +788,12 @@
             return q.npost(experiences, 'update', [{id: id}, {$set: updates}, {w:1, journal:true}])
             .then(function() {
                 log.info('[%1] User %2 successfully deleted experience %3', req.uuid, user.id, id);
-                deferred.resolve({code: 204});
+                return q({code: 204});
             });
         }).catch(function(error) {
             log.error('[%1] Error deleting experience %2 for user %3: %4',
                       req.uuid, id, user.id, error);
-            deferred.reject(error);
-        });
-
-        return deferred.promise.finally(function() {
-            return jobManager.checkJobTimeout(req, deferred.promise.inspect(), timeoutObj);
+            return q.reject(error);
         });
     };
 
@@ -848,8 +829,8 @@
         });
 
         authUtils._coll = collections.users;
-        cardSvc = cardModule.setupCardSvc(collections.cards, caches.cards, jobManager);
-        catSvc = catModule.setupCatSvc(collections.categories, jobManager);
+        cardSvc = cardModule.setupCardSvc(collections.cards, caches.cards);
+        catSvc = catModule.setupCatSvc(collections.categories);
 
 
         app.use(express.bodyParser());
@@ -971,24 +952,40 @@
             });
         });
 
+        app.get('/api/content/job/:id', function(req, res) {
+            jobManager.getJobResult(req, res, req.params.id).catch(function(error) {
+                res.send(500, { error: 'Internal error', detail: error });
+            });
+        });
+
+        app.get('/api/content/meta', function(req, res){
+            var data = {
+                version: state.config.appVersion,
+                started : started.toISOString(),
+                status : 'OK'
+            };
+            res.send(200, data);
+        });
+
+        app.get('/api/content/version',function(req, res) {
+            res.send(200, state.config.appVersion);
+        });
+
+        // make sure no /api/public/content endpoints use job timeouts
+        app.all('/api/content/*', jobManager.setJobTimeout.bind(jobManager));
+
         var authGetExp = authUtils.middlewarify({experiences: 'read'});
         
         // private get experience by id
         app.get('/api/content/experience/:id', sessWrap, authGetExp, audit, function(req, res) {
-            var query = { id: req.params.id };
-            content.getExperiences(query, req, res, collections.experiences, jobManager)
-            .then(function(resp) {
-                if (resp.body && resp.body instanceof Array) {
-                    if (resp.body.length === 0) {
-                        res.send(404, 'Experience not found');
-                    } else {
-                        res.send(resp.code, resp.body[0]);
-                    }
-                } else {
-                    res.send(resp.code, resp.body);
-                }
-            }).catch(function(error) {
-                res.send(500, { error: 'Error retrieving content', detail: error });
+            var query = { id: req.params.id },
+                promise = content.getExperiences(query, req, res, collections.experiences);
+
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error retrieving content', detail: error });
+                });
             });
         });
 
@@ -1012,78 +1009,59 @@
             });
             if (!Object.keys(query).length) {
                 log.info('[%1] Cannot GET /content/experiences with no query params',req.uuid);
-                return res.send(400, 'Must specify at least one supported query param');
+                return jobManager.endJob(req, res, q({
+                    code: 400,
+                    body: 'Must specify at least one supported query param'
+                }).inspect());
             }
 
-            content.getExperiences(query, req, res, collections.experiences, true, jobManager)
-            .then(function(resp) {
-                if (resp.pagination) {
-                    res.header('content-range', 'items ' + resp.pagination.start + '-' +
-                                                resp.pagination.end + '/' + resp.pagination.total);
-
-                }
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error retrieving content', detail: error });
+            var promise = content.getExperiences(query, req, res, collections.experiences, true);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error retrieving content', detail: error });
+                });
             });
         });
 
         var authPostExp = authUtils.middlewarify({experiences: 'create'});
         app.post('/api/content/experience', sessWrap, authPostExp, audit, function(req, res) {
-            content.createExperience(req, res, collections.experiences, jobManager)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error creating experience', detail: error });
+            var promise = content.createExperience(req, res, collections.experiences);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error creating experience', detail: error });
+                });
             });
         });
 
         var authPutExp = authUtils.middlewarify({experiences: 'edit'});
         app.put('/api/content/experience/:id', sessWrap, authPutExp, audit, function(req, res) {
-            content.updateExperience(req, res, collections.experiences, jobManager)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error updating experience', detail: error });
+            var promise = content.updateExperience(req, res, collections.experiences);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error updating experience', detail: error });
+                });
             });
         });
 
         var authDelExp = authUtils.middlewarify({experiences: 'delete'});
         app.delete('/api/content/experience/:id', sessWrap, authDelExp, audit, function(req, res) {
-            content.deleteExperience(req, res, collections.experiences, jobManager)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error deleting experience', detail: error });
+            var promise = content.deleteExperience(req, res, collections.experiences);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error deleting experience', detail: error });
+                });
             });
         });
         
         // adds endpoints for managing cards
-        cardModule.setupEndpoints(app, cardSvc, sessWrap, audit, state.config);
+        cardModule.setupEndpoints(app, cardSvc, sessWrap, audit, state.config, jobManager);
         
         // adds endpoints for managing categories
-        catModule.setupEndpoints(app, catSvc, sessWrap, audit);
-
-        app.get('/api/content/job/:id', function(req, res) {
-            jobManager.getJobResult(req, req.params.id).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Internal error', detail: error });
-            });
-        });
-
-        app.get('/api/content/meta', function(req, res){
-            var data = {
-                version: state.config.appVersion,
-                started : started.toISOString(),
-                status : 'OK'
-            };
-            res.send(200, data);
-        });
-
-        app.get('/api/content/version',function(req, res) {
-            res.send(200, state.config.appVersion);
-        });
+        catModule.setupEndpoints(app, catSvc, sessWrap, audit, jobManager);
 
         app.use(function(err, req, res, next) {
             if (err) {

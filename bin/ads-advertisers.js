@@ -110,13 +110,15 @@
     };
 
     
-    advertModule.setupEndpoints = function(app, svc, sessions, audit) {
+    advertModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
         var authGetAd = authUtils.middlewarify({advertisers: 'read'});
         app.get('/api/account/advertiser/:id', sessions, authGetAd, audit, function(req, res) {
-            svc.getObjs({id: req.params.id}, req, res, false).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error retrieving advertiser', detail: error });
+            var promise = svc.getObjs({id: req.params.id}, req, false);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error retrieving advertiser', detail: error });
+                });
             });
         });
 
@@ -129,43 +131,45 @@
                 query.adtechId = Number(req.query.adtechId);
             }
 
-            svc.getObjs(query, req, res, true).then(function(resp) {
-                if (resp.pagination) {
-                    res.header('content-range', 'items ' + resp.pagination.start + '-' +
-                                                resp.pagination.end + '/' + resp.pagination.total);
-
-                }
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error retrieving advertisers', detail: error });
+            var promise = svc.getObjs(query, req, true);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error retrieving advertisers', detail: error });
+                });
             });
         });
 
         var authPostAd = authUtils.middlewarify({advertisers: 'create'});
         app.post('/api/account/advertiser', sessions, authPostAd, audit, function(req, res) {
-            svc.createObj(req, res).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error creating advertiser', detail: error });
+            var promise = svc.createObj(req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error creating advertiser', detail: error });
+                });
             });
         });
 
         var authPutAd = authUtils.middlewarify({advertisers: 'edit'});
         app.put('/api/account/advertiser/:id', sessions, authPutAd, audit, function(req, res) {
-            svc.editObj(req, res).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error updating advertiser', detail: error });
+            var promise = svc.editObj(req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error updating advertiser', detail: error });
+                });
             });
         });
 
         var authDelAd = authUtils.middlewarify({advertisers: 'delete'});
         app.delete('/api/account/advertiser/:id', sessions, authDelAd, audit, function(req, res) {
-            svc.deleteObj(req, res)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error deleting advertiser', detail: error });
+            var promise = svc.deleteObj(req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error deleting advertiser', detail: error });
+                });
             });
         });
     };

@@ -49,7 +49,7 @@ describe('ads-customers (UT)', function() {
                     return { collectionName: name };
                 })
             };
-            var svc = custModule.setupSvc(mockDb, 'jobMgr');
+            var svc = custModule.setupSvc(mockDb);
             
             expect(custModule.createAdtechCust.bind).toHaveBeenCalledWith(custModule, svc);
             expect(custModule.editAdtechCust.bind).toHaveBeenCalledWith(custModule, svc);
@@ -62,7 +62,6 @@ describe('ads-customers (UT)', function() {
             expect(svc._allowPublic).toBe(false);
             expect(svc._coll).toEqual({ collectionName: 'customers' });
             expect(svc._advertColl).toEqual({ collectionName: 'advertisers' });
-            expect(svc.jobManager).toBe('jobMgr');
             
             expect(svc.createValidator._required).toContain('name');
             expect(svc.createValidator._forbidden).toContain('adtechId');

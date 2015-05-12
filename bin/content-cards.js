@@ -11,9 +11,9 @@
         cardModule = {};
 
         
-    cardModule.setupCardSvc = function(cardColl, cardCache, jobManager) {
+    cardModule.setupCardSvc = function(cardColl, cardCache) {
         var opts = { allowPublic: true },
-            cardSvc = new CrudSvc(cardColl, 'rc', opts, jobManager);
+            cardSvc = new CrudSvc(cardColl, 'rc', opts);
         
         cardSvc._cardCache = cardCache;
             
@@ -69,7 +69,8 @@
         });
     };
 
-    cardModule.setupEndpoints = function(app, cardSvc, sessions, audit, config) {
+
+    cardModule.setupEndpoints = function(app, cardSvc, sessions, audit, config, jobManager) {
 
         // Retrieve a json representation of a card
         app.get('/api/public/content/card/:id.json', function(req, res) {
@@ -100,10 +101,12 @@
 
         var authGetCard = authUtils.middlewarify({cards: 'read'});
         app.get('/api/content/card/:id', sessions, authGetCard, audit, function(req, res) {
-            cardSvc.getObjs({id: req.params.id}, req, res, false).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error retrieving card', detail: error });
+            var promise = cardSvc.getObjs({id: req.params.id}, req, false);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error retrieving card', detail: error });
+                });
             });
         });
 
@@ -115,43 +118,45 @@
                 }
             });
 
-            cardSvc.getObjs(query, req, res, true).then(function(resp) {
-                if (resp.pagination) {
-                    res.header('content-range', 'items ' + resp.pagination.start + '-' +
-                                                resp.pagination.end + '/' + resp.pagination.total);
-
-                }
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error retrieving cards', detail: error });
+            var promise = cardSvc.getObjs(query, req, true);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error retrieving cards', detail: error });
+                });
             });
         });
 
         var authPostCard = authUtils.middlewarify({cards: 'create'});
         app.post('/api/content/card', sessions, authPostCard, audit, function(req, res) {
-            cardSvc.createObj(req, res).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error creating card', detail: error });
+            var promise = cardSvc.createObj(req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error creating card', detail: error });
+                });
             });
         });
 
         var authPutCard = authUtils.middlewarify({cards: 'edit'});
         app.put('/api/content/card/:id', sessions, authPutCard, audit, function(req, res) {
-            cardSvc.editObj(req, res).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error updating card', detail: error });
+            var promise = cardSvc.editObj(req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error updating card', detail: error });
+                });
             });
         });
 
         var authDelCard = authUtils.middlewarify({cards: 'delete'});
         app.delete('/api/content/card/:id', sessions, authDelCard, audit, function(req, res) {
-            cardSvc.deleteObj(req, res)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error deleting card', detail: error });
+            var promise = cardSvc.deleteObj(req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error deleting card', detail: error });
+                });
             });
         });
     };

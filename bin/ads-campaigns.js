@@ -605,13 +605,15 @@
         });
     };
     
-    campModule.setupEndpoints = function(app, svc, sessions, audit) {
+    campModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
         var authGetCamp = authUtils.middlewarify({campaigns: 'read'});
         app.get('/api/campaign/:id', sessions, authGetCamp, audit, function(req, res) {
-            svc.getObjs({id: req.params.id}, req, res, false).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error retrieving campaign', detail: error });
+            var promise = svc.getObjs({id: req.params.id}, req, false);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error retrieving campaign', detail: error });
+                });
             });
         });
 
@@ -624,42 +626,45 @@
                 }
             });
 
-            svc.getObjs(query, req, res, true).then(function(resp) {
-                if (resp.pagination) {
-                    res.header('content-range', 'items ' + resp.pagination.start + '-' +
-                                                resp.pagination.end + '/' + resp.pagination.total);
-
-                }
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error retrieving campaigns', detail: error });
+            var promise = svc.getObjs(query, req, true);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error retrieving campaigns', detail: error });
+                });
             });
         });
 
         var authPostCamp = authUtils.middlewarify({campaigns: 'create'});
         app.post('/api/campaign', sessions, authPostCamp, audit, function(req, res) {
-            svc.createObj(req, res).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error creating campaign', detail: error });
+            var promise = svc.createObj(req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error creating campaign', detail: error });
+                });
             });
         });
 
         var authPutCamp = authUtils.middlewarify({campaigns: 'edit'});
         app.put('/api/campaign/:id', sessions, authPutCamp, audit, function(req, res) {
-            svc.editObj(req, res).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error updating campaign', detail: error });
+            var promise = svc.editObj(req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error updating campaign', detail: error });
+                });
             });
         });
 
         var authDelCamp = authUtils.middlewarify({campaigns: 'delete'});
         app.delete('/api/campaign/:id', sessions, authDelCamp, audit, function(req, res) {
-            svc.deleteObj(req, res).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error deleting campaign', detail: error });
+            var promise = svc.deleteObj(req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error deleting campaign', detail: error });
+                });
             });
         });
     };

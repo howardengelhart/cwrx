@@ -101,11 +101,11 @@
             adverts      = state.dbs.c6Db.collection('advertisers'),
             sites        = state.dbs.c6Db.collection('sites'),
             jobManager   = new JobManager(state.cache, state.config.jobTimeouts),
-            advertSvc    = advertModule.setupSvc(adverts, jobManager),
-            custSvc      = custModule.setupSvc(state.dbs.c6Db, jobManager),
-            campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config, jobManager),
-            groupSvc     = groupModule.setupSvc(state.dbs.c6Db, state.config, jobManager),
-            siteSvc      = siteModule.setupSvc(sites, jobManager),
+            advertSvc    = advertModule.setupSvc(adverts),
+            custSvc      = custModule.setupSvc(state.dbs.c6Db),
+            campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config),
+            groupSvc     = groupModule.setupSvc(state.dbs.c6Db, state.config),
+            siteSvc      = siteModule.setupSvc(sites),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._coll = users;
@@ -175,22 +175,13 @@
             }
             next();
         });
-        
-        advertModule.setupEndpoints(app, advertSvc, sessWrap, audit);
-        custModule.setupEndpoints(app, custSvc, sessWrap, audit);
-        campModule.setupEndpoints(app, campSvc, sessWrap, audit);
-        siteModule.setupEndpoints(app, siteSvc, sessWrap, audit);
-        groupModule.setupEndpoints(app, groupSvc, sessWrap, audit);
 
-        
         app.get('/api/ads/job/:id', function(req, res) {
-            jobManager.getJobResult(req, req.params.id).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
+            jobManager.getJobResult(req, res, req.params.id).catch(function(error) {
                 res.send(500, { error: 'Internal error', detail: error });
             });
         });
-        
+
         app.get('/api/ads/meta', function(req, res){
             var data = {
                 version: state.config.appVersion,
@@ -203,6 +194,15 @@
         app.get('/api/ads/version',function(req, res) {
             res.send(200, state.config.appVersion);
         });
+
+        app.all('*', jobManager.setJobTimeout.bind(jobManager));
+        
+        advertModule.setupEndpoints(app, advertSvc, sessWrap, audit, jobManager);
+        custModule.setupEndpoints(app, custSvc, sessWrap, audit, jobManager);
+        campModule.setupEndpoints(app, campSvc, sessWrap, audit, jobManager);
+        siteModule.setupEndpoints(app, siteSvc, sessWrap, audit, jobManager);
+        groupModule.setupEndpoints(app, groupSvc, sessWrap, audit, jobManager);
+
         
         app.use(function(err, req, res, next) {
             if (err) {

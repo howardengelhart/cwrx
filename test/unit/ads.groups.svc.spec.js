@@ -51,7 +51,7 @@ describe('ads-groups (UT)', function() {
                     return { collectionName: name };
                 })
             };
-            var svc = groupModule.setupSvc(mockDb, config, 'jobMgr');
+            var svc = groupModule.setupSvc(mockDb, config);
             expect(groupModule.getAccountIds.bind).toHaveBeenCalledWith(groupModule, svc);
             expect(groupModule.formatOutput.bind).toHaveBeenCalledWith(groupModule, svc);
             expect(groupModule.groupsCfg).toEqual({ advertiserId: 123, customerId: 234 });
@@ -66,7 +66,6 @@ describe('ads-groups (UT)', function() {
             expect(svc._coll).toEqual({collectionName: 'minireelGroups'});
             expect(svc._advertColl).toEqual({collectionName: 'advertisers'});
             expect(svc._custColl).toEqual({collectionName: 'customers'});
-            expect(svc.jobManager).toBe('jobMgr');
             
             expect(svc.createValidator._required).toContain('name');
             expect(svc.createValidator._forbidden).toContain('adtechId');
