@@ -42,7 +42,7 @@ describe('CrudSvc', function() {
         spyOn(CrudSvc.prototype.checkExisting, 'bind').andReturn(CrudSvc.prototype.checkExisting);
         spyOn(CrudSvc.prototype.setupObj, 'bind').andReturn(CrudSvc.prototype.setupObj);
         
-        svc = new CrudSvc(mockColl, 't', undefined);
+        svc = new CrudSvc(mockColl, 't');
         spyOn(svc, 'formatOutput').andReturn('formatted');
         spyOn(svc, 'runMiddleware').andCallThrough();
         

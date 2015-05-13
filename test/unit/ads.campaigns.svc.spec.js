@@ -56,10 +56,7 @@ describe('ads-campaigns (UT)', function() {
             spyOn(campaignUtils.getAccountIds, 'bind').andReturn(campaignUtils.getAccountIds);
             spyOn(campModule.formatOutput, 'bind').andReturn(campModule.formatOutput);
             
-            var config = {
-                contentHost: 'foo.com',
-                campaigns: { statusDelay: 100, statusAttempts: 5 }
-            };
+            var config = { contentHost: 'foo.com', campaigns: { statusDelay: 100, statusAttempts: 5 } };
             var mockDb = {
                 collection: jasmine.createSpy('db.collection()').andCallFake(function(name) {
                     return { collectionName: name };

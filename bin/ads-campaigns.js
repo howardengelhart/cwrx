@@ -14,12 +14,12 @@
         
         campModule = {};
 
-    campModule.setupSvc = function(db, config, jobManager) {
+    campModule.setupSvc = function(db, config) {
         campModule.campsCfg = config.campaigns;
         campModule.contentHost = config.contentHost;
     
         var campColl = db.collection('campaigns'),
-            svc = new CrudSvc(campColl, 'cam', {}, jobManager);
+            svc = new CrudSvc(campColl, 'cam', {});
         svc._advertColl = db.collection('advertisers');
         svc._custColl = db.collection('customers');
         

@@ -42,10 +42,8 @@ describe('ads-groups (UT)', function() {
             spyOn(groupModule.getAccountIds, 'bind').andReturn(groupModule.getAccountIds);
             spyOn(groupModule.formatOutput, 'bind').andReturn(groupModule.formatOutput);
             
-            var config = {
-                campaigns: { statusDelay: 100, statusAttempts: 5 },
-                minireelGroups: { advertiserId: 123, customerId: 234 }
-            };
+            var config = { campaigns: { statusDelay: 100, statusAttempts: 5 },
+                           minireelGroups: { advertiserId: 123, customerId: 234 } };
             var mockDb = {
                 collection: jasmine.createSpy('db.collection()').andCallFake(function(name) {
                     return { collectionName: name };

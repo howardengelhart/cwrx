@@ -11,9 +11,9 @@
 
         siteModule = {};
 
-    siteModule.setupSvc = function(coll, jobManager) {
+    siteModule.setupSvc = function(coll) {
         var opts = { userProp: false, orgProp: false },
-            svc = new CrudSvc(coll, 's', opts, jobManager);
+            svc = new CrudSvc(coll, 's', opts);
         svc.createValidator._required.push('host', 'name');
         svc.createValidator._forbidden.push('adtechId');
         svc.createValidator._condForbidden.org = FieldValidator.orgFunc('sites', 'create');

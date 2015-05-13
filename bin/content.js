@@ -485,7 +485,7 @@
         });
     };
 
-    content.getExperiences = function(query, req, res, experiences, multiGet) {
+    content.getExperiences = function(query, req, experiences, multiGet) {
         var limit = req.query && Number(req.query.limit) || 0,
             skip = req.query && Number(req.query.skip) || 0,
             sort = req.query && req.query.sort,
@@ -576,7 +576,7 @@
     };
 
 
-    content.createExperience = function(req, res, experiences) {
+    content.createExperience = function(req, experiences) {
         var obj = req.body,
             user = req.user,
             log = logger.getLog(),
@@ -682,7 +682,7 @@
         return mongoUtils.escapeKeys(updates);
     };
 
-    content.updateExperience = function(req, res, experiences) {
+    content.updateExperience = function(req, experiences) {
         var updates = req.body,
             id = req.params.id,
             user = req.user,
@@ -756,7 +756,7 @@
         });
     };
 
-    content.deleteExperience = function(req, res, experiences) {
+    content.deleteExperience = function(req, experiences) {
         var id = req.params.id,
             user = req.user,
             log = logger.getLog();
@@ -979,7 +979,7 @@
         // private get experience by id
         app.get('/api/content/experience/:id', sessWrap, authGetExp, audit, function(req, res) {
             var query = { id: req.params.id },
-                promise = content.getExperiences(query, req, res, collections.experiences);
+                promise = content.getExperiences(query, req, collections.experiences);
 
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -1015,7 +1015,7 @@
                 }).inspect());
             }
 
-            var promise = content.getExperiences(query, req, res, collections.experiences, true);
+            var promise = content.getExperiences(query, req, collections.experiences, true);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {
@@ -1026,7 +1026,7 @@
 
         var authPostExp = authUtils.middlewarify({experiences: 'create'});
         app.post('/api/content/experience', sessWrap, authPostExp, audit, function(req, res) {
-            var promise = content.createExperience(req, res, collections.experiences);
+            var promise = content.createExperience(req, collections.experiences);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {
@@ -1037,7 +1037,7 @@
 
         var authPutExp = authUtils.middlewarify({experiences: 'edit'});
         app.put('/api/content/experience/:id', sessWrap, authPutExp, audit, function(req, res) {
-            var promise = content.updateExperience(req, res, collections.experiences);
+            var promise = content.updateExperience(req, collections.experiences);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {
@@ -1048,7 +1048,7 @@
 
         var authDelExp = authUtils.middlewarify({experiences: 'delete'});
         app.delete('/api/content/experience/:id', sessWrap, authDelExp, audit, function(req, res) {
-            var promise = content.deleteExperience(req, res, collections.experiences);
+            var promise = content.deleteExperience(req, collections.experiences);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {

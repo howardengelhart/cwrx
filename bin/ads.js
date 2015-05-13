@@ -98,14 +98,12 @@
         var express      = require('express'),
             app          = express(),
             users        = state.dbs.c6Db.collection('users'),
-            adverts      = state.dbs.c6Db.collection('advertisers'),
-            sites        = state.dbs.c6Db.collection('sites'),
             jobManager   = new JobManager(state.cache, state.config.jobTimeouts),
-            advertSvc    = advertModule.setupSvc(adverts),
+            advertSvc    = advertModule.setupSvc(state.dbs.c6Db.collection('advertisers')),
             custSvc      = custModule.setupSvc(state.dbs.c6Db),
             campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config),
             groupSvc     = groupModule.setupSvc(state.dbs.c6Db, state.config),
-            siteSvc      = siteModule.setupSvc(sites),
+            siteSvc      = siteModule.setupSvc(state.dbs.c6Db.collection('sites')),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._coll = users;
