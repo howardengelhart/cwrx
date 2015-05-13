@@ -492,7 +492,7 @@ describe('collateral (E2E):', function() {
             });
         });
 
-        iit('should be able to handle protocol-relative urls', function(done) {
+        it('should be able to handle protocol-relative urls', function(done) {
             options.json.thumbs = ['//img.youtube.com/vi/wBU8T4hR-6U/0.jpg'];
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);

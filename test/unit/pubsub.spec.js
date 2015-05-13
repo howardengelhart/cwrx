@@ -186,7 +186,7 @@ describe('pubsub', function() {
                     expect(pub.lastMsg).toEqual(JSON.stringify({foo: 'bar'}));
                     expect(sock1.write).toHaveBeenCalledWith(JSON.stringify({foo: 'bar'}), anyFunc);
                     expect(sock2.write).toHaveBeenCalledWith(JSON.stringify({foo: 'bar'}), anyFunc);
-                    expect(mockLog.error).toHaveBeenCalled();
+                    expect(mockLog.warn).toHaveBeenCalled();
                 }).done(done);
             });
         });
@@ -195,11 +195,14 @@ describe('pubsub', function() {
     describe('Subscriber', function() {
         describe('initialization', function() {
             it('should initalize the underlying socket and other properties', function() {
-                var sub = new pubsub.Subscriber('test', {port: 123}, { reconnect: false, reconnectDelay: 2000 });
+                var opts = { reconnect: false, reconnectDelay: 2000, pingDelay: 1000 },
+                    sub = new pubsub.Subscriber('test', {port: 123}, opts);
+
                 expect(sub instanceof events.EventEmitter).toBe(true);
                 expect(sub.name).toBe('test');
                 expect(sub.connCfg).toEqual({port: 123});
                 expect(sub.reconnect).toEqual({ enabled: false, delay: 2000 });
+                expect(sub.ping).toEqual({ delay: 1000 });
                 expect(sub.lastMsg).toBe(null);
                 expect(sub._socket instanceof MockSocket).toBe(true);
                 expect(net.connect).toHaveBeenCalledWith({port: 123});
@@ -208,6 +211,7 @@ describe('pubsub', function() {
             it('should have default opts', function() {
                 var sub = new pubsub.Subscriber('test', {port: 123});
                 expect(sub.reconnect).toEqual({ enabled: true, delay: 5000 });
+                expect(sub.ping).toEqual({ delay: 5000 });
             });
             
             it('should throw an error if not provided with a complete connection config', function() {
@@ -217,6 +221,33 @@ describe('pubsub', function() {
                 expect(function() { var s = new pubsub.Subscriber('test', { host: 'h1' }); }).toThrow(msg);
                 expect(function() { var s = new pubsub.Subscriber('test', { port: 123 }); }).not.toThrow();
                 expect(function() { var s = new pubsub.Subscriber('test', { path: '/tmp/test' }); }).not.toThrow();
+            });
+        });
+        
+        describe('on connecting', function() {
+            it('should setup an interval for periodically pinging the server', function() {
+                var sub = new pubsub.Subscriber('test', {port: 123});
+                sub._socket.emit('connect');
+                expect(sub.ping._interval).toBeDefined();
+                jasmine.Clock.tick(5001);
+                expect(sub._socket.write).toHaveBeenCalledWith('ping');
+                jasmine.Clock.tick(5001);
+                jasmine.Clock.tick(5001);
+                expect(sub._socket.write.calls.length).toBe(3);
+            });
+            
+            it('should clear the reconnect interval', function() {
+                var sub = new pubsub.Subscriber('test', {port: 123});
+                sub.beginReconnect();
+                expect(sub.reconnect._interval).toBeDefined();
+                jasmine.Clock.tick(5001);
+                expect(sub._socket.connect.calls.length).toBe(1);
+                
+                sub._socket.emit('connect');
+                expect(sub.reconnect._interval).not.toBeDefined();
+                jasmine.Clock.tick(5001);
+                jasmine.Clock.tick(5001);
+                expect(sub._socket.connect.calls.length).toBe(1);
             });
         });
         
@@ -275,6 +306,20 @@ describe('pubsub', function() {
                 jasmine.Clock.tick(2001);
                 jasmine.Clock.tick(2001);
                 expect(sub._socket.connect.calls.length).toBe(3);
+            });
+            
+            it('should clear the ping interval', function() {
+                var sub = new pubsub.Subscriber('test', {port: 123});
+                sub._socket.emit('connect');
+                expect(sub.ping._interval).toBeDefined();
+                jasmine.Clock.tick(5001);
+                expect(sub._socket.write.calls.length).toBe(1);
+                
+                sub.beginReconnect();
+                expect(sub.ping._interval).not.toBeDefined();
+                jasmine.Clock.tick(5001);
+                jasmine.Clock.tick(5001);
+                expect(sub._socket.write.calls.length).toBe(1);
             });
             
             it('should do nothing if the interval has already been created', function() {

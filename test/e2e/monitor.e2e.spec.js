@@ -211,9 +211,10 @@ describe('monitor (E2E)', function(){
         
         it('should return the same list monitor is broadcasting on the cacheCfg channel', function(done) {
             requestUtils.qRequest('get', { url: makeUrl('/api/monitor/cacheServers') }).then(function(resp) {
-                var servers = resp.body.servers;
+                var servers = resp.body.servers,
+                    connCfg = { host: process.env.host, port: cacheCfgPort };
                 
-                var sub = new pubsub.Subscriber('cacheCfg', { port: cacheCfgPort }, { reconnect: false })
+                var sub = new pubsub.Subscriber('cacheCfg', connCfg, { reconnect: false })
                 .on('message', function(msg) {
                     expect(msg).toEqual({ servers: servers });
                     sub.close();
