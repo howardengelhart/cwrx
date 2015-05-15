@@ -2,10 +2,17 @@ var util = require('util'),
     events = require('events'),
     flush = true;
 describe('pubsub', function() {
-    var q, mockLog, logger, pubsub, net, anyFunc, mockServer;
+    var q, mockLog, logger, pubsub, net, anyFunc, mockServer, portNum;
     
     function MockSocket() {
         var self = this;
+        portNum++;
+        
+        self.localAddress = '127.0.0.1';
+        self.remoteAddress = '127.0.0.1';
+        self.localPort = portNum;
+        self.remotePort = portNum * 100;
+        
         self.connect = jasmine.createSpy('socket.connect()');
         self.end = jasmine.createSpy('socket.end()').andCallFake(function() {
             self.emit('end');
@@ -13,6 +20,9 @@ describe('pubsub', function() {
         self.write = jasmine.createSpy('socket.write()').andCallFake(function(data, cb) {
             if (typeof cb === 'function') cb();
         });
+        self.resume = jasmine.createSpy('socket.resume()');
+        self.address = jasmine.createSpy('socket.address()').andReturn({ port: self.localPort,
+                                                                         address: self.localAddress });
     }
     util.inherits(MockSocket, events.EventEmitter);
     
@@ -44,12 +54,16 @@ describe('pubsub', function() {
         spyOn(logger, 'createLog').andReturn(mockLog);
         spyOn(logger, 'getLog').andReturn(mockLog);
         
+        portNum = 0;
+        
         mockServer = new events.EventEmitter();
         mockServer.close = jasmine.createSpy('server.close()');
         mockServer.listen = jasmine.createSpy('server.listen()');
         spyOn(net, 'createServer').andReturn(mockServer);
 
-        spyOn(net, 'connect').andReturn(new MockSocket());
+        spyOn(net, 'connect').andCallFake(function() {
+            return new MockSocket();
+        });
     });
     
     describe('Publisher', function() {
@@ -65,7 +79,6 @@ describe('pubsub', function() {
                 var p = new pubsub.Publisher('test', { port: 456, host: 'h1' });
                 expect(p.name).toBe('test');
                 expect(p._sockets).toEqual([]);
-                expect(p._lastClientId).toBe(0);
                 expect(p.lastMsg).toBe('');
                 expect(p._server).toBe(mockServer);
                 expect(net.createServer).toHaveBeenCalled();
@@ -92,14 +105,16 @@ describe('pubsub', function() {
             it('should save the socket internally and send it the last message', function() {
                 pub._server.emit('connection', sock1);
                 expect(pub._sockets).toEqual([sock1]);
-                expect(sock1._id).toBe(1);
+                expect(sock1._clientAddr).toBe('127.0.0.1:100');
                 expect(sock1.write).toHaveBeenCalledWith('');
+                expect(sock1.resume).toHaveBeenCalledWith();
                 
                 pub.lastMsg = 'foo';
                 mockServer.emit('connection', sock2);
                 expect(pub._sockets).toEqual([sock1, sock2]);
-                expect(sock2._id).toBe(2);
+                expect(sock2._clientAddr).toBe('127.0.0.1:200');
                 expect(sock2.write).toHaveBeenCalledWith('foo');
+                expect(sock2.resume).toHaveBeenCalledWith();
                 expect(sock1.write.calls.length).toBe(1);
             });
         });
@@ -204,6 +219,7 @@ describe('pubsub', function() {
                 expect(sub.reconnect).toEqual({ enabled: false, delay: 2000 });
                 expect(sub.ping).toEqual({ delay: 1000 });
                 expect(sub.lastMsg).toBe(null);
+                expect(sub.localAddr).toBe('');
                 expect(sub._socket instanceof MockSocket).toBe(true);
                 expect(net.connect).toHaveBeenCalledWith({port: 123});
             });
@@ -228,6 +244,7 @@ describe('pubsub', function() {
             it('should setup an interval for periodically pinging the server', function() {
                 var sub = new pubsub.Subscriber('test', {port: 123});
                 sub._socket.emit('connect');
+                expect(sub.localAddr).toBe('127.0.0.1:1');
                 expect(sub.ping._interval).toBeDefined();
                 jasmine.Clock.tick(5001);
                 expect(sub._socket.write).toHaveBeenCalledWith('ping');
