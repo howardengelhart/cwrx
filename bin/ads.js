@@ -3,10 +3,12 @@
     'use strict';
     var __ut__      = (global.jasmine !== undefined) ? true : false;
     
-    var path            = require('path'),
+    var q               = require('q'),
+        path            = require('path'),
         logger          = require('../lib/logger'),
         uuid            = require('../lib/uuid'),
         journal         = require('../lib/journal'),
+        JobManager      = require('../lib/jobManager'),
         advertModule    = require('./ads-advertisers'),
         custModule      = require('./ads-customers'),
         campModule      = require('./ads-campaigns'),
@@ -22,7 +24,7 @@
     state.defaultConfig = {
         appName: 'ads',
         appDir: __dirname,
-        caches : {
+        caches : { //TODO: may want to rename this now...
             run     : path.normalize('/usr/local/share/cwrx/' + state.name + '/caches/run/'),
         },
         adtechCreds: {
@@ -65,9 +67,25 @@
                 port: null,
                 retryConnect : true
             }
+        },
+        pubsub: {
+            cacheCfg: {
+                port: 21211,
+                isPublisher: false
+            }
+        },
+        cache: {
+            timeouts: {},
+            servers: null
+        },
+        jobTimeouts: {
+            enabled: true,
+            urlPrefix: '/api/ads/job',
+            timeout: 5*1000,
+            cacheTTL: 60*60*1000,
         }
     };
-    
+
     ads.main = function(state) {
         var log = logger.getLog(),
             started = new Date();
@@ -76,10 +94,11 @@
             return state;
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
-            
+
         var express      = require('express'),
             app          = express(),
             users        = state.dbs.c6Db.collection('users'),
+            jobManager   = new JobManager(state.cache, state.config.jobTimeouts),
             advertSvc    = advertModule.setupSvc(state.dbs.c6Db.collection('advertisers')),
             custSvc      = custModule.setupSvc(state.dbs.c6Db),
             campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config),
@@ -155,15 +174,12 @@
             next();
         });
 
+        app.get('/api/ads/job/:id', function(req, res) {
+            jobManager.getJobResult(req, res, req.params.id).catch(function(error) {
+                res.send(500, { error: 'Internal error', detail: error });
+            });
+        });
 
-        
-        advertModule.setupEndpoints(app, advertSvc, sessWrap, audit);
-        custModule.setupEndpoints(app, custSvc, sessWrap, audit);
-        campModule.setupEndpoints(app, campSvc, sessWrap, audit);
-        siteModule.setupEndpoints(app, siteSvc, sessWrap, audit);
-        groupModule.setupEndpoints(app, groupSvc, sessWrap, audit);
-
-        
         app.get('/api/ads/meta', function(req, res){
             var data = {
                 version: state.config.appVersion,
@@ -176,6 +192,15 @@
         app.get('/api/ads/version',function(req, res) {
             res.send(200, state.config.appVersion);
         });
+
+        app.all('*', jobManager.setJobTimeout.bind(jobManager));
+        
+        advertModule.setupEndpoints(app, advertSvc, sessWrap, audit, jobManager);
+        custModule.setupEndpoints(app, custSvc, sessWrap, audit, jobManager);
+        campModule.setupEndpoints(app, campSvc, sessWrap, audit, jobManager);
+        siteModule.setupEndpoints(app, siteSvc, sessWrap, audit, jobManager);
+        groupModule.setupEndpoints(app, groupSvc, sessWrap, audit, jobManager);
+
         
         app.use(function(err, req, res, next) {
             if (err) {
@@ -199,14 +224,22 @@
         .then(service.prepareServer)
         .then(service.daemonize)
         .then(service.cluster)
-        .then(service.initMongo)
-        .then(service.initSessionStore)
-        .then(function(state) {
+        .then(function(state) { // NOTE: adtech.createClient() blocks for ~2-3s!
+            var log = logger.getLog();
+            log.info('Creating adtech client');
             return adtech.createClient(
                 state.config.adtechCreds.keyPath,
                 state.config.adtechCreds.certPath
-            ).thenResolve(state);
-        }).then(ads.main)
+            ).then(function() {
+                log.info('Finished creating adtech client');
+                return q(state);
+            });
+        })
+        .then(service.initMongo)
+        .then(service.initSessionStore)
+        .then(service.initPubSubChannels)
+        .then(service.initCache)
+        .then(ads.main)
         .catch(function(err) {
             var log = logger.getLog();
             console.log(err.stack || err);

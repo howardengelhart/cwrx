@@ -12,7 +12,8 @@
 
     custModule.setupSvc = function(db) {
         var coll = db.collection('customers'),
-            svc = new CrudSvc(coll, 'cu', { userProp: false, orgProp: false });
+            opts = { userProp: false, orgProp: false },
+            svc = new CrudSvc(coll, 'cu', opts);
         svc._advertColl = db.collection('advertisers');
         svc.createValidator._required.push('name');
         svc.createValidator._forbidden.push('adtechId');
@@ -256,16 +257,17 @@
     };
 
 
-    custModule.setupEndpoints = function(app, svc, sessions, audit) {
+    custModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
         var authGetCust = authUtils.middlewarify({customers: 'read'});
         app.get('/api/account/customer/:id', sessions, authGetCust, audit, function(req, res) {
-            svc.getObjs({id: req.params.id}, req, false)
-            .then(function(resp) {
+            var promise = svc.getObjs({id: req.params.id}, req, false).then(function(resp) {
                 return custModule.getAdvertLists(svc, req, resp);
-            }).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error retrieving customer', detail: error });
+            });
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error retrieving customer', detail: error });
+                });
             });
         });
 
@@ -278,49 +280,51 @@
                 query.adtechId = Number(req.query.adtechId);
             }
 
-            svc.getObjs(query, req, true).then(function(resp) {
-                if (resp.pagination) {
-                    res.header('content-range', 'items ' + resp.pagination.start + '-' +
-                                                resp.pagination.end + '/' + resp.pagination.total);
-
-                }
+            var promise = svc.getObjs(query, req, true).then(function(resp) {
                 return custModule.getAdvertLists(svc, req, resp);
-            }).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error retrieving customers', detail: error });
+            });
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error retrieving customers', detail: error });
+                });
             });
         });
 
         var authPostCust = authUtils.middlewarify({customers: 'create'});
         app.post('/api/account/customer', sessions, authPostCust, audit, function(req, res) {
-            svc.createObj(req).then(function(resp) {
+            var promise = svc.createObj(req).then(function(resp) {
                 return custModule.getAdvertLists(svc, req, resp);
-            }).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error creating customer', detail: error });
+            });
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error creating customer', detail: error });
+                });
             });
         });
 
         var authPutCust = authUtils.middlewarify({customers: 'edit'});
         app.put('/api/account/customer/:id', sessions, authPutCust, audit, function(req, res) {
-            svc.editObj(req).then(function(resp) {
+            var promise = svc.editObj(req).then(function(resp) {
                 return custModule.getAdvertLists(svc, req, resp);
-            }).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error updating customer', detail: error });
+            });
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error updating customer', detail: error });
+                });
             });
         });
 
         var authDelCust = authUtils.middlewarify({customers: 'delete'});
         app.delete('/api/account/customer/:id', sessions, authDelCust, audit, function(req, res) {
-            svc.deleteObj(req)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error deleting customer', detail: error });
+            var promise = svc.deleteObj(req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error deleting customer', detail: error });
+                });
             });
         });
     };

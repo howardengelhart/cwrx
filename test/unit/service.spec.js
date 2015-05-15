@@ -2,7 +2,7 @@ var flush = true;
 describe('service (UT)',function(){
     
     var vote, state, mockLog, processProperties, resolveSpy, rejectSpy, events,
-        path, q, cluster, fs, logger, daemon, mongoUtils;
+        path, q, cluster, fs, logger, daemon, mongoUtils, cacheLib, pubsub, service;
     
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -17,6 +17,8 @@ describe('service (UT)',function(){
         logger      = require('../../lib/logger');
         daemon      = require('../../lib/daemon');
         mongoUtils  = require('../../lib/mongoUtils');
+        cacheLib    = require('../../lib/cacheLib');
+        pubsub      = require('../../lib/pubsub');
         service     = require('../../lib/service');
 
         state       = { cmdl : {}, defaultConfig : {}, config : {}  };
@@ -40,6 +42,9 @@ describe('service (UT)',function(){
 
         process.env  = {};
         process.argv = [];
+        
+        resolveSpy = jasmine.createSpy('resolve()');
+        rejectSpy = jasmine.createSpy('reject()');
 
         spyOn(process,'on');
         spyOn(process,'exit');
@@ -101,11 +106,6 @@ describe('service (UT)',function(){
     });
 
     describe('parseCmdLine',function(){
-        beforeEach(function(){
-            resolveSpy = jasmine.createSpy('parseCmdLine.resolve');
-            rejectSpy  = jasmine.createSpy('parseCmdLine.reject');
-        });
-
         it('adds proper defaults to state object',function(done){
             process.argv = ['node','test'];
             q.fcall(service.parseCmdLine,state)
@@ -113,7 +113,7 @@ describe('service (UT)',function(){
                 .finally(function(){
                     expect(rejectSpy).not.toHaveBeenCalled();
                     expect(resolveSpy).toHaveBeenCalledWith(state);
-                    expect(state.cmdl).toBeDefined(); 
+                    expect(state.cmdl).toBeDefined();
                     expect(state.cmdl.port).toEqual(3100);
                     expect(state.cmdl.config).not.toBeDefined('cmdl.config');
                     expect(state.cmdl.daemon).not.toBeDefined('cmdl.daemon');
@@ -167,11 +167,6 @@ describe('service (UT)',function(){
     });
     
     describe('configure',function(){
-        beforeEach(function(){
-            resolveSpy = jasmine.createSpy('configure.resolve');
-            rejectSpy  = jasmine.createSpy('configure.reject');
-        });
-
         it('uses defaults if no config is passed',function(done){
             process.argv[1] = 'somefile.js';
             q.fcall(service.configure,state)
@@ -317,11 +312,6 @@ describe('service (UT)',function(){
     });
 
     describe('prepareServer',function(){
-        beforeEach(function(){
-            resolveSpy = jasmine.createSpy('prepareServer.resolve');
-            rejectSpy  = jasmine.createSpy('prepareServer.reject');
-        });
-
         it('does nothing if not running as server',function(done){
             q.fcall(service.prepareServer,state)
                 .then(resolveSpy,rejectSpy)
@@ -358,8 +348,6 @@ describe('service (UT)',function(){
             state.config.uid = 'test';
             state.config.server = true;
             state.kids = [mockKid, mockKid ];
-            resolveSpy = jasmine.createSpy('prepareServer.resolve');
-            rejectSpy  = jasmine.createSpy('prepareServer.reject');
             q.fcall(service.prepareServer,state)
                 .then(resolveSpy,rejectSpy)
                 .done(done);
@@ -379,11 +367,6 @@ describe('service (UT)',function(){
     
 
     describe('daemonize',function(){
-        beforeEach(function(){
-            resolveSpy = jasmine.createSpy('daemonize.resolve');
-            rejectSpy  = jasmine.createSpy('daemonize.reject');
-        });
-
         it('does nothing if daemonize not in command line',function(done){
             q.fcall(service.daemonize,state)
                 .then(resolveSpy,rejectSpy)
@@ -430,11 +413,6 @@ describe('service (UT)',function(){
     });
 
     describe('cluster',function(){
-        beforeEach(function(){
-            resolveSpy = jasmine.createSpy('cluster.resolve');
-            rejectSpy  = jasmine.createSpy('cluster.reject');
-        });
-
         it ('does nothing if state.config.kids < 1',function(done){
             state.config.kids =0 ;
             q.fcall(service.cluster,state)
@@ -477,9 +455,6 @@ describe('service (UT)',function(){
     describe('initMongo', function() {
         var db1, db2;
         beforeEach(function(){
-            resolveSpy = jasmine.createSpy('initMongo.resolve');
-            rejectSpy  = jasmine.createSpy('initMongo.reject');
-            
             state.config.mongo = {
                 db1: {host: '1.2.3.4', port: 1234},
                 db2: {hosts: ['h1:p1', 'h2:p2'], replSet: 'devRepl'}
@@ -566,7 +541,7 @@ describe('service (UT)',function(){
                 if (this.connect.callCount >= 5){
                     return q(db1);
                 }
-                return q.reject('Error!')
+                return q.reject('Error!');
             });
             service.initMongo(state).then(resolveSpy, rejectSpy)
             .progress(function(p){
@@ -644,8 +619,6 @@ describe('service (UT)',function(){
             require.cache[require.resolve('express')] = { exports: fakeExpress};
             require.cache[require.resolve('connect-mongo')] = { exports: msModule};
             service = require('../../lib/service');
-            resolveSpy = jasmine.createSpy('initMongo.resolve');
-            rejectSpy  = jasmine.createSpy('initMongo.reject');
             state.secrets = {
                 mongoCredentials: { user: "fakeUser", password: "fakePass" }
             };
@@ -713,7 +686,7 @@ describe('service (UT)',function(){
                 if (this.connect.callCount >= 5){
                     return q(fakeDb);
                 }
-                return q.reject('Error!')
+                return q.reject('Error!');
             });
             service.initSessionStore(state).then(resolveSpy, rejectSpy)
             .progress(function(p){
@@ -775,6 +748,141 @@ describe('service (UT)',function(){
             });
         });
     });
+
+    describe('initPubSubChannels', function() {
+        beforeEach(function() {
+            state.config.pubsub = {
+                test1: { port: 111, opts: { reconnectDelay: 2000 } },
+                test2: { port: 222, host: 'h1' },
+                test3: { path: '/tmp/test3', isPublisher: false }
+            };
+            spyOn(pubsub, 'Subscriber');
+            spyOn(pubsub, 'Publisher');
+        });
+
+        it('should be able to setup multiple clients with a variety of options', function(done) {
+            service.initPubSubChannels(state).then(resolveSpy, rejectSpy)
+            .finally(function() {
+                expect(resolveSpy).toHaveBeenCalledWith(state);
+                expect(rejectSpy).not.toHaveBeenCalled();
+                expect(state.publishers).toEqual({});
+                expect(state.subscribers).toEqual({
+                    test1: jasmine.any(pubsub.Subscriber),
+                    test2: jasmine.any(pubsub.Subscriber),
+                    test3: jasmine.any(pubsub.Subscriber)
+                });
+                expect(pubsub.Subscriber.calls[0].args).toEqual(['test1', { port: 111 }, { reconnectDelay: 2000 }]);
+                expect(pubsub.Subscriber.calls[1].args).toEqual(['test2', { port: 222, host: 'h1' }, undefined]);
+                expect(pubsub.Subscriber.calls[2].args).toEqual(['test3', { path: '/tmp/test3' }, undefined]);
+            }).done(done);
+        });
+        
+        it('should initialize a client as a Publisher if isPublisher is true', function(done) {
+            state.config.pubsub.test2.isPublisher = true;
+            service.initPubSubChannels(state).then(resolveSpy, rejectSpy)
+            .finally(function() {
+                expect(resolveSpy).toHaveBeenCalledWith(state);
+                expect(rejectSpy).not.toHaveBeenCalled();
+                expect(state.publishers).toEqual({
+                    test2: jasmine.any(pubsub.Publisher)
+                });
+                expect(state.subscribers).toEqual({
+                    test1: jasmine.any(pubsub.Subscriber),
+                    test3: jasmine.any(pubsub.Subscriber)
+                });
+                expect(pubsub.Publisher.calls[0].args).toEqual(['test2', { port: 222, host: 'h1' }]);
+                expect(pubsub.Subscriber.calls[0].args).toEqual(['test1', { port: 111 }, { reconnectDelay: 2000 }]);
+                expect(pubsub.Subscriber.calls[1].args).toEqual(['test3', { path: '/tmp/test3' }, undefined]);
+            }).done(done);
+        });
+
+        it('should skip if there are no clients to initialize', function(done) {
+            delete state.config.pubsub;
+            service.initPubSubChannels(state).then(resolveSpy, rejectSpy)
+            .finally(function() {
+                expect(resolveSpy).toHaveBeenCalledWith(state);
+                expect(rejectSpy).not.toHaveBeenCalled();
+                expect(state.publishers).toEqual({});
+                expect(state.subscribers).toEqual({});
+                expect(pubsub.Publisher).not.toHaveBeenCalled();
+                expect(pubsub.Subscriber).not.toHaveBeenCalled();
+            }).done(done);
+        });
+    });
+
+    describe('initCache', function() {
+        beforeEach(function() {
+            state.config.cache = {
+                servers: 'localhost:123,localhost:456',
+                timeouts: { read: 200, stats: 300, write: 400 }
+            };
+            spyOn(cacheLib.Cache.prototype, '_initClient');
+            spyOn(cacheLib.Cache.prototype, 'updateServers').andReturn(q());
+        });
+        
+        it('should initialize a cache instance based on config', function(done) {
+            service.initCache(state).then(resolveSpy, rejectSpy)
+            .finally(function() {
+                expect(resolveSpy).toHaveBeenCalledWith(state);
+                expect(rejectSpy).not.toHaveBeenCalled();
+                expect(state.cache instanceof cacheLib.Cache).toBe(true);
+                expect(state.cache.timeouts).toEqual({ read: 200, stats: 300, write: 400 });
+                expect(state.cache._initClient).toHaveBeenCalledWith(['localhost:123', 'localhost:456']);
+            }).done(done);
+        });
+        
+        it('should be able to initialize the client with no initial servers', function(done) {
+            delete state.config.cache.servers;
+            service.initCache(state).then(resolveSpy, rejectSpy)
+            .finally(function() {
+                expect(resolveSpy).toHaveBeenCalledWith(state);
+                expect(rejectSpy).not.toHaveBeenCalled();
+                expect(state.cache instanceof cacheLib.Cache).toBe(true);
+                expect(state.cache.timeouts).toEqual({ read: 200, stats: 300, write: 400 });
+                expect(state.cache._initClient).toHaveBeenCalledWith([]);
+                expect(state.cache.cacheReady).toBe(false);
+            }).done(done);
+        });
+        
+        it('should skip if config.cache is undefined', function(done) {
+            delete state.config.cache;
+            service.initCache(state).then(resolveSpy, rejectSpy)
+            .finally(function() {
+                expect(resolveSpy).toHaveBeenCalledWith(state);
+                expect(rejectSpy).not.toHaveBeenCalled();
+                expect(cacheLib.Cache.prototype._initClient).not.toHaveBeenCalled();
+                expect(state.cache).not.toBeDefined();
+            }).done(done);
+        });
+
+        describe('when there is a cfgChannel', function() {
+            beforeEach(function() {
+                state.subscribers = { cacheCfg: new events.EventEmitter() };
+            });
+
+            it('should setup a handler to call updateServers with the cfgChannel\'s messages', function(done) {
+                service.initCache(state).then(resolveSpy, rejectSpy)
+                .finally(function() {
+                    expect(resolveSpy).toHaveBeenCalledWith(state);
+                    expect(rejectSpy).not.toHaveBeenCalled();
+                    expect(state.cache instanceof cacheLib.Cache).toBe(true);
+                    state.subscribers.cacheCfg.emit('message', { servers: ['h1:11'] });
+                    expect(state.cache.updateServers).toHaveBeenCalledWith(['h1:11']);
+                }).done(done);
+            });
+            
+            it('should use the cfgChannel\'s last message to initialize the cache client', function(done) {
+                state.subscribers.cacheCfg.lastMsg = { servers: ['h2:22'] };
+                service.initCache(state).then(resolveSpy, rejectSpy)
+                .finally(function() {
+                    expect(resolveSpy).toHaveBeenCalledWith(state);
+                    expect(rejectSpy).not.toHaveBeenCalled();
+                    expect(state.cache instanceof cacheLib.Cache).toBe(true);
+                    expect(state.cache._initClient).toHaveBeenCalledWith(['h2:22']);
+                }).done(done);
+            });
+        });
+    });
     
     describe('ensureIndices', function() {
         var collections;
@@ -796,7 +904,7 @@ describe('service (UT)',function(){
                         };
                         return collections[collName];
                     })
-                }
+                };
             });
         });
         

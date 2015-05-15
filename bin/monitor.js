@@ -2,18 +2,21 @@
 (function(){
     'use strict';
 
-    var q           = require('q'),
-        fs          = require('fs-extra'),
-        express     = require('express'),
-        glob        = require('glob'),
-        http        = require('http'),
-        https       = require('https'),
-        service     = require('../lib/service'),
-        uuid        = require('../lib/uuid'),
-        logger      = require('../lib/logger'),
-        __ut__      = (global.jasmine !== undefined) ? true : false,
-        app         = {},
-        state       = {};
+    var q               = require('q'),
+        fs              = require('fs-extra'),
+        express         = require('express'),
+        glob            = require('glob'),
+        http            = require('http'),
+        https           = require('https'),
+        util            = require('util'),
+        aws             = require('aws-sdk'),
+        requestUtils    = require('../lib/requestUtils'),
+        service         = require('../lib/service'),
+        uuid            = require('../lib/uuid'),
+        logger          = require('../lib/logger'),
+        __ut__          = (global.jasmine !== undefined) ? true : false,
+        app             = {},
+        state           = {};
 
     state.services = [];
     state.defaultConfig = {
@@ -30,7 +33,21 @@
         port    : 3333,
         checkHttpTimeout : 2000,
         requestTimeout  : 3000,
-        monitorInc : './monitor.*.json'
+        monitorInc : './monitor.*.json',
+        cacheDiscovery: {
+            awsRegion   : 'us-east-1',      // needed to initiate AWS API clients
+            groupName   : null,             // name of ASG to check
+            serverIps   : ['localhost'],    // in lieu of groupName, provide static array of ips
+            cachePort   : 11211,            // port we expect cache to run on
+            scanTimeout : 2000,             // ms to wait when scanning cachePort on hosts
+            interval    : 60*1000           // how often to re-discover cache servers
+        },
+        pubsub: {
+            cacheCfg: {
+                port: 21211,
+                isPublisher: true
+            }
+        }
     };
 
     app.checkProcess = function(params){
@@ -188,6 +205,7 @@
         });
     };
 
+    //TODO: put in some logic to handle service restarting during ELB check). probs 4s delay
     app.handleGetStatus = function(state, req,res){
         var log = logger.getLog();
 
@@ -240,7 +258,6 @@
         return deferred.promise;
     };
 
-
     app.verifyConfiguration = function(state){
         var log = logger.getLog();
         if (!state.services || !state.services.length){
@@ -284,13 +301,120 @@
         return q(state);
     };
 
-    app.main = function(state){
-        var log = logger.getLog(), webServer;
+    
+    // Get a list of private ip addresses for the InService instances in an AutoScaling group.
+    app.getASGInstances = function(ASG, EC2, groupName) {
+        var log = logger.getLog();
+        
+        log.trace('Getting list of instances for ASG %1', groupName);
 
+        return q.npost(ASG, 'describeAutoScalingGroups', [{AutoScalingGroupNames: [groupName]}])
+        .then(function(data) {
+            var group = data && data.AutoScalingGroups && data.AutoScalingGroups[0] || null;
+            if (!group || !group.Instances) {
+                return q.reject('Incomplete data from describing ASG ' + groupName);
+            }
+            
+            var instanceIds = group.Instances.filter(function(instance) {
+                return instance.LifecycleState === 'InService';
+            }).map(function(instance) {
+                return instance.InstanceId;
+            });
+            
+            if (instanceIds.length === 0) {
+                log.warn('No InService instances in group %1', groupName);
+                return q();
+            }
+            
+            return q.npost(EC2, 'describeInstances', [{ InstanceIds: instanceIds }]);
+        })
+        .then(function(data) {
+            var privateIps = data && data.Reservations.reduce(function(arr, reserv) {
+                return arr.concat(reserv.Instances.map(function(inst) {
+                    return inst.PrivateIpAddress;
+                }));
+            }, []) || [];
+            
+            log.trace('%1 active instances in ASG %2', privateIps.length, groupName);
+            
+            return q(privateIps);
+        })
+        .catch(function(error) {
+            log.error('Failed to retrieve instances in ASG %1: %2', groupName, util.inspect(error));
+            return q.reject('AWS Error');
+        });
+    };
+
+    /* Get a list of active hosts ("ip:port") running the cache. If cfg.groupName is provided,
+     * queries the AWS API for the instances in this ASG; otherwise, uses cfg.serverIps, a static
+     * list of instance ips. Then checks that a server is actually listening on cfg.cachePort on
+     * each ip. */
+    app.getCacheServers = function(ASG, EC2, cfg) {
+        var log = logger.getLog(),
+            ipPromise;
+        
+        if (cfg.groupName) {
+            ipPromise = app.getASGInstances(ASG, EC2, cfg.groupName);
+        } else {
+            if (cfg.serverIps) {
+                log.trace('Using static list of server ips: [%1]', cfg.serverIps);
+                ipPromise = q(cfg.serverIps);
+            } else {
+                log.warn('No ASG groupName or list of serverIps, not getting cache servers');
+                return q.reject('No way to get servers');
+            }
+        }
+
+        return ipPromise.then(function(ips) {
+            var activeHosts = [];
+            
+            return q.allSettled(ips.map(function(ip) {
+                return requestUtils.portScan(ip, cfg.cachePort, cfg.scanTimeout);
+            }))
+            .then(function(results) {
+                results.forEach(function(result, idx) {
+                    if (result.state === 'rejected') {
+                        log.warn('Cache not running on InService server %1:%2: %3',
+                                 ips[idx], cfg.cachePort, util.inspect(result.reason));
+                    } else {
+                        activeHosts.push(ips[idx] + ':' + cfg.cachePort);
+                    }
+                });
+
+                log.info('Current active cache servers: [%1]', activeHosts);
+                return q(activeHosts);
+            });
+        })
+        .catch(function(error) {
+            log.error('Failed looking up current cache servers: %1', util.inspect(error));
+            return q.reject(error);
+        });
+    };
+    
+    app.main = function(state){
+        var log = logger.getLog(),
+            webServer, EC2, ASG;
+        
         if (state.clusterMaster){
             log.info('Cluster master, not a worker');
             return state;
         }
+
+        aws.config.region = state.config.cacheDiscovery.awsRegion;
+        EC2 = new aws.EC2();
+        ASG = new aws.AutoScaling();
+
+        function broadcastCacheServers() {
+            app.getCacheServers(ASG, EC2, state.config.cacheDiscovery)
+            .then(function(servers) {
+                return state.publishers.cacheCfg.broadcast({ servers: servers });
+            });
+        }
+        
+        log.info('Performing initial check for cache servers');
+        broadcastCacheServers();
+
+        setInterval(broadcastCacheServers, state.config.cacheDiscovery.interval);
 
         state.onSIGHUP = function(){
             return app.loadMonitorProfiles(state)
@@ -310,7 +434,7 @@
             next();
         });
 
-        webServer.all('*',function(req, res, next){
+        webServer.all('*', function(req, res, next) {
             req.uuid = uuid.createUuid().substr(0,10);
             log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
                 req.method,req.url,req.httpVersion);
@@ -319,6 +443,17 @@
 
         webServer.get('/api/status',function(req, res){
             app.handleGetStatus(state, req, res);
+        });
+
+        webServer.get('/api/monitor/cacheServers', function(req, res) {
+            log.info('Starting getCacheServers in response to request');
+            app.getCacheServers(ASG, EC2, state.config.cacheDiscovery).then(function(servers) {
+                res.send(200, { servers: servers });
+            })
+            .catch(function(error) {
+                log.error('Failed getCacheServers: %1', error && error.stack || error);
+                res.send(500, error);
+            });
         });
         
         webServer.get('/api/monitor/version',function(req, res ){
@@ -338,6 +473,7 @@
         .then(service.prepareServer)
         .then(service.daemonize)
         .then(service.cluster)
+        .then(service.initPubSubChannels)
         .then(app.main)
         .catch( function(err){
             var log = logger.getLog();
@@ -354,11 +490,7 @@
         });
     } else {
         module.exports = {
-            'app'         : app
+            'app' : app
         };
     }
-
-
-
-
 }());

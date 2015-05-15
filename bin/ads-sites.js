@@ -12,7 +12,8 @@
         siteModule = {};
 
     siteModule.setupSvc = function(coll) {
-        var svc = new CrudSvc(coll, 's', { userProp: false, orgProp: false });
+        var opts = { userProp: false, orgProp: false },
+            svc = new CrudSvc(coll, 's', opts);
         svc.createValidator._required.push('host', 'name');
         svc.createValidator._forbidden.push('adtechId');
         svc.createValidator._condForbidden.org = FieldValidator.orgFunc('sites', 'create');
@@ -275,13 +276,15 @@
     };
 
     
-    siteModule.setupEndpoints = function(app, svc, sessions, audit) {
+    siteModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
         var authGetSite = authUtils.middlewarify({sites: 'read'});
         app.get('/api/site/:id', sessions, authGetSite, audit, function(req, res) {
-            svc.getObjs({id: req.params.id}, req, false).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error retrieving site', detail: error });
+            var promise = svc.getObjs({id: req.params.id}, req, false);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error retrieving site', detail: error });
+                });
             });
         });
 
@@ -296,43 +299,45 @@
                 query.adtechId = Number(req.query.adtechId);
             }
 
-            svc.getObjs(query, req, true).then(function(resp) {
-                if (resp.pagination) {
-                    res.header('content-range', 'items ' + resp.pagination.start + '-' +
-                                                resp.pagination.end + '/' + resp.pagination.total);
-
-                }
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error retrieving sites', detail: error });
+            var promise = svc.getObjs(query, req, true);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error retrieving sites', detail: error });
+                });
             });
         });
 
         var authPostSite = authUtils.middlewarify({sites: 'create'});
         app.post('/api/site', sessions, authPostSite, audit, function(req, res) {
-            svc.createObj(req).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error creating site', detail: error });
+            var promise = svc.createObj(req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error creating site', detail: error });
+                });
             });
         });
 
         var authPutSite = authUtils.middlewarify({sites: 'edit'});
         app.put('/api/site/:id', sessions, authPutSite, audit, function(req, res) {
-            svc.editObj(req).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error updating site', detail: error });
+            var promise = svc.editObj(req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error updating site', detail: error });
+                });
             });
         });
 
         var authDelSite = authUtils.middlewarify({sites: 'delete'});
         app.delete('/api/site/:id', sessions, authDelSite, audit, function(req, res) {
-            svc.deleteObj(req)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, { error: 'Error deleting site', detail: error });
+            var promise = svc.deleteObj(req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error deleting site', detail: error });
+                });
             });
         });
     };

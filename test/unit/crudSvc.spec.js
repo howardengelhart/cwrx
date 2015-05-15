@@ -1,7 +1,7 @@
 var flush = true;
 describe('CrudSvc', function() {
-    var q, mockLog, logger, CrudSvc, enums, uuid, mongoUtils, FieldValidator, mockColl, anyFunc,
-        req, svc;
+    var q, mockLog, logger, CrudSvc, uuid, mongoUtils, FieldValidator, mockColl, anyFunc,
+        req, svc, enums, Scope, Status;
     
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -15,7 +15,7 @@ describe('CrudSvc', function() {
         Scope           = enums.Scope;
         Status          = enums.Status;
         anyFunc = jasmine.any(Function);
-        
+
         mockColl = {
             collectionName: 'thangs',
             find: jasmine.createSpy('coll.find'),
@@ -45,6 +45,7 @@ describe('CrudSvc', function() {
         svc = new CrudSvc(mockColl, 't');
         spyOn(svc, 'formatOutput').andReturn('formatted');
         spyOn(svc, 'runMiddleware').andCallThrough();
+        
     });
 
     describe('initialization', function() {
@@ -72,7 +73,9 @@ describe('CrudSvc', function() {
         });
         
         it('should allow setting various options', function() {
-            var opts = {objName: 'bananas', userProp: false, orgProp: false, allowPublic: true}
+            var opts = {
+                objName: 'bananas', userProp: false, orgProp: false, allowPublic: true,
+            };
             svc = new CrudSvc(mockColl, 't', opts);
             expect(svc.objName).toBe('bananas');
             expect(svc._userProp).toBe(false);
@@ -206,7 +209,7 @@ describe('CrudSvc', function() {
         });
         
         it('should default in the user and org if those props are enabled', function() {
-            svc._userProp = true, svc._orgProp = true;
+            svc._userProp = true; svc._orgProp = true;
             svc.setupObj(req, next, doneSpy);
             expect(req.body).toEqual({id: 't-1234567890abcd', created: anyDate, foo: 'bar', user: 'u1',
                                       org: 'o1', lastUpdated: anyDate, status: Status.Active});
@@ -214,7 +217,7 @@ describe('CrudSvc', function() {
         });
         
         it('should return a 403 if a non-admin is creating an object for a different user/org', function() {
-            svc._userProp = true, svc._orgProp = true;
+            svc._userProp = true; svc._orgProp = true;
             req.body = { user: 'u2' };
             svc.setupObj(req, next, doneSpy);
             expect(doneSpy).toHaveBeenCalledWith({code: 403, body: 'Not authorized to create objects for another user'});
@@ -225,7 +228,7 @@ describe('CrudSvc', function() {
         });
         
         it('should allow an admin to create an object for a different user/org', function() {
-            svc._userProp = true, svc._orgProp = true;
+            svc._userProp = true; svc._orgProp = true;
             req.user.permissions.thangs.create = Scope.All;
             req.body = { user: 'u2' };
             svc.setupObj(req, next, doneSpy);
@@ -382,7 +385,7 @@ describe('CrudSvc', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(catchSpy).not.toHaveBeenCalled();
                 expect(mockColl.findOne).toHaveBeenCalledWith({name: 'scruffles'}, anyFunc);
-                done(); 
+                done();
             });
         });
         
@@ -394,7 +397,7 @@ describe('CrudSvc', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(catchSpy).not.toHaveBeenCalled();
                 expect(mockColl.findOne).toHaveBeenCalledWith({name: 'scruffles', id: {$ne: 'cat-1'}}, anyFunc);
-                done(); 
+                done();
             });
         });
         
@@ -405,7 +408,7 @@ describe('CrudSvc', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(catchSpy).not.toHaveBeenCalled();
                 expect(mockColl.findOne).not.toHaveBeenCalled();
-                done(); 
+                done();
             });
         });
         
@@ -432,7 +435,7 @@ describe('CrudSvc', function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({code: 409, body: 'An object with that name already exists'});
                 expect(catchSpy).not.toHaveBeenCalled();
-                done(); 
+                done();
             });
         });
         
@@ -443,7 +446,7 @@ describe('CrudSvc', function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(catchSpy).toHaveBeenCalledWith('CAT IS TOO CUTE HALP');
-                done(); 
+                done();
             });
         });
     });
@@ -641,7 +644,8 @@ describe('CrudSvc', function() {
                 
         it('should set resp.pagination if multiExp is true', function(done) {
             svc.getObjs(query, req, true).then(function(resp) {
-                expect(resp).toEqual({code: 200, body: ['formatted'], pagination: {start: 11, end: 30, total: 50}});
+                expect(resp).toEqual({ code: 200, body: ['formatted'],
+                                       headers: { 'content-range': 'items 11-30/50' } });
                 expect(fakeCursor.count).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -651,7 +655,8 @@ describe('CrudSvc', function() {
         it('should handle end behavior properly when paginating', function(done) {
             req.query.skip = 45;
             svc.getObjs(query, req, true).then(function(resp) {
-                expect(resp).toEqual({code: 200, body: ['formatted'], pagination: {start: 46, end: 50, total: 50}});
+                expect(resp).toEqual({ code: 200, body: ['formatted'],
+                                       headers: { 'content-range': 'items 46-50/50' } });
                 expect(fakeCursor.count).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -695,7 +700,8 @@ describe('CrudSvc', function() {
             fakeCursor.toArray.andCallFake(function(cb) { cb(null, []); });
             fakeCursor.count.andCallFake(function(cb) { cb(null, 0); });
             svc.getObjs(query, req, true).then(function(resp) {
-                expect(resp).toEqual({code: 200, body: [], pagination: {start: 0, end: 0, total: 0}});
+                expect(resp).toEqual({ code: 200, body: [],
+                                       headers: { 'content-range': 'items 0-0/0' } });
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(fakeCursor.count).toHaveBeenCalled();
                 expect(svc.formatOutput).not.toHaveBeenCalled();
@@ -944,4 +950,3 @@ describe('CrudSvc', function() {
         });
     });
 });
-

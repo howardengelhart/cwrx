@@ -1,16 +1,16 @@
 var flush = true;
 describe('content (UT)', function() {
-    var mockLog, experiences, req, uuid, logger, content, q, objUtils,
-        mongoUtils, enums, Status, Scope, Access;
+    var mockLog, experiences, uuid, logger, content, q, objUtils,
+        mongoUtils, enums, Status, Scope, Access, req;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
+        q               = require('q');
         uuid            = require('../../lib/uuid');
         logger          = require('../../lib/logger');
         content         = require('../../bin/content');
         mongoUtils      = require('../../lib/mongoUtils');
         objUtils        = require('../../lib/objUtils');
-        q               = require('q');
         enums           = require('../../lib/enums');
         Status          = enums.Status;
         Access          = enums.Access;
@@ -29,7 +29,7 @@ describe('content (UT)', function() {
         spyOn(content, 'formatOutput').andCallThrough();
         spyOn(mongoUtils, 'escapeKeys').andCallThrough();
         spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
-
+        
         experiences = {};
         req = {uuid: '1234'};
     });
@@ -211,8 +211,7 @@ describe('content (UT)', function() {
 
         it('should format the query and call expColl.find', function(done) {
             content.getExperiences(query, req, expColl, false).then(function(resp) {
-                expect(resp.code).toBe(200);
-                expect(resp.body).toEqual(['formatted']);
+                expect(resp).toEqual({code: 200, body: 'formatted'});
                 expect(content.userPermQuery).toHaveBeenCalledWith({type:'minireel'},'fakeUser',false);
                 expect(expColl.find).toHaveBeenCalledWith('userPermQuery', {sort: { id: 1 }, limit: 20, skip: 10});
                 expect(fakeCursor.toArray).toHaveBeenCalled();
@@ -226,8 +225,7 @@ describe('content (UT)', function() {
         it('should use defaults if some params are not defined', function(done) {
             req = { uuid: '1234', user: 'fakeUser' };
             content.getExperiences(query, req, expColl, false).then(function(resp) {
-                expect(resp.code).toBe(200);
-                expect(resp.body).toEqual(['formatted']);
+                expect(resp).toEqual({code: 200, body: 'formatted'});
                 expect(expColl.find).toHaveBeenCalledWith('userPermQuery', {sort: {}, limit: 0, skip: 0});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -237,8 +235,7 @@ describe('content (UT)', function() {
         it('should just ignore the sort param if invalid', function(done) {
             req.query.sort = 'foo';
             content.getExperiences(query, req, expColl, false).then(function(resp) {
-                expect(resp.code).toBe(200);
-                expect(resp.body).toEqual(['formatted']);
+                expect(resp).toEqual({code: 200, body: 'formatted'});
                 expect(expColl.find).toHaveBeenCalledWith('userPermQuery', {sort: {}, limit: 20, skip: 10});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -248,13 +245,11 @@ describe('content (UT)', function() {
         it('should properly use hints if querying by user or org', function(done) {
             content.userPermQuery.andCallFake(function(orig) { return orig; });
             content.getExperiences({user: 'u-1'}, req, expColl, false).then(function(resp) {
-                expect(resp.code).toBe(200);
-                expect(resp.body).toEqual(['formatted']);
+                expect(resp).toEqual({code: 200, body: 'formatted'});
                 expect(expColl.find).toHaveBeenCalledWith({user: 'u-1'}, {sort: {id: 1}, limit: 20, skip: 10, hint: {user: 1}});
                 return content.getExperiences({org: 'o-1'}, req, expColl, false);
             }).then(function(resp) {
-                expect(resp.code).toBe(200);
-                expect(resp.body).toEqual(['formatted']);
+                expect(resp).toEqual({code: 200, body: 'formatted'});
                 expect(expColl.find.calls[1].args).toEqual([{org: 'o-1'}, {sort: {id: 1}, limit: 20, skip: 10, hint: {org: 1}}]);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -264,8 +259,7 @@ describe('content (UT)', function() {
         it('should prefer to hint on the user index if querying by user and org', function(done) {
             content.userPermQuery.andCallFake(function(orig) { return orig; });
             content.getExperiences({org: 'o-1', user: 'u-1'}, req, expColl, false).then(function(resp) {
-                expect(resp.code).toBe(200);
-                expect(resp.body).toEqual(['formatted']);
+                expect(resp).toEqual({code: 200, body: 'formatted'});
                 expect(expColl.find).toHaveBeenCalledWith({org: 'o-1', user: 'u-1'},
                     {sort: {id: 1}, limit: 20, skip: 10, hint: {user: 1}});
             }).catch(function(error) {
@@ -276,8 +270,7 @@ describe('content (UT)', function() {
         it('should not allow a user to query for deleted experiences', function(done) {
             query.status = Status.Deleted;
             content.getExperiences(query, req, expColl, false).then(function(resp) {
-                expect(resp.code).toBe(400);
-                expect(resp.body).toEqual('Cannot get deleted experiences');
+                expect(resp).toEqual({code: 400, body: 'Cannot get deleted experiences'});
                 expect(mockLog.warn).toHaveBeenCalled();
                 expect(content.userPermQuery).not.toHaveBeenCalled();
                 expect(expColl.find).not.toHaveBeenCalled();
@@ -290,8 +283,7 @@ describe('content (UT)', function() {
         it('should properly format a query by multiple ids', function(done) {
             query = { id: ['e-1', 'e-2'] };
             content.getExperiences(query, req, expColl, false).then(function(resp) {
-                expect(resp.code).toBe(200);
-                expect(resp.body).toEqual(['formatted']);
+                expect(resp).toEqual({code: 200, body: 'formatted'});
                 expect(content.userPermQuery).toHaveBeenCalledWith({id: {$in: ['e-1', 'e-2']}}, 'fakeUser', false);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -301,8 +293,7 @@ describe('content (UT)', function() {
         it('should properly format a query by multiple categories', function(done) {
             query = { categories: ['food', 'sports'] };
             content.getExperiences(query, req, expColl, false).then(function(resp) {
-                expect(resp.code).toBe(200);
-                expect(resp.body).toEqual(['formatted']);
+                expect(resp).toEqual({code: 200, body: 'formatted'});
                 expect(content.userPermQuery).toHaveBeenCalledWith({categories: {$in: ['food', 'sports']}}, 'fakeUser', false);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -323,8 +314,7 @@ describe('content (UT)', function() {
         it('should properly format a query on the status field', function(done) {
             query.status = Status.Active;
             content.getExperiences(query, req, expColl, false).then(function(resp) {
-                expect(resp.code).toBe(200);
-                expect(resp.body).toEqual(['formatted']);
+                expect(resp).toEqual({code: 200, body: 'formatted'});
                 expect(content.userPermQuery).toHaveBeenCalledWith({type: 'minireel',
                     'status.0.status': Status.Active}, 'fakeUser', false);
             }).catch(function(error) {
@@ -335,21 +325,19 @@ describe('content (UT)', function() {
         it('should format a text query', function(done) {
             query.text = 'foo bar';
             content.getExperiences(query, req, expColl, false).then(function(resp) {
-                expect(resp.code).toBe(200);
-                expect(resp.body).toEqual(['formatted']);
+                expect(resp).toEqual({code: 200, body: 'formatted'});
                 expect(content.formatTextQuery).toHaveBeenCalledWith({type: 'minireel', text: 'foo bar'});
                 expect(content.userPermQuery).toHaveBeenCalledWith({type: 'minireel',
                     'data.0.data.title': {$regex: '.*foo.*bar.*', $options: 'i'}}, 'fakeUser', false);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
         
-        it('should set resp.pagination if multiExp is true', function(done) {
+        it('should set the content-range header if multiExp is true', function(done) {
             content.getExperiences(query, req, expColl, true).then(function(resp) {
-                expect(resp.code).toBe(200);
-                expect(resp.body).toEqual(['formatted']);
-                expect(resp.pagination).toEqual({start: 11, end: 30, total: 50});
+                expect(resp).toEqual({ code: 200, body: ['formatted'],
+                                       headers: { 'content-range': 'items 11-30/50' } });
                 expect(fakeCursor.count).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -359,22 +347,31 @@ describe('content (UT)', function() {
         it('should handle end behavior properly when paginating', function(done) {
             req.query.skip = 45;
             content.getExperiences(query, req, expColl, true).then(function(resp) {
-                expect(resp.code).toBe(200);
-                expect(resp.body).toEqual(['formatted']);
-                expect(resp.pagination).toEqual({start: 46, end: 50, total: 50});
+                expect(resp).toEqual({ code: 200, body: ['formatted'],
+                                       headers: { 'content-range': 'items 46-50/50' } });
                 expect(fakeCursor.count).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
+        
+        it('should return a 404 if requesting a single experience returned nothing', function(done) {
+            fakeCursor.toArray.andCallFake(function(cb) { cb(null, []); });
+            content.getExperiences(query, req, expColl, false).then(function(resp) {
+                expect(resp).toEqual({ code: 404, body: 'Experience not found' });
+                expect(fakeCursor.toArray).toHaveBeenCalled();
+                expect(content.formatOutput).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
 
-        it('should return a 200 and empty array if nothing was found', function(done) {
+        it('should return a 200 and empty array if requesting multiple experiences returned nothing', function(done) {
             fakeCursor.toArray.andCallFake(function(cb) { cb(null, []); });
             fakeCursor.count.andCallFake(function(cb) { cb(null, 0); });
             content.getExperiences(query, req, expColl, true).then(function(resp) {
-                expect(resp.code).toBe(200);
-                expect(resp.body).toEqual([]);
-                expect(resp.pagination).toEqual({start: 0, end: 0, total: 0});
+                expect(resp).toEqual({ code: 200, body: [],
+                                       headers: { 'content-range': 'items 0-0/0' } });
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(fakeCursor.count).toHaveBeenCalled();
                 expect(content.formatOutput).not.toHaveBeenCalled();
@@ -431,11 +428,9 @@ describe('content (UT)', function() {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(400);
                 expect(experiences.insert).not.toHaveBeenCalled();
-                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should successfully create an experience', function(done) {
@@ -460,11 +455,9 @@ describe('content (UT)', function() {
                 expect(content.formatOutput).toHaveBeenCalled();
                 expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                 expect(content.checkScope).not.toHaveBeenCalled();
-                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
         
         it('should set default values for some fields if not specified in the request', function(done) {
@@ -483,7 +476,7 @@ describe('content (UT)', function() {
                     date:jasmine.any(Date),versionId:'fakeVers',data:{}});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-            }).finally(done);
+            }).done(done);
         });
 
         it('should prevent ordinary users from setting the adConfig', function(done) {
@@ -495,11 +488,9 @@ describe('content (UT)', function() {
                 expect(content.checkScope).toHaveBeenCalledWith(req.user, req.body, 'experiences', 'editAdConfig');
                 expect(experiences.insert).not.toHaveBeenCalled();
                 expect(content.formatOutput).not.toHaveBeenCalled();
-                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should let users set the adConfig if they have permission to do so', function(done) {
@@ -513,11 +504,9 @@ describe('content (UT)', function() {
                 expect(content.checkScope).toHaveBeenCalledWith(req.user, req.body, 'experiences', 'editAdConfig');
                 expect(experiences.insert).toHaveBeenCalled();
                 expect(experiences.insert.calls[0].args[0].data[0].data).toEqual({foo:'bar',adConfig:{ads:'good'}});
-                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should fail with a 400 if the request body contains illegal fields', function(done) {
@@ -527,24 +516,20 @@ describe('content (UT)', function() {
                 expect(resp.code).toBe(400);
                 expect(content.createValidator.validate).toHaveBeenCalled();
                 expect(experiences.insert).not.toHaveBeenCalled();
-                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should fail with an error if inserting the record fails', function(done) {
             experiences.insert.andCallFake(function(obj, opts, cb) { cb('Error!'); });
             content.createExperience(req, experiences).then(function(resp) {
                 expect(resp).not.toBeDefined();
-                done();
             }).catch(function(error) {
                 expect(error).toBe('Error!');
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(experiences.insert).toHaveBeenCalled();
-                done();
-            });
+            }).done(done);
         });
     });
 
@@ -577,11 +562,9 @@ describe('content (UT)', function() {
                 expect(resp).toBeDefined();
                 expect(resp.code).toBe(400);
                 expect(experiences.findOne).not.toHaveBeenCalled();
-                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should successfully update an experience', function(done) {
@@ -609,11 +592,9 @@ describe('content (UT)', function() {
                 expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                 expect(content.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'edit');
                 expect(content.checkScope).not.toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'editAdConfig');
-                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should prevent improper direct edits to some properties', function(done) {
@@ -631,11 +612,9 @@ describe('content (UT)', function() {
                 expect(updates.$set.versionId).not.toBeDefined();
                 expect(updates.$set.lastStatusChange).not.toBeDefined();
                 expect(content.formatOutput).toHaveBeenCalled();
-                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should not edit the experience if the updates contain illegal fields', function(done) {
@@ -645,11 +624,9 @@ describe('content (UT)', function() {
                 expect(resp.body).toBe('Invalid request body');
                 expect(content.updateValidator.validate).toHaveBeenCalled();
                 expect(experiences.findAndModify).not.toHaveBeenCalled();
-                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should only let a user edit experiences they are authorized to edit', function(done) {
@@ -660,11 +637,9 @@ describe('content (UT)', function() {
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findAndModify).not.toHaveBeenCalled();
                 expect(content.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'edit');
-                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should prevent ordinary users from editing the adConfig', function(done) {
@@ -680,11 +655,9 @@ describe('content (UT)', function() {
                 expect(experiences.findAndModify).not.toHaveBeenCalled();
                 expect(content.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'editAdConfig');
                 expect(objUtils.compareObjects).toHaveBeenCalledWith({ ads: 'good' }, null);
-                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should allow the edit if the adConfig is unchanged', function(done) {
@@ -702,11 +675,9 @@ describe('content (UT)', function() {
                 expect(updates.$set.data[0].data.adConfig).toEqual({ ads: 'good' });
                 expect(objUtils.compareObjects).toHaveBeenCalledWith({ads: 'good'}, {ads: 'good'});
                 expect(content.checkScope).not.toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'editAdConfig');
-                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should let users edit the adConfig if they have permission to do so', function(done) {
@@ -720,11 +691,9 @@ describe('content (UT)', function() {
                 var updates = experiences.findAndModify.calls[0].args[2];
                 expect(updates.$set.data[0].data.adConfig).toEqual({ ads: 'bad' });
                 expect(content.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'editAdConfig');
-                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should not create an experience if it does not already exist', function(done) {
@@ -734,11 +703,9 @@ describe('content (UT)', function() {
                 expect(resp.body).toBe('That experience does not exist');
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findAndModify).not.toHaveBeenCalled();
-                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should not edit an experience that has been deleted', function(done) {
@@ -748,36 +715,30 @@ describe('content (UT)', function() {
                 expect(resp.body).toBe('That experience does not exist');
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findAndModify).not.toHaveBeenCalled();
-                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should fail with an error if modifying the record fails', function(done) {
             experiences.findAndModify.andCallFake(function(query, sort, obj, opts, cb) { cb('Error!'); });
             content.updateExperience(req, experiences).then(function(resp) {
                 expect(resp).not.toBeDefined();
-                done();
             }).catch(function(error) {
                 expect(error).toBe('Error!');
                 expect(experiences.findAndModify).toHaveBeenCalled();
-                done();
-            });
+            }).done(done);
         });
 
         it('should fail with an error if looking up the record fails', function(done) {
             experiences.findOne.andCallFake(function(query, cb) { cb('Error!'); });
             content.updateExperience(req, experiences).then(function(resp) {
                 expect(resp).not.toBeDefined();
-                done();
             }).catch(function(error) {
                 expect(error).toBe('Error!');
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findAndModify).not.toHaveBeenCalled();
-                done();
-            });
+            }).done(done);
         });
     });
 
@@ -818,11 +779,9 @@ describe('content (UT)', function() {
                 expect(setProps.lastUpdated).toBeGreaterThan(start);
                 expect(experiences.update.calls[0].args[2]).toEqual({w: 1, journal: true});
                 expect(mongoUtils.escapeKeys).toHaveBeenCalled();
-                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should not do anything if the experience does not exist', function(done) {
@@ -833,11 +792,9 @@ describe('content (UT)', function() {
                 expect(resp.body).not.toBeDefined();
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.update).not.toHaveBeenCalled();
-                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should not do anything if the experience has been deleted', function(done) {
@@ -848,11 +805,9 @@ describe('content (UT)', function() {
                 expect(resp.body).not.toBeDefined();
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.update).not.toHaveBeenCalled();
-                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should only let a user delete experiences they are authorized to delete', function(done) {
@@ -864,36 +819,30 @@ describe('content (UT)', function() {
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(content.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'delete');
                 expect(experiences.update).not.toHaveBeenCalled();
-                done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
-                done();
-            });
+            }).done(done);
         });
 
         it('should fail with an error if modifying the record fails', function(done) {
             experiences.update.andCallFake(function(query, obj, opts, cb) { cb('Error!'); });
             content.deleteExperience(req, experiences).then(function(resp) {
                 expect(resp).not.toBeDefined();
-                done();
             }).catch(function(error) {
                 expect(error.toString()).toBe('Error!');
                 expect(experiences.update).toHaveBeenCalled();
-                done();
-            });
+            }).done(done);
         });
 
         it('should fail with an error if looking up the record fails', function(done) {
             experiences.findOne.andCallFake(function(query, cb) { cb('Error!'); });
             content.deleteExperience(req, experiences).then(function(resp) {
                 expect(resp).not.toBeDefined();
-                done();
             }).catch(function(error) {
                 expect(error.toString()).toBe('Error!');
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.update).not.toHaveBeenCalled();
-                done();
-            });
+            }).done(done);
         });
     });  // end -- describe deleteExperience
 });  // end -- describe content
