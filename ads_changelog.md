@@ -1,5 +1,12 @@
 # Ads Service Changelog
 
+### 1.3.0: Mon May 18 15:06:37 EDT 2015
+* [FEATURE]: Implement Job Timeouts: [#421](https://github.com/cinema6/cwrx/pull/421)
+* Extra deployment steps:
+    * Deploy updated cookbooks
+    * Update chef environments so memcached is installed on ASG nodes
+    * Open ports for memcached and give API servers permissions for querying AutoScaling API
+
 ### 1.2.5: Mon Apr 27 14:56:43 EDT 2015
 * [FIX]: Properly set new campaigns to be exclusive: [#419](https://github.com/cinema6/cwrx/pull/419)
 * Extra deployment steps: None
