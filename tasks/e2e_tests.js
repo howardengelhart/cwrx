@@ -18,7 +18,9 @@ module.exports = function(grunt) {
         var done = this.async(),
             ec2Data = grunt.config.get('ec2Data'),
             args = ['--test-dir', 'test/e2e/', '--captureExceptions', '--junitreport', '--output',
-                    'reports/e2e/'];
+                    'reports/e2e/'],
+            cacheCfgHost, cacheHost;
+
         if (svc) {
             var regexp = '^' + svc + '(\\.[^\\.]+)*\\.e2e\\.';
             args.push('--match', regexp);
@@ -26,17 +28,18 @@ module.exports = function(grunt) {
         if (grunt.option('testHost')) {
             args.push('--config', 'host', lookupIp(ec2Data,grunt.option('testHost'),'public'));
         }
-        if (grunt.option('statusHost')) {
-            args.push('--config', 'statusHost',
-                lookupIp(ec2Data,grunt.option('statusHost'),'public'));
-        }
-        if (grunt.option('cacheHost')) {
-            var host = lookupIp(ec2Data,grunt.option('cacheHost'),'public'),
-                port = grunt.option('cachePort') || 11211;
-            args.push('--config', 'cacheServer', host + ':' + port);
+        if (grunt.option('cacheCfgHost')) {
+            cacheCfgHost = lookupIp(ec2Data,grunt.option('cacheCfgHost'),'private');
+            args.push('--config', 'cacheCfgHost', cacheCfgHost);
         }
         if (grunt.option('cacheCfgPort')) {
             args.push('--config', 'cacheCfgPort', grunt.option('cacheCfgPort'));
+        }
+        if (grunt.option('cacheHost')) {
+            cacheHost = lookupIp(ec2Data,grunt.option('cacheHost'),'private');
+            var port = grunt.option('cachePort') || 11211;
+            args.push('--config', 'cacheServer', cacheHost + ':' + port);
+            if (!cacheCfgHost) args.push('--config', 'cacheCfgHost', cacheHost);
         }
         if (grunt.option('bucket')) {
             args.push('--config', 'bucket', grunt.option('bucket'));

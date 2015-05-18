@@ -3,6 +3,7 @@ var q               = require('q'),
     requestUtils    = require('../../lib/requestUtils'),
     pubsub          = require('../../lib/pubsub'),
     cacheServer     = process.env.cacheServer || 'localhost:11211',
+    cacheCfgHost    = process.env.cacheCfgHost || 'localhost',
     cacheCfgPort    = process.env.cacheCfgPort || 21211,
     urlBase         = 'http://' + (process.env.host || 'localhost'),
     makeUrl         = function(fragment) { return urlBase + fragment; };
@@ -212,7 +213,7 @@ describe('monitor (E2E)', function(){
         it('should return the same list monitor is broadcasting on the cacheCfg channel', function(done) {
             requestUtils.qRequest('get', { url: makeUrl('/api/monitor/cacheServers') }).then(function(resp) {
                 var servers = resp.body.servers,
-                    connCfg = { host: process.env.host, port: cacheCfgPort };
+                    connCfg = { host: cacheCfgHost, port: cacheCfgPort };
                 
                 var sub = new pubsub.Subscriber('cacheCfg', connCfg, { reconnect: false })
                 .on('message', function(msg) {
