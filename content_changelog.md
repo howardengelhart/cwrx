@@ -1,5 +1,12 @@
 # Content Service Changelog
 
+### 1.16.0: Mon May 18 15:06:37 EDT 2015
+* [FEATURE]: Implement Job Timeouts: [#421](https://github.com/cinema6/cwrx/pull/421)
+* Extra deployment steps:
+    * Deploy updated cookbooks
+    * Update chef environments so memcached is installed on ASG nodes
+    * Open ports for memcached and give API servers permissions for querying AutoScaling API
+
 ### 1.15.0: Thu Feb 26 11:01:27 EST 2015
 * [FEATURE]: Add `GET /api/public/content/card/:id` endpoint: [#382](https://github.com/cinema6/cwrx/pull/382)
 * [FEATURE]: Update `GET /api/public/content/experience/:id` endpoint to handle campaigns: [#382](https://github.com/cinema6/cwrx/pull/382)
