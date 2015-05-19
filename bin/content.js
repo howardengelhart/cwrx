@@ -6,6 +6,9 @@
     var path            = require('path'),
         q               = require('q'),
         urlUtils        = require('url'),
+        express         = require('express'),
+        bodyParser      = require('body-parser'),
+        sessionLib      = require('express-session'),
         logger          = require('../lib/logger'),
         uuid            = require('../lib/uuid'),
         mongoUtils      = require('../lib/mongoUtils'),
@@ -58,8 +61,9 @@
         },
         sessions: {
             key: 'c6Auth',
-            maxAge: 14*24*60*60*1000, // 14 days; unit here is milliseconds
-            minAge: 60*1000, // TTL for cookies for unauthenticated users
+            maxAge: 14*24*60*60*1000,   // 14 days; unit here is milliseconds
+            minAge: 60*1000,            // TTL for cookies for unauthenticated users
+            secure: false,              // true == HTTPS-only; set to true for staging/production
             mongo: {
                 host: null,
                 port: null,
@@ -808,8 +812,7 @@
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
 
-        var express      = require('express'),
-            app          = express(),
+        var app          = express(),
             collKeys     = ['experiences','orgs','users','sites','campaigns','cards','categories'],
             cacheKeys    = ['experiences', 'orgs', 'sites', 'campaigns', 'cards'],
             collections  = {},
@@ -832,18 +835,21 @@
         cardSvc = cardModule.setupCardSvc(collections.cards, caches.cards);
         catSvc = catModule.setupCatSvc(collections.categories);
 
-
-        app.use(express.bodyParser());
-        app.use(express.cookieParser(state.secrets.cookieParser || ''));
-
-        var sessions = express.session({
+        app.use(bodyParser.json());
+        
+        var sessionOpts = {
             key: state.config.sessions.key,
+            resave: false,
+            secret: state.secrets.cookieParser || '',
             cookie: {
-                httpOnly: false,
+                httpOnly: true,
+                secure: state.config.sessions.secure,
                 maxAge: state.config.sessions.minAge
             },
             store: state.sessionStore
-        });
+        };
+        
+        var sessions = sessionLib(sessionOpts);
 
         state.dbStatus.c6Db.on('reconnected', function() {
             collKeys.forEach(function(key) {
@@ -860,14 +866,8 @@
         });
 
         state.dbStatus.sessions.on('reconnected', function() {
-            sessions = express.session({
-                key: state.config.sessions.key,
-                cookie: {
-                    httpOnly: false,
-                    maxAge: state.config.sessions.minAge
-                },
-                store: state.sessionStore
-            });
+            sessionOpts.store = state.sessionStore;
+            sessions = sessionLib(sessionOpts);
             log.info('Recreated session store from restarted db');
         });
 

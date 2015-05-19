@@ -11,6 +11,10 @@
         glob        = require('glob'),
         handlebars  = require('handlebars'),
         util        = require('util'),
+        express     = require('express'),
+        bodyParser  = require('body-parser'),
+        multer      = require('multer'),
+        sessionLib  = require('express-session'),
         logger      = require('../lib/logger'),
         uuid        = require('../lib/uuid'),
         authUtils   = require('../lib/authUtils'),
@@ -41,7 +45,8 @@
             clearInterval: 60*1000, // how often to check for old cached md5s; units = ms
             timeout: 10*1000        // timeout for entire splash generation process; units = ms
         },
-        maxFileSize: 25*1000*1000, // 25MB
+        maxFileSize: 25*1000*1000,  // 25MB
+        maxFiles: 10,               // max number of files svc will handle in a request
         s3: {
             bucket: 'c6.dev',
             path: 'collateral/',
@@ -49,8 +54,9 @@
         },
         sessions: {
             key: 'c6Auth',
-            maxAge: 14*24*60*60*1000, // 14 days; unit here is milliseconds
-            minAge: 60*1000, // TTL for cookies for unauthenticated users
+            maxAge: 14*24*60*60*1000,   // 14 days; unit here is milliseconds
+            minAge: 60*1000,            // TTL for cookies for unauthenticated users
+            secure: false,              // true == HTTPS-only; set to true for staging/production
             mongo: {
                 host: null,
                 port: null,
@@ -88,10 +94,10 @@
 
         if (versionate) {
             promise = uuid.hashFile(fileOpts.path).then(function(hash) {
-                return q(hash + '.' + fileOpts.name);
+                return q(hash + '.' + (fileOpts.originalname || fileOpts.name));
             });
         } else {
-            promise = q(fileOpts.name);
+            promise = q(fileOpts.originalname || fileOpts.name);
         }
         
         return promise.then(function(fname) {
@@ -205,9 +211,9 @@
         return q.allSettled(Object.keys(req.files).map(function(objName) {
             var file = req.files[objName];
             
-            if (file.size > config.maxFileSize) {
-                log.warn('[%1] File %2 is %3 bytes large, which is too big',
-                         req.uuid, file.name, file.size);
+            if (!!file.truncated) {
+                log.warn('[%1] File %2 is greater than %3 bytes, not uploading',
+                         req.uuid, file.name, config.maxFileSize);
                 cleanup(file.path);
                 return q.reject({ code: 413, name: objName, error: 'File is too big' });
             }
@@ -408,6 +414,10 @@
 
     
     // Create a single splash if needed using the imgSpec and req.body.thumbs
+    /*
+        TODO: hahahaha yeah we should throttle how many splashes can be done in a request;
+              or maybe just control how many phantomjs processes can be started
+    */
     collateral.generateSplash = function(req, imgSpec, s3, config) {
         var log             = logger.getLog(),
             versionate      = req.query && req.query.versionate || false,
@@ -608,8 +618,7 @@
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
             
-        var express      = require('express'),
-            app          = express(),
+        var app          = express(),
             users        = state.dbs.c6Db.collection('users'),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
@@ -619,17 +628,27 @@
         aws.config.region = state.config.s3.region;
         s3 = new aws.S3();
 
-        app.use(express.bodyParser());
-        app.use(express.cookieParser(state.secrets.cookieParser || ''));
+        app.use(bodyParser.json());
+        app.use(multer({
+            limits: {
+                fileSize: state.config.maxFileSize,
+                files: state.config.maxFiles
+            }
+        }));
         
-        var sessions = express.session({
+        var sessionOpts = {
             key: state.config.sessions.key,
+            resave: false,
+            secret: state.secrets.cookieParser || '',
             cookie: {
-                httpOnly: false,
+                httpOnly: true,
+                secure: state.config.sessions.secure,
                 maxAge: state.config.sessions.minAge
             },
             store: state.sessionStore
-        });
+        };
+        
+        var sessions = sessionLib(sessionOpts);
 
         state.dbStatus.c6Db.on('reconnected', function() {
             users = state.dbs.c6Db.collection('users');
@@ -638,14 +657,8 @@
         });
         
         state.dbStatus.sessions.on('reconnected', function() {
-            sessions = express.session({
-                key: state.config.sessions.key,
-                cookie: {
-                    httpOnly: false,
-                    maxAge: state.config.sessions.minAge
-                },
-                store: state.sessionStore
-            });
+            sessionOpts.store = state.sessionStore;
+            sessions = sessionLib(sessionOpts);
             log.info('Recreated session store from restarted db');
         });
 

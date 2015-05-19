@@ -561,7 +561,7 @@ describe('service (UT)',function(){
                 if (this.connect.callCount >= 5){
                     return q(db1);
                 }
-                return q.reject({name: "MongoError", errmsg: "auth fails"});
+                return q.reject({name: 'MongoError', errmsg: 'auth fails'});
             });
             service.initMongo(state).then(resolveSpy, rejectSpy)
             .progress(function(p){
@@ -570,7 +570,7 @@ describe('service (UT)',function(){
             .finally(function() {
                 expect(mongoUtils.connect.callCount).toEqual(1);
                 expect(resolveSpy).not.toHaveBeenCalled();
-                expect(rejectSpy).toHaveBeenCalledWith({name: "MongoError", errmsg: "auth fails"});
+                expect(rejectSpy).toHaveBeenCalledWith({name: 'MongoError', errmsg: 'auth fails'});
             }).done(done);
         });
         
@@ -608,22 +608,22 @@ describe('service (UT)',function(){
     });
 
     describe('initSessionStore', function() {
-        var fakeExpress, fakeMongoStore, msModule, fakeDb;
+        var fakeExpress, fakeMongoStore, fakeDb;
         beforeEach(function() {
             delete require.cache[require.resolve('../../lib/service')];
-            fakeExpress = 'express';
             fakeMongoStore = jasmine.createSpy('new_MongoStore').andCallFake(function(opts) {
                 this.db = fakeDb;
             });
-            msModule = jasmine.createSpy('MongoStore_module').andReturn(fakeMongoStore);
-            require.cache[require.resolve('express')] = { exports: fakeExpress};
-            require.cache[require.resolve('connect-mongo')] = { exports: msModule};
+            require.cache[require.resolve('connect-mongo')] = { exports: function() {
+                return fakeMongoStore;
+            } };
             service = require('../../lib/service');
             state.secrets = {
-                mongoCredentials: { user: "fakeUser", password: "fakePass" }
+                mongoCredentials: { user: 'fakeUser', password: 'fakePass' }
             };
             state.config.sessions = {
-                mongo: { host: "fakeHost", port: 111, hosts: ["h1:p1", "h2:p2"], replSet: "devRepl" }
+                maxAge: 60*1000,
+                mongo: { host: 'fakeHost', port: 111, hosts: ['h1:p1', 'h2:p2'], replSet: 'devRepl' }
             };
             fakeDb = new events.EventEmitter();
             spyOn(mongoUtils, 'connect').andReturn(q(fakeDb));
@@ -646,10 +646,9 @@ describe('service (UT)',function(){
                 expect(resolveSpy).toHaveBeenCalledWith(state);
                 expect(rejectSpy).not.toHaveBeenCalled();
                 expect(mongoUtils.connect).toHaveBeenCalledWith('fakeHost', 111, 'sessions',
-                    'fakeUser', 'fakePass', ["h1:p1", "h2:p2"], "devRepl");
-                expect(msModule).toHaveBeenCalledWith('express');
+                    'fakeUser', 'fakePass', ['h1:p1', 'h2:p2'], 'devRepl');
                 expect(fakeMongoStore).toHaveBeenCalled();
-                expect(fakeMongoStore.calls[0].args[0]).toEqual({ db: fakeDb, stringify: false });
+                expect(fakeMongoStore.calls[0].args[0]).toEqual({ db: fakeDb, stringify: false, touchAfter: 60*1000 });
                 expect(state.sessionStore).toBeDefined();
             }).done(done);
         });
@@ -659,7 +658,7 @@ describe('service (UT)',function(){
             resolveSpy.andReturn();
             rejectSpy.andReturn();
             service.initSessionStore(state).then(resolveSpy, rejectSpy).then(function() {
-                state.config.sessions = { mongo: { host: "fakeHost", port: 111 } };
+                state.config.sessions = { mongo: { host: 'fakeHost', port: 111 } };
                 delete state.secrets;
                 return service.initSessionStore(state).then(resolveSpy, rejectSpy);
             }).finally(function() {
@@ -705,7 +704,7 @@ describe('service (UT)',function(){
                 if (this.connect.callCount >= 5){
                     return q(fakeDb);
                 }
-                return q.reject({name: "MongoError", errmsg: "auth fails"});
+                return q.reject({name: 'MongoError', errmsg: 'auth fails'});
             });
             service.initSessionStore(state).then(resolveSpy, rejectSpy)
             .progress(function(p){
@@ -714,7 +713,7 @@ describe('service (UT)',function(){
             .finally(function() {
                 expect(mongoUtils.connect.callCount).toEqual(1);
                 expect(resolveSpy).not.toHaveBeenCalled();
-                expect(rejectSpy).toHaveBeenCalledWith({name: "MongoError", errmsg: "auth fails"});
+                expect(rejectSpy).toHaveBeenCalledWith({name: 'MongoError', errmsg: 'auth fails'});
             }).done(done);
         });
 

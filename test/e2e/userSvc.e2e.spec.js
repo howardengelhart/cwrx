@@ -1183,7 +1183,7 @@ describe('user (E2E):', function() {
             }).done(done);
         });
         
-        it('should let a user log themselves out, but preserve their current session', function(done) {
+        it('should let a user log themselves out', function(done) {
             var statusOpts = { url: config.authUrl + '/status', jar: adminJar },
                 logoutOpts = { url: config.userSvcUrl + '/user/logout/e2e-admin-user', jar: adminJar };
             requestUtils.qRequest('post', logoutOpts).then(function(resp) {
@@ -1191,7 +1191,7 @@ describe('user (E2E):', function() {
                 expect(resp.body).toBe('');
                 return requestUtils.qRequest('get', statusOpts);
             }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
+                expect(resp.response.statusCode).toBe(401);
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);

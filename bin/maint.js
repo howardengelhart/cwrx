@@ -6,11 +6,12 @@
     process.env.maint = true;
 
     var fs          = require('fs-extra'),
-        express     = require('express'),
         path        = require('path'),
         q           = require('q'),
         aws         = require('aws-sdk'),
         request     = require('request'),
+        express     = require('express'),
+        bodyParser  = require('body-parser'),
         logger      = require('../lib/logger'),
         daemon      = require('../lib/daemon'),
         uuid        = require('../lib/uuid'),
@@ -256,7 +257,7 @@
             daemon.daemonize(config.cacheAddress('maint.pid', 'run'), done);
         }
 
-        app.use(express.bodyParser());
+        app.use(bodyParser.json());
 
         app.all('*', function(req, res, next) {
             res.header('Access-Control-Allow-Origin', '*');

@@ -171,7 +171,7 @@ describe('content card endpoints (E2E):', function() {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.match(/module\.exports = {.*"id":"e2e-pubgetjs1".*};/)).toBeTruthy();
-                expect(resp.response.headers['content-type']).toBe('application/javascript');
+                expect(resp.response.headers['content-type']).toBe('application/javascript; charset=utf-8');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

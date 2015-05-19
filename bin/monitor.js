@@ -4,12 +4,13 @@
 
     var q               = require('q'),
         fs              = require('fs-extra'),
-        express         = require('express'),
         glob            = require('glob'),
         http            = require('http'),
         https           = require('https'),
         util            = require('util'),
         aws             = require('aws-sdk'),
+        express         = require('express'),
+        bodyParser      = require('body-parser'),
         requestUtils    = require('../lib/requestUtils'),
         service         = require('../lib/service'),
         uuid            = require('../lib/uuid'),
@@ -425,7 +426,7 @@
         };
 
         webServer = express();
-        webServer.use(express.bodyParser());
+        webServer.use(bodyParser.json());
 
         webServer.all('*', function(req, res, next) {
             res.header('Access-Control-Allow-Headers',

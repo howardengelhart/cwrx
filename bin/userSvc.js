@@ -7,6 +7,9 @@
         q               = require('q'),
         bcrypt          = require('bcrypt'),
         aws             = require('aws-sdk'),
+        express         = require('express'),
+        bodyParser      = require('body-parser'),
+        sessionLib      = require('express-session'),
         logger          = require('../lib/logger'),
         uuid            = require('../lib/uuid'),
         FieldValidator  = require('../lib/fieldValidator'),
@@ -36,8 +39,9 @@
         },
         sessions: {
             key: 'c6Auth',
-            maxAge: 14*24*60*60*1000, // 14 days; unit here is milliseconds
-            minAge: 60*1000, // TTL for cookies for unauthenticated users
+            maxAge: 14*24*60*60*1000,   // 14 days; unit here is milliseconds
+            minAge: 60*1000,            // TTL for cookies for unauthenticated users
+            secure: false,              // true == HTTPS-only; set to true for staging/production
             mongo: {
                 host: null,
                 port: null,
@@ -486,8 +490,7 @@
     };
 
     /* Logs out a user by deleting all their sessions in the session db. A user can delete their
-     * own sessions, but express will automatically resave their session afterwards, so this would
-     * only delete all of their other active sessions. */
+     * own sessions, which will include their current active session. */
     userSvc.forceLogoutUser = function(req, sessColl) {
         var log = logger.getLog(),
             id = req.params.id,
@@ -523,8 +526,7 @@
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
             
-        var express      = require('express'),
-            app          = express(),
+        var app          = express(),
             users        = state.dbs.c6Db.collection('users'),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
@@ -533,17 +535,21 @@
         // Nodemailer will automatically get SES creds, but need to set region here
         aws.config.region = state.config.ses.region;
 
-        app.use(express.bodyParser());
-        app.use(express.cookieParser(state.secrets.cookieParser || ''));
-
-        var sessions = express.session({
+        app.use(bodyParser.json());
+        
+        var sessionOpts = {
             key: state.config.sessions.key,
+            resave: false,
+            secret: state.secrets.cookieParser || '',
             cookie: {
-                httpOnly: false,
+                httpOnly: true,
+                secure: state.config.sessions.secure,
                 maxAge: state.config.sessions.minAge
             },
             store: state.sessionStore
-        });
+        };
+        
+        var sessions = sessionLib(sessionOpts);
 
         state.dbStatus.c6Db.on('reconnected', function() {
             users = state.dbs.c6Db.collection('users');
@@ -552,14 +558,8 @@
         });
         
         state.dbStatus.sessions.on('reconnected', function() {
-            sessions = express.session({
-                key: state.config.sessions.key,
-                cookie: {
-                    httpOnly: false,
-                    maxAge: state.config.sessions.minAge
-                },
-                store: state.sessionStore
-            });
+            sessionOpts.store = state.sessionStore;
+            sessions = sessionLib(sessionOpts);
             log.info('Recreated session store from restarted db');
         });
 
