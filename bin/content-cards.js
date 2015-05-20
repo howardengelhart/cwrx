@@ -2,6 +2,7 @@
     'use strict';
 
     var q               = require('q'),
+        express         = require('express'),
         logger          = require('../lib/logger'),
         authUtils       = require('../lib/authUtils'),
         FieldValidator  = require('../lib/fieldValidator'),
@@ -61,7 +62,18 @@
             if (!req.originHost.match(/(portal|staging).cinema6.com/)) {
                 res.header('cache-control', 'max-age=' + config.cacheTTLs.cloudFront*60);
             }
-            return card ? q({ code: 200, body: card }) : q({ code: 404, body: 'Card not found' });
+            
+            if (!card) {
+                return q({ code: 404, body: 'Card not found' });
+            }
+            
+            // if ext === 'js', return card as a CommonJS module; otherwise return JSON
+            if (req.params.ext === 'js') {
+                res.header('content-type', 'application/javascript');
+                return q({ code: 200, body: 'module.exports = ' + JSON.stringify(card) + ';' });
+            } else {
+                return q({ code: 200, body: card });
+            }
         })
         .catch(function(error) {
             res.header('cache-control', 'max-age=60');
@@ -71,36 +83,22 @@
 
 
     cardModule.setupEndpoints = function(app, cardSvc, sessions, audit, config, jobManager) {
-
-        // Retrieve a json representation of a card
-        app.get('/api/public/content/card/:id.json', function(req, res) {
+        // Public get card; regex at end allows client to optionally specify extension (js|json)
+        app.get('/api/public/content/card/:id([^.]+).?:ext?', function(req, res) {
             cardModule.handlePublicGet(req, res, cardSvc, config).then(function(resp) {
                 res.send(resp.code, resp.body);
             });
         });
 
-        // Retrieve a CommonJS style representation of a card
-        app.get('/api/public/content/card/:id.js', function(req, res) {
-            cardModule.handlePublicGet(req, res, cardSvc, config).then(function(resp) {
-                if (resp.code < 200 || resp.code >= 300) {
-                    res.send(resp.code, resp.body);
-                } else {
-                    res.header('content-type', 'application/javascript');
-                    res.send(resp.code, 'module.exports = ' + JSON.stringify(resp.body) + ';');
-                }
-            });
-        });
 
-        // Default for retrieving a card, which returns JSON
-        app.get('/api/public/content/card/:id', function(req, res) {
-            cardModule.handlePublicGet(req, res, cardSvc, config).then(function(resp) {
-                res.send(resp.code, resp.body);
-            });
-        });
-
+        // Setup router for non-public card endpoints
+        var router      = express.Router(),
+            mountPath   = '/api/content/cards?'; // prefix to all endpoints declared here
+        
+        router.use(jobManager.setJobTimeout.bind(jobManager));
 
         var authGetCard = authUtils.middlewarify({cards: 'read'});
-        app.get('/api/content/card/:id', sessions, authGetCard, audit, function(req, res) {
+        router.get('/:id', sessions, authGetCard, audit, function(req, res) {
             var promise = cardSvc.getObjs({id: req.params.id}, req, false);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -110,7 +108,7 @@
             });
         });
 
-        app.get('/api/content/cards', sessions, authGetCard, audit, function(req, res) {
+        router.get('/', sessions, authGetCard, audit, function(req, res) {
             var query = {};
             ['org', 'user', 'campaignId'].forEach(function(field) {
                 if (req.query[field]) {
@@ -128,7 +126,7 @@
         });
 
         var authPostCard = authUtils.middlewarify({cards: 'create'});
-        app.post('/api/content/card', sessions, authPostCard, audit, function(req, res) {
+        router.post('/', sessions, authPostCard, audit, function(req, res) {
             var promise = cardSvc.createObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -139,7 +137,7 @@
         });
 
         var authPutCard = authUtils.middlewarify({cards: 'edit'});
-        app.put('/api/content/card/:id', sessions, authPutCard, audit, function(req, res) {
+        router.put('/:id', sessions, authPutCard, audit, function(req, res) {
             var promise = cardSvc.editObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -150,7 +148,7 @@
         });
 
         var authDelCard = authUtils.middlewarify({cards: 'delete'});
-        app.delete('/api/content/card/:id', sessions, authDelCard, audit, function(req, res) {
+        router.delete('/:id', sessions, authDelCard, audit, function(req, res) {
             var promise = cardSvc.deleteObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -159,6 +157,8 @@
                 });
             });
         });
+
+        app.use(mountPath, router);
     };
     
     module.exports = cardModule;

@@ -1,7 +1,8 @@
 (function(){
     'use strict';
 
-    var authUtils       = require('../lib/authUtils'),
+    var express         = require('express'),
+        authUtils       = require('../lib/authUtils'),
         CrudSvc         = require('../lib/crudSvc'),
         enums           = require('../lib/enums'),
         logger          = require('../lib/logger'),
@@ -40,8 +41,13 @@
     };
     
     catModule.setupEndpoints = function(app, catSvc, sessions, audit, jobManager) {
+        var router      = express.Router(),
+            mountPath   = '/api/content/categor(y|ies)'; // prefix to all endpoints declared here
+        
+        router.use(jobManager.setJobTimeout.bind(jobManager));
+
         var authGetCat = authUtils.middlewarify({});
-        app.get('/api/content/category/:id', sessions, authGetCat, audit, function(req, res) {
+        router.get('/:id', sessions, authGetCat, audit, function(req, res) {
             var promise = catSvc.getObjs({id: req.params.id}, req, false);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -51,7 +57,7 @@
             });
         });
 
-        app.get('/api/content/categories', sessions, authGetCat, audit, function(req, res) {
+        router.get('/', sessions, authGetCat, audit, function(req, res) {
             var query = {};
             if (req.query.name) {
                 query.name = String(req.query.name);
@@ -67,7 +73,7 @@
         });
 
         var authPostCat = authUtils.middlewarify({categories: 'create'});
-        app.post('/api/content/category', sessions, authPostCat, audit, function(req, res) {
+        router.post('/', sessions, authPostCat, audit, function(req, res) {
             var promise = catSvc.createObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -78,7 +84,7 @@
         });
 
         var authPutCat = authUtils.middlewarify({categories: 'edit'});
-        app.put('/api/content/category/:id', sessions, authPutCat, audit, function(req, res) {
+        router.put('/:id', sessions, authPutCat, audit, function(req, res) {
             var promise = catSvc.editObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -89,7 +95,7 @@
         });
 
         var authDelCat = authUtils.middlewarify({categories: 'delete'});
-        app.delete('/api/content/category/:id', sessions, authDelCat, audit, function(req, res) {
+        router.delete('/:id', sessions, authDelCat, audit, function(req, res) {
             var promise = catSvc.deleteObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -98,6 +104,8 @@
                 });
             });
         });
+
+        app.use(mountPath, router);
     };
     
     module.exports = catModule;

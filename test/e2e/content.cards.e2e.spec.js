@@ -360,7 +360,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('content');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'GET /api/content/cards',
+                expect(results[0].data).toEqual({route: 'GET /api/content/cards/',
                                                  params: {}, query: { user: 'e2e-user', sort: 'id,1' } });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -569,7 +569,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('content');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'POST /api/content/card', params: {}, query: {} });
+                expect(results[0].data).toEqual({route: 'POST /api/content/card/', params: {}, query: {} });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

@@ -3,11 +3,11 @@
     'use strict';
 
     var q               = require('q'),
+        util            = require('util'),
         fs              = require('fs-extra'),
         glob            = require('glob'),
         http            = require('http'),
         https           = require('https'),
-        util            = require('util'),
         aws             = require('aws-sdk'),
         express         = require('express'),
         bodyParser      = require('body-parser'),
@@ -426,21 +426,23 @@
         };
 
         webServer = express();
-        webServer.use(bodyParser.json());
 
-        webServer.all('*', function(req, res, next) {
+
+        webServer.use(function(req, res, next) {
             res.header('Access-Control-Allow-Headers',
                        'Origin, X-Requested-With, Content-Type, Accept');
             res.header('cache-control', 'max-age=0');
             next();
         });
 
-        webServer.all('*', function(req, res, next) {
+        webServer.use(function(req, res, next) {
             req.uuid = uuid.createUuid().substr(0,10);
             log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
                 req.method,req.url,req.httpVersion);
             next();
         });
+
+        webServer.use(bodyParser.json());
 
         webServer.get('/api/status',function(req, res){
             app.handleGetStatus(state, req, res);
@@ -459,6 +461,20 @@
         
         webServer.get('/api/monitor/version',function(req, res ){
             res.send(200, state.config.appVersion );
+        });
+
+        webServer.use(function(err, req, res, next) {
+            if (err) {
+                if (err.status && err.status < 500) {
+                    log.warn('[%1] Bad Request: %2', req.uuid, err && err.message || err);
+                    res.send(err.status, err.message || 'Bad Request');
+                } else {
+                    log.error('[%1] Internal Error: %2', req.uuid, err && err.message || err);
+                    res.send(err.status || 500, err.message || 'Internal error');
+                }
+            } else {
+                next();
+            }
         });
 
         webServer.listen(state.config.port);

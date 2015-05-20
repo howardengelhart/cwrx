@@ -257,9 +257,7 @@
             daemon.daemonize(config.cacheAddress('maint.pid', 'run'), done);
         }
 
-        app.use(bodyParser.json());
-
-        app.all('*', function(req, res, next) {
+        app.use(function(req, res, next) {
             res.header('Access-Control-Allow-Origin', '*');
             res.header('Access-Control-Allow-Headers',
                        'Origin, X-Requested-With, Content-Type, Accept');
@@ -272,7 +270,7 @@
             }
         });
 
-        app.all('*', function(req, res, next) {
+        app.use(function(req, res, next) {
             req.uuid = uuid.createUuid().substr(0,10);
             if (!req.headers['user-agent'] ||
                 !req.headers['user-agent'].match(/^ELB-HealthChecker/)) {
@@ -284,6 +282,8 @@
             }
             next();
         });
+
+        app.use(bodyParser.json());
 
         app.post('/maint/remove_S3_script', function(req, res/*, next*/) {
             log.info('Starting remove S3 script');
@@ -507,6 +507,20 @@
                 }
             };
             res.send(200, data);
+        });
+
+        app.use(function(err, req, res, next) {
+            if (err) {
+                if (err.status && err.status < 500) {
+                    log.warn('[%1] Bad Request: %2', req.uuid, err && err.message || err);
+                    res.send(err.status, err.message || 'Bad Request');
+                } else {
+                    log.error('[%1] Internal Error: %2', req.uuid, err && err.message || err);
+                    res.send(err.status || 500, err.message || 'Internal error');
+                }
+            } else {
+                next();
+            }
         });
 
         app.listen(program.port);

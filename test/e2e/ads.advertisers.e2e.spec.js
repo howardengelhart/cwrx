@@ -166,7 +166,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'GET /api/account/advertisers',
+                expect(results[0].data).toEqual({route: 'GET /api/account/advertisers/',
                                                  params: {}, query: { sort: 'id,1' } });
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -282,7 +282,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'POST /api/account/advertiser', params: {}, query: {} });
+                expect(results[0].data).toEqual({route: 'POST /api/account/advertiser/', params: {}, query: {} });
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);

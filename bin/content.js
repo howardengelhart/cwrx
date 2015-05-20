@@ -835,8 +835,6 @@
         cardSvc = cardModule.setupCardSvc(collections.cards, caches.cards);
         catSvc = catModule.setupCatSvc(collections.categories);
 
-        app.use(bodyParser.json());
-        
         var sessionOpts = {
             key: state.config.sessions.key,
             resave: false,
@@ -850,6 +848,11 @@
         };
         
         var sessions = sessionLib(sessionOpts);
+
+        // Because we may recreate the session middleware, we need to wrap it in the route handlers
+        function sessWrap(req, res, next) {
+            sessions(req, res, next);
+        }
 
         state.dbStatus.c6Db.on('reconnected', function() {
             collKeys.forEach(function(key) {
@@ -876,17 +879,8 @@
             log.info('Reset journal\'s collection from restarted db');
         });
         
-        // Because we may recreate the session middleware, we need to wrap it in the route handlers
-        function sessWrap(req, res, next) {
-            sessions(req, res, next);
-        }
 
         app.use(function(req, res, next) {
-            content.parseOrigin(req, state.config.siteExceptions);
-            next();
-        });
-
-        app.all('*', function(req, res, next) {
             res.header('Access-Control-Allow-Origin', '*');
             res.header('Access-Control-Allow-Headers',
                        'Origin, X-Requested-With, Content-Type, Accept');
@@ -899,7 +893,7 @@
             }
         });
 
-        app.all('*', function(req, res, next) {
+        app.use(function(req, res, next) {
             req.uuid = uuid.createUuid().substr(0,10);
             if (!req.headers['user-agent'] || !req.headers['user-agent'].match(/^ELB-Health/)) {
                 log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
@@ -908,6 +902,13 @@
                 log.trace('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
                     req.method, req.url, req.httpVersion);
             }
+            next();
+        });
+
+        app.use(bodyParser.json());
+
+        app.use(function(req, res, next) {
+            content.parseOrigin(req, state.config.siteExceptions);
             next();
         });
         
@@ -972,8 +973,9 @@
         });
 
         // make sure no /api/public/content endpoints use job timeouts
-        app.all('/api/content/*', jobManager.setJobTimeout.bind(jobManager));
+        // app.all('/api/content/*', jobManager.setJobTimeout.bind(jobManager)); //TODO
 
+        //TODO: move experience endpoints to new module
         var authGetExp = authUtils.middlewarify({experiences: 'read'});
         
         // private get experience by id
@@ -1065,8 +1067,13 @@
 
         app.use(function(err, req, res, next) {
             if (err) {
-                log.error('Error: %1', err);
-                res.send(500, 'Internal error');
+                if (err.status && err.status < 500) {
+                    log.warn('[%1] Bad Request: %2', req.uuid, err && err.message || err);
+                    res.send(err.status, err.message || 'Bad Request');
+                } else {
+                    log.error('[%1] Internal Error: %2', req.uuid, err && err.message || err);
+                    res.send(err.status || 500, err.message || 'Internal error');
+                }
             } else {
                 next();
             }

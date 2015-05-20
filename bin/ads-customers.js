@@ -2,6 +2,7 @@
     'use strict';
 
     var q               = require('q'),
+        express         = require('express'),
         authUtils       = require('../lib/authUtils'),
         objUtils        = require('../lib/objUtils'),
         CrudSvc         = require('../lib/crudSvc'),
@@ -258,8 +259,13 @@
 
 
     custModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
+        var router      = express.Router(),
+            mountPath   = '/api/account/customers?'; // prefix to all endpoints declared here
+        
+        router.use(jobManager.setJobTimeout.bind(jobManager));
+
         var authGetCust = authUtils.middlewarify({customers: 'read'});
-        app.get('/api/account/customer/:id', sessions, authGetCust, audit, function(req, res) {
+        router.get('/:id', sessions, authGetCust, audit, function(req, res) {
             var promise = svc.getObjs({id: req.params.id}, req, false).then(function(resp) {
                 return custModule.getAdvertLists(svc, req, resp);
             });
@@ -271,7 +277,7 @@
             });
         });
 
-        app.get('/api/account/customers', sessions, authGetCust, audit, function(req, res) {
+        router.get('/', sessions, authGetCust, audit, function(req, res) {
             var query = {};
             if (req.query.name) {
                 query.name = String(req.query.name);
@@ -292,7 +298,7 @@
         });
 
         var authPostCust = authUtils.middlewarify({customers: 'create'});
-        app.post('/api/account/customer', sessions, authPostCust, audit, function(req, res) {
+        router.post('/', sessions, authPostCust, audit, function(req, res) {
             var promise = svc.createObj(req).then(function(resp) {
                 return custModule.getAdvertLists(svc, req, resp);
             });
@@ -305,7 +311,7 @@
         });
 
         var authPutCust = authUtils.middlewarify({customers: 'edit'});
-        app.put('/api/account/customer/:id', sessions, authPutCust, audit, function(req, res) {
+        router.put('/:id', sessions, authPutCust, audit, function(req, res) {
             var promise = svc.editObj(req).then(function(resp) {
                 return custModule.getAdvertLists(svc, req, resp);
             });
@@ -318,7 +324,7 @@
         });
 
         var authDelCust = authUtils.middlewarify({customers: 'delete'});
-        app.delete('/api/account/customer/:id', sessions, authDelCust, audit, function(req, res) {
+        router.delete('/:id', sessions, authDelCust, audit, function(req,res) {
             var promise = svc.deleteObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -327,6 +333,8 @@
                 });
             });
         });
+        
+        app.use(mountPath, router);
     };
     
     module.exports = custModule;

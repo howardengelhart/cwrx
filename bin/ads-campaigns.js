@@ -2,6 +2,7 @@
     'use strict';
 
     var q               = require('q'),
+        express         = require('express'),
         util            = require('util'),
         requestUtils    = require('../lib/requestUtils'),
         uuid            = require('../lib/uuid'),
@@ -606,8 +607,13 @@
     };
     
     campModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
+        var router      = express.Router(),
+            mountPath   = '/api/campaigns?'; // prefix to all endpoints declared here
+        
+        router.use(jobManager.setJobTimeout.bind(jobManager));
+
         var authGetCamp = authUtils.middlewarify({campaigns: 'read'});
-        app.get('/api/campaign/:id', sessions, authGetCamp, audit, function(req, res) {
+        router.get('/:id', sessions, authGetCamp, audit, function(req, res) {
             var promise = svc.getObjs({id: req.params.id}, req, false);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -617,7 +623,7 @@
             });
         });
 
-        app.get('/api/campaigns', sessions, authGetCamp, audit, function(req, res) {
+        router.get('/', sessions, authGetCamp, audit, function(req, res) {
             var query = {};
             ['user', 'org', 'name']
             .forEach(function(field) {
@@ -636,7 +642,7 @@
         });
 
         var authPostCamp = authUtils.middlewarify({campaigns: 'create'});
-        app.post('/api/campaign', sessions, authPostCamp, audit, function(req, res) {
+        router.post('/', sessions, authPostCamp, audit, function(req, res) {
             var promise = svc.createObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -647,7 +653,7 @@
         });
 
         var authPutCamp = authUtils.middlewarify({campaigns: 'edit'});
-        app.put('/api/campaign/:id', sessions, authPutCamp, audit, function(req, res) {
+        router.put('/:id', sessions, authPutCamp, audit, function(req, res) {
             var promise = svc.editObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -658,7 +664,7 @@
         });
 
         var authDelCamp = authUtils.middlewarify({campaigns: 'delete'});
-        app.delete('/api/campaign/:id', sessions, authDelCamp, audit, function(req, res) {
+        router.delete('/:id', sessions, authDelCamp, audit, function(req, res) {
             var promise = svc.deleteObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -667,6 +673,8 @@
                 });
             });
         });
+        
+        app.use(mountPath, router);
     };
     
     module.exports = campModule;

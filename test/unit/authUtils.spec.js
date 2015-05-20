@@ -195,8 +195,9 @@ describe('authUtils', function() {
                 req = {
                     uuid: '1234',
                     method: 'get',
+                    baseUrl: '/ut',
                     route: {
-                        path: '/ut'
+                        path: '/:id'
                     },
                     session: {
                         user: 'u-123'
@@ -309,7 +310,8 @@ describe('authUtils', function() {
                 req = {
                     uuid: '1234',
                     method: 'get',
-                    route: { path: '/ut' },
+                    baseUrl: '/ut',
+                    route: { path: '/:id' },
                     body: { email: 'otter', password: 'thisisapassword' }
                 };
                 res = {};

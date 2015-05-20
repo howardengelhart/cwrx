@@ -2,6 +2,7 @@
     'use strict';
 
     var q               = require('q'),
+        express         = require('express'),
         objUtils        = require('../lib/objUtils'),
         authUtils       = require('../lib/authUtils'),
         CrudSvc         = require('../lib/crudSvc'),
@@ -277,8 +278,13 @@
 
     
     siteModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
+        var router      = express.Router(),
+            mountPath   = '/api/sites?'; // prefix to all endpoints declared here
+        
+        router.use(jobManager.setJobTimeout.bind(jobManager));
+
         var authGetSite = authUtils.middlewarify({sites: 'read'});
-        app.get('/api/site/:id', sessions, authGetSite, audit, function(req, res) {
+        router.get('/:id', sessions, authGetSite, audit, function(req, res) {
             var promise = svc.getObjs({id: req.params.id}, req, false);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -288,7 +294,7 @@
             });
         });
 
-        app.get('/api/sites', sessions, authGetSite, audit, function(req, res) {
+        router.get('/', sessions, authGetSite, audit, function(req, res) {
             var query = {};
             ['name', 'org', 'host'].forEach(function(field) {
                 if (req.query[field]) {
@@ -309,7 +315,7 @@
         });
 
         var authPostSite = authUtils.middlewarify({sites: 'create'});
-        app.post('/api/site', sessions, authPostSite, audit, function(req, res) {
+        router.post('/', sessions, authPostSite, audit, function(req, res) {
             var promise = svc.createObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -320,7 +326,7 @@
         });
 
         var authPutSite = authUtils.middlewarify({sites: 'edit'});
-        app.put('/api/site/:id', sessions, authPutSite, audit, function(req, res) {
+        router.put('/:id', sessions, authPutSite, audit, function(req, res) {
             var promise = svc.editObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -331,7 +337,7 @@
         });
 
         var authDelSite = authUtils.middlewarify({sites: 'delete'});
-        app.delete('/api/site/:id', sessions, authDelSite, audit, function(req, res) {
+        router.delete('/:id', sessions, authDelSite, audit, function(req, res) {
             var promise = svc.deleteObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -340,6 +346,8 @@
                 });
             });
         });
+        
+        app.use(mountPath, router);
     };
     
     module.exports = siteModule;

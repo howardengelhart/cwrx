@@ -4,13 +4,13 @@
     var __ut__      = (global.jasmine !== undefined) ? true : false;
 
     var path        = require('path'),
+        util        = require('util'),
         q           = require('q'),
         aws         = require('aws-sdk'),
         fs          = require('fs-extra'),
         phantom     = require('phantom'),
         glob        = require('glob'),
         handlebars  = require('handlebars'),
-        util        = require('util'),
         express     = require('express'),
         bodyParser  = require('body-parser'),
         multer      = require('multer'),
@@ -414,10 +414,7 @@
 
     
     // Create a single splash if needed using the imgSpec and req.body.thumbs
-    /*
-        TODO: hahahaha yeah we should throttle how many splashes can be done in a request;
-              or maybe just control how many phantomjs processes can be started
-    */
+    //  TODO: throttle # of concurrent splashes, maybe just throttle # of concurrent phantoms
     collateral.generateSplash = function(req, imgSpec, s3, config) {
         var log             = logger.getLog(),
             versionate      = req.query && req.query.versionate || false,
@@ -628,14 +625,6 @@
         aws.config.region = state.config.s3.region;
         s3 = new aws.S3();
 
-        app.use(bodyParser.json());
-        app.use(multer({
-            limits: {
-                fileSize: state.config.maxFileSize,
-                files: state.config.maxFiles
-            }
-        }));
-        
         var sessionOpts = {
             key: state.config.sessions.key,
             resave: false,
@@ -649,6 +638,19 @@
         };
         
         var sessions = sessionLib(sessionOpts);
+
+        // Because we may recreate the session middleware, we need to wrap it in the route handlers
+        function sessWrap(req, res, next) {
+            sessions(req, res, next);
+        }
+        var audit = auditJournal.middleware.bind(auditJournal);
+        
+        var multipart = multer({ // only use multipart parser for endpoints that need it
+            limits: {
+                fileSize: state.config.maxFileSize,
+                files: state.config.maxFiles
+            }
+        });
 
         state.dbStatus.c6Db.on('reconnected', function() {
             users = state.dbs.c6Db.collection('users');
@@ -667,13 +669,8 @@
             log.info('Reset journal\'s collection from restarted db');
         });
 
-        // Because we may recreate the session middleware, we need to wrap it in the route handlers
-        function sessWrap(req, res, next) {
-            sessions(req, res, next);
-        }
-        var audit = auditJournal.middleware.bind(auditJournal);
 
-        app.all('*', function(req, res, next) {
+        app.use(function(req, res, next) {
             res.header('Access-Control-Allow-Headers',
                        'Origin, X-Requested-With, Content-Type, Accept');
             res.header('cache-control', 'max-age=0');
@@ -685,7 +682,7 @@
             }
         });
 
-        app.all('*', function(req, res, next) {
+        app.use(function(req, res, next) {
             req.uuid = uuid.createUuid().substr(0,10);
             if (!req.headers['user-agent'] || !req.headers['user-agent'].match(/^ELB-Health/)) {
                 log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
@@ -696,22 +693,26 @@
             }
             next();
         });
+
+        app.use(bodyParser.json());
         
         var authUpload = authUtils.middlewarify({});
 
-        app.post('/api/collateral/files/:expId', sessWrap, authUpload, audit, function(req,res){
-            collateral.uploadFiles(req, s3, state.config)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error uploading files',
-                    detail: error
+        app.post('/api/collateral/files/:expId', sessWrap, authUpload, multipart, audit,
+            function(req,res){
+                collateral.uploadFiles(req, s3, state.config)
+                .then(function(resp) {
+                    res.send(resp.code, resp.body);
+                }).catch(function(error) {
+                    res.send(500, {
+                        error: 'Error uploading files',
+                        detail: error
+                    });
                 });
-            });
-        });
+            }
+        );
         
-        app.post('/api/collateral/files', sessWrap, authUpload, audit, function(req,res){
+        app.post('/api/collateral/files', sessWrap, authUpload, multipart, audit, function(req,res){
             collateral.uploadFiles(req, s3, state.config)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
@@ -762,8 +763,13 @@
 
         app.use(function(err, req, res, next) {
             if (err) {
-                log.error('Error: %1', err);
-                res.send(500, 'Internal error');
+                if (err.status && err.status < 500) {
+                    log.warn('[%1] Bad Request: %2', req.uuid, err && err.message || err);
+                    res.send(err.status, err.message || 'Bad Request');
+                } else {
+                    log.error('[%1] Internal Error: %2', req.uuid, err && err.message || err);
+                    res.send(err.status || 500, err.message || 'Internal error');
+                }
             } else {
                 next();
             }
