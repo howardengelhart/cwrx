@@ -455,6 +455,7 @@ describe('collateral (E2E):', function() {
         it('should write an entry to the audit collection', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
+                rmList.push(resp.body[0].path);
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
             }).then(function(results) {
                 expect(results[0].user).toBe('e2e-user');
@@ -493,7 +494,7 @@ describe('collateral (E2E):', function() {
         });
 
         it('should be able to handle protocol-relative urls', function(done) {
-            options.json.thumbs = ['//img.youtube.com/vi/wBU8T4hR-6U/0.jpg'];
+            options.json.thumbs = ['//s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample1.jpg'];
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toEqual([{code: 201, name: 'splash', ratio: '__e2e', path: 'collateral/e-1234/splash'}]);
@@ -501,7 +502,7 @@ describe('collateral (E2E):', function() {
                 return requestUtils.qRequest('head', {url: 'https://s3.amazonaws.com/' + path.join(bucket, resp.body[0].path)});
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.response.headers.etag).toBe('"6eb210bf00423eaa8db746a9378f647a"');
+                expect(resp.response.headers.etag).toBe('"1ac1b4765354b78678dac5f83a008892"');
                 expect(resp.response.headers['cache-control']).toBe('max-age=15');
                 done();
             }).catch(function(error) {
