@@ -739,7 +739,6 @@
         var log = logger.getLog();
         
         // Used for handling public requests for experiences by id methods:
-        //TODO: modularize out?
         function handlePublicGet(req, res) {
             return expModule.getPublicExp(req.params.id, req, caches, cardSvc,
                                           config.defaultSiteConfig)
