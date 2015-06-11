@@ -194,9 +194,10 @@ describe('authUtils', function() {
                 spyOn(uuid, 'createUuid').andReturn('1234567890abcd');
                 req = {
                     uuid: '1234',
+                    method: 'get',
+                    baseUrl: '/ut',
                     route: {
-                        method: 'get',
-                        path: '/ut'
+                        path: '/:id'
                     },
                     session: {
                         user: 'u-123'
@@ -308,7 +309,9 @@ describe('authUtils', function() {
             beforeEach(function() {
                 req = {
                     uuid: '1234',
-                    route: { method: 'get', path: '/ut' },
+                    method: 'get',
+                    baseUrl: '/ut',
+                    route: { path: '/:id' },
                     body: { email: 'otter', password: 'thisisapassword' }
                 };
                 res = {};

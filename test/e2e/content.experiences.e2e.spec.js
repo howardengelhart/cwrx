@@ -308,7 +308,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('content');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'GET /api/content/experiences',
+                expect(results[0].data).toEqual({route: 'GET /api/content/experiences/',
                                                  params: {}, query: { ids: 'e2e-getquery1', sort: 'id,1' } });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -662,7 +662,7 @@ describe('content experience endpoints (E2E):', function() {
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('content');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'POST /api/content/experience', params: {}, query: {} });
+                expect(results[0].data).toEqual({route: 'POST /api/content/experience/', params: {}, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);

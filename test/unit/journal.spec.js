@@ -259,7 +259,9 @@ describe('journal lib: ', function() {
                 req = {
                     params: [],
                     query: { foo: 'bar' },
-                    route: { method: 'get', path: '/jiggy/with/it' }
+                    method: 'get',
+                    baseUrl: '/jiggy',
+                    route: { path: '/with/it' }
                 };
                 req.params.id = 'e-1';
                 spyOn(journ, 'write').andReturn(q());

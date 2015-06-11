@@ -192,7 +192,7 @@ describe('ads sites endpoints (E2E):', function() {
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'GET /api/sites',
+                expect(results[0].data).toEqual({route: 'GET /api/sites/',
                                                  params: {}, query: { sort: 'id,1' } });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -335,7 +335,7 @@ describe('ads sites endpoints (E2E):', function() {
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'POST /api/site', params: {}, query: {} });
+                expect(results[0].data).toEqual({route: 'POST /api/site/', params: {}, query: {} });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

@@ -2,6 +2,7 @@
     'use strict';
 
     var q               = require('q'),
+        express         = require('express'),
         authUtils       = require('../lib/authUtils'),
         CrudSvc         = require('../lib/crudSvc'),
         logger          = require('../lib/logger'),
@@ -111,8 +112,13 @@
 
     
     advertModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
+        var router      = express.Router(),
+            mountPath   = '/api/account/advertisers?'; // prefix to all endpoints declared here
+        
+        router.use(jobManager.setJobTimeout.bind(jobManager));
+        
         var authGetAd = authUtils.middlewarify({advertisers: 'read'});
-        app.get('/api/account/advertiser/:id', sessions, authGetAd, audit, function(req, res) {
+        router.get('/:id', sessions, authGetAd, audit, function(req, res) {
             var promise = svc.getObjs({id: req.params.id}, req, false);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -122,7 +128,7 @@
             });
         });
 
-        app.get('/api/account/advertisers', sessions, authGetAd, audit, function(req, res) {
+        router.get('/', sessions, authGetAd, audit, function(req, res) {
             var query = {};
             if (req.query.name) {
                 query.name = String(req.query.name);
@@ -141,7 +147,7 @@
         });
 
         var authPostAd = authUtils.middlewarify({advertisers: 'create'});
-        app.post('/api/account/advertiser', sessions, authPostAd, audit, function(req, res) {
+        router.post('/', sessions, authPostAd, audit, function(req, res) {
             var promise = svc.createObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -152,7 +158,7 @@
         });
 
         var authPutAd = authUtils.middlewarify({advertisers: 'edit'});
-        app.put('/api/account/advertiser/:id', sessions, authPutAd, audit, function(req, res) {
+        router.put('/:id', sessions, authPutAd, audit, function(req, res) {
             var promise = svc.editObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -163,7 +169,7 @@
         });
 
         var authDelAd = authUtils.middlewarify({advertisers: 'delete'});
-        app.delete('/api/account/advertiser/:id', sessions, authDelAd, audit, function(req, res) {
+        router.delete('/:id', sessions, authDelAd, audit, function(req,res) {
             var promise = svc.deleteObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -172,6 +178,8 @@
                 });
             });
         });
+        
+        app.use(mountPath, router);
     };
     
     module.exports = advertModule;

@@ -118,6 +118,78 @@ describe('content-cards (UT)', function() {
     });
 
     describe('handlePublicGet', function() {
-    
+        var req, res, cardSvc, config;
+        beforeEach(function() {
+            req = { uuid: '1234', params: { id: 'e-1' }, originHost: 'http://cinema6.com' };
+            res = {
+                header: jasmine.createSpy('res.header()')
+            };
+            cardSvc = {
+                getPublicCard: jasmine.createSpy('cardSvc.getPublicCard()').andReturn(q({ card: 'yes' }))
+            };
+            config = { cacheTTLs: { cloudFront: 5 } };
+        });
+        
+        it('should set headers and return a card', function(done) {
+            cardModule.handlePublicGet(req, res, cardSvc, config).then(function(resp) {
+                expect(resp).toEqual({ code: 200, body: { card: 'yes' } });
+                expect(cardSvc.getPublicCard).toHaveBeenCalledWith('e-1', req);
+                expect(res.header.calls.length).toBe(1);
+                expect(res.header).toHaveBeenCalledWith('cache-control', 'max-age=300');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a 404 if no card is found', function(done) {
+            cardSvc.getPublicCard.andReturn(q());
+            cardModule.handlePublicGet(req, res, cardSvc, config).then(function(resp) {
+                expect(resp).toEqual({ code: 404, body: 'Card not found' });
+                expect(res.header.calls.length).toBe(1);
+                expect(res.header).toHaveBeenCalledWith('cache-control', 'max-age=300');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should return a 500 if getPublicCard fails', function(done) {
+            cardSvc.getPublicCard.andReturn(q.reject('I GOT A PROBLEM'));
+            cardModule.handlePublicGet(req, res, cardSvc, config).then(function(resp) {
+                expect(resp).toEqual({ code: 500, body: { error: 'Error retrieving card', detail: 'I GOT A PROBLEM' } });
+                expect(res.header.calls.length).toBe(1);
+                expect(res.header).toHaveBeenCalledWith('cache-control', 'max-age=60');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        describe('if the extension is js', function() {
+            beforeEach(function() {
+                req.params.ext = 'js';
+            });
+
+            it('should return the card as a CommonJS module', function(done) {
+                cardModule.handlePublicGet(req, res, cardSvc, config).then(function(resp) {
+                    expect(resp).toEqual({ code: 200, body: 'module.exports = {"card":"yes"};' });
+                    expect(cardSvc.getPublicCard).toHaveBeenCalledWith('e-1', req);
+                    expect(res.header.calls.length).toBe(2);
+                    expect(res.header).toHaveBeenCalledWith('cache-control', 'max-age=300');
+                    expect(res.header).toHaveBeenCalledWith('content-type', 'application/javascript');
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should not alter the response if no card is found', function(done) {
+                cardSvc.getPublicCard.andReturn(q());
+                cardModule.handlePublicGet(req, res, cardSvc, config).then(function(resp) {
+                    expect(resp).toEqual({ code: 404, body: 'Card not found' });
+                    expect(res.header.calls.length).toBe(1);
+                    expect(res.header).toHaveBeenCalledWith('cache-control', 'max-age=300');
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+        });
     });
 });

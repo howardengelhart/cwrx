@@ -5,6 +5,9 @@
 
     var path            = require('path'),
         q               = require('q'),
+        express         = require('express'),
+        bodyParser      = require('body-parser'),
+        sessionLib      = require('express-session'),
         requestUtils    = require('../lib/requestUtils'),
         logger          = require('../lib/logger'),
         uuid            = require('../lib/uuid'),
@@ -32,8 +35,9 @@
         },
         sessions: {
             key: 'c6Auth',
-            maxAge: 14*24*60*60*1000, // 14 days; unit here is milliseconds
-            minAge: 60*1000, // TTL for cookies for unauthenticated users
+            maxAge: 14*24*60*60*1000,   // 14 days; unit here is milliseconds
+            minAge: 60*1000,            // TTL for cookies for unauthenticated users
+            secure: false,              // true == HTTPS-only; set to true for staging/production
             mongo: {
                 host: null,
                 port: null,
@@ -292,24 +296,31 @@
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
 
-        var express      = require('express'),
-            app          = express(),
+        var app          = express(),
             users        = state.dbs.c6Db.collection('users'),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._coll = users;
-
-        app.use(express.bodyParser());
-        app.use(express.cookieParser(state.secrets.cookieParser || ''));
-
-        var sessions = express.session({
+        
+        var sessionOpts = {
             key: state.config.sessions.key,
+            resave: false,
+            secret: state.secrets.cookieParser || '',
             cookie: {
-                httpOnly: false,
+                httpOnly: true,
+                secure: state.config.sessions.secure,
                 maxAge: state.config.sessions.minAge
             },
             store: state.sessionStore
-        });
+        };
+        
+        var sessions = sessionLib(sessionOpts);
+
+        // Because we may recreate the session middleware, we need to wrap it in the route handlers
+        function sessWrap(req, res, next) {
+            sessions(req, res, next);
+        }
+        var audit = auditJournal.middleware.bind(auditJournal);
 
         state.dbStatus.c6Db.on('reconnected', function() {
             users = state.dbs.c6Db.collection('users');
@@ -318,14 +329,8 @@
         });
 
         state.dbStatus.sessions.on('reconnected', function() {
-            sessions = express.session({
-                key: state.config.sessions.key,
-                cookie: {
-                    httpOnly: false,
-                    maxAge: state.config.sessions.minAge
-                },
-                store: state.sessionStore
-            });
+            sessionOpts.store = state.sessionStore;
+            sessions = sessionLib(sessionOpts);
             log.info('Recreated session store from restarted db');
         });
 
@@ -334,13 +339,8 @@
             log.info('Reset journal\'s collection from restarted db');
         });
 
-        // Because we may recreate the session middleware, we need to wrap it in the route handlers
-        function sessWrap(req, res, next) {
-            sessions(req, res, next);
-        }
-        var audit = auditJournal.middleware.bind(auditJournal);
 
-        app.all('*', function(req, res, next) {
+        app.use(function(req, res, next) {
             res.header('Access-Control-Allow-Headers',
                        'Origin, X-Requested-With, Content-Type, Accept');
             res.header('cache-control', 'max-age=0');
@@ -352,7 +352,7 @@
             }
         });
 
-        app.all('*', function(req, res, next) {
+        app.use(function(req, res, next) {
             req.uuid = uuid.createUuid().substr(0,10);
             if (!req.headers['user-agent'] || !req.headers['user-agent'].match(/^ELB-Health/)) {
                 log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
@@ -363,6 +363,8 @@
             }
             next();
         });
+
+        app.use(bodyParser.json());
 
         var authSearch = authUtils.middlewarify({});
         app.get('/api/search/videos', sessWrap, authSearch, audit, function(req,res){
@@ -392,8 +394,13 @@
 
         app.use(function(err, req, res, next) {
             if (err) {
-                log.error('Error: %1', err);
-                res.send(500, 'Internal error');
+                if (err.status && err.status < 500) {
+                    log.warn('[%1] Bad Request: %2', req.uuid, err && err.message || err);
+                    res.send(err.status, err.message || 'Bad Request');
+                } else {
+                    log.error('[%1] Internal Error: %2', req.uuid, err && err.message || err);
+                    res.send(err.status || 500, err.message || 'Internal error');
+                }
             } else {
                 next();
             }

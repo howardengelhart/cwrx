@@ -3,9 +3,11 @@
     'use strict';
 
     var q               = require('q'),
-        express         = require('express'),
         path            = require('path'),
         util            = require('util'),
+        express         = require('express'),
+        bodyParser      = require('body-parser'),
+        sessionLib      = require('express-session'),
         service         = require('../lib/service'),
         uuid            = require('../lib/uuid'),
         promise         = require('../lib/promise'),
@@ -40,8 +42,9 @@
         secretsPath: path.join(process.env.HOME,'.vote.secrets.json'),
         sessions: {
             key: 'c6Auth',
-            maxAge: 14*24*60*60*1000, // 14 days; unit here is milliseconds
-            minAge: 60*1000, // TTL for cookies for unauthenticated users
+            maxAge: 14*24*60*60*1000,   // 14 days; unit here is milliseconds
+            minAge: 60*1000,            // TTL for cookies for unauthenticated users
+            secure: false,              // true == HTTPS-only; set to true for staging/production
             mongo: {
                 host: null,
                 port: null,
@@ -544,7 +547,7 @@
             started      = new Date(),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName),
-            webServer;
+            webServer    = express();
         authUtils._coll = users;
         
 
@@ -554,19 +557,26 @@
                 log.trace('results: %1',JSON.stringify(results));
             });
         };
-
-        webServer = express();
-        webServer.use(express.bodyParser());
-        webServer.use(express.cookieParser(state.secrets.cookieParser || ''));
-
-        var sessions = express.session({
+        
+        var sessionOpts = {
             key: state.config.sessions.key,
+            resave: false,
+            secret: state.secrets.cookieParser || '',
             cookie: {
-                httpOnly: false,
+                httpOnly: true,
+                secure: state.config.sessions.secure,
                 maxAge: state.config.sessions.minAge
             },
             store: state.sessionStore
-        });
+        };
+        
+        var sessions = sessionLib(sessionOpts);
+
+        // Because we may recreate the session middleware, we need to wrap it in the route handlers
+        function sessWrap(req, res, next) {
+            sessions(req, res, next);
+        }
+        var audit = auditJournal.middleware.bind(auditJournal);
 
         state.dbStatus.c6Db.on('reconnected', function() {
             users = state.dbs.c6Db.collection('users');
@@ -581,14 +591,8 @@
         });
         
         state.dbStatus.sessions.on('reconnected', function() {
-            sessions = express.session({
-                key: state.config.sessions.key,
-                cookie: {
-                    httpOnly: false,
-                    maxAge: state.config.sessions.minAge
-                },
-                store: state.sessionStore
-            });
+            sessionOpts.store = state.sessionStore;
+            sessions = sessionLib(sessionOpts);
             log.info('Recreated session store from restarted db');
         });
 
@@ -597,13 +601,8 @@
             log.info('Reset journal\'s collection from restarted db');
         });
 
-        // Because we may recreate the session middleware, we need to wrap it in the route handlers
-        function sessWrap(req, res, next) {
-            sessions(req, res, next);
-        }
-        var audit = auditJournal.middleware.bind(auditJournal);
 
-        webServer.all('*', function(req, res, next) {
+        webServer.use(function(req, res, next) {
             res.header('Access-Control-Allow-Origin', '*');
             res.header('Access-Control-Allow-Headers',
                        'Origin, X-Requested-With, Content-Type, Accept');
@@ -616,7 +615,7 @@
             }
         });
 
-        webServer.all('*',function(req, res, next){
+        webServer.use(function(req, res, next) {
             req.uuid = uuid.createUuid().substr(0,10);
             if (!req.headers['user-agent'] ||
                     !req.headers['user-agent'].match(/^ELB-HealthChecker/)) {
@@ -628,6 +627,8 @@
             }
             next();
         });
+
+        webServer.use(bodyParser.json());
         
         webServer.post('/api/public/vote', function(req, res){
             if ((!req.body.election) || (!req.body.ballotItem) || (req.body.vote === undefined)) {
@@ -755,6 +756,20 @@
 
         webServer.get('/api/vote/version',function(req, res ){
             res.send(200, state.config.appVersion );
+        });
+
+        webServer.use(function(err, req, res, next) {
+            if (err) {
+                if (err.status && err.status < 500) {
+                    log.warn('[%1] Bad Request: %2', req.uuid, err && err.message || err);
+                    res.send(err.status, err.message || 'Bad Request');
+                } else {
+                    log.error('[%1] Internal Error: %2', req.uuid, err && err.message || err);
+                    res.send(err.status || 500, err.message || 'Internal error');
+                }
+            } else {
+                next();
+            }
         });
 
         webServer.listen(state.cmdl.port);

@@ -2,6 +2,7 @@
     'use strict';
 
     var q               = require('q'),
+        express         = require('express'),
         CrudSvc         = require('../lib/crudSvc'),
         authUtils       = require('../lib/authUtils'),
         objUtils        = require('../lib/objUtils'),
@@ -205,8 +206,13 @@
 
     
     groupModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
+        var router      = express.Router(),
+            mountPath   = '/api/minireelGroups?'; // prefix to all endpoints declared here
+        
+        router.use(jobManager.setJobTimeout.bind(jobManager));
+
         var authGetGroup = authUtils.middlewarify({minireelGroups: 'read'});
-        app.get('/api/minireelGroup/:id', sessions, authGetGroup, audit, function(req, res) {
+        router.get('/:id', sessions, authGetGroup, audit, function(req, res) {
             var promise = svc.getObjs({id: req.params.id}, req, false);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -216,7 +222,7 @@
             });
         });
 
-        app.get('/api/minireelGroups', sessions, authGetGroup, audit, function(req, res) {
+        router.get('/', sessions, authGetGroup, audit, function(req, res) {
             var query = {};
             if (req.query.name) {
                 query.name = String(req.query.name);
@@ -235,7 +241,7 @@
         });
 
         var authPostGroup = authUtils.middlewarify({minireelGroups: 'create'});
-        app.post('/api/minireelGroup', sessions, authPostGroup, audit, function(req, res) {
+        router.post('/', sessions, authPostGroup, audit, function(req, res) {
             var promise = svc.createObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -246,7 +252,7 @@
         });
 
         var authPutGroup = authUtils.middlewarify({minireelGroups: 'edit'});
-        app.put('/api/minireelGroup/:id', sessions, authPutGroup, audit, function(req, res) {
+        router.put('/:id', sessions, authPutGroup, audit, function(req, res) {
             var promise = svc.editObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -257,7 +263,7 @@
         });
 
         var authDelGroup = authUtils.middlewarify({minireelGroups: 'delete'});
-        app.delete('/api/minireelGroup/:id', sessions, authDelGroup, audit, function(req, res) {
+        router.delete('/:id', sessions, authDelGroup, audit, function(req, res) {
             var promise = svc.deleteObj(req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -266,6 +272,8 @@
                 });
             });
         });
+        
+        app.use(mountPath, router);
     };
     
     module.exports = groupModule;
