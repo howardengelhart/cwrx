@@ -16,7 +16,7 @@ module.exports = {
                 MaxCount : 1,
                 MinCount : 1,
                 InstanceInitiatedShutdownBehavior : 'terminate',
-                InstanceType    : 't2.small',
+                InstanceType    : 't2.medium',
                 KeyName         : 'howardkey',
                 NetworkInterfaces : [
                     {
