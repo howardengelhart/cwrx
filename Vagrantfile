@@ -70,6 +70,7 @@ Vagrant.configure("2") do |config|
         }
     }
     chef.run_list = [
+        "recipe[c6env::memcached]",
         "recipe[c6mongo]",
         "recipe[auth]",
         "recipe[maint]"
