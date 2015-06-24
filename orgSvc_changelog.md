@@ -1,5 +1,11 @@
 # Org Service Changelog
 
+### 1.3.1: Wed Jun 24 18:09:44 EDT 2015
+* [FIX]: Cookie and session security improvements: [#423](https://github.com/cinema6/cwrx/pull/423)
+* Extra deployment steps:
+    * Deploy updated cookbooks
+    * Set `sessions.secure = true` for staging + production environments
+
 ### 1.3.0: Wed Feb  4 17:16:46 EST 2015
 * [FEATURE]: Add ability to query by list of ids: [#365](https://github.com/cinema6/cwrx/pull/365)
 * Extra deployment steps: None

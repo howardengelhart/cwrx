@@ -1,5 +1,11 @@
 # Auth Service Changelog
 
+### 1.4.1: Wed Jun 24 18:09:44 EDT 2015
+* [FIX]: Cookie and session security improvements: [#423](https://github.com/cinema6/cwrx/pull/423)
+* Extra deployment steps:
+    * Deploy updated cookbooks
+    * Set `sessions.secure = true` for staging + production environments
+
 ### 1.4.0: Fri Oct 17 14:28:44 EDT 2014
 * [FEATURE]: Add journaling: [#309](https://github.com/cinema6/cwrx/pull/309)
 * Extra deployment steps:

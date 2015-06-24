@@ -1,5 +1,11 @@
 # Ads Service Changelog
 
+### 1.3.1: Wed Jun 24 18:09:44 EDT 2015
+* [FIX]: Cookie and session security improvements: [#423](https://github.com/cinema6/cwrx/pull/423)
+* Extra deployment steps:
+    * Deploy updated cookbooks
+    * Set `sessions.secure = true` for staging + production environments
+
 ### 1.3.0: Mon May 18 15:06:37 EDT 2015
 * [FEATURE]: Implement Job Timeouts: [#421](https://github.com/cinema6/cwrx/pull/421)
 * Extra deployment steps:
