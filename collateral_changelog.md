@@ -1,5 +1,11 @@
 # Collateral Service Changelog
 
+### 1.4.3: Wed Jun 24 18:09:44 EDT 2015
+* [FIX]: Cookie and session security improvements: [#423](https://github.com/cinema6/cwrx/pull/423)
+* Extra deployment steps:
+    * Deploy updated cookbooks
+    * Set `sessions.secure = true` for staging + production environments
+
 ### 1.4.2: Thu Nov 20 16:33:11 EST 2014
 * [FIX]: Don't switch protocol for yahoo img urls: [#331](https://github.com/cinema6/cwrx/pull/331)
 * Extra deployment steps: None
