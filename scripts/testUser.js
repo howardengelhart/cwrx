@@ -25,12 +25,14 @@ program
     .option('--dbUser [DBUSER]', 'Name of mongo user to use', 'e2eTests')
     .option('--dbPass [DBPASS]', 'Password of mongo user to use', 'password')
     .option('-i, --id [ID]', 'New user\'s id property', 'u-test')
-    .option('-e, --email [EMAIL]', 'Email of test user', 'testUser')
+    .option('-e, --email [EMAIL]', 'Email of test user', 'testuser')
     .option('-o, --org [ORG]', 'Id of test user\'s org', 'o-test')
     .option('-p, --perms [PERMS]', 'List of object names to give user permissions for', 'all')
     .parse(process.argv);
 
 var db, coll;
+
+program.email = program.email.toLowerCase();
 
 console.log('Connecting to mongo at', program.dbHost, ':', program.dbPort);
 
