@@ -5,9 +5,7 @@
         "logName"   : "sample.log",
         "media"     : [ { "type" : "file" } ]
     },
-    "caches" : {
-        "run"       : "./pids"
-    },
+    "pidPath": "./pids/sample.pid",
     "sessions": {
         "mongo": {
             "hosts": [ "33.33.33.100:27017" ],
