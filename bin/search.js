@@ -316,6 +316,8 @@
         
         var sessions = sessionLib(sessionOpts);
 
+        app.set('trust proxy', 1);
+
         // Because we may recreate the session middleware, we need to wrap it in the route handlers
         function sessWrap(req, res, next) {
             sessions(req, res, next);
