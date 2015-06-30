@@ -1,6 +1,6 @@
-sample="node ../bin/sample.js"
-pidfile="../run/sample.pid"
-CONF_FILE="config/sample_local_evan.json"
+sample="node ./bin/sample.js"
+pidfile="./pids/sample.pid"
+CONF_FILE="./config/sample.json"
 
 start() {
     echo $"Starting sample: "

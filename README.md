@@ -22,7 +22,7 @@ Development Quickstart
    $ npm install
    ```
    
- 4. (Optional) Install the pre-commit hook. This lints and unit-tests your code before every commit, so you don't need to wait for Jenkins to tell you that your pull request breaks everything.
+ 4. (Optional) Install the pre-commit hook. This lints and unit-tests your code before every commit, so you don't need to wait for Jenkins to tell you that your pull request breaks everything. You may need to manually comment out the lines in `.git/hooks/pre-commit` if you ever need to push up WIP commits which don't pass linting and/or unit tests.
   
    ```bash
    $ grunt install_hook
@@ -55,51 +55,58 @@ $ grunt e2e_tests:<prefix> --testHost=<host> --dbHost=<dbHost> --cacheHost=<cach
 
 In order to run the services locally, you have a few options:
 
- 1. **Use a Vagrant API machine**: Easiest setup, hardest to use for active development.
-   
-   This machine will have the cwrx services, mongo, and memcached all running, similar to our live servers. In this repo, run:
-  
-   ```bash
-   $ vagrant up
-   ```
-   
-   (This assumes you have Vagrant, Berkshelf, and VirtualBox installed)
-   
-   By default, this will start the auth and maint services, and the services will run the latest code from `master`. You can set the `CWRX_APP` environment variable to a comma-separated list of service names, or 'all' for all services, to choose which services are installed, and you can set the `CWRX_DEV_BRANCH` to any ref that exists in the remote repo.
- 
- 2. **Use a Vagrant Mongo machine, run services locally**: Recommended for active development.
- 
-   This allows you to easily and quickly setup a mongo database while giving you full control over the API services.
-   
-   The best way to get a mongo machine running is to clone the [c6mongo cookbook](https://bitbucket.org/cinema6/c6mongo) and run `vagrant up` inside it. By default, the created mongo instance will be running at `33.33.33.100:27017` and should have all the users installed that you'll need for the services.
-   
-   In order to run a service locally, you'll need to setup a few things:
-   - Config file. See `config/sample.json` for an example; you should copy this into other files and change any instances of 'sample' to your service's name.
-   - Init script. Similarly, copy `init/sample.sh` into other files and replace all instances of 'sample' to your service's name. Be sure to change the port too: each service needs to run on a different port, and the e2e tests will assume certain services run on certain ports:
-   | Service name | Port |
-   | ------------ | ---- |
-   | ads          | 3900 |
-   | auth         | 3200 |
-   | collateral   | 3600 |
-   | content      | 3300 |
-   | maint        | 4000 |
-   | monitor      | 5000 |
-   | orgSvc       | 3700 |
-   | search       | 3800 |
-   | userSvc      | 3500 |
-   | vote         | 3400 |
+### Use a Vagrant API machine: ###
+Easiest setup, hardest to use for active development.
 
-   - Secrets file. The path will generally be `~/.<svcName>.secrets.json` and the content should look like this:
-   ```json
-   {
-       "cookieParser": "testsecret",
-       "mongoCredentials": {
-           "user": "<svcName>",
-           "password": "password"
-       }
-   }
-   ```
-    Some services may require additional credentials: the search service will require a `googleKey` in this secrets file, for example.
-   
+This machine will have the cwrx services, mongo, and memcached all running, similar to our live servers. In this repo, run:
+
+```bash
+$ vagrant up
+```
+
+(This assumes you have Vagrant, Berkshelf, and VirtualBox installed)
+
+By default, this will start the auth and maint services, and the services will run the latest code from `master`. You can set the `CWRX_APP` environment variable to a comma-separated list of service names, or 'all' for all services, to choose which services are installed, and you can set the `CWRX_DEV_BRANCH` to any ref that exists in the remote repo.
+ 
+### Use a Vagrant Mongo machine, run services locally: ###
+Recommended for active development.
+
+This allows you to easily and quickly setup a mongo database while giving you full control over the API services.
+
+The best way to get a mongo machine running is to clone the [c6mongo cookbook](https://bitbucket.org/cinema6/c6mongo) and run `vagrant up` inside it. By default, the created mongo instance will be running at `33.33.33.100:27017` and should have all the users installed that you'll need for the services.
+
+In order to run a service locally, you'll need to setup a few things:
+- Config file. See `config/sample.json` for an example; you should copy this into other files and change any instances of 'sample' to your service's name.
+- Init script. Similarly, copy `init/sample.sh` into other files and replace all instances of 'sample' to your service's name. Be sure to change the port too: each service needs to run on a different port, and the e2e tests will assume certain services run on certain ports:
+
+ | Service name | Port |
+ | ------------ | ---- |
+ | ads          | 3900 |
+ | auth         | 3200 |
+ | collateral   | 3600 |
+ | content      | 3300 |
+ | maint        | 4000 |
+ | monitor      | 5000 |
+ | orgSvc       | 3700 |
+ | search       | 3800 |
+ | userSvc      | 3500 |
+ | vote         | 3400 |
+ 
+ You should then run the init scripts from the cwrx root like:
+ ```bash
+ $ ./init/sample.sh restart
+ ```
+
+- Secrets file. The path will generally be `~/.<svcName>.secrets.json` and the content should look like this:
+ ```json
+ {
+    "cookieParser": "testsecret",
+    "mongoCredentials": {
+        "user": "<svcName>",
+        "password": "password"
+    }
+ }
+ ```
+ Some services may require additional credentials: the search service will require a `googleKey` in this secrets file, for example.
 
 
