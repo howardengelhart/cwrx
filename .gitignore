@@ -9,6 +9,11 @@ lib-cov
 *.version
 *~
 
+config/*
+!config/sample.json
+init/*
+!init/sample.sh
+
 pids
 logs
 results

@@ -1,0 +1,25 @@
+{
+    "log"    : {
+        "logLevel"  : "trace",
+        "logDir"    : "./logs",
+        "logName"   : "sample.log",
+        "media"     : [ { "type" : "file" } ]
+    },
+    "pidPath": "./pids/sample.pid",
+    "sessions": {
+        "mongo": {
+            "hosts": [ "33.33.33.100:27017" ],
+            "replSet": "devReplSet"
+        }
+    },
+    "mongo": {
+        "c6Db": {
+            "hosts": [ "33.33.33.100:27017" ],
+            "replSet": "devReplSet"
+        },
+        "c6Journal": {
+            "hosts": [ "33.33.33.100:27017" ],
+            "replSet": "devReplSet"
+        }
+    }
+}
