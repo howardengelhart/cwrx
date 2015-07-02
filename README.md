@@ -91,27 +91,27 @@ In order to run a service locally, you'll need to setup a few things:
  | search       | 3800 |
  | userSvc      | 3500 |
  | vote         | 3400 |
- 
+
  You should then run the init scripts from the cwrx root like:
  ```bash
  $ ./init/sample.sh restart
  ```
 
-**Note**: Most services have dependencies on other services, so the
-dependents will need to be started as well when testing:
+  **Note**: Most services have dependencies on other services, so the
+  dependents will need to be started as well when testing:
 
-| Service    | Dependencies  |
-| -------    | ------------  |
-| ads        | auth, content |
-| auth       | none          |
-| collateral | auth          |
-| content    | auth          |
-| maint      | none          |
-| monitor    | maint         |
-| orgSvc     | auth          |
-| search     | auth          |
-| userSvc    | auth          |
-| vote       | auth, maint   |
+  | Service    | Dependencies  |
+  | -------    | ------------  |
+  | ads        | auth, content |
+  | auth       | none          |
+  | collateral | auth          |
+  | content    | auth          |
+  | maint      | none          |
+  | monitor    | maint         |
+  | orgSvc     | auth          |
+  | search     | auth          |
+  | userSvc    | auth          |
+  | vote       | auth, maint   |
 
 - Secrets file. The path will generally be `~/.<svcName>.secrets.json` and the content should look like this:
  ```json
