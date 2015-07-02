@@ -21,9 +21,7 @@
         journal     = require('../lib/journal'),
         service     = require('../lib/service'),
         s3util      = require('../lib/s3util'),
-        enums       = require('../lib/enums'),
-        Scope       = enums.Scope,
-        
+
         state      = {},
         collateral = {}; // for exporting functions to unit tests
 
@@ -35,7 +33,7 @@
             run     : path.normalize('/usr/local/share/cwrx/collateral/caches/run/'),
         },
         cacheControl: {
-            default: 'max-age=15'
+            default: 'max-age=31556926'
         },
         splash: {
             quality: 75,            // some integer between 0 and 100
@@ -84,25 +82,18 @@
      * If versionate is false, this will just upload the file directly to S3 (overwriting any
      * existing file with that unmodified file name).
      */
-    collateral.upload = function(req, prefix, fileOpts, versionate, s3, config) {
+    collateral.upload = function(req, prefix, fileOpts, s3, config) {
         var log = logger.getLog(),
             outParams = {},
-            headParams = {},
-            cacheControl = req.query && req.query.noCache ? 'max-age=0'
-                                                          : config.cacheControl.default,
-            promise;
+            headParams = {};
 
-        if (versionate) {
-            promise = uuid.hashFile(fileOpts.path).then(function(hash) {
-                return q(hash + '.' + (fileOpts.originalname || fileOpts.name));
-            });
-        } else {
-            promise = q(fileOpts.originalname || fileOpts.name);
-        }
-        
-        return promise.then(function(fname) {
+        return uuid.hashFile(fileOpts.path)
+        .then(function(hash) {
+            return q(hash + path.extname(fileOpts.path));
+        })
+        .then(function(fname) {
             outParams = {
-                CacheControl: cacheControl,
+                CacheControl: config.cacheControl.default,
                 Bucket      : config.s3.bucket,
                 Key         : path.join(prefix, fname),
                 ACL         : 'public-read',
@@ -113,24 +104,17 @@
             log.info('[%1] User %2 is uploading file to %3/%4',
                      req.uuid, req.user.id, outParams.Bucket, outParams.Key);
 
-            if (versionate) {
-                return q.npost(s3, 'headObject', [headParams]).then(function(data) {
-                    log.info('[%1] Identical file %2 already exists on s3, not uploading',
-                             req.uuid, fname);
-                    return q({ key: outParams.Key, md5: data.ETag.replace(/"/g, '') });
-                })
-                .catch(function(/*error*/) {
-                    return s3util.putObject(s3, fileOpts.path, outParams)
-                    .then(function(data) {
-                        return q({ key: outParams.Key, md5: data.ETag.replace(/"/g, '') });
-                    });
-                });
-            } else {
+            return q.npost(s3, 'headObject', [headParams]).then(function(data) {
+                log.info('[%1] Identical file %2 already exists on s3, not uploading',
+                         req.uuid, fname);
+                return q({ key: outParams.Key, md5: data.ETag.replace(/"/g, '') });
+            })
+            .catch(function(/*error*/) {
                 return s3util.putObject(s3, fileOpts.path, outParams)
                 .then(function(data) {
                     return q({ key: outParams.Key, md5: data.ETag.replace(/"/g, '') });
                 });
-            }
+            });
         });
     };
 
@@ -165,8 +149,7 @@
     // Upload a file from req.files to S3
     collateral.uploadFiles = function(req, s3, config) {
         var log = logger.getLog(),
-            org = req.user.org,
-            versionate = req.query && req.query.versionate || false,
+            user = req.user,
             prefix;
 
         function cleanup(fpath) {
@@ -186,27 +169,8 @@
             log.info('[%1] User %2 is uploading %3 files',
                      req.uuid, req.user.id, Object.keys(req.files).length);
         }
-        
-        if (req.params && req.params.expId) {
-            prefix = path.join(config.s3.path, req.params.expId);
-        } else {
-            if (req.query && req.query.org && req.query.org !== req.user.org) {
-                if (req.user.permissions && req.user.permissions.experiences &&
-                    req.user.permissions.experiences.edit === Scope.All) {
-                    log.info('[%1] Admin user %2 is uploading file to org %3',
-                             req.uuid, req.user.id, org);
-                    org = req.query.org;
-                } else {
-                    log.info('[%1] Non-admin user %2 tried to upload files to org %3',
-                             req.uuid, req.user.id, org);
-                    Object.keys(req.files).forEach(function(key) {
-                        cleanup(req.files[key].path);
-                    });
-                    return q({code: 403, body: 'Cannot upload files to that org'});
-                }
-            }
-            prefix = path.join(config.s3.path, org);
-        }
+
+        prefix = path.join(config.s3.path, 'userFiles/' + user.id);
         
         return q.allSettled(Object.keys(req.files).map(function(objName) {
             var file = req.files[objName];
@@ -224,12 +188,12 @@
             .then(function(type) {
                 if (!type) {
                     log.warn('[%1] File %2 is not a jpeg, png, or gif', req.uuid, file.name);
-                    return deferred.reject({code:415, name:objName, error:'Unsupported file type'});
+                    return deferred.reject({code:415,name:objName,error:'Unsupported file type'});
                 }
                 
                 file.type = type;
 
-                return collateral.upload(req, prefix, file, versionate, s3, config)
+                return collateral.upload(req, prefix, file, s3, config)
                 .then(function(response) {
                     log.info('[%1] File %2 has been uploaded successfully', req.uuid, file.name);
                     deferred.resolve({ code: 201, name: objName, path: response.key });
@@ -303,12 +267,10 @@
     // Handles generating and uploading a splash image
     collateral.generate = function(req, imgSpec, template, cacheKey, s3, config) {
         var log             = logger.getLog(),
-            versionate      = req.query && req.query.versionate || false,
-            splashName      = imgSpec && imgSpec.name || 'splash',
             jobId           = uuid.createUuid(),
             compiledPath    = path.join(require('os').tmpdir(), jobId + '-compiled.html'),
-            splashPath      = path.join(require('os').tmpdir(), jobId + '-' + splashName + '.jpg'),
-            prefix          = path.join(config.s3.path, req.params.expId),
+            splashPath      = path.join(require('os').tmpdir(), jobId + '-splash.jpg'),
+            prefix          = path.join(config.s3.path, 'userFiles/' + req.user.id),
             data            = { thumbs: req.body.thumbs },
             compiled        = handlebars.compile(template)(data), // Compile the template
             deferred        = q.defer(),
@@ -320,8 +282,8 @@
             object[method].apply(object, args);
         }
             
-        log.info('[%1] Generating image %2 at %3x%4 with ratio %5',
-                 req.uuid, splashName, imgSpec.width, imgSpec.height, imgSpec.ratio);
+        log.info('[%1] Generating image at %2x%3 with ratio %4',
+                 req.uuid, imgSpec.width, imgSpec.height, imgSpec.ratio);
         
         // Start by writing the compiled template to a file
         q.npost(fs, 'writeFile', [compiledPath, compiled])
@@ -371,16 +333,15 @@
         .then(function() { // Upload the rendered splash image to S3
             log.trace('[%1] Rendered image', req.uuid);
             var fileOpts = {
-                name: splashName,
                 path: splashPath,
                 type: 'image/jpeg'
             };
-            return collateral.upload(req, prefix, fileOpts, versionate, s3, config);
+            return collateral.upload(req, prefix, fileOpts, s3, config);
         })
         
         .then(function(response) {
-            log.info('[%1] File %2 has been uploaded successfully, md5 = %3',
-                     req.uuid, splashName, response.md5);
+            log.info('[%1] File has been uploaded successfully, md5 = %2',
+                     req.uuid, response.md5);
 
             collateral.splashCache[cacheKey] = { date: new Date(), md5: response.md5 };
 
@@ -417,16 +378,14 @@
     //  TODO: throttle # of concurrent splashes, maybe just throttle # of concurrent phantoms
     collateral.generateSplash = function(req, imgSpec, s3, config) {
         var log             = logger.getLog(),
-            versionate      = req.query && req.query.versionate || false,
-            splashName      = imgSpec && imgSpec.name || 'splash',
-            prefix          = path.join(config.s3.path, req.params.expId),
+            user            = req.user,
+            prefix          = path.join(config.s3.path, 'userFiles/' + user.id),
             templateNum     = collateral.chooseTemplateNum(req.body.thumbs.length),
             templateDir     = path.join(__dirname, '../templates/splashTemplates'),
             templatePath    = path.join(templateDir, imgSpec.ratio + '_x' + templateNum + '.html');
 
         function resolveObj(code, path) {
             return {
-                name: splashName,
                 ratio: imgSpec && imgSpec.ratio || '',
                 code: code,
                 path: path
@@ -434,7 +393,6 @@
         }
         function rejectObj(code, error) {
             return {
-                name: splashName,
                 ratio: imgSpec && imgSpec.ratio || '',
                 code: code,
                 error: error
@@ -442,8 +400,8 @@
         }
 
         if (!imgSpec || !imgSpec.width || !imgSpec.height || !imgSpec.ratio) {
-            log.info('[%1] Incomplete imgSpec for %2: %3',
-                     req.uuid, splashName, JSON.stringify(imgSpec));
+            log.info('[%1] Incomplete imgSpec for: %2',
+                     req.uuid, JSON.stringify(imgSpec));
             return q.reject(rejectObj(400, 'Must provide complete imgSpec'));
         }
         else if (imgSpec.height > config.splash.maxDimension ||
@@ -465,7 +423,6 @@
             var splashSpec = {
                 expId   : req.params.expId,
                 thumbs  : req.body.thumbs,
-                name    : splashName,
                 height  : imgSpec.height,
                 width   : imgSpec.width,
                 ratio   : imgSpec.ratio,
@@ -473,16 +430,16 @@
             }, md5, cacheKey;
             cacheKey = uuid.hashText(JSON.stringify(splashSpec));
             md5 = collateral.splashCache[cacheKey] && collateral.splashCache[cacheKey].md5;
-            log.trace('[%1] Splash image %2 hashes to %3', req.uuid, splashName, cacheKey);
+            log.trace('[%1] Splash image hashes to %2', req.uuid, cacheKey);
             
             // If cached md5, check for matching file on S3; if it exists, skip generation
             if (!md5) {
                 return collateral.generate(req, imgSpec, template, cacheKey, s3, config);
             }
-            log.trace('[%1] Have cached md5 %2 for %3', req.uuid, md5, splashName);
+            log.trace('[%1] Have cached md5 %2', req.uuid, md5);
             var headParams = {
                 Bucket: config.s3.bucket,
-                Key: path.join(prefix, versionate ? md5 + '.' + splashName : splashName)
+                Key: path.join(prefix, md5 + '.jpg')
             };
 
             return q.npost(s3, 'headObject', [headParams])
@@ -727,6 +684,18 @@
         });
 
         app.post('/api/collateral/splash/:expId', sessWrap, authUpload, audit, function(req, res) {
+            collateral.createSplashes(req, s3, state.config)
+            .then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error uploading files',
+                    detail: error
+                });
+            });
+        });
+
+        app.post('/api/collateral/splash', sessWrap, authUpload, audit, function(req, res) {
             collateral.createSplashes(req, s3, state.config)
             .then(function(resp) {
                 res.send(resp.code, resp.body);

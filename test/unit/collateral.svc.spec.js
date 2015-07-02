@@ -44,79 +44,31 @@ describe('collateral (UT):', function() {
                     cb('that does not exist', null);
                 })
             };
-            config = { s3: { bucket: 'bkt' }, cacheControl: { default: 'max-age=15' } };
+            config = { s3: { bucket: 'bkt' }, cacheControl: { default: 'max-age=31556926' } };
             fileOpts = { name: 'foo.txt', path: '/ut/foo.txt', type: 'text/plain' };
             spyOn(uuid, 'hashFile').andReturn(q('fakeHash'));
             spyOn(s3util, 'putObject').andReturn(q({ETag: '"qwer1234"'}));
         });
         
         it('should upload a file', function(done) {
-            collateral.upload(req, 'ut/o-1', fileOpts, false, s3, config).then(function(response) {
-                expect(response).toEqual({key: 'ut/o-1/foo.txt', md5: 'qwer1234'});
-                expect(uuid.hashFile).not.toHaveBeenCalled();
-                expect(s3.headObject).not.toHaveBeenCalled();
-                expect(s3util.putObject).toHaveBeenCalledWith(s3, '/ut/foo.txt',
-                    {Bucket:'bkt',Key:'ut/o-1/foo.txt',ACL:'public-read',CacheControl:'max-age=15',ContentType:'text/plain'});
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-
-        it('should use the file\'s originalname if possible', function(done) {
-            fileOpts.originalname = 'orig.txt';
-            collateral.upload(req, 'ut/o-1', fileOpts, false, s3, config).then(function(response) {
-                expect(response).toEqual({key: 'ut/o-1/orig.txt', md5: 'qwer1234'});
-                expect(uuid.hashFile).not.toHaveBeenCalled();
-                expect(s3.headObject).not.toHaveBeenCalled();
-                expect(s3util.putObject).toHaveBeenCalledWith(s3, '/ut/foo.txt',
-                    {Bucket:'bkt',Key:'ut/o-1/orig.txt',ACL:'public-read',CacheControl:'max-age=15',ContentType:'text/plain'});
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should overwrite an existing file if versionate is false', function(done) {
-            s3.headObject.andCallFake(function(params, cb) {
-                cb(null, { ETag: '"qwer1234"' });
-            });
-            collateral.upload(req, 'ut/o-1', fileOpts, false, s3, config).then(function(response) {
-                expect(response).toEqual({key: 'ut/o-1/foo.txt', md5: 'qwer1234'});
-                expect(s3util.putObject).toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should versionate a file if versionate is true', function(done) {
-            collateral.upload(req, 'ut/o-1', fileOpts, true, s3, config).then(function(response) {
-                expect(response).toEqual({key: 'ut/o-1/fakeHash.foo.txt', md5: 'qwer1234'});
+            collateral.upload(req, 'ut/o-1', fileOpts, s3, config).then(function(response) {
+                expect(response).toEqual({key: 'ut/o-1/fakeHash.txt', md5: 'qwer1234'});
                 expect(uuid.hashFile).toHaveBeenCalledWith('/ut/foo.txt');
                 expect(s3.headObject).toHaveBeenCalled();
-                expect(s3.headObject.calls[0].args[0]).toEqual({Bucket:'bkt', Key:'ut/o-1/fakeHash.foo.txt'});
+                expect(s3.headObject.calls[0].args[0]).toEqual({Bucket:'bkt', Key:'ut/o-1/fakeHash.txt'});
                 expect(s3util.putObject).toHaveBeenCalledWith(s3, '/ut/foo.txt',
-                    {Bucket:'bkt',Key:'ut/o-1/fakeHash.foo.txt',ACL:'public-read',CacheControl:'max-age=15',ContentType:'text/plain'});
+                    {Bucket:'bkt',Key:'ut/o-1/fakeHash.txt',ACL:'public-read',CacheControl:'max-age=31556926',ContentType:'text/plain'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
         
-        it('should set CacheControl to be max-age=0 if noCache is true', function(done) {
-            req.query = { noCache: true };
-            collateral.upload(req, 'ut/o-1', fileOpts, true, s3, config).then(function(response) {
-                expect(response).toEqual({key: 'ut/o-1/fakeHash.foo.txt', md5: 'qwer1234'});
-                expect(s3util.putObject).toHaveBeenCalledWith(s3, '/ut/foo.txt',
-                    {Bucket:'bkt',Key:'ut/o-1/fakeHash.foo.txt',ACL:'public-read',CacheControl:'max-age=0',ContentType:'text/plain'});
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should skip uploading if versionate is true and the file exists', function(done) {
+        it('should skip uploading if the file exists', function(done) {
             s3.headObject.andCallFake(function(params, cb) {
                 cb(null, { ETag: '"qwer1234"' });
             });
-            collateral.upload(req, 'ut/o-1', fileOpts, true, s3, config).then(function(response) {
-                expect(response).toEqual({key: 'ut/o-1/fakeHash.foo.txt', md5: 'qwer1234'});
+            collateral.upload(req, 'ut/o-1', fileOpts, s3, config).then(function(response) {
+                expect(response).toEqual({key: 'ut/o-1/fakeHash.txt', md5: 'qwer1234'});
                 expect(uuid.hashFile).toHaveBeenCalled();
                 expect(s3.headObject).toHaveBeenCalled();
                 expect(s3util.putObject).not.toHaveBeenCalled();
@@ -127,7 +79,7 @@ describe('collateral (UT):', function() {
         
         it('should fail if hashing the file fails', function(done) {
             uuid.hashFile.andReturn(q.reject('I GOT A PROBLEM'));
-            collateral.upload(req, 'ut/o-1', fileOpts, true, s3, config).then(function(response) {
+            collateral.upload(req, 'ut/o-1', fileOpts, s3, config).then(function(response) {
                 expect(response).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
@@ -139,7 +91,7 @@ describe('collateral (UT):', function() {
         
         it('should fail if uploading the file fails', function(done) {
             s3util.putObject.andReturn(q.reject('I GOT A PROBLEM'));
-            collateral.upload(req, 'ut/o-1', fileOpts, true, s3, config).then(function(response) {
+            collateral.upload(req, 'ut/o-1', fileOpts, s3, config).then(function(response) {
                 expect(response).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
@@ -256,7 +208,7 @@ describe('collateral (UT):', function() {
             req.files.testFile.truncated = true;
             collateral.uploadFiles(req, s3, config).then(function(resp) {
                 expect(resp.code).toBe(413);
-                expect(resp.body).toEqual([{name: 'testFile', code: 413, error: 'File is too big' }]);
+                expect(resp.body).toEqual([{code: 413, name: 'testFile', error: 'File is too big' }]);
                 expect(collateral.upload).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
                 expect(mockLog.warn).toHaveBeenCalled();
@@ -269,7 +221,7 @@ describe('collateral (UT):', function() {
             collateral.checkImageType.andReturn(q(false));
             collateral.uploadFiles(req, s3, config).then(function(resp) {
                 expect(resp.code).toBe(415);
-                expect(resp.body).toEqual([{name: 'testFile', code: 415, error: 'Unsupported file type' }]);
+                expect(resp.body).toEqual([{code: 415, name: 'testFile', error: 'Unsupported file type' }]);
                 expect(collateral.upload).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -280,9 +232,9 @@ describe('collateral (UT):', function() {
         it('should upload a file successfully', function(done) {
             collateral.uploadFiles(req, s3, config).then(function(resp) {
                 expect(resp.code).toBe(201);
-                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: '/path/on/s3'}]);
-                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/o-1',
-                    {name:'test',type:'image/jpeg',path:'/tmp/123'},false,'fakeS3',config);
+                expect(resp.body).toEqual([{code: 201, name: 'testFile', path: '/path/on/s3'}]);
+                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/userFiles/u-1',
+                    {name: 'test', type:'image/jpeg',path:'/tmp/123'},'fakeS3',config);
                 expect(collateral.checkImageType).toHaveBeenCalledWith('/tmp/123');
                 expect(fs.remove).toHaveBeenCalled();
                 expect(fs.remove.calls[0].args[0]).toBe('/tmp/123');
@@ -290,34 +242,12 @@ describe('collateral (UT):', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
-        
-        it('should upload to an experience folder if expId is defined', function(done) {
-            req.params = { expId: 'e-1' };
-            collateral.uploadFiles(req, s3, config).then(function(resp) {
-                expect(resp.code).toBe(201);
-                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: '/path/on/s3'}]);
-                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/e-1',req.files.testFile,false,'fakeS3',config);
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should versionate the file if instructed to', function(done) {
-            req.query = { versionate: true };
-            collateral.uploadFiles(req, s3, config).then(function(resp) {
-                expect(resp.code).toBe(201);
-                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: '/path/on/s3'}]);
-                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/o-1',req.files.testFile,true,'fakeS3',config);
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
+
         it('should fail if uploading the file fails', function(done) {
             collateral.upload.andReturn(q.reject('I GOT A PROBLEM'));
             collateral.uploadFiles(req, s3, config).then(function(resp) {
                 expect(resp.code).toBe(500);
-                expect(resp.body).toEqual([{name: 'testFile', code: 500, error: 'I GOT A PROBLEM'}]);
+                expect(resp.body).toEqual([{code: 500, name: 'testFile', error: 'I GOT A PROBLEM'}]);
                 expect(collateral.upload).toHaveBeenCalled();
                 expect(fs.remove).toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
@@ -330,7 +260,7 @@ describe('collateral (UT):', function() {
             fs.remove.andCallFake(function(fpath, cb) { cb('I GOT A PROBLEM'); });
             collateral.uploadFiles(req, s3, config).then(function(resp) {
                 expect(resp.code).toBe(201);
-                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: '/path/on/s3'}]);
+                expect(resp.body).toEqual([{code: 201, name: 'testFile', path: '/path/on/s3'}]);
                 expect(collateral.upload).toHaveBeenCalled();
                 process.nextTick(function() {
                     expect(fs.remove).toHaveBeenCalled();
@@ -358,39 +288,12 @@ describe('collateral (UT):', function() {
             collateral.uploadFiles(req, s3, config).then(function(resp) {
                 expect(resp.code).toBe(500);
                 expect(resp.body).toEqual([
-                    {name: 'file1', code: 201, path: '/path/to/1.txt'},
-                    {name: 'file2', code: 413, error: 'File is too big'},
-                    {name: 'file3', code: 500, error: 'I GOT A PROBLEM'}
+                    {code: 201, name: 'file1', path: '/path/to/1.txt'},
+                    {code: 413, name: 'file2', error: 'File is too big'},
+                    {code: 500, name: 'file3', error: 'I GOT A PROBLEM'}
                 ]);
                 expect(collateral.upload.calls.length).toBe(2);
                 expect(fs.remove.calls.length).toBe(3);
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should allow uploads to other orgs if the user is an admin', function(done) {
-            req.query = { org: 'o-2' };
-            req.user.permissions = { experiences: { edit: Scope.All } };
-            collateral.uploadFiles(req, s3, config).then(function(resp) {
-                expect(resp.code).toBe(201);
-                expect(resp.body).toEqual([{name: 'testFile', code: 201, path: '/path/on/s3'}]);
-                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/o-2',req.files.testFile,false,'fakeS3',config);
-                expect(fs.remove).toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should prevent uploads to other orgs if the user is not an admin', function(done) {
-            req.query = { org: 'o-2' };
-            req.user.permissions = { experiences: { edit: Scope.Org } };
-            collateral.uploadFiles(req, s3, config).then(function(resp) {
-                expect(resp.code).toBe(403);
-                expect(resp.body).toBe('Cannot upload files to that org');
-                expect(collateral.upload).not.toHaveBeenCalled();
-                expect(fs.remove).toHaveBeenCalled();
-                expect(fs.remove.calls[0].args[0]).toBe('/tmp/123');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -445,6 +348,7 @@ describe('collateral (UT):', function() {
         beforeEach(function() {
             req = {
                 uuid: '1234',
+                user: { id: 'u-1', org: 'o-1' },
                 params: { expId: 'e-1' },
                 body: { ratio:'foo', thumbs: ['http://image.jpg'] }
             };
@@ -481,8 +385,8 @@ describe('collateral (UT):', function() {
                 expect(page.set).toHaveBeenCalledWith('viewportSize',{height:600,width:600},anyFunc);
                 expect(page.open).toHaveBeenCalledWith('/tmp/fakeUuid-compiled.html', anyFunc);
                 expect(page.render).toHaveBeenCalledWith('/tmp/fakeUuid-splash.jpg',{quality:75},anyFunc);
-                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/e-1',{name:'splash',
-                    path:'/tmp/fakeUuid-splash.jpg',type:'image/jpeg'},false,s3,config);
+                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/userFiles/u-1',{
+                    path:'/tmp/fakeUuid-splash.jpg',type:'image/jpeg'},s3,config);
                 expect(collateral.splashCache.fakeHash).toEqual({md5:'qwer1234',date:jasmine.any(Date)});
                 process.nextTick(function() {
                     expect(page.close).toHaveBeenCalled();
@@ -496,36 +400,6 @@ describe('collateral (UT):', function() {
                 expect(error.toString()).not.toBeDefined();
                 done();
             });
-        });
-        
-        it('should let a user specify the resulting filename', function(done) {
-            imgSpec.name = 'brentRambo';
-            collateral.generate(req, imgSpec, 'fakeTempl', 'fakeHash', s3, config).then(function(key) {
-                expect(key).toEqual('/path/on/s3');
-                expect(page.render).toHaveBeenCalledWith('/tmp/fakeUuid-brentRambo.jpg',{quality:75},anyFunc);
-                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/e-1',{name:'brentRambo',
-                    path:'/tmp/fakeUuid-brentRambo.jpg',type:'image/jpeg'},false,s3,config);
-                process.nextTick(function() {
-                    expect(fs.remove.calls.length).toBe(2);
-                    expect(fs.remove.calls[0].args).toEqual(['/tmp/fakeUuid-compiled.html',anyFunc]);
-                    expect(fs.remove.calls[1].args).toEqual(['/tmp/fakeUuid-brentRambo.jpg',anyFunc]);
-                    done();
-                });
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-                done();
-            });
-        });
-        
-        it('should versionate the file if configured to', function(done) {
-            req.query = {versionate: true};
-            collateral.generate(req, imgSpec, 'fakeTempl', 'fakeHash', s3, config).then(function(key) {
-                expect(key).toEqual('/path/on/s3');
-                expect(collateral.upload).toHaveBeenCalledWith(req,'ut/e-1',{name:'splash',
-                    path:'/tmp/fakeUuid-splash.jpg',type:'image/jpeg'},true,s3,config);
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
         });
         
         it('should fail if writing the compiled html fails', function(done) {
@@ -636,7 +510,7 @@ describe('collateral (UT):', function() {
     describe('generateSplash', function() {
         var req, imgSpec, s3, config, templDir;
         beforeEach(function() {
-            req = {uuid:'1234',params:{expId:'e-1'},body:{ratio:'foo',thumbs:['http://image.jpg']}};
+            req = {uuid:'1234',user:{id:'u-1'},params:{expId:'e-1'},body:{ratio:'foo',thumbs:['http://image.jpg']}};
             imgSpec = { height: 600, width: 600, ratio: 'foo' };
             s3 = {
                 headObject: jasmine.createSpy('s3.headObject').andCallFake(function(params, cb) {
@@ -665,7 +539,6 @@ describe('collateral (UT):', function() {
             })).then(function(resps) {
                 resps.forEach(function(resp, index) {
                     expect(resp.state).toBe('rejected');
-                    expect(resp.reason.name).toBe('splash');
                     expect(resp.reason.code).toBe(400);
                     expect(resp.reason.error).toBe('Must provide complete imgSpec');
                     if (index === 2) expect(resp.reason.ratio).toBe('');
@@ -683,7 +556,7 @@ describe('collateral (UT):', function() {
             collateral.generateSplash(req, imgSpec, s3, config).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).toEqual({code:400,name:'splash',ratio:'foo',error:'Invalid ratio name'});
+                expect(error).toEqual({code:400,ratio:'foo',error:'Invalid ratio name'});
                 expect(glob.sync).toHaveBeenCalled();
                 expect(fs.readFile).not.toHaveBeenCalled();
                 expect(collateral.generate).not.toHaveBeenCalled();
@@ -693,11 +566,11 @@ describe('collateral (UT):', function() {
         it('should reject if either dimension is too large', function(done) {
             imgSpec.height = 2000;
             collateral.generateSplash(req, imgSpec, s3, config).catch(function(error) {
-                expect(error).toEqual({code:400,name:'splash',ratio:'foo',error:'Requested image size is too large'});
+                expect(error).toEqual({code:400,ratio:'foo',error:'Requested image size is too large'});
                 imgSpec.height = 400, imgSpec.width = 2000;
                 return collateral.generateSplash(req, imgSpec, s3, config);
             }).catch(function(error) {
-                expect(error).toEqual({code:400,name:'splash',ratio:'foo',error:'Requested image size is too large'});
+                expect(error).toEqual({code:400,ratio:'foo',error:'Requested image size is too large'});
                 expect(glob.sync).not.toHaveBeenCalled();
                 expect(fs.readFile).not.toHaveBeenCalled();
                 expect(collateral.generate).not.toHaveBeenCalled();
@@ -708,7 +581,7 @@ describe('collateral (UT):', function() {
         
         it('should successfully call collateral.generate', function(done) {
             collateral.generateSplash(req, imgSpec, s3, config).then(function(resp) {
-                expect(resp).toEqual({code:201,name:'splash',ratio:'foo',path:'/path/on/s3'});
+                expect(resp).toEqual({code:201,ratio:'foo',path:'/path/on/s3'});
                 expect(glob.sync).toHaveBeenCalledWith(path.join(templDir, 'foo*'));
                 expect(collateral.chooseTemplateNum).toHaveBeenCalledWith(1);
                 expect(fs.readFile).toHaveBeenCalledWith(path.join(templDir,'foo_x1.html'),{encoding: 'utf8'},anyFunc);
@@ -722,14 +595,14 @@ describe('collateral (UT):', function() {
         it('should regenerate the splash if there is a cached md5 but no file on s3', function(done) {
             collateral.splashCache['fakeHash'] = { md5: 'qwer1234', date: new Date() };
             collateral.generateSplash(req, imgSpec, s3, config).then(function(resp) {
-                expect(resp).toEqual({code:201,name:'splash',ratio:'foo',path:'/path/on/s3'});
-                expect(s3.headObject).toHaveBeenCalledWith({Bucket:'bkt',Key:'ut/e-1/splash'},anyFunc);
+                expect(resp).toEqual({code:201,ratio:'foo',path:'/path/on/s3'});
+                expect(s3.headObject).toHaveBeenCalledWith({Bucket:'bkt',Key:'ut/userFiles/u-1/qwer1234.jpg'},anyFunc);
                 expect(collateral.generate).toHaveBeenCalledWith(req,imgSpec,'fakeTemplate','fakeHash',s3,config);
-                req.query = {versionate: true};
+                req.query = {};
                 return collateral.generateSplash(req, imgSpec, s3, config);
             }).then(function(resp) {
-                expect(resp).toEqual({code:201,name:'splash',ratio:'foo',path:'/path/on/s3'});
-                expect(s3.headObject.calls[1].args).toEqual([{Bucket:'bkt',Key:'ut/e-1/qwer1234.splash'},anyFunc]);
+                expect(resp).toEqual({code:201,ratio:'foo',path:'/path/on/s3'});
+                expect(s3.headObject.calls[1].args).toEqual([{Bucket:'bkt',Key:'ut/userFiles/u-1/qwer1234.jpg'},anyFunc]);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -739,8 +612,8 @@ describe('collateral (UT):', function() {
             collateral.splashCache['fakeHash'] = { md5: 'qwer1234', date: new Date() };
             s3.headObject.andCallFake(function(params, cb) { cb(null, {ETag: '"qwer5678"'}); });
             collateral.generateSplash(req, imgSpec, s3, config).then(function(resp) {
-                expect(resp).toEqual({code:201,name:'splash',ratio:'foo',path:'/path/on/s3'});
-                expect(s3.headObject).toHaveBeenCalledWith({Bucket:'bkt',Key:'ut/e-1/splash'},anyFunc);
+                expect(resp).toEqual({code:201,ratio:'foo',path:'/path/on/s3'});
+                expect(s3.headObject).toHaveBeenCalledWith({Bucket:'bkt',Key:'ut/userFiles/u-1/qwer1234.jpg'},anyFunc);
                 expect(collateral.generate).toHaveBeenCalledWith(req,imgSpec,'fakeTemplate','fakeHash',s3,config);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -751,8 +624,8 @@ describe('collateral (UT):', function() {
             collateral.splashCache['fakeHash'] = { md5: 'qwer1234', date: new Date() };
             s3.headObject.andCallFake(function(params, cb) { cb(null, {ETag: '"qwer1234"'}); });
             collateral.generateSplash(req, imgSpec, s3, config).then(function(resp) {
-                expect(resp).toEqual({code:201,name:'splash',ratio:'foo',path:'ut/e-1/splash'});
-                expect(s3.headObject).toHaveBeenCalledWith({Bucket:'bkt',Key:'ut/e-1/splash'},anyFunc);
+                expect(resp).toEqual({code:201,ratio:'foo',path:'ut/userFiles/u-1/qwer1234.jpg'});
+                expect(s3.headObject).toHaveBeenCalledWith({Bucket:'bkt',Key:'ut/userFiles/u-1/qwer1234.jpg'},anyFunc);
                 expect(collateral.generate).not.toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -765,7 +638,7 @@ describe('collateral (UT):', function() {
             collateral.generateSplash(req, imgSpec, s3, config).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).toEqual({code:500,name:'splash',ratio:'foo',error:'I GOT A PROBLEM'});
+                expect(error).toEqual({code:500,ratio:'foo',error:'I GOT A PROBLEM'});
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(s3.headObject).not.toHaveBeenCalled();
                 expect(collateral.generate).not.toHaveBeenCalled();
@@ -777,7 +650,7 @@ describe('collateral (UT):', function() {
             collateral.generateSplash(req, imgSpec, s3, config).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).toEqual({code:500,name:'splash',ratio:'foo',error:'I GOT A PROBLEM'});
+                expect(error).toEqual({code:500,ratio:'foo',error:'I GOT A PROBLEM'});
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(fs.readFile).toHaveBeenCalled();
                 expect(collateral.generate).toHaveBeenCalled();
