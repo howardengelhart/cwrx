@@ -17,7 +17,7 @@ module.exports = function(grunt) {
     grunt.registerTask('e2e_tests', 'Run jasmine end-to-end tests', function(svc) {
         var done = this.async(),
             ec2Data = grunt.config.get('ec2Data'),
-            args = ['--test-dir', 'test/e2e/', '--captureExceptions', '--junitreport', '--output',
+            args = ['--test-dir', 'test/e2e/', '--captureExceptions', '--color', '--junitreport', '--output',
                     'reports/e2e/'],
             cacheCfgHost, cacheHost;
 
@@ -62,13 +62,11 @@ module.exports = function(grunt) {
         }
 
         grunt.log.writeln('Running e2e tests' + (svc ? ' for ' + svc : '') + ':');
-        grunt.util.spawn({
+        var jasmine = grunt.util.spawn({
             cmd : 'jasmine-node',
             args : args
         }, function(error,result,code) {
-            grunt.log.writeln(result.stdout);
             if (error) {
-                grunt.log.errorlns('e2e tests failed: ' + error);
                 done(false);
                 return;
             }
@@ -79,6 +77,13 @@ module.exports = function(grunt) {
                 return;
             }
             done(true);
+        });
+
+        jasmine.stdout.on('data', function(data) {
+            process.stdout.write(data);
+        });
+        jasmine.stderr.on('data', function(data) {
+            process.stderr.write(data);
         });
     });
 };
