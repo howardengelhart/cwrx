@@ -97,6 +97,22 @@ In order to run a service locally, you'll need to setup a few things:
  $ ./init/sample.sh restart
  ```
 
+**Note**: Most services have dependencies on other services, so the
+dependents will need to be started as well when testing:
+
+| Service    | Dependencies  |
+| -------    | ------------  |
+| ads        | auth, content |
+| auth       | none          |
+| collateral | auth          |
+| content    | auth          |
+| maint      | none          |
+| monitor    | maint         |
+| orgSvc     | auth          |
+| search     | auth          |
+| userSvc    | auth          |
+| vote       | auth, maint   |
+
 - Secrets file. The path will generally be `~/.<svcName>.secrets.json` and the content should look like this:
  ```json
  {
@@ -109,4 +125,10 @@ In order to run a service locally, you'll need to setup a few things:
  ```
  Some services may require additional credentials: the search service will require a `googleKey` in this secrets file, for example.
 
+- Version files for each service. These can be easily generated with the
+  following command (run once for each service from the cwrx repo,
+  replacing "service-name" with the actual name of the service):
+  ```bash
+  $> git describe --tags --long > bin/service-name.version
+  ```
 
