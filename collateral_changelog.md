@@ -1,5 +1,16 @@
 # Collateral Service Changelog
 
+* Refactor so that uploaded files are stored by user on S3: [#438](https://github.com/cinema6/cwrx/issues/438)
+* [DEPRECATION]: Removed support for "versionate" query param. All files
+  are now versionated by default
+* [DEPRECATION]: Removed support for "noCache" query param. All files
+  now have a max-age of one year
+* [FEATURE]: Added new endpoint for splash image generation:
+  POST "/api/collateral/splash"
+* Extra deployment steps:
+    * Environments should be updated so that the ```s3.path``` config
+      only points to "/collateral"
+
 ### 1.4.3: Wed Jun 24 18:09:44 EDT 2015
 * [FIX]: Cookie and session security improvements: [#423](https://github.com/cinema6/cwrx/pull/423)
 * Extra deployment steps:
