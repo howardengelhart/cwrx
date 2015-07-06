@@ -7,6 +7,8 @@
   now have a max-age of one year
 * [FEATURE]: Added new endpoint for splash image generation:
   POST "/api/collateral/splash"
+* [FEATURE]: Added POST /api/collateral/uris endpoint for re-uploading
+  external image resources to Cinema6's servers: [#439](https://github.com/cinema6/cwrx/issues/439)
 * Extra deployment steps:
     * Environments should be updated so that the ```s3.path``` config
       only points to "/collateral"

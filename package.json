@@ -30,17 +30,18 @@
     "nodemailer": "~1.0.3",
     "nodemailer-ses-transport": "~0.1.1",
     "phantom": "0.6.1",
-    "q": "~0.9.7",
-    "request": "~2.27.0"
+    "q": "^1.4.1",
+    "request": "~2.27.0",
+    "request-promise": "^0.4.2"
   },
   "devDependencies": {
-    "jshint": "~2.1.2",
     "grunt": "~0.4.1",
     "grunt-contrib-copy": "~0.4.0",
     "grunt-contrib-jshint": "~0.7.1",
     "grunt-contrib-watch": "~0.5.3",
-    "load-grunt-config": "~0.7.1",
     "imap": "~0.8.12",
+    "jshint": "~2.1.2",
+    "load-grunt-config": "~0.7.1",
     "mailparser": "~0.4.4"
   }
 }
