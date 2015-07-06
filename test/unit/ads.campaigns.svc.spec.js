@@ -53,6 +53,7 @@ describe('ads-campaigns (UT)', function() {
     
     describe('setupSvc', function() {
         it('should setup the campaign service', function() {
+            spyOn(CrudSvc.prototype.preventGetAll, 'bind').andReturn(CrudSvc.prototype.preventGetAll);
             spyOn(campaignUtils.getAccountIds, 'bind').andReturn(campaignUtils.getAccountIds);
             spyOn(campModule.formatOutput, 'bind').andReturn(campModule.formatOutput);
             
@@ -78,8 +79,8 @@ describe('ads-campaigns (UT)', function() {
             expect(svc._advertColl).toEqual({collectionName: 'advertisers'});
             expect(svc._custColl).toEqual({collectionName: 'customers'});
             
-            expect(svc.createValidator._required).toContain('advertiserId', 'customerId');
-            expect(svc.editValidator._forbidden).toContain('advertiserId', 'customerId');
+            expect(svc.createValidator._required).toContain('advertiserId', 'customerId', 'statusHistory');
+            expect(svc.editValidator._forbidden).toContain('advertiserId', 'customerId', 'statusHistory');
             ['cards', 'miniReels', 'miniReelGroups'].forEach(function(key) {
                 expect(svc.createValidator._formats[key]).toEqual(['object']);
                 expect(svc.editValidator._formats[key]).toEqual(['object']);
@@ -89,15 +90,15 @@ describe('ads-campaigns (UT)', function() {
             expect(svc.createValidator._formats.staticCardMap).toEqual('object');
             expect(svc.editValidator._formats.staticCardMap).toEqual('object');
 
-            expect(svc._middleware.create).toEqual([jasmine.any(Function), jasmine.any(Function),
+            expect(svc._middleware.create).toEqual([jasmine.any(Function), jasmine.any(Function), svc.handleStatusHistory,
                 campaignUtils.getAccountIds, campModule.validateDates, campModule.ensureUniqueIds,
                 campModule.ensureUniqueNames, campModule.createSponsoredCamps, campModule.createTargetCamps]);
-            expect(svc._middleware.edit).toEqual([jasmine.any(Function), jasmine.any(Function),
+            expect(svc._middleware.edit).toEqual([jasmine.any(Function), jasmine.any(Function), svc.handleStatusHistory,
                 campaignUtils.getAccountIds, campModule.extendListObjects, campModule.validateDates,
                 campModule.ensureUniqueIds, campModule.ensureUniqueNames,
                 campModule.cleanSponsoredCamps, campModule.editSponsoredCamps, campModule.createSponsoredCamps,
                 campModule.cleanTargetCamps, campModule.editTargetCamps, campModule.createTargetCamps]);
-            expect(svc._middleware.delete).toEqual([jasmine.any(Function),
+            expect(svc._middleware.delete).toEqual([jasmine.any(Function), svc.handleStatusHistory,
                 campModule.deleteContent, campModule.deleteAdtechCamps]);
             expect(svc.formatOutput).toBe(campModule.formatOutput);
         });

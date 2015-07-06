@@ -1,12 +1,24 @@
 var flush = true;    
 describe('mongoUtils', function() {
-    var mongodb, mongoUtils, q;
+    var mongodb, mongoUtils, q, logger, mockLog;
     
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         mongodb     = require('mongodb');
         mongoUtils  = require('../../lib/mongoUtils');
+        logger      = require('../../lib/logger');
         q           = require('q');
+        
+        mockLog = {
+            trace : jasmine.createSpy('log_trace'),
+            error : jasmine.createSpy('log_error'),
+            warn  : jasmine.createSpy('log_warn'),
+            info  : jasmine.createSpy('log_info'),
+            fatal : jasmine.createSpy('log_fatal'),
+            log   : jasmine.createSpy('log_log')
+        };
+        spyOn(logger, 'createLog').andReturn(mockLog);
+        spyOn(logger, 'getLog').andReturn(mockLog);
     });
     
     describe('connect', function() {
@@ -220,6 +232,77 @@ describe('mongoUtils', function() {
             var obj = [ {foo: 'bar'}, {} ];
             obj[1][eD + 'set'] = 'prop';
             expect(mongoUtils.unescapeKeys(obj)).toEqual([ {foo: 'bar'}, {'$set': 'prop'} ]);
+        });
+    });
+    
+    describe('createObject', function() {
+        var mockColl;
+        beforeEach(function() {
+            mockColl = {
+                insert: jasmine.createSpy('coll.insert()').andCallFake(function(obj, opts, cb) {
+                    cb(null, true);
+                })
+            };
+            spyOn(mongoUtils, 'escapeKeys').andReturn({ escaped: 'yes' });
+        });
+        
+        it('should insert an object into a collection with some opts', function(done) {
+            mongoUtils.createObject(mockColl, { orig: 'yes' }).then(function(resp) {
+                expect(resp).toEqual({ escaped: 'yes' });
+                expect(mongoUtils.escapeKeys).toHaveBeenCalledWith({ orig: 'yes' });
+                expect(mockColl.insert).toHaveBeenCalledWith({ escaped: 'yes' }, { w: 1, journal: true }, jasmine.any(Function));
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should log an error and reject if inserting the object fails', function(done) {
+            mockColl.insert.andCallFake(function(obj, opts, cb) { cb('I GOT A PROBLEM'); });
+
+            mongoUtils.createObject(mockColl, { orig: 'yes' }).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(mongoUtils.escapeKeys).toHaveBeenCalled();
+                expect(mockColl.insert).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
+        });
+    });
+    
+    describe('editObject', function() {
+        var mockColl;
+        beforeEach(function() {
+            mockColl = {
+                findAndModify: jasmine.createSpy('coll.findAndModify()').andCallFake(function(query, sort, updates, opts, cb) {
+                    cb(null, [{ updated: 'yes' }]);
+                })
+            };
+            spyOn(mongoUtils, 'escapeKeys').andReturn({ escaped: 'yes' });
+        });
+        
+        it('should edit an object in a collection', function(done) {
+            mongoUtils.editObject(mockColl, { foo: 'bar', lastUpdated: 'bloop' }, 'e-1').then(function(resp) {
+                expect(resp).toEqual({ updated: 'yes' });
+                expect(mongoUtils.escapeKeys).toHaveBeenCalledWith({ foo: 'bar', lastUpdated: jasmine.any(Date) });
+                expect(mockColl.findAndModify).toHaveBeenCalledWith({ id: 'e-1' }, {id: 1},
+                    { $set: { escaped: 'yes' } }, { w: 1, journal: true, new: true }, jasmine.any(Function));
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should log an error and reject if inserting the object fails', function(done) {
+            mockColl.findAndModify.andCallFake(function(query, sort, updates, opts, cb) { cb('I GOT A PROBLEM'); });
+
+            mongoUtils.editObject(mockColl, { orig: 'yes' }, 'e-1').then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(mongoUtils.escapeKeys).toHaveBeenCalled();
+                expect(mockColl.findAndModify).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
         });
     });
 });

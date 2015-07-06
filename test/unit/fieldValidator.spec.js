@@ -120,8 +120,8 @@ describe('FieldValidator', function() {
             var v = new FieldValidator({ forbidden: ['a'], condForbidden: { foo: fooSpy } });
             expect(v.validate({a: 1}, {a: 2}, {})).toBe(false);
             expect(v.validate({a: 2}, {a: 2}, {})).toBe(true);
-            expect(v.validate({foo: 'baz'}, {foo: 'bar'}, {})).toBe(false);
-            expect(v.validate({foo: 'bar'}, {foo: 'bar'}, {})).toBe(true);
+            expect(v.validate({foo: { val: 'bar' }}, {foo: { val: 'baz' }}, {})).toBe(false);
+            expect(v.validate({foo: { val: 'bar' }}, {foo: { val: 'bar' }}, {})).toBe(true);
         });
         
         it('should return false if a field is in the wrong format', function() {

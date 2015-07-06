@@ -32,6 +32,13 @@ describe('objUtils', function() {
             expect(function() {sorted = objUtils.sortObject(obj);}).not.toThrow();
             expect(sorted).toEqual({a: null, b: 1});
         });
+        
+        it('should be able to handle dates', function() {
+            var now = new Date(),
+                obj = { b: 1, a: now },
+                sorted = objUtils.sortObject(obj);
+            expect(JSON.stringify(sorted)).toBe(JSON.stringify({a: now, b: 1}));
+        });
     });
 
     describe('compareObjects', function() {
