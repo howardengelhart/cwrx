@@ -1,5 +1,6 @@
 # Collateral Service Changelog
 
+### 2.0.0: Tue Jul  7 16:30:16 EDT 2015
 * Refactor so that uploaded files are stored by user on S3: [#438](https://github.com/cinema6/cwrx/issues/438)
 * [DEPRECATION]: Removed support for "versionate" query param. All files
   are now versionated by default
