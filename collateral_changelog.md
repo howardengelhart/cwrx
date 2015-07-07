@@ -9,9 +9,14 @@
   POST "/api/collateral/splash"
 * [FEATURE]: Added POST /api/collateral/uris endpoint for re-uploading
   external image resources to Cinema6's servers: [#439](https://github.com/cinema6/cwrx/issues/439)
+* [FEATURE]: Add support for job-chaching protocol to
+  [POST /api/collateral/files/:expId], [POST /api/collateral/files],
+  [POST /api/collateral/splash/:expId], and
+  [POST /api/collateral/splash]: [#440](https://github.com/cinema6/cwrx/issues/440)
 * Extra deployment steps:
     * Environments should be updated so that the ```s3.path``` config
       only points to "/collateral"
+    * Deploy new version of collateral cookbook
 
 ### 1.4.3: Wed Jun 24 18:09:44 EDT 2015
 * [FIX]: Cookie and session security improvements: [#423](https://github.com/cinema6/cwrx/pull/423)
