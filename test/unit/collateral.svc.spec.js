@@ -1,12 +1,17 @@
 var flush = true;
 describe('collateral (UT):', function() {
     var mockLog, uuid, logger, collateral, q, glob, phantom, handlebars, path, enums, Scope, anyFunc, os;
+    var request;
+    var EventEmitter;
+    var Promise;
     
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
 
         jasmine.Clock.useMock();
 
+        EventEmitter= require('events').EventEmitter;
+        request     = require('request-promise');
         uuid        = require('../../lib/uuid');
         logger      = require('../../lib/logger');
         s3util      = require('../../lib/s3util');
@@ -18,9 +23,10 @@ describe('collateral (UT):', function() {
         fs          = require('fs-extra');
         collateral  = require('../../bin/collateral');
         q           = require('q');
+        Promise     = q.Promise;
         enums       = require('../../lib/enums');
         Scope       = enums.Scope;
-        
+
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
             error : jasmine.createSpy('log_error'),
@@ -34,7 +40,7 @@ describe('collateral (UT):', function() {
         spyOn(logger, 'getLog').andReturn(mockLog);
         anyFunc = jasmine.any(Function);
     });
-    
+
     describe('upload', function() {
         var s3, req, config, fileOpts;
         beforeEach(function() {
@@ -168,6 +174,457 @@ describe('collateral (UT):', function() {
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
             }).done(done);
+        });
+    });
+
+    describe('importFile(req, s3, config)', function() {
+        var responseDefer;
+
+        var req, s3, config;
+        var jobId;
+        var promise;
+        var success, failure;
+        var responseDeferred;
+
+        function noArgs(fn) {
+            return function() {
+                return fn();
+            };
+        }
+
+        beforeEach(function() {
+            jobId = uuid.createUuid();
+            spyOn(uuid, 'createUuid').andReturn(jobId);
+
+            spyOn(fs, 'createWriteStream');
+            spyOn(fs, 'remove');
+
+            responseDefer = function responseDefer() {
+                var deferred = q.defer();
+                var promise = deferred.promise;
+
+                promise.pipe = jasmine.createSpy('EventedPromise.pipe()');
+                promise.abort = jasmine.createSpy('EventedPromise.abort()');
+
+                EventEmitter.call(promise);
+                for (var method in EventEmitter.prototype) {
+                    promise[method] = EventEmitter.prototype[method];
+                }
+
+                return deferred;
+            };
+
+            success = jasmine.createSpy('success()');
+            failure = jasmine.createSpy('failure()');
+
+            req = {
+                user: { id: 'u-0507ebe9b5dc5d' },
+                body: {
+                    uri: 'https://pbs.twimg.com/profile_images/554776783967363072/2lxo5V22_400x400.png'
+                }
+            };
+            s3 = { type: 's3' };
+            config = {
+                maxFileSize: 1000,
+                s3: {
+                    path: '/collateral'
+                }
+            };
+
+            responseDeferred = responseDefer();
+            spyOn(request, 'head').andReturn(responseDeferred.promise);
+
+            promise = collateral.importFile(req, s3, config);
+            promise.then(success, failure);
+        });
+
+        describe('if no uri is specified', function() {
+            beforeEach(function(done) {
+                done = noArgs(done);
+
+                request.head.reset();
+                success.reset();
+                failure.reset();
+                req.body = {};
+
+                collateral.importFile(req, s3, config).then(success, failure).then(done, done);
+            });
+
+            it('should fail with a 400', function() {
+                expect(success).toHaveBeenCalledWith({
+                    code: 400,
+                    body: 'No image URI specified.'
+                });
+            });
+
+            it('should log a warning', function() {
+                expect(mockLog.warn).toHaveBeenCalled();
+            });
+
+            it('should not HEAD anything', function() {
+                expect(request.head).not.toHaveBeenCalled();
+            });
+        });
+
+        it('should make a HEAD for the image', function() {
+            expect(request.head).toHaveBeenCalledWith({
+                uri: req.body.uri,
+                resolveWithFullResponse: true
+            });
+        });
+
+        describe('if the HEAD fails', function() {
+            beforeEach(function(done) {
+                done = noArgs(done);
+
+                spyOn(request, 'get').andReturn(responseDefer().promise);
+
+                responseDeferred.reject('I BROKE!');
+                responseDeferred.promise.then(done, done);
+            });
+
+            it('should still make a GET', function() {
+                expect(request.get).toHaveBeenCalledWith(req.body.uri);
+            });
+        });
+
+        describe('when the HEAD succeeds', function() {
+            var headResponse;
+
+            beforeEach(function() {
+                headResponse = {
+                    headers: {}
+                };
+            });
+
+            describe('with no headers at all', function() {
+                beforeEach(function(done) {
+                    done = noArgs(done);
+
+                    delete headResponse.headers;
+
+                    responseDeferred.resolve(headResponse);
+                    responseDeferred.promise.then(done, done);
+                });
+
+                it('should log an error', function() {
+                    expect(mockLog.error).toHaveBeenCalled();
+                });
+
+                it('should reject the promise', function() {
+                    expect(failure).toHaveBeenCalledWith(jasmine.any(TypeError));
+                });
+            });
+
+            describe('with a content-length header that is smaller than the maxFileSize', function() {
+                beforeEach(function(done) {
+                    done = noArgs(done);
+
+                    headResponse.headers['content-length'] = (config.maxFileSize - 1).toString();
+
+                    spyOn(request, 'get').andReturn(responseDefer().promise);
+
+                    responseDeferred.resolve(headResponse);
+                    responseDeferred.promise.then(done, done);
+                });
+
+                it('should make a GET request for the resource', function() {
+                    expect(request.get).toHaveBeenCalledWith(req.body.uri);
+                });
+            });
+
+            describe('with no content-length header', function() {
+                var getDeferred;
+                var writeStream;
+                var tmpPath;
+
+                beforeEach(function(done) {
+                    done = noArgs(done);
+
+                    delete headResponse.headers['content-length'];
+
+                    getDeferred = responseDefer();
+                    spyOn(request, 'get').andReturn(getDeferred.promise);
+
+                    writeStream = { writeStream: true };
+                    fs.createWriteStream.andReturn(writeStream);
+
+                    tmpPath = path.join(os.tmpdir(), jobId + path.extname(req.body.uri));
+
+                    responseDeferred.resolve(headResponse);
+                    responseDeferred.promise.then(done, done);
+                });
+
+                it('should make a GET request for the resource', function() {
+                    expect(request.get).toHaveBeenCalledWith(req.body.uri);
+                });
+
+                it('should pipe() the image into a tmp file', function() {
+                    expect(fs.createWriteStream).toHaveBeenCalledWith(tmpPath);
+                    expect(getDeferred.promise.pipe).toHaveBeenCalledWith(writeStream);
+                });
+
+                describe('but GETting the image fails', function() {
+                    beforeEach(function(done) {
+                        done = noArgs(done);
+
+                        spyOn(collateral, 'checkImageType').andReturn(q.defer().promise);
+                        getDeferred.promise.response = {
+                            statusCode: 404
+                        };
+                        getDeferred.promise.emit('end', new Buffer(250));
+                        getDeferred.reject({
+                            error: 'NOT FOUND',
+                            response: {
+                                statusCode: 404
+                            }
+                        });
+                        getDeferred.promise.then(done, done);
+                    });
+
+                    it('should respond with a 400', function() {
+                        expect(success).toHaveBeenCalledWith({
+                            code: 400,
+                            body: 'Could not fetch image from "' + req.body.uri + '."'
+                        });
+                    });
+
+                    it('should not check the type of the image', function() {
+                        expect(collateral.checkImageType).not.toHaveBeenCalled();
+                    });
+
+                    it('should log a warning', function() {
+                        expect(mockLog.warn).toHaveBeenCalled();
+                    });
+
+                    it('should remove the tmp file', function() {
+                        expect(fs.remove).toHaveBeenCalledWith(tmpPath, jasmine.any(Function));
+                    });
+                });
+
+                describe('if the size of the image ends up being too large', function() {
+                    var response;
+
+                    beforeEach(function(done) {
+                        done = noArgs(done);
+                        response = getDeferred.promise;
+
+                        // Not too big
+                        response.emit('data', new Buffer(250));
+                        // Not too big
+                        response.emit('data', new Buffer(250));
+                        // Not too big, but getting there
+                        response.emit('data', new Buffer(250));
+                        // Now it *is* the maxFileSize
+                        response.emit('data', new Buffer(250));
+                        // This one byte will set it over the edge...
+                        response.emit('data', new Buffer(1));
+
+                        spyOn(collateral, 'checkImageType').andReturn(q.defer().promise);
+                        getDeferred.promise.response = {
+                            statusCode: 201
+                        };
+                        getDeferred.resolve(new Buffer(500));
+                        response.emit('end', new Buffer(500));
+
+                        promise.then(done, done);
+                    });
+
+                    it('should respond with a 413', function() {
+                        expect(success).toHaveBeenCalledWith({
+                            code: 413,
+                            body: 'File [' + req.body.uri + '] is too large.'
+                        });
+                    });
+
+                    it('should abort() the file download', function() {
+                        expect(response.abort).toHaveBeenCalled();
+                    });
+
+                    it('should log a warning', function() {
+                        expect(mockLog.warn).toHaveBeenCalled();
+                    });
+
+                    it('should remove the tmp file', function() {
+                        expect(fs.remove).toHaveBeenCalledWith(tmpPath, jasmine.any(Function));
+                    });
+                });
+
+                describe('if the size of the image is not too large', function() {
+                    var response;
+                    var checkImageTypeDeferred;
+
+                    beforeEach(function(done) {
+                        done = noArgs(done);
+                        response = getDeferred.promise;
+
+                        response.emit('data', new Buffer(250));
+                        response.emit('data', new Buffer(250));
+
+                        checkImageTypeDeferred = q.defer();
+                        spyOn(collateral, 'checkImageType').andReturn(checkImageTypeDeferred.promise);
+
+                        getDeferred.promise.response = {
+                            statusCode: 201
+                        };
+                        getDeferred.resolve(new Buffer(500));
+                        response.emit('end', new Buffer(500));
+                        getDeferred.promise.then(done, done);
+                    });
+
+                    it('should not abort() the download', function() {
+                        expect(response.abort).not.toHaveBeenCalled();
+                    });
+
+                    it('should see if the file is a valid image', function() {
+                        expect(collateral.checkImageType).toHaveBeenCalledWith(tmpPath);
+                    });
+
+                    describe('but it is not actually an image', function() {
+                        beforeEach(function(done) {
+                            done = noArgs(done);
+
+                            spyOn(collateral, 'upload').andReturn(q.defer().promise);
+                            checkImageTypeDeferred.resolve(false);
+                            checkImageTypeDeferred.promise.then(done, done);
+                        });
+
+                        it('should respond with a 415', function() {
+                            expect(success).toHaveBeenCalledWith({
+                                code: 415,
+                                body: 'File [' + req.body.uri + '] is not an image.'
+                            });
+                        });
+
+                        it('should log a warning', function() {
+                            expect(mockLog.warn).toHaveBeenCalled();
+                        });
+
+                        it('should not upload the file to s3', function() {
+                            expect(collateral.upload).not.toHaveBeenCalled();
+                        });
+
+                        it('should remove the tmp file', function() {
+                            expect(fs.remove).toHaveBeenCalledWith(tmpPath, jasmine.any(Function));
+                        });
+                    });
+
+                    describe('and it is actually an image', function() {
+                        var uploadDeferred;
+
+                        beforeEach(function(done) {
+                            done = noArgs(done);
+
+                            uploadDeferred = q.defer();
+                            spyOn(collateral, 'upload').andReturn(uploadDeferred.promise);
+
+                            checkImageTypeDeferred.resolve('image/png');
+                            checkImageTypeDeferred.promise.then(done, done);
+                        });
+
+                        it('should upload the image to S3', function() {
+                            expect(collateral.upload).toHaveBeenCalledWith(req, path.join(config.s3.path, 'userFiles/' + req.user.id), { path: tmpPath, type: 'image/png' }, s3, config);
+                        });
+
+                        describe('and the S3 upload succeeds', function() {
+                            beforeEach(function(done) {
+                                done = noArgs(done);
+
+                                uploadDeferred.resolve({ key: path.join(config.s3.path, 'userFiles/' + req.user.id), md5: 'fu934yrhf7438rr' });
+                                uploadDeferred.promise.then(done, done);
+                            });
+
+                            it('should resolve the promise with the upload location', function() {
+                                expect(success).toHaveBeenCalledWith({
+                                    code: 201,
+                                    body: { path: path.join(config.s3.path, 'userFiles/' + req.user.id) }
+                                });
+                            });
+
+                            it('should remove the tmp file', function() {
+                                expect(fs.remove).toHaveBeenCalledWith(tmpPath, jasmine.any(Function));
+                            });
+
+                            describe('if there is an error removing the tmp file', function() {
+                                var error;
+
+                                beforeEach(function() {
+                                    error = new Error();
+
+                                    fs.remove.mostRecentCall.args[1](error);
+                                });
+
+                                it('should log a warning', function() {
+                                    expect(mockLog.warn).toHaveBeenCalled();
+                                });
+                            });
+
+                            describe('if there is no error removing the tmp file', function() {
+                                beforeEach(function() {
+                                    fs.remove.mostRecentCall.args[1](null);
+                                });
+
+                                it('should not log a warning', function() {
+                                    expect(mockLog.warn).not.toHaveBeenCalled();
+                                });
+                            });
+                        });
+
+                        describe('but the s3 upload fails', function() {
+                            beforeEach(function(done) {
+                                done = noArgs(done);
+
+                                uploadDeferred.reject('WOAH I SUCK.');
+                                uploadDeferred.promise.then(done, done);
+                            });
+
+                            it('should respond with a 500', function() {
+                                expect(success).toHaveBeenCalledWith({
+                                    code: 500,
+                                    body: 'Could not upload file [' + req.body.uri + '].'
+                                });
+                            });
+
+                            it('should log an error', function() {
+                                expect(mockLog.error).toHaveBeenCalled();
+                            });
+
+                            it('should remove the tmp file', function() {
+                                expect(fs.remove).toHaveBeenCalledWith(tmpPath, jasmine.any(Function));
+                            });
+                        });
+                    });
+                });
+            });
+
+            describe('with a content-length header that is larger than the maxFileSize', function() {
+                beforeEach(function(done) {
+                    done = noArgs(done);
+
+                    headResponse.headers['content-length'] = (config.maxFileSize + 1).toString();
+
+                    spyOn(request, 'get').andReturn(responseDefer().promise);
+
+                    responseDeferred.resolve(headResponse);
+                    responseDeferred.promise.then(done, done);
+                });
+
+                it('should not make a GET request for the resource', function() {
+                    expect(request.get).not.toHaveBeenCalled();
+                });
+
+                it('should respond with a 413', function() {
+                    expect(success).toHaveBeenCalledWith({
+                        code: 413,
+                        body: 'File [' + req.body.uri + '] is too large (' +
+                            headResponse.headers['content-length'] + ' bytes.)'
+                    });
+                });
+
+                it('should log a warning', function() {
+                    expect(mockLog.warn).toHaveBeenCalled();
+                });
+            });
         });
     });
     
@@ -500,7 +957,7 @@ describe('collateral (UT):', function() {
             promise.then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).toEqual(new Error('Timed out after 10000 ms'));
+                expect(error.message).toBe('Timed out after 10000 ms');
                 expect(page.render).not.toHaveBeenCalled();
                 expect(collateral.upload).not.toHaveBeenCalled();
             }).done(done);

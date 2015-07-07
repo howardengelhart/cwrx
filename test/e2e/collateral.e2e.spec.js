@@ -260,6 +260,154 @@ describe('collateral (E2E):', function() {
     });  // end -- describe POST /api/collateral/files/:expId
     });
 
+    describe('POST /api/collateral/uri', function() {
+        var options, samples, rmList;
+        var success, failure;
+        var apiResponse;
+
+        function noArgs(fn) {
+            return function() {
+                return fn();
+            };
+        }
+
+        beforeEach(function() {
+            options = {
+                url: config.collateralUrl + '/collateral/uri',
+                json: {},
+                jar: cookieJar
+            };
+            rmList = [];
+
+            samples = [
+                {
+                    url: 'https://s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample1.jpg',
+                    etag: '618475c6c98297a486607bc654052447'
+                },
+                {
+                    url: 'https://s3.amazonaws.com/c6.dev/e2e/sampleThumbs/sample2.jpg',
+                    etag: 'f538387c355263cb915d6a3cc4b42592'
+                }
+            ];
+
+            success = jasmine.createSpy('success()').andCallFake(function(response) {
+                apiResponse = response;
+                if (response.body.path) { rmList.push(response.body.path); }
+            });
+            failure = jasmine.createSpy('failure()').andCallFake(function(error) {
+                console.error(error);
+            });
+
+            apiResponse = null;
+        });
+
+        afterEach(function(done) {
+            return q.all(rmList.map(function(key) {
+                return testUtils.removeS3File(bucket, key);
+            })).done(function() { done(); });
+        });
+
+        describe('if called with a valid image URI', function() {
+            beforeEach(function(done) {
+                done = noArgs(done);
+                options.json.uri = samples[0].url;
+
+                requestUtils.qRequest('post', options).then(success, failure).then(done, done);
+            });
+
+            it('should respond with a 201', function() {
+                var response = success.mostRecentCall.args[0];
+
+                expect(response.response.statusCode).toBe(201);
+                expect(response.body).toEqual({
+                    path: 'collateral/userFiles/e2e-user/' + samples[0].etag + '.jpg'
+                });
+            });
+
+            it('should upload the image to S3', function(done) {
+                done = noArgs(done);
+
+                requestUtils.qRequest('head', {
+                    url: 'https://s3.amazonaws.com/' + path.join(bucket, apiResponse.body.path)
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                }).catch(function(error) {
+                    expect(error).not.toBeDefined();
+                }).finally(done);
+            });
+        });
+
+        describe('if called with no uri', function() {
+            beforeEach(function(done) {
+                done = noArgs(done);
+                delete options.json.uri;
+
+                requestUtils.qRequest('post', options).then(success, failure).then(done, done);
+            });
+
+            it('should respond with a 400', function() {
+                expect(apiResponse.response.statusCode).toBe(400);
+                expect(apiResponse.body).toBe('No image URI specified.');
+            });
+        });
+
+        describe('if called with the URI of a non-image', function() {
+            beforeEach(function(done) {
+                done = noArgs(done);
+                options.json.uri = 'https://s3.amazonaws.com/c6.dev/e2e/sampleThumbs/foo.txt';
+
+                requestUtils.qRequest('post', options).then(success, failure).then(done, done);
+            });
+
+            it('should respond with a 415', function() {
+                expect(apiResponse.response.statusCode).toBe(415);
+                expect(apiResponse.body).toBe('File [https://s3.amazonaws.com/c6.dev/e2e/sampleThumbs/foo.txt] is not an image.');
+            });
+        });
+
+        describe('if called with the URI of an image that is too large', function() {
+            beforeEach(function(done) {
+                done = noArgs(done);
+                options.json.uri = 'https://s3.amazonaws.com/c6.dev/e2e/sampleThumbs/too-big.png';
+
+                requestUtils.qRequest('post', options).then(success, failure).then(done, done);
+            });
+
+            it('should respond with a 413', function() {
+                expect(apiResponse.response.statusCode).toBe(413);
+                expect(apiResponse.body).toBe('File [https://s3.amazonaws.com/c6.dev/e2e/sampleThumbs/too-big.png] is too large (26187322 bytes.)');
+            });
+        });
+
+        describe('if called with the URI of an image that does not exist', function() {
+            beforeEach(function(done) {
+                done = noArgs(done);
+                options.json.uri = 'https://s3.amazonaws.com/c6.dev/e2e/sampleThumbs/does-not-exist.png';
+
+                requestUtils.qRequest('post', options).then(success, failure).then(done, done);
+            });
+
+            it('should respond with a 400', function() {
+                expect(apiResponse.response.statusCode).toBe(400);
+                expect(apiResponse.body).toBe('Could not fetch image from "https://s3.amazonaws.com/c6.dev/e2e/sampleThumbs/does-not-exist.png."');
+            });
+        });
+
+        describe('if the user is not logged in', function() {
+            beforeEach(function(done) {
+                done = noArgs(done);
+                delete options.jar;
+
+                requestUtils.qRequest('post', options).then(success, failure).then(done, done);
+            });
+
+            it('should respond with a 401', function() {
+                expect(apiResponse.response.statusCode).toBe(401);
+                expect(apiResponse.body).toBe('Unauthorized');
+            });
+        });
+    });
+
     [
         {
             desc: 'POST /api/collateral/splash/:expId',

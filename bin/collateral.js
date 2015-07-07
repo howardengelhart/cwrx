@@ -11,6 +11,7 @@
         phantom     = require('phantom'),
         glob        = require('glob'),
         handlebars  = require('handlebars'),
+        request     = require('request-promise'),
         express     = require('express'),
         bodyParser  = require('body-parser'),
         multer      = require('multer'),
@@ -75,7 +76,12 @@
             }
         }
     };
-    
+
+    function ServiceResponse(code, body) {
+        this.code = code;
+        this.body = body;
+    }
+
     /**
      * Upload a single file to S3. If versionate is true, this will use uuid.hashFile to create a
      * new versioned file name, check S3 for an existing file with this name, and upload if missing.
@@ -226,6 +232,228 @@
         });
     };
 
+    collateral.importFile = function(req, s3, config) {
+        var log = logger.getLog();
+
+        var maxSize = config.maxFileSize;
+        var jobId = uuid.createUuid();
+        var user = req.user;
+
+        var tmpFiles = [];
+
+        function checkContentLength(uri) {
+            function check(response) {
+                var size = parseInt(response.headers['content-length']);
+
+                log.info(
+                    '[%1] Content-Length of "%2" is "%3." (maxFileSize is %4.)',
+                    req.uuid, uri, response.headers['content-length'], maxSize
+                );
+
+                if (size > maxSize) {
+                    log.warn(
+                        '[%1] File [%2] has a content-length of %3 which exceeds the maxFileSize ' +
+                            'of %4. Not uploading.',
+                        req.uuid, uri, size, maxSize
+                    );
+
+                    return q.reject(new ServiceResponse(
+                        413,
+                        'File [' + uri + '] is too large (' + size + ' bytes.)'
+                    ));
+                }
+
+                return q(uri);
+            }
+
+            function ignore() {
+                log.info('[%1] Failed to HEAD uri [%2]. Proceeding.', req.uuid, uri);
+
+                return uri;
+            }
+
+            log.info('[%1] HEADing URI [%2].', req.uuid, uri);
+
+            return request.head({ uri: uri, resolveWithFullResponse: true })
+                .then(check, ignore);
+        }
+
+        function fetchImage(uri) {
+            var tmpPath = path.join(require('os').tmpdir(), jobId + path.extname(uri));
+            var deferred = q.defer();
+
+            var totalSize = 0;
+
+            var transfer = request.get(uri);
+
+            log.info(
+                '[%1] GETting uri [%2] and writing contents to a tmp file [%3].',
+                req.uuid, uri, tmpPath
+            );
+
+            transfer.on('data', function(data) {
+                totalSize += data.length;
+
+                log.trace(
+                    '[%1] Downloaded %2 bytes of data. Total downloaded: %3 bytes.',
+                    req.uuid, data.length, totalSize
+                );
+
+                if (totalSize > maxSize) {
+                    transfer.abort();
+
+                    deferred.reject(new ServiceResponse(
+                        413,
+                        'File [' + uri + '] is too large.'
+                    ));
+
+                    log.warn(
+                        '[%1] Discovered file [%2] exceeds the maxFileSize of %3 during download.' +
+                            ' Aborting.',
+                        req.uuid, uri, maxSize
+                    );
+                }
+            });
+            transfer.on('end', function() {
+                log.info(
+                    '[%1] Done downloading file [%2].',
+                    req.uuid, uri
+                );
+
+                if (/^2/.test(transfer.response.statusCode)) {
+                    deferred.resolve({
+                        uri: uri,
+                        path: tmpPath
+                    });
+                }
+            });
+            transfer.catch(function(data) {
+                log.warn(
+                    '[%1] Failed to GET "%2." Server responded with [%3]: %4.',
+                    req.uuid, uri, data.response.statusCode, data.error
+                );
+
+                deferred.reject(new ServiceResponse(
+                    400,
+                    'Could not fetch image from "' + uri + '."'
+                ));
+            });
+
+            transfer.pipe(fs.createWriteStream(tmpPath));
+            tmpFiles.push(tmpPath);
+
+            return deferred.promise;
+        }
+
+        function checkFileType(data) {
+            var path = data.path;
+            var uri = data.uri;
+
+            function validateType(type) {
+                if (!type) {
+                    log.warn('[%1] File [%2] is not an image', req.uuid, uri);
+
+                    return q.reject(new ServiceResponse(
+                        415,
+                        'File [' + uri + '] is not an image.'
+                    ));
+                }
+
+                log.info('[%1] File [%2] is an %3.', req.uuid, uri, type);
+
+                return {
+                    path: data.path,
+                    uri: data.uri,
+                    type: type
+                };
+            }
+
+            log.info(
+                '[%1] Checking to make sure file [%2] is an image.',
+                req.uuid, uri
+            );
+
+            return collateral.checkImageType(path).then(validateType);
+
+        }
+
+        function uploadImage(data) {
+            var imagePath = data.path;
+            var type = data.type;
+            var uri = data.uri;
+            var prefix = path.join(config.s3.path, 'userFiles', user.id);
+            var image = { path: imagePath, type: type };
+
+            function succeed(response) {
+                log.info(
+                    '[%1] Successfully uploaded file [%2] onto S3 as "%3."',
+                    req.uuid, uri, response.key
+                );
+
+                return new ServiceResponse(201, { path: response.key });
+            }
+
+            function fail(error) {
+                log.error(
+                    '[%1] Failed to upload file [%2] into folder [%3]. %4',
+                    req.uuid, uri, prefix, util.inspect(error)
+                );
+
+                return q.reject(new ServiceResponse(
+                    500,
+                    'Could not upload file [' + uri + '].'
+                ));
+            }
+
+            log.info(
+                '[%1] Uploading file [%2] into folder [%3].',
+                req.uuid, uri, prefix
+            );
+
+            return collateral.upload(req, prefix, image, s3, config)
+                .then(succeed, fail);
+        }
+
+        function cleanup() {
+            function handleError(error) {
+                if (error) {
+                    log.warn('[%1] Error removing tmp file: %2', req.uuid, error);
+                }
+            }
+
+            return tmpFiles.forEach(function(path) {
+                log.info('[%1] Removing tmp file [%2].', req.uuid, path);
+
+                fs.remove(path, handleError);
+            });
+        }
+
+        function handleError(error) {
+            if (error instanceof ServiceResponse) {
+                return error;
+            }
+
+            log.error(
+                '[%1] Unexpcted error re-uploading image URI: %2.',
+                req.uuid, util.inspect(error)
+            );
+
+            return q.reject(error);
+        }
+
+        if (!req.body.uri) {
+            log.warn('[%1] Client did not specify a URI to upload!', req.uuid);
+
+            return q(new ServiceResponse(400, 'No image URI specified.'));
+        }
+
+        return checkContentLength(req.body.uri)
+            .then(fetchImage)
+            .then(checkFileType)
+            .then(uploadImage)
+            .finally(cleanup)
+            .catch(handleError);
+    };
     
     // If num > 6 return 6, else return num
     collateral.chooseTemplateNum = function(num) {
@@ -675,6 +903,18 @@
             collateral.uploadFiles(req, s3, state.config)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error uploading files',
+                    detail: error
+                });
+            });
+        });
+
+        app.post('/api/collateral/uri', sessWrap, authUpload, audit, function(req, res) {
+            collateral.importFile(req, s3, state.config)
+            .then(function(response) {
+                res.send(response.code, response.body);
             }).catch(function(error) {
                 res.send(500, {
                     error: 'Error uploading files',
