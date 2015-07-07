@@ -942,4 +942,87 @@ describe('CrudSvc', function() {
             }).done(done);
         });
     });
+    
+    describe('customMethod', function() {
+        var cb;
+        beforeEach(function() {
+            svc._middleware.foo = [jasmine.createSpy('fakeMidware').andCallFake(function(req, next, done) {
+                req.myProp = 'myVal';
+                next();
+            })];
+            cb = jasmine.createSpy('cb').andCallFake(function(deferred) {
+                deferred.resolve(req.myProp + ' - updated');
+            });
+        });
+        
+        it('should run a custom middleware stack and then call a callback', function(done) {
+            svc.customMethod(req, 'foo', cb).then(function(resp) {
+                expect(resp).toBe('myVal - updated');
+                expect(svc._middleware.foo[0]).toHaveBeenCalledWith(req, anyFunc, anyFunc);
+                expect(svc.runMiddleware.callCount).toBe(2);
+                expect(cb).toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should still resolve if there is no middleware for the custom action', function(done) {
+            svc.customMethod(req, 'bar', cb).then(function(resp) {
+                expect(resp).toBe('undefined - updated');
+                expect(svc._middleware.foo[0]).not.toHaveBeenCalled();
+                expect(svc.runMiddleware.callCount).toBe(1);
+                expect(cb).toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should not call the callback if a middleware function breaks out early', function(done) {
+            svc.use('foo', function(req, next, done) { done({code: 400, body: 'NOPE'}); });
+            svc.customMethod(req, 'foo', cb).then(function(resp) {
+                expect(resp).toEqual({ code: 400, body: 'NOPE' });
+                expect(svc.runMiddleware.callCount).toBe(2);
+                expect(cb).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should not call the callback if a middleware function rejects', function(done) {
+            svc.use('foo', function(req, next, done) { return q.reject('I GOT A PROBLEM'); });
+            svc.customMethod(req, 'foo', cb).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(svc.runMiddleware.callCount).toBe(2);
+                expect(cb).not.toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should reject if the callback rejects', function(done) {
+            cb.andCallFake(function(deferred) { deferred.reject('I GOT A PROBLEM'); });
+            svc.customMethod(req, 'foo', cb).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(svc.runMiddleware.callCount).toBe(2);
+                expect(cb).toHaveBeenCalled();
+            }).done(done);
+        });
+
+        it('should reject if the callback throws an error', function(done) {
+            cb.andCallFake(function(deferred) { throw new Error('I GOT A PROBLEM'); });
+            svc.customMethod(req, 'foo', cb).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(svc.runMiddleware.callCount).toBe(2);
+                expect(cb).toHaveBeenCalled();
+            }).done(done);
+        });
+    });
 });
