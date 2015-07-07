@@ -950,8 +950,8 @@ describe('CrudSvc', function() {
                 req.myProp = 'myVal';
                 next();
             })];
-            cb = jasmine.createSpy('cb').andCallFake(function(deferred) {
-                deferred.resolve(req.myProp + ' - updated');
+            cb = jasmine.createSpy('cb').andCallFake(function() {
+                return q(req.myProp + ' - updated');
             });
         });
         
@@ -1004,7 +1004,7 @@ describe('CrudSvc', function() {
         });
         
         it('should reject if the callback rejects', function(done) {
-            cb.andCallFake(function(deferred) { deferred.reject('I GOT A PROBLEM'); });
+            cb.andReturn(q.reject('I GOT A PROBLEM'));
             svc.customMethod(req, 'foo', cb).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
@@ -1015,11 +1015,11 @@ describe('CrudSvc', function() {
         });
 
         it('should reject if the callback throws an error', function(done) {
-            cb.andCallFake(function(deferred) { throw new Error('I GOT A PROBLEM'); });
+            cb.andCallFake(function() { throw new Error('I GOT A PROBLEM'); });
             svc.customMethod(req, 'foo', cb).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).toBe('I GOT A PROBLEM');
+                expect(error.message).toBe('I GOT A PROBLEM');
                 expect(svc.runMiddleware.callCount).toBe(2);
                 expect(cb).toHaveBeenCalled();
             }).done(done);
