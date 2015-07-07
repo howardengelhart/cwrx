@@ -5,7 +5,6 @@
         express         = require('express'),
         logger          = require('../lib/logger'),
         authUtils       = require('../lib/authUtils'),
-        FieldValidator  = require('../lib/fieldValidator'),
         CrudSvc         = require('../lib/crudSvc'),
         Status          = require('../lib/enums').Status,
 
@@ -19,10 +18,6 @@
         cardSvc._cardCache = cardCache;
             
         cardSvc.createValidator._required.push('campaignId');
-        cardSvc.createValidator._condForbidden.user = FieldValidator.userFunc('cards', 'create');
-        cardSvc.createValidator._condForbidden.org = FieldValidator.orgFunc('cards', 'create');
-        cardSvc.editValidator._condForbidden.user = FieldValidator.userFunc('cards', 'edit');
-        cardSvc.editValidator._condForbidden.org = FieldValidator.orgFunc('cards', 'edit');
         cardSvc.use('read', cardSvc.preventGetAll.bind(cardSvc));
         
         cardSvc.getPublicCard = cardModule.getPublicCard.bind(cardModule, cardSvc);

@@ -1,5 +1,9 @@
 # Ads Service Changelog
 
+* [FIX]: Set `statusHistory` on campaigns: [#430](https://github.com/cinema6/cwrx/issues/423)
+* Extra deployment steps:
+    * Set `statusHistory` on all existing campaigns in staging+prod databases
+
 ### 1.3.1: Wed Jun 24 18:09:44 EDT 2015
 * [FIX]: Cookie and session security improvements: [#423](https://github.com/cinema6/cwrx/pull/423)
 * Extra deployment steps:

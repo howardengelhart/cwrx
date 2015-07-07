@@ -1,7 +1,7 @@
 var flush = true;
 describe('CrudSvc', function() {
     var q, mockLog, logger, CrudSvc, uuid, mongoUtils, FieldValidator, mockColl, anyFunc,
-        req, svc, enums, Scope, Status;
+        req, svc, enums, Scope, Status, nextSpy, doneSpy, errorSpy;
     
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -25,6 +25,9 @@ describe('CrudSvc', function() {
             findAndModify: jasmine.createSpy('coll.findAndModify'),
         };
         req = { uuid: '1234', user: { id: 'u1', org: 'o1' } };
+        nextSpy = jasmine.createSpy('next');
+        doneSpy = jasmine.createSpy('done');
+        errorSpy = jasmine.createSpy('caught error');
 
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -39,6 +42,8 @@ describe('CrudSvc', function() {
         spyOn(mongoUtils, 'escapeKeys').andCallThrough();
         spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
         spyOn(FieldValidator.prototype.midWare, 'bind').andReturn(FieldValidator.prototype.midWare);
+        spyOn(FieldValidator, 'userFunc').andCallThrough();
+        spyOn(FieldValidator, 'orgFunc').andCallThrough();
         spyOn(CrudSvc.prototype.checkExisting, 'bind').andReturn(CrudSvc.prototype.checkExisting);
         spyOn(CrudSvc.prototype.setupObj, 'bind').andReturn(CrudSvc.prototype.setupObj);
         
@@ -56,10 +61,21 @@ describe('CrudSvc', function() {
             expect(svc._userProp).toBe(true);
             expect(svc._orgProp).toBe(true);
             expect(svc._allowPublic).toBe(false);
+
             expect(svc.createValidator instanceof FieldValidator).toBe(true);
-            expect(svc.createValidator._forbidden).toEqual(['id', 'created']);
+            expect(svc.createValidator._forbidden).toEqual(['id', 'created', '_id']);
             expect(svc.editValidator instanceof FieldValidator).toBe(true);
             expect(svc.editValidator._forbidden).toEqual(['id', 'created', '_id']);
+            
+            expect(FieldValidator.userFunc).toHaveBeenCalledWith('thangs', 'create');
+            expect(FieldValidator.userFunc).toHaveBeenCalledWith('thangs', 'edit');
+            expect(FieldValidator.orgFunc).toHaveBeenCalledWith('thangs', 'create');
+            expect(FieldValidator.orgFunc).toHaveBeenCalledWith('thangs', 'edit');
+            expect(svc.createValidator._condForbidden.user).toEqual(jasmine.any(Function));
+            expect(svc.createValidator._condForbidden.org).toEqual(jasmine.any(Function));
+            expect(svc.editValidator._condForbidden.user).toEqual(jasmine.any(Function));
+            expect(svc.editValidator._condForbidden.org).toEqual(jasmine.any(Function));
+
             expect(svc._middleware).toEqual({
                 read: [],
                 create: [svc.createValidator.midWare, svc.setupObj],
@@ -72,20 +88,32 @@ describe('CrudSvc', function() {
             expect(svc.checkExisting.bind).toHaveBeenCalledWith(svc, 'delete');
         });
         
-        it('should allow setting various options', function() {
+        it('should allow setting various simple options', function() {
             var opts = {
-                objName: 'bananas', userProp: false, orgProp: false, allowPublic: true,
+                objName: 'bananas', allowPublic: true,
             };
             svc = new CrudSvc(mockColl, 't', opts);
             expect(svc.objName).toBe('bananas');
+            expect(svc._allowPublic).toBe(true);
+        });
+        
+        it('should allow disabling the user + org props', function() {
+            svc = new CrudSvc(mockColl, 't', { userProp: false, orgProp: false });
             expect(svc._userProp).toBe(false);
             expect(svc._orgProp).toBe(false);
-            expect(svc._allowPublic).toBe(true);
-            svc = new CrudSvc(mockColl, 't', {orgProp: false});
-            expect(svc.objName).toBe('thangs');
-            expect(svc._userProp).toBe(true);
-            expect(svc._orgProp).toBe(false);
-            expect(svc._allowPublic).toBe(false);
+            expect(svc.createValidator._condForbidden.user).not.toBeDefined();
+            expect(svc.createValidator._condForbidden.org).not.toBeDefined();
+            expect(svc.editValidator._condForbidden.user).not.toBeDefined();
+            expect(svc.editValidator._condForbidden.org).not.toBeDefined();
+        });
+        
+        it('should support the statusHistory option', function() {
+            svc = new CrudSvc(mockColl, 't', { statusHistory: true });
+            expect(svc.createValidator._forbidden).toContain('statusHistory');
+            expect(svc.editValidator._forbidden).toContain('statusHistory');
+            expect(svc._middleware.create).toContain(svc.handleStatusHistory);
+            expect(svc._middleware.edit).toContain(svc.handleStatusHistory);
+            expect(svc._middleware.delete).toContain(svc.handleStatusHistory);
         });
     });
     
@@ -178,98 +206,102 @@ describe('CrudSvc', function() {
     });
     
     describe('setupObj', function() {
-        var next, doneSpy, anyDate;
+        var anyDate;
         beforeEach(function() {
             svc._userProp = false;
             svc._orgProp = false;
             req.body = { foo: 'bar' };
-            req.user.permissions = { thangs: { create: Scope.Org } };
-            next = jasmine.createSpy('next spy');
-            doneSpy = jasmine.createSpy('done spy');
             spyOn(uuid, 'createUuid').andReturn('1234567890abcdef');
             anyDate = jasmine.any(Date);
         });
         
         it('should setup some properties on the object and call next', function() {
-            svc.setupObj(req, next, doneSpy);
+            svc.setupObj(req, nextSpy, doneSpy);
             expect(req.body).toEqual({id: 't-1234567890abcd', created: anyDate, foo: 'bar',
                                       lastUpdated: anyDate, status: Status.Active});
-            expect(next).toHaveBeenCalledWith();
+            expect(nextSpy).toHaveBeenCalledWith();
             expect(doneSpy).not.toHaveBeenCalled();
             expect(uuid.createUuid).toHaveBeenCalled();
-            expect(mongoUtils.escapeKeys).toHaveBeenCalledWith(req.body);
         });
         
-        it('should allow overriding the status', function() {
+        it('should allow a custom status', function() {
             req.body.status = Status.Pending;
-            svc.setupObj(req, next, doneSpy);
+            svc.setupObj(req, nextSpy, doneSpy);
             expect(req.body).toEqual({id: 't-1234567890abcd', created: anyDate, foo: 'bar',
                                       lastUpdated: anyDate, status: Status.Pending});
-            expect(next).toHaveBeenCalledWith();
+            expect(nextSpy).toHaveBeenCalledWith();
         });
         
         it('should default in the user and org if those props are enabled', function() {
             svc._userProp = true; svc._orgProp = true;
-            svc.setupObj(req, next, doneSpy);
+            svc.setupObj(req, nextSpy, doneSpy);
             expect(req.body).toEqual({id: 't-1234567890abcd', created: anyDate, foo: 'bar', user: 'u1',
                                       org: 'o1', lastUpdated: anyDate, status: Status.Active});
-            expect(next).toHaveBeenCalledWith();
+            expect(nextSpy).toHaveBeenCalledWith();
+        });
+    });
+    
+    describe('handleStatusHistory', function() {
+        beforeEach(function() {
+            req.body = { foo: 'bar', status: Status.Active };
+            req.origObj = {
+                status: Status.Pending,
+                statusHistory: [{
+                    status: Status.Pending,
+                    userId: 'u-2',
+                    user: 'admin@c6.com',
+                    date: new Date()
+                }]
+            };
+            req.user = { id: 'u-1', email: 'foo@bar.com' };
         });
         
-        it('should return a 403 if a non-admin is creating an object for a different user/org', function() {
-            svc._userProp = true; svc._orgProp = true;
-            req.body = { user: 'u2' };
-            svc.setupObj(req, next, doneSpy);
-            expect(doneSpy).toHaveBeenCalledWith({code: 403, body: 'Not authorized to create objects for another user'});
-            req.body = { org: 'o2' };
-            svc.setupObj(req, next, doneSpy);
-            expect(doneSpy).toHaveBeenCalledWith({code: 403, body: 'Not authorized to create objects for another org'});
-            expect(next).not.toHaveBeenCalled();
+        it('should do nothing if req.body.status is not defined', function() {
+            delete req.body.status;
+            svc.handleStatusHistory(req, nextSpy, doneSpy);
+            expect(req.body.statusHistory).not.toBeDefined();
+            expect(nextSpy).toHaveBeenCalledWith();
+        });
+
+        it('should do nothing if the status is unchanged', function() {
+            req.body.status = Status.Pending;
+            svc.handleStatusHistory(req, nextSpy, doneSpy);
+            expect(req.body.statusHistory).not.toBeDefined();
+            expect(nextSpy).toHaveBeenCalledWith();
         });
         
-        it('should allow an admin to create an object for a different user/org', function() {
-            svc._userProp = true; svc._orgProp = true;
-            req.user.permissions.thangs.create = Scope.All;
-            req.body = { user: 'u2' };
-            svc.setupObj(req, next, doneSpy);
-            expect(next).toHaveBeenCalledWith();
-            expect(req.body).toEqual({id: 't-1234567890abcd', created: anyDate, user: 'u2',
-                                      org: 'o1', lastUpdated: anyDate, status: Status.Active});
-            req.body = { org: 'o2' };
-            svc.setupObj(req, next, doneSpy);
-            expect(req.body).toEqual({id: 't-1234567890abcd', created: anyDate, user: 'u1',
-                                      org: 'o2', lastUpdated: anyDate, status: Status.Active});
-            expect(next.callCount).toBe(2);
-            expect(doneSpy).not.toHaveBeenCalled();
+        it('should add an entry to the statusHistory', function() {
+            svc.handleStatusHistory(req, nextSpy, doneSpy);
+            expect(req.body.statusHistory).toEqual([
+                { status: Status.Active, userId: 'u-1', user: 'foo@bar.com', date: jasmine.any(Date) },
+                { status: Status.Pending, userId: 'u-2', user: 'admin@c6.com', date: jasmine.any(Date) }
+            ]);
+            expect(nextSpy).toHaveBeenCalledWith();
         });
         
-        it('shouldn\'t pay attention to the user and org props if they are disabled', function() {
-            req.body = { user: 'u2', org: 'o2' };
-            svc.setupObj(req, next, doneSpy);
-            expect(next).toHaveBeenCalledWith();
-            expect(req.body).toEqual({id: 't-1234567890abcd', created: anyDate, user: 'u2',
-                                      org: 'o2', lastUpdated: anyDate, status: Status.Active});
-            expect(doneSpy).not.toHaveBeenCalled();
+        it('should initalize the statusHistory if not defined', function() {
+            delete req.origObj;
+            svc.handleStatusHistory(req, nextSpy, doneSpy);
+            expect(req.body.statusHistory).toEqual([
+                { status: Status.Active, userId: 'u-1', user: 'foo@bar.com', date: jasmine.any(Date) }
+            ]);
+            expect(nextSpy).toHaveBeenCalledWith();
         });
     });
     
     describe('checkExisting', function() {
-        var next, doneSpy, reject;
         beforeEach(function() {
             mockColl.findOne.andCallFake(function(query, cb) { cb(null, 'origObject'); });
             req.params = { id: 't1' };
             spyOn(svc, 'checkScope').andReturn(true);
-            next = jasmine.createSpy('next spy');
-            reject = jasmine.createSpy('rejected');
-            doneSpy = jasmine.createSpy('done spy');
         });
         
         it('should find an existing object and copy it onto the request', function(done) {
-            svc.checkExisting('edit', req, next, doneSpy).catch(reject);
+            svc.checkExisting('edit', req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
-                expect(next).toHaveBeenCalledWith();
+                expect(nextSpy).toHaveBeenCalledWith();
                 expect(doneSpy).not.toHaveBeenCalled();
-                expect(reject).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.origObj).toBe('origObject');
                 expect(mockColl.findOne).toHaveBeenCalledWith({id: 't1'}, anyFunc);
                 expect(svc.checkScope).toHaveBeenCalledWith({id: 'u1', org: 'o1'}, 'origObject', 'edit');
@@ -279,11 +311,11 @@ describe('CrudSvc', function() {
         
         it('should call done with a 403 if checkScope returns false', function(done) {
             svc.checkScope.andReturn(false);
-            svc.checkExisting('modify', req, next, doneSpy).catch(reject);
+            svc.checkExisting('modify', req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
-                expect(next).not.toHaveBeenCalled();
+                expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({code: 403, body: 'Not authorized to modify this'});
-                expect(reject).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.origObj).not.toBeDefined();
                 expect(mockColl.findOne).toHaveBeenCalled();
                 done();
@@ -292,11 +324,11 @@ describe('CrudSvc', function() {
         
         it('should call done with a 404 if nothing is found', function(done) {
             mockColl.findOne.andCallFake(function(query, cb) { cb(); });
-            svc.checkExisting('edit', req, next, doneSpy).catch(reject);
+            svc.checkExisting('edit', req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
-                expect(next).not.toHaveBeenCalled();
+                expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({code: 404, body: 'That does not exist'});
-                expect(reject).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.origObj).not.toBeDefined();
                 expect(svc.checkScope).not.toHaveBeenCalled();
                 done();
@@ -305,11 +337,11 @@ describe('CrudSvc', function() {
         
         it('should call done with a 204 if nothing is found and the action is delete', function(done) {
             mockColl.findOne.andCallFake(function(query, cb) { cb(); });
-            svc.checkExisting('delete', req, next, doneSpy).catch(reject);
+            svc.checkExisting('delete', req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
-                expect(next).not.toHaveBeenCalled();
+                expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({code: 204});
-                expect(reject).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.origObj).not.toBeDefined();
                 expect(svc.checkScope).not.toHaveBeenCalled();
                 done();
@@ -318,11 +350,11 @@ describe('CrudSvc', function() {
         
         it('should reject if coll.findOne fails', function(done) {
             mockColl.findOne.andCallFake(function(query, cb) { cb('I GOT A PROBLEM'); });
-            svc.checkExisting('edit', req, next, doneSpy).catch(reject);
+            svc.checkExisting('edit', req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
-                expect(next).not.toHaveBeenCalled();
+                expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
-                expect(reject).toHaveBeenCalledWith('I GOT A PROBLEM');
+                expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
                 expect(req.origObj).not.toBeDefined();
                 expect(svc.checkScope).not.toHaveBeenCalled();
                 done();
@@ -331,11 +363,9 @@ describe('CrudSvc', function() {
     });
     
     describe('preventGetAll', function() {
-        var req, nextSpy, doneSpy;
         beforeEach(function() {
-            req = { uuid: '1234', _query: {}, user: { id: 'u1', permissions: {} } };
-            nextSpy = jasmine.createSpy('next');
-            doneSpy = jasmine.createSpy('done');
+            req._query = {};
+            req.user.permissions = {};
         });
 
         it('should prevent non-admins from querying with #nofilter', function() {
@@ -369,21 +399,17 @@ describe('CrudSvc', function() {
     });
 
     describe('validateUniqueProp', function() {
-        var req, nextSpy, doneSpy, catchSpy;
         beforeEach(function() {
             mockColl.findOne.andCallFake(function(query, cb) { cb(null, null); });
-            req = { uuid: '1234', user: { id: 'u1' }, body: { name: 'scruffles' } };
-            nextSpy = jasmine.createSpy('next');
-            doneSpy = jasmine.createSpy('done');
-            catchSpy = jasmine.createSpy('errorCatcher');
+            req.body = { name: 'scruffles' };
         });
         
         it('should call next if no object exists with the request property', function(done) {
-            svc.validateUniqueProp('name', /^\w+$/, req, nextSpy, doneSpy).catch(catchSpy);
+            svc.validateUniqueProp('name', /^\w+$/, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
-                expect(catchSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
                 expect(mockColl.findOne).toHaveBeenCalledWith({name: 'scruffles'}, anyFunc);
                 done();
             });
@@ -391,22 +417,22 @@ describe('CrudSvc', function() {
         
         it('should exclude the current object in the mongo search for PUTs', function(done) {
             req.params = {id: 'cat-1'};
-            svc.validateUniqueProp('name', /^\w+$/, req, nextSpy, doneSpy).catch(catchSpy);
+            svc.validateUniqueProp('name', /^\w+$/, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
-                expect(catchSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
                 expect(mockColl.findOne).toHaveBeenCalledWith({name: 'scruffles', id: {$ne: 'cat-1'}}, anyFunc);
                 done();
             });
         });
         
         it('should call next if the request body does not contain the field', function(done) {
-            svc.validateUniqueProp('fluffy', /^\w+$/, req, nextSpy, doneSpy).catch(catchSpy);
+            svc.validateUniqueProp('fluffy', /^\w+$/, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
-                expect(catchSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
                 expect(mockColl.findOne).not.toHaveBeenCalled();
                 done();
             });
@@ -415,14 +441,14 @@ describe('CrudSvc', function() {
         it('should call done if the field is invalid', function(done) {
             q.all(['good cat', 'c@t', 'cat\n', '@#)($*)[['].map(function(name) {
                 req.body.name = name;
-                return svc.validateUniqueProp('name', /^\w+$/, req, nextSpy, doneSpy).catch(catchSpy);
+                return svc.validateUniqueProp('name', /^\w+$/, req, nextSpy, doneSpy).catch(errorSpy);
             })).then(function(results) {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy.calls.length).toBe(4);
                 doneSpy.calls.forEach(function(call) {
                     expect(call.args).toEqual([{code: 400, body: 'Invalid name'}]);
                 });
-                expect(catchSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
                 expect(mockColl.findOne).not.toHaveBeenCalled();
                 done();
             });
@@ -430,22 +456,22 @@ describe('CrudSvc', function() {
         
         it('should call done if an object exists with the request field', function(done) {
             mockColl.findOne.andCallFake(function(query, cb) { cb(null, { cat: 'yes' }); });
-            svc.validateUniqueProp('name', /^\w+$/, req, nextSpy, doneSpy).catch(catchSpy);
+            svc.validateUniqueProp('name', /^\w+$/, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({code: 409, body: 'An object with that name already exists'});
-                expect(catchSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
                 done();
             });
         });
         
         it('should reject if mongo encounters an error', function(done) {
             mockColl.findOne.andCallFake(function(query, cb) { cb('CAT IS TOO CUTE HALP'); });
-            svc.validateUniqueProp('name', /^\w+$/, req, nextSpy, doneSpy).catch(catchSpy);
+            svc.validateUniqueProp('name', /^\w+$/, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
-                expect(catchSpy).toHaveBeenCalledWith('CAT IS TOO CUTE HALP');
+                expect(errorSpy).toHaveBeenCalledWith('CAT IS TOO CUTE HALP');
                 done();
             });
         });
@@ -472,7 +498,7 @@ describe('CrudSvc', function() {
     });
     
     describe('runMiddleware', function() {
-        var mw, req, resolve, reject, doneSpy;
+        var mw, req, resolve, reject;
         beforeEach(function() {
             req = 'fakeReq';
             mw = [
@@ -483,7 +509,6 @@ describe('CrudSvc', function() {
             svc._middleware.test = mw;
             resolve = jasmine.createSpy('resolved');
             reject = jasmine.createSpy('rejected');
-            doneSpy = jasmine.createSpy('done');
         });
         
         it('should call a chain of middleware and then call done', function(done) {
@@ -744,8 +769,7 @@ describe('CrudSvc', function() {
                 req.body = { id: 't1', setup: true };
                 next();
             })];
-            spyOn(svc, 'setupObj').andReturn({ id: 't1', setup: true });
-            mockColl.insert.andCallFake(function(obj, opts, cb) { cb(); });
+            spyOn(mongoUtils, 'createObject').andReturn(q({ inserted: 'yes' }));
         });
         
         it('should setup the new object and insert it', function(done) {
@@ -754,8 +778,8 @@ describe('CrudSvc', function() {
                 expect(svc.runMiddleware).toHaveBeenCalledWith(req, 'create', anyFunc);
                 expect(svc.runMiddleware.callCount).toBe(2);
                 expect(svc._middleware.create[0]).toHaveBeenCalledWith(req, anyFunc, anyFunc);
-                expect(mockColl.insert).toHaveBeenCalledWith({id:'t1',setup:true},{w:1,journal:true},anyFunc);
-                expect(svc.formatOutput).toHaveBeenCalledWith({ id: 't1', setup: true });
+                expect(mongoUtils.createObject).toHaveBeenCalledWith(svc._coll, { id: 't1', setup: true });
+                expect(svc.formatOutput).toHaveBeenCalledWith({ inserted: 'yes' });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -766,7 +790,7 @@ describe('CrudSvc', function() {
             svc.createObj(req).then(function(resp) {
                 expect(resp).toEqual({code: 400, body: 'NOPE'});
                 expect(svc.runMiddleware.callCount).toBe(1);
-                expect(mockColl.insert).not.toHaveBeenCalled();
+                expect(mongoUtils.createObject).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -781,19 +805,18 @@ describe('CrudSvc', function() {
                 expect(svc._middleware.create[0]).toHaveBeenCalled();
                 expect(svc.runMiddleware.callCount).toBe(2);
                 expect(mockLog.error).toHaveBeenCalled();
-                expect(mockColl.insert).not.toHaveBeenCalled();
+                expect(mongoUtils.createObject).not.toHaveBeenCalled();
             }).done(done);
         });
         
-        it('should fail if coll.insert fails', function(done) {
-            mockColl.insert.andCallFake(function(obj, opts, cb) { cb('I GOT A PROBLEM'); });
+        it('should fail if inserting the object fails', function(done) {
+            mongoUtils.createObject.andReturn(q.reject('I GOT A PROBLEM'));
             svc.createObj(req).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(svc.runMiddleware.callCount).toBe(2);
-                expect(mockLog.error).toHaveBeenCalled();
-                expect(mockColl.insert).toHaveBeenCalled();
+                expect(mongoUtils.createObject).toHaveBeenCalled();
             }).done(done);
         });
     });
@@ -808,7 +831,7 @@ describe('CrudSvc', function() {
                 req.origObj = origObj;
                 next();
             })];
-            mockColl.findAndModify.andCallFake(function(query, sort, obj, opts, cb) { cb(null, [{id: 't1', updated: true}]); });
+            spyOn(mongoUtils, 'editObject').andReturn(q({ edited: 'yes' }));
         });
         
         it('should successfully update an object', function(done) {
@@ -817,21 +840,8 @@ describe('CrudSvc', function() {
                 expect(svc.runMiddleware).toHaveBeenCalledWith(req, 'edit', anyFunc);
                 expect(svc.runMiddleware.callCount).toBe(2);
                 expect(svc._middleware.edit[0]).toHaveBeenCalledWith(req, anyFunc, anyFunc);
-                expect(mongoUtils.escapeKeys).toHaveBeenCalledWith({name: 'foo', lastUpdated: jasmine.any(Date)});
-                expect(mockColl.findAndModify).toHaveBeenCalledWith({id: 't1'}, {id: 1},
-                    {$set: {lastUpdated: jasmine.any(Date), name: 'foo'}},{w:1,journal:true,new:true},anyFunc);
-                expect(svc.formatOutput).toHaveBeenCalledWith({ id: 't1', updated: true });
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should not call mongo if the original object was deleted', function(done) {
-            origObj.status = Status.Deleted;
-            svc.editObj(req).then(function(resp) {
-                expect(resp).toEqual({code: 404, body: 'That does not exist'});
-                expect(svc._middleware.edit[0]).toHaveBeenCalled();
-                expect(mockColl.findAndModify).not.toHaveBeenCalled();
+                expect(mongoUtils.editObject).toHaveBeenCalledWith(svc._coll, { name: 'foo' }, 't1');
+                expect(svc.formatOutput).toHaveBeenCalledWith({ edited: 'yes' });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -843,7 +853,7 @@ describe('CrudSvc', function() {
                 expect(resp).toEqual({code: 400, body: 'NOPE'});
                 expect(svc._middleware.edit[0]).toHaveBeenCalled();
                 expect(svc.runMiddleware.callCount).toBe(2);
-                expect(mockColl.findAndModify).not.toHaveBeenCalled();
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -858,19 +868,18 @@ describe('CrudSvc', function() {
                 expect(svc._middleware.edit[0]).toHaveBeenCalled();
                 expect(svc.runMiddleware.callCount).toBe(1);
                 expect(mockLog.error).toHaveBeenCalled();
-                expect(mockColl.findAndModify).not.toHaveBeenCalled();
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
             }).done(done);
         });
         
         it('should fail if coll.findAndModify fails', function(done) {
-            mockColl.findAndModify.andCallFake(function(query, sort, obj, opts, cb) { cb('I GOT A PROBLEM'); });
+            mongoUtils.editObject.andReturn(q.reject('I GOT A PROBLEM'));
             svc.editObj(req).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(svc.runMiddleware.callCount).toBe(2);
-                expect(mockLog.error).toHaveBeenCalled();
-                expect(mockColl.findAndModify).toHaveBeenCalled();
+                expect(mongoUtils.editObject).toHaveBeenCalled();
             }).done(done);
         });
     });
@@ -882,7 +891,7 @@ describe('CrudSvc', function() {
                 req.origObj = { id: 't1', status: Status.Active };
                 next();
             })];
-            mockColl.update.andCallFake(function(query, obj, opts, cb) { cb(); });
+            spyOn(mongoUtils, 'editObject').andReturn(q({ edited: 'yes' }));
         });
         
         it('should successfully update an object', function(done) {
@@ -891,22 +900,7 @@ describe('CrudSvc', function() {
                 expect(svc.runMiddleware).toHaveBeenCalledWith(req, 'delete', anyFunc);
                 expect(svc.runMiddleware.callCount).toBe(2);
                 expect(svc._middleware.delete[0]).toHaveBeenCalledWith(req, anyFunc, anyFunc);
-                expect(mockColl.update).toHaveBeenCalledWith({id: 't1'},
-                    {$set: {lastUpdated: jasmine.any(Date), status: Status.Deleted}},{w:1,journal:true},anyFunc);
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should not update the object if it is already deleted', function(done) {
-            svc._middleware.delete[0].andCallFake(function(req, next, done) {
-                req.origObj = { id: 't1', status: Status.Deleted };
-                next();
-            });
-            svc.deleteObj(req).then(function(resp) {
-                expect(resp).toEqual({code: 204});
-                expect(svc.runMiddleware.callCount).toBe(2);
-                expect(mockColl.update).not.toHaveBeenCalled();
+                expect(mongoUtils.editObject).toHaveBeenCalledWith(svc._coll, { status: Status.Deleted }, 't1');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -918,7 +912,7 @@ describe('CrudSvc', function() {
                 expect(resp).toEqual({code: 400, body: 'NOPE'});
                 expect(svc._middleware.delete[0]).toHaveBeenCalled();
                 expect(svc.runMiddleware.callCount).toBe(2);
-                expect(mockColl.update).not.toHaveBeenCalled();
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -933,19 +927,18 @@ describe('CrudSvc', function() {
                 expect(svc._middleware.delete[0]).toHaveBeenCalled();
                 expect(svc.runMiddleware.callCount).toBe(1);
                 expect(mockLog.error).toHaveBeenCalled();
-                expect(mockColl.update).not.toHaveBeenCalled();
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
             }).done(done);
         });
         
         it('should fail if coll.update fails', function(done) {
-            mockColl.update.andCallFake(function(query, obj, opts, cb) { cb('I GOT A PROBLEM'); });
+            mongoUtils.editObject.andReturn(q.reject('I GOT A PROBLEM'));
             svc.deleteObj(req).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(svc.runMiddleware.callCount).toBe(2);
-                expect(mockLog.error).toHaveBeenCalled();
-                expect(mockColl.update).toHaveBeenCalled();
+                expect(mongoUtils.editObject).toHaveBeenCalled();
             }).done(done);
         });
     });

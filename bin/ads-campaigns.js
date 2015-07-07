@@ -20,7 +20,7 @@
         campModule.contentHost = config.contentHost;
     
         var campColl = db.collection('campaigns'),
-            svc = new CrudSvc(campColl, 'cam', {});
+            svc = new CrudSvc(campColl, 'cam', { statusHistory: true });
         svc._advertColl = db.collection('advertisers');
         svc._custColl = db.collection('customers');
         
@@ -37,7 +37,7 @@
         svc.editValidator._formats.categories = ['string'];
         svc.createValidator._formats.staticCardMap = 'object';
         svc.editValidator._formats.staticCardMap = 'object';
-
+        
         svc.use('create', campaignUtils.getAccountIds.bind(campaignUtils, svc._advertColl,
                                                            svc._custColl));
         svc.use('create', campModule.validateDates);
@@ -45,6 +45,7 @@
         svc.use('create', campModule.ensureUniqueNames);
         svc.use('create', campModule.createSponsoredCamps);
         svc.use('create', campModule.createTargetCamps);
+
         svc.use('edit', campaignUtils.getAccountIds.bind(campaignUtils, svc._advertColl,
                                                          svc._custColl));
         svc.use('edit', campModule.extendListObjects);
@@ -57,6 +58,7 @@
         svc.use('edit', campModule.cleanTargetCamps);
         svc.use('edit', campModule.editTargetCamps);
         svc.use('edit', campModule.createTargetCamps);
+
         svc.use('delete', campModule.deleteContent);
         svc.use('delete', campModule.deleteAdtechCamps);
 

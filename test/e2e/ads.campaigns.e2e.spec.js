@@ -403,6 +403,10 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body.id).toBeDefined();
                 expect(resp.body.user).toBe('e2e-user');
                 expect(resp.body.org).toBe('e2e-org');
+                expect(resp.body.status).toBe('active');
+                expect(resp.body.statusHistory).toEqual([
+                    { status: 'active', userId: 'e2e-user', user: 'adsvce2euser', date: jasmine.any(String) }
+                ]);
                 expect(resp.body.name).toBe(mockCamp.name);
                 expect(resp.body.categories).toEqual(['food', 'sports']);
                 expect(resp.body.miniReels).toEqual([
@@ -1026,7 +1030,12 @@ describe('ads campaigns endpoints (E2E):', function() {
         
         it('should throw a 400 if the body is invalid', function(done) {
             options = { url: config.adsUrl + '/campaign/' + createdCamp.id, jar: cookieJar };
-            q.all([{advertiserId: 'fake'}, {customerId: 'fake'}, {miniReels: [123, 234]}].map(function(body) {
+            q.all([
+                {advertiserId: 'fake'},
+                {customerId: 'fake'},
+                {miniReels: [123, 234]},
+                {statusHistory: 'foo'}
+            ].map(function(body) {
                 options.json = body;
                 return requestUtils.qRequest('put', options);
             })).then(function(results) {
