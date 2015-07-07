@@ -21,6 +21,7 @@
         authUtils   = require('../lib/authUtils'),
         journal     = require('../lib/journal'),
         service     = require('../lib/service'),
+        JobManager  = require('../lib/jobManager'),
         s3util      = require('../lib/s3util'),
 
         state      = {},
@@ -74,6 +75,22 @@
                 port: null,
                 retryConnect : true
             }
+        },
+        pubsub: {
+            cacheCfg: {
+                port: 21211,
+                isPublisher: false
+            }
+        },
+        cache: {
+            timeouts: {},
+            servers: null
+        },
+        jobTimeouts: {
+            enabled: true,
+            urlPrefix: '/api/collateral/job',
+            timeout: 5*1000,
+            cacheTTL: 60*60*1000,
         }
     };
 
@@ -802,6 +819,7 @@
             
         var app          = express(),
             users        = state.dbs.c6Db.collection('users'),
+            jobManager   = new JobManager(state.cache, state.config.jobTimeouts),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._coll = users;
@@ -884,68 +902,87 @@
         app.use(bodyParser.json());
         
         var authUpload = authUtils.middlewarify({});
+        var setJobTimeout = jobManager.setJobTimeout.bind(jobManager);
 
-        app.post('/api/collateral/files/:expId', sessWrap, authUpload, multipart, audit,
-            function(req,res){
-                collateral.uploadFiles(req, s3, state.config)
-                .then(function(resp) {
-                    res.send(resp.code, resp.body);
-                }).catch(function(error) {
-                    res.send(500, {
-                        error: 'Error uploading files',
-                        detail: error
-                    });
+        app.post('/api/collateral/files/:expId', setJobTimeout, sessWrap, authUpload, multipart,
+            audit, function(req,res){
+                var promise = collateral.uploadFiles(req, s3, state.config);
+
+                promise.finally(function() {
+                    return jobManager.endJob(req, res, promise.inspect())
+                        .catch(function(error) {
+                            res.send(500, {
+                                error: 'Error uploading files',
+                                detail: error
+                            });
+                        });
                 });
             }
         );
         
-        app.post('/api/collateral/files', sessWrap, authUpload, multipart, audit, function(req,res){
-            collateral.uploadFiles(req, s3, state.config)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error uploading files',
-                    detail: error
-                });
-            });
-        });
+        app.post('/api/collateral/files', setJobTimeout, sessWrap, authUpload, multipart, audit,
+            function(req, res) {
+                var promise = collateral.uploadFiles(req, s3, state.config);
 
-        app.post('/api/collateral/uri', sessWrap, authUpload, audit, function(req, res) {
-            collateral.importFile(req, s3, state.config)
-            .then(function(response) {
-                res.send(response.code, response.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error uploading files',
-                    detail: error
+                promise.finally(function() {
+                    return jobManager.endJob(req, res, promise.inspect())
+                        .catch(function(error) {
+                            res.send(500, {
+                                error: 'Error uploading files',
+                                detail: error
+                            });
+                        });
                 });
-            });
-        });
+            }
+        );
 
-        app.post('/api/collateral/splash/:expId', sessWrap, authUpload, audit, function(req, res) {
-            collateral.createSplashes(req, s3, state.config)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error uploading files',
-                    detail: error
-                });
-            });
-        });
+        app.post('/api/collateral/uri', setJobTimeout, sessWrap, authUpload, audit,
+            function(req, res) {
+                var promise = q.when(collateral.importFile(req, s3, state.config));
 
-        app.post('/api/collateral/splash', sessWrap, authUpload, audit, function(req, res) {
-            collateral.createSplashes(req, s3, state.config)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error uploading files',
-                    detail: error
+                promise.finally(function() {
+                    return jobManager.endJob(req, res, promise.inspect())
+                        .catch(function(error) {
+                            res.send(500, {
+                                error: 'Error uploading files',
+                                detail: error
+                            });
+                        });
                 });
-            });
-        });
+            }
+        );
+
+        app.post('/api/collateral/splash/:expId', setJobTimeout, sessWrap, authUpload, audit,
+            function(req, res) {
+                var promise = collateral.createSplashes(req, s3, state.config);
+
+                promise.finally(function() {
+                    return jobManager.endJob(req, res, promise.inspect())
+                        .catch(function(error) {
+                            res.send(500, {
+                                error: 'Error uploading files',
+                                detail: error
+                            });
+                        });
+                });
+            }
+        );
+
+        app.post('/api/collateral/splash', setJobTimeout, sessWrap, authUpload, audit,
+            function(req, res) {
+                var promise = collateral.createSplashes(req, s3, state.config);
+
+                promise.finally(function() {
+                    return jobManager.endJob(req, res, promise.inspect())
+                        .catch(function(error) {
+                            res.send(500, {
+                                error: 'Error uploading files',
+                                detail: error
+                            });
+                        });
+                });
+            }
+        );
 
         app.post('/api/collateral/setHeaders', sessWrap, authUpload, audit, function(req, res) {
             collateral.setHeaders(req, s3, state.config)
@@ -956,6 +993,12 @@
                     error: 'Error setting headers',
                     detail: error
                 });
+            });
+        });
+
+        app.get('/api/collateral/job/:id', function(req, res) {
+            jobManager.getJobResult(req, res, req.params.id).catch(function(error) {
+                res.send(500, { error: 'Internal error', detail: error });
             });
         });
 
@@ -1003,6 +1046,8 @@
         .then(service.cluster)
         .then(service.initMongo)
         .then(service.initSessionStore)
+        .then(service.initPubSubChannels)
+        .then(service.initCache)
         .then(collateral.main)
         .catch(function(err) {
             var log = logger.getLog();
