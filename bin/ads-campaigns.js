@@ -438,7 +438,7 @@
     };
     
     // Middleware to edit target group campaigns. Can edit keywords, name, startDate, & endDate
-    campModule.editTargetCamps = function(req, next/*, done*/) {
+    campModule.editTargetCamps = function(req, next, done) {
         var log = logger.getLog(),
             id = req.params.id,
             promise;
@@ -481,9 +481,6 @@
                 }
             })
             .then(function() {
-                return bannerUtils.cleanBanners(group.miniReels, orig.miniReels, group.adtechId);
-            })
-            .then(function() {
                 return bannerUtils.createBanners(
                     group.miniReels,
                     orig.miniReels,
@@ -491,6 +488,9 @@
                     false,
                     group.adtechId
                 );
+            })
+            .then(function() {
+                return bannerUtils.cleanBanners(group.miniReels, orig.miniReels, group.adtechId);
             });
         }))
         .then(function() {
@@ -498,6 +498,10 @@
             next();
         })
         .catch(function(err) {
+            if (err.c6warn) {
+                return done({ code: 400, body: err.c6warn });
+            }
+
             log.error('[%1] Error editing target campaigns: %2', req.uuid, err && err.stack || err);
             return q.reject('Adtech failure');
         });

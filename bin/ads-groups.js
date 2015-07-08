@@ -45,8 +45,8 @@
         svc.use('edit', groupModule.ensureDistinctList);
         svc.use('edit', svc.validateUniqueProp.bind(svc, 'name', null));
         svc.use('edit', groupModule.getAccountIds.bind(groupModule, svc));
-        svc.use('edit', groupModule.cleanBanners);
         svc.use('edit', groupModule.createBanners);
+        svc.use('edit', groupModule.cleanBanners);
         svc.use('edit', groupModule.editAdtechGroup);
         svc.use('delete', groupModule.deleteAdtechGroup);
         
@@ -142,7 +142,7 @@
     };
 
     // Call bannerUtils.cleanBanners to delete any unused banners for the campaign
-    groupModule.cleanBanners = function(req, next/*, done*/) {
+    groupModule.cleanBanners = function(req, next, done) {
         req.body.miniReels = campaignUtils.objectify(req.body.miniReels);
         return bannerUtils.cleanBanners(
             req.body.miniReels,
@@ -151,6 +151,13 @@
         )
         .then(function() {
             next();
+        })
+        .catch(function(error) {
+            if (error.c6warn) {
+                return done({ code: 400, body: error.c6warn });
+            } else {
+                return q.reject(error);
+            }
         });
     };
 
