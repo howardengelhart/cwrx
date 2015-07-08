@@ -980,7 +980,7 @@ describe('ads-campaigns (UT)', function() {
                 expect(errorSpy).toHaveBeenCalledWith('Adtech failure');
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(bannerUtils.cleanBanners.calls.length).toBe(2);
-                expect(bannerUtils.createBanners.calls.length).toBe(1);
+                expect(bannerUtils.createBanners.calls.length).toBe(2);
                 done();
             });
         });
@@ -996,6 +996,23 @@ describe('ads-campaigns (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).toHaveBeenCalledWith('Adtech failure');
                 expect(mockLog.error).toHaveBeenCalled();
+                expect(bannerUtils.cleanBanners.calls.length).toBe(1);
+                expect(bannerUtils.createBanners.calls.length).toBe(2);
+                done();
+            });
+        });
+        
+        it('should call done if it receives an error with a c6warn property', function(done) {
+            bannerUtils.cleanBanners.andCallFake(function(oldList, newList, id) {
+                if (id === 13) return q.reject({ c6warn: 'you did a bad thing' });
+                else return q();
+            });
+            campModule.editTargetCamps(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'you did a bad thing' });
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
                 expect(bannerUtils.cleanBanners.calls.length).toBe(2);
                 expect(bannerUtils.createBanners.calls.length).toBe(2);
                 done();

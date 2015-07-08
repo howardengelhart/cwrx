@@ -110,30 +110,34 @@
                 }
 
                 return promise2.then(function() {
-                    return adtech.websiteAdmin.deletePlacement(plId);
-                })
-                .then(function() {
-                    log.info('[%1] Succesfully deleted placement %2 from container %3',
-                             req.uuid, plId, cont.id);
-                })
-                .catch(function(error) {
-                    try {
-                        var rgx = /deletion cannot be performed because .* run on the affected/;
-                        if (!!error.root.Envelope.Body.Fault.faultstring.match(rgx)) {
-                            log.info('[%1] Cannot delete placement %2; it has active campaigns',
-                                     req.uuid, plId);
+                    return adtech.websiteAdmin.deletePlacement(plId)
+                    .then(function() {
+                        log.info('[%1] Succesfully deleted placement %2 from container %3',
+                                 req.uuid, plId, cont.id);
+                    })
+                    .catch(function(error) {
+                        try {
+                            var rgx = /deletion cannot be performed because .* run on the affected/;
 
-                            if (!doneCalled) { // ensure done is only called once
-                                doneCalled = true;
-                                return done({code: 400, body: 'Cannot delete in-use placements'});
-                            } else {
-                                return q();
+                            if (!!error.root.Envelope.Body.Fault.faultstring.match(rgx)) {
+                                log.info('[%1] Cannot delete placement %2; it has active campaigns',
+                                         req.uuid, plId);
+
+                                if (!doneCalled) { // ensure done is only called once
+                                    doneCalled = true;
+                                    return done({
+                                        code: 400,
+                                        body: 'Cannot delete in-use placements'
+                                    });
+                                } else {
+                                    return q();
+                                }
                             }
-                        }
-                    } catch(e) {}
-                
-                    log.error('[%1] Error deleting placement %2: %3', req.uuid, plId, error);
-                    return q.reject(new Error('Adtech failure'));
+                        } catch(e) {}
+                    
+                        log.error('[%1] Error deleting placement %2: %3', req.uuid, plId, error);
+                        return q.reject(new Error('Adtech failure'));
+                    });
                 });
             }, promise);
         }, q())
@@ -176,17 +180,17 @@
                 };
 
                 return promise2.then(function() {
-                    return adtech.websiteAdmin.createPlacement(formatted);
-                })
-                .then(function(result) {
-                    log.info('[%1] Created placement %2, id = %3, for site %4',
-                             req.uuid, result.name, result.id, id);
-                    cont[key] = parseInt(result.id);
-                })
-                .catch(function(error) {
-                    log.error('[%1] Error creating placement %2 for site %3: %4',
-                              req.uuid, formatted.name, id, error);
-                    return q.reject(new Error('Adtech failure'));
+                    return adtech.websiteAdmin.createPlacement(formatted)
+                    .then(function(result) {
+                        log.info('[%1] Created placement %2, id = %3, for site %4',
+                                 req.uuid, result.name, result.id, id);
+                        cont[key] = parseInt(result.id);
+                    })
+                    .catch(function(error) {
+                        log.error('[%1] Error creating placement %2 for site %3: %4',
+                                  req.uuid, formatted.name, id, error);
+                        return q.reject(new Error('Adtech failure'));
+                    });
                 });
             }, promise);
         }, q())

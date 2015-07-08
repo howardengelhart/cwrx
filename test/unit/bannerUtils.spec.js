@@ -1,4 +1,3 @@
-
 var flush = true;
 describe('bannerUtils', function() {
     var q, path, fs, mockLog, logger, adtech, bannerUtils, mockClient;
@@ -236,6 +235,19 @@ describe('bannerUtils', function() {
             }).catch(function(error) {
                 expect(error).toEqual(new Error('I GOT A PROBLEM'));
                 expect(mockLog.error).toHaveBeenCalled();
+                expect(adtech.bannerAdmin.deleteBanner.calls.length).toBe(1);
+            }).done(done);
+        });
+        
+        it('should reject with a c6warn if deleting the last banner in an active campaign', function(done) {
+            adtech.bannerAdmin.deleteBanner.andReturn(q.reject({ root: { Envelope: { Body: { Fault: {
+                faultstring: 'You cannot remove the last display banner from an active or validated campaign!'
+            } } } } }));
+            bannerUtils.cleanBanners(newBanns, oldBanns, 12345).then(function() {
+                expect('resolved').not.toBe('resolved');
+            }).catch(function(error) {
+                expect(error).toEqual({ c6warn: 'Cannot delete last active banner in campaign' });
+                expect(mockLog.error).not.toHaveBeenCalled();
                 expect(adtech.bannerAdmin.deleteBanner.calls.length).toBe(1);
             }).done(done);
         });

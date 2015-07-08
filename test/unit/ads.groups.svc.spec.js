@@ -79,7 +79,7 @@ describe('ads-groups (UT)', function() {
                 groupModule.getAccountIds, groupModule.createAdtechGroup, groupModule.createBanners]);
             expect(svc._middleware.edit).toEqual([jasmine.any(Function), jasmine.any(Function),
                 groupModule.validateDates, groupModule.ensureDistinctList, CrudSvc.prototype.validateUniqueProp,
-                groupModule.getAccountIds, groupModule.cleanBanners, groupModule.createBanners,
+                groupModule.getAccountIds, groupModule.createBanners, groupModule.cleanBanners,
                 groupModule.editAdtechGroup]);
             expect(svc._middleware.delete).toEqual([jasmine.any(Function), groupModule.deleteAdtechGroup]);
             expect(svc.formatOutput).toBe(groupModule.formatOutput);
@@ -420,6 +420,17 @@ describe('ads-groups (UT)', function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
+                done();
+            });
+        });
+        
+        it('should call done if it receives an error with a c6warn property', function(done) {
+            bannerUtils.cleanBanners.andReturn(q.reject({ c6warn: 'you did a bad thing' }));
+            groupModule.cleanBanners(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'you did a bad thing' });
+                expect(errorSpy).not.toHaveBeenCalled();
                 done();
             });
         });

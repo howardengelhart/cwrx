@@ -1,5 +1,7 @@
 # Ads Service Changelog
 
+### 1.3.2: Wed Jul  8 16:04:29 EDT 2015
+* [FIX]: Handle Adtech error for deleting last banner in campaign: [#449](https://github.com/cinema6/cwrx/issues/449)
 * [FIX]: Set `statusHistory` on campaigns: [#430](https://github.com/cinema6/cwrx/issues/423)
 * Extra deployment steps:
     * Set `statusHistory` on all existing campaigns in staging+prod databases
