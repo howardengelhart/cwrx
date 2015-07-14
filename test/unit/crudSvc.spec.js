@@ -204,6 +204,20 @@ describe('CrudSvc', function() {
             expect(mongoUtils.unescapeKeys).toHaveBeenCalledWith({id: 't1', foo: 'bar'});
         });
     });
+
+    describe('transformMongoDoc(doc)', function() {
+        var doc;
+        var result;
+
+        beforeEach(function() {
+            doc = { foo: 'bar' };
+            result = svc.transformMongoDoc(doc);
+        });
+
+        it('should return the object passed to it', function() {
+            expect(result).toBe(doc);
+        });
+    });
     
     describe('setupObj', function() {
         var anyDate;
@@ -290,10 +304,14 @@ describe('CrudSvc', function() {
     });
     
     describe('checkExisting', function() {
+        var transformedObject;
+
         beforeEach(function() {
+            transformedObject = { tranformed: 'origObject' };
             mockColl.findOne.andCallFake(function(query, cb) { cb(null, 'origObject'); });
             req.params = { id: 't1' };
             spyOn(svc, 'checkScope').andReturn(true);
+            spyOn(svc, 'transformMongoDoc').andReturn(q(transformedObject));
         });
         
         it('should find an existing object and copy it onto the request', function(done) {
@@ -302,9 +320,10 @@ describe('CrudSvc', function() {
                 expect(nextSpy).toHaveBeenCalledWith();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.origObj).toBe('origObject');
+                expect(svc.transformMongoDoc).toHaveBeenCalledWith('origObject');
+                expect(req.origObj).toBe(transformedObject);
                 expect(mockColl.findOne).toHaveBeenCalledWith({id: 't1'}, anyFunc);
-                expect(svc.checkScope).toHaveBeenCalledWith({id: 'u1', org: 'o1'}, 'origObject', 'edit');
+                expect(svc.checkScope).toHaveBeenCalledWith({id: 'u1', org: 'o1'}, transformedObject, 'edit');
                 done();
             });
         });
@@ -326,6 +345,7 @@ describe('CrudSvc', function() {
             mockColl.findOne.andCallFake(function(query, cb) { cb(); });
             svc.checkExisting('edit', req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
+                expect(svc.transformMongoDoc).not.toHaveBeenCalled();
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({code: 404, body: 'That does not exist'});
                 expect(errorSpy).not.toHaveBeenCalled();
@@ -339,6 +359,7 @@ describe('CrudSvc', function() {
             mockColl.findOne.andCallFake(function(query, cb) { cb(); });
             svc.checkExisting('delete', req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
+                expect(svc.transformMongoDoc).not.toHaveBeenCalled();
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({code: 204});
                 expect(errorSpy).not.toHaveBeenCalled();
@@ -352,6 +373,7 @@ describe('CrudSvc', function() {
             mockColl.findOne.andCallFake(function(query, cb) { cb('I GOT A PROBLEM'); });
             svc.checkExisting('edit', req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
+                expect(svc.transformMongoDoc).not.toHaveBeenCalled();
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
@@ -399,7 +421,11 @@ describe('CrudSvc', function() {
     });
 
     describe('validateUniqueProp', function() {
+        var transformedObject;
+
         beforeEach(function() {
+            transformedObject = { transformed: { cat: 'yes' } };
+            spyOn(svc, 'transformMongoDoc').andReturn(q(transformedObject));
             mockColl.findOne.andCallFake(function(query, cb) { cb(null, null); });
             req.body = { name: 'scruffles' };
         });
@@ -407,6 +433,7 @@ describe('CrudSvc', function() {
         it('should call next if no object exists with the request property', function(done) {
             svc.validateUniqueProp('name', /^\w+$/, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
+                expect(svc.transformMongoDoc).not.toHaveBeenCalled();
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
@@ -419,6 +446,7 @@ describe('CrudSvc', function() {
             req.params = {id: 'cat-1'};
             svc.validateUniqueProp('name', /^\w+$/, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
+                expect(svc.transformMongoDoc).not.toHaveBeenCalled();
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
@@ -430,6 +458,7 @@ describe('CrudSvc', function() {
         it('should call next if the request body does not contain the field', function(done) {
             svc.validateUniqueProp('fluffy', /^\w+$/, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
+                expect(svc.transformMongoDoc).not.toHaveBeenCalled();
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
@@ -443,6 +472,7 @@ describe('CrudSvc', function() {
                 req.body.name = name;
                 return svc.validateUniqueProp('name', /^\w+$/, req, nextSpy, doneSpy).catch(errorSpy);
             })).then(function(results) {
+                expect(svc.transformMongoDoc).not.toHaveBeenCalled();
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy.calls.length).toBe(4);
                 doneSpy.calls.forEach(function(call) {
@@ -458,6 +488,7 @@ describe('CrudSvc', function() {
             mockColl.findOne.andCallFake(function(query, cb) { cb(null, { cat: 'yes' }); });
             svc.validateUniqueProp('name', /^\w+$/, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
+                expect(svc.transformMongoDoc).toHaveBeenCalledWith({ cat: 'yes' });
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({code: 409, body: 'An object with that name already exists'});
                 expect(errorSpy).not.toHaveBeenCalled();
@@ -469,6 +500,7 @@ describe('CrudSvc', function() {
             mockColl.findOne.andCallFake(function(query, cb) { cb('CAT IS TOO CUTE HALP'); });
             svc.validateUniqueProp('name', /^\w+$/, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
+                expect(svc.transformMongoDoc).not.toHaveBeenCalled();
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).toHaveBeenCalledWith('CAT IS TOO CUTE HALP');
@@ -621,7 +653,11 @@ describe('CrudSvc', function() {
     
     describe('getObjs', function() {
         var query, fakeCursor;
+        var transformedObj;
+
         beforeEach(function() {
+            transformedObj = { id: 't1', transformed: true };
+            spyOn(svc, 'transformMongoDoc').andReturn(q(transformedObj));
             req.query = { sort: 'id,1', limit: 20, skip: 10 };
             query = {type: 'foo'};
             fakeCursor = {
@@ -641,9 +677,28 @@ describe('CrudSvc', function() {
                 expect(mockColl.find).toHaveBeenCalledWith('userPermQuery', {sort: { id: 1 }, limit: 20, skip: 10});
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(fakeCursor.count).not.toHaveBeenCalled();
-                expect(svc.formatOutput).toHaveBeenCalledWith({id: 't1'}, 0, [{id: 't1'}]);
+                expect(svc.formatOutput).toHaveBeenCalledWith(transformedObj);
+                expect(svc.transformMongoDoc).toHaveBeenCalledWith({ id: 't1' });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should work if transformMongoDoc() does not return a promise', function(done) {
+            svc.transformMongoDoc.andReturn(transformedObj);
+
+            svc.getObjs(query, req, false).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(svc.runMiddleware).toHaveBeenCalledWith(req, 'read', anyFunc);
+                expect(svc.runMiddleware.callCount).toBe(1);
+                expect(svc.userPermQuery).toHaveBeenCalledWith({ type: 'foo' }, { id: 'u1', org: 'o1' });
+                expect(mockColl.find).toHaveBeenCalledWith('userPermQuery', {sort: { id: 1 }, limit: 20, skip: 10});
+                expect(fakeCursor.toArray).toHaveBeenCalled();
+                expect(fakeCursor.count).not.toHaveBeenCalled();
+                expect(svc.formatOutput).toHaveBeenCalledWith(transformedObj);
+                expect(svc.transformMongoDoc).toHaveBeenCalledWith({ id: 't1' });
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
             }).done(done);
         });
         
@@ -694,6 +749,7 @@ describe('CrudSvc', function() {
                 expect(resp).toEqual({code: 400, body: 'NOPE'});
                 expect(mockColl.find).not.toHaveBeenCalled();
                 expect(svc.formatOutput).not.toHaveBeenCalled();
+                expect(svc.transformMongoDoc).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -716,6 +772,7 @@ describe('CrudSvc', function() {
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(fakeCursor.count).not.toHaveBeenCalled();
                 expect(svc.formatOutput).not.toHaveBeenCalled();
+                expect(svc.transformMongoDoc).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -730,6 +787,7 @@ describe('CrudSvc', function() {
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(fakeCursor.count).toHaveBeenCalled();
                 expect(svc.formatOutput).not.toHaveBeenCalled();
+                expect(svc.transformMongoDoc).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -763,13 +821,17 @@ describe('CrudSvc', function() {
     });
     
     describe('createObj', function() {
+        var transformedObj;
+
         beforeEach(function() {
             req.body = { name: 'foo' };
             svc._middleware.create = [jasmine.createSpy('fakeMidware').andCallFake(function(req, next, done) {
                 req.body = { id: 't1', setup: true };
                 next();
             })];
+            transformedObj = { inserted: 'yes', transformed: true };
             spyOn(mongoUtils, 'createObject').andReturn(q({ inserted: 'yes' }));
+            spyOn(svc, 'transformMongoDoc').andReturn(q(transformedObj));
         });
         
         it('should setup the new object and insert it', function(done) {
@@ -779,7 +841,9 @@ describe('CrudSvc', function() {
                 expect(svc.runMiddleware.callCount).toBe(2);
                 expect(svc._middleware.create[0]).toHaveBeenCalledWith(req, anyFunc, anyFunc);
                 expect(mongoUtils.createObject).toHaveBeenCalledWith(svc._coll, { id: 't1', setup: true });
-                expect(svc.formatOutput).toHaveBeenCalledWith({ inserted: 'yes' });
+                expect(svc.transformMongoDoc).toHaveBeenCalledWith({ inserted: 'yes' });
+                expect(svc.transformMongoDoc.mostRecentCall.object).toBe(svc);
+                expect(svc.formatOutput).toHaveBeenCalledWith(transformedObj);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -823,6 +887,8 @@ describe('CrudSvc', function() {
     
     describe('editObj', function() {
         var origObj;
+        var transformedObj;
+
         beforeEach(function() {
             req.body = { name: 'foo' };
             req.params = { id: 't1' };
@@ -832,6 +898,8 @@ describe('CrudSvc', function() {
                 next();
             })];
             spyOn(mongoUtils, 'editObject').andReturn(q({ edited: 'yes' }));
+            transformedObj = { edited: 'yes', transformed: true };
+            spyOn(svc, 'transformMongoDoc').andReturn(q(transformedObj));
         });
         
         it('should successfully update an object', function(done) {
@@ -841,7 +909,9 @@ describe('CrudSvc', function() {
                 expect(svc.runMiddleware.callCount).toBe(2);
                 expect(svc._middleware.edit[0]).toHaveBeenCalledWith(req, anyFunc, anyFunc);
                 expect(mongoUtils.editObject).toHaveBeenCalledWith(svc._coll, { name: 'foo' }, 't1');
-                expect(svc.formatOutput).toHaveBeenCalledWith({ edited: 'yes' });
+                expect(svc.transformMongoDoc).toHaveBeenCalledWith({ edited: 'yes' });
+                expect(svc.transformMongoDoc.mostRecentCall.object).toBe(svc);
+                expect(svc.formatOutput).toHaveBeenCalledWith(transformedObj);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
