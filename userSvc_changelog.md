@@ -1,5 +1,9 @@
 # User Service Changelog
 
+* [REFACTOR]: Re-write to use CrudSvc: [#446](https://github.com/cinema6/cwrx/issues/446)
+* Multi-get endpoint now returns 200: [] when no users are found instead
+  of a 404: [#337](https://github.com/cinema6/cwrx/issues/337)
+
 ### 1.8.1: Wed Jun 24 18:09:44 EDT 2015
 * [FIX]: Cookie and session security improvements: [#423](https://github.com/cinema6/cwrx/pull/423)
 * Extra deployment steps:
