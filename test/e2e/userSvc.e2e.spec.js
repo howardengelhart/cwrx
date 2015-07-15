@@ -113,7 +113,7 @@ describe('user (E2E):', function() {
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toEqual('No users found');
+                expect(resp.body).toEqual('Object not found');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -127,7 +127,7 @@ describe('user (E2E):', function() {
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('No users found');
+                expect(resp.body).toBe('Object not found');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -262,8 +262,8 @@ describe('user (E2E):', function() {
         it('should not show users the requester cannot see', function(done) {
             var options = { url: config.userSvcUrl + '/users?org=o-4567', jar: cookieJar };
             requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toEqual('No users found');
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([]);
                 expect(resp.response.headers['content-range']).toBe('items 0-0/0');
                 done();
             }).catch(function(error) {
@@ -333,8 +333,8 @@ describe('user (E2E):', function() {
         it('should prevent mongo query selector injection attacks', function(done) {
             var options = { url: config.userSvcUrl + '/users?org[$gt]=', jar: cookieJar };
             requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toEqual('No users found');
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([]);
                 expect(resp.response.headers['content-range']).toBe('items 0-0/0');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -453,17 +453,17 @@ describe('user (E2E):', function() {
             options.json = {};
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('New user object must have a email and password');
+                expect(resp.body).toBe('Invalid request body');
                 options.json = { email: 'testpostuser' };
                 return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('New user object must have a email and password');
+                expect(resp.body).toBe('Invalid request body');
                 options.json = { password: 'password' };
                 return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('New user object must have a email and password');
+                expect(resp.body).toBe('Invalid request body');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -478,7 +478,7 @@ describe('user (E2E):', function() {
                 return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(409);
-                expect(resp.body).toBe('A user with that email already exists');
+                expect(resp.body).toBe('An object with that email already exists');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -588,7 +588,7 @@ describe('user (E2E):', function() {
             };
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('That user does not exist');
+                expect(resp.body).toBe('That does not exist');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -604,7 +604,7 @@ describe('user (E2E):', function() {
             };
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
-                expect(resp.body).toBe('Not authorized to edit this user');
+                expect(resp.body).toBe('Not authorized to edit this');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -693,7 +693,7 @@ describe('user (E2E):', function() {
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('No users found');
+                expect(resp.body).toBe('Object not found');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -772,7 +772,7 @@ describe('user (E2E):', function() {
             var options = { url: config.userSvcUrl + '/user/e2e-delete2', jar: cookieJar };
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
-                expect(resp.body).toBe('Not authorized to delete this user');
+                expect(resp.body).toBe('Not authorized to delete this');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -875,7 +875,7 @@ describe('user (E2E):', function() {
                 return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(409);
-                expect(resp.body).toBe('A user with that email already exists');
+                expect(resp.body).toBe('An object with that email already exists');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -886,11 +886,10 @@ describe('user (E2E):', function() {
         it('should change the user\'s email successfully', function(done) {
             var mailman = new testUtils.Mailman();
             mailman.start().then(function() {
-                mailman.once('error', done); // call done with error to throw it as an exception
                 mailman.once('message', function(msg) {
                     expect(msg.from[0].address).toBe('support@cinema6.com');
                     expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
-                    expect(msg.subject).toBe('Your account email address has been changed');
+                    expect(msg.subject).toBe('Your Account Email Address Has Changed');
                     expect(msg.text.match(/mynewemail/)).toBeTruthy();
                     expect(msg.html.match(/mynewemail/)).toBeTruthy();
                     expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
@@ -941,10 +940,9 @@ describe('user (E2E):', function() {
             options.json.newEmail = 'MyNewEmail';
             var mailman = new testUtils.Mailman();
             mailman.start().then(function() {
-                mailman.once('error', done); // call done with error to throw it as an exception
                 mailman.once('message', function(msg) {
                     expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
-                    expect(msg.subject).toBe('Your account email address has been changed');
+                    expect(msg.subject).toBe('Your Account Email Address Has Changed');
                     expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
                     mailman.stop();
                     done();
@@ -1000,7 +998,7 @@ describe('user (E2E):', function() {
                 return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('Must provide a new password');
+                expect(resp.body).toBe('newPassword is missing/not valid.');
                 done();
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -1048,7 +1046,6 @@ describe('user (E2E):', function() {
         it('should change the user\'s password successfully', function(done) {
             var mailman = new testUtils.Mailman();
             mailman.start().then(function() {
-                mailman.once('error', done); // call done with error to throw it as an exception
                 mailman.once('message', function(msg) {
                     expect(msg.from[0].address).toBe('support@cinema6.com');
                     expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
@@ -1099,7 +1096,6 @@ describe('user (E2E):', function() {
             options.json.email = 'c6E2ETester@gmail.com';
             var mailman = new testUtils.Mailman();
             mailman.start().then(function() {
-                mailman.once('error', done); // call done with error to throw it as an exception
                 mailman.once('message', function(msg) {
                     expect(msg.from[0].address).toBe('support@cinema6.com');
                     expect(msg.to[0].address).toBe('c6e2etester@gmail.com');

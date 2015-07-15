@@ -235,7 +235,7 @@ testUtils.Mailman.prototype.start = function() {
     self._conn = new Imap(self._imapOpts); // establish an IMAP connection to the mailbox
 
     self._conn.on('error', function(error) {
-        self.emit('error', error);
+        console.error(util.inspect(error));
         deferred.reject(error);
     });
     
