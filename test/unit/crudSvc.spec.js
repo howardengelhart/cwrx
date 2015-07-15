@@ -721,7 +721,22 @@ describe('CrudSvc', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
-                
+
+        it('should construct queries with Array values', function(done) {
+            query = { type: 'foo', id: ['u-bbe668b7376b76', 'u-c78552acd80e22'] };
+
+            svc.getObjs(query, req, false).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(svc.userPermQuery).toHaveBeenCalledWith({
+                    type: 'foo',
+                    id: { $in: ['u-bbe668b7376b76', 'u-c78552acd80e22'] }
+                }, { id: 'u1', org: 'o1' });
+                expect(mockColl.find).toHaveBeenCalledWith('userPermQuery', {sort: { id: 1 }, limit: 20, skip: 10});
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+
         it('should set resp.pagination if multiExp is true', function(done) {
             svc.getObjs(query, req, true).then(function(resp) {
                 expect(resp).toEqual({ code: 200, body: ['formatted'],
