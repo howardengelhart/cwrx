@@ -1,5 +1,11 @@
 # Collateral Service Changelog
 
+* Time-out uri endpoint downloads if they take too long: [#456](https://github.com/cinema6/cwrx/issues/456)
+* [FIX]: Respond with a 400 if an invalid URI is sent to the uri
+  endpoint: [#457](https://github.com/cinema6/cwrx/issues/457)
+* Extra deployment steps:
+    * Deploy new version of collateral cookbook
+
 ### 2.0.0: Tue Jul  7 16:30:16 EDT 2015
 * Refactor so that uploaded files are stored by user on S3: [#438](https://github.com/cinema6/cwrx/issues/438)
 * [DEPRECATION]: Removed support for "versionate" query param. All files
