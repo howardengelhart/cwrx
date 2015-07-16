@@ -268,6 +268,39 @@ describe('collateral (UT):', function() {
             });
         });
 
+        describe('if the provided URI is invalid', function() {
+            beforeEach(function(done) {
+                success.reset();
+                failure.reset();
+
+                request.head.andCallFake(function() {
+                    responseDeferred.promise.emit('error', new Error('Invalid URI "' + req.body.uri + '"'));
+                    return responseDeferred.promise;
+                });
+                spyOn(request, 'get').andReturn(responseDefer().promise);
+
+                req.body.uri = 'fn8942yrh8943';
+                promise = collateral.importFile(req, s3, config);
+                promise.then(success, failure);
+                q().then(done);
+            });
+
+            it('should fulfill the promise with a 400', function() {
+                expect(success).toHaveBeenCalledWith({
+                    code: 400,
+                    body: '"' + req.body.uri + '" is not a valid URI.'
+                });
+            });
+
+            it('should log a warning', function() {
+                expect(mockLog.warn).toHaveBeenCalled();
+            });
+
+            it('should not GET the image', function() {
+                expect(request.get).not.toHaveBeenCalled();
+            });
+        });
+
         it('should make a HEAD for the image', function() {
             expect(request.head).toHaveBeenCalledWith({
                 uri: req.body.uri,

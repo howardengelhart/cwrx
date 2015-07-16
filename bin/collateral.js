@@ -389,6 +389,15 @@
                     ));
                 }
 
+                if (/^Invalid URI/.test(reason.message)) {
+                    log.warn('[%1] "%2" is not a valid URI. Aborting.', req.uuid, uri);
+
+                    return q.reject(new ServiceResponse(
+                        400,
+                        '"' + uri + '" is not a valid URI.'
+                    ));
+                }
+
                 return q.reject(reason);
             }
 
