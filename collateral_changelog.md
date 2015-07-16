@@ -1,6 +1,8 @@
 # Collateral Service Changelog
 
 * Time-out uri endpoint downloads if they take too long: [#456](https://github.com/cinema6/cwrx/issues/456)
+* [FIX]: Respond with a 400 if an invalid URI is sent to the uri
+  endpoint: [#457](https://github.com/cinema6/cwrx/issues/457)
 * Extra deployment steps:
     * Deploy new version of collateral cookbook
 
