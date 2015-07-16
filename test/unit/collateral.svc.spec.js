@@ -192,7 +192,7 @@ describe('collateral (UT):', function() {
             };
         }
 
-        beforeEach(function() {
+        beforeEach(function(done) {
             jobId = uuid.createUuid();
             spyOn(uuid, 'createUuid').andReturn(jobId);
 
@@ -226,6 +226,7 @@ describe('collateral (UT):', function() {
             s3 = { type: 's3' };
             config = {
                 maxFileSize: 1000,
+                maxDownloadTime: 15000,
                 s3: {
                     path: '/collateral'
                 }
@@ -236,6 +237,7 @@ describe('collateral (UT):', function() {
 
             promise = collateral.importFile(req, s3, config);
             promise.then(success, failure);
+            q().then(done);
         });
 
         describe('if no uri is specified', function() {
@@ -273,6 +275,36 @@ describe('collateral (UT):', function() {
             });
         });
 
+        describe('if the HEAD exceeds the maxDownloadTime', function() {
+            beforeEach(function(done) {
+                spyOn(request, 'get');
+                responseDeferred.resolve({
+                    headers: {}
+                });
+                jasmine.Clock.tick(config.maxDownloadTime + 1);
+                q().then(done);
+            });
+
+            it('should not GET the image', function() {
+                expect(request.get).not.toHaveBeenCalled();
+            });
+
+            it('should log a warning', function() {
+                expect(mockLog.warn).toHaveBeenCalled();
+            });
+
+            it('should abort() the request', function() {
+                expect(responseDeferred.promise.abort).toHaveBeenCalled();
+            });
+
+            it('should fulfill the promise with a 408', function() {
+                expect(success).toHaveBeenCalledWith({
+                    code: 408,
+                    body: 'Timed out downloading file [' + req.body.uri + '].'
+                });
+            });
+        });
+
         describe('if the HEAD fails', function() {
             beforeEach(function(done) {
                 done = noArgs(done);
@@ -290,8 +322,11 @@ describe('collateral (UT):', function() {
 
         describe('when the HEAD succeeds', function() {
             var headResponse;
+            var HEAD_TIME = 150;
 
             beforeEach(function() {
+                jasmine.Clock.tick(HEAD_TIME);
+
                 headResponse = {
                     headers: {}
                 };
@@ -362,6 +397,38 @@ describe('collateral (UT):', function() {
                 it('should pipe() the image into a tmp file', function() {
                     expect(fs.createWriteStream).toHaveBeenCalledWith(tmpPath);
                     expect(getDeferred.promise.pipe).toHaveBeenCalledWith(writeStream);
+                });
+
+                describe('but GETting the image takes too long', function() {
+                    beforeEach(function(done) {
+                        spyOn(collateral, 'checkImageType').andReturn(q.defer().promise);
+
+                        jasmine.Clock.tick((config.maxDownloadTime - HEAD_TIME) + 1);
+                        q().then(done);
+                    });
+
+                    it('should abort() the request', function() {
+                        expect(getDeferred.promise.abort).toHaveBeenCalled();
+                    });
+
+                    it('should log a warning', function() {
+                        expect(mockLog.warn).toHaveBeenCalled();
+                    });
+
+                    it('should not check the type of image', function() {
+                        expect(collateral.checkImageType).not.toHaveBeenCalled();
+                    });
+
+                    it('should remove the tmp file', function() {
+                        expect(fs.remove).toHaveBeenCalledWith(tmpPath, jasmine.any(Function));
+                    });
+
+                    it('should fulfill the promise with a 408', function() {
+                        expect(success).toHaveBeenCalledWith({
+                            code: 408,
+                            body: 'Timed out downloading file [' + req.body.uri + '].'
+                        });
+                    });
                 });
 
                 describe('but GETting the image fails', function() {
@@ -464,6 +531,7 @@ describe('collateral (UT):', function() {
                         checkImageTypeDeferred = q.defer();
                         spyOn(collateral, 'checkImageType').andReturn(checkImageTypeDeferred.promise);
 
+                        jasmine.Clock.tick(config.maxDownloadTime - HEAD_TIME - 1);
                         getDeferred.promise.response = {
                             statusCode: 201
                         };

@@ -23,6 +23,7 @@
         service     = require('../lib/service'),
         JobManager  = require('../lib/jobManager'),
         s3util      = require('../lib/s3util'),
+        PromiseTimer= require('../lib/promise').Timer,
 
         state      = {},
         collateral = {}; // for exporting functions to unit tests
@@ -47,6 +48,7 @@
         },
         maxFileSize: 25*1000*1000,  // 25MB
         maxFiles: 10,               // max number of files svc will handle in a request
+        maxDownloadTime: 15*1000,   // timeout for downloading image uris from 3rd-party server
         s3: {
             bucket: 'c6.dev',
             path: 'collateral/',
@@ -253,113 +255,145 @@
         var log = logger.getLog();
 
         var maxSize = config.maxFileSize;
+        var maxTime = config.maxDownloadTime;
         var jobId = uuid.createUuid();
         var user = req.user;
 
         var tmpFiles = [];
 
-        function checkContentLength(uri) {
-            function check(response) {
-                var size = parseInt(response.headers['content-length']);
+        function downloadImage(uri) {
+            var currentDownload = null;
+            var timer = new PromiseTimer(maxTime);
 
-                log.info(
-                    '[%1] Content-Length of "%2" is "%3." (maxFileSize is %4.)',
-                    req.uuid, uri, response.headers['content-length'], maxSize
-                );
+            var checkContentLength = timer.wrap(function checkContentLength(uri) {
+                var headUri = request.head({
+                    uri: uri,
+                    resolveWithFullResponse: true
+                });
 
-                if (size > maxSize) {
-                    log.warn(
-                        '[%1] File [%2] has a content-length of %3 which exceeds the maxFileSize ' +
-                            'of %4. Not uploading.',
-                        req.uuid, uri, size, maxSize
+                currentDownload = headUri;
+
+                function check(response) {
+                    var size = parseInt(response.headers['content-length']);
+
+                    log.info(
+                        '[%1] Content-Length of "%2" is "%3." (maxFileSize is %4.)',
+                        req.uuid, uri, response.headers['content-length'], maxSize
                     );
 
-                    return q.reject(new ServiceResponse(
-                        413,
-                        'File [' + uri + '] is too large (' + size + ' bytes.)'
-                    ));
+                    if (size > maxSize) {
+                        log.warn(
+                            '[%1] File [%2] has a content-length of %3 which exceeds the ' +
+                                'maxFileSize of %4. Not uploading.',
+                            req.uuid, uri, size, maxSize
+                        );
+
+                        return q.reject(new ServiceResponse(
+                            413,
+                            'File [' + uri + '] is too large (' + size + ' bytes.)'
+                        ));
+                    }
+
+                    return q(uri);
                 }
 
-                return q(uri);
-            }
+                function ignore() {
+                    log.info('[%1] Failed to HEAD uri [%2]. Proceeding.', req.uuid, uri);
 
-            function ignore() {
-                log.info('[%1] Failed to HEAD uri [%2]. Proceeding.', req.uuid, uri);
+                    return uri;
+                }
 
-                return uri;
-            }
+                log.info('[%1] HEADing URI [%2].', req.uuid, uri);
 
-            log.info('[%1] HEADing URI [%2].', req.uuid, uri);
+                return headUri.then(check, ignore);
+            });
 
-            return request.head({ uri: uri, resolveWithFullResponse: true })
-                .then(check, ignore);
-        }
+            var fetchImage = timer.wrap(function fetchImage(uri) {
+                var tmpPath = path.join(require('os').tmpdir(), jobId + path.extname(uri));
+                var deferred = q.defer();
 
-        function fetchImage(uri) {
-            var tmpPath = path.join(require('os').tmpdir(), jobId + path.extname(uri));
-            var deferred = q.defer();
+                var totalSize = 0;
 
-            var totalSize = 0;
+                var transfer = request.get(uri);
 
-            var transfer = request.get(uri);
+                currentDownload = transfer;
 
-            log.info(
-                '[%1] GETting uri [%2] and writing contents to a tmp file [%3].',
-                req.uuid, uri, tmpPath
-            );
-
-            transfer.on('data', function(data) {
-                totalSize += data.length;
-
-                log.trace(
-                    '[%1] Downloaded %2 bytes of data. Total downloaded: %3 bytes.',
-                    req.uuid, data.length, totalSize
+                log.info(
+                    '[%1] GETting uri [%2] and writing contents to a tmp file [%3].',
+                    req.uuid, uri, tmpPath
                 );
 
-                if (totalSize > maxSize) {
-                    transfer.abort();
+                transfer.on('data', function(data) {
+                    totalSize += data.length;
+
+                    log.trace(
+                        '[%1] Downloaded %2 bytes of data. Total downloaded: %3 bytes.',
+                        req.uuid, data.length, totalSize
+                    );
+
+                    if (totalSize > maxSize) {
+                        transfer.abort();
+
+                        deferred.reject(new ServiceResponse(
+                            413,
+                            'File [' + uri + '] is too large.'
+                        ));
+
+                        log.warn(
+                            '[%1] Discovered file [%2] exceeds the maxFileSize of %3 during ' +
+                                'download. Aborting.',
+                            req.uuid, uri, maxSize
+                        );
+                    }
+                });
+                transfer.on('end', function() {
+                    log.info(
+                        '[%1] Done downloading file [%2].',
+                        req.uuid, uri
+                    );
+
+                    if (/^2/.test(transfer.response.statusCode)) {
+                        deferred.resolve({
+                            uri: uri,
+                            path: tmpPath
+                        });
+                    }
+                });
+                transfer.catch(function(data) {
+                    log.warn(
+                        '[%1] Failed to GET "%2." Server responded with [%3]: %4.',
+                        req.uuid, uri, data.response.statusCode, data.error
+                    );
 
                     deferred.reject(new ServiceResponse(
-                        413,
-                        'File [' + uri + '] is too large.'
+                        400,
+                        'Could not fetch image from "' + uri + '."'
                     ));
+                });
 
-                    log.warn(
-                        '[%1] Discovered file [%2] exceeds the maxFileSize of %3 during download.' +
-                            ' Aborting.',
-                        req.uuid, uri, maxSize
-                    );
+                transfer.pipe(fs.createWriteStream(tmpPath));
+                tmpFiles.push(tmpPath);
+
+                return deferred.promise;
+            });
+
+            function handleRejection(reason) {
+                if (reason.code === 'ETIMEDOUT') {
+                    currentDownload.abort();
+
+                    log.warn('[%1] Timed out downloading "%2."', req.uuid, uri);
+
+                    return q.reject(new ServiceResponse(
+                        408,
+                        'Timed out downloading file [' + uri + '].'
+                    ));
                 }
-            });
-            transfer.on('end', function() {
-                log.info(
-                    '[%1] Done downloading file [%2].',
-                    req.uuid, uri
-                );
 
-                if (/^2/.test(transfer.response.statusCode)) {
-                    deferred.resolve({
-                        uri: uri,
-                        path: tmpPath
-                    });
-                }
-            });
-            transfer.catch(function(data) {
-                log.warn(
-                    '[%1] Failed to GET "%2." Server responded with [%3]: %4.',
-                    req.uuid, uri, data.response.statusCode, data.error
-                );
+                return q.reject(reason);
+            }
 
-                deferred.reject(new ServiceResponse(
-                    400,
-                    'Could not fetch image from "' + uri + '."'
-                ));
-            });
-
-            transfer.pipe(fs.createWriteStream(tmpPath));
-            tmpFiles.push(tmpPath);
-
-            return deferred.promise;
+            return checkContentLength(uri).then(fetchImage)
+                .catch(handleRejection);
         }
 
         function checkFileType(data) {
@@ -464,8 +498,7 @@
             return q(new ServiceResponse(400, 'No image URI specified.'));
         }
 
-        return checkContentLength(req.body.uri)
-            .then(fetchImage)
+        return downloadImage(req.body.uri)
             .then(checkFileType)
             .then(uploadImage)
             .finally(cleanup)
