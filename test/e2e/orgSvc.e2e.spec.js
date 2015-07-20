@@ -106,17 +106,6 @@ describe('org (E2E):', function() {
             }).done(done);
         });
 
-        it('should get an org even when multiple with the same id exist', function(done) {
-            var options = { url: config.orgSvcUrl + '/org/o-1234', jar: cookieJar };
-            testUtils.resetCollection('orgs', [mockOrg, mockOrg2]).then(function() {
-                return requestUtils.qRequest('get', options);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-
         it('should not be able to get a deleted org', function(done) {
             var options = { url: config.orgSvcUrl + '/org/o-1234', jar: cookieJar };
             mockOrg.status = 'deleted';
@@ -408,7 +397,7 @@ describe('org (E2E):', function() {
             }).done(done);
         });
 
-        it('should throw a 409 error if a user with that name exists', function(done) {
+        it('should throw a 409 error if an org with that name exists', function(done) {
             var options = { url: config.orgSvcUrl + '/org', json: mockOrg, jar: cookieJar };
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
@@ -594,6 +583,20 @@ describe('org (E2E):', function() {
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.adConfig).toEqual({ads: 'bad'});
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should throw a 409 if an org exists with the new name', function(done) {
+            var options = {
+                url: config.orgSvcUrl + '/org/o-1234',
+                jar: cookieJar,
+                json: { name: 'e2e-put2' }
+            };
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(409);
+                expect(resp.body).toBe('An object with that name already exists');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

@@ -1,5 +1,9 @@
 # Org Service Changelog
 
+###  1.3.2: Mon Jul 20 17:22:58 EDT 2015
+* [REFACTOR]: Re-write to use CrudSvc: [#458](https://github.com/cinema6/cwrx/pull/458)
+* Multi-get endpoint now returns 200: [] when no users are found instead of a 404: [#337](https://github.com/cinema6/cwrx/issues/337)
+
 ### 1.3.1: Wed Jun 24 18:09:44 EDT 2015
 * [FIX]: Cookie and session security improvements: [#423](https://github.com/cinema6/cwrx/pull/423)
 * Extra deployment steps:

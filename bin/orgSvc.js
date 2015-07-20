@@ -64,13 +64,9 @@
         svc.userPermQuery = orgModule.userPermQuery;
         svc.checkScope = orgModule.checkScope;
         
-        function checkAdConfig(updates, orig, requester) {
-            return svc.checkScope(requester, orig, 'editAdConfig');
-        }
-
         svc.createValidator._required.push('name');
-        svc.createValidator._condForbidden.adConfig = checkAdConfig;
-        svc.editValidator._condForbidden.adConfig = checkAdConfig;
+        svc.createValidator._condForbidden.adConfig = orgModule.checkAdConfig.bind(orgModule, svc);
+        svc.editValidator._condForbidden.adConfig = orgModule.checkAdConfig.bind(orgModule, svc);
         
         svc.use('read', svc.preventGetAll.bind(svc));
 
@@ -84,6 +80,11 @@
         svc.use('delete', orgModule.activeUserCheck.bind(orgModule, svc));
         
         return svc;
+    };
+    
+    // Check whether the requester can change the org's adConfig
+    orgModule.checkAdConfig = function(svc, updates, orig, requester) {
+        return svc.checkScope(requester, orig, 'editAdConfig');
     };
 
     
@@ -162,14 +163,13 @@
     
     orgModule.activeUserCheck = function(svc, req, next, done) {
         var log = logger.getLog(),
-            query = { org: req.params.id, status: { $ne: Status.Deleted } },
-            fields = { id: 1, status: 1 };
+            query = { org: req.params.id, status: { $ne: Status.Deleted } };
 
-        return q.npost(svc._userColl.find(query, fields), 'toArray')
-        .then(function(users) {
-            if (users.length > 0) {
+        return q.npost(svc._userColl.find(query), 'count')
+        .then(function(count) {
+            if (count > 0) {
                 log.info('[%1] Can\'t delete org %2 since it still has %3 active users',
-                         req.uuid, req.params.id, users.length);
+                         req.uuid, req.params.id, count);
                 return done({ code: 400, body: 'Org still has active users' });
             }
             
