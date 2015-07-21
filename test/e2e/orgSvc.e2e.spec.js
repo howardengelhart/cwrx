@@ -1,4 +1,5 @@
 var q               = require('q'),
+    util            = require('util'),
     request         = require('request'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
@@ -7,6 +8,8 @@ var q               = require('q'),
         orgSvcUrl  : 'http://' + (host === 'localhost' ? host + ':3700' : host) + '/api/account',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
+
+// TODO: double check tests in here; add in more for new functionality (e.g. editing org with existing name returns 409)
 
 describe('org (E2E):', function() {
     var cookieJar, noPermsJar, mockRequester, noPermsUser;
@@ -77,11 +80,9 @@ describe('org (E2E):', function() {
                 expect(resp.body.status).toBe('active');
                 expect(resp.body.waterfalls).toEqual({video: ['cinema6'], display: ['cinema6']});
                 expect(resp.response.headers['content-range']).not.toBeDefined();
-                done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
 
         it('should write an entry to the audit collection', function(done) {
@@ -101,21 +102,8 @@ describe('org (E2E):', function() {
                 expect(results[0].data).toEqual({route: 'GET /api/account/org/:id',
                                                  params: { id: 'o-1234' }, query: {} });
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
-        });
-
-        it('should get an org even when multiple with the same id exist', function(done) {
-            var options = { url: config.orgSvcUrl + '/org/o-1234', jar: cookieJar };
-            testUtils.resetCollection('orgs', [mockOrg, mockOrg2]).then(function() {
-                return requestUtils.qRequest('get', options);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                done();
-            }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
         });
 
         it('should not be able to get a deleted org', function(done) {
@@ -125,12 +113,10 @@ describe('org (E2E):', function() {
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toEqual('No orgs found');
-                done();
+                expect(resp.body).toEqual('Object not found');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
         
         it('should return a 404 if the requester cannot see the org', function(done) {
@@ -140,12 +126,10 @@ describe('org (E2E):', function() {
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toEqual('No orgs found');
-                done();
+                expect(resp.body).toEqual('Object not found');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
         
         it('should return a 404 if nothing is found', function(done) {
@@ -153,12 +137,10 @@ describe('org (E2E):', function() {
             requestUtils.qRequest('get', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('No orgs found');
-                done();
+                expect(resp.body).toBe('Object not found');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
         
         it('should throw a 401 error if the user is not authenticated', function(done) {
@@ -166,11 +148,9 @@ describe('org (E2E):', function() {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe("Unauthorized");
-                done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
     });
 
@@ -202,11 +182,9 @@ describe('org (E2E):', function() {
                 expect(resp.body[2].id).toBe('o-7890');
                 expect(resp.body[2].name).toBe('e2e-getOrg1');
                 expect(resp.response.headers['content-range']).toBe('items 1-3/3');
-                done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
 
         it('should write an entry to the audit collection', function(done) {
@@ -226,7 +204,7 @@ describe('org (E2E):', function() {
                 expect(results[0].data).toEqual({route: 'GET /api/account/orgs',
                                                  params: {}, query: { sort: 'id,1' } });
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -241,11 +219,9 @@ describe('org (E2E):', function() {
                 expect(resp.body[1]._id).not.toBeDefined();
                 expect(resp.body[1].id).toBe('o-4567');
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
-                done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
         
         it('should be able to sort and paginate the results', function(done) {
@@ -274,28 +250,24 @@ describe('org (E2E):', function() {
                 expect(resp.body[0].name).toBe('e2e-getOrg2');
                 expect(resp.body[0].password).not.toBeDefined();
                 expect(resp.response.headers['content-range']).toBe('items 2-2/3');
-                done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
 
-        it('should throw a 404 error if no orgs are found', function(done) {
+        it('should return a 200 and [] if nothing is found', function(done) {
            var options = { url: config.orgSvcUrl + '/orgs', jar: cookieJar };
             testUtils.resetCollection('orgs')
             .then(function(){
                 return requestUtils.qRequest('get', options);
             })
             .then(function(resp) {
-                expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toEqual('No orgs found');
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([]);
                 expect(resp.response.headers['content-range']).toBe('items 0-0/0');
-                done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
 
         it('should not allow non-admins to get all orgs', function(done) {
@@ -304,11 +276,9 @@ describe('org (E2E):', function() {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Not authorized to read all orgs');
                 expect(resp.response.headers['content-range']).not.toBeDefined();
-                done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
         
         it('should allow non-admins to see their own org', function(done) {
@@ -319,11 +289,9 @@ describe('org (E2E):', function() {
                 expect(resp.body[0]._id).not.toBeDefined();
                 expect(resp.body[0].id).toBe('o-1234');
                 expect(resp.response.headers['content-range']).toBe('items 1-1/1');
-                done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
 
         it('should throw a 401 error if the user is not authenticated', function(done) {
@@ -331,11 +299,9 @@ describe('org (E2E):', function() {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe("Unauthorized");
-                done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
     });
 
@@ -362,11 +328,9 @@ describe('org (E2E):', function() {
                 expect(newOrg.status).toBe('active');
                 expect(newOrg.waterfalls).toEqual({video: ['cinema6'], display: ['cinema6']});
                 expect(newOrg.config).toEqual({});
-                done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
 
         it('should write an entry to the audit collection', function(done) {
@@ -386,7 +350,7 @@ describe('org (E2E):', function() {
                 expect(results[0].data).toEqual({route: 'POST /api/account/org',
                                                  params: {}, query: {} });
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -402,11 +366,9 @@ describe('org (E2E):', function() {
                 expect(newOrg.status).toBe('pending');
                 expect(newOrg.waterfalls).toEqual({video: ['cinema6'], display: ['cinema6']});
                 expect(newOrg.config).toEqual({foo: 'bar'});
-                done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
 
         it('should throw a 400 error when trying to set forbidden properties', function(done) {
@@ -415,31 +377,27 @@ describe('org (E2E):', function() {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Invalid request body');
-                done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
 
         it('should throw a 400 error if the body is missing or incomplete', function(done) {
             var options = { url: config.orgSvcUrl + '/org', jar: cookieJar};
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('You must provide an object in the body');
+                expect(resp.body).toBe('Invalid request body');
                 options.json = { tag: 'foo' };
                 return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('New org object must have a name');
-                done();
+                expect(resp.body).toBe('Invalid request body');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
 
-        it('should throw a 409 error if a user with that name exists', function(done) {
+        it('should throw a 409 error if an org with that name exists', function(done) {
             var options = { url: config.orgSvcUrl + '/org', json: mockOrg, jar: cookieJar };
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
@@ -447,12 +405,10 @@ describe('org (E2E):', function() {
                 return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(409);
-                expect(resp.body).toBe('An org with that name already exists');
-                done();
+                expect(resp.body).toBe('An object with that name already exists');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
 
         it('should throw a 403 error if the user is not authenticated for creating orgs', function(done) {
@@ -460,11 +416,9 @@ describe('org (E2E):', function() {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe("Not authorized to create orgs");
-                done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
 
         it('should only allow the adConfig to be set by users with permission', function(done) {
@@ -475,13 +429,11 @@ describe('org (E2E):', function() {
             })).then(function(results) {
                 expect(results[0].response.statusCode).toBe(201);
                 expect(results[0].body.adConfig).toEqual({ads: 'good'});
-                expect(results[1].response.statusCode).toBe(403);
-                expect(results[1].body).toBe('Not authorized to create orgs');
-                done();
+                expect(results[1].response.statusCode).toBe(400);
+                expect(results[1].body).toBe('Invalid request body');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
 
         it('should throw a 401 error if the user is not authenticated', function(done) {
@@ -489,11 +441,9 @@ describe('org (E2E):', function() {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe("Unauthorized");
-                done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
 
     });
@@ -541,11 +491,9 @@ describe('org (E2E):', function() {
                 expect(org.adConfig).toEqual({ads: 'good'});
                 expect(org.waterfalls).toEqual({video: ['cinema6'], display: ['cinema6']});
                 expect(new Date(org.lastUpdated)).toBeGreaterThan(new Date(org.created));
-                done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
 
         it('should write an entry to the audit collection', function(done) {
@@ -565,7 +513,7 @@ describe('org (E2E):', function() {
                 expect(results[0].data).toEqual({route: 'PUT /api/account/org/:id',
                                                  params: { id: 'o-1234' }, query: {} });
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -577,12 +525,10 @@ describe('org (E2E):', function() {
             };
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('That org does not exist');
-                done();
+                expect(resp.body).toBe('That does not exist');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
         
         it('should throw a 403 if the requester is not authorized to edit the org', function(done) {
@@ -593,12 +539,10 @@ describe('org (E2E):', function() {
             };
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
-                expect(resp.body).toBe('Not authorized to edit this org');
-                done();
+                expect(resp.body).toBe('Not authorized to edit this');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
 
         it('should not let users edit orgs\' adConfig if they lack permission', function(done) {
@@ -608,13 +552,11 @@ describe('org (E2E):', function() {
                 json: { adConfig: { ads: 'bad' } }
             };
             requestUtils.qRequest('put', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(403);
-                expect(resp.body).toBe('Not authorized to edit adConfig of this org');
-                done();
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Invalid request body');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
 
         it('should allow the edit if the adConfig is unchanged', function(done) {
@@ -627,11 +569,9 @@ describe('org (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.adConfig).toEqual({ads: 'good'});
                 expect(resp.body.updated).toBe(true);
-                done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
         
         it('should let users edit owned orgs\' adConfig if they have permission', function(done) {
@@ -643,11 +583,23 @@ describe('org (E2E):', function() {
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.adConfig).toEqual({ads: 'bad'});
-                done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should throw a 409 if an org exists with the new name', function(done) {
+            var options = {
+                url: config.orgSvcUrl + '/org/o-1234',
+                jar: cookieJar,
+                json: { name: 'e2e-put2' }
+            };
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(409);
+                expect(resp.body).toBe('An object with that name already exists');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
 
         it('should throw a 400 if any of the update fields are illegal', function(done) {
@@ -659,11 +611,9 @@ describe('org (E2E):', function() {
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Invalid request body');
-                done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
     
         it('should throw a 401 error if the user is not authenticated', function(done) {
@@ -671,11 +621,9 @@ describe('org (E2E):', function() {
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
-                done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
     });
 
@@ -703,12 +651,10 @@ describe('org (E2E):', function() {
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('No orgs found');
-                done();
+                expect(resp.body).toBe('Object not found');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
 
         it('should write an entry to the audit collection', function(done) {
@@ -728,7 +674,7 @@ describe('org (E2E):', function() {
                 expect(results[0].data).toEqual({route: 'DELETE /api/account/org/:id',
                                                  params: { id: 'org1' }, query: {} });
             }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
         
@@ -737,11 +683,9 @@ describe('org (E2E):', function() {
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
-                done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
         
         it('should still succeed if the org has already been deleted', function(done) {
@@ -754,11 +698,9 @@ describe('org (E2E):', function() {
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
-                done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
         
         it('should not allow a user to delete their own org', function(done) {
@@ -771,23 +713,19 @@ describe('org (E2E):', function() {
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.status).toBe('active');
-                done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
         
         it('should throw a 403 if the requester is not authorized to delete the org', function(done) {
             var options = { url: config.orgSvcUrl + '/org/org2', jar: noPermsJar };
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
-                expect(resp.body).toBe('Not authorized to delete this org');
-                done();
+                expect(resp.body).toBe('Not authorized to delete this');
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
         
         it('should prevent deleting an org with active users', function(done) {
@@ -826,7 +764,7 @@ describe('org (E2E):', function() {
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('No orgs found');
+                expect(resp.body).toBe('Object not found');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
@@ -837,11 +775,9 @@ describe('org (E2E):', function() {
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe("Unauthorized");
-                done();
             }).catch(function(error) {
-                expect(error).not.toBeDefined();
-                done();
-            });
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
     });
 });
