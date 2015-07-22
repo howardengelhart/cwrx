@@ -135,7 +135,7 @@
             caches[key] = new QueryCache(ttls.freshTTL, ttls.maxTTL, collections[key]);
         });
 
-        authUtils._coll = collections.users;
+        authUtils._db = state.dbs.c6Db;
         cardSvc = cardModule.setupCardSvc(collections.cards, caches.cards);
         catSvc = catModule.setupCatSvc(collections.categories);
 
@@ -170,7 +170,7 @@
             
             cardSvc._coll = collections.cards;
             catSvc._coll = collections.categories;
-            authUtils._coll = collections.users;
+            authUtils._db = state.dbs.c6Db;
             log.info('Recreated collections from restarted c6Db');
         });
 

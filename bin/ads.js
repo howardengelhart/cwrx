@@ -100,7 +100,6 @@
         log.info('Running as cluster worker, proceed with setting up web server.');
 
         var app          = express(),
-            users        = state.dbs.c6Db.collection('users'),
             jobManager   = new JobManager(state.cache, state.config.jobTimeouts),
             advertSvc    = advertModule.setupSvc(state.dbs.c6Db.collection('advertisers')),
             custSvc      = custModule.setupSvc(state.dbs.c6Db),
@@ -109,7 +108,7 @@
             siteSvc      = siteModule.setupSvc(state.dbs.c6Db.collection('sites')),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
-        authUtils._coll = users;
+        authUtils._db = state.dbs.c6Db;
 
         var sessionOpts = {
             key: state.config.sessions.key,
@@ -134,9 +133,8 @@
         var audit = auditJournal.middleware.bind(auditJournal);
 
         state.dbStatus.c6Db.on('reconnected', function() {
-            users = state.dbs.c6Db.collection('users');
-
-            authUtils._coll = users;
+            authUtils._db = state.dbs.c6Db;
+            //TODO: should we fix all the collections for svcs here?
             log.info('Recreated collections from restarted c6Db');
         });
         

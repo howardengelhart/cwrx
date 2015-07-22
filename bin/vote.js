@@ -542,13 +542,12 @@
         log.info('Running as cluster worker, proceed with setting up web server.');
         
         var elections    = state.dbs.voteDb.collection('elections'),
-            users        = state.dbs.c6Db.collection('users'),
             elDb         = new ElectionDb(elections, state.config.idleSyncTimeout),
             started      = new Date(),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName),
             webServer    = express();
-        authUtils._coll = users;
+        authUtils._db = state.dbs.c6Db;
         
 
         state.onSIGTERM = function(){
@@ -581,8 +580,7 @@
         var audit = auditJournal.middleware.bind(auditJournal);
 
         state.dbStatus.c6Db.on('reconnected', function() {
-            users = state.dbs.c6Db.collection('users');
-            authUtils._coll = users;
+            authUtils._db = state.dbs.c6Db;
             log.info('Recreated collections from restarted c6Db');
         });
 

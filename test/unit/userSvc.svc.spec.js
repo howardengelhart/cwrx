@@ -9,7 +9,7 @@ describe('userSvc (UT)', function() {
         uuid            = require('../../lib/uuid');
         logger          = require('../../lib/logger');
         bcrypt          = require('bcrypt');
-        userModule      = require('../../bin/userSvc');
+        userModule      = require('../../bin/userSvc-users');
         FieldValidator  = require('../../lib/fieldValidator');
         mongoUtils      = require('../../lib/mongoUtils');
         objUtils        = require('../../lib/objUtils');

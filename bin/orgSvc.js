@@ -193,7 +193,7 @@
             orgSvc       = orgModule.setupSvc(orgs, users),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
-        authUtils._coll = users;
+        authUtils._db = state.dbs.c6Db;
         
         var sessionOpts = {
             key: state.config.sessions.key,
@@ -222,7 +222,7 @@
             orgs  = state.dbs.c6Db.collection('orgs');
             orgSvc._coll = orgs;
             orgSvc._userColl = users;
-            authUtils._coll = users;
+            authUtils._db = state.dbs.c6Db;
             log.info('Recreated collections from restarted c6Db');
         });
         

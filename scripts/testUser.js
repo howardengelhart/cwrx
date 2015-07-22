@@ -14,6 +14,8 @@ var q           = require('q'),
         'experiences',
         'minireelGroups',
         'orgs',
+        'policies',
+        'roles',
         'sites',
         'users'
     ];
@@ -30,7 +32,7 @@ program
     .option('-p, --perms [PERMS]', 'List of object names to give user permissions for', 'all')
     .parse(process.argv);
 
-var db, coll;
+var db, userColl;
 
 program.email = program.email.toLowerCase();
 
@@ -39,9 +41,9 @@ console.log('Connecting to mongo at', program.dbHost, ':', program.dbPort);
 mongoUtils.connect(program.dbHost, program.dbPort, 'c6Db', program.dbUser, program.dbPass)
 .then(function(database) {
     db = database;
-    coll = db.collection('users');
+    userColl = db.collection('users');
     
-    return q.npost(coll, 'findOne', [{ $or: [{id: program.id}, {email: program.email}] }])
+    return q.npost(userColl, 'findOne', [{ $or: [{id: program.id}, {email: program.email}] }])
     .then(function(existing) {
         if (existing) {
             throw new Error('A user already exists with id ' + program.id + ' or email ' + program.email);
@@ -55,20 +57,35 @@ mongoUtils.connect(program.dbHost, program.dbPort, 'c6Db', program.dbUser, progr
         
         console.log('New user will have full admin priviledges over:', userPerms.join(','));
         
-        var newUser = {
-            id: program.id,
+        var policy = {
+            id: 'p-testAdmin',
+            name: 'testFullAdmin',
             created: new Date(),
-            email: program.email,
-            password: hashPass,
+            lastUpdated: new Date(),
             status: 'active',
             permissions: {}
         };
         
         userPerms.forEach(function(key) {
-            newUser.permissions[key] = { read: 'all', create: 'all', edit: 'all', delete: 'all' };
+            policy.permissions[key] = { read: 'all', create: 'all', edit: 'all', delete: 'all' };
         });
+
+        return q.npost(db.collection('policies'), 'findAndModify', [{id: 'p-testAdmin'}, {id: 1}, policy,
+                                                                    {w: 1, journal: true, new: true, upsert: true}]);
+    }).then(function(policy) {
+        console.log('Created/updated policy p-testAdmin');
         
-        return q.npost(coll, 'insert', [mongoUtils.escapeKeys(newUser), {w: 1, journal: true}]);
+        var newUser = {
+            id: program.id,
+            created: new Date(),
+            lastUpdated: new Date(),
+            email: program.email,
+            password: hashPass,
+            status: 'active',
+            policies: ['p-testAdmin']
+        };
+        
+        return q.npost(userColl, 'insert', [mongoUtils.escapeKeys(newUser), {w: 1, journal: true}]);
     })
     .then(function() {
         console.log('Successfully created user', program.id);
