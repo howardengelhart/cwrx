@@ -9,7 +9,10 @@
 
     roleModule.setupSvc = function setupSvc(collection) {
         var roleSvc = new CrudSvc(collection, 'ro', { userProp: false, orgProp: false });
-
+        
+        //TODO: interesting perm questions: what roles can you edit? what policies can you pass?
+        
+        
         return roleSvc;
     };
 

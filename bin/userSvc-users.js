@@ -18,13 +18,9 @@
         userModule  = {};
 
 
-    function isObject(value) {
-        return Object(value) === value;
-    }
-
     function withDefaults(object, defaults) {
         return Object.keys(defaults).reduce(function(object, key) {
-            if (isObject(object[key]) && isObject(defaults[key])) {
+            if (objUtils.isPOJO(object[key]) && objUtils.isPOJO(defaults[key])) {
                 withDefaults(object[key], defaults[key]);
             } else if (!(key in object)) {
                 object[key] = defaults[key];

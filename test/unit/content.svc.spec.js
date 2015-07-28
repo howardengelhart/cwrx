@@ -1,7 +1,7 @@
 var flush = true;
 describe('content (UT)', function() {
     var mockLog, experiences, uuid, logger, expModule, q, objUtils,
-        mongoUtils, enums, Status, Scope, Access, req;
+        mongoUtils, enums, Status, Scope, req;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -13,7 +13,6 @@ describe('content (UT)', function() {
         objUtils        = require('../../lib/objUtils');
         enums           = require('../../lib/enums');
         Status          = enums.Status;
-        Access          = enums.Access;
         Scope           = enums.Scope;
 
         mockLog = {
@@ -412,7 +411,7 @@ describe('content (UT)', function() {
     describe('createExperience', function() {
         beforeEach(function() {
             req.body = { tag: 'fakeExp', data: { foo: 'bar' }, user: 'u-1', org: 'o-1',
-                         status: Status.Active, access: Access.Private };
+                         status: Status.Active, access: 'private' };
             req.user = {id: 'u-1234', org: 'o-1234', email: 'otter'};
             experiences.insert = jasmine.createSpy('experiences.insert')
                 .andCallFake(function(obj, opts, cb) { cb(); });
@@ -446,7 +445,7 @@ describe('content (UT)', function() {
                 expect(resp.body.user).toBe('u-1');
                 expect(resp.body.org).toBe('o-1');
                 expect(resp.body.status).toBe(Status.Active);
-                expect(resp.body.access).toBe(Access.Private);
+                expect(resp.body.access).toBe('private');
                 expect(expModule.createValidator.validate).toHaveBeenCalledWith(req.body, {}, req.user);
                 expect(experiences.insert).toHaveBeenCalled();
                 expect(experiences.insert.calls[0].args[0].data[0]).toEqual({user:'otter',userId:'u-1234',
@@ -471,7 +470,7 @@ describe('content (UT)', function() {
                 expect(resp.body.user).toBe('u-1234');
                 expect(resp.body.org).toBe('o-1234');
                 expect(resp.body.status).toBe(Status.Pending);
-                expect(resp.body.access).toBe(Access.Public);
+                expect(resp.body.access).toBe('public');
                 expect(experiences.insert.calls[0].args[0].data[0]).toEqual({user:'otter',userId:'u-1234',
                     date:jasmine.any(Date),versionId:'fakeVers',data:{}});
             }).catch(function(error) {

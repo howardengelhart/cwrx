@@ -9,6 +9,8 @@
 
     polModule.setupSvc = function setupSvc(collection) {
         var svc = new CrudSvc(collection, 'p', { userProp: false, orgProp: false });
+        
+        //TODO: how will perms work? only create policies with stuff you have or something?
 
         return svc;
     };

@@ -9,8 +9,6 @@ var q               = require('q'),
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
 
-// TODO: double check tests in here; add in more for new functionality (e.g. editing org with existing name returns 409)
-
 describe('org (E2E):', function() {
     var cookieJar, noPermsJar, mockRequester, noPermsUser;
         

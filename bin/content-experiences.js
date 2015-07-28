@@ -13,7 +13,6 @@
         enums           = require('../lib/enums'),
         url             = require('url'),
         Status          = enums.Status,
-        Access          = enums.Access,
         Scope           = enums.Scope,
 
         expModule = { brandCache: {} };
@@ -95,7 +94,7 @@
 
         return exp.status !== Status.Deleted &&
                !!( (exp.status === Status.Active && !isC6Origin)                    ||
-                   (exp.access === Access.Public && isC6Origin)                     ||
+                   (exp.access === 'public' && isC6Origin)                          ||
                    expModule.checkScope(user, exp, 'experiences', 'read')             ||
                    (user.applications && user.applications.indexOf(exp.id) >= 0)    );
     };
@@ -124,7 +123,7 @@
 
         if (newQuery.$or) { // additional conditions where non-admins may be able to get exps
             if (isC6Origin) {
-                newQuery.$or.push({access: Access.Public});
+                newQuery.$or.push({access: 'public'});
             } else {
                 newQuery.$or.push({'status.0.status': Status.Active});
             }
@@ -523,7 +522,7 @@
         }
         obj.status = [ { user: user.email, userId: user.id, date: now, status: obj.status } ];
         if (!obj.access) {
-            obj.access = Access.Public;
+            obj.access = 'public';
         }
         obj.data = obj.data || {};
 
