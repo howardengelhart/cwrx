@@ -6,6 +6,18 @@ describe('objUtils', function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         objUtils = require('../../lib/objUtils');
     });
+    
+    describe('isPOJO', function() {
+        it('should only return true if the val is a plain old javascript object', function() {
+            expect(objUtils.isPOJO(undefined)).toBe(false);
+            expect(objUtils.isPOJO(null)).toBe(false);
+            expect(objUtils.isPOJO(123)).toBe(false);
+            expect(objUtils.isPOJO('asdf')).toBe(false);
+            expect(objUtils.isPOJO(new Date())).toBe(false);
+            expect(objUtils.isPOJO([1, 2, 3])).toBe(false);
+            expect(objUtils.isPOJO({ foo: 'bar' })).toBe(true);
+        });
+    });
    
     describe('sortObject', function() {
         it('should simply return the obj if not an object', function() {
@@ -90,6 +102,8 @@ describe('objUtils', function() {
                 
             expect(objUtils.extend(orig, newObj)).toBe(orig);
             expect(orig).toEqual({a: 1, b: null, c: 'bar', d: { foo: 'bar' } });
+            expect(orig).not.toBe(newObj);
+            expect(orig.d).not.toBe(newObj.d);
         });
         
         it('should handle either param being a non-object', function() {
@@ -99,6 +113,33 @@ describe('objUtils', function() {
             expect(obj).toEqual({foo: 'bar'});
 
             expect(objUtils.extend(null, {foo: 'baz'})).toBe(null);
+        });
+        
+        it('should handle dates properly', function() {
+            var orig = { a: new Date('2015-08-03T14:58:50.479Z'), b: {} },
+                newObj = { a: 'asdf', b: { c: 'foo', d: new Date('2015-08-03T14:55:22.236Z') } };
+                
+            expect(objUtils.extend(orig, newObj)).toBe(orig);
+            expect(orig).toEqual({ a: new Date('2015-08-03T14:58:50.479Z'), b: { c: 'foo', d: new Date('2015-08-03T14:55:22.236Z') } });
+        });
+        
+        it('should handle other instantiated classes properly', function() {
+            var events = require('events'),
+                orig = {},
+                newObj = { e: new events.EventEmitter() };
+            
+            expect(objUtils.extend(orig, newObj)).toBe(orig);
+            expect(orig).toEqual({ e: jasmine.any(events.EventEmitter) });
+            expect(orig.e).not.toBe(newObj.e);
+        });
+        
+        it('should handle arrays properly', function() {
+            var orig = { a: [10, 11], b: {}, d: [{ foo: 'bar' }] },
+                newObj = { a: [20, 21, 22], b: { c: [31, 32] }, d: [{ foo: 'baz', blah: 'bloop' }] };
+                
+            expect(objUtils.extend(orig, newObj)).toBe(orig);
+            expect(orig).toEqual({ a: [10, 11, 22], b: { c: [31, 32] }, d: [{ foo: 'bar', blah: 'bloop' }] });
+            expect(orig.b.c).not.toBe(newObj.b.c);
         });
     });
 });

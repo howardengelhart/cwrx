@@ -67,9 +67,9 @@
         log.info('Running as cluster worker, proceed with setting up web server.');
 
         var app          = express(),
-            userSvc      = userModule.setupSvc(state.dbs.c6Db.collection('users')),
-            roleSvc      = roleModule.setupSvc(state.dbs.c6Db.collection('roles')),
-            polSvc       = polModule.setupSvc(state.dbs.c6Db.collection('policies')),
+            userSvc      = userModule.setupSvc(state.dbs.c6Db),
+            roleSvc      = roleModule.setupSvc(state.dbs.c6Db),
+            polSvc       = polModule.setupSvc(state.dbs.c6Db),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._db = state.dbs.c6Db;
@@ -101,6 +101,11 @@
 
         state.dbStatus.c6Db.on('reconnected', function() {
             authUtils._db = state.dbs.c6Db;
+            polSvc._db = state.dbs.c6Db;
+            roleSvc._db = state.dbs.c6Db;
+            userSvc._db = state.dbs.c6Db;
+            polSvc._coll = state.dbs.c6Db.collection('policies');
+            roleSvc._coll = state.dbs.c6Db.collection('roles');
             userSvc._coll = state.dbs.c6Db.collection('users');
             log.info('Recreated collections from restarted c6Db');
         });

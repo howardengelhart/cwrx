@@ -12,10 +12,55 @@
         CrudSvc         = require('../lib/crudSvc.js'),
         email           = require('../lib/email'),
         enums           = require('../lib/enums'),
+        AccessLevel     = enums.AccessLevel,
         Status          = enums.Status,
         Scope           = enums.Scope,
 
         userModule  = {};
+        
+    userModule.userSchema = {
+        applications: {
+            _accessLevel: AccessLevel.Forbidden,
+            _type: ['string']
+        },
+        //TODO: type?
+        email: {
+            _accessLevel: AccessLevel.Allowed,
+            _type: 'string',
+            _actions: ['create'],
+            _required: true,
+            _locked: true
+        },
+        password: {
+            _accessLevel: AccessLevel.Allowed,
+            _type: 'string',
+            _actions: ['create'],
+            _required: true,
+            _locked: true
+        },
+        permissions: {
+            _accessLevel: AccessLevel.Forbidden,
+            _locked: true
+        },
+        fieldValidation: {
+            _accessLevel: AccessLevel.Forbidden,
+            _locked: true
+        },
+        entitlements: {
+            _accessLevel: AccessLevel.Forbidden,
+            _locked: true
+        },
+        policies: {
+            _accessLevel: AccessLevel.Forbidden,
+            _type: ['string'],
+            _acceptableValues: [] //TODO: rename? also double check this is merged properly
+        },
+        roles: {
+            _accessLevel: AccessLevel.Forbidden,
+            _type: ['string'],
+            _acceptableValues: []
+        }
+    };
 
 
     function withDefaults(object, defaults) {
@@ -30,8 +75,10 @@
         }, object);
     }
 
-    userModule.setupSvc = function setupSvc(collection) {
-        var userSvc = new CrudSvc(collection, 'u', { userProp: false });
+    userModule.setupSvc = function setupSvc(db) {
+        var userSvc = new CrudSvc(db.collection('users'), 'u', { userProp: false });
+        
+        userSvc._db = db;
 
         var preventGetAll = userSvc.preventGetAll.bind(userSvc);
         var hashPassword = userModule.hashProp.bind(userModule, 'password');
@@ -48,14 +95,6 @@
         userSvc.checkScope = userModule.checkScope;
         userSvc.userPermQuery = userModule.userPermQuery;
         
-        //TODO: will need to prevent setting permissions, fieldValidation, and entitlements
-
-        userSvc.editValidator._forbidden.push('email', 'password');
-        userSvc.editValidator._condForbidden.permissions = userModule.permsCheck;
-
-        userSvc.createValidator._required.push('email', 'password');
-        userSvc.createValidator._condForbidden.permissions = userModule.permsCheck;
-
         userSvc.use('create', hashPassword);
         userSvc.use('create', setupUser);
         userSvc.use('create', validateUniqueEmail);
@@ -105,41 +144,6 @@
         return newQuery;
     };
 
-    // make sure requester can't edit own perms or set perms that are greater than their own
-    userModule.permsCheck = function permsCheck(updates, orig, requester) {
-        var log = logger.getLog();
-
-        if (objUtils.compareObjects(updates.permissions, requester.permissions)) {
-            return true;
-        }
-
-        if (!requester.permissions) {
-            log.trace('Requester has no permissions');
-            return false;
-        }
-        if (orig.id && (orig.id === requester.id)) {
-            log.trace('Requester trying to change own permissions');
-            return false;
-        }
-
-        return Object.keys(updates.permissions).every(function(key) {
-            if (!requester.permissions[key]) {
-                log.trace('Can\'t set perms for %1 since requester has no perms for %1', key);
-                return false;
-            }
-            var updateObj = updates.permissions[key];
-            var requesterObj = requester.permissions[key];
-            return Object.keys(updates.permissions[key]).every(function(verb) {
-                if (Scope.compare(updateObj[verb], requesterObj[verb]) > 0) {
-                    log.trace('Can\'t set perm %1: %2: %3 when requester has %1: %2: %4',
-                              key, verb, updateObj[verb], requesterObj[verb]);
-                    return false;
-                }
-                return true;
-            });
-        });
-    };
-
     // Used as middleware when creating a user to encrypt their password before storing
     // it in the DB
     userModule.hashProp = function hashPassword(prop, req, next, done) {
@@ -162,37 +166,30 @@
     // middleware when creating a user.
     userModule.setupUser = function setupUser(req, next) {
         var newUser = req.body;
+        
+        /*TODO: default role should have a policy that looks like this:
+        permissions: {
+            users: {
+                read: 'org',
+                edit: 'own'
+            },
+            orgs: {
+                read: 'own'
+            }
+        }
+        */
 
         withDefaults(newUser, {
-            applications: ['e-51ae37625cb57f'], // Minireelinator
-            type: 'Publisher',
+            applications: [], //TODO: double check it's ok not to include Minireelinator by default
+            type: 'Publisher', //TODO: revisit
             config: {},
-            permissions: {
-                elections: {
-                    read: Scope.Org,
-                    create: Scope.Org,
-                    edit: Scope.Org,
-                    delete: Scope.Org
-                },
-                experiences: {
-                    read: Scope.Org,
-                    create: Scope.Org,
-                    edit: Scope.Org,
-                    delete: Scope.Org
-                },
-                users: {
-                    read: Scope.Org,
-                    edit: Scope.Own
-                },
-                orgs: {
-                    read: Scope.Own,
-                    edit: Scope.Own
-                },
-                sites: {
-                    read: Scope.Org
-                }
-            }
+            roles: [],
+            policices: []
         });
+        
+        if (!newUser.roles.indexOf('base')) {
+            newUser.roles.push('base');
+        }
 
         newUser.email = newUser.email.toLowerCase();
 
@@ -323,11 +320,7 @@
         var log = logger.getLog();
         var requester = req.user;
 
-        if (!(requester.permissions &&
-              requester.permissions.users &&
-              requester.permissions.users.edit &&
-              requester.permissions.users.edit === Scope.All)) {
-
+        if (!requester.entitlements && !requester.entitlements.logoutUsers) { //TODO: document
             log.info('[%1] User %2 not authorized to force logout users', req.uuid, requester.id);
             return done({ code: 403, body: 'Not authorized to force logout users' });
         }

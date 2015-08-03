@@ -2,17 +2,122 @@
     'use strict';
 
     var express         = require('express'),
+        q               = require('q'),
+        logger          = require('../lib/logger'),
         authUtils       = require('../lib/authUtils'),
         CrudSvc         = require('../lib/crudSvc.js'),
+        enums           = require('../lib/enums'),
+        AccessLevel     = enums.AccesLevel,
+        Status          = enums.Status,
 
-        polModule  = {};
+        polModule = {};
 
-    polModule.setupSvc = function setupSvc(collection) {
-        var svc = new CrudSvc(collection, 'p', { userProp: false, orgProp: false });
+    var allEntities = [ //TODO: comment, should this be configurable?
+        'advertisers',
+        'campaigns',
+        'cards',
+        'categories',
+        'customers',
+        'elections',
+        'experiences',
+        'minireelGroups',
+        'orgs',
+        'policies',
+        'roles',
+        'sites',
+        'users'
+    ];
         
-        //TODO: how will perms work? only create policies with stuff you have or something?
+    polModule.policySchema = {
+        name: {
+            _accessLevel: AccessLevel.Allowed,
+            _type: 'string',
+            _actions: ['create'],
+            _required: true
+        },
+        createdBy: {
+            _accessLevel: AccessLevel.Forbidden,
+            _type: 'string'
+        },
+        lastUpdatedBy: {
+            _accessLevel: AccessLevel.Forbidden,
+            _type: 'string'
+        },
+        permissions: allEntities.reduce(function(schemaObj, objName) { //TODO: comment
+            schemaObj[objName] = {
+                _accessLevel: AccessLevel.Forbidden,
+                _type: 'object'
+            };
+            
+            return schemaObj;
+        }, {}),
+        fieldValidation: allEntities.reduce(function(schemaObj, objName) {
+            schemaObj[objName] = {
+                _accessLevel: AccessLevel.Forbidden,
+                _type: 'object'
+            };
+            
+            return schemaObj;
+        }, {}),
+        entitlements: {
+            _accessLevel: AccessLevel.Forbidden
+        }
+    };
+
+    polModule.setupSvc = function setupSvc(db) {
+        var opts = { userProp: false, orgProp: false },
+            svc = new CrudSvc(db.collection('policies'), 'p', opts, polModule.policySchema);
+        
+        svc._db = db;
+        
+        var validateUniqueName = svc.validateUniqueProp.bind(svc, 'name', /^\w+$/);
+        
+        //TODO: do additional validation on format of permissions, fieldVal, and entitlements?
+        
+        svc.use('create', validateUniqueName);
+        svc.use('create', polModule.setUserTrackProps);
+
+        svc.use('edit', validateUniqueName);
+        svc.use('edit', polModule.setUserTrackProps);
+        
+        svc.use('delete', polModule.checkPolicyInUse.bind(polModule, svc));
 
         return svc;
+    };
+
+
+    polModule.setUserTrackProps = function(req, next/*, done*/) { //TODO: rename. move to crudSvc?
+        if (!req.origObj) {
+            req.body.createdBy = req.user.id;
+        }
+        
+        req.body.lastUpdatedBy = req.user.id;
+        
+        return next();
+    };
+
+
+    polModule.checkPolicyInUse = function(svc, req, next, done) { //TODO: rename
+        var log = logger.getLog(),
+            query = { policies: req.origObj.name, status: { $ne: Status.Deleted } };
+        
+        return q.all([
+            q.npost(svc._db.collection('roles'), 'count', [query]),
+            q.npost(svc._db.collection('users'), 'count', [query])
+        ]).spread(function(roleCount, userCount) {
+            if (roleCount + userCount > 0) {
+                log.info('[%1] Policy %2 still used by %3 roles and %4 users',
+                         req.uuid, req.origObj.name, roleCount, userCount);
+
+                return done({ code: 400, body: 'Policy still in use by users or roles' });
+            }
+            
+            next();
+        })
+        .catch(function(error) {
+            log.error('[%1] Failed querying for roles and users: %2', req.uuid, error);
+            return q.reject(new Error('Mongo error'));
+        });
     };
 
     
