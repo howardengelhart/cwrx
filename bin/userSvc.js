@@ -17,8 +17,7 @@
         roleModule      = require('./userSvc-roles'),
         polModule       = require('./userSvc-policies'),
 
-        state = {},
-        svc = {}; //TODO: feels wrong man
+        state = {};
 
     // This is the template for the service's configuration
     state.defaultConfig = {
@@ -57,7 +56,7 @@
         }
     };
 
-    svc.main = function(state) {
+    var main = function(state) {
         var log = logger.getLog(),
             started = new Date();
         if (state.clusterMaster){
@@ -148,7 +147,6 @@
 
         app.use(bodyParser.json());
 
-        //TODO: these endpoints are kinda weird if service used for other things...
         app.get('/api/account/user/meta', function(req, res){
             var data = {
                 version: state.config.appVersion,
@@ -196,7 +194,7 @@
         .then(service.cluster)
         .then(service.initMongo)
         .then(service.initSessionStore)
-        .then(svc.main)
+        .then(main)
         .catch(function(err) {
             var log = logger.getLog();
             console.log(err.message || err);
@@ -210,6 +208,6 @@
             log.info('ready to serve');
         });
     } else {
-        module.exports = svc;
+        module.exports = { main: main };
     }
 }());

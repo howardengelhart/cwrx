@@ -7,12 +7,14 @@
         authUtils       = require('../lib/authUtils'),
         CrudSvc         = require('../lib/crudSvc.js'),
         enums           = require('../lib/enums'),
-        AccessLevel     = enums.AccesLevel,
+        AccessLevel     = enums.AccessLevel,
         Status          = enums.Status,
+        Scope           = enums.Scope,
 
         polModule = {};
 
-    var allEntities = [ //TODO: comment, should this be configurable?
+    // list of all entity names, used for validating permissions and fieldValidations props
+    var allEntities = [
         'advertisers',
         'campaigns',
         'cards',
@@ -27,12 +29,12 @@
         'sites',
         'users'
     ];
-        
+
     polModule.policySchema = {
         name: {
             _accessLevel: AccessLevel.Allowed,
             _type: 'string',
-            _actions: ['create'],
+            _createOnly: true,
             _required: true
         },
         createdBy: {
@@ -43,14 +45,14 @@
             _accessLevel: AccessLevel.Forbidden,
             _type: 'string'
         },
-        permissions: allEntities.reduce(function(schemaObj, objName) { //TODO: comment
+        permissions: allEntities.reduce(function(schemaObj, objName) {
             schemaObj[objName] = {
                 _accessLevel: AccessLevel.Forbidden,
                 _type: 'object'
             };
             
             return schemaObj;
-        }, {}),
+        }, { _type: 'object' }),
         fieldValidation: allEntities.reduce(function(schemaObj, objName) {
             schemaObj[objName] = {
                 _accessLevel: AccessLevel.Forbidden,
@@ -58,13 +60,14 @@
             };
             
             return schemaObj;
-        }, {}),
+        }, { _type: 'object' }),
         entitlements: {
-            _accessLevel: AccessLevel.Forbidden
+            _accessLevel: AccessLevel.Forbidden,
+            _type: 'object'
         }
     };
 
-    polModule.setupSvc = function setupSvc(db) {
+    polModule.setupSvc = function(db) {
         var opts = { userProp: false, orgProp: false },
             svc = new CrudSvc(db.collection('policies'), 'p', opts, polModule.policySchema);
         
@@ -72,13 +75,13 @@
         
         var validateUniqueName = svc.validateUniqueProp.bind(svc, 'name', /^\w+$/);
         
-        //TODO: do additional validation on format of permissions, fieldVal, and entitlements?
-        
         svc.use('create', validateUniqueName);
-        svc.use('create', polModule.setUserTrackProps);
+        svc.use('create', polModule.setChangeTrackProps);
+        svc.use('create', polModule.validatePermissions);
 
         svc.use('edit', validateUniqueName);
-        svc.use('edit', polModule.setUserTrackProps);
+        svc.use('edit', polModule.setChangeTrackProps);
+        svc.use('edit', polModule.validatePermissions);
         
         svc.use('delete', polModule.checkPolicyInUse.bind(polModule, svc));
 
@@ -86,7 +89,7 @@
     };
 
 
-    polModule.setUserTrackProps = function(req, next/*, done*/) { //TODO: rename. move to crudSvc?
+    polModule.setChangeTrackProps = function(req, next/*, done*/) {
         if (!req.origObj) {
             req.body.createdBy = req.user.id;
         }
@@ -96,8 +99,35 @@
         return next();
     };
 
+    // Ensure permissions is valid (only uses recognized verbs and scopes)
+    polModule.validatePermissions = function(req, next/*, done*/) {
+        var log = logger.getLog(),
+            allowedVerbs = ['read', 'create', 'edit', 'delete'];
+            
+        if (!req.body.permissions) {
+            return next();
+        }
+        
+        // don't actually restrict allowed objNames to facilitate introducing new ones
+        for (var objName in req.body.permissions) {
+            for (var verb in req.body.permissions[objName]) {
+                if (allowedVerbs.indexOf(verb) === -1) {
+                    log.info('[%1] Verb %2 not allowed, trimming permissions.%3.%2',
+                             req.uuid, verb, objName);
+                    delete req.body.permissions[objName][verb];
+                }
+                else if (!Scope.isScope(req.body.permissions[objName][verb])) {
+                    log.info('[%1] Scope %2 not allowed, trimming permissions.%3.%4',
+                             req.uuid, req.body.permissions[objName][verb], objName, verb);
+                    delete req.body.permissions[objName][verb];
+                }
+            }
+        }
+        
+        next();
+    };
 
-    polModule.checkPolicyInUse = function(svc, req, next, done) { //TODO: rename
+    polModule.checkPolicyInUse = function(svc, req, next, done) {
         var log = logger.getLog(),
             query = { policies: req.origObj.name, status: { $ne: Status.Deleted } };
         
@@ -141,10 +171,8 @@
 
         router.get('/', sessions, authGetPol, audit, function(req, res) {
             var query = {};
-            if (req.query.org) {
-                query.org = String(req.query.org);
-            } else if (req.query.ids) {
-                query.id = req.query.ids.split(',');
+            if (req.query.name) {
+                query.name = String(req.query.name);
             }
 
             svc.getObjs(query, req, true)

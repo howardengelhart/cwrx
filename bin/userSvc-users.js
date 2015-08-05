@@ -21,20 +21,20 @@
     userModule.userSchema = {
         applications: {
             _accessLevel: AccessLevel.Forbidden,
-            _type: ['string']
+            _type: ['string'],
+            _acceptableValues: []
         },
-        //TODO: type?
         email: {
             _accessLevel: AccessLevel.Allowed,
             _type: 'string',
-            _actions: ['create'],
+            _createOnly: true,
             _required: true,
             _locked: true
         },
         password: {
             _accessLevel: AccessLevel.Allowed,
             _type: 'string',
-            _actions: ['create'],
+            _createOnly: true,
             _required: true,
             _locked: true
         },
@@ -53,7 +53,7 @@
         policies: {
             _accessLevel: AccessLevel.Forbidden,
             _type: ['string'],
-            _acceptableValues: [] //TODO: rename? also double check this is merged properly
+            _acceptableValues: []
         },
         roles: {
             _accessLevel: AccessLevel.Forbidden,
@@ -76,15 +76,18 @@
     }
 
     userModule.setupSvc = function setupSvc(db) {
-        var userSvc = new CrudSvc(db.collection('users'), 'u', { userProp: false });
+        var opts = { userProp: false },
+            userSvc = new CrudSvc(db.collection('users'), 'u', opts, userModule.userSchema);
         
         userSvc._db = db;
-
+        
         var preventGetAll = userSvc.preventGetAll.bind(userSvc);
         var hashPassword = userModule.hashProp.bind(userModule, 'password');
         var hashNewPassword = userModule.hashProp.bind(userModule, 'newPassword');
         var setupUser = userModule.setupUser;
         var validateUniqueEmail = userSvc.validateUniqueProp.bind(userSvc, 'email', null);
+        var validateRoles = userModule.validateRoles.bind(userModule, userSvc);
+        var validatePolicies = userModule.validatePolicies.bind(userModule, userSvc);
         var preventSelfDeletion = userModule.preventSelfDeletion;
         var checkExistingWithNewEmail = userModule.checkExistingWithNewEmail.bind(
             userModule, userSvc
@@ -95,11 +98,16 @@
         userSvc.checkScope = userModule.checkScope;
         userSvc.userPermQuery = userModule.userPermQuery;
         
+        userSvc.use('read', preventGetAll);
+
         userSvc.use('create', hashPassword);
         userSvc.use('create', setupUser);
         userSvc.use('create', validateUniqueEmail);
+        userSvc.use('create', validateRoles);
+        userSvc.use('create', validatePolicies);
 
-        userSvc.use('read', preventGetAll);
+        userSvc.use('edit', validateRoles);
+        userSvc.use('edit', validatePolicies);
 
         userSvc.use('delete', preventSelfDeletion);
 
@@ -166,34 +174,87 @@
     // middleware when creating a user.
     userModule.setupUser = function setupUser(req, next) {
         var newUser = req.body;
-        
-        /*TODO: default role should have a policy that looks like this:
-        permissions: {
-            users: {
-                read: 'org',
-                edit: 'own'
-            },
-            orgs: {
-                read: 'own'
-            }
-        }
-        */
 
         withDefaults(newUser, {
-            applications: [], //TODO: double check it's ok not to include Minireelinator by default
-            type: 'Publisher', //TODO: revisit
+            applications: [],
             config: {},
             roles: [],
-            policices: []
+            policies: []
         });
         
-        if (!newUser.roles.indexOf('base')) {
+        if (newUser.roles.indexOf('base') === -1) {
             newUser.roles.push('base');
         }
 
         newUser.email = newUser.email.toLowerCase();
 
         return next();
+    };
+    
+    // Check that all of the user's roles exist
+    userModule.validateRoles = function(svc, req, next, done) {
+        var log = logger.getLog();
+        
+        if (!req.body.roles || req.body.roles.length === 0) {
+            return q(next());
+        }
+        
+        var cursor = svc._db.collection('roles').find(
+            { name: { $in: req.body.roles }, status: { $ne: Status.Deleted } },
+            { fields: { name: 1 } }
+        );
+        
+        return q.npost(cursor, 'toArray').then(function(fetched) {
+            if (fetched.length === req.body.roles.length) {
+                return next();
+            }
+            
+            var missing = req.body.roles.filter(function(reqRole) {
+                return fetched.every(function(role) { return role.name !== reqRole; });
+            });
+            
+            var msg = 'These roles were not found: [' + missing.join(',') + ']';
+            
+            log.info('[%1] Not saving user: %2', req.uuid, msg);
+            return done({ code: 400, body: msg });
+        })
+        .catch(function(error) {
+            log.error('[%1] Failed querying for roles: %2', req.uuid, error);
+            return q.reject(new Error('Mongo error'));
+        });
+    };
+
+    // Check that all of the user's policies exist
+    userModule.validatePolicies = function(svc, req, next, done) {
+        var log = logger.getLog();
+        
+        if (!req.body.policies || req.body.policies.length === 0) {
+            return q(next());
+        }
+        
+        var cursor = svc._db.collection('policies').find(
+            { name: { $in: req.body.policies }, status: { $ne: Status.Deleted } },
+            { fields: { name: 1 } }
+        );
+        
+        return q.npost(cursor, 'toArray').then(function(fetched) {
+            if (fetched.length === req.body.policies.length) {
+                return next();
+            }
+            
+            var missing = req.body.policies.filter(function(reqPol) {
+                return fetched.every(function(pol) { return pol.name !== reqPol; });
+            });
+            
+            var msg = 'These policies were not found: [' + missing.join(',') + ']';
+            
+            log.info('[%1] Not saving user: %2', req.uuid, msg);
+            return done({ code: 400, body: msg });
+        })
+        .catch(function(error) {
+            log.error('[%1] Failed querying for policies: %2', req.uuid, error);
+            return q.reject(new Error('Mongo error'));
+        });
     };
 
     // Make sure the user is not trying to delete themselves. This is used as middleware when
@@ -320,7 +381,10 @@
         var log = logger.getLog();
         var requester = req.user;
 
-        if (!requester.entitlements && !requester.entitlements.logoutUsers) { //TODO: document
+        if (!(requester.permissions &&
+              requester.permissions.users &&
+              requester.permissions.users.edit &&
+              requester.permissions.users.edit === Scope.All)) {
             log.info('[%1] User %2 not authorized to force logout users', req.uuid, requester.id);
             return done({ code: 403, body: 'Not authorized to force logout users' });
         }

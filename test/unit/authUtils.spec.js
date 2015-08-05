@@ -578,7 +578,6 @@ describe('authUtils', function() {
                 });
             });
         });
-        //TODO: add more tests for this?
     });
     
     describe('mergeEntitlements', function() {

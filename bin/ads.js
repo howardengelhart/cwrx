@@ -134,7 +134,6 @@
 
         state.dbStatus.c6Db.on('reconnected', function() {
             authUtils._db = state.dbs.c6Db;
-            //TODO: should we fix all the collections for svcs here?
             log.info('Recreated collections from restarted c6Db');
         });
         

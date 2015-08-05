@@ -5,10 +5,9 @@
         q               = require('q'),
         logger          = require('../lib/logger'),
         authUtils       = require('../lib/authUtils'),
-        objUtils        = require('../lib/objUtils'),
         CrudSvc         = require('../lib/crudSvc.js'),
         enums           = require('../lib/enums'),
-        AccessLevel     = enums.AccesLevel,
+        AccessLevel     = enums.AccessLevel,
         Status          = enums.Status,
 
         roleModule  = {};
@@ -17,7 +16,7 @@
         name: {
             _accessLevel: AccessLevel.Allowed,
             _type: 'string',
-            _actions: ['create'], //TODO: or should this just be _createOnly?
+            _createOnly: true,
             _required: true
         },
         createdBy: {
@@ -34,7 +33,7 @@
         }
     };
 
-    roleModule.setupSvc = function setupSvc(db) {
+    roleModule.setupSvc = function(db) {
         var opts = { userProp: false, orgProp: false },
             svc = new CrudSvc(db.collection('roles'), 'r', opts, roleModule.roleSchema);
         
@@ -45,11 +44,11 @@
         
         svc.use('create', validateUniqueName);
         svc.use('create', validatePolicies);
-        svc.use('create', roleModule.setUserTrackProps);
+        svc.use('create', roleModule.setChangeTrackProps);
 
         svc.use('edit', validateUniqueName);
         svc.use('edit', validatePolicies);
-        svc.use('edit', roleModule.setUserTrackProps);
+        svc.use('edit', roleModule.setChangeTrackProps);
         
         svc.use('delete', roleModule.checkRoleInUse.bind(roleModule, svc));
 
@@ -58,21 +57,15 @@
 
     
     roleModule.validatePolicies = function(svc, req, next, done) {
-        var log = logger.getLog(),
-            origPols = req.origObj && req.origObj.policies || [];
+        var log = logger.getLog();
         
         if (!req.body.policies || req.body.policies.length === 0) {
             return q(next());
         }
         
-        // don't bother querying for policies if unchanged
-        if (objUtils.compareObjects(req.body.policies.slice().sort(), origPols.slice().sort())) {
-            return q(next());
-        }
-        
         var cursor = svc._db.collection('policies').find(
             { name: { $in: req.body.policies }, status: { $ne: Status.Deleted } },
-            { name: 1 }
+            { fields: { name: 1 } }
         );
         
         return q.npost(cursor, 'toArray').then(function(fetched) {
@@ -96,7 +89,7 @@
     };
     
 
-    roleModule.setUserTrackProps = function(req, next/*, done*/) { //TODO: rename. move to crudSvc?
+    roleModule.setChangeTrackProps = function(req, next/*, done*/) {
         if (!req.origObj) {
             req.body.createdBy = req.user.id;
         }
@@ -107,15 +100,15 @@
     };
 
 
-    roleModule.checkRoleInUse = function(svc, req, next, done) { //TODO: rename
+    roleModule.checkRoleInUse = function(svc, req, next, done) {
         var log = logger.getLog(),
-            query = { policies: req.origObj.name, status: { $ne: Status.Deleted } };
+            query = { roles: req.origObj.name, status: { $ne: Status.Deleted } };
         
         return q.npost(svc._db.collection('users'), 'count', [query])
         .then(function(userCount) {
             if (userCount > 0) {
                 log.info('[%1] Role %2 still used by %3 users',
-                         req.uuid, req.origObj.name, userCount);
+                         req.uuid, req.origObj.id, userCount);
 
                 return done({ code: 400, body: 'Role still in use by users' });
             }
@@ -149,10 +142,8 @@
 
         router.get('/', sessions, authGetRole, audit, function(req, res) {
             var query = {};
-            if (req.query.org) {
-                query.org = String(req.query.org);
-            } else if (req.query.ids) {
-                query.id = req.query.ids.split(',');
+            if (req.query.name) {
+                query.name = String(req.query.name);
             }
 
             svc.getObjs(query, req, true)

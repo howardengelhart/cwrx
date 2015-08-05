@@ -14,5 +14,5 @@ Field Validation DSL
 | _entries
 | _default
 | _required
-| _actions
+| _createOnly
 | _acceptableValues
