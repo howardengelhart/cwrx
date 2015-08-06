@@ -22,7 +22,9 @@
         applications: {
             _accessLevel: AccessLevel.Forbidden,
             _type: ['string'],
-            _acceptableValues: []
+            _entries: {
+                _acceptableValues: []
+            }
         },
         email: {
             _accessLevel: AccessLevel.Allowed,
@@ -53,12 +55,16 @@
         policies: {
             _accessLevel: AccessLevel.Forbidden,
             _type: ['string'],
-            _acceptableValues: []
+            _entries: {
+                _acceptableValues: []
+            }
         },
         roles: {
             _accessLevel: AccessLevel.Forbidden,
             _type: ['string'],
-            _acceptableValues: []
+            _entries: {
+                _acceptableValues: []
+            }
         }
     };
 

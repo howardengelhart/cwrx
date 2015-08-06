@@ -45,6 +45,8 @@
             _accessLevel: AccessLevel.Forbidden,
             _type: 'string'
         },
+        
+        // permissions.advertisers etc. will be forbidden
         permissions: allEntities.reduce(function(schemaObj, objName) {
             schemaObj[objName] = {
                 _accessLevel: AccessLevel.Forbidden,
@@ -53,6 +55,8 @@
             
             return schemaObj;
         }, { _type: 'object' }),
+
+        // fieldValidation.advertisers etc. will be forbidden
         fieldValidation: allEntities.reduce(function(schemaObj, objName) {
             schemaObj[objName] = {
                 _accessLevel: AccessLevel.Forbidden,
@@ -61,6 +65,7 @@
             
             return schemaObj;
         }, { _type: 'object' }),
+
         entitlements: {
             _accessLevel: AccessLevel.Forbidden,
             _type: 'object'
@@ -78,6 +83,8 @@
         svc.use('create', validateUniqueName);
         svc.use('create', polModule.setChangeTrackProps);
         svc.use('create', polModule.validatePermissions);
+        
+        //TODO: are you suuuuure you don't want to validate fieldValidation?
 
         svc.use('edit', validateUniqueName);
         svc.use('edit', polModule.setChangeTrackProps);
