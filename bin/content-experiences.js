@@ -11,6 +11,7 @@
         objUtils        = require('../lib/objUtils'),
         FieldValidator  = require('../lib/fieldValidator'),
         enums           = require('../lib/enums'),
+        url             = require('url'),
         Status          = enums.Status,
         Access          = enums.Access,
         Scope           = enums.Scope,
@@ -224,6 +225,7 @@
             props = ['branding', 'placementId', 'wildCardPlacement'],
             siteQuery;
         qps = qps || {};
+        host = qps.pageUrl ? url.parse(qps.pageUrl).host || qps.pageUrl : host;
 
         function setProps(exp, obj, src) {
             exp.data.placementId = exp.data.placementId || obj.placementId;
