@@ -256,6 +256,19 @@ describe('content public experience endpoints (E2E):', function() {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
+
+            it('should use the pageUrl query param over the request\'s origin', function(done) {
+                options.qs = { pageUrl: 'http://foo.bar.baz.com/hello/world?name=foo&age=24#neato' };
+                requestUtils.qRequest('get', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.id).toBe('e2e-noProps');
+                    expect(resp.body.data.branding).toBe('brand2');
+                    expect(resp.body.data.placementId).toBeDefined();
+                    expect(resp.body.data.wildCardPlacement).toBeDefined();
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
             
             it('should then fall back to the org\'s branding', function(done) {
                 options.headers.origin = 'http://fake.com';

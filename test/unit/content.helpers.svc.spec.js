@@ -640,6 +640,24 @@ describe('content (UT)', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
+
+        it('should pass the host of a specified pageUrl if specified', function(done) {
+            queryParams = { pageUrl: 'http://portal.cinema6.com/solo?id=e-f8493yrhf783ry4#foo' };
+            expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            .then(function() {
+                expect(expModule.buildHostQuery).toHaveBeenCalledWith('portal.cinema6.com', undefined);
+            })
+            .done(done);
+        });
+
+        it('should pass the host via queryParams if the pageUrl is partial', function(done) {
+            queryParams = { pageUrl: 'cinema6.com' };
+            expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
+            .then(function() {
+                expect(expModule.buildHostQuery).toHaveBeenCalledWith('cinema6.com', undefined);
+            })
+            .done(done);
+        });
         
         describe('fetching container', function(done) {
             beforeEach(function() {
