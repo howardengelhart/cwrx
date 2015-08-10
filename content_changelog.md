@@ -1,5 +1,8 @@
 # Content Service Changelog
 
+* [FEATURE]: Add support for `pageUrl` query parameter to
+  `GET /api/public/content/experience/:id` to override site lookup
+
 ### 1.16.1: Wed Jun 24 18:09:44 EDT 2015
 * [FIX]: Cookie and session security improvements: [#423](https://github.com/cinema6/cwrx/pull/423)
 * Extra deployment steps:
