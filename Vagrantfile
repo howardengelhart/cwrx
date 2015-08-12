@@ -16,6 +16,9 @@ Vagrant.configure("2") do |config|
   config.vm.box_url = "https://s3.amazonaws.com/c6.dev/VagrantBoxes/Berkshelf-CentOS-6.3-x86_64-minimal.box"
 
   config.vm.network :private_network, ip: "33.33.33.10"
+  config.vm.provider :virtualbox do |vb|
+    vb.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
+  end
 
   config.vm.boot_timeout = 180
   config.omnibus.chef_version = :latest

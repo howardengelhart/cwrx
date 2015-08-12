@@ -42,6 +42,7 @@
     "imap": "~0.8.12",
     "jshint": "~2.1.2",
     "load-grunt-config": "~0.7.1",
-    "mailparser": "~0.4.4"
+    "mailparser": "~0.4.4",
+    "filewatcher": "^3.0.0"
   }
 }
