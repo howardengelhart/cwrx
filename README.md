@@ -56,7 +56,7 @@ $ grunt e2e_tests:<prefix> --testHost=<host> --dbHost=<dbHost> --cacheHost=<cach
 In order to run the services locally, you have a few options:
 
 ### Use a Vagrant API machine: ###
-Easiest setup, hardest to use for active development.
+Easiest initial setup.
 
 This machine will have the cwrx services, mongo, and memcached all running, similar to our live servers. In this repo, run:
 
@@ -67,9 +67,45 @@ $ vagrant up
 (This assumes you have Vagrant, Berkshelf, and VirtualBox installed)
 
 By default, this will start the auth and maint services, and the services will run the latest code from `master`. You can set the `CWRX_APP` environment variable to a comma-separated list of service names, or 'all' for all services, to choose which services are installed, and you can set the `CWRX_DEV_BRANCH` to any ref that exists in the remote repo.
+
+You can also use `scripts/watchit.js` to automatically sync local files to the vagrant machine. This script, run from the guest vagrant box, will watch cwrx lib and bin dirs for changes.  When it finds a file has changed, it loops through a list of services it is managing, copies the changed file to the relevant service, and then restarts the service.  This eliminates the need to push changes via github.
+
+You can run the script yourself, from your dev box using this command line (note this example will restart the ads services when file changes are detected):
+```bash
+$ ssh -i ~/.vagrant.d/insecure_private_key vagrant@33.33.33.10 'sudo /usr/local/bin/node /vagrant/    scripts/watchit.js ads'
+```
+To kill ctrl-c and then run this
+```bash
+$ ssh -i ~/.vagrant.d/insecure_private_key vagrant@33.33.33.10 'sudo killall watchit'
+```
+
+Additionally, there are grunt tasks to facilitate this workflow:
+
+**Startup vagrant**
+
+```bash
+$ grunt vagrant:up --service=ads
+```
+This will run vagrant up, setting CWRX_APPS environment variable to `ads` + other services it needs to be running.  Once the vagrant box is up, it will run watchit, passing `ads` as its service.
+
+**Watch vagrant**
+
+```bash
+$ grunt vagrant:watch --service=ads
+```
+This will just run the watchit script
+
+**Stop vagrant**
+
+```bash
+$ grunt vagrant:halt
+```
+
+**NOTE:** If you are changing the services you are working on, running ```$ vagrant destroy``` before running ```$ grunt vagrant:up --service=ads``` might be prudent.
+
  
 ### Use a Vagrant Mongo machine, run services locally: ###
-Recommended for active development.
+Easier to control/customize services.
 
 This allows you to easily and quickly setup a mongo database while giving you full control over the API services.
 
@@ -104,8 +140,8 @@ In order to run a service locally, you'll need to setup a few things:
   | -------    | ------------  |
   | ads        | auth, content |
   | auth       | none          |
-  | collateral | auth          |
-  | content    | auth          |
+  | collateral | auth, monitor |
+  | content    | auth, monitor |
   | maint      | none          |
   | monitor    | maint         |
   | orgSvc     | auth          |
