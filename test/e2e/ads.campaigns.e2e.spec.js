@@ -241,9 +241,10 @@ describe('ads campaigns endpoints (E2E):', function() {
             options = { url: config.adsUrl + '/campaigns', qs: {sort: 'id,1'}, jar: cookieJar };
             var mockCamps = [
                 { id: 'e2e-getquery1', name: 'camp 1', status: 'active', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'e2e-getquery2', name: 'camp 2', status: 'inactive', user: 'not-e2e-user', org: 'e2e-org' },
+                { id: 'e2e-getquery2', name: 'camp 2 is great', status: 'inactive', user: 'not-e2e-user', org: 'e2e-org' },
                 { id: 'e2e-getquery3', name: 'camp 3', status: 'active', user: 'e2e-user', org: 'not-e2e-org' },
-                { id: 'e2e-getquery4', name: 'camp 4', status: 'active', user: 'not-e2e-user', org: 'not-e2e-org' },
+                { id: 'e2e-getquery4', name: 'camp 4 is great', status: 'active', user: 'not-e2e-user', org: 'not-e2e-org' },
+                { id: 'e2e-getquery5', name: 'camp 5 is great', status: 'active', user: 'not-e2e-user', org: 'e2e-org' },
                 { id: 'e2e-getgone', name: 'camp deleted', status: 'deleted', user: 'e2e-user', org: 'e2e-org' }
             ];
             testUtils.resetCollection('campaigns', mockCamps).done(done);
@@ -252,11 +253,12 @@ describe('ads campaigns endpoints (E2E):', function() {
         it('should get all campaigns a user can see', function(done) {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.length).toBe(3);
+                expect(resp.body.length).toBe(4);
                 expect(resp.body[0].id).toBe('e2e-getquery1');
                 expect(resp.body[1].id).toBe('e2e-getquery2');
                 expect(resp.body[2].id).toBe('e2e-getquery3');
-                expect(resp.response.headers['content-range']).toBe('items 1-3/3');
+                expect(resp.body[3].id).toBe('e2e-getquery5');
+                expect(resp.response.headers['content-range']).toBe('items 1-4/4');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -294,6 +296,19 @@ describe('ads campaigns endpoints (E2E):', function() {
             }).done(done);
         });
         
+        it('should get campaigns by text search', function(done) {
+            options.qs.text = 'camp is great';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0].id).toBe('e2e-getquery2');
+                expect(resp.body[1].id).toBe('e2e-getquery5');
+                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
         it('should get campaigns by user', function(done) {
             options.qs.user = 'e2e-user';
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -311,10 +326,11 @@ describe('ads campaigns endpoints (E2E):', function() {
             options.qs.org = 'e2e-org';
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.length).toBe(2);
+                expect(resp.body.length).toBe(3);
                 expect(resp.body[0].id).toBe('e2e-getquery1');
                 expect(resp.body[1].id).toBe('e2e-getquery2');
-                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
+                expect(resp.body[2].id).toBe('e2e-getquery5');
+                expect(resp.response.headers['content-range']).toBe('items 1-3/3');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -337,17 +353,17 @@ describe('ads campaigns endpoints (E2E):', function() {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(2);
-                expect(resp.body[0].id).toBe('e2e-getquery3');
-                expect(resp.body[1].id).toBe('e2e-getquery2');
-                expect(resp.response.headers['content-range']).toBe('items 1-2/3');
-                options.qs.skip = 1;
+                expect(resp.body[0].id).toBe('e2e-getquery5');
+                expect(resp.body[1].id).toBe('e2e-getquery3');
+                expect(resp.response.headers['content-range']).toBe('items 1-2/4');
+                options.qs.skip = 2;
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(2);
                 expect(resp.body[0].id).toBe('e2e-getquery2');
                 expect(resp.body[1].id).toBe('e2e-getquery1');
-                expect(resp.response.headers['content-range']).toBe('items 2-3/3');
+                expect(resp.response.headers['content-range']).toBe('items 3-4/4');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
