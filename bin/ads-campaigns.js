@@ -654,6 +654,9 @@
                     query[field] = String(req.query[field]);
                 }
             });
+            if (req.query.status) {
+                query.status = String(req.query.status).split(',');
+            }
 
             var promise = svc.getObjs(query, req, true);
             promise.finally(function() {

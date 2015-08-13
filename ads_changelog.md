@@ -1,7 +1,9 @@
 # Ads Service Changelog
 
+### 1.3.3: Thu Aug 13 17:23:57 EDT 2015
 * [FEATURE]: Handle `application` field on campaigns: [#469](https://github.com/cinema6/cwrx/issues/469)
 * [FEATURE]: Support querying for campaigns by `text` search: [#462](https://github.com/cinema6/cwrx/issues/462)
+* [FEATURE]: Support querying by status(es): [#461](https://github.com/cinema6/cwrx/issues/461)
 * Extra deployment steps:
     * Set `application` on all existing campaigns in staging+prod databases
 
