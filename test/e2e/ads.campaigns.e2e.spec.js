@@ -240,11 +240,11 @@ describe('ads campaigns endpoints (E2E):', function() {
         beforeEach(function(done) {
             options = { url: config.adsUrl + '/campaigns', qs: {sort: 'id,1'}, jar: cookieJar };
             var mockCamps = [
-                { id: 'e2e-getquery1', name: 'camp 1', status: 'active', user: 'e2e-user', org: 'e2e-org' },
-                { id: 'e2e-getquery2', name: 'camp 2 is great', status: 'inactive', user: 'not-e2e-user', org: 'e2e-org' },
-                { id: 'e2e-getquery3', name: 'camp 3', status: 'active', user: 'e2e-user', org: 'not-e2e-org' },
-                { id: 'e2e-getquery4', name: 'camp 4 is great', status: 'active', user: 'not-e2e-user', org: 'not-e2e-org' },
-                { id: 'e2e-getquery5', name: 'camp 5 is great', status: 'active', user: 'not-e2e-user', org: 'e2e-org' },
+                { id: 'e2e-getquery1', name: 'camp 1', status: 'active', user: 'e2e-user', org: 'e2e-org', application: 'studio' },
+                { id: 'e2e-getquery2', name: 'camp 2 is great', status: 'inactive', user: 'not-e2e-user', org: 'e2e-org', application: 'studio' },
+                { id: 'e2e-getquery3', name: 'camp 3', status: 'active', user: 'e2e-user', org: 'not-e2e-org', application: 'selfie' },
+                { id: 'e2e-getquery4', name: 'camp 4 is great', status: 'active', user: 'not-e2e-user', org: 'not-e2e-org', application: 'selfie' },
+                { id: 'e2e-getquery5', name: 'camp 5 is great', status: 'active', user: 'not-e2e-user', org: 'e2e-org', application: 'selfie' },
                 { id: 'e2e-getgone', name: 'camp deleted', status: 'deleted', user: 'e2e-user', org: 'e2e-org' }
             ];
             testUtils.resetCollection('campaigns', mockCamps).done(done);
@@ -331,6 +331,19 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body[1].id).toBe('e2e-getquery2');
                 expect(resp.body[2].id).toBe('e2e-getquery5');
                 expect(resp.response.headers['content-range']).toBe('items 1-3/3');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should get campaigns by application', function(done) {
+            options.qs.application = 'selfie';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0].id).toBe('e2e-getquery3');
+                expect(resp.body[1].id).toBe('e2e-getquery5');
+                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

@@ -1,6 +1,9 @@
 # Ads Service Changelog
 
+* [FEATURE]: Handle `application` field on campaigns: [#469](https://github.com/cinema6/cwrx/issues/469)
 * [FEATURE]: Support querying for campaigns by `text` search: [#462](https://github.com/cinema6/cwrx/issues/462)
+* Extra deployment steps:
+    * Set `application` on all existing campaigns in staging+prod databases
 
 ### 1.3.2: Wed Jul  8 16:04:29 EDT 2015
 * [FIX]: Handle Adtech error for deleting last banner in campaign: [#449](https://github.com/cinema6/cwrx/issues/449)

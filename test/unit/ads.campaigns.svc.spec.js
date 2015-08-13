@@ -79,8 +79,12 @@ describe('ads-campaigns (UT)', function() {
             expect(svc._advertColl).toEqual({collectionName: 'advertisers'});
             expect(svc._custColl).toEqual({collectionName: 'customers'});
             
-            expect(svc.createValidator._required).toContain('advertiserId', 'customerId', 'statusHistory');
-            expect(svc.editValidator._forbidden).toContain('advertiserId', 'customerId', 'statusHistory');
+            expect(svc.createValidator._required).toContain('advertiserId');
+            expect(svc.createValidator._required).toContain('customerId');
+            ['advertiserId', 'customerId', 'statusHistory', 'application'].forEach(function(prop) {
+                expect(svc.editValidator._forbidden).toContain(prop);
+            });
+            
             ['cards', 'miniReels', 'miniReelGroups'].forEach(function(key) {
                 expect(svc.createValidator._formats[key]).toEqual(['object']);
                 expect(svc.editValidator._formats[key]).toEqual(['object']);

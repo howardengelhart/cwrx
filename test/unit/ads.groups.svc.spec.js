@@ -67,7 +67,8 @@ describe('ads-groups (UT)', function() {
             
             expect(svc.createValidator._required).toContain('name');
             expect(svc.createValidator._forbidden).toContain('adtechId');
-            expect(svc.editValidator._forbidden).toContain('advertiserId', 'customerId');
+            expect(svc.editValidator._forbidden).toContain('advertiserId');
+            expect(svc.editValidator._forbidden).toContain('customerId');
             ['miniReels', 'categories'].forEach(function(key) {
                 expect(svc.createValidator._formats[key]).toEqual(['string']);
                 expect(svc.editValidator._formats[key]).toEqual(['string']);

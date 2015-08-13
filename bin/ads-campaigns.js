@@ -25,7 +25,7 @@
         svc._custColl = db.collection('customers');
         
         svc.createValidator._required.push('advertiserId', 'customerId');
-        svc.editValidator._forbidden.push('advertiserId', 'customerId');
+        svc.editValidator._forbidden.push('advertiserId', 'customerId', 'application');
 
         svc.createValidator._formats.cards = ['object'];
         svc.editValidator._formats.cards = ['object'];
@@ -648,7 +648,7 @@
 
         router.get('/', sessions, authGetCamp, audit, function(req, res) {
             var query = {};
-            ['user', 'org', 'name', 'text']
+            ['user', 'org', 'name', 'text', 'application']
             .forEach(function(field) {
                 if (req.query[field]) {
                     query[field] = String(req.query[field]);

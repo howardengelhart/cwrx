@@ -65,7 +65,8 @@ describe('ads-sites (UT)', function() {
             expect(svc._orgProp).toBe(false);
             expect(svc._allowPublic).toBe(false);
             expect(svc._coll).toBe(mockColl);
-            expect(svc.createValidator._required).toContain('host', 'name');
+            expect(svc.createValidator._required).toContain('host');
+            expect(svc.createValidator._required).toContain('name');
             expect(svc.createValidator._forbidden).toContain('adtechId');
             expect(svc.createValidator._formats.containers).toEqual(['object']);
             expect(svc.editValidator._formats.containers).toEqual(['object']);
