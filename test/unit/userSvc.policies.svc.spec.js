@@ -1,7 +1,7 @@
 var flush = true;
 describe('userSvc-policies (UT)', function() {
-    var polModule, q, mockLog, logger, CrudSvc, Model, enums, Status, Scope, mockDb, mockColl,
-        req, nextSpy, doneSpy, errorSpy;
+    var polModule, q, mockLog, logger, CrudSvc, Model, enums, Status, Scope, AccessLevel,
+        mockDb, mockColl, req, nextSpy, doneSpy, errorSpy;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -13,6 +13,7 @@ describe('userSvc-policies (UT)', function() {
         enums           = require('../../lib/enums');
         Status          = enums.Status;
         Scope           = enums.Scope;
+        AccessLevel     = enums.AccessLevel;
 
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -38,8 +39,6 @@ describe('userSvc-policies (UT)', function() {
         errorSpy = jasmine.createSpy('caught error');
     });
     
-    //TODO: test model or schema?
-
     describe('setupSvc', function() {
         var svc;
         beforeEach(function() {
@@ -79,6 +78,11 @@ describe('userSvc-policies (UT)', function() {
             expect(svc._middleware.create).toContain(polModule.validatePermissions);
             expect(svc._middleware.edit).toContain(polModule.validatePermissions);
         });
+
+        it('should do additional validation for applications on create and edit', function() {
+            expect(svc._middleware.create).toContain(polModule.validateApplications);
+            expect(svc._middleware.edit).toContain(polModule.validateApplications);
+        });
         
         it('should prevent deleting in-use policies', function() {
             expect(svc._middleware.delete).toContain(polModule.checkPolicyInUse);
@@ -86,6 +90,215 @@ describe('userSvc-policies (UT)', function() {
         });
     });
 
+    describe('policy validation', function() {
+        var svc, newObj, origObj, requester;
+        beforeEach(function() {
+            mockColl.collectionName = 'policies';
+            svc = polModule.setupSvc(mockDb);
+            newObj = { name: 'test', foo: 'bar' };
+            origObj = {};
+            requester = { fieldValidation: { policies: {} } };
+        });
+        
+        
+        describe('when handling name', function() {
+            it('should fail if the name is not a string', function() {
+                newObj.name = 123;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'name must be in format: \'string\'' });
+            });
+            
+            it('should allow the name to be set on create', function() {
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true });
+                expect(newObj).toEqual({ name: 'test', foo: 'bar' });
+            });
+
+            it('should fail if the name is not defined', function() {
+                delete newObj.name;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'Missing required field: name' });
+            });
+            
+            it('should pass if the name was defined on the original object', function() {
+                delete newObj.name;
+                origObj.name = 'old pol name';
+                expect(svc.model.validate('edit', newObj, origObj, requester))
+                    .toEqual({ isValid: true });
+                expect(newObj).toEqual({ name: 'old pol name', foo: 'bar' });
+            });
+
+            it('should revert the name if defined on edit', function() {
+                origObj.name = 'old pol name';
+                expect(svc.model.validate('edit', newObj, origObj, requester))
+                    .toEqual({ isValid: true });
+                expect(newObj).toEqual({ name: 'old pol name', foo: 'bar' });
+            });
+        });
+        
+        // user tracking fields
+        ['createdBy', 'lastUpdatedBy'].forEach(function(field) {
+            describe('when handling ' + field, function() {
+                it('should trim the field if set', function() {
+                    newObj[field] = 'me';
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true });
+                    expect(newObj).toEqual({ name: 'test', foo: 'bar' });
+                });
+                
+                it('should be able to allow some requesters to set the field', function() {
+                    requester.fieldValidation.policies[field] = { _accessLevel: AccessLevel.Allowed };
+                    newObj[field] = 'me';
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true });
+                    expect(newObj[field]).toBe('me');
+                });
+
+                it('should fail if the field is not a string', function() {
+                    requester.fieldValidation.policies[field] = { _accessLevel: AccessLevel.Allowed };
+                    newObj[field] = 1234;
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: field + ' must be in format: \'string\'' });
+                });
+            });
+        });
+        
+        describe('when handling applications', function() {
+            it('should trim the field if set', function() {
+                newObj.applications = ['e-app1', 'e-app2'];
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true });
+                expect(newObj).toEqual({ name: 'test', foo: 'bar' });
+            });
+            
+            it('should be able to allow some requesters to set the field', function() {
+                newObj.applications = ['e-app1', 'e-app2'];
+                requester.fieldValidation.policies.applications = {
+                    _accessLevel: AccessLevel.Allowed,
+                    _entries: { _acceptableValues: ['e-app1', 'e-app2', 'e-app3'] }
+                };
+
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true });
+                expect(newObj).toEqual({ name: 'test', foo: 'bar', applications: ['e-app1', 'e-app2'] });
+            });
+            
+            it('should fail if the field is not an array of strings', function() {
+                newObj.applications = [{ name: 'e-app1' }, { name: 'e-app2' }];
+                requester.fieldValidation.policies.applications = {
+                    _accessLevel: AccessLevel.Allowed,
+                    _entries: { _acceptableValues: ['e-app1', 'e-app2', 'e-app3'] }
+                };
+
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'applications must be in format: [ \'string\' ]' });
+            });
+            
+            it('should fail if the field does not contain acceptable values', function() {
+                newObj.applications = ['e-app1', 'e-app4'];
+                requester.fieldValidation.policies.applications = {
+                    _accessLevel: AccessLevel.Allowed,
+                    _entries: { _acceptableValues: ['e-app1', 'e-app2', 'e-app3'] }
+                };
+
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'applications[1] is not one of the acceptable values: [e-app1,e-app2,e-app3]' });
+            });
+        });
+        
+        describe('when handling entitlements', function() {
+            it('should trim the field if set', function() {
+                newObj.entitlements = { doThings: 'yes' };
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true });
+                expect(newObj).toEqual({ name: 'test', foo: 'bar' });
+            });
+            
+            it('should be able to allow some requesters to set the field', function() {
+                newObj.entitlements = { doThings: 'yes' };
+                requester.fieldValidation.policies.entitlements = { _accessLevel: AccessLevel.Allowed };
+
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true });
+                expect(newObj).toEqual({ name: 'test', foo: 'bar', entitlements: { doThings: 'yes' } });
+            });
+            
+            it('should fail if the field is not an object', function() {
+                newObj.entitlements = [{ doThings: 'yes' }, { changeThings: 'no' }];
+                requester.fieldValidation.policies.entitlements = { _accessLevel: AccessLevel.Allowed };
+
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'entitlements must be in format: \'object\'' });
+            });
+        });
+        
+        var allEntities = [
+            'advertisers',
+            'campaigns',
+            'cards',
+            'categories',
+            'customers',
+            'elections',
+            'experiences',
+            'minireelGroups',
+            'orgs',
+            'policies',
+            'roles',
+            'sites',
+            'users'
+        ];
+        
+        ['permissions', 'fieldValidation'].forEach(function(field) {
+            describe('when handling ' + field, function() {
+                it('should allow the field to be set', function() {
+                    newObj[field] = {};
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true });
+                    expect(newObj[field]).toEqual({});
+                });
+                
+                it('should fail if the field is not an object', function() {
+                    newObj[field] = 'please let me do things';
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: field + ' must be in format: \'object\'' });
+                });
+                
+                allEntities.forEach(function(subfield) {
+                    describe('subfield ' + subfield, function() {
+                        it('should be trimmed when set', function() {
+                            newObj[field] = {};
+                            newObj[field][subfield] = { someRules: 'yes' };
+
+                            expect(svc.model.validate('create', newObj, origObj, requester))
+                                .toEqual({ isValid: true });
+                            expect(newObj[field]).toEqual({});
+                        });
+                        
+                        it('should be settable for some requesters', function() {
+                            newObj[field] = {};
+                            newObj[field][subfield] = { someRules: 'yes' };
+                            requester.fieldValidation.policies[field] = {};
+                            requester.fieldValidation.policies[field][subfield] = { _accessLevel: AccessLevel.Allowed };
+
+                            expect(svc.model.validate('create', newObj, origObj, requester))
+                                .toEqual({ isValid: true });
+                            expect(newObj[field][subfield]).toEqual({ someRules: 'yes' });
+                        });
+                        
+                        it('can only be an object', function() {
+                            newObj[field] = {};
+                            newObj[field][subfield] = 'yes';
+                            requester.fieldValidation.policies[field] = {};
+                            requester.fieldValidation.policies[field][subfield] = { _accessLevel: AccessLevel.Allowed };
+
+                            expect(svc.model.validate('create', newObj, origObj, requester))
+                                .toEqual({ isValid: false, reason: field + '.' + subfield + ' must be in format: \'object\'' });
+                        });
+                    });
+                });
+            });
+        });
+    });
     
     describe('setChangeTrackProps', function() {
         it('should set createdBy and lastUpdatedBy', function(done) {
@@ -181,6 +394,78 @@ describe('userSvc-policies (UT)', function() {
                         kitties: { edit: Scope.Own },
                     }
                 });
+                done();
+            });
+        });
+    });
+    
+    describe('validateApplications', function() {
+        var svc, apps;
+        beforeEach(function() {
+            svc = polModule.setupSvc(mockDb);
+            apps = [{ id: 'e-app1' }, { id: 'e-app2' }, { id: 'e-app3' }];
+            mockColl.find.andCallFake(function() {
+                return {
+                    toArray: function(cb) {
+                        cb(null, apps);
+                    }
+                };
+            });
+            req.body = { applications: ['e-app1', 'e-app2', 'e-app3'] };
+        });
+        
+        it('should call next if all applications on the request body exist', function(done) {
+            polModule.validateApplications(svc, req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalledWith();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockDb.collection).toHaveBeenCalledWith('experiences');
+                expect(mockColl.find).toHaveBeenCalledWith(
+                    { id: { $in: ['e-app1', 'e-app2', 'e-app3'] }, 'status.0.status': { $ne: Status.Deleted } },
+                    { fields: { id: 1 } }
+                );
+                expect(mockLog.error).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should skip if there are no applications on the request body', function(done) {
+            delete req.body.applications;
+            polModule.validateApplications(svc, req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalledWith();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockColl.find).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should call done with a 400 if not all applications are found', function(done) {
+            req.body.applications.push('e-app4', 'e-app5');
+            polModule.validateApplications(svc, req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'These applications were not found: [e-app4,e-app5]' });
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockColl.find).toHaveBeenCalledWith(
+                    { id: { $in: ['e-app1', 'e-app2', 'e-app3', 'e-app4', 'e-app5'] }, 'status.0.status': { $ne: Status.Deleted } },
+                    { fields: { id: 1 } }
+                );
+                done();
+            });
+        });
+        
+        it('should reject if mongo fails', function(done) {
+            mockColl.find.andReturn({ toArray: function(cb) { cb('I GOT A PROBLEM'); } });
+            polModule.validateApplications(svc, req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith(new Error('Mongo error'));
+                expect(mockColl.find).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
                 done();
             });
         });

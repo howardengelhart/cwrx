@@ -19,13 +19,6 @@
         userModule  = {};
         
     userModule.userSchema = {
-        applications: {
-            _accessLevel: AccessLevel.Forbidden,
-            _type: ['string'],
-            _entries: {
-                _acceptableValues: []
-            }
-        },
         email: {
             _accessLevel: AccessLevel.Allowed,
             _type: 'string',
@@ -38,6 +31,10 @@
             _type: 'string',
             _createOnly: true,
             _required: true,
+            _locked: true
+        },
+        applications: {
+            _accessLevel: AccessLevel.Forbidden,
             _locked: true
         },
         permissions: {
@@ -182,7 +179,6 @@
         var newUser = req.body;
 
         withDefaults(newUser, {
-            applications: [],
             config: {},
             roles: [],
             policies: []

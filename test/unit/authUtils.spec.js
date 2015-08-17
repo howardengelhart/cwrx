@@ -148,6 +148,7 @@ describe('authUtils', function() {
             spyOn(authUtils, 'mergePermissions').andReturn({ perms: 'yes' });
             spyOn(authUtils, 'mergeValidation').andReturn({ fieldVal: 'yes' });
             spyOn(authUtils, 'mergeEntitlements').andReturn({ entitled: 'yes' });
+            spyOn(authUtils, 'mergeApplications').andReturn({ applicated: 'yes' });
         });
         
         it('should look up a user\'s roles + policies and merge them together', function(done) {
@@ -159,7 +160,8 @@ describe('authUtils', function() {
                     policies: ['pol4'],
                     permissions: { perms: 'yes' },
                     fieldValidation: { fieldVal: 'yes' },
-                    entitlements: { entitled: 'yes' }
+                    entitlements: { entitled: 'yes' },
+                    applications: { applicated: 'yes' }
                 });
                 expect(mockDb.collection).toHaveBeenCalledWith('roles');
                 expect(mockDb.collection).toHaveBeenCalledWith('policies');
@@ -169,6 +171,7 @@ describe('authUtils', function() {
                 expect(authUtils.mergePermissions).toHaveBeenCalledWith(mockPolicies);
                 expect(authUtils.mergeValidation).toHaveBeenCalledWith(mockPolicies);
                 expect(authUtils.mergeEntitlements).toHaveBeenCalledWith(mockPolicies);
+                expect(authUtils.mergeApplications).toHaveBeenCalledWith(mockPolicies);
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -185,7 +188,8 @@ describe('authUtils', function() {
                     roles: ['role1', 'role2', 'role3'],
                     permissions: { perms: 'yes' },
                     fieldValidation: { fieldVal: 'yes' },
-                    entitlements: { entitled: 'yes' }
+                    entitlements: { entitled: 'yes' },
+                    applications: { applicated: 'yes' }
                 });
                 expect(roleColl.find).toHaveBeenCalledWith({ name: { $in: ['role1', 'role2', 'role3'] }, status: Status.Active });
                 expect(polColl.find).toHaveBeenCalledWith({ name: { $in: ['pol1', 'pol2', 'pol3'] }, status: Status.Active },
@@ -205,7 +209,8 @@ describe('authUtils', function() {
                     policies: ['pol4'],
                     permissions: { perms: 'yes' },
                     fieldValidation: { fieldVal: 'yes' },
-                    entitlements: { entitled: 'yes' }
+                    entitlements: { entitled: 'yes' },
+                    applications: { applicated: 'yes' }
                 });
                 expect(roleColl.find).not.toHaveBeenCalled();
                 expect(polColl.find).toHaveBeenCalledWith({ name: { $in: ['pol4'] }, status: Status.Active },
@@ -618,7 +623,7 @@ describe('authUtils', function() {
             });
         });
         
-        it('should handle polies without entitlements', function() {
+        it('should handle policies without entitlements', function() {
             delete policies[1].entitlements;
             expect(authUtils.mergeEntitlements(policies)).toEqual({
                 e1: true,
@@ -629,6 +634,25 @@ describe('authUtils', function() {
         });
     });
     
+    describe('mergeApplications', function() {
+        var policies;
+        beforeEach(function() {
+            policies = [
+                { applications: ['e-app1', 'e-app2'] },
+                { applications: ['e-app1', 'e-app3'] },
+                { applications: ['e-app4'] },
+            ];
+        });
+
+        it('should combine applications', function() {
+            expect(authUtils.mergeApplications(policies)).toEqual(['e-app1', 'e-app2', 'e-app3', 'e-app4']);
+        });
+
+        it('should handle policies without applications', function() {
+            delete policies[1].applications;
+            expect(authUtils.mergeApplications(policies)).toEqual(['e-app1', 'e-app2', 'e-app4']);
+        });
+    });
     
     describe('compare', function() {
         var userPerms;

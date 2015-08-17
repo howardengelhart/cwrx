@@ -1,7 +1,7 @@
 var flush = true;
 describe('userSvc-roles (UT)', function() {
-    var roleModule, q, mockLog, logger, CrudSvc, Model, enums, Status, Scope, mockDb, mockColl,
-        req, nextSpy, doneSpy, errorSpy;
+    var roleModule, q, mockLog, logger, CrudSvc, Model, enums, Status, Scope, AccessLevel,
+        mockDb, mockColl, req, nextSpy, doneSpy, errorSpy;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -13,6 +13,7 @@ describe('userSvc-roles (UT)', function() {
         enums           = require('../../lib/enums');
         Status          = enums.Status;
         Scope           = enums.Scope;
+        AccessLevel     = enums.AccessLevel;
 
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -38,8 +39,6 @@ describe('userSvc-roles (UT)', function() {
         errorSpy = jasmine.createSpy('caught error');
     });
     
-    //TODO: test model or schema?
-
     describe('setupSvc', function() {
         var svc;
         beforeEach(function() {
@@ -87,14 +86,110 @@ describe('userSvc-roles (UT)', function() {
         });
     });
     
+    describe('role validation', function() {
+        var svc, newObj, origObj, requester;
+        beforeEach(function() {
+            mockColl.collectionName = 'roles';
+            svc = roleModule.setupSvc(mockDb);
+            newObj = { name: 'test', foo: 'bar' };
+            origObj = {};
+            requester = { fieldValidation: { roles: {} } };
+        });
+        
+        describe('when handling name', function() {
+            it('should fail if the name is not a string', function() {
+                newObj.name = 123;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'name must be in format: \'string\'' });
+            });
+            
+            it('should allow the name to be set on create', function() {
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true });
+                expect(newObj).toEqual({ name: 'test', foo: 'bar' });
+            });
+
+            it('should fail if the name is not defined', function() {
+                delete newObj.name;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'Missing required field: name' });
+            });
+            
+            it('should pass if the name was defined on the original object', function() {
+                delete newObj.name;
+                origObj.name = 'old role name';
+                expect(svc.model.validate('edit', newObj, origObj, requester))
+                    .toEqual({ isValid: true });
+                expect(newObj).toEqual({ name: 'old role name', foo: 'bar' });
+            });
+
+            it('should revert the name if defined on edit', function() {
+                origObj.name = 'old role name';
+                expect(svc.model.validate('edit', newObj, origObj, requester))
+                    .toEqual({ isValid: true });
+                expect(newObj).toEqual({ name: 'old role name', foo: 'bar' });
+            });
+        });
+        
+        // user tracking fields
+        ['createdBy', 'lastUpdatedBy'].forEach(function(field) {
+            describe('when handling ' + field, function() {
+                it('should trim the field if set', function() {
+                    newObj[field] = 'me';
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true });
+                    expect(newObj).toEqual({ name: 'test', foo: 'bar' });
+                });
+                
+                it('should be able to allow some requesters to set the field', function() {
+                    requester.fieldValidation.roles[field] = { _accessLevel: AccessLevel.Allowed };
+                    newObj[field] = 'me';
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true });
+                    expect(newObj[field]).toBe('me');
+                });
+
+                it('should fail if the field is not a string', function() {
+                    requester.fieldValidation.roles[field] = { _accessLevel: AccessLevel.Allowed };
+                    newObj[field] = 1234;
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: field + ' must be in format: \'string\'' });
+                });
+            });
+        });
+        
+        describe('when handling policies', function() {
+            it('should fail if the field is not an array of strings', function() {
+                newObj.policies = [{ name: 'pol1' }, { name: 'pol2' }];
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'policies must be in format: [ \'string\' ]' });
+            });
+            
+            it('should allow the field to be set', function() {
+                newObj.policies = ['pol1', 'pol2'];
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true });
+                expect(newObj).toEqual({ name: 'test', foo: 'bar', policies: ['pol1', 'pol2'] });
+            });
+            
+            it('should be able to prevent some requesters from setting the field', function() {
+                requester.fieldValidation.roles.policies = { _accessLevel: AccessLevel.Forbidden };
+                newObj.policies = ['pol1', 'pol2'];
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true });
+                expect(newObj).toEqual({ name: 'test', foo: 'bar' });
+            });
+        });
+    });
+    
     describe('validatePolicies', function() {
         var svc, policies;
         beforeEach(function() {
             svc = roleModule.setupSvc(mockDb);
             policies = [
                 { id: 'p-1', name: 'pol1' },
-                { id: 'p-1', name: 'pol2' },
-                { id: 'p-1', name: 'pol3' }
+                { id: 'p-2', name: 'pol2' },
+                { id: 'p-3', name: 'pol3' }
             ];
             mockColl.find.andCallFake(function() {
                 return {

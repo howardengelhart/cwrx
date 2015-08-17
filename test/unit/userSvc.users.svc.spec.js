@@ -6,6 +6,7 @@ describe('userSvc (UT)', function() {
     var enums = require('../../lib/enums'),
         Status = enums.Status,
         Scope = enums.Scope;
+        AccessLevel = enums.AccessLevel;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -44,8 +45,6 @@ describe('userSvc (UT)', function() {
         };
     });
     
-    //TODO: test model or schema?
-
     describe('setupSvc', function() {
         var result;
 
@@ -166,6 +165,121 @@ describe('userSvc (UT)', function() {
             expect(result.userPermQuery).toBe(userModule.userPermQuery);
         });
     });
+    
+    describe('user validation', function() {
+        var svc, newObj, origObj, requester;
+        beforeEach(function() {
+            svc = userModule.setupSvc(mockDb);
+            newObj = { email: 'test@me.com', password: 'pass' };
+            origObj = {};
+            requester = { fieldValidation: { users: {} } };
+        });
+        
+        // required credential fields
+        ['email', 'password'].forEach(function(field) {
+            describe('when handling ' + field, function() {
+                it('should fail if the field is not a string', function() {
+                    newObj[field] = 123;
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: field + ' must be in format: \'string\'' });
+                });
+                
+                it('should allow the field to be set on create', function() {
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true });
+                    expect(newObj).toEqual({ email: 'test@me.com', password: 'pass' });
+                });
+                
+                it('should fail if the field is not defined', function() {
+                    delete newObj[field];
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: 'Missing required field: ' + field });
+                });
+                
+                it('should pass if the field was defined on the original object', function() {
+                    origObj[field] = 'old value';
+                    delete newObj[field];
+                    expect(svc.model.validate('edit', newObj, origObj, requester))
+                        .toEqual({ isValid: true });
+                    expect(newObj[field]).toEqual('old value');
+                });
+                
+                it('should revert the field on edit', function() {
+                    origObj[field] = 'old value';
+                    requester.fieldValidation.users[field] = { _createOnly: false };
+                    expect(svc.model.validate('edit', newObj, origObj, requester))
+                        .toEqual({ isValid: true });
+                    expect(newObj[field]).toEqual('old value');
+                });
+            });
+        });
+
+        // locked, forbidden fields
+        ['permissions', 'fieldValidation', 'entitlements', 'applications'].forEach(function(field) {
+            describe('when handling ' + field, function() {
+                it('should trim the field if set', function() {
+                    newObj[field] = { foo: 'bar' };
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true });
+                    expect(newObj).toEqual({ email: 'test@me.com', password: 'pass' });
+                });
+                
+                it('should not allow any requesters to set the field', function() {
+                    requester.fieldValidation.users[field] = { _accessLevel: AccessLevel.Allowed };
+                    newObj[field] = { foo: 'bar' };
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true });
+                    expect(newObj).toEqual({ email: 'test@me.com', password: 'pass' });
+                });
+            });
+        });
+
+        // roles and policies: forbidden but overridable
+        ['roles', 'policies'].forEach(function(field) {
+            describe('when handling ' + field, function() {
+                it('should trim the field if set', function() {
+                    newObj[field] = ['thing1', 'thing2'];
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true });
+                    expect(newObj).toEqual({ email: 'test@me.com', password: 'pass' });
+                });
+                
+                it('should be able to allow some requesters to set the field', function() {
+                    newObj[field] = ['thing1', 'thing2'];
+                    requester.fieldValidation.users[field] = {
+                        _accessLevel: AccessLevel.Allowed,
+                        _entries: { _acceptableValues: ['thing1', 'thing2', 'thing3'] }
+                    };
+
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true });
+                    expect(newObj[field]).toEqual(['thing1', 'thing2']);
+                });
+                
+                it('should fail if the field is not an array of strings', function() {
+                    newObj[field] = [{ name: 'thing1' }, { name: 'thing2' }];
+                    requester.fieldValidation.users[field] = {
+                        _accessLevel: AccessLevel.Allowed,
+                        _entries: { _acceptableValues: ['thing1', 'thing2', 'thing3'] }
+                    };
+
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: field + ' must be in format: [ \'string\' ]' });
+                });
+                
+                it('should fail if the field does not contain acceptable values', function() {
+                    newObj[field] = ['thing1', 'thing4'];
+                    requester.fieldValidation.users[field] = {
+                        _accessLevel: AccessLevel.Allowed,
+                        _entries: { _acceptableValues: ['thing1', 'thing2', 'thing3'] }
+                    };
+
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: field + '[1] is not one of the acceptable values: [thing1,thing2,thing3]' });
+                });
+            });
+        });
+    });
 
     describe('checkScope', function() {
         it('should correctly handle the scopes', function() {
@@ -282,23 +396,6 @@ describe('userSvc (UT)', function() {
                 config: { studio: { foo: 'bar' } },
                 roles: ['base', 'selfie'],
                 policies: ['denyCampaigns']
-            });
-        });
-
-        describe('if the user has no applications', function() {
-            beforeEach(function() {
-                next.reset();
-                delete req.body.applications;
-
-                userModule.setupUser(req, next, done);
-            });
-
-            it('should give the user an applications array', function() {
-                expect(req.body.applications).toEqual([]);
-            });
-
-            it('should call next()', function() {
-                expect(next).toHaveBeenCalledWith();
             });
         });
 

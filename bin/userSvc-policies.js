@@ -45,6 +45,17 @@
             _accessLevel: AccessLevel.Forbidden,
             _type: 'string'
         },
+        applications: {
+            _accessLevel: AccessLevel.Forbidden,
+            _type: ['string'],
+            _entries: {
+                _acceptableValues: []
+            }
+        },
+        entitlements: {
+            _accessLevel: AccessLevel.Forbidden,
+            _type: 'object'
+        },
         
         // permissions.advertisers etc. will be forbidden
         permissions: allEntities.reduce(function(schemaObj, objName) {
@@ -64,12 +75,7 @@
             };
             
             return schemaObj;
-        }, { _type: 'object' }),
-
-        entitlements: {
-            _accessLevel: AccessLevel.Forbidden,
-            _type: 'object'
-        }
+        }, { _type: 'object' })
     };
 
     polModule.setupSvc = function(db) {
@@ -83,19 +89,21 @@
         svc.use('create', validateUniqueName);
         svc.use('create', polModule.setChangeTrackProps);
         svc.use('create', polModule.validatePermissions);
+        svc.use('create', polModule.validateApplications);
         
         //TODO: are you suuuuure you don't want to validate fieldValidation?
 
         svc.use('edit', validateUniqueName);
         svc.use('edit', polModule.setChangeTrackProps);
         svc.use('edit', polModule.validatePermissions);
+        svc.use('edit', polModule.validateApplications);
         
         svc.use('delete', polModule.checkPolicyInUse.bind(polModule, svc));
 
         return svc;
     };
 
-
+    // Set properties that track who created + last updated the policy
     polModule.setChangeTrackProps = function(req, next/*, done*/) {
         if (!req.origObj) {
             req.body.createdBy = req.user.id;
@@ -134,6 +142,40 @@
         next();
     };
 
+    // Check that of the policy's applications exist
+    polModule.validateApplications = function(svc, req, next, done) {
+        var log = logger.getLog();
+        
+        if (!req.body.applications || req.body.applications.length === 0) {
+            return q(next());
+        }
+        
+        var cursor = svc._db.collection('experiences').find(
+            { id: { $in: req.body.applications }, 'status.0.status': { $ne: Status.Deleted } },
+            { fields: { id: 1 } }
+        );
+        
+        return q.npost(cursor, 'toArray').then(function(fetched) {
+            if (fetched.length === req.body.applications.length) {
+                return next();
+            }
+            
+            var missing = req.body.applications.filter(function(reqApp) {
+                return fetched.every(function(app) { return app.id !== reqApp; });
+            });
+            
+            var msg = 'These applications were not found: [' + missing.join(',') + ']';
+            
+            log.info('[%1] Not saving policy: %2', req.uuid, msg);
+            return done({ code: 400, body: msg });
+        })
+        .catch(function(error) {
+            log.error('[%1] Failed querying for experiences: %2', req.uuid, error);
+            return q.reject(new Error('Mongo error'));
+        });
+    };
+
+    // Return a 400 if the policy is still in use by users or roles
     polModule.checkPolicyInUse = function(svc, req, next, done) {
         var log = logger.getLog(),
             query = { policies: req.origObj.name, status: { $ne: Status.Deleted } };

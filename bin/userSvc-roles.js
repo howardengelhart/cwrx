@@ -55,7 +55,7 @@
         return svc;
     };
 
-    
+    // Check that of the role's policies exist
     roleModule.validatePolicies = function(svc, req, next, done) {
         var log = logger.getLog();
         
@@ -88,7 +88,7 @@
         });
     };
     
-
+    // Set properties that track who created + last updated the role
     roleModule.setChangeTrackProps = function(req, next/*, done*/) {
         if (!req.origObj) {
             req.body.createdBy = req.user.id;
@@ -99,7 +99,7 @@
         return next();
     };
 
-
+    // Return a 400 if the role is still in use by users
     roleModule.checkRoleInUse = function(svc, req, next, done) {
         var log = logger.getLog(),
             query = { roles: req.origObj.name, status: { $ne: Status.Deleted } };

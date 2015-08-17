@@ -159,7 +159,7 @@ describe('Model', function() {
             expect(Model.checkFormat('string', '1')).toBe(true);
             expect(Model.checkFormat('object', 'a')).toBe(false);
             expect(Model.checkFormat('object', { foo: 'bar' })).toBe(true);
-            expect(Model.checkFormat('object', [1, 2, '3'])).toBe(true);
+            expect(Model.checkFormat('object', [1, 2, '3'])).toBe(false);
         });
         
         it('should handle function formats', function() {
