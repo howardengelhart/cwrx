@@ -195,6 +195,29 @@ describe('CrudSvc', function() {
             user.permissions = {};
             expect(svc.userPermQuery(query, user)).toEqual({ type: 'foo', status: Status.Active });
         });
+        
+        describe('if the requester is querying by status', function() {
+            it('should not overwrite the existing filter', function() {
+                query = { status: Status.Active };
+                expect(svc.userPermQuery(query, user)).toEqual({ status: Status.Active, $or: [{user: 'u-1'}] });
+
+                query = { status: { $in: [Status.Active, Status.Inactive] } };
+                expect(svc.userPermQuery(query, user)).toEqual({ status: { $in: [Status.Active, Status.Inactive] }, $or: [{user: 'u-1'}] });
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            });
+            
+            it('should overwrite the existing filter if the user is querying for deleted objects', function() {
+                query = { status: Status.Deleted };
+                expect(svc.userPermQuery(query, user)).toEqual({ status: { $ne: Status.Deleted }, $or: [{user: 'u-1'}] });
+                expect(mockLog.warn).toHaveBeenCalled();
+            });
+
+            it('should trim the existing filter if the user is querying for deleted objects', function() {
+                query = { status: { $in: [Status.Active, Status.Deleted] } };
+                expect(svc.userPermQuery(query, user)).toEqual({ status: { $in: [Status.Active] }, $or: [{user: 'u-1'}] });
+                expect(mockLog.warn).toHaveBeenCalled();
+            });
+        });
     });
     
     describe('formatOutput', function() {

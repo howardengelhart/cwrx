@@ -79,8 +79,12 @@ describe('ads-campaigns (UT)', function() {
             expect(svc._advertColl).toEqual({collectionName: 'advertisers'});
             expect(svc._custColl).toEqual({collectionName: 'customers'});
             
-            expect(svc.createValidator._required).toContain('advertiserId', 'customerId', 'statusHistory');
-            expect(svc.editValidator._forbidden).toContain('advertiserId', 'customerId', 'statusHistory');
+            expect(svc.createValidator._required).toContain('advertiserId');
+            expect(svc.createValidator._required).toContain('customerId');
+            ['advertiserId', 'customerId', 'statusHistory', 'application'].forEach(function(prop) {
+                expect(svc.editValidator._forbidden).toContain(prop);
+            });
+            
             ['cards', 'miniReels', 'miniReelGroups'].forEach(function(key) {
                 expect(svc.createValidator._formats[key]).toEqual(['object']);
                 expect(svc.editValidator._formats[key]).toEqual(['object']);
@@ -90,6 +94,7 @@ describe('ads-campaigns (UT)', function() {
             expect(svc.createValidator._formats.staticCardMap).toEqual('object');
             expect(svc.editValidator._formats.staticCardMap).toEqual('object');
 
+            expect(svc._middleware.read).toEqual([campModule.formatTextQuery]);
             expect(svc._middleware.create).toEqual([jasmine.any(Function), jasmine.any(Function), svc.handleStatusHistory,
                 campaignUtils.getAccountIds, campModule.validateDates, campModule.ensureUniqueIds,
                 campModule.ensureUniqueNames, campModule.createSponsoredCamps, campModule.createTargetCamps]);
@@ -101,6 +106,38 @@ describe('ads-campaigns (UT)', function() {
             expect(svc._middleware.delete).toEqual([jasmine.any(Function), svc.handleStatusHistory,
                 campModule.deleteContent, campModule.deleteAdtechCamps]);
             expect(svc.formatOutput).toBe(campModule.formatOutput);
+        });
+    });
+    
+    describe('formatTextQuery', function() {
+        it('should do nothing if the text query param is not set', function() {
+            req._query = { user: 'u-1' };
+            campModule.formatTextQuery(req, nextSpy, doneSpy);
+            expect(nextSpy).toHaveBeenCalled();
+            expect(doneSpy).not.toHaveBeenCalled();
+            expect(req._query).toEqual({ user: 'u-1' });
+        });
+        
+        it('should not overwrite an existing filter on the name field', function() {
+            req._query = { name: 'camp 1', text: 'camp 2' };
+            campModule.formatTextQuery(req, nextSpy, doneSpy);
+            expect(nextSpy).toHaveBeenCalled();
+            expect(doneSpy).not.toHaveBeenCalled();
+            expect(req._query).toEqual({ name: 'camp 1' });
+        });
+        
+        it('should replace the text query param with a regex query by name', function() {
+            req._query = { user: 'u-1', text: 'camp 1 is great' };
+            campModule.formatTextQuery(req, nextSpy, doneSpy);
+            expect(req._query).toEqual({ user: 'u-1', name: { $regex: '.*camp.*1.*is.*great.*', $options: 'i' } });
+            
+            req._query = { text: 'camp' };
+            campModule.formatTextQuery(req, nextSpy, doneSpy);
+            expect(req._query).toEqual({ name: { $regex: '.*camp.*', $options: 'i' } });
+
+            req._query = { text: '  camp\t1\tis\tgreat\t ' };
+            campModule.formatTextQuery(req, nextSpy, doneSpy);
+            expect(req._query).toEqual({ name: { $regex: '.*camp.*1.*is.*great.*', $options: 'i' } });
         });
     });
 

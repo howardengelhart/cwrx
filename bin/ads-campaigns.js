@@ -25,7 +25,7 @@
         svc._custColl = db.collection('customers');
         
         svc.createValidator._required.push('advertiserId', 'customerId');
-        svc.editValidator._forbidden.push('advertiserId', 'customerId');
+        svc.editValidator._forbidden.push('advertiserId', 'customerId', 'application');
 
         svc.createValidator._formats.cards = ['object'];
         svc.editValidator._formats.cards = ['object'];
@@ -38,6 +38,7 @@
         svc.createValidator._formats.staticCardMap = 'object';
         svc.editValidator._formats.staticCardMap = 'object';
         
+        svc.use('read', campModule.formatTextQuery);
         svc.use('create', campaignUtils.getAccountIds.bind(campaignUtils, svc._advertColl,
                                                            svc._custColl));
         svc.use('create', campModule.validateDates);
@@ -65,6 +66,22 @@
         svc.formatOutput = campModule.formatOutput.bind(campModule, svc);
         
         return svc;
+    };
+    
+    // Format a 'text search' query: current just turns it into a regex query on name field
+    campModule.formatTextQuery = function(req, next/*, done*/) {
+        if (!req._query || !req._query.text) {
+            return next();
+        }
+        
+        var textParts = req._query.text.trim().split(/\s+/),
+            nameQuery = { $regex: '.*' + textParts.join('.*') + '.*', $options: 'i' };
+        
+        // don't overwrite an actual 'name' filter if provided
+        req._query.name = req._query.name || nameQuery;
+        delete req._query.text;
+
+        return next();
     };
     
     // Attempts to find a sub-object in body[key] that matches target
@@ -631,12 +648,15 @@
 
         router.get('/', sessions, authGetCamp, audit, function(req, res) {
             var query = {};
-            ['user', 'org', 'name']
+            ['user', 'org', 'name', 'text', 'application']
             .forEach(function(field) {
                 if (req.query[field]) {
                     query[field] = String(req.query[field]);
                 }
             });
+            if (req.query.status) {
+                query.status = String(req.query.status).split(',');
+            }
 
             var promise = svc.getObjs(query, req, true);
             promise.finally(function() {
