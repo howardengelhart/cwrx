@@ -130,7 +130,7 @@ describe('objUtils', function() {
             
             expect(objUtils.extend(orig, newObj)).toBe(orig);
             expect(orig).toEqual({ e: jasmine.any(events.EventEmitter) });
-            expect(orig.e).not.toBe(newObj.e);
+            expect(orig.e).toBe(newObj.e);
         });
         
         it('should handle arrays properly', function() {

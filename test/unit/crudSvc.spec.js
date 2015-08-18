@@ -1,7 +1,7 @@
 var flush = true;
 describe('CrudSvc', function() {
-    var q, mockLog, logger, CrudSvc, uuid, mongoUtils, FieldValidator, mockColl, anyFunc,
-        req, svc, enums, Scope, Status, nextSpy, doneSpy, errorSpy;
+    var q, mockLog, logger, CrudSvc, uuid, mongoUtils, FieldValidator, Model, mockColl, anyFunc,
+        req, svc, enums, Scope, Status, AccessLevel, nextSpy, doneSpy, errorSpy;
     
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -12,8 +12,10 @@ describe('CrudSvc', function() {
         uuid            = require('../../lib/uuid');
         mongoUtils      = require('../../lib/mongoUtils');
         FieldValidator  = require('../../lib/fieldValidator');
+        Model           = require('../../lib/model');
         Scope           = enums.Scope;
         Status          = enums.Status;
+        AccessLevel     = enums.AccessLevel;
         anyFunc = jasmine.any(Function);
 
         mockColl = {
@@ -41,6 +43,7 @@ describe('CrudSvc', function() {
         spyOn(logger, 'getLog').andReturn(mockLog);
         spyOn(mongoUtils, 'escapeKeys').andCallThrough();
         spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
+        spyOn(Model.prototype.midWare, 'bind').andReturn(Model.prototype.midWare);
         spyOn(FieldValidator.prototype.midWare, 'bind').andReturn(FieldValidator.prototype.midWare);
         spyOn(FieldValidator, 'userFunc').andCallThrough();
         spyOn(FieldValidator, 'orgFunc').andCallThrough();
@@ -66,6 +69,7 @@ describe('CrudSvc', function() {
             expect(svc.createValidator._forbidden).toEqual(['id', 'created', '_id']);
             expect(svc.editValidator instanceof FieldValidator).toBe(true);
             expect(svc.editValidator._forbidden).toEqual(['id', 'created', '_id']);
+            expect(svc.model).not.toBeDefined();
             
             expect(FieldValidator.userFunc).toHaveBeenCalledWith('thangs', 'create');
             expect(FieldValidator.userFunc).toHaveBeenCalledWith('thangs', 'edit');
@@ -114,6 +118,76 @@ describe('CrudSvc', function() {
             expect(svc._middleware.create).toContain(svc.handleStatusHistory);
             expect(svc._middleware.edit).toContain(svc.handleStatusHistory);
             expect(svc._middleware.delete).toContain(svc.handleStatusHistory);
+        });
+        
+        describe('if a schema is provided', function() {
+            beforeEach(function() {
+                svc = new CrudSvc(mockColl, 't', {}, { foo: { _type: 'string' } });
+            });
+            
+            it('should setup a model instead of FieldValidators', function() {
+                expect(svc.model).toEqual(jasmine.any(Model));
+                expect(svc.model.schema.foo).toEqual({ _type: 'string' });
+                expect(svc.createValidator).not.toBeDefined();
+                expect(svc.editValidator).not.toBeDefined();
+                expect(svc._middleware.create).toContain(svc.model.midWare);
+            });
+            
+            describe('creates a model that', function() {
+                var newObj, origObj, requester;
+                beforeEach(function() {
+                    newObj = { foo: 'bar' };
+                    origObj = {};
+                    requester = { fieldValidation: { thangs: {} } };
+                });
+
+                // overriden system fields
+                ['id', '_id', 'created', 'lastUpdated'].forEach(function(field) {
+                    describe('when handling ' + field, function() {
+                        it('should not allow any requesters to set the field', function() {
+                            requester.fieldValidation.thangs[field] = { _accessLevel: AccessLevel.Allowed };
+                            newObj[field] = 't-myownid';
+                            expect(svc.model.validate('create', newObj, origObj, requester))
+                                .toEqual({ isValid: true });
+                            expect(newObj).toEqual({ foo: 'bar' });
+                        });
+                    });
+                });
+                
+                // ownership fields
+                ['user', 'org'].forEach(function(field) {
+                    describe('when handling ' + field, function() {
+                        it('should trim the field if set', function() {
+                            newObj[field] = 'someguy';
+                            expect(svc.model.validate('create', newObj, origObj, requester))
+                                .toEqual({ isValid: true });
+                            expect(newObj).toEqual({ foo: 'bar' });
+                        });
+                        
+                        it('should allow some requesters to set the field', function() {
+                            requester.fieldValidation.thangs[field] = { _accessLevel: AccessLevel.Allowed };
+                            newObj[field] = 'someguy';
+                            expect(svc.model.validate('create', newObj, origObj, requester))
+                                .toEqual({ isValid: true });
+                            expect(newObj[field]).toEqual('someguy');
+                        });
+                    });
+                });
+                
+                describe('when handling statusHistory', function() {
+                    beforeEach(function() {
+                        svc = new CrudSvc(mockColl, 't', { statusHistory: true }, {});
+                    });
+                    
+                    it('should not allow any requesters to set the field', function() {
+                        requester.fieldValidation.thangs.statusHistory = { _accessLevel: AccessLevel.Allowed };
+                        newObj.statusHistory = [{ status: 'bad', date: 'yesterday' }];
+                        expect(svc.model.validate('create', newObj, origObj, requester))
+                            .toEqual({ isValid: true });
+                        expect(newObj).toEqual({ foo: 'bar' });
+                    });
+                });
+            });
         });
     });
     
