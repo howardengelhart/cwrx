@@ -118,20 +118,20 @@ describe('userSvc users (E2E):', function() {
     });
     
     describe('GET /api/account/users/:id', function() {
-        var mockUsers;
+        var mockUsers, options;
         beforeEach(function(done) {
             mockUsers = [
                 { id: 'u-e2e-get1', status: 'active', org: 'o-1234', email: 'user1', password: 'pass1' },
                 { id: 'u-e2e-get2', status: 'active', org: 'o-7890', email: 'user2', password: 'pass2' },
                 { id: 'u-e2e-get3', status: 'deleted', org: 'o-1234', email: 'user3', password: 'pass3' }
             ];
+            options = { url: config.usersUrl + '/u-e2e-get1', jar: cookieJar };
             testUtils.resetCollection('users', mockUsers.concat([mockRequester, mockAdmin])).done(function(resp) {
                 done();
             });
         });
         
         it('should get a user by id', function(done) {
-            var options = { url: config.usersUrl + '/u-e2e-get1', jar: cookieJar };
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual({
@@ -144,7 +144,6 @@ describe('userSvc users (E2E):', function() {
         });
 
         it('should write an entry to the audit collection', function(done) {
-            var options = { url: config.usersUrl + '/u-e2e-get1', jar: cookieJar };
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
@@ -164,8 +163,58 @@ describe('userSvc users (E2E):', function() {
             }).done(done);
         });
         
+        describe('if decorated=true', function() {
+            beforeEach(function() {
+                options.qs = { decorated: true };
+            });
+            
+            it('should decorate the user with permissions', function(done) {
+                options.url = config.usersUrl + '/e2e-user';
+                requestUtils.qRequest('get', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.permissions).toEqual({
+                        users: { read: 'org', create: 'org', edit: 'org', delete: 'org' }
+                    });
+                    expect(resp.body.fieldValidation).toEqual({
+                        users: {
+                            policies: {
+                                _accessLevel: 'allowed',
+                                _entries: {
+                                    _acceptableValues: ['pol1', 'pol2', 'pol4']
+                                }
+                            },
+                            roles: {
+                                _accessLevel: 'allowed',
+                                _entries: {
+                                    _acceptableValues: ['role1', 'role2', 'role4']
+                                }
+                            }
+                        }
+                    });
+                    delete options.qs;
+                    return requestUtils.qRequest('get', options);
+                }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.permissions).not.toBeDefined();
+                    expect(resp.body.fieldValidation).not.toBeDefined();
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should not do anything for non-200 responses', function(done) {
+                options.url = config.usersUrl + '/u-e2e-get2';
+                requestUtils.qRequest('get', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(404);
+                    expect(resp.body).toEqual('Object not found');
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+        });
+        
         it('should return a 404 if the requester cannot see the user', function(done) {
-            var options = { url: config.usersUrl + '/u-e2e-get2', jar: cookieJar };
+            options.url = config.usersUrl + '/u-e2e-get2';
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('Object not found');
@@ -182,7 +231,7 @@ describe('userSvc users (E2E):', function() {
         });
         
         it('should return a 404 if nothing is found', function(done) {
-            var options = { url: config.usersUrl + '/e2e-fake1', jar: cookieJar };
+            options.url = config.usersUrl + '/e2e-fake1';
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('Object not found');
@@ -192,7 +241,7 @@ describe('userSvc users (E2E):', function() {
         });
         
         it('should not show deleted users', function(done) {
-            var options = { url: config.usersUrl + '/u-e2e-get3', jar: cookieJar };
+            options.url = config.usersUrl + '/u-e2e-get3';
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toBe('Object not found');
@@ -202,7 +251,7 @@ describe('userSvc users (E2E):', function() {
         });
         
         it('should return a 401 error if the user is not authenticated', function(done) {
-            var options = { url: config.usersUrl + '/u-e2e-get1' };
+            delete options.jar;
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');

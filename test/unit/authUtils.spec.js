@@ -258,12 +258,13 @@ describe('authUtils', function() {
             }).done(done);
         });
         
-        it('should pass on errors from roles.find()', function(done) {
+        it('should fail if roles.find() fails', function(done) {
             roleColl.find.andReturn({ toArray: function(cb) { cb('I GOT A PROBLEM') } });
             authUtils.decorateUser(mockUser).then(function(user) {
                 expect(user).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).toBe('I GOT A PROBLEM');
+                expect(error).toBe('Mongo error');
+                expect(mockLog.error).toHaveBeenCalled();
                 expect(roleColl.find).toHaveBeenCalled();
                 expect(polColl.find).not.toHaveBeenCalled();
                 expect(authUtils.mergePermissions).not.toHaveBeenCalled();
@@ -272,12 +273,13 @@ describe('authUtils', function() {
             }).done(done);
         });
 
-        it('should pass on errors from policies.find()', function(done) {
+        it('should fail if policies.find() fails', function(done) {
             polColl.find.andReturn({ toArray: function(cb) { cb('I GOT A PROBLEM') } });
             authUtils.decorateUser(mockUser).then(function(user) {
                 expect(user).not.toBeDefined();
             }).catch(function(error) {
-                expect(error).toBe('I GOT A PROBLEM');
+                expect(error).toBe('Mongo error');
+                expect(mockLog.error).toHaveBeenCalled();
                 expect(roleColl.find).toHaveBeenCalled();
                 expect(polColl.find).toHaveBeenCalled();
                 expect(authUtils.mergePermissions).not.toHaveBeenCalled();

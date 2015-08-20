@@ -450,12 +450,18 @@
             });
         });
 
-        //TODO: consider adding query param `decorated` that would pass user through decorateUser()
         var authGetUser = authUtils.middlewarify({users: 'read'});
-        router.get('/:id', sessions, authGetUser, audit, function(req,res){
+        router.get('/:id', sessions, authGetUser, audit, function(req,res) {
             svc.getObjs({ id: req.params.id }, req, false)
             .then(function(resp) {
-                res.send(resp.code, resp.body);
+                if ((req.query.decorated !== 'true' && req.query.decorated !== true) ||
+                    resp.body.id === undefined) {
+                    return res.send(resp.code, resp.body);
+                }
+                
+                return authUtils.decorateUser(resp.body).then(function(user) {
+                    res.send(resp.code, user);
+                });
             }).catch(function(error) {
                 res.send(500, {
                     error: 'Error retrieving user',
