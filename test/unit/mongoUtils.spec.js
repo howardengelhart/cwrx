@@ -268,6 +268,16 @@ describe('mongoUtils', function() {
                 expect(mockLog.error).toHaveBeenCalled();
             }).done(done);
         });
+
+        it('should trim off the _id field, if it exists', function(done) {
+            mongoUtils.createObject(mockColl, { orig: 'yes', _id: 'asdf' }).then(function(resp) {
+                expect(resp).toEqual({ escaped: 'yes' });
+                expect(mongoUtils.escapeKeys).toHaveBeenCalledWith({ orig: 'yes' });
+                expect(mockColl.insert).toHaveBeenCalledWith({ escaped: 'yes' }, { w: 1, journal: true }, jasmine.any(Function));
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
     });
     
     describe('editObject', function() {
@@ -302,6 +312,17 @@ describe('mongoUtils', function() {
                 expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                 expect(mockColl.findAndModify).toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should trim off the _id field, if it exists', function(done) {
+            mongoUtils.editObject(mockColl, { foo: 'bar', _id: 'asdf' }, 'e-1').then(function(resp) {
+                expect(resp).toEqual({ updated: 'yes' });
+                expect(mongoUtils.escapeKeys).toHaveBeenCalledWith({ foo: 'bar', lastUpdated: jasmine.any(Date) });
+                expect(mockColl.findAndModify).toHaveBeenCalledWith({ id: 'e-1' }, {id: 1},
+                    { $set: { escaped: 'yes' } }, { w: 1, journal: true, new: true }, jasmine.any(Function));
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
     });

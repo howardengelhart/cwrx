@@ -72,6 +72,8 @@
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._db = state.dbs.c6Db;
+        
+        app.set('json spaces', 2);
 
         // Nodemailer will automatically get SES creds, but need to set region here
         aws.config.region = state.config.ses.region;

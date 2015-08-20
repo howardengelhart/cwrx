@@ -97,6 +97,7 @@
         );
         var authorizeForceLogout = userModule.authorizeForceLogout;
 
+        // override some default CrudSvc methods with custom versions for users
         userSvc.transformMongoDoc = mongoUtils.safeUser;
         userSvc.checkScope = userModule.checkScope;
         userSvc.userPermQuery = userModule.userPermQuery;
@@ -184,10 +185,6 @@
             policies: []
         });
         
-        if (newUser.roles.indexOf('base') === -1) {
-            newUser.roles.push('base');
-        }
-
         newUser.email = newUser.email.toLowerCase();
 
         return next();
@@ -453,6 +450,7 @@
             });
         });
 
+        //TODO: consider adding query param `decorated` that would pass user through decorateUser()
         var authGetUser = authUtils.middlewarify({users: 'read'});
         router.get('/:id', sessions, authGetUser, audit, function(req,res){
             svc.getObjs({ id: req.params.id }, req, false)
@@ -470,8 +468,15 @@
             var query = {};
             if (req.query.org) {
                 query.org = String(req.query.org);
-            } else if (req.query.ids) {
-                query.id = req.query.ids.split(',');
+            }
+            if (req.query.role) {
+                query.roles = String(req.query.role);
+            }
+            if (req.query.policy) {
+                query.policies = String(req.query.policy);
+            }
+            if (req.query.ids) {
+                query.id = String(req.query.ids).split(',');
             }
 
             svc.getObjs(query, req, true)

@@ -269,10 +269,10 @@ describe('Model', function() {
 
             it('should pass if the field is present on the origObj', function() {
                 origObj.name = 'puffles';
-                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true });
+                expect(model.validate('edit', newObj, origObj, requester)).toEqual({ isValid: true });
                 expect(newObj).toEqual({ name: 'puffles' });
                 newObj.name = 'scruffles';
-                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true });
+                expect(model.validate('edit', newObj, origObj, requester)).toEqual({ isValid: true });
                 expect(newObj).toEqual({ name: 'scruffles' });
             });
         });

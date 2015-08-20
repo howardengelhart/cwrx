@@ -44,7 +44,7 @@ describe('userSvc-policies (UT)', function() {
         beforeEach(function() {
             mockDb.collection.andCallFake(function(objName) { return { collectionName: objName }; });
 
-            [CrudSvc.prototype.validateUniqueProp, polModule.checkPolicyInUse].forEach(function(fn) {
+            [CrudSvc.prototype.validateUniqueProp, polModule.checkPolicyInUse, polModule.validateApplications].forEach(function(fn) {
                 spyOn(fn, 'bind').andReturn(fn);
             });
 
@@ -82,6 +82,7 @@ describe('userSvc-policies (UT)', function() {
         it('should do additional validation for applications on create and edit', function() {
             expect(svc._middleware.create).toContain(polModule.validateApplications);
             expect(svc._middleware.edit).toContain(polModule.validateApplications);
+            expect(polModule.validateApplications.bind).toHaveBeenCalledWith(polModule, svc);
         });
         
         it('should prevent deleting in-use policies', function() {
@@ -95,44 +96,80 @@ describe('userSvc-policies (UT)', function() {
         beforeEach(function() {
             mockColl.collectionName = 'policies';
             svc = polModule.setupSvc(mockDb);
-            newObj = { name: 'test', foo: 'bar' };
+            newObj = { name: 'test', priority: 1 };
             origObj = {};
             requester = { fieldValidation: { policies: {} } };
         });
         
-        
         describe('when handling name', function() {
-            it('should fail if the name is not a string', function() {
+            it('should fail if the field is not a string', function() {
                 newObj.name = 123;
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: false, reason: 'name must be in format: \'string\'' });
             });
             
-            it('should allow the name to be set on create', function() {
+            it('should allow the field to be set on create', function() {
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: true });
-                expect(newObj).toEqual({ name: 'test', foo: 'bar' });
+                expect(newObj).toEqual({ name: 'test', priority: 1 });
             });
 
-            it('should fail if the name is not defined', function() {
+            it('should fail if the field is not defined', function() {
                 delete newObj.name;
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: false, reason: 'Missing required field: name' });
             });
             
-            it('should pass if the name was defined on the original object', function() {
+            it('should pass if the field was defined on the original object', function() {
                 delete newObj.name;
                 origObj.name = 'old pol name';
                 expect(svc.model.validate('edit', newObj, origObj, requester))
                     .toEqual({ isValid: true });
-                expect(newObj).toEqual({ name: 'old pol name', foo: 'bar' });
+                expect(newObj).toEqual({ name: 'old pol name', priority: 1 });
             });
 
-            it('should revert the name if defined on edit', function() {
+            it('should revert the field if defined on edit', function() {
                 origObj.name = 'old pol name';
                 expect(svc.model.validate('edit', newObj, origObj, requester))
                     .toEqual({ isValid: true });
-                expect(newObj).toEqual({ name: 'old pol name', foo: 'bar' });
+                expect(newObj).toEqual({ name: 'old pol name', priority: 1 });
+            });
+        });
+        
+        describe('when handling priority', function() {
+            it('should fail if the field is not a number', function() {
+                newObj.priority = 'really high';
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'priority must be in format: \'number\'' });
+            });
+            
+            it('should allow the field to be set on create', function() {
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true });
+                expect(newObj).toEqual({ name: 'test', priority: 1 });
+            });
+
+            it('should fail if the field is not defined', function() {
+                delete newObj.priority;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'Missing required field: priority' });
+            });
+            
+            it('should pass if the field was defined on the original object', function() {
+                delete newObj.priority;
+                origObj.name = 'old pol name';
+                origObj.priority = 2;
+                expect(svc.model.validate('edit', newObj, origObj, requester))
+                    .toEqual({ isValid: true });
+                expect(newObj).toEqual({ name: 'old pol name', priority: 2 });
+            });
+
+            it('should allow the field to be changed', function() {
+                origObj.name = 'old pol name';
+                origObj.priority = 2;
+                expect(svc.model.validate('edit', newObj, origObj, requester))
+                    .toEqual({ isValid: true });
+                expect(newObj).toEqual({ name: 'old pol name', priority: 1 });
             });
         });
         
@@ -143,7 +180,7 @@ describe('userSvc-policies (UT)', function() {
                     newObj[field] = 'me';
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: true });
-                    expect(newObj).toEqual({ name: 'test', foo: 'bar' });
+                    expect(newObj).toEqual({ name: 'test', priority: 1 });
                 });
                 
                 it('should be able to allow some requesters to set the field', function() {
@@ -168,7 +205,7 @@ describe('userSvc-policies (UT)', function() {
                 newObj.applications = ['e-app1', 'e-app2'];
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: true });
-                expect(newObj).toEqual({ name: 'test', foo: 'bar' });
+                expect(newObj).toEqual({ name: 'test', priority: 1 });
             });
             
             it('should be able to allow some requesters to set the field', function() {
@@ -180,7 +217,7 @@ describe('userSvc-policies (UT)', function() {
 
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: true });
-                expect(newObj).toEqual({ name: 'test', foo: 'bar', applications: ['e-app1', 'e-app2'] });
+                expect(newObj).toEqual({ name: 'test', priority: 1, applications: ['e-app1', 'e-app2'] });
             });
             
             it('should fail if the field is not an array of strings', function() {
@@ -211,7 +248,7 @@ describe('userSvc-policies (UT)', function() {
                 newObj.entitlements = { doThings: 'yes' };
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: true });
-                expect(newObj).toEqual({ name: 'test', foo: 'bar' });
+                expect(newObj).toEqual({ name: 'test', priority: 1 });
             });
             
             it('should be able to allow some requesters to set the field', function() {
@@ -220,7 +257,7 @@ describe('userSvc-policies (UT)', function() {
 
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: true });
-                expect(newObj).toEqual({ name: 'test', foo: 'bar', entitlements: { doThings: 'yes' } });
+                expect(newObj).toEqual({ name: 'test', priority: 1, entitlements: { doThings: 'yes' } });
             });
             
             it('should fail if the field is not an object', function() {

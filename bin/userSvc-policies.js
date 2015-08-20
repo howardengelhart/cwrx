@@ -37,6 +37,12 @@
             _createOnly: true,
             _required: true
         },
+        priority: {
+            _accessLevel: AccessLevel.Allowed,
+            _type: 'number',
+            _required: true,
+            _min: 1
+        },
         createdBy: {
             _accessLevel: AccessLevel.Forbidden,
             _type: 'string'
@@ -84,19 +90,20 @@
         
         svc._db = db;
         
-        var validateUniqueName = svc.validateUniqueProp.bind(svc, 'name', /^\w+$/);
+        var validateUniqueName = svc.validateUniqueProp.bind(svc, 'name', /^\w+$/),
+            validateApplications = polModule.validateApplications.bind(polModule, svc);
         
         svc.use('create', validateUniqueName);
         svc.use('create', polModule.setChangeTrackProps);
         svc.use('create', polModule.validatePermissions);
-        svc.use('create', polModule.validateApplications);
+        svc.use('create', validateApplications);
         
         //TODO: are you suuuuure you don't want to validate fieldValidation?
 
         svc.use('edit', validateUniqueName);
         svc.use('edit', polModule.setChangeTrackProps);
         svc.use('edit', polModule.validatePermissions);
-        svc.use('edit', polModule.validateApplications);
+        svc.use('edit', validateApplications);
         
         svc.use('delete', polModule.checkPolicyInUse.bind(polModule, svc));
 
@@ -142,7 +149,7 @@
         next();
     };
 
-    // Check that of the policy's applications exist
+    // Check that all of the policy's applications exist
     polModule.validateApplications = function(svc, req, next, done) {
         var log = logger.getLog();
         

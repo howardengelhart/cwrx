@@ -686,6 +686,12 @@ describe('authUtils', function() {
             var perms = {};
             expect(authUtils._compare(perms, userPerms)).toBe(true);
         });
+        
+        it('should throw an error if the user has no permissions', function() {
+            expect(function() {
+                expect(authUtils._compare({ users: 'read' }, undefined)).toBe(false);
+            }).not.toThrow();
+        });
     });
     
     describe('authUser', function() {

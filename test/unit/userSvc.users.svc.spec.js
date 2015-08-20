@@ -432,23 +432,6 @@ describe('userSvc (UT)', function() {
                 expect(next).toHaveBeenCalledWith();
             });
         });
-        
-        describe('if the user does not have the base role', function() {
-            beforeEach(function() {
-                next.reset();
-                req.body.roles = ['selfie'];
-
-                userModule.setupUser(req, next, done);
-            });
-
-            it('should give the user the base role', function() {
-                expect(req.body.roles).toEqual(['selfie', 'base']);
-            });
-
-            it('should call next()', function() {
-                expect(next).toHaveBeenCalledWith();
-            });
-        });
     });
     
     describe('hashProp(prop, req, next, done)', function() {

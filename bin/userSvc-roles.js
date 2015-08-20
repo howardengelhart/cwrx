@@ -122,10 +122,10 @@
     };
 
     
+    //TODO: update cookbook with nginx cfg; setup indexes in c6mongo cfg in envs
     roleModule.setupEndpoints = function(app, svc, sessions, audit) {
         var router      = express.Router(),
             mountPath   = '/api/account/roles?'; // prefix to all endpoints declared here
-        
         
         var authGetRole = authUtils.middlewarify({roles: 'read'});
         router.get('/:id', sessions, authGetRole, audit, function(req,res){
