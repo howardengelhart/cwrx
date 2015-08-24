@@ -11,16 +11,16 @@ describe('enums', function() {
         expect(enums.Status.Inactive).toBe('inactive');
         expect(enums.Status.Pending).toBe('pending');
         expect(enums.Status.Deleted).toBe('deleted');
-        expect(enums.AccessLevel.Forbidden).toBe('forbidden');
-        expect(enums.AccessLevel.Allowed).toBe('allowed');
+        expect(enums.Access.Public).toBe('public');
+        expect(enums.Access.Private).toBe('private');
         expect(enums.Scope.Own).toBe('own');
         expect(enums.Scope.Org).toBe('org');
         expect(enums.Scope.All).toBe('all');
     });
     
     it('should be frozen', function() {
-        enums.AccessLevel.Forbidden = 'foo';
-        expect(enums.AccessLevel.Forbidden).toBe('forbidden');
+        enums.Access.Public = 'foo';
+        expect(enums.Access.Public).toBe('public');
         delete enums.Status.Pending;
         expect(enums.Status.Pending).toBe('pending');
         var fakeFunc = function() { console.log('i\'m in ur enums messing up ur scopes'); };
@@ -56,6 +56,7 @@ describe('enums', function() {
             expect(enums.Scope.isScope('own')).toBe(true);
             expect(enums.Scope.isScope('org')).toBe(true);
             expect(enums.Scope.isScope('all')).toBe(true);
+            expect(enums.Scope.isScope('deny')).toBe(true);
             expect(enums.Scope.isScope('fake')).toBe(false);
         });
     });

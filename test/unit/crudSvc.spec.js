@@ -1,7 +1,7 @@
 var flush = true;
 describe('CrudSvc', function() {
     var q, mockLog, logger, CrudSvc, uuid, mongoUtils, FieldValidator, Model, mockColl, anyFunc,
-        req, svc, enums, Scope, Status, AccessLevel, nextSpy, doneSpy, errorSpy;
+        req, svc, enums, Scope, Status, nextSpy, doneSpy, errorSpy;
     
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -15,7 +15,6 @@ describe('CrudSvc', function() {
         Model           = require('../../lib/model');
         Scope           = enums.Scope;
         Status          = enums.Status;
-        AccessLevel     = enums.AccessLevel;
         anyFunc = jasmine.any(Function);
 
         mockColl = {
@@ -145,7 +144,7 @@ describe('CrudSvc', function() {
                 ['id', '_id', 'created', 'lastUpdated'].forEach(function(field) {
                     describe('when handling ' + field, function() {
                         it('should not allow any requesters to set the field', function() {
-                            requester.fieldValidation.thangs[field] = { _accessLevel: AccessLevel.Allowed };
+                            requester.fieldValidation.thangs[field] = { _allowed: true };
                             newObj[field] = 't-myownid';
                             expect(svc.model.validate('create', newObj, origObj, requester))
                                 .toEqual({ isValid: true });
@@ -165,7 +164,7 @@ describe('CrudSvc', function() {
                         });
                         
                         it('should allow some requesters to set the field', function() {
-                            requester.fieldValidation.thangs[field] = { _accessLevel: AccessLevel.Allowed };
+                            requester.fieldValidation.thangs[field] = { _allowed: true };
                             newObj[field] = 'someguy';
                             expect(svc.model.validate('create', newObj, origObj, requester))
                                 .toEqual({ isValid: true });
@@ -180,7 +179,7 @@ describe('CrudSvc', function() {
                     });
                     
                     it('should not allow any requesters to set the field', function() {
-                        requester.fieldValidation.thangs.statusHistory = { _accessLevel: AccessLevel.Allowed };
+                        requester.fieldValidation.thangs.statusHistory = { _allowed: true };
                         newObj.statusHistory = [{ status: 'bad', date: 'yesterday' }];
                         expect(svc.model.validate('create', newObj, origObj, requester))
                             .toEqual({ isValid: true });

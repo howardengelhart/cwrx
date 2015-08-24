@@ -12,7 +12,6 @@
         CrudSvc         = require('../lib/crudSvc.js'),
         email           = require('../lib/email'),
         enums           = require('../lib/enums'),
-        AccessLevel     = enums.AccessLevel,
         Status          = enums.Status,
         Scope           = enums.Scope,
 
@@ -20,44 +19,44 @@
         
     userModule.userSchema = {
         email: {
-            _accessLevel: AccessLevel.Allowed,
+            _allowed: true,
             _type: 'string',
             _createOnly: true,
             _required: true,
             _locked: true
         },
         password: {
-            _accessLevel: AccessLevel.Allowed,
+            _allowed: true,
             _type: 'string',
             _createOnly: true,
             _required: true,
             _locked: true
         },
         applications: {
-            _accessLevel: AccessLevel.Forbidden,
+            _allowed: false,
             _locked: true
         },
         permissions: {
-            _accessLevel: AccessLevel.Forbidden,
+            _allowed: false,
             _locked: true
         },
         fieldValidation: {
-            _accessLevel: AccessLevel.Forbidden,
+            _allowed: false,
             _locked: true
         },
         entitlements: {
-            _accessLevel: AccessLevel.Forbidden,
+            _allowed: false,
             _locked: true
         },
         policies: {
-            _accessLevel: AccessLevel.Forbidden,
+            _allowed: false,
             _type: ['string'],
             _entries: {
                 _acceptableValues: []
             }
         },
         roles: {
-            _accessLevel: AccessLevel.Forbidden,
+            _allowed: false,
             _type: ['string'],
             _entries: {
                 _acceptableValues: []

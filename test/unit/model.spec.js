@@ -1,14 +1,12 @@
 var flush = true;
 describe('Model', function() {
-    var q, mockLog, logger, Model, enums, AccessLevel;
+    var q, mockLog, logger, Model;
     
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         Model           = require('../../lib/model');
         q               = require('q');
         logger          = require('../../lib/logger');
-        enums           = require('../../lib/enums');
-        AccessLevel     = enums.AccessLevel;
 
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -37,23 +35,23 @@ describe('Model', function() {
         beforeEach(function() {
             model = new Model('puppies', {
                 id: {
-                    _type: 'string', _accessLevel: AccessLevel.Forbidden, _locked: true
+                    _type: 'string', _allowed: false, _locked: true
                 },
                 born: {
-                    _type: Date, _accessLevel: AccessLevel.Forbidden
+                    _type: Date, _allowed: false
                 },
                 name: {
-                    _type: 'string', _accessLevel: AccessLevel.Forbidden
+                    _type: 'string', _allowed: false
                 },
                 paws: {
-                    _type: 'number', _accessLevel: AccessLevel.Limited, _min: 2
+                    _type: 'number', _allowed: true, _min: 2
                 },
                 snax: {
                     kibbles: {
-                        _type: 'string', _accessLevel: AccessLevel.Allowed, _acceptableValues: ['yes', 'no']
+                        _type: 'string', _allowed: true, _acceptableValues: ['yes', 'no']
                     },
                     bacon: {
-                        _type: 'string', _accessLevel: AccessLevel.Allowed, _acceptableValues: '*'
+                        _type: 'string', _allowed: true, _acceptableValues: '*'
                     },
                 }
             });
@@ -63,7 +61,7 @@ describe('Model', function() {
                     kitties: { name: { _required: true } },
                     puppies: {
                         name: {
-                            _accessLevel: AccessLevel.Allowed
+                            _allowed: true
                         },
                         snax: {
                             kibbles: {
@@ -87,45 +85,45 @@ describe('Model', function() {
             expect(personalized).not.toEqual(model.schema);
             expect(personalized).toEqual({
                 id: {
-                    _type: 'string', _accessLevel: AccessLevel.Forbidden, _locked: true
+                    _type: 'string', _allowed: false, _locked: true
                 },
                 born: {
-                    _type: Date, _accessLevel: AccessLevel.Forbidden
+                    _type: Date, _allowed: false
                 },
                 name: {
-                    _type: 'string', _accessLevel: AccessLevel.Allowed
+                    _type: 'string', _allowed: true
                 },
                 paws: {
-                    _type: 'number', _accessLevel: AccessLevel.Limited, _min: 2
+                    _type: 'number', _allowed: true, _min: 2
                 },
                 snax: {
                     kibbles: {
-                        _type: 'string', _accessLevel: AccessLevel.Allowed, _acceptableValues: ['very yes']
+                        _type: 'string', _allowed: true, _acceptableValues: ['very yes']
                     },
                     bacon: {
-                        _type: 'string', _accessLevel: AccessLevel.Allowed, _acceptableValues: '*'
+                        _type: 'string', _allowed: true, _acceptableValues: '*'
                     },
                 }
             });
         });
         
         it('should not be able to overwrite _locked fields on the default schema', function() {
-            requester.fieldValidation.puppies.id = { _accessLevel: AccessLevel.Allowed, _min: 10 };
+            requester.fieldValidation.puppies.id = { _allowed: true, _min: 10 };
             var personalized = model.personalizeSchema(requester);
             expect(personalized).not.toEqual(model.schema);
             expect(personalized.id).toEqual({
-                _type: 'string', _accessLevel: AccessLevel.Forbidden, _locked: true
+                _type: 'string', _allowed: false, _locked: true
             });
         });
         
         it('should not be able to overwrite _type settings on the default schema', function() {
             requester.fieldValidation.puppies.name = {
-                _type: 'object', _accessLevel: AccessLevel.Allowed,
+                _type: 'object', _allowed: true,
             };
             var personalized = model.personalizeSchema(requester);
             expect(personalized).not.toEqual(model.schema);
             expect(personalized.name).toEqual({
-                _type: 'string', _accessLevel: AccessLevel.Allowed
+                _type: 'string', _allowed: true
             });
         });
         
@@ -137,18 +135,18 @@ describe('Model', function() {
             
             var personalized = model.personalizeSchema(requester);
             expect(personalized.born).toEqual({
-                _type: Date, _accessLevel: AccessLevel.Forbidden, _default: later
+                _type: Date, _allowed: false, _default: later
             });
         });
         
         it('should allow the requester\'s fieldValidation to define configs for new fields', function() {
             requester.fieldValidation.puppies.likesCats = {
-                _type: 'boolean', _accessLevel: AccessLevel.Allowed
+                _type: 'boolean', _allowed: true
             };
             
             var personalized = model.personalizeSchema(requester);
             expect(personalized.likesCats).toEqual({
-                _type: 'boolean', _accessLevel: AccessLevel.Allowed
+                _type: 'boolean', _allowed: true
             });
         });
     });
@@ -252,7 +250,7 @@ describe('Model', function() {
         describe('if a field is required', function() {
             beforeEach(function() {
                 model.schema.name = {
-                    _type: 'string', _required: true, _accessLevel: AccessLevel.Allowed
+                    _type: 'string', _required: true, _allowed: true
                 };
             });
 
@@ -280,7 +278,7 @@ describe('Model', function() {
         describe('if a field is forbidden', function() {
             beforeEach(function() {
                 model.schema.name = {
-                    _type: 'string', _accessLevel: AccessLevel.Forbidden
+                    _type: 'string', _allowed: false
                 };
             });
             
@@ -306,7 +304,7 @@ describe('Model', function() {
         describe('if a field can only be set on create', function() {
             beforeEach(function() {
                 model.schema.name = {
-                    _type: 'string', _accessLevel: AccessLevel.Allowed, _createOnly: true
+                    _type: 'string', _allowed: true, _createOnly: true
                 };
             });
             
@@ -338,7 +336,7 @@ describe('Model', function() {
         describe('if a field has _type === Date', function() {
             beforeEach(function() {
                 model.schema.born = {
-                    _type: Date, _accessLevel: AccessLevel.Allowed
+                    _type: Date, _allowed: true
                 };
             });
 
@@ -364,7 +362,7 @@ describe('Model', function() {
         describe('if a field has a _type specified', function() {
             beforeEach(function() {
                 model.schema.doggieFriends = {
-                    _type: ['string'], _accessLevel: AccessLevel.Allowed
+                    _type: ['string'], _allowed: true
                 };
             });
             
@@ -389,7 +387,7 @@ describe('Model', function() {
         describe('if a field has limit props specified', function() {
             beforeEach(function() {
                 model.schema.paws = {
-                    _type: 'number', _accessLevel: AccessLevel.Allowed, _min: 2, _max: 4
+                    _type: 'number', _allowed: true, _min: 2, _max: 4
                 };
             });
             
@@ -415,16 +413,16 @@ describe('Model', function() {
             beforeEach(function() {
                 model.schema.snax = {
                     bacon: {
-                        _type: 'string', _accessLevel: AccessLevel.Allowed, _acceptableValues: '*'
+                        _type: 'string', _allowed: true, _acceptableValues: '*'
                     },
                     vegetables: {
-                        _type: 'string', _accessLevel: AccessLevel.Allowed, _acceptableValues: '*'
+                        _type: 'string', _allowed: true, _acceptableValues: '*'
                     },
                     kibbles: {
-                        _type: 'string', _accessLevel: AccessLevel.Allowed, _acceptableValues: ['yes', 'no']
+                        _type: 'string', _allowed: true, _acceptableValues: ['yes', 'no']
                     },
                     chocolate: {
-                        _accessLevel: AccessLevel.Forbidden
+                        _allowed: false
                     }
                 };
             });
@@ -448,7 +446,7 @@ describe('Model', function() {
             });
             
             it('should trim the entire block if the whole block is forbidden', function() {
-                model.schema.snax._accessLevel = AccessLevel.Forbidden;
+                model.schema.snax._allowed = false;
                 newObj.snax = {
                     kibbles: 'yes', bacon: 'always', chocolate: 'do want'
                 };
@@ -488,10 +486,10 @@ describe('Model', function() {
                     _type: ['object'],
                     _entries: {
                         name: {
-                            _type: 'string', _accessLevel: AccessLevel.Allowed
+                            _type: 'string', _allowed: true
                         },
                         paws: {
-                            _type: 'number', _accessLevel: AccessLevel.Allowed, _min: 2, _max: 4
+                            _type: 'number', _allowed: true, _min: 2, _max: 4
                         }
                     }
                 };
@@ -510,7 +508,7 @@ describe('Model', function() {
                 expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: false,
                     reason: 'doggieFriends[2].paws must be less than the max: 4' });
                     
-                model.schema.doggieFriends._entries.paws._accessLevel = AccessLevel.Forbidden;
+                model.schema.doggieFriends._entries.paws._allowed = false;
                 expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true });
                 expect(newObj.doggieFriends).toEqual([
                     { name: 'knut' },

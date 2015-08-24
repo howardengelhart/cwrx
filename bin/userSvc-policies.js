@@ -7,7 +7,6 @@
         authUtils       = require('../lib/authUtils'),
         CrudSvc         = require('../lib/crudSvc.js'),
         enums           = require('../lib/enums'),
-        AccessLevel     = enums.AccessLevel,
         Status          = enums.Status,
         Scope           = enums.Scope,
 
@@ -32,41 +31,41 @@
 
     polModule.policySchema = {
         name: {
-            _accessLevel: AccessLevel.Allowed,
+            _allowed: true,
             _type: 'string',
             _createOnly: true,
             _required: true
         },
         priority: {
-            _accessLevel: AccessLevel.Allowed,
+            _allowed: true,
             _type: 'number',
             _required: true,
             _min: 1
         },
         createdBy: {
-            _accessLevel: AccessLevel.Forbidden,
+            _allowed: false,
             _type: 'string'
         },
         lastUpdatedBy: {
-            _accessLevel: AccessLevel.Forbidden,
+            _allowed: false,
             _type: 'string'
         },
         applications: {
-            _accessLevel: AccessLevel.Forbidden,
+            _allowed: false,
             _type: ['string'],
             _entries: {
                 _acceptableValues: []
             }
         },
         entitlements: {
-            _accessLevel: AccessLevel.Forbidden,
+            _allowed: false,
             _type: 'object'
         },
         
         // permissions.advertisers etc. will be forbidden
         permissions: allEntities.reduce(function(schemaObj, objName) {
             schemaObj[objName] = {
-                _accessLevel: AccessLevel.Forbidden,
+                _allowed: false,
                 _type: 'object'
             };
             
@@ -76,7 +75,7 @@
         // fieldValidation.advertisers etc. will be forbidden
         fieldValidation: allEntities.reduce(function(schemaObj, objName) {
             schemaObj[objName] = {
-                _accessLevel: AccessLevel.Forbidden,
+                _allowed: false,
                 _type: 'object'
             };
             
@@ -98,8 +97,6 @@
         svc.use('create', polModule.validatePermissions);
         svc.use('create', validateApplications);
         
-        //TODO: are you suuuuure you don't want to validate fieldValidation?
-
         svc.use('edit', validateUniqueName);
         svc.use('edit', polModule.setChangeTrackProps);
         svc.use('edit', polModule.validatePermissions);

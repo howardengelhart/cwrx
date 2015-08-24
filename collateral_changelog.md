@@ -1,5 +1,7 @@
 # Collateral Service Changelog
 
+* [FIX]: Auth middleware will handle users with roles + policies: [#475](https://github.com/cinema6/cwrx/issues/475)
+
 ### 2.0.1: Thu Jul 16 18:18:01 EDT 2015
 * [FIX]: Time-out uri endpoint downloads if they take too long: [#456](https://github.com/cinema6/cwrx/issues/456)
 * [FIX]: Respond with a 400 if an invalid URI is sent to the uri endpoint: [#457](https://github.com/cinema6/cwrx/issues/457)

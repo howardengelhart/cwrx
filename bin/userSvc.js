@@ -73,8 +73,6 @@
                                                     state.config.appVersion, state.config.appName);
         authUtils._db = state.dbs.c6Db;
         
-        app.set('json spaces', 2);
-
         // Nodemailer will automatically get SES creds, but need to set region here
         aws.config.region = state.config.ses.region;
 
@@ -93,6 +91,7 @@
         var sessions = sessionLib(sessionOpts);
 
         app.set('trust proxy', 1);
+        app.set('json spaces', 2);
 
         // Because we may recreate the session middleware, we need to wrap it in the route handlers
         function sessWrap(req, res, next) {

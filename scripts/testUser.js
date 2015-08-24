@@ -4,7 +4,7 @@ var q           = require('q'),
     mongoUtils  = require('../lib/mongoUtils'),
 
     hashPass = '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of password    
-    allPerms = [
+    allEntities = [
         'advertisers',
         'campaigns',
         'cards',
@@ -19,6 +19,50 @@ var q           = require('q'),
         'sites',
         'users'
     ];
+
+// setup permissive fieldValidation rules for users + policies on the policy
+function setupUserSvcFieldVal(policy) {
+    policy.fieldValidation.users = {
+        policies: {
+            _allowed: true,
+            _entries: {
+                _acceptableValues: '*'
+            }
+        },
+        roles: {
+            _allowed: true,
+            _entries: {
+                _acceptableValues: '*'
+            }
+        }
+    };
+    
+    policy.fieldValidation.policies = {
+        applications: {
+            _allowed: true,
+            _entries: {
+                _acceptableValues: '*'
+            }
+        },
+        permissions: allEntities.reduce(function(permValObj, entity) {
+            permValObj[entity] = {
+                _allowed: true
+            };
+            
+            return permValObj;
+        }, {}),
+        fieldValidation: allEntities.reduce(function(fieldValObj, entity) {
+            fieldValObj[entity] = {
+                _allowed: true
+            };
+            
+            return fieldValObj;
+        }, {}),
+        entitlements: {
+            _allowed: true
+        }
+    };
+}
     
 program
     .version('0.0.1')
@@ -51,8 +95,8 @@ mongoUtils.connect(program.dbHost, program.dbPort, 'c6Db', program.dbUser, progr
         
         console.log('Creating user', program.id, 'with email', program.email, 'and password "password"');
         
-        var userPerms = program.perms === 'all' ? allPerms : program.perms.split(',').filter(function(objName) {
-            return allPerms.some(function(perm) { return perm === objName; });
+        var userPerms = program.perms === 'all' ? allEntities : program.perms.split(',').filter(function(objName) {
+            return allEntities.some(function(perm) { return perm === objName; });
         });
         
         console.log('New user will have full admin priviledges over:', userPerms.join(','));
@@ -63,12 +107,15 @@ mongoUtils.connect(program.dbHost, program.dbPort, 'c6Db', program.dbUser, progr
             created: new Date(),
             lastUpdated: new Date(),
             status: 'active',
-            permissions: {}
+            permissions: {},
+            fieldValidation: {}
         };
         
         userPerms.forEach(function(key) {
             policy.permissions[key] = { read: 'all', create: 'all', edit: 'all', delete: 'all' };
         });
+        
+        setupUserSvcFieldVal(policy);
 
         return q.npost(db.collection('policies'), 'findAndModify', [{id: 'p-testAdmin'}, {id: 1}, policy,
                                                                     {w: 1, journal: true, new: true, upsert: true}]);
@@ -82,7 +129,7 @@ mongoUtils.connect(program.dbHost, program.dbPort, 'c6Db', program.dbUser, progr
             email: program.email,
             password: hashPass,
             status: 'active',
-            policies: ['p-testAdmin']
+            policies: ['testFullAdmin']
         };
         
         return q.npost(userColl, 'insert', [mongoUtils.escapeKeys(newUser), {w: 1, journal: true}]);

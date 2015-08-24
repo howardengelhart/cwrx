@@ -1,7 +1,7 @@
 var flush = true;
 describe('content (UT)', function() {
     var mockLog, mockLogger, uuid, logger, expModule, q, FieldValidator, mongoUtils,
-        enums, Status, Scope;
+        enums, Status, Scope, Access;
     
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -13,6 +13,7 @@ describe('content (UT)', function() {
         FieldValidator  = require('../../lib/fieldValidator');
         enums           = require('../../lib/enums');
         Status          = enums.Status;
+        Access          = enums.Access;
         Scope           = enums.Scope;
         
         mockLog = {
@@ -81,7 +82,7 @@ describe('content (UT)', function() {
     describe('canGetExperience', function() {
         var exp, user;
         beforeEach(function() {
-            exp = { id: 'e1', status: Status.Pending, access: 'private' };
+            exp = { id: 'e1', status: Status.Pending, access: Access.Private };
             user = null;
             spyOn(expModule, 'checkScope').andReturn(false);
         });
@@ -94,7 +95,7 @@ describe('content (UT)', function() {
         });
         
         it('should let a guest see a public experience from cinema6.com', function() {
-            exp.access = 'public';
+            exp.access = Access.Public;
             expect(expModule.canGetExperience(exp, user, false)).toBe(false);
             expect(expModule.canGetExperience(exp, user, true)).toBe(true);
         });
@@ -113,7 +114,7 @@ describe('content (UT)', function() {
         });
         
         it('should never let anyone see a deleted experience', function() {
-            exp = { id: 'e1', status: Status.Deleted, access: 'public' };
+            exp = { id: 'e1', status: Status.Deleted, access: Access.Public };
             expModule.checkScope.andReturn(true);
             expect(expModule.canGetExperience(exp, user, true)).toBe(false);
         });
@@ -373,7 +374,7 @@ describe('content (UT)', function() {
         it('should check if the exp is public instead if the origin is a cinema6 domain', function() {
             expect(expModule.userPermQuery(query, user, true))
                 .toEqual({ type: 'minireel', 'status.0.status': { $ne: Status.Deleted },
-                           $or: [ { user: 'u-1' }, { access: 'public' } ] });
+                           $or: [ { user: 'u-1' }, { access: Access.Public } ] });
         });
         
         it('should append a check against their application list if the user has one', function() {

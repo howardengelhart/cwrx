@@ -6,7 +6,6 @@ describe('userSvc (UT)', function() {
     var enums = require('../../lib/enums'),
         Status = enums.Status,
         Scope = enums.Scope;
-        AccessLevel = enums.AccessLevel;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -225,7 +224,7 @@ describe('userSvc (UT)', function() {
                 });
                 
                 it('should not allow any requesters to set the field', function() {
-                    requester.fieldValidation.users[field] = { _accessLevel: AccessLevel.Allowed };
+                    requester.fieldValidation.users[field] = { _allowed: true };
                     newObj[field] = { foo: 'bar' };
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: true });
@@ -247,7 +246,7 @@ describe('userSvc (UT)', function() {
                 it('should be able to allow some requesters to set the field', function() {
                     newObj[field] = ['thing1', 'thing2'];
                     requester.fieldValidation.users[field] = {
-                        _accessLevel: AccessLevel.Allowed,
+                        _allowed: true,
                         _entries: { _acceptableValues: ['thing1', 'thing2', 'thing3'] }
                     };
 
@@ -259,7 +258,7 @@ describe('userSvc (UT)', function() {
                 it('should fail if the field is not an array of strings', function() {
                     newObj[field] = [{ name: 'thing1' }, { name: 'thing2' }];
                     requester.fieldValidation.users[field] = {
-                        _accessLevel: AccessLevel.Allowed,
+                        _allowed: true,
                         _entries: { _acceptableValues: ['thing1', 'thing2', 'thing3'] }
                     };
 
@@ -270,7 +269,7 @@ describe('userSvc (UT)', function() {
                 it('should fail if the field does not contain acceptable values', function() {
                     newObj[field] = ['thing1', 'thing4'];
                     requester.fieldValidation.users[field] = {
-                        _accessLevel: AccessLevel.Allowed,
+                        _allowed: true,
                         _entries: { _acceptableValues: ['thing1', 'thing2', 'thing3'] }
                     };
 

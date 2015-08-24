@@ -1,7 +1,7 @@
 var flush = true;
 describe('authUtils', function() {
     var mockUser, q, authUtils, uuid, logger, mongoUtils, mockLog, bcrypt, mockColl, enums, Status,
-        Scope, AccessLevel, anyFunc, res, next;
+        Scope, anyFunc, res, next;
     
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -14,7 +14,6 @@ describe('authUtils', function() {
         enums       = require('../../lib/enums');
         Status      = enums.Status;
         Scope       = enums.Scope;
-        AccessLevel = enums.AccessLevel;
         
         mockUser = {
             id: 'u-1234',
@@ -353,12 +352,12 @@ describe('authUtils', function() {
                 fieldValidation: {
                     cards: {
                         user: {
-                            _accessLevel: AccessLevel.Allowed
+                            _allowed: true
                         }
                     },
                     campaigns: {
                         minViewTime: {
-                            _accessLevel: AccessLevel.Limited,
+                            _allowed: true,
                             _min: 1,
                             _max: 10
                         }
@@ -370,7 +369,7 @@ describe('authUtils', function() {
                 fieldValidation: {
                     cards: {
                         org: {
-                            _accessLevel: AccessLevel.Allowed
+                            _allowed: true
                         }
                     }
                 }
@@ -380,7 +379,7 @@ describe('authUtils', function() {
                 fieldValidation: {
                     users: {
                         policies: {
-                            _accessLevel: AccessLevel.Limited,
+                            _allowed: true,
                             _acceptableValues: ['pol1', 'pol2']
                         }
                     }
@@ -393,22 +392,22 @@ describe('authUtils', function() {
             expect(authUtils.mergeValidation(policies)).toEqual({
                 cards: {
                     user: {
-                        _accessLevel: AccessLevel.Allowed
+                        _allowed: true
                     },
                     org: {
-                        _accessLevel: AccessLevel.Allowed
+                        _allowed: true
                     }
                 },
                 campaigns: {
                     minViewTime: {
-                        _accessLevel: AccessLevel.Limited,
+                        _allowed: true,
                         _min: 1,
                         _max: 10
                     }
                 },
                 users: {
                     policies: {
-                        _accessLevel: AccessLevel.Limited,
+                        _allowed: true,
                         _acceptableValues: ['pol1', 'pol2']
                     }
                 }
@@ -418,13 +417,13 @@ describe('authUtils', function() {
         it('should prefer higher priority policies when there are conflicts', function() {
             pol3.fieldValidation.campaigns = {
                 minViewTime: {
-                    _accessLevel: AccessLevel.Limited,
+                    _allowed: true,
                     _min: 4
                 }
             };
             pol2.fieldValidation.users = {
                 policies: {
-                    _accessLevel: AccessLevel.Limited,
+                    _allowed: true,
                     _acceptableValues: ['pol3']
                 }
             };
@@ -432,21 +431,21 @@ describe('authUtils', function() {
             expect(authUtils.mergeValidation(policies)).toEqual({
                 cards: {
                     user: {
-                        _accessLevel: AccessLevel.Allowed
+                        _allowed: true
                     },
                     org: {
-                        _accessLevel: AccessLevel.Allowed
+                        _allowed: true
                     }
                 },
                 campaigns: {
                     minViewTime: { // this whole block taken from pol3; does not preserve _max from pol2
-                        _accessLevel: AccessLevel.Limited,
+                        _allowed: true,
                         _min: 4
                     }
                 },
                 users: {
                     policies: {
-                        _accessLevel: AccessLevel.Limited,
+                        _allowed: true,
                         _acceptableValues: ['pol3']
                     }
                 }
@@ -458,12 +457,12 @@ describe('authUtils', function() {
             expect(authUtils.mergeValidation(policies)).toEqual({
                 cards: {
                     org: {
-                        _accessLevel: AccessLevel.Allowed
+                        _allowed: true
                     }
                 },
                 users: {
                     policies: {
-                        _accessLevel: AccessLevel.Limited,
+                        _allowed: true,
                         _acceptableValues: ['pol1', 'pol2']
                     }
                 }
@@ -476,10 +475,10 @@ describe('authUtils', function() {
                     campaigns: {
                         pricing: {
                             budget: {
-                                _accessLevel: AccessLevel.Forbidden
+                                _allowed: false
                             },
                             dailyLimit: {
-                                _accessLevel: AccessLevel.Forbidden
+                                _allowed: false
                             }
                         }
                     }
@@ -488,7 +487,7 @@ describe('authUtils', function() {
                     campaigns: {
                         pricing: {
                             dailyLimit: {
-                                _accessLevel: AccessLevel.Allowed
+                                _allowed: true
                             }
                         }
                     }
@@ -497,10 +496,10 @@ describe('authUtils', function() {
                     campaigns: {
                         pricing: {
                             budget: {
-                                _accessLevel: AccessLevel.Limited
+                                _allowed: true
                             },
                             cpv: {
-                                _accessLevel: AccessLevel.Limited
+                                _allowed: true
                             }
                         }
                     }
@@ -512,13 +511,13 @@ describe('authUtils', function() {
                     campaigns: {
                         pricing: {
                             budget: {
-                                _accessLevel: AccessLevel.Forbidden
+                                _allowed: false
                             },
                             dailyLimit: {
-                                _accessLevel: AccessLevel.Allowed
+                                _allowed: true
                             },
                             cpv: {
-                                _accessLevel: AccessLevel.Limited
+                                _allowed: true
                             }
                         }
                     }
@@ -531,14 +530,14 @@ describe('authUtils', function() {
                 pol2.fieldValidation = {
                     campaigns: {
                         cards: {
-                            _accessLevel: AccessLevel.Limited,
+                            _allowed: true,
                             _length: 1,
                             _entries: {
                                 id: {
-                                    _accessLevel: AccessLevel.Limited,
+                                    _allowed: true,
                                 },
                                 name: {
-                                    _accessLevel: AccessLevel.Limited,
+                                    _allowed: true,
                                 }
                             }
                         }
@@ -547,14 +546,14 @@ describe('authUtils', function() {
                 pol3.fieldValidation = {
                     campaigns: {
                         cards: {
-                            _accessLevel: AccessLevel.Allowed,
+                            _allowed: true,
                             _length: 10,
                             _entries: {
                                 name: {
-                                    _accessLevel: AccessLevel.Allowed,
+                                    _allowed: true,
                                 },
                                 reportingId: {
-                                    _accessLevel: AccessLevel.Allowed,
+                                    _allowed: true,
                                 }
                             }
                         }
@@ -567,17 +566,17 @@ describe('authUtils', function() {
                 expect(authUtils.mergeValidation(policies)).toEqual({
                     campaigns: {
                         cards: {
-                            _accessLevel: AccessLevel.Allowed,
+                            _allowed: true,
                             _length: 10,
                             _entries: {
                                 id: {
-                                    _accessLevel: AccessLevel.Limited
+                                    _allowed: true
                                 },
                                 name: {
-                                    _accessLevel: AccessLevel.Allowed
+                                    _allowed: true
                                 },
                                 reportingId: {
-                                    _accessLevel: AccessLevel.Allowed
+                                    _allowed: true
                                 }
                             }
                         }
@@ -687,6 +686,8 @@ describe('authUtils', function() {
         it('should work if the required permissions are blank', function() {
             var perms = {};
             expect(authUtils._compare(perms, userPerms)).toBe(true);
+            expect(authUtils._compare(perms, undefined)).toBe(true);
+            expect(authUtils._compare(undefined, undefined)).toBe(true);
         });
         
         it('should throw an error if the user has no permissions', function() {

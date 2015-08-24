@@ -36,28 +36,28 @@ describe('userSvc policies endpoints (E2E):', function() {
             fieldValidation: {
                 policies: {
                     applications: {
-                        _accessLevel: 'allowed',
+                        _allowed: true,
                         _entries: {
                             _acceptableValues: ['e-app1', 'e-app2', 'e-app4']
                         }
                     },
                     entitlements: {
-                        _accessLevel: 'allowed'
+                        _allowed: true
                     },
                     permissions: {
                         cards: {
-                            _accessLevel: 'allowed'
+                            _allowed: true
                         },
                         policies: {
-                            _accessLevel: 'allowed'
+                            _allowed: true
                         }
                     },
                     fieldValidation: {
                         cards: {
-                            _accessLevel: 'allowed'
+                            _allowed: true
                         },
                         policies: {
-                            _accessLevel: 'allowed'
+                            _allowed: true
                         }
                     }
                 }
@@ -268,7 +268,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                     policies: { read: 'all' },
                 },
                 fieldValidation: {
-                    cards: { status: { _accessLevel: 'allowed' } }
+                    cards: { status: { _allowed: true } }
                 },
                 entitlements: {
                     editActiveCards: true
@@ -310,7 +310,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                         policies: { read: 'all' },
                     },
                     fieldValidation: {
-                        cards: { status: { _accessLevel: 'allowed' } }
+                        cards: { status: { _allowed: true } }
                     },
                     entitlements: {
                         editActiveCards: true
@@ -408,7 +408,7 @@ describe('userSvc policies endpoints (E2E):', function() {
         
         it('should trim off forbidden fields', function(done) {
             options.json.permissions.users = { read: 'all' };
-            options.json.fieldValidation.orgs = { name: { _accessLevel: 'forbidden' } };
+            options.json.fieldValidation.orgs = { name: { _allowed: false } };
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body.name).toBe('e2eCreatedPol');
@@ -417,7 +417,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                     policies: { read: 'all' },
                 });
                 expect(resp.body.fieldValidation).toEqual({
-                    cards: { status: { _accessLevel: 'allowed' } }
+                    cards: { status: { _allowed: true } }
                 });
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -535,10 +535,10 @@ describe('userSvc policies endpoints (E2E):', function() {
             options.json.permissions.experiences = { read: 'all' };
             options.json.fieldValidation = {
                 cards: {
-                    status: { _accessLevel: 'allowed' }
+                    status: { _allowed: true }
                 },
                 categories: {
-                    status: { _accessLevel: 'allowed' }
+                    status: { _allowed: true }
                 }
             };
 
@@ -558,7 +558,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                     },
                     fieldValidation: {
                         cards: {
-                            status: { _accessLevel: 'allowed' }
+                            status: { _allowed: true }
                         }
                     }
                 });

@@ -1,5 +1,13 @@
 # User Service Changelog
 
+* [FEATURE]: Add endpoints for roles + policies: [#475](https://github.com/cinema6/cwrx/issues/475)
+* [FIX]: Auth middleware will handle users with roles + policies: [#475](https://github.com/cinema6/cwrx/issues/475)
+* [FIX]: Use Model to validate user docs: [#475](https://github.com/cinema6/cwrx/issues/475)
+* Extra deployment steps:
+    * Deploy updated cookbook
+    * Update c6mongo cfg in environments to setup role + policy indexes
+    * Update proshop to correctly create + edit users, roles, and policies
+
 ###  1.8.2: Mon Jul 20 17:22:58 EDT 2015
 * [REFACTOR]: Re-write to use CrudSvc: [#446](https://github.com/cinema6/cwrx/issues/446)
 * Multi-get endpoint now returns 200: [] when no users are found instead of a 404: [#337](https://github.com/cinema6/cwrx/issues/337)

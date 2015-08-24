@@ -7,28 +7,27 @@
         authUtils       = require('../lib/authUtils'),
         CrudSvc         = require('../lib/crudSvc.js'),
         enums           = require('../lib/enums'),
-        AccessLevel     = enums.AccessLevel,
         Status          = enums.Status,
 
         roleModule  = {};
         
     roleModule.roleSchema = {
         name: {
-            _accessLevel: AccessLevel.Allowed,
+            _allowed: true,
             _type: 'string',
             _createOnly: true,
             _required: true
         },
         createdBy: {
-            _accessLevel: AccessLevel.Forbidden,
+            _allowed: false,
             _type: 'string'
         },
         lastUpdatedBy: {
-            _accessLevel: AccessLevel.Forbidden,
+            _allowed: false,
             _type: 'string'
         },
         policies: {
-            _accessLevel: AccessLevel.Allowed,
+            _allowed: true,
             _type: ['string']
         }
     };
@@ -122,7 +121,6 @@
     };
 
     
-    //TODO: update cookbook with nginx cfg; setup indexes in c6mongo cfg in envs
     roleModule.setupEndpoints = function(app, svc, sessions, audit) {
         var router      = express.Router(),
             mountPath   = '/api/account/roles?'; // prefix to all endpoints declared here

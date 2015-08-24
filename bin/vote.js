@@ -572,6 +572,7 @@
         var sessions = sessionLib(sessionOpts);
 
         webServer.set('trust proxy', 1);
+        webServer.set('json spaces', 2);
 
         // Because we may recreate the session middleware, we need to wrap it in the route handlers
         function sessWrap(req, res, next) {

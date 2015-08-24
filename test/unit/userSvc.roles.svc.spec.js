@@ -1,6 +1,6 @@
 var flush = true;
 describe('userSvc-roles (UT)', function() {
-    var roleModule, q, mockLog, logger, CrudSvc, Model, enums, Status, Scope, AccessLevel,
+    var roleModule, q, mockLog, logger, CrudSvc, Model, enums, Status, Scope,
         mockDb, mockColl, req, nextSpy, doneSpy, errorSpy;
 
     beforeEach(function() {
@@ -13,7 +13,6 @@ describe('userSvc-roles (UT)', function() {
         enums           = require('../../lib/enums');
         Status          = enums.Status;
         Scope           = enums.Scope;
-        AccessLevel     = enums.AccessLevel;
 
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -142,7 +141,7 @@ describe('userSvc-roles (UT)', function() {
                 });
                 
                 it('should be able to allow some requesters to set the field', function() {
-                    requester.fieldValidation.roles[field] = { _accessLevel: AccessLevel.Allowed };
+                    requester.fieldValidation.roles[field] = { _allowed: true };
                     newObj[field] = 'me';
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: true });
@@ -150,7 +149,7 @@ describe('userSvc-roles (UT)', function() {
                 });
 
                 it('should fail if the field is not a string', function() {
-                    requester.fieldValidation.roles[field] = { _accessLevel: AccessLevel.Allowed };
+                    requester.fieldValidation.roles[field] = { _allowed: true };
                     newObj[field] = 1234;
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: false, reason: field + ' must be in format: \'string\'' });
@@ -173,7 +172,7 @@ describe('userSvc-roles (UT)', function() {
             });
             
             it('should be able to prevent some requesters from setting the field', function() {
-                requester.fieldValidation.roles.policies = { _accessLevel: AccessLevel.Forbidden };
+                requester.fieldValidation.roles.policies = { _allowed: false };
                 newObj.policies = ['pol1', 'pol2'];
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: true });

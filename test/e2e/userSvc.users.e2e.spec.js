@@ -48,13 +48,13 @@ describe('userSvc users (E2E):', function() {
                 fieldValidation: {
                     users: {
                         policies: {
-                            _accessLevel: 'allowed',
+                            _allowed: true,
                             _entries: {
                                 _acceptableValues: ['pol1', 'pol2', 'pol4']
                             }
                         },
                         roles: {
-                            _accessLevel: 'allowed',
+                            _allowed: true,
                             _entries: {
                                 _acceptableValues: ['role1', 'role2', 'role4']
                             }
@@ -73,13 +73,13 @@ describe('userSvc users (E2E):', function() {
                 fieldValidation: {
                     users: {
                         policies: {
-                            _accessLevel: 'allowed',
+                            _allowed: true,
                             _entries: {
                                 _acceptableValues: '*'
                             }
                         },
                         roles: {
-                            _accessLevel: 'allowed',
+                            _allowed: true,
                             _entries: {
                                 _acceptableValues: '*'
                             }
@@ -178,13 +178,13 @@ describe('userSvc users (E2E):', function() {
                     expect(resp.body.fieldValidation).toEqual({
                         users: {
                             policies: {
-                                _accessLevel: 'allowed',
+                                _allowed: true,
                                 _entries: {
                                     _acceptableValues: ['pol1', 'pol2', 'pol4']
                                 }
                             },
                             roles: {
-                                _accessLevel: 'allowed',
+                                _allowed: true,
                                 _entries: {
                                     _acceptableValues: ['role1', 'role2', 'role4']
                                 }
@@ -605,7 +605,7 @@ describe('userSvc users (E2E):', function() {
         it('should trim off forbidden fields', function(done) {
             mockUser.org = 'o-4567';
             mockUser.permissions = { cards: { read: 'all' } };
-            mockUser.fieldValidation = { cards: { status: { _accessLevel: 'allowed' } } };
+            mockUser.fieldValidation = { cards: { status: { _allowed: true } } };
             mockUser.applications = ['e-app1'];
             mockUser.entitlements = { doEverything: true };
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -777,7 +777,7 @@ describe('userSvc users (E2E):', function() {
             options.json.password = 'newPass';
             options.json.org = 'o-4567';
             options.json.permissions = { cards: { read: 'all' } };
-            options.json.fieldValidation = { cards: { status: { _accessLevel: 'allowed' } } };
+            options.json.fieldValidation = { cards: { status: { _allowed: true } } };
             options.json.applications = ['e-app1'];
             options.json.entitlements = { doEverything: true };
 

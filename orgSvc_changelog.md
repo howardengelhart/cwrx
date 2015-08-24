@@ -1,5 +1,7 @@
 # Org Service Changelog
 
+* [FIX]: Auth middleware will handle users with roles + policies: [#475](https://github.com/cinema6/cwrx/issues/475)
+
 ###  1.3.2: Mon Jul 20 17:22:58 EDT 2015
 * [REFACTOR]: Re-write to use CrudSvc: [#458](https://github.com/cinema6/cwrx/pull/458)
 * Multi-get endpoint now returns 200: [] when no users are found instead of a 404: [#337](https://github.com/cinema6/cwrx/issues/337)

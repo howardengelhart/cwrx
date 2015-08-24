@@ -1,6 +1,6 @@
 var flush = true;
 describe('userSvc-policies (UT)', function() {
-    var polModule, q, mockLog, logger, CrudSvc, Model, enums, Status, Scope, AccessLevel,
+    var polModule, q, mockLog, logger, CrudSvc, Model, enums, Status, Scope,
         mockDb, mockColl, req, nextSpy, doneSpy, errorSpy;
 
     beforeEach(function() {
@@ -13,7 +13,6 @@ describe('userSvc-policies (UT)', function() {
         enums           = require('../../lib/enums');
         Status          = enums.Status;
         Scope           = enums.Scope;
-        AccessLevel     = enums.AccessLevel;
 
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -184,7 +183,7 @@ describe('userSvc-policies (UT)', function() {
                 });
                 
                 it('should be able to allow some requesters to set the field', function() {
-                    requester.fieldValidation.policies[field] = { _accessLevel: AccessLevel.Allowed };
+                    requester.fieldValidation.policies[field] = { _allowed: true };
                     newObj[field] = 'me';
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: true });
@@ -192,7 +191,7 @@ describe('userSvc-policies (UT)', function() {
                 });
 
                 it('should fail if the field is not a string', function() {
-                    requester.fieldValidation.policies[field] = { _accessLevel: AccessLevel.Allowed };
+                    requester.fieldValidation.policies[field] = { _allowed: true };
                     newObj[field] = 1234;
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: false, reason: field + ' must be in format: \'string\'' });
@@ -211,7 +210,7 @@ describe('userSvc-policies (UT)', function() {
             it('should be able to allow some requesters to set the field', function() {
                 newObj.applications = ['e-app1', 'e-app2'];
                 requester.fieldValidation.policies.applications = {
-                    _accessLevel: AccessLevel.Allowed,
+                    _allowed: true,
                     _entries: { _acceptableValues: ['e-app1', 'e-app2', 'e-app3'] }
                 };
 
@@ -223,7 +222,7 @@ describe('userSvc-policies (UT)', function() {
             it('should fail if the field is not an array of strings', function() {
                 newObj.applications = [{ name: 'e-app1' }, { name: 'e-app2' }];
                 requester.fieldValidation.policies.applications = {
-                    _accessLevel: AccessLevel.Allowed,
+                    _allowed: true,
                     _entries: { _acceptableValues: ['e-app1', 'e-app2', 'e-app3'] }
                 };
 
@@ -234,7 +233,7 @@ describe('userSvc-policies (UT)', function() {
             it('should fail if the field does not contain acceptable values', function() {
                 newObj.applications = ['e-app1', 'e-app4'];
                 requester.fieldValidation.policies.applications = {
-                    _accessLevel: AccessLevel.Allowed,
+                    _allowed: true,
                     _entries: { _acceptableValues: ['e-app1', 'e-app2', 'e-app3'] }
                 };
 
@@ -253,7 +252,7 @@ describe('userSvc-policies (UT)', function() {
             
             it('should be able to allow some requesters to set the field', function() {
                 newObj.entitlements = { doThings: 'yes' };
-                requester.fieldValidation.policies.entitlements = { _accessLevel: AccessLevel.Allowed };
+                requester.fieldValidation.policies.entitlements = { _allowed: true };
 
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: true });
@@ -262,7 +261,7 @@ describe('userSvc-policies (UT)', function() {
             
             it('should fail if the field is not an object', function() {
                 newObj.entitlements = [{ doThings: 'yes' }, { changeThings: 'no' }];
-                requester.fieldValidation.policies.entitlements = { _accessLevel: AccessLevel.Allowed };
+                requester.fieldValidation.policies.entitlements = { _allowed: true };
 
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: false, reason: 'entitlements must be in format: \'object\'' });
@@ -315,7 +314,7 @@ describe('userSvc-policies (UT)', function() {
                             newObj[field] = {};
                             newObj[field][subfield] = { someRules: 'yes' };
                             requester.fieldValidation.policies[field] = {};
-                            requester.fieldValidation.policies[field][subfield] = { _accessLevel: AccessLevel.Allowed };
+                            requester.fieldValidation.policies[field][subfield] = { _allowed: true };
 
                             expect(svc.model.validate('create', newObj, origObj, requester))
                                 .toEqual({ isValid: true });
@@ -326,7 +325,7 @@ describe('userSvc-policies (UT)', function() {
                             newObj[field] = {};
                             newObj[field][subfield] = 'yes';
                             requester.fieldValidation.policies[field] = {};
-                            requester.fieldValidation.policies[field][subfield] = { _accessLevel: AccessLevel.Allowed };
+                            requester.fieldValidation.policies[field][subfield] = { _allowed: true };
 
                             expect(svc.model.validate('create', newObj, origObj, requester))
                                 .toEqual({ isValid: false, reason: field + '.' + subfield + ' must be in format: \'object\'' });
