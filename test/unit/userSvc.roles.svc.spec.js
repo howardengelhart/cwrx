@@ -141,7 +141,7 @@ describe('userSvc-roles (UT)', function() {
                 });
                 
                 it('should be able to allow some requesters to set the field', function() {
-                    requester.fieldValidation.roles[field] = { _allowed: true };
+                    requester.fieldValidation.roles[field] = { __allowed: true };
                     newObj[field] = 'me';
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: true });
@@ -149,7 +149,7 @@ describe('userSvc-roles (UT)', function() {
                 });
 
                 it('should fail if the field is not a string', function() {
-                    requester.fieldValidation.roles[field] = { _allowed: true };
+                    requester.fieldValidation.roles[field] = { __allowed: true };
                     newObj[field] = 1234;
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: false, reason: field + ' must be in format: \'string\'' });
@@ -172,7 +172,7 @@ describe('userSvc-roles (UT)', function() {
             });
             
             it('should be able to prevent some requesters from setting the field', function() {
-                requester.fieldValidation.roles.policies = { _allowed: false };
+                requester.fieldValidation.roles.policies = { __allowed: false };
                 newObj.policies = ['pol1', 'pol2'];
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: true });

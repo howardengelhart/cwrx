@@ -48,15 +48,15 @@ describe('userSvc users (E2E):', function() {
                 fieldValidation: {
                     users: {
                         policies: {
-                            _allowed: true,
-                            _entries: {
-                                _acceptableValues: ['pol1', 'pol2', 'pol4']
+                            __allowed: true,
+                            __entries: {
+                                __acceptableValues: ['pol1', 'pol2', 'pol4']
                             }
                         },
                         roles: {
-                            _allowed: true,
-                            _entries: {
-                                _acceptableValues: ['role1', 'role2', 'role4']
+                            __allowed: true,
+                            __entries: {
+                                __acceptableValues: ['role1', 'role2', 'role4']
                             }
                         }
                     }
@@ -73,15 +73,15 @@ describe('userSvc users (E2E):', function() {
                 fieldValidation: {
                     users: {
                         policies: {
-                            _allowed: true,
-                            _entries: {
-                                _acceptableValues: '*'
+                            __allowed: true,
+                            __entries: {
+                                __acceptableValues: '*'
                             }
                         },
                         roles: {
-                            _allowed: true,
-                            _entries: {
-                                _acceptableValues: '*'
+                            __allowed: true,
+                            __entries: {
+                                __acceptableValues: '*'
                             }
                         }
                     }
@@ -178,15 +178,15 @@ describe('userSvc users (E2E):', function() {
                     expect(resp.body.fieldValidation).toEqual({
                         users: {
                             policies: {
-                                _allowed: true,
-                                _entries: {
-                                    _acceptableValues: ['pol1', 'pol2', 'pol4']
+                                __allowed: true,
+                                __entries: {
+                                    __acceptableValues: ['pol1', 'pol2', 'pol4']
                                 }
                             },
                             roles: {
-                                _allowed: true,
-                                _entries: {
-                                    _acceptableValues: ['role1', 'role2', 'role4']
+                                __allowed: true,
+                                __entries: {
+                                    __acceptableValues: ['role1', 'role2', 'role4']
                                 }
                             }
                         }
@@ -605,7 +605,7 @@ describe('userSvc users (E2E):', function() {
         it('should trim off forbidden fields', function(done) {
             mockUser.org = 'o-4567';
             mockUser.permissions = { cards: { read: 'all' } };
-            mockUser.fieldValidation = { cards: { status: { _allowed: true } } };
+            mockUser.fieldValidation = { cards: { status: { __allowed: true } } };
             mockUser.applications = ['e-app1'];
             mockUser.entitlements = { doEverything: true };
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -777,7 +777,7 @@ describe('userSvc users (E2E):', function() {
             options.json.password = 'newPass';
             options.json.org = 'o-4567';
             options.json.permissions = { cards: { read: 'all' } };
-            options.json.fieldValidation = { cards: { status: { _allowed: true } } };
+            options.json.fieldValidation = { cards: { status: { __allowed: true } } };
             options.json.applications = ['e-app1'];
             options.json.entitlements = { doEverything: true };
 

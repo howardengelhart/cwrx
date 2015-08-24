@@ -183,7 +183,7 @@ describe('userSvc-policies (UT)', function() {
                 });
                 
                 it('should be able to allow some requesters to set the field', function() {
-                    requester.fieldValidation.policies[field] = { _allowed: true };
+                    requester.fieldValidation.policies[field] = { __allowed: true };
                     newObj[field] = 'me';
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: true });
@@ -191,7 +191,7 @@ describe('userSvc-policies (UT)', function() {
                 });
 
                 it('should fail if the field is not a string', function() {
-                    requester.fieldValidation.policies[field] = { _allowed: true };
+                    requester.fieldValidation.policies[field] = { __allowed: true };
                     newObj[field] = 1234;
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: false, reason: field + ' must be in format: \'string\'' });
@@ -210,8 +210,8 @@ describe('userSvc-policies (UT)', function() {
             it('should be able to allow some requesters to set the field', function() {
                 newObj.applications = ['e-app1', 'e-app2'];
                 requester.fieldValidation.policies.applications = {
-                    _allowed: true,
-                    _entries: { _acceptableValues: ['e-app1', 'e-app2', 'e-app3'] }
+                    __allowed: true,
+                    __entries: { __acceptableValues: ['e-app1', 'e-app2', 'e-app3'] }
                 };
 
                 expect(svc.model.validate('create', newObj, origObj, requester))
@@ -222,8 +222,8 @@ describe('userSvc-policies (UT)', function() {
             it('should fail if the field is not an array of strings', function() {
                 newObj.applications = [{ name: 'e-app1' }, { name: 'e-app2' }];
                 requester.fieldValidation.policies.applications = {
-                    _allowed: true,
-                    _entries: { _acceptableValues: ['e-app1', 'e-app2', 'e-app3'] }
+                    __allowed: true,
+                    __entries: { __acceptableValues: ['e-app1', 'e-app2', 'e-app3'] }
                 };
 
                 expect(svc.model.validate('create', newObj, origObj, requester))
@@ -233,8 +233,8 @@ describe('userSvc-policies (UT)', function() {
             it('should fail if the field does not contain acceptable values', function() {
                 newObj.applications = ['e-app1', 'e-app4'];
                 requester.fieldValidation.policies.applications = {
-                    _allowed: true,
-                    _entries: { _acceptableValues: ['e-app1', 'e-app2', 'e-app3'] }
+                    __allowed: true,
+                    __entries: { __acceptableValues: ['e-app1', 'e-app2', 'e-app3'] }
                 };
 
                 expect(svc.model.validate('create', newObj, origObj, requester))
@@ -252,7 +252,7 @@ describe('userSvc-policies (UT)', function() {
             
             it('should be able to allow some requesters to set the field', function() {
                 newObj.entitlements = { doThings: 'yes' };
-                requester.fieldValidation.policies.entitlements = { _allowed: true };
+                requester.fieldValidation.policies.entitlements = { __allowed: true };
 
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: true });
@@ -261,7 +261,7 @@ describe('userSvc-policies (UT)', function() {
             
             it('should fail if the field is not an object', function() {
                 newObj.entitlements = [{ doThings: 'yes' }, { changeThings: 'no' }];
-                requester.fieldValidation.policies.entitlements = { _allowed: true };
+                requester.fieldValidation.policies.entitlements = { __allowed: true };
 
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: false, reason: 'entitlements must be in format: \'object\'' });
@@ -314,7 +314,7 @@ describe('userSvc-policies (UT)', function() {
                             newObj[field] = {};
                             newObj[field][subfield] = { someRules: 'yes' };
                             requester.fieldValidation.policies[field] = {};
-                            requester.fieldValidation.policies[field][subfield] = { _allowed: true };
+                            requester.fieldValidation.policies[field][subfield] = { __allowed: true };
 
                             expect(svc.model.validate('create', newObj, origObj, requester))
                                 .toEqual({ isValid: true });
@@ -325,7 +325,7 @@ describe('userSvc-policies (UT)', function() {
                             newObj[field] = {};
                             newObj[field][subfield] = 'yes';
                             requester.fieldValidation.policies[field] = {};
-                            requester.fieldValidation.policies[field][subfield] = { _allowed: true };
+                            requester.fieldValidation.policies[field][subfield] = { __allowed: true };
 
                             expect(svc.model.validate('create', newObj, origObj, requester))
                                 .toEqual({ isValid: false, reason: field + '.' + subfield + ' must be in format: \'object\'' });

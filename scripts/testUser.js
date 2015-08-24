@@ -24,42 +24,42 @@ var q           = require('q'),
 function setupUserSvcFieldVal(policy) {
     policy.fieldValidation.users = {
         policies: {
-            _allowed: true,
-            _entries: {
-                _acceptableValues: '*'
+            __allowed: true,
+            __entries: {
+                __acceptableValues: '*'
             }
         },
         roles: {
-            _allowed: true,
-            _entries: {
-                _acceptableValues: '*'
+            __allowed: true,
+            __entries: {
+                __acceptableValues: '*'
             }
         }
     };
     
     policy.fieldValidation.policies = {
         applications: {
-            _allowed: true,
-            _entries: {
-                _acceptableValues: '*'
+            __allowed: true,
+            __entries: {
+                __acceptableValues: '*'
             }
         },
         permissions: allEntities.reduce(function(permValObj, entity) {
             permValObj[entity] = {
-                _allowed: true
+                __allowed: true
             };
             
             return permValObj;
         }, {}),
         fieldValidation: allEntities.reduce(function(fieldValObj, entity) {
             fieldValObj[entity] = {
-                _allowed: true
+                __allowed: true
             };
             
             return fieldValObj;
         }, {}),
         entitlements: {
-            _allowed: true
+            __allowed: true
         }
     };
 }

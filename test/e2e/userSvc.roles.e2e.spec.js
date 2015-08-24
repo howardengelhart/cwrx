@@ -131,10 +131,10 @@ describe('userSvc roles endpoints (E2E):', function() {
         beforeEach(function(done) {
             options = { url: config.rolesUrl + '/', qs: {sort: 'id,1'}, jar: cookieJar };
             var mockRoles = [
-                { id: 'r-e2e-getQry1', name: 'role1', status: 'active' },
-                { id: 'r-e2e-getQry2', name: 'role2', status: 'inactive' },
-                { id: 'r-e2e-getQry3', name: 'role3', status: 'active' },
-                { id: 'r-e2e-getgone', name: 'roleGone', status: 'deleted' }
+                { id: 'r-e2e-getQry1', name: 'role1', status: 'active', policies: ['pol1', 'pol2'] },
+                { id: 'r-e2e-getQry2', name: 'role2', status: 'inactive', policies: ['pol2'] },
+                { id: 'r-e2e-getQry3', name: 'role3', status: 'active', policies: ['pol1'] },
+                { id: 'r-e2e-getgone', name: 'roleGone', status: 'deleted', policies: ['pol1', 'pol2'] }
             ];
             testUtils.resetCollection('roles', mockRoles).done(done);
         });
@@ -179,6 +179,19 @@ describe('userSvc roles endpoints (E2E):', function() {
                 expect(resp.body.length).toBe(1);
                 expect(resp.body[0].id).toBe('r-e2e-getQry3');
                 expect(resp.response.headers['content-range']).toBe('items 1-1/1');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should get roles by policy', function(done) {
+            options.qs.policy = 'pol1';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0].id).toBe('r-e2e-getQry1');
+                expect(resp.body[1].id).toBe('r-e2e-getQry3');
+                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);

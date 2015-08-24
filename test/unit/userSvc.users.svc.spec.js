@@ -205,7 +205,7 @@ describe('userSvc (UT)', function() {
                 
                 it('should revert the field on edit', function() {
                     origObj[field] = 'old value';
-                    requester.fieldValidation.users[field] = { _createOnly: false };
+                    requester.fieldValidation.users[field] = { __createOnly: false };
                     expect(svc.model.validate('edit', newObj, origObj, requester))
                         .toEqual({ isValid: true });
                     expect(newObj[field]).toEqual('old value');
@@ -224,7 +224,7 @@ describe('userSvc (UT)', function() {
                 });
                 
                 it('should not allow any requesters to set the field', function() {
-                    requester.fieldValidation.users[field] = { _allowed: true };
+                    requester.fieldValidation.users[field] = { __allowed: true };
                     newObj[field] = { foo: 'bar' };
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: true });
@@ -246,8 +246,8 @@ describe('userSvc (UT)', function() {
                 it('should be able to allow some requesters to set the field', function() {
                     newObj[field] = ['thing1', 'thing2'];
                     requester.fieldValidation.users[field] = {
-                        _allowed: true,
-                        _entries: { _acceptableValues: ['thing1', 'thing2', 'thing3'] }
+                        __allowed: true,
+                        __entries: { __acceptableValues: ['thing1', 'thing2', 'thing3'] }
                     };
 
                     expect(svc.model.validate('create', newObj, origObj, requester))
@@ -258,8 +258,8 @@ describe('userSvc (UT)', function() {
                 it('should fail if the field is not an array of strings', function() {
                     newObj[field] = [{ name: 'thing1' }, { name: 'thing2' }];
                     requester.fieldValidation.users[field] = {
-                        _allowed: true,
-                        _entries: { _acceptableValues: ['thing1', 'thing2', 'thing3'] }
+                        __allowed: true,
+                        __entries: { __acceptableValues: ['thing1', 'thing2', 'thing3'] }
                     };
 
                     expect(svc.model.validate('create', newObj, origObj, requester))
@@ -269,8 +269,8 @@ describe('userSvc (UT)', function() {
                 it('should fail if the field does not contain acceptable values', function() {
                     newObj[field] = ['thing1', 'thing4'];
                     requester.fieldValidation.users[field] = {
-                        _allowed: true,
-                        _entries: { _acceptableValues: ['thing1', 'thing2', 'thing3'] }
+                        __allowed: true,
+                        __entries: { __acceptableValues: ['thing1', 'thing2', 'thing3'] }
                     };
 
                     expect(svc.model.validate('create', newObj, origObj, requester))

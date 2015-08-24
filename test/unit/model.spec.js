@@ -9,12 +9,12 @@ describe('Model', function() {
         logger          = require('../../lib/logger');
 
         mockLog = {
-            trace : jasmine.createSpy('log_trace'),
-            error : jasmine.createSpy('log_error'),
-            warn  : jasmine.createSpy('log_warn'),
-            info  : jasmine.createSpy('log_info'),
-            fatal : jasmine.createSpy('log_fatal'),
-            log   : jasmine.createSpy('log_log')
+            trace : jasmine.createSpy('log.trace'),
+            error : jasmine.createSpy('log.error'),
+            warn  : jasmine.createSpy('log.warn'),
+            info  : jasmine.createSpy('log.info'),
+            fatal : jasmine.createSpy('log.fatal'),
+            log   : jasmine.createSpy('log.log')
         };
         spyOn(logger, 'createLog').andReturn(mockLog);
         spyOn(logger, 'getLog').andReturn(mockLog);
@@ -35,37 +35,37 @@ describe('Model', function() {
         beforeEach(function() {
             model = new Model('puppies', {
                 id: {
-                    _type: 'string', _allowed: false, _locked: true
+                    __type: 'string', __allowed: false, __locked: true
                 },
                 born: {
-                    _type: Date, _allowed: false
+                    __type: Date, __allowed: false
                 },
                 name: {
-                    _type: 'string', _allowed: false
+                    __type: 'string', __allowed: false
                 },
                 paws: {
-                    _type: 'number', _allowed: true, _min: 2
+                    __type: 'number', __allowed: true, __min: 2
                 },
                 snax: {
                     kibbles: {
-                        _type: 'string', _allowed: true, _acceptableValues: ['yes', 'no']
+                        __type: 'string', __allowed: true, __acceptableValues: ['yes', 'no']
                     },
                     bacon: {
-                        _type: 'string', _allowed: true, _acceptableValues: '*'
+                        __type: 'string', __allowed: true, __acceptableValues: '*'
                     },
                 }
             });
             requester = {
                 id: 'u-1',
                 fieldValidation: {
-                    kitties: { name: { _required: true } },
+                    kitties: { name: { __required: true } },
                     puppies: {
                         name: {
-                            _allowed: true
+                            __allowed: true
                         },
                         snax: {
                             kibbles: {
-                                _acceptableValues: ['very yes']
+                                __acceptableValues: ['very yes']
                             }
                         }
                     }
@@ -85,68 +85,68 @@ describe('Model', function() {
             expect(personalized).not.toEqual(model.schema);
             expect(personalized).toEqual({
                 id: {
-                    _type: 'string', _allowed: false, _locked: true
+                    __type: 'string', __allowed: false, __locked: true
                 },
                 born: {
-                    _type: Date, _allowed: false
+                    __type: Date, __allowed: false
                 },
                 name: {
-                    _type: 'string', _allowed: true
+                    __type: 'string', __allowed: true
                 },
                 paws: {
-                    _type: 'number', _allowed: true, _min: 2
+                    __type: 'number', __allowed: true, __min: 2
                 },
                 snax: {
                     kibbles: {
-                        _type: 'string', _allowed: true, _acceptableValues: ['very yes']
+                        __type: 'string', __allowed: true, __acceptableValues: ['very yes']
                     },
                     bacon: {
-                        _type: 'string', _allowed: true, _acceptableValues: '*'
+                        __type: 'string', __allowed: true, __acceptableValues: '*'
                     },
                 }
             });
         });
         
-        it('should not be able to overwrite _locked fields on the default schema', function() {
-            requester.fieldValidation.puppies.id = { _allowed: true, _min: 10 };
+        it('should not be able to overwrite __locked fields on the default schema', function() {
+            requester.fieldValidation.puppies.id = { __allowed: true, __min: 10 };
             var personalized = model.personalizeSchema(requester);
             expect(personalized).not.toEqual(model.schema);
             expect(personalized.id).toEqual({
-                _type: 'string', _allowed: false, _locked: true
+                __type: 'string', __allowed: false, __locked: true
             });
         });
         
-        it('should not be able to overwrite _type settings on the default schema', function() {
+        it('should not be able to overwrite __type settings on the default schema', function() {
             requester.fieldValidation.puppies.name = {
-                _type: 'object', _allowed: true,
+                __type: 'object', __allowed: true,
             };
             var personalized = model.personalizeSchema(requester);
             expect(personalized).not.toEqual(model.schema);
             expect(personalized.name).toEqual({
-                _type: 'string', _allowed: true
+                __type: 'string', __allowed: true
             });
         });
         
         it('should not screw up dates', function() {
             var now = new Date(),
                 later = new Date(now + 1000);
-            model.schema.born._default = now;
-            requester.fieldValidation.puppies.born = { _default: later };
+            model.schema.born.__default = now;
+            requester.fieldValidation.puppies.born = { __default: later };
             
             var personalized = model.personalizeSchema(requester);
             expect(personalized.born).toEqual({
-                _type: Date, _allowed: false, _default: later
+                __type: Date, __allowed: false, __default: later
             });
         });
         
         it('should allow the requester\'s fieldValidation to define configs for new fields', function() {
             requester.fieldValidation.puppies.likesCats = {
-                _type: 'boolean', _allowed: true
+                __type: 'boolean', __allowed: true
             };
             
             var personalized = model.personalizeSchema(requester);
             expect(personalized.likesCats).toEqual({
-                _type: 'boolean', _allowed: true
+                __type: 'boolean', __allowed: true
             });
         });
     });
@@ -189,43 +189,43 @@ describe('Model', function() {
     describe('checkLimits', function() {
         it('should return isValid = true if the config is missing or contains no limit fields', function() {
             expect(Model.checkLimits(null, 'fido', 'name')).toEqual({ isValid: true });
-            expect(Model.checkLimits({ _type: 'object' }, 'fido', 'name')).toEqual({ isValid: true });
+            expect(Model.checkLimits({ __type: 'object' }, 'fido', 'name')).toEqual({ isValid: true });
         });
         
         it('should be able to check that a value passes a min threshold', function() {
-            expect(Model.checkLimits({ _min: 2 }, 4, 'paws')).toEqual({ isValid: true });
-            expect(Model.checkLimits({ _min: 2 }, 1, 'paws')).toEqual({ isValid: false,
+            expect(Model.checkLimits({ __min: 2 }, 4, 'paws')).toEqual({ isValid: true });
+            expect(Model.checkLimits({ __min: 2 }, 1, 'paws')).toEqual({ isValid: false,
                 reason: 'paws must be greater than the min: 2' });
         });
 
         it('should be able to check that a value passes a max threshold', function() {
-            expect(Model.checkLimits({ _max: 4 }, 3, 'paws')).toEqual({ isValid: true });
-            expect(Model.checkLimits({ _max: 4 }, 5, 'paws')).toEqual({ isValid: false,
+            expect(Model.checkLimits({ __max: 4 }, 3, 'paws')).toEqual({ isValid: true });
+            expect(Model.checkLimits({ __max: 4 }, 5, 'paws')).toEqual({ isValid: false,
                 reason: 'paws must be less than the max: 4' });
         });
         
         it('should be able to check that an array passes a max entry threshold', function() {
-            expect(Model.checkLimits({ _length: 3 }, ['max', 'knut', 'charlie'], 'doggieFriends')).toEqual({ isValid: true });
-            expect(Model.checkLimits({ _length: 3 }, ['max', 'knut', 'charlie', 'woofles'], 'doggieFriends'))
+            expect(Model.checkLimits({ __length: 3 }, ['max', 'knut', 'charlie'], 'doggieFriends')).toEqual({ isValid: true });
+            expect(Model.checkLimits({ __length: 3 }, ['max', 'knut', 'charlie', 'woofles'], 'doggieFriends'))
                 .toEqual({ isValid: false, reason: 'doggieFriends must have less than max entries: 3' });
         });
         
         it('should be able to check that a value is in a set of acceptable values', function() {
-            var cfg = { _acceptableValues: ['poodle', 'lab'] };
+            var cfg = { __acceptableValues: ['poodle', 'lab'] };
             expect(Model.checkLimits(cfg, 'poodle', 'breed')).toEqual({ isValid: true });
             expect(Model.checkLimits(cfg, 'lab', 'breed')).toEqual({ isValid: true });
             expect(Model.checkLimits(cfg, 'mutt', 'breed')).toEqual({ isValid: false,
                 reason: 'breed is not one of the acceptable values: [poodle,lab]' });
 
-            cfg = { _acceptableValues: '*' };
+            cfg = { __acceptableValues: '*' };
             expect(Model.checkLimits(cfg, 'mutt', 'breed')).toEqual({ isValid: true });
         });
         
         it('should be able to perform multiple checks', function() {
             var cfg = {
-                _min: 10,
-                _max: 20,
-                _acceptableValues: [5, 15, 25]
+                __min: 10,
+                __max: 20,
+                __acceptableValues: [5, 15, 25]
             };
             
             expect(Model.checkLimits(cfg, 15, 'barksPerDay')).toEqual({ isValid: true });
@@ -250,7 +250,7 @@ describe('Model', function() {
         describe('if a field is required', function() {
             beforeEach(function() {
                 model.schema.name = {
-                    _type: 'string', _required: true, _allowed: true
+                    __type: 'string', __required: true, __allowed: true
                 };
             });
 
@@ -278,7 +278,7 @@ describe('Model', function() {
         describe('if a field is forbidden', function() {
             beforeEach(function() {
                 model.schema.name = {
-                    _type: 'string', _allowed: false
+                    __type: 'string', __allowed: false
                 };
             });
             
@@ -304,7 +304,7 @@ describe('Model', function() {
         describe('if a field can only be set on create', function() {
             beforeEach(function() {
                 model.schema.name = {
-                    _type: 'string', _allowed: true, _createOnly: true
+                    __type: 'string', __allowed: true, __createOnly: true
                 };
             });
             
@@ -333,10 +333,10 @@ describe('Model', function() {
             });
         });
         
-        describe('if a field has _type === Date', function() {
+        describe('if a field has __type === Date', function() {
             beforeEach(function() {
                 model.schema.born = {
-                    _type: Date, _allowed: true
+                    __type: Date, __allowed: true
                 };
             });
 
@@ -359,10 +359,10 @@ describe('Model', function() {
             });
         });
         
-        describe('if a field has a _type specified', function() {
+        describe('if a field has a __type specified', function() {
             beforeEach(function() {
                 model.schema.doggieFriends = {
-                    _type: ['string'], _allowed: true
+                    __type: ['string'], __allowed: true
                 };
             });
             
@@ -387,7 +387,7 @@ describe('Model', function() {
         describe('if a field has limit props specified', function() {
             beforeEach(function() {
                 model.schema.paws = {
-                    _type: 'number', _allowed: true, _min: 2, _max: 4
+                    __type: 'number', __allowed: true, __min: 2, __max: 4
                 };
             });
             
@@ -413,16 +413,16 @@ describe('Model', function() {
             beforeEach(function() {
                 model.schema.snax = {
                     bacon: {
-                        _type: 'string', _allowed: true, _acceptableValues: '*'
+                        __type: 'string', __allowed: true, __acceptableValues: '*'
                     },
                     vegetables: {
-                        _type: 'string', _allowed: true, _acceptableValues: '*'
+                        __type: 'string', __allowed: true, __acceptableValues: '*'
                     },
                     kibbles: {
-                        _type: 'string', _allowed: true, _acceptableValues: ['yes', 'no']
+                        __type: 'string', __allowed: true, __acceptableValues: ['yes', 'no']
                     },
                     chocolate: {
-                        _allowed: false
+                        __allowed: false
                     }
                 };
             });
@@ -446,7 +446,7 @@ describe('Model', function() {
             });
             
             it('should trim the entire block if the whole block is forbidden', function() {
-                model.schema.snax._allowed = false;
+                model.schema.snax.__allowed = false;
                 newObj.snax = {
                     kibbles: 'yes', bacon: 'always', chocolate: 'do want'
                 };
@@ -459,7 +459,7 @@ describe('Model', function() {
         describe('when handling array fields', function() {
             beforeEach(function() {
                 model.schema.doggieFriends = {
-                    _type: ['string'], _length: 3, _entries: { _acceptableValues: ['knut', 'charlie', 'scruffles', 'puffles'] }
+                    __type: ['string'], __length: 3, __entries: { __acceptableValues: ['knut', 'charlie', 'scruffles', 'puffles'] }
                 };
             });
             
@@ -475,7 +475,7 @@ describe('Model', function() {
                     reason: 'doggieFriends must have less than max entries: 3' });
             });
             
-            it('should be able to validate every entry using the _entries property', function() {
+            it('should be able to validate every entry using the __entries property', function() {
                 newObj.doggieFriends = ['knut', 'scruffles', 'woofles'];
                 expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: false,
                     reason: 'doggieFriends[2] is not one of the acceptable values: [knut,charlie,scruffles,puffles]' });
@@ -483,13 +483,13 @@ describe('Model', function() {
             
             it('should be able to recursively validate fields on object entries', function() {
                 model.schema.doggieFriends = {
-                    _type: ['object'],
-                    _entries: {
+                    __type: ['object'],
+                    __entries: {
                         name: {
-                            _type: 'string', _allowed: true
+                            __type: 'string', __allowed: true
                         },
                         paws: {
-                            _type: 'number', _allowed: true, _min: 2, _max: 4
+                            __type: 'number', __allowed: true, __min: 2, __max: 4
                         }
                     }
                 };
@@ -508,7 +508,7 @@ describe('Model', function() {
                 expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: false,
                     reason: 'doggieFriends[2].paws must be less than the max: 4' });
                     
-                model.schema.doggieFriends._entries.paws._allowed = false;
+                model.schema.doggieFriends.__entries.paws.__allowed = false;
                 expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true });
                 expect(newObj.doggieFriends).toEqual([
                     { name: 'knut' },

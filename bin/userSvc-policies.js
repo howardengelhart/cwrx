@@ -31,56 +31,56 @@
 
     polModule.policySchema = {
         name: {
-            _allowed: true,
-            _type: 'string',
-            _createOnly: true,
-            _required: true
+            __allowed: true,
+            __type: 'string',
+            __createOnly: true,
+            __required: true
         },
         priority: {
-            _allowed: true,
-            _type: 'number',
-            _required: true,
-            _min: 1
+            __allowed: true,
+            __type: 'number',
+            __required: true,
+            __min: 1
         },
         createdBy: {
-            _allowed: false,
-            _type: 'string'
+            __allowed: false,
+            __type: 'string'
         },
         lastUpdatedBy: {
-            _allowed: false,
-            _type: 'string'
+            __allowed: false,
+            __type: 'string'
         },
         applications: {
-            _allowed: false,
-            _type: ['string'],
-            _entries: {
-                _acceptableValues: []
+            __allowed: false,
+            __type: ['string'],
+            __entries: {
+                __acceptableValues: []
             }
         },
         entitlements: {
-            _allowed: false,
-            _type: 'object'
+            __allowed: false,
+            __type: 'object'
         },
         
         // permissions.advertisers etc. will be forbidden
         permissions: allEntities.reduce(function(schemaObj, objName) {
             schemaObj[objName] = {
-                _allowed: false,
-                _type: 'object'
+                __allowed: false,
+                __type: 'object'
             };
             
             return schemaObj;
-        }, { _type: 'object' }),
+        }, { __type: 'object' }),
 
         // fieldValidation.advertisers etc. will be forbidden
         fieldValidation: allEntities.reduce(function(schemaObj, objName) {
             schemaObj[objName] = {
-                _allowed: false,
-                _type: 'object'
+                __allowed: false,
+                __type: 'object'
             };
             
             return schemaObj;
-        }, { _type: 'object' })
+        }, { __type: 'object' })
     };
 
     polModule.setupSvc = function(db) {

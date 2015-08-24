@@ -41,12 +41,12 @@ describe('authUtils', function() {
         anyFunc = jasmine.any(Function);
 
         mockLog = {
-            trace : jasmine.createSpy('log_trace'),
-            error : jasmine.createSpy('log_error'),
-            warn  : jasmine.createSpy('log_warn'),
-            info  : jasmine.createSpy('log_info'),
-            fatal : jasmine.createSpy('log_fatal'),
-            log   : jasmine.createSpy('log_log')
+            trace : jasmine.createSpy('log.trace'),
+            error : jasmine.createSpy('log.error'),
+            warn  : jasmine.createSpy('log.warn'),
+            info  : jasmine.createSpy('log.info'),
+            fatal : jasmine.createSpy('log.fatal'),
+            log   : jasmine.createSpy('log.log')
         };
         spyOn(logger, 'getLog').andReturn(mockLog);
     });
@@ -352,14 +352,14 @@ describe('authUtils', function() {
                 fieldValidation: {
                     cards: {
                         user: {
-                            _allowed: true
+                            __allowed: true
                         }
                     },
                     campaigns: {
                         minViewTime: {
-                            _allowed: true,
-                            _min: 1,
-                            _max: 10
+                            __allowed: true,
+                            __min: 1,
+                            __max: 10
                         }
                     }
                 }
@@ -369,7 +369,7 @@ describe('authUtils', function() {
                 fieldValidation: {
                     cards: {
                         org: {
-                            _allowed: true
+                            __allowed: true
                         }
                     }
                 }
@@ -379,8 +379,8 @@ describe('authUtils', function() {
                 fieldValidation: {
                     users: {
                         policies: {
-                            _allowed: true,
-                            _acceptableValues: ['pol1', 'pol2']
+                            __allowed: true,
+                            __acceptableValues: ['pol1', 'pol2']
                         }
                     }
                 }
@@ -392,23 +392,23 @@ describe('authUtils', function() {
             expect(authUtils.mergeValidation(policies)).toEqual({
                 cards: {
                     user: {
-                        _allowed: true
+                        __allowed: true
                     },
                     org: {
-                        _allowed: true
+                        __allowed: true
                     }
                 },
                 campaigns: {
                     minViewTime: {
-                        _allowed: true,
-                        _min: 1,
-                        _max: 10
+                        __allowed: true,
+                        __min: 1,
+                        __max: 10
                     }
                 },
                 users: {
                     policies: {
-                        _allowed: true,
-                        _acceptableValues: ['pol1', 'pol2']
+                        __allowed: true,
+                        __acceptableValues: ['pol1', 'pol2']
                     }
                 }
             });
@@ -417,36 +417,36 @@ describe('authUtils', function() {
         it('should prefer higher priority policies when there are conflicts', function() {
             pol3.fieldValidation.campaigns = {
                 minViewTime: {
-                    _allowed: true,
-                    _min: 4
+                    __allowed: true,
+                    __min: 4
                 }
             };
             pol2.fieldValidation.users = {
                 policies: {
-                    _allowed: true,
-                    _acceptableValues: ['pol3']
+                    __allowed: true,
+                    __acceptableValues: ['pol3']
                 }
             };
 
             expect(authUtils.mergeValidation(policies)).toEqual({
                 cards: {
                     user: {
-                        _allowed: true
+                        __allowed: true
                     },
                     org: {
-                        _allowed: true
+                        __allowed: true
                     }
                 },
                 campaigns: {
-                    minViewTime: { // this whole block taken from pol3; does not preserve _max from pol2
-                        _allowed: true,
-                        _min: 4
+                    minViewTime: { // this whole block taken from pol3; does not preserve __max from pol2
+                        __allowed: true,
+                        __min: 4
                     }
                 },
                 users: {
                     policies: {
-                        _allowed: true,
-                        _acceptableValues: ['pol3']
+                        __allowed: true,
+                        __acceptableValues: ['pol3']
                     }
                 }
             });
@@ -457,13 +457,13 @@ describe('authUtils', function() {
             expect(authUtils.mergeValidation(policies)).toEqual({
                 cards: {
                     org: {
-                        _allowed: true
+                        __allowed: true
                     }
                 },
                 users: {
                     policies: {
-                        _allowed: true,
-                        _acceptableValues: ['pol1', 'pol2']
+                        __allowed: true,
+                        __acceptableValues: ['pol1', 'pol2']
                     }
                 }
             });
@@ -475,10 +475,10 @@ describe('authUtils', function() {
                     campaigns: {
                         pricing: {
                             budget: {
-                                _allowed: false
+                                __allowed: false
                             },
                             dailyLimit: {
-                                _allowed: false
+                                __allowed: false
                             }
                         }
                     }
@@ -487,7 +487,7 @@ describe('authUtils', function() {
                     campaigns: {
                         pricing: {
                             dailyLimit: {
-                                _allowed: true
+                                __allowed: true
                             }
                         }
                     }
@@ -496,10 +496,10 @@ describe('authUtils', function() {
                     campaigns: {
                         pricing: {
                             budget: {
-                                _allowed: true
+                                __allowed: true
                             },
                             cpv: {
-                                _allowed: true
+                                __allowed: true
                             }
                         }
                     }
@@ -511,13 +511,13 @@ describe('authUtils', function() {
                     campaigns: {
                         pricing: {
                             budget: {
-                                _allowed: false
+                                __allowed: false
                             },
                             dailyLimit: {
-                                _allowed: true
+                                __allowed: true
                             },
                             cpv: {
-                                _allowed: true
+                                __allowed: true
                             }
                         }
                     }
@@ -530,14 +530,14 @@ describe('authUtils', function() {
                 pol2.fieldValidation = {
                     campaigns: {
                         cards: {
-                            _allowed: true,
-                            _length: 1,
-                            _entries: {
+                            __allowed: true,
+                            __length: 1,
+                            __entries: {
                                 id: {
-                                    _allowed: true,
+                                    __allowed: true,
                                 },
                                 name: {
-                                    _allowed: true,
+                                    __allowed: true,
                                 }
                             }
                         }
@@ -546,14 +546,14 @@ describe('authUtils', function() {
                 pol3.fieldValidation = {
                     campaigns: {
                         cards: {
-                            _allowed: true,
-                            _length: 10,
-                            _entries: {
+                            __allowed: true,
+                            __length: 10,
+                            __entries: {
                                 name: {
-                                    _allowed: true,
+                                    __allowed: true,
                                 },
                                 reportingId: {
-                                    _allowed: true,
+                                    __allowed: true,
                                 }
                             }
                         }
@@ -562,21 +562,21 @@ describe('authUtils', function() {
                 policies = [pol2, pol3];
             });
             
-            it('should recursively merge properties in _entries', function() {
+            it('should recursively merge properties in __entries', function() {
                 expect(authUtils.mergeValidation(policies)).toEqual({
                     campaigns: {
                         cards: {
-                            _allowed: true,
-                            _length: 10,
-                            _entries: {
+                            __allowed: true,
+                            __length: 10,
+                            __entries: {
                                 id: {
-                                    _allowed: true
+                                    __allowed: true
                                 },
                                 name: {
-                                    _allowed: true
+                                    __allowed: true
                                 },
                                 reportingId: {
-                                    _allowed: true
+                                    __allowed: true
                                 }
                             }
                         }

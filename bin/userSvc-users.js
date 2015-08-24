@@ -19,47 +19,47 @@
         
     userModule.userSchema = {
         email: {
-            _allowed: true,
-            _type: 'string',
-            _createOnly: true,
-            _required: true,
-            _locked: true
+            __allowed: true,
+            __type: 'string',
+            __createOnly: true,
+            __required: true,
+            __locked: true
         },
         password: {
-            _allowed: true,
-            _type: 'string',
-            _createOnly: true,
-            _required: true,
-            _locked: true
+            __allowed: true,
+            __type: 'string',
+            __createOnly: true,
+            __required: true,
+            __locked: true
         },
         applications: {
-            _allowed: false,
-            _locked: true
+            __allowed: false,
+            __locked: true
         },
         permissions: {
-            _allowed: false,
-            _locked: true
+            __allowed: false,
+            __locked: true
         },
         fieldValidation: {
-            _allowed: false,
-            _locked: true
+            __allowed: false,
+            __locked: true
         },
         entitlements: {
-            _allowed: false,
-            _locked: true
+            __allowed: false,
+            __locked: true
         },
         policies: {
-            _allowed: false,
-            _type: ['string'],
-            _entries: {
-                _acceptableValues: []
+            __allowed: false,
+            __type: ['string'],
+            __entries: {
+                __acceptableValues: []
             }
         },
         roles: {
-            _allowed: false,
-            _type: ['string'],
-            _entries: {
-                _acceptableValues: []
+            __allowed: false,
+            __type: ['string'],
+            __entries: {
+                __acceptableValues: []
             }
         }
     };

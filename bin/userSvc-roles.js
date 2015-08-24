@@ -13,22 +13,22 @@
         
     roleModule.roleSchema = {
         name: {
-            _allowed: true,
-            _type: 'string',
-            _createOnly: true,
-            _required: true
+            __allowed: true,
+            __type: 'string',
+            __createOnly: true,
+            __required: true
         },
         createdBy: {
-            _allowed: false,
-            _type: 'string'
+            __allowed: false,
+            __type: 'string'
         },
         lastUpdatedBy: {
-            _allowed: false,
-            _type: 'string'
+            __allowed: false,
+            __type: 'string'
         },
         policies: {
-            _allowed: true,
-            _type: ['string']
+            __allowed: true,
+            __type: ['string']
         }
     };
 
@@ -54,7 +54,7 @@
         return svc;
     };
 
-    // Check that of the role's policies exist
+    // Check that all of the role's policies exist
     roleModule.validatePolicies = function(svc, req, next, done) {
         var log = logger.getLog();
         
@@ -142,6 +142,9 @@
             var query = {};
             if (req.query.name) {
                 query.name = String(req.query.name);
+            }
+            if (req.query.policy) {
+                query.policies = String(req.query.policy);
             }
 
             svc.getObjs(query, req, true)
