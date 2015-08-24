@@ -1,6 +1,6 @@
 var flush = true;
 describe('auth (UT)', function() {
-    var auth, mockLog, req, users, q, uuid, logger, mongoUtils, auth, email, enums,
+    var auth, mockLog, req, users, q, uuid, logger, mongoUtils, authUtils, email, enums,
         Status, bcrypt, anyFunc, auditJournal;
         
     beforeEach(function() {
@@ -10,6 +10,7 @@ describe('auth (UT)', function() {
         uuid        = require('../../lib/uuid');
         logger      = require('../../lib/logger');
         mongoUtils  = require('../../lib/mongoUtils');
+        authUtils   = require('../../lib/authUtils');
         auth        = require('../../bin/auth');
         email       = require('../../lib/email');
         enums       = require('../../lib/enums');
@@ -62,6 +63,7 @@ describe('auth (UT)', function() {
             spyOn(bcrypt, 'compare').andCallFake(function(pass, hashed, cb) {
                 cb(null, true);
             });
+            spyOn(authUtils, 'decorateUser').andReturn(q({ id: 'u-123', decorated: true }));
         });
     
         it('should resolve with a 400 if not provided with the required parameters', function(done) {
@@ -81,6 +83,7 @@ describe('auth (UT)', function() {
                 expect(resp.body).toBeDefined();
                 expect(users.findOne).not.toHaveBeenCalled();
                 expect(auditJournal.writeAuditEntry).not.toHaveBeenCalled();
+                expect(authUtils.decorateUser).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -97,6 +100,7 @@ describe('auth (UT)', function() {
                 });
                 expect(users.findOne).not.toHaveBeenCalled();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
+                expect(authUtils.decorateUser).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -106,7 +110,7 @@ describe('auth (UT)', function() {
             auth.login(req, users, 1000, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toBeDefined();
-                expect(resp.body).toEqual({id: 'u-123',email: 'user',status: Status.Active});
+                expect(resp.body).toEqual({ id: 'u-123', decorated: true });
                 expect(req.session.user).toEqual('u-123');
                 expect(req.session.cookie.maxAge).toBe(1000);
                 expect(origUser.password).toBe('hashpass'); // shouldn't accidentally delete this
@@ -118,6 +122,7 @@ describe('auth (UT)', function() {
                 expect(mongoUtils.safeUser).toHaveBeenCalledWith(origUser);
                 expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                 expect(auditJournal.writeAuditEntry).toHaveBeenCalledWith(req, 'u-123');
+                expect(authUtils.decorateUser).toHaveBeenCalledWith({ id: 'u-123', status: Status.Active, email: 'user' });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -128,13 +133,14 @@ describe('auth (UT)', function() {
             auth.login(req, users, 1000, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toBeDefined();
-                expect(resp.body).toEqual({id: 'u-123',email: 'user',status: Status.Active});
+                expect(resp.body).toEqual({ id: 'u-123', decorated: true });
                 expect(req.session.user).toEqual('u-123');
                 expect(origUser.password).toBe('hashpass'); // shouldn't accidentally delete this
                 expect(users.findOne).toHaveBeenCalledWith({email: 'user'}, anyFunc);
                 expect(req.session.regenerate).toHaveBeenCalled();
                 expect(mongoUtils.safeUser).toHaveBeenCalledWith(origUser);
                 expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
+                expect(authUtils.decorateUser).toHaveBeenCalledWith({ id: 'u-123', status: Status.Active, email: 'user' });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -150,6 +156,7 @@ describe('auth (UT)', function() {
                 expect(req.session.user).not.toBeDefined();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
                 expect(bcrypt.compare).toHaveBeenCalled();
+                expect(authUtils.decorateUser).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -166,6 +173,7 @@ describe('auth (UT)', function() {
                 expect(req.session.regenerate).not.toHaveBeenCalled();
                 expect(users.findOne).toHaveBeenCalled();
                 expect(bcrypt.compare).not.toHaveBeenCalled();
+                expect(authUtils.decorateUser).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -181,6 +189,7 @@ describe('auth (UT)', function() {
                 expect(users.findOne).toHaveBeenCalled();
                 expect(bcrypt.compare).toHaveBeenCalled();
                 expect(auditJournal.writeAuditEntry).not.toHaveBeenCalled();
+                expect(authUtils.decorateUser).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -190,10 +199,11 @@ describe('auth (UT)', function() {
             auditJournal.writeAuditEntry.andReturn(q.reject('audit journal fail'));
             auth.login(req, users, 1000, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(200);
-                expect(resp.body).toEqual({id: 'u-123',email: 'user',status: Status.Active});
+                expect(resp.body).toEqual({ id: 'u-123', decorated: true });
                 expect(auditJournal.writeAuditEntry).toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(authUtils.decorateUser).toHaveBeenCalledWith({ id: 'u-123', status: Status.Active, email: 'user' });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -210,6 +220,7 @@ describe('auth (UT)', function() {
                 expect(mockLog.error).toHaveBeenCalled();
                 expect(req.session.user).not.toBeDefined();
                 expect(req.session.regenerate).toHaveBeenCalled();
+                expect(authUtils.decorateUser).not.toHaveBeenCalled();
             }).done(done);
         });
         
@@ -225,6 +236,7 @@ describe('auth (UT)', function() {
                 expect(req.session.user).not.toBeDefined();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
                 expect(bcrypt.compare).toHaveBeenCalled();
+                expect(authUtils.decorateUser).not.toHaveBeenCalled();
             }).done(done);
         });
         
@@ -241,6 +253,21 @@ describe('auth (UT)', function() {
                 expect(req.session.regenerate).not.toHaveBeenCalled();
                 expect(users.findOne).toHaveBeenCalled();
                 expect(bcrypt.compare).not.toHaveBeenCalled();
+                expect(authUtils.decorateUser).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should reject if decorating the user fails', function(done) {
+            authUtils.decorateUser.andReturn(q.reject('Decorating is for squares'));
+
+            auth.login(req, users, 1000, auditJournal).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('Decorating is for squares');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(req.session.user).not.toBeDefined();
+                expect(req.session.regenerate).toHaveBeenCalled();
+                expect(authUtils.decorateUser).toHaveBeenCalled();
             }).done(done);
         });
     });
@@ -578,6 +605,7 @@ describe('auth (UT)', function() {
             spyOn(bcrypt, 'genSaltSync').andReturn('sodiumChloride');
             spyOn(bcrypt, 'hash').andCallFake(function(txt, salt, cb) { cb(null, 'hashPass'); });
             spyOn(email, 'notifyPwdChange').andReturn(q('success'));
+            spyOn(authUtils, 'decorateUser').andReturn(q({ id: 'u-1', decorated: true }));
         });
         
         it('should fail with a 400 if the request is incomplete', function(done) {
@@ -597,6 +625,7 @@ describe('auth (UT)', function() {
                 expect(users.findOne).not.toHaveBeenCalled();
                 expect(users.findAndModify).not.toHaveBeenCalled();
                 expect(auditJournal.writeAuditEntry).not.toHaveBeenCalled();
+                expect(authUtils.decorateUser).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -618,6 +647,7 @@ describe('auth (UT)', function() {
                 });
                 expect(users.findOne).not.toHaveBeenCalled();
                 expect(users.findAndModify).not.toHaveBeenCalled();
+                expect(authUtils.decorateUser).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -626,7 +656,7 @@ describe('auth (UT)', function() {
         it('should successfully reset a user\'s password', function(done) {
             auth.resetPassword(req, users, 'test@c6.com', 10000, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(200);
-                expect(resp.body).toEqual({id: 'u-1', updated: true});
+                expect(resp.body).toEqual({id: 'u-1', decorated: true});
                 expect(users.findOne).toHaveBeenCalledWith({id: 'u-1'}, anyFunc);
                 expect(bcrypt.compare).toHaveBeenCalledWith('qwer1234', 'hashed', anyFunc);
                 expect(bcrypt.genSaltSync).toHaveBeenCalled();
@@ -641,6 +671,7 @@ describe('auth (UT)', function() {
                 expect(req.session.regenerate).toHaveBeenCalled();
                 expect(mongoUtils.safeUser).toHaveBeenCalledWith({id:'u-1',updated:true,password:'hashPass'});
                 expect(auditJournal.writeAuditEntry).toHaveBeenCalledWith(req, 'u-1');
+                expect(authUtils.decorateUser).toHaveBeenCalledWith({ id: 'u-1', updated: true });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -656,6 +687,7 @@ describe('auth (UT)', function() {
                 expect(users.findAndModify).not.toHaveBeenCalled();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
                 expect(auditJournal.writeAuditEntry).not.toHaveBeenCalled();
+                expect(authUtils.decorateUser).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -671,6 +703,7 @@ describe('auth (UT)', function() {
                 expect(users.findAndModify).not.toHaveBeenCalled();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
                 expect(auditJournal.writeAuditEntry).not.toHaveBeenCalled();
+                expect(authUtils.decorateUser).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -685,6 +718,7 @@ describe('auth (UT)', function() {
                 expect(bcrypt.compare).not.toHaveBeenCalled();
                 expect(users.findAndModify).not.toHaveBeenCalled();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
+                expect(authUtils.decorateUser).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -699,6 +733,7 @@ describe('auth (UT)', function() {
                 expect(bcrypt.compare).not.toHaveBeenCalled();
                 expect(users.findAndModify).not.toHaveBeenCalled();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
+                expect(authUtils.decorateUser).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -713,6 +748,7 @@ describe('auth (UT)', function() {
                 expect(bcrypt.hash).not.toHaveBeenCalled();
                 expect(users.findAndModify).not.toHaveBeenCalled();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
+                expect(authUtils.decorateUser).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -722,7 +758,7 @@ describe('auth (UT)', function() {
             auditJournal.writeAuditEntry.andReturn(q.reject('audit journal fail'));
             auth.resetPassword(req, users, 'test@c6.com', 10000, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(200);
-                expect(resp.body).toEqual({id: 'u-1', updated: true});
+                expect(resp.body).toEqual({id: 'u-1', decorated: true});
                 expect(users.findAndModify).toHaveBeenCalled();
                 expect(email.notifyPwdChange).toHaveBeenCalled();
                 expect(req.session.user).toBe('u-1');
@@ -730,6 +766,7 @@ describe('auth (UT)', function() {
                 expect(auditJournal.writeAuditEntry).toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
+                expect(authUtils.decorateUser).toHaveBeenCalledWith({ id: 'u-1', updated: true });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -745,6 +782,7 @@ describe('auth (UT)', function() {
                 expect(bcrypt.compare).not.toHaveBeenCalled();
                 expect(users.findAndModify).not.toHaveBeenCalled();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
+                expect(authUtils.decorateUser).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
             }).done(done);
         });
@@ -759,6 +797,7 @@ describe('auth (UT)', function() {
                 expect(bcrypt.hash).not.toHaveBeenCalled();
                 expect(users.findAndModify).not.toHaveBeenCalled();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
+                expect(authUtils.decorateUser).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
             }).done(done);
         });
@@ -772,6 +811,7 @@ describe('auth (UT)', function() {
                 expect(bcrypt.hash).toHaveBeenCalled();
                 expect(users.findAndModify).not.toHaveBeenCalled();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
+                expect(authUtils.decorateUser).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
             }).done(done);
         });
@@ -786,6 +826,7 @@ describe('auth (UT)', function() {
                 expect(users.findAndModify).toHaveBeenCalled();
                 expect(email.notifyPwdChange).not.toHaveBeenCalled();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
+                expect(authUtils.decorateUser).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
             }).done(done);
         });
@@ -794,7 +835,7 @@ describe('auth (UT)', function() {
             email.notifyPwdChange.andReturn(q.reject('I GOT A PROBLEM'));
             auth.resetPassword(req, users, 'test@c6.com', 10000, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(200);
-                expect(resp.body).toEqual({id: 'u-1', updated: true});
+                expect(resp.body).toEqual({id: 'u-1', decorated: true});
                 expect(users.findOne).toHaveBeenCalled();
                 expect(users.findAndModify).toHaveBeenCalled();
                 expect(email.notifyPwdChange).toHaveBeenCalled();
@@ -802,6 +843,7 @@ describe('auth (UT)', function() {
                 expect(req.session.user).toBe('u-1');
                 expect(req.session.regenerate).toHaveBeenCalled();
                 expect(mongoUtils.safeUser).toHaveBeenCalled();
+                expect(authUtils.decorateUser).toHaveBeenCalledWith({ id: 'u-1', updated: true });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
