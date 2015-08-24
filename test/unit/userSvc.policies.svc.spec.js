@@ -238,7 +238,7 @@ describe('userSvc-policies (UT)', function() {
                 };
 
                 expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: false, reason: 'applications[1] is not one of the acceptable values: [e-app1,e-app2,e-app3]' });
+                    .toEqual({ isValid: false, reason: 'applications[1] is UNACCEPTABLE! acceptable values are: [e-app1,e-app2,e-app3]' });
             });
         });
         

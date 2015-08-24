@@ -400,7 +400,7 @@ describe('userSvc policies endpoints (E2E):', function() {
             mockPol.applications.push('e-app3');
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('applications[2] is not one of the acceptable values: [e-app1,e-app2,e-app4]');
+                expect(resp.body).toBe('applications[2] is UNACCEPTABLE! acceptable values are: [e-app1,e-app2,e-app4]');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
@@ -592,7 +592,7 @@ describe('userSvc policies endpoints (E2E):', function() {
             options.json.applications = ['e-app3'];
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('applications[0] is not one of the acceptable values: [e-app1,e-app2,e-app4]');
+                expect(resp.body).toBe('applications[0] is UNACCEPTABLE! acceptable values are: [e-app1,e-app2,e-app4]');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);

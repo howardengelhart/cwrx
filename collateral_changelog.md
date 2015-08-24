@@ -1,6 +1,6 @@
 # Collateral Service Changelog
 
-* [FIX]: Auth middleware will handle users with roles + policies: [#475](https://github.com/cinema6/cwrx/issues/475)
+* [FIX]: Auth middleware will handle users with roles + policies: [#475](https://github.com/cinema6/cwrx/pull/475)
 
 ### 2.0.1: Thu Jul 16 18:18:01 EDT 2015
 * [FIX]: Time-out uri endpoint downloads if they take too long: [#456](https://github.com/cinema6/cwrx/issues/456)

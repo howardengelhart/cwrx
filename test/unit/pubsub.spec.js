@@ -126,7 +126,7 @@ describe('pubsub', function() {
 
                 sock1.emit('end');
                 expect(pub._sockets).toEqual([sock2]);
-                expect(mockLog.warn).toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
             });
         });
         

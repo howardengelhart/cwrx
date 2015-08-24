@@ -274,7 +274,7 @@ describe('userSvc (UT)', function() {
                     };
 
                     expect(svc.model.validate('create', newObj, origObj, requester))
-                        .toEqual({ isValid: false, reason: field + '[1] is not one of the acceptable values: [thing1,thing2,thing3]' });
+                        .toEqual({ isValid: false, reason: field + '[1] is UNACCEPTABLE! acceptable values are: [thing1,thing2,thing3]' });
                 });
             });
         });

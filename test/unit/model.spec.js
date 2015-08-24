@@ -215,7 +215,7 @@ describe('Model', function() {
             expect(Model.checkLimits(cfg, 'poodle', 'breed')).toEqual({ isValid: true });
             expect(Model.checkLimits(cfg, 'lab', 'breed')).toEqual({ isValid: true });
             expect(Model.checkLimits(cfg, 'mutt', 'breed')).toEqual({ isValid: false,
-                reason: 'breed is not one of the acceptable values: [poodle,lab]' });
+                reason: 'breed is UNACCEPTABLE! acceptable values are: [poodle,lab]' });
 
             cfg = { __acceptableValues: '*' };
             expect(Model.checkLimits(cfg, 'mutt', 'breed')).toEqual({ isValid: true });
@@ -234,7 +234,7 @@ describe('Model', function() {
             expect(Model.checkLimits(cfg, 25, 'barksPerDay')).toEqual({ isValid: false,
                 reason: 'barksPerDay must be less than the max: 20' });
             expect(Model.checkLimits(cfg, 16, 'barksPerDay')).toEqual({ isValid: false,
-                reason: 'barksPerDay is not one of the acceptable values: [5,15,25]' });
+                reason: 'barksPerDay is UNACCEPTABLE! acceptable values are: [5,15,25]' });
         });
     });
     
@@ -442,7 +442,7 @@ describe('Model', function() {
                 };
                 
                 expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: false,
-                    reason: 'snax.kibbles is not one of the acceptable values: [yes,no]' });
+                    reason: 'snax.kibbles is UNACCEPTABLE! acceptable values are: [yes,no]' });
             });
             
             it('should trim the entire block if the whole block is forbidden', function() {
@@ -478,7 +478,7 @@ describe('Model', function() {
             it('should be able to validate every entry using the __entries property', function() {
                 newObj.doggieFriends = ['knut', 'scruffles', 'woofles'];
                 expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: false,
-                    reason: 'doggieFriends[2] is not one of the acceptable values: [knut,charlie,scruffles,puffles]' });
+                    reason: 'doggieFriends[2] is UNACCEPTABLE! acceptable values are: [knut,charlie,scruffles,puffles]' });
             });
             
             it('should be able to recursively validate fields on object entries', function() {

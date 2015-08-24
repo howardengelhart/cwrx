@@ -1,8 +1,8 @@
 # User Service Changelog
 
-* [FEATURE]: Add endpoints for roles + policies: [#475](https://github.com/cinema6/cwrx/issues/475)
-* [FIX]: Auth middleware will handle users with roles + policies: [#475](https://github.com/cinema6/cwrx/issues/475)
-* [FIX]: Use Model to validate user docs: [#475](https://github.com/cinema6/cwrx/issues/475)
+* [FEATURE]: Add endpoints for roles + policies: [#475](https://github.com/cinema6/cwrx/pull/475)
+* [FIX]: Auth middleware will handle users with roles + policies: [#475](https://github.com/cinema6/cwrx/pull/475)
+* [FIX]: Use Model to validate user docs: [#475](https://github.com/cinema6/cwrx/pull/475)
 * Extra deployment steps:
     * Deploy updated cookbook
     * Update c6mongo cfg in environments to setup role + policy indexes

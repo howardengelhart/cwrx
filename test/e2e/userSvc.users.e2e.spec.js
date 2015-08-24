@@ -577,13 +577,13 @@ describe('userSvc users (E2E):', function() {
             mockUser.roles.push('role3');
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('roles[2] is not one of the acceptable values: [role1,role2,role4]');
+                expect(resp.body).toBe('roles[2] is UNACCEPTABLE! acceptable values are: [role1,role2,role4]');
                 mockUser.roles.pop();
                 mockUser.policies.push('pol3');
                 return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('policies[2] is not one of the acceptable values: [pol1,pol2,pol4]');
+                expect(resp.body).toBe('policies[2] is UNACCEPTABLE! acceptable values are: [pol1,pol2,pol4]');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
@@ -746,13 +746,13 @@ describe('userSvc users (E2E):', function() {
             options.json.roles.push('role3');
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('roles[2] is not one of the acceptable values: [role1,role2,role4]');
+                expect(resp.body).toBe('roles[2] is UNACCEPTABLE! acceptable values are: [role1,role2,role4]');
                 options.json.roles.pop();
                 options.json.policies.push('pol3');
                 return requestUtils.qRequest('put', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('policies[2] is not one of the acceptable values: [pol1,pol2,pol4]');
+                expect(resp.body).toBe('policies[2] is UNACCEPTABLE! acceptable values are: [pol1,pol2,pol4]');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);

@@ -1,6 +1,6 @@
 # Vote Service Changelog
 
-* [FIX]: Auth middleware will handle users with roles + policies: [#475](https://github.com/cinema6/cwrx/issues/475)
+* [FIX]: Auth middleware will handle users with roles + policies: [#475](https://github.com/cinema6/cwrx/pull/475)
 
 ### 1.4.1: Wed Jun 24 18:09:44 EDT 2015
 * [FIX]: Cookie and session security improvements: [#423](https://github.com/cinema6/cwrx/pull/423)
