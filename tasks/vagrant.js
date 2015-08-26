@@ -4,8 +4,8 @@ module.exports = function(grunt) {
 
     var serviceDepends = {
         ads         : 'auth,content,monitor',
-        collateral  : 'auth',
-        content     : 'auth',
+        collateral  : 'auth,monitor',
+        content     : 'auth,monitor',
         orgSvc      : 'auth',
         search      : 'auth',
         userSvc     : 'auth',

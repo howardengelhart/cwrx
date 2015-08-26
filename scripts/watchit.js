@@ -80,7 +80,7 @@ function setupWatch(dir,watchCache,fn){
     watchData.dw.on('change', function(){
         console.log('Directory changed: ',dir);
         process.nextTick(function(){
-            setupWatch(dir);
+            setupWatch(dir, watchCache, fn);
         });
     });
 
