@@ -147,7 +147,22 @@
         });
 
         app.get('/api/proxySvc/facebook/:id', function(req, res) {
-            res.send(200, state.config.appVersion);
+            var id = req.params.id;
+            var creds = state.secrets.facebookCredentials;
+            var options = {
+                url: 'https://graph.facebook.com/v2.4/' + id,
+                qs: {
+                    access_token: creds.appId + '|' + creds.appSecret
+                }
+            };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                res.send(200, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error retrieving Facebook post',
+                    detail: error
+                });
+            });
         });
 
         app.use(function(err, req, res, next) {
