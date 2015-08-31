@@ -14,7 +14,6 @@
         authUtils       = require('../lib/authUtils'),
         journal         = require('../lib/journal'),
         service         = require('../lib/service'),
-        util            = require('util'),
 
         state   = {},
         proxySvc   = {}; // for exporting functions to unit tests
@@ -49,7 +48,127 @@
                 port: null,
                 retryConnect : true
             }
+        },
+        whitelists: {
+            facebook: {
+                endpoints: ['/v2\\.4/[\\d_]+', '/v2\\.4/[\\d_]+/(likes|comments|sharedposts)'],
+                params: ['summary']
+            },
+            twitter: {
+                endpoints: ['/1.1/statuses/show.json'],
+                params: ['id']
+            }
         }
+    };
+
+    proxySvc.getHost = function(uuid, service) {
+        switch(service) {
+        case 'facebook':
+            return 'https://graph.facebook.com';
+        case 'twitter':
+            return 'https://api.twitter.com';
+        default:
+            throw new Error('Tried to get host for unrecognized service "' + service + '"');
+        }
+    };
+
+    proxySvc.getAuthOptions = function(uuid, service, serviceCreds) {
+        var creds;
+        switch(service) {
+        case 'facebook':
+            creds = serviceCreds.facebookCredentials;
+            return q({
+                qs: {
+                    /*jshint camelcase: false */
+                    access_token: creds.appId + '|' + creds.appSecret
+                    /*jshint camelcase: true */
+                }
+            });
+        case 'twitter':
+            creds = serviceCreds.twitterCredentials;
+            var consumerKey = encodeURIComponent(creds.appId),
+                consumerSecret = encodeURIComponent(creds.appSecret),
+                bearerTokenCreds = consumerKey + ':' + consumerSecret,
+                encodedCreds = new Buffer(bearerTokenCreds).toString('base64'),
+                options = {
+                    url: proxySvc.getHost(uuid, 'twitter') + '/oauth2/token',
+                    headers: {
+                        'Authorization': 'Basic ' + encodedCreds,
+                        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                    },
+                    body: 'grant_type=client_credentials'
+                };
+            return requestUtils.qRequest('post', options).then(function(resp) {
+                /*jshint camelcase: false */
+                var tokenType = resp.body.token_type;
+                var accessToken = resp.body.access_token;
+                /*jshint camelcase: true */
+                if(tokenType === 'bearer') {
+                    return {
+                        headers: {
+                            'Authorization': 'Bearer ' + accessToken
+                        }
+                    };
+                } else {
+                    return q.reject('Twitter token "' + tokenType +
+                        '" is not the required bearer token.');
+                }
+            }).catch(function(error) {
+                return q.reject({
+                    error:'Twitter authentication failed',
+                    detail: error
+                });
+            });
+        default:
+            return q.reject('Tried to get auth options for unrecognized service "' + service + '"');
+        }
+    };
+
+    proxySvc.proxy = function(req, service, serviceCreds, whitelists) {
+        var log = logger.getLog();
+        var endpoint = req.query && req.query.endpoint;
+        if(!endpoint) {
+            log.info('[%1] Required query param "endpoint" was not specified.', req.uuid);
+            return q({
+                code: 400,
+                body: 'You must specify an endpoint as a query parameter.'
+            });
+        }
+        var validEndpoints = whitelists[service].endpoints;
+        var validEndpoint = false;
+        for(var i=0;i<validEndpoints.length;i++) {
+            if(endpoint.match(new RegExp('^' + validEndpoints[i] + '$'))) {
+                validEndpoint = true;
+                break;
+            }
+        }
+        if(!validEndpoint) {
+            log.info('[%1] The endpoint "%2" is not valid.', req.uuid, endpoint);
+            return q({
+                code: 403,
+                body: 'The specified endpoint is invalid.'
+            });
+        }
+        return proxySvc.getAuthOptions(req.uuid, service, serviceCreds).then(function(options) {
+            if(!options.qs) {
+                options.qs = { };
+            }
+            whitelists[service].params.forEach(function(param) {
+                if(req.query[param] && !options.qs[param]) {
+                    options.qs[param] = req.query[param];
+                }
+            });
+            options.url = proxySvc.getHost(req.uuid, service) + endpoint;
+            return requestUtils.qRequest('get', options);
+        }).then(function(resp) {
+            return {
+                code: resp.response.statusCode,
+                body: resp.body
+            };
+        }).catch(function(error) {
+            log.error('[%1] %2', req.uuid, JSON.stringify(error, null, 2));
+            return q.reject(error);
+        });
     };
 
     proxySvc.main = function(state) {
@@ -60,6 +179,13 @@
             return state;
         }
         log.info('Running as cluster worker, proceed with setting up web server.');
+
+        // Ensure credentials exist
+        var fbCreds = state.secrets.facebookCredentials;
+        var twtrCreds = state.secrets.twitterCredentials;
+        if(!fbCreds.appId || !fbCreds.appSecret || !twtrCreds.appId || !twtrCreds.appSecret) {
+            return q.reject('Facebook or Twitter credentials have not been specified.');
+        }
 
         var app          = express(),
             users        = state.dbs.c6Db.collection('users'),
@@ -81,13 +207,8 @@
 
         var sessions = sessionLib(sessionOpts);
 
+        app.set('json spaces', 2);
         app.set('trust proxy', 1);
-
-        // Because we may recreate the session middleware, we need to wrap it in the route handlers
-        function sessWrap(req, res, next) {
-            sessions(req, res, next);
-        }
-        var audit = auditJournal.middleware.bind(auditJournal);
 
         state.dbStatus.c6Db.on('reconnected', function() {
             users = state.dbs.c6Db.collection('users');
@@ -133,7 +254,7 @@
 
         app.use(bodyParser.json());
 
-        app.get('/api/proxySvc/meta', function(req, res){
+        app.get('/api/proxy/meta', function(req, res){
             var data = {
                 version: state.config.appVersion,
                 started : started.toISOString(),
@@ -142,24 +263,37 @@
             res.send(200, data);
         });
 
-        app.get('/api/proxySvc/version', function(req, res) {
+        app.get('/api/proxy/version', function(req, res) {
             res.send(200, state.config.appVersion);
         });
 
-        app.get('/api/proxySvc/facebook/:id', function(req, res) {
-            var id = req.params.id;
-            var creds = state.secrets.facebookCredentials;
-            var options = {
-                url: 'https://graph.facebook.com/v2.4/' + id,
-                qs: {
-                    access_token: creds.appId + '|' + creds.appSecret
-                }
+        app.get('/api/proxy/facebook', function(req, res) {
+            var serviceCreds = {
+                facebookCredentials: state.secrets.facebookCredentials,
+                twitterCredentials: state.secrets.twitterCredentials
             };
-            requestUtils.qRequest('get', options).then(function(resp) {
-                res.send(200, resp.body);
+            proxySvc.proxy(req, 'facebook', serviceCreds, state.config.whitelists)
+            .then(function(resp) {
+                res.send(resp.code, resp.body);
             }).catch(function(error) {
                 res.send(500, {
-                    error: 'Error retrieving Facebook post',
+                    error: 'There was a problem proxying the request to Facebook.',
+                    detail: error
+                });
+            });
+        });
+
+        app.get('/api/proxy/twitter', function(req, res) {
+            var serviceCreds = {
+                facebookCredentials: state.secrets.facebookCredentials,
+                twitterCredentials: state.secrets.twitterCredentials
+            };
+            proxySvc.proxy(req, 'twitter', serviceCreds, state.config.whitelists)
+            .then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'There was a problem proxying the request to Twitter.',
                     detail: error
                 });
             });
@@ -208,6 +342,7 @@
             log.info('ready to serve');
         });
     } else {
-        module.exports = proxySvc;
+        module.exports.proxySvc = proxySvc;
+        module.exports.state = state;
     }
 }());
