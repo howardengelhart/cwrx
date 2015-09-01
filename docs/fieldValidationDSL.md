@@ -32,7 +32,7 @@ Directives will always be prefixed with an '__' to differentiate them from norma
 
 ### __required
 - **Expected type**: `Boolean`
-- If true, the field must be set on create. Failing to set the field will return a 400 to the client.
+- If true, the field must be set on the object. Failing to set the field will return a 400 to the client.
 - On edit, if the field is not set on the request, the field will be copied from the original object.
 
 ### __unchangeable

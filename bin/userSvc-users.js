@@ -28,7 +28,6 @@
         password: {
             __allowed: true,
             __type: 'string',
-            __required: true,
             __locked: true
         },
         applications: {
@@ -102,13 +101,14 @@
         
         userSvc.use('read', preventGetAll);
 
+        userSvc.use('create', userModule.validatePassword);
         userSvc.use('create', hashPassword);
         userSvc.use('create', setupUser);
         userSvc.use('create', validateUniqueEmail);
         userSvc.use('create', validateRoles);
         userSvc.use('create', validatePolicies);
 
-        userSvc.use('edit', userModule.trimPassword);
+        userSvc.use('edit', userModule.validatePassword);
         userSvc.use('edit', validateRoles);
         userSvc.use('edit', validatePolicies);
 
@@ -155,6 +155,23 @@
         return newQuery;
     };
 
+    /* Directives like __unchangeable and __required don't work properly for password since it's
+     * trimmed off the origObj, so replicate that validation logic here. */
+    userModule.validatePassword = function(req, next, done) {
+        var log = logger.getLog();
+        
+        if (!req.origObj) {
+            if (!req.body.password) {
+                log.info('[%1] No password provided when creating new user', req.uuid);
+                return done({ code: 400, body: 'Missing required field: password' });
+            }
+        } else {
+            delete req.body.password;
+        }
+        
+        return next();
+    };
+
     // Used as middleware when creating a user to encrypt their password before storing
     // it in the DB
     userModule.hashProp = function hashPassword(prop, req, next, done) {
@@ -186,13 +203,6 @@
         
         newUser.email = newUser.email.toLowerCase();
 
-        return next();
-    };
-    
-    /* Ensure that password not changed on PUT; __unchangeable fieldValidation directive wouldn't
-     * work as password is trimmed off original */
-    userModule.trimPassword = function(req, next/*, done*/) {
-        delete req.body.password;
         return next();
     };
     

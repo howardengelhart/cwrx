@@ -257,6 +257,8 @@ describe('Model', function() {
             it('should fail if the field is not present on the newObj', function() {
                 expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: false,
                     reason: 'Missing required field: name' });
+                expect(model.validate('edit', newObj, origObj, requester)).toEqual({ isValid: false,
+                    reason: 'Missing required field: name' });
             });
             
             it('should pass if the field is present on the newObj', function() {

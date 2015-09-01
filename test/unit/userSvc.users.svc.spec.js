@@ -137,8 +137,9 @@ describe('userSvc (UT)', function() {
             expect(result._middleware.create).toContain(getBoundFn(userModule.validatePolicies, [userModule, result]));
         });
         
-        it('should be sure to trim the password on edit', function() {
-            expect(result._middleware.edit).toContain(userModule.trimPassword);
+        it('should do additional validation for the password on create and edit', function() {
+            expect(result._middleware.create).toContain(userModule.validatePassword);
+            expect(result._middleware.edit).toContain(userModule.validatePassword);
         });
 
         it('should prevent the user from deleting themselves', function() {
@@ -225,12 +226,6 @@ describe('userSvc (UT)', function() {
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: true });
                 expect(newObj).toEqual({ email: 'test@me.com', password: 'pass' });
-            });
-            
-            it('should fail if the field is not defined', function() {
-                delete newObj.password;
-                expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: false, reason: 'Missing required field: password' });
             });
             
             it('should pass if the field is not defined on edit', function() {
