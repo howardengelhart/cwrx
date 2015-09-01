@@ -21,14 +21,13 @@
         email: {
             __allowed: true,
             __type: 'string',
-            __createOnly: true,
+            __unchangeable: true,
             __required: true,
             __locked: true
         },
         password: {
             __allowed: true,
             __type: 'string',
-            __createOnly: true,
             __required: true,
             __locked: true
         },
@@ -109,6 +108,7 @@
         userSvc.use('create', validateRoles);
         userSvc.use('create', validatePolicies);
 
+        userSvc.use('edit', userModule.trimPassword);
         userSvc.use('edit', validateRoles);
         userSvc.use('edit', validatePolicies);
 
@@ -186,6 +186,13 @@
         
         newUser.email = newUser.email.toLowerCase();
 
+        return next();
+    };
+    
+    /* Ensure that password not changed on PUT; __unchangeable fieldValidation directive wouldn't
+     * work as password is trimmed off original */
+    userModule.trimPassword = function(req, next/*, done*/) {
+        delete req.body.password;
         return next();
     };
     

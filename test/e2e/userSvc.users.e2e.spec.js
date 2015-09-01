@@ -793,6 +793,9 @@ describe('userSvc users (E2E):', function() {
                     roles: ['role1'],
                     policies: ['pol1'],
                 });
+                return testUtils.mongoFind('users', { id: 'u-e2e-put1' });
+            }).then(function(accounts) {
+                expect(accounts[0].password).toBe('secret');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

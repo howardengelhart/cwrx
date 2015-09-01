@@ -136,6 +136,10 @@ describe('userSvc (UT)', function() {
             expect(userModule.validatePolicies.bind).toHaveBeenCalledWith(userModule, result);
             expect(result._middleware.create).toContain(getBoundFn(userModule.validatePolicies, [userModule, result]));
         });
+        
+        it('should be sure to trim the password on edit', function() {
+            expect(result._middleware.edit).toContain(userModule.trimPassword);
+        });
 
         it('should prevent the user from deleting themselves', function() {
             expect(result._middleware.delete).toContain(userModule.preventSelfDeletion);
@@ -174,42 +178,66 @@ describe('userSvc (UT)', function() {
             requester = { fieldValidation: { users: {} } };
         });
         
-        // required credential fields
-        ['email', 'password'].forEach(function(field) {
-            describe('when handling ' + field, function() {
-                it('should fail if the field is not a string', function() {
-                    newObj[field] = 123;
-                    expect(svc.model.validate('create', newObj, origObj, requester))
-                        .toEqual({ isValid: false, reason: field + ' must be in format: \'string\'' });
-                });
-                
-                it('should allow the field to be set on create', function() {
-                    expect(svc.model.validate('create', newObj, origObj, requester))
-                        .toEqual({ isValid: true });
-                    expect(newObj).toEqual({ email: 'test@me.com', password: 'pass' });
-                });
-                
-                it('should fail if the field is not defined', function() {
-                    delete newObj[field];
-                    expect(svc.model.validate('create', newObj, origObj, requester))
-                        .toEqual({ isValid: false, reason: 'Missing required field: ' + field });
-                });
-                
-                it('should pass if the field was defined on the original object', function() {
-                    origObj[field] = 'old value';
-                    delete newObj[field];
-                    expect(svc.model.validate('edit', newObj, origObj, requester))
-                        .toEqual({ isValid: true });
-                    expect(newObj[field]).toEqual('old value');
-                });
-                
-                it('should revert the field on edit', function() {
-                    origObj[field] = 'old value';
-                    requester.fieldValidation.users[field] = { __createOnly: false };
-                    expect(svc.model.validate('edit', newObj, origObj, requester))
-                        .toEqual({ isValid: true });
-                    expect(newObj[field]).toEqual('old value');
-                });
+        describe('when handling email', function() {
+            it('should fail if the field is not a string', function() {
+                newObj.email = 123;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'email must be in format: \'string\'' });
+            });
+            
+            it('should allow the field to be set on create', function() {
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true });
+                expect(newObj).toEqual({ email: 'test@me.com', password: 'pass' });
+            });
+            
+            it('should fail if the field is not defined', function() {
+                delete newObj.email;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'Missing required field: email' });
+            });
+            
+            it('should pass if the field was defined on the original object', function() {
+                origObj.email = 'old value';
+                delete newObj.email;
+                expect(svc.model.validate('edit', newObj, origObj, requester))
+                    .toEqual({ isValid: true });
+                expect(newObj.email).toEqual('old value');
+            });
+            
+            it('should revert the field on edit', function() {
+                origObj.email = 'old value';
+                requester.fieldValidation.users.email = { __unchangeable: false };
+                expect(svc.model.validate('edit', newObj, origObj, requester))
+                    .toEqual({ isValid: true });
+                expect(newObj.email).toEqual('old value');
+            });
+        });
+
+        describe('when handling password', function() {
+            it('should fail if the field is not a string', function() {
+                newObj.password = 123;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'password must be in format: \'string\'' });
+            });
+            
+            it('should allow the field to be set on create', function() {
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true });
+                expect(newObj).toEqual({ email: 'test@me.com', password: 'pass' });
+            });
+            
+            it('should fail if the field is not defined', function() {
+                delete newObj.password;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'Missing required field: password' });
+            });
+            
+            it('should pass if the field is not defined on edit', function() {
+                delete newObj.password;
+                expect(svc.model.validate('edit', newObj, origObj, requester))
+                    .toEqual({ isValid: true });
+                expect(newObj).toEqual({ email: 'test@me.com' });
             });
         });
 

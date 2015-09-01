@@ -301,26 +301,20 @@ describe('Model', function() {
             });
         });
         
-        describe('if a field can only be set on create', function() {
+        describe('if a field can only be set once', function() {
             beforeEach(function() {
                 model.schema.name = {
-                    __type: 'string', __allowed: true, __createOnly: true
+                    __type: 'string', __allowed: true, __unchangeable: true
                 };
             });
             
-            it('should allow the field to be set if the action is create', function() {
+            it('should allow the field to be set if previously unset', function() {
                 newObj.name = 'scruffles';
                 expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true });
                 expect(newObj).toEqual({ name: 'scruffles' });
             });
             
-            it('should trim the field if the action is not create', function() {
-                newObj.name = 'scruffles';
-                expect(model.validate('edit', newObj, origObj, requester)).toEqual({ isValid: true });
-                expect(newObj).toEqual({});
-            });
-            
-            it('should revert to the existing value if present on origObj', function() {
+            it('should trim the field if it was previously set', function() {
                 origObj.name = 'puffles';
                 newObj.name = 'scruffles';
                 expect(model.validate('edit', newObj, origObj, requester)).toEqual({ isValid: true });
@@ -328,7 +322,7 @@ describe('Model', function() {
             });
             
             it('should pass if the field is not set on newObj', function() {
-                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true });
+                expect(model.validate('edit', newObj, origObj, requester)).toEqual({ isValid: true });
                 expect(newObj).toEqual({});
             });
         });

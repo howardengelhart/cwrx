@@ -15,7 +15,7 @@
         name: {
             __allowed: true,
             __type: 'string',
-            __createOnly: true,
+            __unchangeable: true,
             __required: true
         },
         createdBy: {
