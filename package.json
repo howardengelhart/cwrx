@@ -16,6 +16,7 @@
     "aws-sdk": "^2.0.0-rc12",
     "bcrypt": "~0.7.7",
     "body-parser": "~1.12.4",
+    "braintree": "^1.28.0",
     "commander": "~1.1.1",
     "connect-mongo": "~0.8.1",
     "express": "~4.12.4",

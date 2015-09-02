@@ -63,6 +63,18 @@ function setupUserSvcFieldVal(policy) {
         }
     };
 }
+
+// setup permissive fieldValidation rules for orgs on the policy
+function setupOrgSvcFieldVal(policy) {
+    policy.fieldValidation.orgs = {
+        adConfig: {
+            __allowed: true
+        },
+        braintreeCustomer: {
+            __allowed: true
+        }
+    };
+}
     
 program
     .version('0.0.1')
@@ -116,6 +128,7 @@ mongoUtils.connect(program.dbHost, program.dbPort, 'c6Db', program.dbUser, progr
         });
         
         setupUserSvcFieldVal(policy);
+        setupOrgSvcFieldVal(policy);
 
         return q.npost(db.collection('policies'), 'findAndModify', [{id: 'p-testAdmin'}, {id: 1}, policy,
                                                                     {w: 1, journal: true, new: true, upsert: true}]);
