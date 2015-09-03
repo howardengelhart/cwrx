@@ -76,6 +76,10 @@
             return q({ code: 200, body: [] });
         }
         
+        /*
+        return q.delay(6000).then(function() { //TODO: remove this
+            return q.npost(gateway.customer, 'find', [req.org.braintreeCustomer])
+        })*/
         return q.npost(gateway.customer, 'find', [req.org.braintreeCustomer])
         .then(function(customer) {
             log.info('[%1] Successfully got BT customer %2', req.uuid, req.org.braintreeCustomer);
@@ -327,81 +331,73 @@
         });
     };
     
-    payModule.setupEndpoints = function(app, orgSvc, gateway, sessions, audit) {
+    payModule.setupEndpoints = function(app, orgSvc, gateway, sessions, audit, jobManager) {
         var router      = express.Router({ mergeParams: true }),
             mountPath   = '/api/account/orgs?/:orgId/payments', // prefix to these endpoints
             fetchOrg    = payModule.fetchOrg.bind(payModule, orgSvc);
+            
+        router.use(jobManager.setJobTimeout.bind(jobManager));
+        
+        //TODO TODO: FINISH FIGURING OUT WHY THESE JOBS AREN'T CANCELING TIMEOUTS PROPERLY
 
         var authGetOrg = authUtils.middlewarify({orgs: 'read'});
         router.get('/clientToken', sessions, authGetOrg, fetchOrg, audit, function(req, res) {
-            payModule.generateClientToken(gateway, req)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error generating clientToken',
-                    detail: error
+            var promise = payModule.generateClientToken(gateway, req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error generating clientToken', detail: error });
                 });
             });
         });
 
         router.get('/methods?/', sessions, authGetOrg, fetchOrg, audit, function(req, res) {
-            payModule.getPaymentMethods(gateway, req)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error retrieving payment methods',
-                    detail: error
+            var promise = payModule.getPaymentMethods(gateway, req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error retrieving payment methods', detail: error });
                 });
             });
         });
         
         var authPutOrg = authUtils.middlewarify({orgs: 'edit'});
         router.post('/methods?/', sessions, authPutOrg, fetchOrg, audit, function(req, res) {
-            payModule.createPaymentMethod(gateway, orgSvc, req)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error generating clientToken',
-                    detail: error
+            var promise = payModule.createPaymentMethod(gateway, orgSvc, req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error generating clientToken',detail: error });
                 });
             });
         });
 
         router.put('/methods?/:token', sessions, authPutOrg, fetchOrg, audit, function(req, res) {
-            payModule.editPaymentMethod(gateway, orgSvc, req.params.token, req)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error generating clientToken',
-                    detail: error
+            var promise = payModule.editPaymentMethod(gateway, orgSvc, req.params.token, req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error generating clientToken',detail: error });
                 });
             });
         });
         
         router.delete('/methods?/:token', sessions, authPutOrg, fetchOrg, audit, function(req, res) {
-            payModule.deletePaymentMethod(gateway, orgSvc, req.params.token, req)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error generating clientToken',
-                    detail: error
+            var promise = payModule.deletePaymentMethod(gateway, orgSvc, req.params.token, req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error generating clientToken',detail: error });
                 });
             });
         });
         
         router.get('/', sessions, authGetOrg, fetchOrg, audit, function(req, res) {
-            payModule.getPayments(gateway, req)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error retrieving payment methods',
-                    detail: error
+            var promise = payModule.getPayments(gateway, req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error retrieving payment methods',detail: error });
                 });
             });
         });

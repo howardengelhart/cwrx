@@ -13,6 +13,7 @@
         journal         = require('../lib/journal'),
         authUtils       = require('../lib/authUtils'),
         service         = require('../lib/service'),
+        JobManager      = require('../lib/jobManager'),
         orgModule       = require('./orgSvc-orgs'),
         payModule       = require('./orgSvc-payments'),
 
@@ -48,6 +49,22 @@
                 port: null,
                 retryConnect : true
             }
+        },
+        pubsub: {
+            cacheCfg: {
+                port: 21211,
+                isPublisher: false
+            }
+        },
+        cache: {
+            timeouts: {},
+            servers: null
+        },
+        jobTimeouts: {
+            enabled: true,
+            urlPrefix: '/api/account/org/job',
+            timeout: 5*1000,
+            cacheTTL: 60*60*1000,
         }
     };
     
@@ -71,6 +88,7 @@
             users        = state.dbs.c6Db.collection('users'),
             orgs         = state.dbs.c6Db.collection('orgs'),
             orgSvc       = orgModule.setupSvc(orgs, users, gateway),
+            jobManager   = new JobManager(state.cache, state.config.jobTimeouts),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._db = state.dbs.c6Db;
@@ -143,6 +161,12 @@
             next();
         });
 
+        app.get('/api/account/org/job/:id', function(req, res) {
+            jobManager.getJobResult(req, res, req.params.id).catch(function(error) {
+                res.send(500, { error: 'Internal error', detail: error });
+            });
+        });
+
         app.get('/api/account/org/meta', function(req, res){
             var data = {
                 version: state.config.appVersion,
@@ -158,8 +182,10 @@
 
         app.use(bodyParser.json());
 
-        orgModule.setupEndpoints(app, orgSvc, sessWrap, audit, state.sessionStore, state.config);
-        payModule.setupEndpoints(app, orgSvc, gateway, sessWrap, audit);
+        /*TODO: payModule's endpoints are matched by orgModule's router, so its endpoints must be
+         added first so jobTimeouts won't get set twice. Consider changing payModule's endpoints?*/
+        payModule.setupEndpoints(app, orgSvc, gateway, sessWrap, audit, jobManager);
+        orgModule.setupEndpoints(app, orgSvc, sessWrap, audit, jobManager);
         
 
         app.use(function(err, req, res, next) {
@@ -192,6 +218,8 @@
         .then(service.cluster)
         .then(service.initMongo)
         .then(service.initSessionStore)
+        .then(service.initPubSubChannels)
+        .then(service.initCache)
         .then(main)
         .catch(function(err) {
             var log = logger.getLog();

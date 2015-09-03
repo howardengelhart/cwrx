@@ -180,20 +180,19 @@
     };
 
     
-    orgModule.setupEndpoints = function(app, svc, sessions, audit) {
+    orgModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
         var router      = express.Router(),
             mountPath   = '/api/account/orgs?'; // prefix to all endpoints declared here
-
+            
+        router.use(jobManager.setJobTimeout.bind(jobManager));
 
         var authGetOrg = authUtils.middlewarify({orgs: 'read'});
         router.get('/:id', sessions, authGetOrg, audit, function(req, res) {
-            svc.getObjs({ id: req.params.id }, req, false)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error retrieving org',
-                    detail: error
+            var promise = svc.getObjs({ id: req.params.id }, req, false);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error retrieving org', detail: error });
                 });
             });
         });
@@ -207,56 +206,44 @@
                 query.braintreeCustomer = String(req.query.braintreeCustomer);
             }
 
-            svc.getObjs(query, req, true)
-            .then(function(resp) {
-                if (resp.headers && resp.headers['content-range']) {
-                    res.header('content-range', resp.headers['content-range']);
-                }
-
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error retrieving orgs',
-                    detail: error
+            var promise = svc.getObjs(query, req, true);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error retrieving orgs', detail: error });
                 });
             });
         });
 
         var authPostOrg = authUtils.middlewarify({orgs: 'create'});
         router.post('/', sessions, authPostOrg, audit, function(req, res) {
-            svc.createObj(req)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error creating org',
-                    detail: error
+            var promise = svc.createObj(req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error creating org', detail: error });
                 });
             });
         });
 
         var authPutOrg = authUtils.middlewarify({orgs: 'edit'});
         router.put('/:id', sessions, authPutOrg, audit, function(req, res) {
-            svc.editObj(req)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error updating org',
-                    detail: error
+            var promise = svc.editObj(req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error editing org', detail: error });
                 });
             });
         });
 
         var authDelOrg = authUtils.middlewarify({orgs: 'delete'});
         router.delete('/:id', sessions, authDelOrg, audit, function(req, res) {
-            svc.deleteObj(req)
-            .then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error deleting org',
-                    detail: error
+            var promise = svc.deleteObj(req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error deleting org', detail: error });
                 });
             });
         });
