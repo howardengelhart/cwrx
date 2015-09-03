@@ -1,5 +1,7 @@
 # Ads Service Changelog
 
+* [FIX]: Auth middleware will handle users with roles + policies: [#475](https://github.com/cinema6/cwrx/pull/475)
+
 ### 1.3.3: Thu Aug 13 17:23:57 EDT 2015
 * [FEATURE]: Handle `application` field on campaigns: [#469](https://github.com/cinema6/cwrx/issues/469)
 * [FEATURE]: Support querying for campaigns by `text` search: [#462](https://github.com/cinema6/cwrx/issues/462)

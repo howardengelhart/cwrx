@@ -297,10 +297,9 @@
         log.info('Running as cluster worker, proceed with setting up web server.');
 
         var app          = express(),
-            users        = state.dbs.c6Db.collection('users'),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
-        authUtils._coll = users;
+        authUtils._db = state.dbs.c6Db;
         
         var sessionOpts = {
             key: state.config.sessions.key,
@@ -317,6 +316,7 @@
         var sessions = sessionLib(sessionOpts);
 
         app.set('trust proxy', 1);
+        app.set('json spaces', 2);
 
         // Because we may recreate the session middleware, we need to wrap it in the route handlers
         function sessWrap(req, res, next) {
@@ -325,8 +325,7 @@
         var audit = auditJournal.middleware.bind(auditJournal);
 
         state.dbStatus.c6Db.on('reconnected', function() {
-            users = state.dbs.c6Db.collection('users');
-            authUtils._coll = users;
+            authUtils._db = state.dbs.c6Db;
             log.info('Recreated collections from restarted c6Db');
         });
 

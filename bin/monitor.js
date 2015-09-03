@@ -427,6 +427,7 @@
 
         webServer = express();
 
+        webServer.set('json spaces', 2);
 
         webServer.use(function(req, res, next) {
             res.header('Access-Control-Allow-Headers',

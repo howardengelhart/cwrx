@@ -1,24 +1,24 @@
 var flush = true;
 describe('userSvc (UT)', function() {
-    var mockLog, mockLogger, req, uuid, logger, bcrypt, userSvc, userModule, q, mongoUtils, email,
-        objUtils, FieldValidator, enums, Status, CrudSvc;
-    var Scope = require('../../lib/enums').Scope;
+    var userModule, q, bcrypt, mockLog, uuid, logger, CrudSvc, Model, mongoUtils, email,
+        objUtils, req, userSvc, mockDb, nextSpy, doneSpy, errorSpy;
+
+    var enums = require('../../lib/enums'),
+        Status = enums.Status,
+        Scope = enums.Scope;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
+        userModule      = require('../../bin/userSvc-users');
+        q               = require('q');
+        bcrypt          = require('bcrypt');
         uuid            = require('../../lib/uuid');
         logger          = require('../../lib/logger');
-        bcrypt          = require('bcrypt');
-        userModule      = require('../../bin/userSvc');
-        FieldValidator  = require('../../lib/fieldValidator');
+        CrudSvc         = require('../../lib/crudSvc.js');
+        Model           = require('../../lib/model.js');
         mongoUtils      = require('../../lib/mongoUtils');
         objUtils        = require('../../lib/objUtils');
         email           = require('../../lib/email');
-        q               = require('q');
-        enums           = require('../../lib/enums');
-        Status          = enums.Status;
-        Scope           = enums.Scope;
-        CrudSvc         = require('../../lib/crudSvc.js');
 
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -33,10 +33,18 @@ describe('userSvc (UT)', function() {
         spyOn(mongoUtils, 'escapeKeys').andCallThrough();
         spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
         req = {uuid: '1234'};
+        nextSpy = jasmine.createSpy('next()');
+        doneSpy = jasmine.createSpy('done()');
+        errorSpy = jasmine.createSpy('caught error');
+        
+        mockDb = {
+            collection: jasmine.createSpy('db.collection()').andCallFake(function(objName) {
+                return { collectionName: objName };
+            })
+        };
     });
-
-    describe('setupSvc(coll)', function() {
-        var coll;
+    
+    describe('setupSvc', function() {
         var result;
 
         var boundFns;
@@ -71,7 +79,8 @@ describe('userSvc (UT)', function() {
         beforeEach(function() {
             var bind = Function.prototype.bind;
             boundFns = [];
-            [CrudSvc.prototype.preventGetAll, CrudSvc.prototype.validateUniqueProp, userModule.checkExistingWithNewEmail, userModule.hashProp].forEach(function(fn) {
+            [CrudSvc.prototype.preventGetAll, CrudSvc.prototype.validateUniqueProp, userModule.checkExistingWithNewEmail,
+             userModule.hashProp, userModule.validateRoles, userModule.validatePolicies].forEach(function(fn) {
                 spyOn(fn, 'bind').andCallFake(function() {
                     var boundFn = bind.apply(fn, arguments);
 
@@ -85,36 +94,17 @@ describe('userSvc (UT)', function() {
                 });
             });
 
-            coll = { collectionName: 'users' };
-            result = userModule.setupSvc(coll);
+            result = userModule.setupSvc(mockDb);
         });
 
         it('should return a CrudSvc', function() {
             expect(result).toEqual(jasmine.any(CrudSvc));
-            expect(result._coll).toBe(coll);
+            expect(result._coll).toEqual({ collectionName: 'users' });
+            expect(result._db).toBe(mockDb);
             expect(result._prefix).toBe('u');
             expect(result._userProp).toBe(false);
-        });
-
-        it('should make the password and email fileds forbidden when updating', function() {
-            expect(result.editValidator._forbidden).toContain('password');
-            expect(result.editValidator._forbidden).toContain('email');
-        });
-
-        it('should require an email and password when creating a user', function() {
-            expect(result.createValidator._required).toContain('email');
-            expect(result.createValidator._required).toContain('password');
-        });
-
-        it('should ensure the uniqueness of the email field when creating', function() {
-            expect(result.validateUniqueProp.bind).toHaveBeenCalledWith(result, 'email', null);
-            expect(result._middleware.create).toContain(getBoundFn(result.validateUniqueProp, [result, 'email', null]));
-            expect(result._middleware.create.indexOf(getBoundFn(result.validateUniqueProp, [result, 'email', null]))).toBeGreaterThan(result._middleware.create.indexOf(userModule.setupUser));
-        });
-
-        it('should provide logic for setting/updating permissions', function() {
-            expect(result.createValidator._condForbidden.permissions).toBe(userModule.permsCheck);
-            expect(result.editValidator._condForbidden.permissions).toBe(userModule.permsCheck);
+            expect(result.model).toEqual(jasmine.any(Model));
+            expect(result.model.schema).toBe(userModule.userSchema);
         });
 
         it('should prevent getting all users', function() {
@@ -122,13 +112,34 @@ describe('userSvc (UT)', function() {
             expect(result._middleware.read).toContain(getBoundFn(result.preventGetAll, [result]));
         });
 
+        it('should hash the user\'s passwords when creating', function() {
+            expect(userModule.hashProp.bind).toHaveBeenCalledWith(userModule, 'password');
+            expect(result._middleware.create).toContain(getBoundFn(userModule.hashProp, [userModule, 'password']));
+        });
+
         it('should set defaults on the user when creating', function() {
             expect(result._middleware.create).toContain(userModule.setupUser);
         });
 
-        it('should hash the user\'s passwords when creating', function() {
-            expect(userModule.hashProp.bind).toHaveBeenCalledWith(userModule, 'password');
-            expect(result._middleware.create).toContain(getBoundFn(userModule.hashProp, [userModule, 'password']));
+        it('should ensure the uniqueness of the email field when creating', function() {
+            expect(result.validateUniqueProp.bind).toHaveBeenCalledWith(result, 'email', null);
+            expect(result._middleware.create).toContain(getBoundFn(result.validateUniqueProp, [result, 'email', null]));
+            expect(result._middleware.create.indexOf(getBoundFn(result.validateUniqueProp, [result, 'email', null]))).toBeGreaterThan(result._middleware.create.indexOf(userModule.setupUser));
+        });
+        
+        it('should do additional validation for roles on create and edit', function() {
+            expect(userModule.validateRoles.bind).toHaveBeenCalledWith(userModule, result);
+            expect(result._middleware.create).toContain(getBoundFn(userModule.validateRoles, [userModule, result]));
+        });
+        
+        it('should do additional validation for policies on create and edit', function() {
+            expect(userModule.validatePolicies.bind).toHaveBeenCalledWith(userModule, result);
+            expect(result._middleware.create).toContain(getBoundFn(userModule.validatePolicies, [userModule, result]));
+        });
+        
+        it('should do additional validation for the password on create and edit', function() {
+            expect(result._middleware.create).toContain(userModule.validatePassword);
+            expect(result._middleware.edit).toContain(userModule.validatePassword);
         });
 
         it('should prevent the user from deleting themselves', function() {
@@ -156,6 +167,139 @@ describe('userSvc (UT)', function() {
         it('should check/query user scope via the user\'s ID property', function() {
             expect(result.checkScope).toBe(userModule.checkScope);
             expect(result.userPermQuery).toBe(userModule.userPermQuery);
+        });
+    });
+    
+    describe('user validation', function() {
+        var svc, newObj, origObj, requester;
+        beforeEach(function() {
+            svc = userModule.setupSvc(mockDb);
+            newObj = { email: 'test@me.com', password: 'pass' };
+            origObj = {};
+            requester = { fieldValidation: { users: {} } };
+        });
+        
+        describe('when handling email', function() {
+            it('should fail if the field is not a string', function() {
+                newObj.email = 123;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'email must be in format: string' });
+            });
+            
+            it('should allow the field to be set on create', function() {
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true });
+                expect(newObj).toEqual({ email: 'test@me.com', password: 'pass' });
+            });
+            
+            it('should fail if the field is not defined', function() {
+                delete newObj.email;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'Missing required field: email' });
+            });
+            
+            it('should pass if the field was defined on the original object', function() {
+                origObj.email = 'old value';
+                delete newObj.email;
+                expect(svc.model.validate('edit', newObj, origObj, requester))
+                    .toEqual({ isValid: true });
+                expect(newObj.email).toEqual('old value');
+            });
+            
+            it('should revert the field on edit', function() {
+                origObj.email = 'old value';
+                requester.fieldValidation.users.email = { __unchangeable: false };
+                expect(svc.model.validate('edit', newObj, origObj, requester))
+                    .toEqual({ isValid: true });
+                expect(newObj.email).toEqual('old value');
+            });
+        });
+
+        describe('when handling password', function() {
+            it('should fail if the field is not a string', function() {
+                newObj.password = 123;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'password must be in format: string' });
+            });
+            
+            it('should allow the field to be set on create', function() {
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true });
+                expect(newObj).toEqual({ email: 'test@me.com', password: 'pass' });
+            });
+            
+            it('should pass if the field is not defined on edit', function() {
+                delete newObj.password;
+                expect(svc.model.validate('edit', newObj, origObj, requester))
+                    .toEqual({ isValid: true });
+                expect(newObj).toEqual({ email: 'test@me.com' });
+            });
+        });
+
+        // locked, forbidden fields
+        ['permissions', 'fieldValidation', 'entitlements', 'applications'].forEach(function(field) {
+            describe('when handling ' + field, function() {
+                it('should trim the field if set', function() {
+                    newObj[field] = { foo: 'bar' };
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true });
+                    expect(newObj).toEqual({ email: 'test@me.com', password: 'pass' });
+                });
+                
+                it('should not allow any requesters to set the field', function() {
+                    requester.fieldValidation.users[field] = { __allowed: true };
+                    newObj[field] = { foo: 'bar' };
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true });
+                    expect(newObj).toEqual({ email: 'test@me.com', password: 'pass' });
+                });
+            });
+        });
+
+        // roles and policies: forbidden but overridable
+        ['roles', 'policies'].forEach(function(field) {
+            describe('when handling ' + field, function() {
+                it('should trim the field if set', function() {
+                    newObj[field] = ['thing1', 'thing2'];
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true });
+                    expect(newObj).toEqual({ email: 'test@me.com', password: 'pass' });
+                });
+                
+                it('should be able to allow some requesters to set the field', function() {
+                    newObj[field] = ['thing1', 'thing2'];
+                    requester.fieldValidation.users[field] = {
+                        __allowed: true,
+                        __entries: { __acceptableValues: ['thing1', 'thing2', 'thing3'] }
+                    };
+
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true });
+                    expect(newObj[field]).toEqual(['thing1', 'thing2']);
+                });
+                
+                it('should fail if the field is not an array of strings', function() {
+                    newObj[field] = [{ name: 'thing1' }, { name: 'thing2' }];
+                    requester.fieldValidation.users[field] = {
+                        __allowed: true,
+                        __entries: { __acceptableValues: ['thing1', 'thing2', 'thing3'] }
+                    };
+
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: field + ' must be in format: stringArray' });
+                });
+                
+                it('should fail if the field does not contain acceptable values', function() {
+                    newObj[field] = ['thing1', 'thing4'];
+                    requester.fieldValidation.users[field] = {
+                        __allowed: true,
+                        __entries: { __acceptableValues: ['thing1', 'thing2', 'thing3'] }
+                    };
+
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: field + '[1] is UNACCEPTABLE! acceptable values are: [thing1,thing2,thing3]' });
+                });
+            });
         });
     });
 
@@ -238,62 +382,6 @@ describe('userSvc (UT)', function() {
         });
     });
 
-    describe('permsCheck(updates, orig, requester)', function() {
-        var updates, orig, requester;
-
-        beforeEach(function() {
-            updates = { permissions: { users: {} } };
-            orig = { id: 'u-2' };
-            requester = {
-                id: 'u-1',
-                permissions: {
-                    users: {
-                        read: Scope.Own,
-                        create: Scope.Org,
-                        edit: Scope.All
-                    }
-                }
-            };
-
-            spyOn(objUtils, 'compareObjects').andCallThrough();
-        });
-
-        it('should return false if the requester has no perms', function() {
-            expect(userModule.permsCheck(updates, orig, requester)).toBe(true);
-            delete requester.permissions;
-            expect(userModule.permsCheck(updates, orig, requester)).toBe(false);
-        });
-
-        it('should return false if the requester is trying to change their own perms', function() {
-            orig.id = 'u-1';
-            expect(userModule.permsCheck(updates, orig, requester)).toBe(false);
-        });
-
-        it('should always return true if the permissions are identical', function() {
-            updates.permissions.users = { read: Scope.Own, create: Scope.Org, edit: Scope.All };
-            expect(userModule.permsCheck(updates, orig, requester)).toBe(true);
-            orig.id = 'u-1';
-            expect(userModule.permsCheck(updates, orig, requester)).toBe(true);
-        });
-
-        it('should return false if the updates\' perms exceed the requester\'s', function() {
-            updates.permissions.users = { read: Scope.Org };
-            expect(userModule.permsCheck(updates, orig, requester)).toBe(false);
-            updates.permissions.users = { read: Scope.All };
-            expect(userModule.permsCheck(updates, orig, requester)).toBe(false);
-            updates.permissions.users = { create: Scope.All };
-            expect(userModule.permsCheck(updates, orig, requester)).toBe(false);
-            updates.permissions.users = { edit: Scope.All };
-            expect(userModule.permsCheck(updates, orig, requester)).toBe(true);
-            updates.permissions.users = { delete: Scope.Own };
-            expect(userModule.permsCheck(updates, orig, requester)).toBe(false);
-            updates.permissions.users = { read: Scope.Own, create: Scope.Own, edit: Scope.Own };
-            expect(userModule.permsCheck(updates, orig, requester)).toBe(true);
-            updates.permissions = { experiences: { read: Scope.Own } };
-            expect(userModule.permsCheck(updates, orig, requester)).toBe(false);
-        });
-    });
-
     describe('setupUser(req, next, done)', function() {
         var req, next, done;
 
@@ -302,35 +390,11 @@ describe('userSvc (UT)', function() {
                 body: {
                     email: 'Josh@Cinema6.com',
                     applications: ['e-4b10000923e73e', 'e-9c70d81e44c56f'],
-                    type: 'ContentCreator',
-                    permissions: {
-                        elections: {
-                            read: Scope.Org,
-                            create: Scope.Org,
-                            edit: Scope.All,
-                            delete: Scope.Org
-                        },
-                        experiences: {
-                            read: Scope.All,
-                            create: Scope.Org,
-                            edit: Scope.Own,
-                            delete: Scope.Org
-                        },
-                        users: {
-                            read: Scope.Org,
-                            edit: Scope.Org
-                        },
-                        orgs: {
-                            read: Scope.All,
-                            edit: Scope.Own
-                        },
-                        sites: {
-                            read: Scope.Own
-                        }
-                    },
                     config: {
                         studio: { foo: 'bar' }
-                    }
+                    },
+                    roles: ['base', 'selfie'],
+                    policies: ['denyCampaigns']
                 }
             };
             next = jasmine.createSpy('next()');
@@ -347,68 +411,13 @@ describe('userSvc (UT)', function() {
             expect(next).toHaveBeenCalledWith();
         });
 
-        it('should not overwrite the specified applications, type, permissions or config', function() {
-            expect(req.body.applications).toEqual(['e-4b10000923e73e', 'e-9c70d81e44c56f']);
-            expect(req.body.type).toBe('ContentCreator');
-            expect(req.body.permissions).toEqual({
-                elections: {
-                    read: Scope.Org,
-                    create: Scope.Org,
-                    edit: Scope.All,
-                    delete: Scope.Org
-                },
-                experiences: {
-                    read: Scope.All,
-                    create: Scope.Org,
-                    edit: Scope.Own,
-                    delete: Scope.Org
-                },
-                users: {
-                    read: Scope.Org,
-                    edit: Scope.Org
-                },
-                orgs: {
-                    read: Scope.All,
-                    edit: Scope.Own
-                },
-                sites: {
-                    read: Scope.Own
-                }
-            });
-            expect(req.body.config).toEqual({ studio: { foo: 'bar' } });
-        });
-
-        describe('if the user has no applications', function() {
-            beforeEach(function() {
-                next.reset();
-                delete req.body.applications;
-
-                userModule.setupUser(req, next, done);
-            });
-
-            it('should give the user some default applications', function() {
-                expect(req.body.applications).toEqual(['e-51ae37625cb57f']);
-            });
-
-            it('should call next()', function() {
-                expect(next).toHaveBeenCalledWith();
-            });
-        });
-
-        describe('if the user has no type', function() {
-            beforeEach(function() {
-                next.reset();
-                delete req.body.type;
-
-                userModule.setupUser(req, next, done);
-            });
-
-            it('should make the user a Publisher', function() {
-                expect(req.body.type).toBe('Publisher');
-            });
-
-            it('should call next()', function() {
-                expect(next).toHaveBeenCalledWith();
+        it('should not overwrite the specified applications, roles, policies or config', function() {
+            expect(req.body).toEqual({
+                email: 'josh@cinema6.com',
+                applications: ['e-4b10000923e73e', 'e-9c70d81e44c56f'],
+                config: { studio: { foo: 'bar' } },
+                roles: ['base', 'selfie'],
+                policies: ['denyCampaigns']
             });
         });
 
@@ -428,99 +437,25 @@ describe('userSvc (UT)', function() {
                 expect(next).toHaveBeenCalledWith();
             });
         });
-
-        describe('if the user has no permissions', function() {
+        
+        describe('if the user has no policies', function() {
             beforeEach(function() {
                 next.reset();
-                delete req.body.permissions;
+                delete req.body.policies;
 
                 userModule.setupUser(req, next, done);
             });
 
-            it('should give the user some default permissions', function() {
-                expect(req.body.permissions).toEqual({
-                    elections: {
-                        read: Scope.Org,
-                        create: Scope.Org,
-                        edit: Scope.Org,
-                        delete: Scope.Org
-                    },
-                    experiences: {
-                        read: Scope.Org,
-                        create: Scope.Org,
-                        edit: Scope.Org,
-                        delete: Scope.Org
-                    },
-                    users: {
-                        read: Scope.Org,
-                        edit: Scope.Own
-                    },
-                    orgs: {
-                        read: Scope.Own,
-                        edit: Scope.Own
-                    },
-                    sites: {
-                        read: Scope.Org
-                    }
-                });
+            it('should give the user a policies array', function() {
+                expect(req.body.policies).toEqual([]);
             });
 
             it('should call next()', function() {
                 expect(next).toHaveBeenCalledWith();
             });
         });
-
-        describe('if the user has incomplete permissions', function() {
-            beforeEach(function() {
-                next.reset();
-                req.body.permissions = {
-                    experiences: {
-                        edit: Scope.Own,
-                        delete: Scope.Own
-                    },
-                    users: {
-                        read: Scope.All,
-                        edit: Scope.Org
-                    },
-                    orgs: {
-                        delete: Scope.Own
-                    }
-                };
-
-                userModule.setupUser(req, next, done);
-            });
-
-            it('should fill in the missing permissions with the defaults', function() {
-                expect(req.body.permissions).toEqual({
-                    elections: {
-                        read: Scope.Org,
-                        create: Scope.Org,
-                        edit: Scope.Org,
-                        delete: Scope.Org
-                    },
-                    experiences: {
-                        read: Scope.Org,
-                        create: Scope.Org,
-                        edit: Scope.Own,
-                        delete: Scope.Own
-                    },
-                    users: {
-                        read: Scope.All,
-                        edit: Scope.Org
-                    },
-                    orgs: {
-                        read: Scope.Own,
-                        edit: Scope.Own,
-                        delete: Scope.Own
-                    },
-                    sites: {
-                        read: Scope.Org
-                    }
-                });
-            });
-        });
     });
-
+    
     describe('hashProp(prop, req, next, done)', function() {
         var prop, req, next, done;
         var success, failure;
@@ -632,6 +567,160 @@ describe('userSvc (UT)', function() {
 
             it('should fulfill the promise', function() {
                 expect(success).toHaveBeenCalled();
+            });
+        });
+    });
+    
+    describe('validateRoles(svc, req, next, done)', function() {
+        var roleColl, roles, svc;
+        beforeEach(function() {
+            svc = userModule.setupSvc(mockDb);
+            roles = [
+                { id: 'r-1', name: 'role1' },
+                { id: 'r-2', name: 'role2' },
+                { id: 'r-3', name: 'role3' }
+            ];
+            roleColl = {
+                find: jasmine.createSpy('roles.find()').andCallFake(function() {
+                    return { toArray: function(cb) {
+                        cb(null, roles);
+                    } };
+                })
+            };
+            mockDb.collection.andReturn(roleColl);
+            req.body = { roles: ['role1', 'role2', 'role3'] };
+        });
+        
+        it('should call next if all roles on the request body exist', function(done) {
+            userModule.validateRoles(svc, req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalledWith();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockDb.collection).toHaveBeenCalledWith('users');
+                expect(roleColl.find).toHaveBeenCalledWith(
+                    { name: { $in: ['role1', 'role2', 'role3'] }, status: { $ne: Status.Deleted } },
+                    { fields: { name: 1 } }
+                );
+                expect(mockLog.error).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should skip if there are no roles on the request body', function(done) {
+            delete req.body.roles;
+            userModule.validateRoles(svc, req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalledWith();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(roleColl.find).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should call done with a 400 if not all roles are found', function(done) {
+            req.body.roles.push('role4', 'role5');
+            userModule.validateRoles(svc, req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'These roles were not found: [role4,role5]' });
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(roleColl.find).toHaveBeenCalledWith(
+                    { name: { $in: ['role1', 'role2', 'role3', 'role4', 'role5'] }, status: { $ne: Status.Deleted } },
+                    { fields: { name: 1 } }
+                );
+                done();
+            });
+        });
+        
+        it('should reject if mongo fails', function(done) {
+            roleColl.find.andReturn({ toArray: function(cb) { cb('I GOT A PROBLEM'); } });
+            userModule.validateRoles(svc, req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith(new Error('Mongo error'));
+                expect(roleColl.find).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+                done();
+            });
+        });
+    });
+
+    describe('validatePolicies(svc, req, next, done)', function() {
+        var polColl, roles, svc;
+        beforeEach(function() {
+            svc = userModule.setupSvc(mockDb);
+            roles = [
+                { id: 'p-1', name: 'pol1' },
+                { id: 'p-2', name: 'pol2' },
+                { id: 'p-3', name: 'pol3' }
+            ];
+            polColl = {
+                find: jasmine.createSpy('policies.find()').andCallFake(function() {
+                    return { toArray: function(cb) {
+                        cb(null, roles);
+                    } };
+                })
+            };
+            mockDb.collection.andReturn(polColl);
+            req.body = { policies: ['pol1', 'pol2', 'pol3'] };
+        });
+        
+        it('should call next if all policies on the request body exist', function(done) {
+            userModule.validatePolicies(svc, req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalledWith();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockDb.collection).toHaveBeenCalledWith('policies');
+                expect(polColl.find).toHaveBeenCalledWith(
+                    { name: { $in: ['pol1', 'pol2', 'pol3'] }, status: { $ne: Status.Deleted } },
+                    { fields: { name: 1 } }
+                );
+                expect(mockLog.error).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should skip if there are no policies on the request body', function(done) {
+            delete req.body.policies;
+            userModule.validatePolicies(svc, req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalledWith();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(polColl.find).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should call done with a 400 if not all policies are found', function(done) {
+            req.body.policies.push('pol4', 'pol5');
+            userModule.validatePolicies(svc, req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'These policies were not found: [pol4,pol5]' });
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(polColl.find).toHaveBeenCalledWith(
+                    { name: { $in: ['pol1', 'pol2', 'pol3', 'pol4', 'pol5'] }, status: { $ne: Status.Deleted } },
+                    { fields: { name: 1 } }
+                );
+                done();
+            });
+        });
+        
+        it('should reject if mongo fails', function(done) {
+            polColl.find.andReturn({ toArray: function(cb) { cb('I GOT A PROBLEM'); } });
+            userModule.validatePolicies(svc, req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith(new Error('Mongo error'));
+                expect(polColl.find).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+                done();
             });
         });
     });
@@ -976,6 +1065,7 @@ describe('userSvc (UT)', function() {
     describe('checkExistingWithNewEmail(sv, req, next, done)', function() {
         var validateUniquePropDeferred;
         var svc, req, next, done;
+        var success, failure;
         var result;
 
         beforeEach(function() {
@@ -1044,6 +1134,7 @@ describe('userSvc (UT)', function() {
     describe('forceLogoutUser(svc, req, sessions)', function() {
         var customMethodDeffered;
         var svc, req, sessions;
+        var success, failure;
         var result;
 
         beforeEach(function() {

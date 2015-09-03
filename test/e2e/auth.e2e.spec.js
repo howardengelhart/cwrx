@@ -11,26 +11,41 @@ var q               = require('q'),
 jasmine.getEnv().defaultTimeoutInterval = 30000;
 
 describe('auth (E2E):', function() {
-    var now, mockUser, mailman, urlRegex;
+    var now, mockUser, mockPol, mailman, urlRegex;
     beforeEach(function(done) {
         now = new Date();
+        urlRegex = /https:\/\/.*cinema6.com.*id=u-1.*token=[0-9a-f]{48}/;
+
         mockUser = {
             id : "u-1",
             status: Status.Active,
             created : now,
             email : "c6e2etester@gmail.com",
-            password : "$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq" // hash of 'password'
+            password : "$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq", // hash of 'password'
+            policies: ['testPol']
         };
-        urlRegex = /https:\/\/.*cinema6.com.*id=u-1.*token=[0-9a-f]{48}/;
-        if (!mailman || mailman.state !== 'authenticated') {
-            mailman = new testUtils.Mailman();
-            mailman.start().done(function() {
-                mailman.on('error', function(error) { throw new Error(error); });
-                done();
-            });
-        } else {
+        mockPol = {
+            id: 'p-1',
+            name: 'testPol',
+            status: Status.Active,
+            priority: 1,
+            permissions: {
+                users: { read: 'all' }
+            }
+        };
+        
+        testUtils.resetCollection('policies', mockPol).then(function() {
+            if (!mailman || mailman.state !== 'authenticated') {
+                mailman = new testUtils.Mailman();
+                return mailman.start().then(function() {
+                    mailman.on('error', function(error) { throw new Error(error); });
+                });
+            } else {
+                return q();
+            }
+        }).done(function() {
             done();
-        }
+        });
     });
     
     afterEach(function() {
@@ -58,6 +73,7 @@ describe('auth (E2E):', function() {
                 expect(resp.body.email).toBe("c6e2etester@gmail.com");
                 expect(resp.body.password).not.toBeDefined();
                 expect(new Date(resp.body.created)).toEqual(now);
+                expect(resp.body.permissions).toEqual({ users: { read: 'all' } });
                 expect(resp.response.headers['set-cookie'].length).toBe(1);
                 expect(resp.response.headers['set-cookie'][0].match(/^c6Auth=.+/)).toBeTruthy('cookie match');
                 done();
@@ -102,6 +118,7 @@ describe('auth (E2E):', function() {
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.email).toBe("c6e2etester@gmail.com");
                 expect(resp.body.password).not.toBeDefined();
+                expect(resp.body.permissions).toEqual({ users: { read: 'all' } });
                 expect(resp.response.headers['set-cookie'].length).toBe(1);
                 expect(resp.response.headers['set-cookie'][0].match(/^c6Auth=.+/)).toBeTruthy('cookie match');
             }).catch(function(error) {
@@ -309,6 +326,7 @@ describe('auth (E2E):', function() {
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBeDefined();
                 expect(resp.body.email).toBe('c6e2etester@gmail.com');
+                expect(resp.body.permissions).toEqual({ users: { read: 'all' } });
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -561,8 +579,20 @@ describe('auth (E2E):', function() {
                 return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toEqual({id: 'u-1', email: 'c6e2etester@gmail.com', status: 'active',
-                                           lastUpdated: jasmine.any(String), created: now.toISOString()});
+                expect(resp.body).toEqual({
+                    id: 'u-1',
+                    email: 'c6e2etester@gmail.com',
+                    status: 'active',
+                    created: now.toISOString(),
+                    lastUpdated: jasmine.any(String),
+                    policies: ['testPol'],
+                    permissions: {
+                        users: { read: 'all' }
+                    },
+                    fieldValidation: {},
+                    entitlements: {},
+                    applications: []
+                });
                 expect(resp.response.headers['set-cookie'].length).toBe(1);
                 expect(resp.response.headers['set-cookie'][0].match(/^c6Auth=.+/)).toBeTruthy('cookie match');
             }).catch(function(error) {

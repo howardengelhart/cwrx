@@ -56,6 +56,7 @@ describe('enums', function() {
             expect(enums.Scope.isScope('own')).toBe(true);
             expect(enums.Scope.isScope('org')).toBe(true);
             expect(enums.Scope.isScope('all')).toBe(true);
+            expect(enums.Scope.isScope('deny')).toBe(true);
             expect(enums.Scope.isScope('fake')).toBe(false);
         });
     });

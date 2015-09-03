@@ -86,30 +86,33 @@
             userAccount = account;
             return q.npost(bcrypt, 'compare', [req.body.password, userAccount.password])
             .then(function(matching) {
-                if (matching) {
-                    if (account.status !== Status.Active) {
-                        log.info('[%1] Failed login for user %2: account status is %3',
-                                 req.uuid, req.body.email, account.status);
-                        return deferred.resolve({code: 403, body: 'Account not active'});
-                    }
-                    log.info('[%1] Successful login for user %2', req.uuid, req.body.email);
-                    var user = mongoUtils.safeUser(userAccount);
-
-                    return q.npost(req.session, 'regenerate').then(function() {
-                        auditJournal.writeAuditEntry(req, user.id);
-
-                        req.session.user = user.id;
-                        req.session.cookie.maxAge = maxAge;
-                        return deferred.resolve({
-                            code: 200,
-                            body: user
-                        });
-                    });
-                } else {
+                if (!matching) {
                     log.info('[%1] Failed login for user %2: invalid password',
                              req.uuid, req.body.email);
                     return deferred.resolve({code: 401, body: 'Invalid email or password'});
                 }
+                
+                if (account.status !== Status.Active) {
+                    log.info('[%1] Failed login for user %2: account status is %3',
+                             req.uuid, req.body.email, account.status);
+                    return deferred.resolve({code: 403, body: 'Account not active'});
+                }
+
+                log.info('[%1] Successful login for user %2', req.uuid, req.body.email);
+                var user = mongoUtils.safeUser(userAccount);
+
+                return q.npost(req.session, 'regenerate').then(function() {
+                    return authUtils.decorateUser(user);
+                }).then(function(decorated) {
+                    auditJournal.writeAuditEntry(req, decorated.id);
+
+                    req.session.user = decorated.id;
+                    req.session.cookie.maxAge = maxAge;
+                    return deferred.resolve({
+                        code: 200,
+                        body: decorated
+                    });
+                });
             });
         }).catch(function(error) {
             log.error('[%1] Error logging in user %2: %3', req.uuid, req.body.email, error);
@@ -282,10 +285,11 @@
                     return q.npost(req.session, 'regenerate').thenResolve(results[0]);
                 })
                 .then(function(updatedAccount) {
-                    var user = mongoUtils.safeUser(updatedAccount);
-                    req.session.user = user.id;
+                    return authUtils.decorateUser(mongoUtils.safeUser(updatedAccount));
+                }).then(function(decorated) {
+                    req.session.user = decorated.id;
                     req.session.cookie.maxAge = cookieMaxAge;
-                    return q({ code: 200, body: user });
+                    return q({ code: 200, body: decorated });
                 });
             });
         })
@@ -308,7 +312,7 @@
             users        = state.dbs.c6Db.collection('users'),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
-        authUtils._coll = users;
+        authUtils._db = state.dbs.c6Db;
         
         aws.config.region = state.config.ses.region;
 
@@ -327,6 +331,7 @@
         var sessions = sessionLib(sessionOpts);
 
         app.set('trust proxy', 1);
+        app.set('json spaces', 2);
 
         // Because we may recreate the session middleware, we need to wrap it in the route handlers
         function sessionsWrapper(req, res, next) {
@@ -335,7 +340,7 @@
         
         state.dbStatus.c6Db.on('reconnected', function() {
             users = state.dbs.c6Db.collection('users');
-            authUtils._coll = users;
+            authUtils._db = state.dbs.c6Db;
             log.info('Recreated collections from restarted c6Db');
         });
         
