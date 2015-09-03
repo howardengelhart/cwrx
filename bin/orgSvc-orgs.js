@@ -34,11 +34,11 @@
             __default: {},
             video: {
                 __allowed: true,
-                __type: ['string']
+                __type: 'stringArray'
             },
             display: {
                 __allowed: true,
-                __type: ['string']
+                __type: 'stringArray'
             }
         },
         braintreeCustomer: {
