@@ -28,7 +28,7 @@
         },
         policies: {
             __allowed: true,
-            __type: ['string']
+            __type: 'stringArray'
         }
     };
 

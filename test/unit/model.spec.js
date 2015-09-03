@@ -38,7 +38,7 @@ describe('Model', function() {
                     __type: 'string', __allowed: false, __locked: true
                 },
                 born: {
-                    __type: Date, __allowed: false
+                    __type: 'Date', __allowed: false
                 },
                 name: {
                     __type: 'string', __allowed: false
@@ -88,7 +88,7 @@ describe('Model', function() {
                     __type: 'string', __allowed: false, __locked: true
                 },
                 born: {
-                    __type: Date, __allowed: false
+                    __type: 'Date', __allowed: false
                 },
                 name: {
                     __type: 'string', __allowed: true
@@ -135,7 +135,7 @@ describe('Model', function() {
             
             var personalized = model.personalizeSchema(requester);
             expect(personalized.born).toEqual({
-                __type: Date, __allowed: false, __default: later
+                __type: 'Date', __allowed: false, __default: later
             });
         });
         
@@ -152,37 +152,40 @@ describe('Model', function() {
     });
     
     describe('checkFormat', function() {
-        it('should handle string formats', function() {
+        it('should handle simple type strings', function() {
             expect(Model.checkFormat('string', 1)).toBe(false);
             expect(Model.checkFormat('string', '1')).toBe(true);
             expect(Model.checkFormat('object', 'a')).toBe(false);
             expect(Model.checkFormat('object', { foo: 'bar' })).toBe(true);
             expect(Model.checkFormat('object', [1, 2, '3'])).toBe(false);
+            expect(Model.checkFormat('number', 1)).toBe(true);
+            expect(Model.checkFormat('number', '1')).toBe(false);
+            expect(Model.checkFormat('boolean', true)).toBe(true);
+            expect(Model.checkFormat('boolean', false)).toBe(true);
+            expect(Model.checkFormat('boolean', 1)).toBe(false);
+            expect(mockLog.warn).not.toHaveBeenCalled();
         });
         
-        it('should handle function formats', function() {
-            function MyClass() { this.foo = 'bar'; }
-            expect(Model.checkFormat(Date, 'a')).toBe(false);
-            expect(Model.checkFormat(Date, new Date())).toBe(true);
-            expect(Model.checkFormat(MyClass, { foo: 'bar' })).toBe(false);
-            expect(Model.checkFormat(MyClass, new MyClass())).toBe(true);
-        });
-        
-        it('should handle formats with options', function() {
-            expect(Model.checkFormat({or: ['string', 'number']}, 'a')).toBe(true);
-            expect(Model.checkFormat({or: ['string', 'number']}, 1.5)).toBe(true);
-            expect(Model.checkFormat({or: ['string', 'number']}, true)).toBe(false);
+        it('should handle Dates', function() {
+            expect(Model.checkFormat('Date', 'a')).toBe(false);
+            expect(Model.checkFormat('Date', new Date())).toBe(true);
+            expect(Model.checkFormat('Date', new Date().toISOString())).toBe(false);
+            expect(mockLog.warn).not.toHaveBeenCalled();
         });
         
         it('should handle array formats', function() {
-            expect(Model.checkFormat(['string'], ['a', 'b'])).toBe(true);
-            expect(Model.checkFormat(['string'], ['a', 1])).toBe(false);
-            expect(Model.checkFormat([{or: ['string', 'number']}], ['a', 1])).toBe(true);
+            expect(Model.checkFormat('stringArray', '[a,b]')).toBe(false);
+            expect(Model.checkFormat('stringArray', ['a', 'b'])).toBe(true);
+            expect(Model.checkFormat('stringArray', ['a', 1])).toBe(false);
+            expect(Model.checkFormat('DateArray', [new Date(), new Date(new Date() - 1000)])).toBe(true);
+            expect(Model.checkFormat('DateArray', [new Date(), new Date().toISOString()])).toBe(false);
         });
         
         it('should log a warning if the format is invalid', function() {
             expect(Model.checkFormat({foo: 'bar'}, 'asdf')).toBe(true);
             expect(mockLog.warn).toHaveBeenCalled();
+            expect(Model.checkFormat('poopArray', ['asdf'])).toBe(true);
+            expect(mockLog.warn.calls.length).toBe(2);
         });
     });
     
@@ -332,7 +335,7 @@ describe('Model', function() {
         describe('if a field has __type === Date', function() {
             beforeEach(function() {
                 model.schema.born = {
-                    __type: Date, __allowed: true
+                    __type: 'Date', __allowed: true
                 };
             });
 
@@ -345,7 +348,7 @@ describe('Model', function() {
             it('should fail if a string is not a valid date', function() {
                 newObj.born = '201512341234-08-06T14:31:17.199Z';
                 expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: false,
-                    reason: 'born must be in format: [Function: Date]' });
+                    reason: 'born must be in format: Date' });
             });
             
             it('should leave Date objects alone', function() {
@@ -358,7 +361,7 @@ describe('Model', function() {
         describe('if a field has a __type specified', function() {
             beforeEach(function() {
                 model.schema.doggieFriends = {
-                    __type: ['string'], __allowed: true
+                    __type: 'stringArray', __allowed: true
                 };
             });
             
@@ -371,7 +374,7 @@ describe('Model', function() {
             it('should fail if the value is not the correct type', function() {
                 newObj.doggieFriends = ['knut', 'charlie', 7];
                 expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: false,
-                    reason: 'doggieFriends must be in format: [ \'string\' ]' });
+                    reason: 'doggieFriends must be in format: stringArray' });
             });
 
             it('should pass if the value is not set on newObj', function() {
@@ -455,14 +458,14 @@ describe('Model', function() {
         describe('when handling array fields', function() {
             beforeEach(function() {
                 model.schema.doggieFriends = {
-                    __type: ['string'], __length: 3, __entries: { __acceptableValues: ['knut', 'charlie', 'scruffles', 'puffles'] }
+                    __type: 'stringArray', __length: 3, __entries: { __acceptableValues: ['knut', 'charlie', 'scruffles', 'puffles'] }
                 };
             });
             
             it('should fail if some of the entries are not the right type', function() {
                 newObj.doggieFriends = ['knut', 'scruffles', 55];
                 expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: false,
-                    reason: 'doggieFriends must be in format: [ \'string\' ]' });
+                    reason: 'doggieFriends must be in format: stringArray' });
             });
 
             it('should be able to check that there are less than a max # of entries', function() {
@@ -479,7 +482,7 @@ describe('Model', function() {
             
             it('should be able to recursively validate fields on object entries', function() {
                 model.schema.doggieFriends = {
-                    __type: ['object'],
+                    __type: 'objectArray',
                     __entries: {
                         name: {
                             __type: 'string', __allowed: true

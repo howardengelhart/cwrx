@@ -48,14 +48,14 @@
         },
         policies: {
             __allowed: false,
-            __type: ['string'],
+            __type: 'stringArray',
             __entries: {
                 __acceptableValues: []
             }
         },
         roles: {
             __allowed: false,
-            __type: ['string'],
+            __type: 'stringArray',
             __entries: {
                 __acceptableValues: []
             }

@@ -183,7 +183,7 @@ describe('userSvc (UT)', function() {
             it('should fail if the field is not a string', function() {
                 newObj.email = 123;
                 expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: false, reason: 'email must be in format: \'string\'' });
+                    .toEqual({ isValid: false, reason: 'email must be in format: string' });
             });
             
             it('should allow the field to be set on create', function() {
@@ -219,7 +219,7 @@ describe('userSvc (UT)', function() {
             it('should fail if the field is not a string', function() {
                 newObj.password = 123;
                 expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: false, reason: 'password must be in format: \'string\'' });
+                    .toEqual({ isValid: false, reason: 'password must be in format: string' });
             });
             
             it('should allow the field to be set on create', function() {
@@ -286,7 +286,7 @@ describe('userSvc (UT)', function() {
                     };
 
                     expect(svc.model.validate('create', newObj, origObj, requester))
-                        .toEqual({ isValid: false, reason: field + ' must be in format: [ \'string\' ]' });
+                        .toEqual({ isValid: false, reason: field + ' must be in format: stringArray' });
                 });
                 
                 it('should fail if the field does not contain acceptable values', function() {

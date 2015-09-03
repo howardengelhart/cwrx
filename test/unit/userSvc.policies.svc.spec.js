@@ -124,7 +124,7 @@ describe('userSvc-policies (UT)', function() {
             it('should fail if the field is not a string', function() {
                 newObj.name = 123;
                 expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: false, reason: 'name must be in format: \'string\'' });
+                    .toEqual({ isValid: false, reason: 'name must be in format: string' });
             });
             
             it('should allow the field to be set on create', function() {
@@ -159,7 +159,7 @@ describe('userSvc-policies (UT)', function() {
             it('should fail if the field is not a number', function() {
                 newObj.priority = 'really high';
                 expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: false, reason: 'priority must be in format: \'number\'' });
+                    .toEqual({ isValid: false, reason: 'priority must be in format: number' });
             });
             
             it('should allow the field to be set on create', function() {
@@ -214,7 +214,7 @@ describe('userSvc-policies (UT)', function() {
                     requester.fieldValidation.policies[field] = { __allowed: true };
                     newObj[field] = 1234;
                     expect(svc.model.validate('create', newObj, origObj, requester))
-                        .toEqual({ isValid: false, reason: field + ' must be in format: \'string\'' });
+                        .toEqual({ isValid: false, reason: field + ' must be in format: string' });
                 });
             });
         });
@@ -247,7 +247,7 @@ describe('userSvc-policies (UT)', function() {
                 };
 
                 expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: false, reason: 'applications must be in format: [ \'string\' ]' });
+                    .toEqual({ isValid: false, reason: 'applications must be in format: stringArray' });
             });
             
             it('should fail if the field does not contain acceptable values', function() {
@@ -284,7 +284,7 @@ describe('userSvc-policies (UT)', function() {
                 requester.fieldValidation.policies.entitlements = { __allowed: true };
 
                 expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: false, reason: 'entitlements must be in format: \'object\'' });
+                    .toEqual({ isValid: false, reason: 'entitlements must be in format: object' });
             });
         });
         
@@ -300,7 +300,7 @@ describe('userSvc-policies (UT)', function() {
                 it('should fail if the field is not an object', function() {
                     newObj[field] = 'please let me do things';
                     expect(svc.model.validate('create', newObj, origObj, requester))
-                        .toEqual({ isValid: false, reason: field + ' must be in format: \'object\'' });
+                        .toEqual({ isValid: false, reason: field + ' must be in format: object' });
                 });
                 
                 mockCfg.policies.allEntities.forEach(function(subfield) {
@@ -332,7 +332,7 @@ describe('userSvc-policies (UT)', function() {
                             requester.fieldValidation.policies[field][subfield] = { __allowed: true };
 
                             expect(svc.model.validate('create', newObj, origObj, requester))
-                                .toEqual({ isValid: false, reason: field + '.' + subfield + ' must be in format: \'object\'' });
+                                .toEqual({ isValid: false, reason: field + '.' + subfield + ' must be in format: object' });
                         });
                     });
                 });

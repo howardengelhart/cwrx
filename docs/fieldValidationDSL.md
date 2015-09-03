@@ -41,19 +41,18 @@ Directives will always be prefixed with an '__' to differentiate them from norma
 - If the field already existed, it will be copied from the original object.
 
 ### __type
-- **Expected type**: `String`, `Function`, `Object`, or `Array`
+- **Expected type**: `String`
 - Specifies the intended type of the field.
 - If the field does not match this type, a 400 is returned.
 - options:
-    - if `schema.__type` is a `String`: checks that `typeof value === schema.__type`
-    - if `schema.__type` is a `Function`: checks that `value instanceof schema.__type`
-        - if `schema.__type === Date`, will first attempt to parse a string value as a `Date` using `new Date(value)`
-    - if `schema.__type` is an `Array`:
-        - `schema.__type` must have one entry, which is any other valid `__type`
-        - checks that `value instanceof Array`, and that every entry in `value` matches `schema.__type[0]`
-    - if `schema.__type` is an `Object`:
-        - must be `{ or: [<type1>, <type2>, ...] }` where `type1` etc. are valid `__type` formats
-        - checks that the value matches at least one of the type options
+    - if `schema.__type` is `'string', 'boolean', 'object'` or `'number'`: checks that `typeof value === schema.__type`
+    - if `schema.__type === 'Date'`:
+        - will first attempt to parse a string value as a `Date` using `new Date(value)`
+        - then checks that `value instanceof Date`
+    - if `schema.__type` matches `'xxxArray'`:
+        - `'xxx'` should be another valid `__type`
+        - first checks that `value instanceof Array`
+        - then checks that every entry in `value` matches the type `'xxx'`
 
 ### __locked
 - **Expected type**: `Boolean`

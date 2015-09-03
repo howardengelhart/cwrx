@@ -35,7 +35,7 @@
         },
         applications: {
             __allowed: false,
-            __type: ['string'],
+            __type: 'stringArray',
             __entries: {
                 __acceptableValues: []
             }
