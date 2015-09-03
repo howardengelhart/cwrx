@@ -2,6 +2,26 @@ var flush = true;
 describe('userSvc-policies (UT)', function() {
     var polModule, q, mockLog, logger, CrudSvc, Model, enums, Status, Scope,
         mockDb, mockColl, req, nextSpy, doneSpy, errorSpy;
+        
+    var mockCfg = {
+        policies: {
+            allEntities: [
+                'advertisers',
+                'campaigns',
+                'cards',
+                'categories',
+                'customers',
+                'elections',
+                'experiences',
+                'minireelGroups',
+                'orgs',
+                'policies',
+                'roles',
+                'sites',
+                'users'
+            ]
+        }
+    };
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -47,7 +67,7 @@ describe('userSvc-policies (UT)', function() {
                 spyOn(fn, 'bind').andReturn(fn);
             });
 
-            svc = polModule.setupSvc(mockDb);
+            svc = polModule.setupSvc(mockDb, mockCfg);
         });
         
         it('should return a CrudSvc', function() {
@@ -94,7 +114,7 @@ describe('userSvc-policies (UT)', function() {
         var svc, newObj, origObj, requester;
         beforeEach(function() {
             mockColl.collectionName = 'policies';
-            svc = polModule.setupSvc(mockDb);
+            svc = polModule.setupSvc(mockDb, mockCfg);
             newObj = { name: 'test', priority: 1 };
             origObj = {};
             requester = { fieldValidation: { policies: {} } };
@@ -268,22 +288,6 @@ describe('userSvc-policies (UT)', function() {
             });
         });
         
-        var allEntities = [
-            'advertisers',
-            'campaigns',
-            'cards',
-            'categories',
-            'customers',
-            'elections',
-            'experiences',
-            'minireelGroups',
-            'orgs',
-            'policies',
-            'roles',
-            'sites',
-            'users'
-        ];
-        
         ['permissions', 'fieldValidation'].forEach(function(field) {
             describe('when handling ' + field, function() {
                 it('should allow the field to be set', function() {
@@ -299,7 +303,7 @@ describe('userSvc-policies (UT)', function() {
                         .toEqual({ isValid: false, reason: field + ' must be in format: \'object\'' });
                 });
                 
-                allEntities.forEach(function(subfield) {
+                mockCfg.policies.allEntities.forEach(function(subfield) {
                     describe('subfield ' + subfield, function() {
                         it('should be trimmed when set', function() {
                             newObj[field] = {};
@@ -438,7 +442,7 @@ describe('userSvc-policies (UT)', function() {
     describe('validateApplications', function() {
         var svc, apps;
         beforeEach(function() {
-            svc = polModule.setupSvc(mockDb);
+            svc = polModule.setupSvc(mockDb, mockCfg);
             apps = [{ id: 'e-app1' }, { id: 'e-app2' }, { id: 'e-app3' }];
             mockColl.find.andCallFake(function() {
                 return {
@@ -525,7 +529,7 @@ describe('userSvc-policies (UT)', function() {
                 else if (collName === 'users') return userColl;
                 else return { collectionName: 'policies' };
             });
-            svc = polModule.setupSvc(mockDb);
+            svc = polModule.setupSvc(mockDb, mockCfg);
             req.origObj = { id: 'p-1', name: 'pol1' };
         });
         

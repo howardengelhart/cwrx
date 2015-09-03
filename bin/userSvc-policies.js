@@ -10,24 +10,7 @@
         Status          = enums.Status,
         Scope           = enums.Scope,
 
-        polModule = {};
-
-    // list of all entity names, used for validating permissions and fieldValidations props
-    var allEntities = [
-        'advertisers',
-        'campaigns',
-        'cards',
-        'categories',
-        'customers',
-        'elections',
-        'experiences',
-        'minireelGroups',
-        'orgs',
-        'policies',
-        'roles',
-        'sites',
-        'users'
-    ];
+        polModule = { config: {} };
 
     polModule.policySchema = {
         name: {
@@ -62,28 +45,29 @@
             __type: 'object'
         },
         
-        // permissions.advertisers etc. will be forbidden
-        permissions: allEntities.reduce(function(schemaObj, objName) {
-            schemaObj[objName] = {
-                __allowed: false,
-                __type: 'object'
-            };
-            
-            return schemaObj;
-        }, { __type: 'object' }),
-
-        // fieldValidation.advertisers etc. will be forbidden
-        fieldValidation: allEntities.reduce(function(schemaObj, objName) {
-            schemaObj[objName] = {
-                __allowed: false,
-                __type: 'object'
-            };
-            
-            return schemaObj;
-        }, { __type: 'object' })
+        // at run time, will be filled in to forbid everything in config.policies.allEntities
+        permissions: {
+            __type: 'object'
+        },
+        fieldValidation: {
+            __type: 'object'
+        }
     };
 
-    polModule.setupSvc = function(db) {
+    polModule.setupSvc = function(db, config) {
+        polModule.config.policies = config.policies;
+        config.policies.allEntities.forEach(function(objName) {
+            polModule.policySchema.permissions[objName] = {
+                __allowed: false,
+                __type: 'object'
+            };
+            
+            polModule.policySchema.fieldValidation[objName] = {
+                __allowed: false,
+                __type: 'object'
+            };
+        });
+
         var opts = { userProp: false, orgProp: false },
             svc = new CrudSvc(db.collection('policies'), 'p', opts, polModule.policySchema);
         

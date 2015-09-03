@@ -53,6 +53,23 @@
                 port: null,
                 retryConnect : true
             }
+        },
+        policies: {
+            allEntities: [ // all entity names, used for permissions and fieldValidations props
+                'advertisers',
+                'campaigns',
+                'cards',
+                'categories',
+                'customers',
+                'elections',
+                'experiences',
+                'minireelGroups',
+                'orgs',
+                'policies',
+                'roles',
+                'sites',
+                'users'
+            ]
         }
     };
 
@@ -68,7 +85,7 @@
         var app          = express(),
             userSvc      = userModule.setupSvc(state.dbs.c6Db),
             roleSvc      = roleModule.setupSvc(state.dbs.c6Db),
-            polSvc       = polModule.setupSvc(state.dbs.c6Db),
+            polSvc       = polModule.setupSvc(state.dbs.c6Db, state.config),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._db = state.dbs.c6Db;
