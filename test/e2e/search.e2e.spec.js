@@ -186,7 +186,7 @@ describe('search (E2E):', function() {
                 expect(resp.body.items.length).toBe(10);
                 resp.body.items.forEach(function(item) {
                     expect(item.site).toBe('aol');
-                    expect(item.siteLink).toBe('on.aol.com');
+                    expect(item.siteLink).toMatch('on.aol.com');
                     expect(item.link).toMatch('on.aol.com');
                     expect(item.duration).not.toBeDefined();
                     expect(item.description).toBeDefined();
