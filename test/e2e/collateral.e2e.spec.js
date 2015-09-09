@@ -365,6 +365,20 @@ describe('collateral (E2E):', function() {
             });
         });
 
+        describe('if called with a data: URI', function() {
+            beforeEach(function(done) {
+                done = noArgs(done);
+                options.json.uri = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg==';
+
+                requestUtils.qRequest('post', options).then(success, failure).then(done, done);
+            });
+
+            it('should respond with a 400', function() {
+                expect(apiResponse.response.statusCode).toBe(400);
+                expect(apiResponse.body).toBe('"' + options.json.uri + '" is not a valid URI.');
+            });
+        });
+
         describe('if called with the URI of a non-image', function() {
             beforeEach(function(done) {
                 done = noArgs(done);

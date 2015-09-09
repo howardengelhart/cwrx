@@ -1,5 +1,7 @@
 # Collateral Service Changelog
 
+* [FIX]: Specifying "data:" URIs for re-upload will cause 400s not 500s:
+  [#472](https://github.com/cinema6/cwrx/issues/472)
 * [FIX]: Auth middleware will handle users with roles + policies: [#475](https://github.com/cinema6/cwrx/pull/475)
 
 ### 2.0.1: Thu Jul 16 18:18:01 EDT 2015
