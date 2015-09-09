@@ -240,6 +240,62 @@ describe('collateral (UT):', function() {
             q().then(done);
         });
 
+        describe('if a data: URL is provided', function() {
+            beforeEach(function(done) {
+                done = noArgs(done);
+
+                request.head.reset();
+                success.reset();
+                failure.reset();
+                spyOn(request, 'get').andReturn(responseDefer().promise);
+
+                req.body.uri = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg==';
+                collateral.importFile(req, s3, config).then(success, failure).then(done, done);
+            });
+
+            it('should not HEAD the image', function() {
+                expect(request.head).not.toHaveBeenCalled();
+            });
+
+            it('should fulfill the promise with a 400', function() {
+                expect(success).toHaveBeenCalledWith({
+                    code: 400,
+                    body: '"' + req.body.uri + '" is not a valid URI.'
+                });
+            });
+
+            it('should log a warning', function() {
+                expect(mockLog.warn).toHaveBeenCalled();
+            });
+
+            it('should not GET the image', function() {
+                expect(request.get).not.toHaveBeenCalled();
+            });
+        });
+
+        describe('if a http: URL is provided', function() {
+            beforeEach(function(done) {
+                done = noArgs(done);
+
+                request.head.reset();
+                success.reset();
+                failure.reset();
+                request.head.andReturn(q.reject(new Error('Could not HEAD')));
+                spyOn(request, 'get').andReturn(q.reject(new Error('Could no GET')));
+
+                req.body.uri = 'http://pbs.twimg.com/profile_images/554776783967363072/2lxo5V22_400x400.png';
+                collateral.importFile(req, s3, config).then(success, failure).then(done, done);
+            });
+
+            it('should head the image', function() {
+                expect(request.head).toHaveBeenCalled();
+            });
+
+            it('should GET the image', function() {
+                expect(request.get).toHaveBeenCalled();
+            });
+        });
+
         describe('if no uri is specified', function() {
             beforeEach(function(done) {
                 done = noArgs(done);
@@ -272,17 +328,18 @@ describe('collateral (UT):', function() {
             beforeEach(function(done) {
                 success.reset();
                 failure.reset();
+                request.head.reset();
 
-                request.head.andCallFake(function() {
-                    responseDeferred.promise.emit('error', new Error('Invalid URI "' + req.body.uri + '"'));
-                    return responseDeferred.promise;
-                });
                 spyOn(request, 'get').andReturn(responseDefer().promise);
 
                 req.body.uri = 'fn8942yrh8943';
                 promise = collateral.importFile(req, s3, config);
                 promise.then(success, failure);
                 q().then(done);
+            });
+
+            it('should not HEAD the image', function() {
+                expect(request.head).not.toHaveBeenCalled();
             });
 
             it('should fulfill the promise with a 400', function() {

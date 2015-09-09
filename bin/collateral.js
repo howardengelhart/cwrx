@@ -24,6 +24,7 @@
         JobManager  = require('../lib/jobManager'),
         s3util      = require('../lib/s3util'),
         PromiseTimer= require('../lib/promise').Timer,
+        parseURL    = require('url').parse,
 
         state      = {},
         collateral = {}; // for exporting functions to unit tests
@@ -262,8 +263,18 @@
         var tmpFiles = [];
 
         function downloadImage(uri) {
+            var url = parseURL(uri);
             var currentDownload = null;
             var timer = new PromiseTimer(maxTime);
+
+            if (!(/https?:/).test(url.protocol)) {
+                log.warn('[%1] "%2" is not a valid URI. Aborting.', req.uuid, uri);
+
+                return q.reject(new ServiceResponse(
+                    400,
+                    '"' + uri + '" is not a valid URI.'
+                ));
+            }
 
             var checkContentLength = timer.wrap(function checkContentLength(uri) {
                 var headUri = request.head({
@@ -386,15 +397,6 @@
                     return q.reject(new ServiceResponse(
                         408,
                         'Timed out downloading file [' + uri + '].'
-                    ));
-                }
-
-                if (/^Invalid URI/.test(reason.message)) {
-                    log.warn('[%1] "%2" is not a valid URI. Aborting.', req.uuid, uri);
-
-                    return q.reject(new ServiceResponse(
-                        400,
-                        '"' + uri + '" is not a valid URI.'
                     ));
                 }
 
