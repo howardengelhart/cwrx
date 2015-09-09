@@ -136,7 +136,7 @@
         });
 
         authUtils._db = state.dbs.c6Db;
-        cardSvc = cardModule.setupCardSvc(collections.cards, caches.cards);
+        cardSvc = cardModule.setupCardSvc(collections.cards, caches);
         catSvc = catModule.setupCatSvc(collections.categories);
 
         var sessionOpts = {

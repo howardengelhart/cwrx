@@ -61,131 +61,151 @@ describe('content card endpoints (E2E):', function() {
             done();
         });
     });
-
-    describe('GET /api/public/content/card/:id', function() {
-        var options;
+    
+    describe('public endpoints', function() {
+        var mockCards, mockCamp, options;
         beforeEach(function(done) {
-            var mockCards = [
+            mockCards = [
                 { id: 'e2e-pubget1', campaignId: 'cam-1', status: 'active', user: 'e2e-user', org: 'e2e-org' },
                 { id: 'e2e-pubget2', campaignId: 'cam-2', status: 'inactive', user: 'e2e-user', org: 'e2e-org' },
                 { id: 'e2e-pubget3', campaignId: 'cam-3', status: 'deleted', user: 'e2e-user', org: 'e2e-org' }
             ];
-            testUtils.resetCollection('cards', mockCards).done(done);
+            mockCamp = {
+                id: 'cam-1',
+                status: 'active',
+                advertiserId: 'a-1',
+                cards: [{ id: 'e2e-pubget1', adtechId: 10, bannerNumber: 1 }]
+            };
             options = {
                 url: config.contentUrl + '/public/content/card/e2e-pubget1',
                 headers: { origin: 'http://test.com' }
             };
+            q.all([
+                testUtils.resetCollection('cards', mockCards),
+                testUtils.resetCollection('campaigns', mockCamp),
+            ]).done(function() { done(); });
         });
-        
-        it('should get an active card by id', function(done) {
-            requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toEqual({id: 'e2e-pubget1', status: 'active', campaignId: 'cam-1'});
-                expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
-                expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
-                expect(resp.response.headers['cache-control']).not.toBe('max-age=0');
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should not show inactive or deleted cards', function(done) {
-            q.all(['e2e-pubget2', 'e2e-pubget3'].map(function(id) {
-                options.url = options.url.replace('e2e-pubget1', id);
-                return requestUtils.qRequest('get', options);
-            }))
-            .then(function(results) {
-                results.forEach(function(resp) {
+    
+        describe('GET /api/public/content/card/:id', function() {
+            it('should get an active card by id', function(done) {
+                requestUtils.qRequest('get', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body).toEqual({
+                        id: 'e2e-pubget1',
+                        status: 'active',
+                        campaignId: 'cam-1',
+                        advertiserId: 'a-1',
+                        adtechId: 10,
+                        bannerId: 1
+                    });
+                    expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
+                    expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
+                    expect(resp.response.headers['cache-control']).not.toBe('max-age=0');
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should not show inactive or deleted cards', function(done) {
+                q.all(['e2e-pubget2', 'e2e-pubget3'].map(function(id) {
+                    options.url = options.url.replace('e2e-pubget1', id);
+                    return requestUtils.qRequest('get', options);
+                }))
+                .then(function(results) {
+                    results.forEach(function(resp) {
+                        expect(resp.response.statusCode).toBe(404);
+                        expect(resp.body).toBe('Card not found');
+                        expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
+                        expect(resp.response.headers['cache-control']).not.toBe('max-age=0');
+                    });
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should return a 404 for nonexistent cards', function(done) {
+                options.url = options.url.replace('e2e-pubget1', 'e2e-fake');
+                requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(404);
                     expect(resp.body).toBe('Card not found');
                     expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
                     expect(resp.response.headers['cache-control']).not.toBe('max-age=0');
-                });
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should return a 404 for nonexistent cards', function(done) {
-            options.url = options.url.replace('e2e-pubget1', 'e2e-fake');
-            requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('Card not found');
-                expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
-                expect(resp.response.headers['cache-control']).not.toBe('max-age=0');
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+
+            it('should not cache if the origin is staging.cinema6.com or portal.cinema6.com', function(done) {
+                q.all(['http://staging.cinema6.com', 'http://portal.cinema6.com'].map(function(origin) {
+                    options.headers.origin = origin;
+                    return requestUtils.qRequest('get', options);
+                })).then(function(results) {
+                    results.forEach(function(resp) {
+                        expect(resp.response.statusCode).toBe(200);
+                        expect(resp.response.headers['cache-control']).toBe('max-age=0');
+                    });
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
         });
 
-        it('should not cache if the origin is staging.cinema6.com or portal.cinema6.com', function(done) {
-            q.all(['http://staging.cinema6.com', 'http://portal.cinema6.com'].map(function(origin) {
-                options.headers.origin = origin;
-                return requestUtils.qRequest('get', options);
-            })).then(function(results) {
-                results.forEach(function(resp) {
+        /* Currently, this endpoint is identical to GET /api/public/card/:id, so only one test is
+         * included here as a sanity check. If the endpoints diverge, additional tests should be written. */
+        describe('GET /api/public/card/:id.json', function() {
+            it('should get a card by id', function(done) {
+                options.url = config.contentUrl + '/public/content/card/e2e-pubget1.json';
+                requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
-                    expect(resp.response.headers['cache-control']).toBe('max-age=0');
-                });
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-    });
-
-    /* Currently, this endpoint is identical to GET /api/public/card/:id, so only one test is
-     * included here as a sanity check. If the endpoints diverge, additional tests should be written. */
-    describe('GET /api/public/card/:id.json', function() {
-        var mockCard, mockOrg, options;
-        beforeEach(function(done) {
-            options = { url: config.contentUrl + '/public/content/card/e2e-pubgetjson1.json' };
-            mockCard = { id: 'e2e-pubgetjson1', status: 'active', campaignId: 'cam-1' };
-            testUtils.resetCollection('cards', mockCard).done(done);
-        });
-
-        it('should get a card by id', function(done) {
-            requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toEqual({id: 'e2e-pubgetjson1', status: 'active', campaignId: 'cam-1'});
-                expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
-                expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
-                expect(resp.response.headers['cache-control']).not.toBe('max-age=0');
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-    });
-
-    /* Currently this endpoint is mostly identical to GET /api/public/card/:id, so two tests
-     * are included to verify that the output is formatted correctly. If the endpoints diverge,
-     * additional tests should be written. */
-    describe('GET /api/public/card/:id.js', function() {
-        var mockCard, mockOrg, options;
-        beforeEach(function(done) {
-            options = { url: config.contentUrl + '/public/content/card/e2e-pubgetjs1.js' };
-            mockCard = { id: 'e2e-pubgetjs1', status: 'active', campaignId: 'cam-1' };
-            testUtils.resetCollection('cards', mockCard).done(done);
+                    expect(resp.body).toEqual({
+                        id: 'e2e-pubget1',
+                        status: 'active',
+                        campaignId: 'cam-1',
+                        advertiserId: 'a-1',
+                        adtechId: 10,
+                        bannerId: 1
+                    });
+                    expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
+                    expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
+                    expect(resp.response.headers['cache-control']).not.toBe('max-age=0');
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
         });
 
-        it('should get a card by id', function(done) {
-            requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.match(/module\.exports = {.*"id":"e2e-pubgetjs1".*};/)).toBeTruthy();
-                expect(resp.response.headers['content-type']).toBe('application/javascript; charset=utf-8');
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
+        /* Currently this endpoint is mostly identical to GET /api/public/card/:id, so two tests
+         * are included to verify that the output is formatted correctly. If the endpoints diverge,
+         * additional tests should be written. */
+        describe('GET /api/public/card/:id.js', function() {
+            var mockCard, mockOrg, options;
+            beforeEach(function(done) {
+                options = { url: config.contentUrl + '/public/content/card/e2e-pubgetjs1.js' };
+                mockCard = { id: 'e2e-pubgetjs1', status: 'active', campaignId: 'cam-1' };
+                testUtils.resetCollection('cards', mockCard).done(done);
+            });
 
-        it('should return errors in normal format', function(done) {
-            options = { url: config.contentUrl + '/public/content/card/e2e-fake.js' };
-            requestUtils.qRequest('get', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(404);
-                expect(resp.body).toBe('Card not found');
-                expect(resp.response.headers['content-type']).toBe('text/html; charset=utf-8');
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
+            it('should get a card by id', function(done) {
+                options.url = config.contentUrl + '/public/content/card/e2e-pubget1.js';
+                requestUtils.qRequest('get', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body).toMatch(/module\.exports = {.*"id":"e2e-pubget1".*};/);
+                    expect(resp.response.headers['content-type']).toBe('application/javascript; charset=utf-8');
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+
+            it('should return errors in normal format', function(done) {
+                options.url = config.contentUrl + '/public/content/card/e2e-fake.js';
+                requestUtils.qRequest('get', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(404);
+                    expect(resp.body).toBe('Card not found');
+                    expect(resp.response.headers['content-type']).toBe('text/html; charset=utf-8');
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
         });
     });
 

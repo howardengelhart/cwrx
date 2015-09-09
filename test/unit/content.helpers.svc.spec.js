@@ -832,7 +832,7 @@ describe('content (UT)', function() {
             ] } };
             camp = {
                 id: 'cam-1',
-                cards: [{id: 'rc-1', adtechId: 11}, {id: 'rc-2', adtechId: 12}],
+                cards: [{ id: 'rc-1' }, { id: 'rc-2' }],
                 staticCardMap: { 'e-1': { 'rc-p1': 'rc-2', 'rc-p2': 'rc-fake' } }
             };
             cardSvc = { getPublicCard: jasmine.createSpy('getPubCard').andCallFake(function(newId, req) {
@@ -843,42 +843,10 @@ describe('content (UT)', function() {
         it('should swap a placeholder with a card retrieved from the cardSvc', function(done) {
             expModule.swapCard(req, exp, 0, camp, cardSvc).then(function() {
                 expect(exp.data.deck).toEqual([
-                    { id: 'rc-2', title: 'sp card rc-2', adtechId: 12 },
+                    { id: 'rc-2', title: 'sp card rc-2' },
                     { id: 'rc-real1', title: 'card 1' },
                     { id: 'rc-p2', title: 'placeholder 2' }
                 ]);
-                expect(cardSvc.getPublicCard).toHaveBeenCalledWith('rc-2', req);
-                expect(mockLog.warn).not.toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should log a warning if the card is not in the campaign\'s cards list', function(done) {
-            expModule.swapCard(req, exp, 2, camp, cardSvc).then(function() {
-                expect(exp.data.deck[2]).toEqual({ id: 'rc-p2', title: 'placeholder 2' });
-                expect(cardSvc.getPublicCard).not.toHaveBeenCalled();
-                expect(mockLog.warn).toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should log a warning if the entry in the campaign\'s cards list has no adtechId', function(done) {
-            delete camp.cards[1].adtechId;
-            expModule.swapCard(req, exp, 0, camp, cardSvc).then(function() {
-                expect(exp.data.deck[0]).toEqual({ id: 'rc-p1', title: 'placeholder 1' });
-                expect(cardSvc.getPublicCard).not.toHaveBeenCalled();
-                expect(mockLog.warn).toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should not append the adtechId if req.query.preview = true', function(done) {
-            req.query.preview = 'true';
-            expModule.swapCard(req, exp, 0, camp, cardSvc).then(function() {
-                expect(exp.data.deck[0]).toEqual({ id: 'rc-2', title: 'sp card rc-2' });
                 expect(cardSvc.getPublicCard).toHaveBeenCalledWith('rc-2', req);
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {

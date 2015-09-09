@@ -392,18 +392,21 @@ describe('content public experience endpoints (E2E):', function() {
                     status: [{ status: 'active' }]
                 }];
                 mockCards = [
-                    { id: 'rc-sp1', status: 'active', foo: 'baz' },
-                    { id: 'rc-sp2', status: 'active', foo: 'buz' },
-                    { id: 'rc-sp3', status: 'inactive', foo: 'boz' }
+                    { id: 'rc-sp1', campaignId: 'e2e-cam1', status: 'active', foo: 'baz' },
+                    { id: 'rc-sp2', campaignId: 'e2e-cam1', status: 'active', foo: 'buz' },
+                    { id: 'rc-sp3', campaignId: 'e2e-cam1', status: 'inactive', foo: 'boz' },
+                    { id: 'rc-sp4', campaignId: 'e2e-cam2', status: 'active', foo: 'buz' },
+                    { id: 'rc-sp5', campaignId: 'e2e-oldCamp', status: 'active', foo: 'buz' },
                 ];
                 mockCampaigns = [
                     {
                         id: 'e2e-cam1',
                         status: 'active',
+                        advertiserId: 'a-1',
                         cards: [
-                            { id: 'rc-sp1', status: 'active', adtechId: 11 },
-                            { id: 'rc-sp2', status: 'active', adtechId: 12 },
-                            { id: 'rc-sp3', status: 'inactive', adtechId: 13 }
+                            { id: 'rc-sp1', status: 'active', adtechId: 11, bannerId: 1234, bannerNumber: 1 },
+                            { id: 'rc-sp2', status: 'active', adtechId: 12, bannerId: 5678, bannerNumber: 2 },
+                            { id: 'rc-sp3', status: 'inactive', adtechId: 13, bannerId: 7890, bannerNumber: 1 }
                         ],
                         staticCardMap: {
                             'e2e-getcamps1': {
@@ -416,8 +419,14 @@ describe('content public experience endpoints (E2E):', function() {
                     {
                         id: 'e2e-cam2',
                         status: 'active',
-                        cards: [{ id: 'rc-sp1', status: 'active', adtechId: 11 }],
+                        cards: [{ id: 'rc-sp4', status: 'active', adtechId: 14, bannerId: 4321, bannerNumber: 1 }],
                         staticCardMap: { 'e2e-getcamps2': { 'rc-p1': 'rc-sp1' } }
+                    },
+                    {
+                        id: 'e2e-oldCamp',
+                        status: 'expired',
+                        cards: [{ id: 'rc-sp5', status: 'active', adtechId: 15, bannerId: 8765, bannerNumber: 2 }],
+                        staticCardMap: { 'e2e-getcamps1': { 'rc-p1': 'rc-sp5' } }
                     }
                 ];
                 q.all([testUtils.resetCollection('experiences', mockExps),
@@ -432,24 +441,24 @@ describe('content public experience endpoints (E2E):', function() {
                     expect(resp.body.id).toBe('e2e-getcamps1');
                     expect(resp.body.data.deck).toEqual([
                         { id: 'rc-1', foo: 'bar' },
-                        { id: 'rc-sp1', status: 'active', foo: 'baz', adtechId: 11 },
-                        { id: 'rc-sp2', status: 'active', foo: 'buz', adtechId: 12 },
-                        { id: 'rc-p3' }
-                    ]);
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
-            
-            it('should not append adtechIds if the preview=true param is passed up ', function(done) {
-                options.qs.preview = true;
-                requestUtils.qRequest('get', options).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.id).toBe('e2e-getcamps1');
-                    expect(resp.body.data.deck).toEqual([
-                        { id: 'rc-1', foo: 'bar' },
-                        { id: 'rc-sp1', status: 'active', foo: 'baz' },
-                        { id: 'rc-sp2', status: 'active', foo: 'buz' },
+                        {
+                            id: 'rc-sp1',
+                            campaignId: 'e2e-cam1',
+                            advertiserId: 'a-1',
+                            status: 'active',
+                            foo: 'baz',
+                            adtechId: 11,
+                            bannerId: 1
+                        },
+                        {
+                            id: 'rc-sp2',
+                            campaignId: 'e2e-cam1',
+                            advertiserId: 'a-1',
+                            status: 'active',
+                            foo: 'buz',
+                            adtechId: 12,
+                            bannerId: 2
+                        },
                         { id: 'rc-p3' }
                     ]);
                 }).catch(function(error) {
@@ -475,6 +484,22 @@ describe('content public experience endpoints (E2E):', function() {
 
             it('should not alter the deck if the campaign is not found', function(done) {
                 options.qs.campaign = 'e2e-camFake';
+                requestUtils.qRequest('get', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.id).toBe('e2e-getcamps1');
+                    expect(resp.body.data.deck).toEqual([
+                        { id: 'rc-1', foo: 'bar' },
+                        { id: 'rc-p1' },
+                        { id: 'rc-p2' },
+                        { id: 'rc-p3' }
+                    ]);
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should not alter the deck if the campaign is not active', function(done) {
+                options.qs.campaign = 'e2e-oldCamp';
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.id).toBe('e2e-getcamps1');
