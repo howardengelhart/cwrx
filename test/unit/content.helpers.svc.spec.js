@@ -1,10 +1,11 @@
 var flush = true;
 describe('content (UT)', function() {
-    var mockLog, mockLogger, uuid, logger, expModule, q, FieldValidator, mongoUtils,
-        enums, Status, Scope, Access;
+    var urlUtils, mockLog, mockLogger, uuid, logger, expModule, q, FieldValidator, mongoUtils,
+        enums, Status, Scope, Access, req;
     
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
+        urlUtils        = require('url');
         q               = require('q');
         uuid            = require('../../lib/uuid');
         logger          = require('../../lib/logger');
@@ -29,6 +30,8 @@ describe('content (UT)', function() {
         spyOn(expModule, 'formatOutput').andCallThrough();
         spyOn(mongoUtils, 'escapeKeys').andCallThrough();
         spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
+        
+        req = { uuid: '1234', params: {}, query: {} };
     });
 
     describe('checkScope', function() {
@@ -210,9 +213,9 @@ describe('content (UT)', function() {
     });
     
     describe('parseOrigin', function() {
-        var req, siteExceptions;
+        var siteExceptions;
         beforeEach(function() {
-            req = { headers: { origin: 'http://staging.cinema6.com' } };
+            req.headers = { origin: 'http://staging.cinema6.com' };
             siteExceptions = {
                 public: ['demo.cinema6.com', 'www.cinema6.com'],
                 cinema6: ['c-6.co', 'ci6.co']
@@ -228,10 +231,10 @@ describe('content (UT)', function() {
         });
         
         it('should use the referer header as a fallback', function() {
-            req = { headers: { referer: 'http://portal.cinema6.com' } };
+            req.headers = { referer: 'http://portal.cinema6.com' };
             expModule.parseOrigin(req, siteExceptions);
             expect(req.origin).toBe('http://portal.cinema6.com');
-            req = { headers: { referer: 'http://portal.cinema6.com', origin: 'http://staging.cinema6.com' } };
+            req.headers = { referer: 'http://portal.cinema6.com', origin: 'http://staging.cinema6.com' };
             expModule.parseOrigin(req, siteExceptions);
             expect(req.origin).toBe('http://staging.cinema6.com');
         });
@@ -243,7 +246,7 @@ describe('content (UT)', function() {
                 { url: 'http://bar.foo.com?foo=bar', originHost: 'bar.foo.com' },
                 { url: 'http://foo.com.uk', originHost: 'foo.com.uk' }
             ].forEach(function(test) {
-                req = { headers: { origin: test.url } };
+                req.headers = { origin: test.url };
                 expModule.parseOrigin(req, siteExceptions);
                 expect(req.origin).toBe(test.url);
                 expect(req.originHost).toBe(test.originHost);
@@ -251,25 +254,25 @@ describe('content (UT)', function() {
         });
         
         it('should properly decide if the origin is a cinema6 site using the siteExceptions', function() {
-            req = { headers: { origin: 'http://google.com' } };
+            req.headers = { origin: 'http://google.com' };
             expModule.parseOrigin(req, siteExceptions);
             expect(req.isC6Origin).toBe(false);
-            req = { headers: { origin: 'http://foo.demo.cinema6.com' } };
+            req.headers = { origin: 'http://foo.demo.cinema6.com' };
             expModule.parseOrigin(req, siteExceptions);
             expect(req.isC6Origin).toBe(true);
-            req = { headers: { origin: 'http://www.cinema6.com' } };
+            req.headers = { origin: 'http://www.cinema6.com' };
             expModule.parseOrigin(req, siteExceptions);
             expect(req.isC6Origin).toBe(false);
-            req = { headers: { origin: 'http://demo.foo.cinema6.com' } };
+            req.headers = { origin: 'http://demo.foo.cinema6.com' };
             expModule.parseOrigin(req, siteExceptions);
             expect(req.isC6Origin).toBe(true);
-            req = { headers: { origin: 'http://ci6.co/foo' } };
+            req.headers = { origin: 'http://ci6.co/foo' };
             expModule.parseOrigin(req, siteExceptions);
             expect(req.isC6Origin).toBe(true);
-            req = { headers: { origin: 'http://c-6.co/foo' } };
+            req.headers = { origin: 'http://c-6.co/foo' };
             expModule.parseOrigin(req, siteExceptions);
             expect(req.isC6Origin).toBe(true);
-            req = { headers: { origin: 'http://ca6.co/foo' } };
+            req.headers = { origin: 'http://ca6.co/foo' };
             expModule.parseOrigin(req, siteExceptions);
             expect(req.isC6Origin).toBe(false);
         });
@@ -401,6 +404,87 @@ describe('content (UT)', function() {
                 .toEqual({'data.0.data.title': {$regex: '.*foo.*bar.qwer.*', $options: 'i'}});
             expect(expModule.formatTextQuery({text: 'foo\tbar\nqwer '}))
                 .toEqual({'data.0.data.title': {$regex: '.*foo.*bar.*qwer.*', $options: 'i'}});
+        });
+    });
+    
+    describe('setupTrackingPixels', function() {
+        var exp;
+        beforeEach(function() {
+            exp = { id: 'e-1', data: { title: 'test' } };
+            req.query = {
+                campaign: 'cam-1',
+                container: 'embed',
+                hostApp: 'Mapsaurus',
+                network: 'pocketmath'
+            };
+            req.originHost = 'cinema6.com';
+        });
+        
+        it('should add a launchUrl tracking pixel to the experience', function() {
+            expModule.setupTrackingPixels(exp, req, '//cinema6.com/track.png');
+            expect(exp).toEqual({
+                id: 'e-1',
+                data: {
+                    title: 'test',
+                    campaign: {
+                        launchUrls: [jasmine.any(String)]
+                    }
+                }
+            });
+            var parsed = urlUtils.parse(exp.data.campaign.launchUrls[0], true, true);
+            expect(parsed.protocol).toBe(null);
+            expect(parsed.host).toBe('cinema6.com');
+            expect(parsed.pathname).toBe('/track.png');
+            expect(parsed.query).toEqual({
+                campaign: 'cam-1',
+                experience: 'e-1',
+                container: 'embed',
+                host: 'cinema6.com',
+                hostApp: 'Mapsaurus',
+                network: 'pocketmath',
+                event: 'launch'
+            });
+        });
+        
+        it('should be able to override the host using the pageUrl param', function() {
+            req.query.pageUrl = 'clickhole.com';
+            expModule.setupTrackingPixels(exp, req, '//cinema6.com/track.png');
+            var parsed = urlUtils.parse(exp.data.campaign.launchUrls[0], true, true);
+            expect(parsed.query.host).toBe('clickhole.com');
+        });
+        
+        it('should create the data prop if not defined', function() {
+            delete exp.data;
+            expModule.setupTrackingPixels(exp, req, '//cinema6.com/track.png');
+            expect(exp).toEqual({
+                id: 'e-1',
+                data: {
+                    campaign: {
+                        launchUrls: [jasmine.any(String)]
+                    }
+                }
+            });
+        });
+        
+        it('should not overwrite existing launch pixels', function() {
+            exp.data.campaign = {
+                foo: 'bar',
+                launchUrls: ['launch.me']
+            };
+            expModule.setupTrackingPixels(exp, req, '//cinema6.com/track.png');
+            expect(exp).toEqual({
+                id: 'e-1',
+                data: {
+                    title: 'test',
+                    campaign: {
+                        foo: 'bar',
+                        launchUrls: ['launch.me', jasmine.any(String)]
+                    }
+                }
+            });
+            var parsed = urlUtils.parse(exp.data.campaign.launchUrls[1], true, true);
+            expect(parsed.host).toBe('cinema6.com');
+            expect(parsed.pathname).toBe('/track.png');
         });
     });
     
@@ -822,9 +906,8 @@ describe('content (UT)', function() {
     });
     
     describe('swapCard', function() {
-        var req, exp, camp, cardSvc;
+        var exp, camp, cardSvc;
         beforeEach(function() {
-            req = { uuid: '1234', query: {} };
             exp = { id: 'e-1', data: { deck: [
                 { id: 'rc-p1', title: 'placeholder 1' },
                 { id: 'rc-real1', title: 'card 1' },
@@ -832,7 +915,7 @@ describe('content (UT)', function() {
             ] } };
             camp = {
                 id: 'cam-1',
-                cards: [{id: 'rc-1', adtechId: 11}, {id: 'rc-2', adtechId: 12}],
+                cards: [{ id: 'rc-1' }, { id: 'rc-2' }],
                 staticCardMap: { 'e-1': { 'rc-p1': 'rc-2', 'rc-p2': 'rc-fake' } }
             };
             cardSvc = { getPublicCard: jasmine.createSpy('getPubCard').andCallFake(function(newId, req) {
@@ -843,42 +926,10 @@ describe('content (UT)', function() {
         it('should swap a placeholder with a card retrieved from the cardSvc', function(done) {
             expModule.swapCard(req, exp, 0, camp, cardSvc).then(function() {
                 expect(exp.data.deck).toEqual([
-                    { id: 'rc-2', title: 'sp card rc-2', adtechId: 12 },
+                    { id: 'rc-2', title: 'sp card rc-2' },
                     { id: 'rc-real1', title: 'card 1' },
                     { id: 'rc-p2', title: 'placeholder 2' }
                 ]);
-                expect(cardSvc.getPublicCard).toHaveBeenCalledWith('rc-2', req);
-                expect(mockLog.warn).not.toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should log a warning if the card is not in the campaign\'s cards list', function(done) {
-            expModule.swapCard(req, exp, 2, camp, cardSvc).then(function() {
-                expect(exp.data.deck[2]).toEqual({ id: 'rc-p2', title: 'placeholder 2' });
-                expect(cardSvc.getPublicCard).not.toHaveBeenCalled();
-                expect(mockLog.warn).toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should log a warning if the entry in the campaign\'s cards list has no adtechId', function(done) {
-            delete camp.cards[1].adtechId;
-            expModule.swapCard(req, exp, 0, camp, cardSvc).then(function() {
-                expect(exp.data.deck[0]).toEqual({ id: 'rc-p1', title: 'placeholder 1' });
-                expect(cardSvc.getPublicCard).not.toHaveBeenCalled();
-                expect(mockLog.warn).toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should not append the adtechId if req.query.preview = true', function(done) {
-            req.query.preview = 'true';
-            expModule.swapCard(req, exp, 0, camp, cardSvc).then(function() {
-                expect(exp.data.deck[0]).toEqual({ id: 'rc-2', title: 'sp card rc-2' });
                 expect(cardSvc.getPublicCard).toHaveBeenCalledWith('rc-2', req);
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -910,9 +961,8 @@ describe('content (UT)', function() {
     });
     
     describe('handleCampaign', function() {
-        var req, exp, campCache, cardSvc, mockCamp;
+        var exp, campCache, cardSvc, mockCamp;
         beforeEach(function() {
-            req = { uuid: '1234' };
             exp = { id: 'e-1', data: { deck: [
                 { id: 'rc-p1', title: 'placeholder 1' },
                 { id: 'rc-real1', title: 'card 1' },
@@ -1049,10 +1099,9 @@ describe('content (UT)', function() {
     });
     
     describe('formatUpdates', function() {
-        var req, orig, updates, user, start = new Date();
+        var orig, updates, user, start = new Date();
         
         beforeEach(function() {
-            req = { uuid: '1234' };
             updates = {};
             orig = {
                 id: 'e-1',

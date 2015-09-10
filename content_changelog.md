@@ -1,6 +1,10 @@
 # Content Service Changelog
 
+* [FEATURE]: Pass extra tracking links on publicly retrieved cards + experiences: [#493](https://github.com/cinema6/cwrx/issues/493)
+* [FEATURE]: Pass `advertiserId` and `bannerId` on sponsored cards: [#468](https://github.com/cinema6/cwrx/issues/468)
 * [FIX]: Auth middleware will handle users with roles + policies: [#475](https://github.com/cinema6/cwrx/pull/475)
+* Extra deployment steps:
+    * Deploy updated content cookbook
 
 ### 1.17.0: Mon Aug 10 14:46:38 EDT 2015
 * [FEATURE]: Add support for `pageUrl` query parameter to

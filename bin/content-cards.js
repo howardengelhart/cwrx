@@ -3,46 +3,135 @@
 
     var q               = require('q'),
         express         = require('express'),
+        querystring     = require('querystring'),
+        path            = require('path'),
         logger          = require('../lib/logger'),
         authUtils       = require('../lib/authUtils'),
         CrudSvc         = require('../lib/crudSvc'),
         Status          = require('../lib/enums').Status,
 
-        cardModule = {};
+        cardModule = { config: {} };
 
         
-    cardModule.setupCardSvc = function(cardColl, cardCache) {
+    cardModule.setupCardSvc = function(cardColl, caches, config) {
+        cardModule.config.trackingPixel = config.trackingPixel;
+    
         var opts = { allowPublic: true },
             cardSvc = new CrudSvc(cardColl, 'rc', opts);
         
-        cardSvc._cardCache = cardCache;
-            
         cardSvc.createValidator._required.push('campaignId');
         cardSvc.use('read', cardSvc.preventGetAll.bind(cardSvc));
         
-        cardSvc.getPublicCard = cardModule.getPublicCard.bind(cardModule, cardSvc);
+        cardSvc.getPublicCard = cardModule.getPublicCard.bind(cardModule, cardSvc, caches);
         
         return cardSvc;
     };
+    
+    // Format a tracking pixel link, pulling data from query params.
+    cardModule.formatUrl = function(card, req, event) {
+        req.query = req.query || {};
+        
+        // get experience id from path if request for experience; else from query param
+        var expId = (/experience/.test(path.join(req.baseUrl, req.route.path)) && req.params.id) ||
+                    req.query.experience || '';
+
+        var qps = {
+            campaign    : card.campaignId,
+            card        : card.id,
+            experience  : expId,
+            container   : req.query.container,
+            host        : req.query.pageUrl || req.originHost,
+            hostApp     : req.query.hostApp,
+            network     : req.query.network,
+            event       : event
+        };
+        
+        return cardModule.config.trackingPixel + '?' + querystring.stringify(qps);
+    };
+    
+    // Adds tracking pixels to card.campaign, initializing arrays if needed
+    cardModule.setupTrackingPixels = function(card, req) {
+        card.campaign = card.campaign || {};
+        
+        function ensureList(prop) {
+            return card.campaign[prop] || (card.campaign[prop] = []);
+        }
+        
+        ensureList('clickUrls').push(cardModule.formatUrl(card, req, 'click'));
+        ensureList('loadUrls').push(cardModule.formatUrl(card, req, 'load'));
+        ensureList('countUrls').push(cardModule.formatUrl(card, req, 'completedView'));
+        ensureList('q1Urls').push(cardModule.formatUrl(card, req, 'q1'));
+        ensureList('q2Urls').push(cardModule.formatUrl(card, req, 'q2'));
+        ensureList('q3Urls').push(cardModule.formatUrl(card, req, 'q3'));
+        ensureList('q4Urls').push(cardModule.formatUrl(card, req, 'q4'));
+        
+        if (typeof card.links !== 'object') {
+            return;
+        }
+        
+        Object.keys(card.links).forEach(function(linkName) {
+            var origVal = card.links[linkName];
+
+            if (typeof origVal === 'string') {
+                card.links[linkName] = {
+                    uri: origVal,
+                    tracking: []
+                };
+            }
+            
+            card.links[linkName].tracking.push(cardModule.formatUrl(card, req, 'link.' + linkName));
+        });
+    };
 
     // Get a card, using internal cache. Can be used across modules when 1st two args bound in
-    cardModule.getPublicCard = function(cardSvc, id, req) {
+    cardModule.getPublicCard = function(cardSvc, caches, id, req) {
         var log = logger.getLog(),
-            privateFields = ['org', 'user'],
-            query = {id: id};
+            privateFields = ['org', 'user'];
 
         log.info('[%1] Guest user trying to get card %2', req.uuid, id);
 
-        return cardSvc._cardCache.getPromise(query).then(function(results) {
-            if (!results[0] || results[0].status !== Status.Active) { // only show active cards
+        return caches.cards.getPromise({ id: id })
+        .spread(function(card) {
+            // only show active cards
+            if (!card || card.status !== Status.Active) {
                 return q();
             }
             
             log.info('[%1] Retrieved card %2', req.uuid, id);
+            
+            privateFields.forEach(function(key) { delete card[key]; });
+            card = cardSvc.formatOutput(card);
+            cardModule.setupTrackingPixels(card, req);
+            
+            // fetch card's campaign so important props can be copied over
+            return caches.campaigns.getPromise({ id: card.campaignId })
+            .spread(function(camp) {
+                // only show cards with active campaigns
+                if (!camp || camp.status !== Status.Active) {
+                    log.warn('[%1] Campaign %2 not found for card %3',
+                             req.uuid, card.campaignId, card.id);
+                    return q();
+                }
+                
+                card.advertiserId = camp.advertiserId;
+                
+                var campEntry = (camp.cards || []).filter(function(cardObj) {
+                    return cardObj.id === card.id;
+                })[0] || {};
 
-            privateFields.forEach(function(key) { delete results[0][key]; });
+                card.advertiserId = camp.advertiserId;
+                card.adtechId = campEntry.adtechId;
+                card.bannerId = campEntry.bannerNumber;
 
-            return q(cardSvc.formatOutput(results[0]));
+                // don't show card without an adtechId
+                if (!card.adtechId) {
+                    log.warn('[%1] No adtechId for %2 in cards list of %3',
+                             req.uuid, card.id, camp.id);
+                    return q();
+                }
+                
+                return card;
+            });
         })
         .catch(function(error) {
             log.error('[%1] Error getting card %2: %3', req.uuid, id, error);

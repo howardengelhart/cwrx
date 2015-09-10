@@ -71,6 +71,7 @@
             public: ['www.cinema6.com', 'demo.cinema6.com'],
             cinema6: ['c-6.co', 'ci6.co']
         },
+        trackingPixel: '//s3.amazonaws.com/c6.dev/e2e/1x1-pixel.gif',
         secretsPath: path.join(process.env.HOME,'.content.secrets.json'),
         mongo: {
             c6Db: {
@@ -136,7 +137,7 @@
         });
 
         authUtils._db = state.dbs.c6Db;
-        cardSvc = cardModule.setupCardSvc(collections.cards, caches.cards);
+        cardSvc = cardModule.setupCardSvc(collections.cards, caches, state.config);
         catSvc = catModule.setupCatSvc(collections.categories);
 
         var sessionOpts = {
