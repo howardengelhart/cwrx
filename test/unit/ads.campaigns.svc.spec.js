@@ -52,39 +52,56 @@ describe('ads-campaigns (UT)', function() {
     });
     
     describe('setupSvc', function() {
-        it('should setup the campaign service', function() {
-            spyOn(CrudSvc.prototype.preventGetAll, 'bind').andReturn(CrudSvc.prototype.preventGetAll);
-            spyOn(campaignUtils.getAccountIds, 'bind').andReturn(campaignUtils.getAccountIds);
-            spyOn(campModule.formatOutput, 'bind').andReturn(campModule.formatOutput);
-            
+        var svc, mockDb;
+        beforeEach(function() {
             var config = { contentHost: 'foo.com', campaigns: { statusDelay: 100, statusAttempts: 5 } };
-            var mockDb = {
+            mockDb = {
                 collection: jasmine.createSpy('db.collection()').andCallFake(function(name) {
                     return { collectionName: name };
                 })
             };
-            var svc = campModule.setupSvc(mockDb, config);
-            expect(campaignUtils.getAccountIds.bind).toHaveBeenCalledWith(campaignUtils, svc._advertColl, svc._custColl);
-            expect(campModule.formatOutput.bind).toHaveBeenCalledWith(campModule, svc);
-            expect(campModule.contentHost).toBe('foo.com');
-            expect(campModule.campsCfg).toEqual({statusDelay: 100, statusAttempts: 5});
             
-            expect(svc instanceof CrudSvc).toBe(true);
-            expect(svc._prefix).toBe('cam');
-            expect(svc.objName).toBe('campaigns');
-            expect(svc._userProp).toBe(true);
-            expect(svc._orgProp).toBe(true);
-            expect(svc._allowPublic).toBe(false);
-            expect(svc._coll).toEqual({collectionName: 'campaigns'});
-            expect(svc._advertColl).toEqual({collectionName: 'advertisers'});
-            expect(svc._custColl).toEqual({collectionName: 'customers'});
-            
-            expect(svc.createValidator._required).toContain('advertiserId');
-            expect(svc.createValidator._required).toContain('customerId');
-            ['advertiserId', 'customerId', 'statusHistory', 'application'].forEach(function(prop) {
-                expect(svc.editValidator._forbidden).toContain(prop);
+            [campaignUtils.getAccountIds, campModule.formatOutput].forEach(function(fn) {
+                spyOn(fn, 'bind').andReturn(fn);
             });
             
+            svc = campModule.setupSvc(mockDb, config);
+        });
+        
+        it('should return a CrudSvc', function() {
+            expect(svc).toEqual(jasmine.any(CrudSvc));
+            expect(svc._coll).toEqual({ collectionName: 'campaigns' });
+            expect(svc._advertColl).toEqual({ collectionName: 'advertisers' });
+            expect(svc._custColl).toEqual({ collectionName: 'customers' });
+            expect(svc.objName).toBe('campaigns');
+            expect(svc._prefix).toBe('cam');
+            expect(svc._userProp).toBe(true);
+            expect(svc._orgProp).toBe(true);
+            expect(svc.createValidator).toBeDefined();
+            expect(svc.editValidator).toBeDefined();
+        });
+        
+        it('should save some config variables locally', function() {
+            expect(campModule.contentHost).toBe('foo.com');
+            expect(campModule.campsCfg).toEqual({statusDelay: 100, statusAttempts: 5});
+        });
+        
+        it('should enable statusHistory', function() {
+            expect(svc._middleware.create).toContain(svc.handleStatusHistory);
+            expect(svc._middleware.edit).toContain(svc.handleStatusHistory);
+            expect(svc._middleware.delete).toContain(svc.handleStatusHistory);
+        });
+        
+        it('should forbid and require some fields', function() {
+            expect(svc.createValidator._required).toContain('advertiserId');
+            expect(svc.createValidator._required).toContain('customerId');
+            expect(svc.createValidator._forbidden).toContain('pricingHistory');
+            ['advertiserId', 'customerId', 'statusHistory', 'application', 'pricingHistory'].forEach(function(prop) {
+                expect(svc.editValidator._forbidden).toContain(prop);
+            });
+        });
+        
+        it('should define formats for certain fields', function() {
             ['cards', 'miniReels', 'miniReelGroups'].forEach(function(key) {
                 expect(svc.createValidator._formats[key]).toEqual(['object']);
                 expect(svc.editValidator._formats[key]).toEqual(['object']);
@@ -93,19 +110,61 @@ describe('ads-campaigns (UT)', function() {
             expect(svc.editValidator._formats.categories).toEqual(['string']);
             expect(svc.createValidator._formats.staticCardMap).toEqual('object');
             expect(svc.editValidator._formats.staticCardMap).toEqual('object');
-
-            expect(svc._middleware.read).toEqual([campModule.formatTextQuery]);
-            expect(svc._middleware.create).toEqual([jasmine.any(Function), jasmine.any(Function), svc.handleStatusHistory,
-                campaignUtils.getAccountIds, campModule.validateDates, campModule.ensureUniqueIds,
-                campModule.ensureUniqueNames, campModule.createSponsoredCamps, campModule.createTargetCamps]);
-            expect(svc._middleware.edit).toEqual([jasmine.any(Function), jasmine.any(Function), svc.handleStatusHistory,
-                campaignUtils.getAccountIds, campModule.extendListObjects, campModule.validateDates,
-                campModule.ensureUniqueIds, campModule.ensureUniqueNames,
-                campModule.cleanSponsoredCamps, campModule.editSponsoredCamps, campModule.createSponsoredCamps,
-                campModule.cleanTargetCamps, campModule.editTargetCamps, campModule.createTargetCamps]);
-            expect(svc._middleware.delete).toEqual([jasmine.any(Function), svc.handleStatusHistory,
-                campModule.deleteContent, campModule.deleteAdtechCamps]);
+        });
+        
+        it('should format text queries on read', function() {
+            expect(svc._middleware.read).toContain(campModule.formatTextQuery);
+        });
+        
+        it('should fetch advertiser + customer ids on create + edit', function() {
+            expect(campaignUtils.getAccountIds.bind).toHaveBeenCalledWith(campaignUtils, svc._advertColl, svc._custColl);
+            expect(svc._middleware.create).toContain(campaignUtils.getAccountIds);
+            expect(svc._middleware.edit).toContain(campaignUtils.getAccountIds);
+        });
+        
+        it('should extend list entries on edit', function() {
+            expect(svc._middleware.edit).toContain(campModule.extendListObjects);
+        });
+        
+        it('should validate dates on create + edit', function() {
+            expect(svc._middleware.create).toContain(campModule.validateDates);
+            expect(svc._middleware.edit).toContain(campModule.validateDates);
+        });
+        
+        it('should ensure list entry identifiers are unique on create + edit', function() {
+            expect(svc._middleware.create).toContain(campModule.ensureUniqueIds);
+            expect(svc._middleware.edit).toContain(campModule.ensureUniqueIds);
+            expect(svc._middleware.create).toContain(campModule.ensureUniqueNames);
+            expect(svc._middleware.edit).toContain(campModule.ensureUniqueNames);
+        });
+        
+        it('should include middleware for handling sponsored campaigns', function() {
+            expect(svc._middleware.create).toContain(campModule.createSponsoredCamps);
+            expect(svc._middleware.edit).toContain(campModule.cleanSponsoredCamps);
+            expect(svc._middleware.edit).toContain(campModule.editSponsoredCamps);
+            expect(svc._middleware.edit).toContain(campModule.createSponsoredCamps);
+        });
+        
+        it('should include middleware for handling target campaigns', function() {
+            expect(svc._middleware.create).toContain(campModule.createTargetCamps);
+            expect(svc._middleware.edit).toContain(campModule.cleanTargetCamps);
+            expect(svc._middleware.edit).toContain(campModule.editTargetCamps);
+            expect(svc._middleware.edit).toContain(campModule.createTargetCamps);
+        });
+        
+        it('should include middleware for handling the pricingHistory', function() {
+            expect(svc._middleware.create).toContain(campModule.handlePricingHistory);
+            expect(svc._middleware.edit).toContain(campModule.handlePricingHistory);
+        });
+        
+        it('should override the default formatOutput', function() {
+            expect(campModule.formatOutput.bind).toHaveBeenCalledWith(campModule, svc);
             expect(svc.formatOutput).toBe(campModule.formatOutput);
+        });
+        
+        it('should include middleware for deleting linked entities on delete', function() {
+            expect(svc._middleware.delete).toContain(campModule.deleteContent);
+            expect(svc._middleware.delete).toContain(campModule.deleteAdtechCamps);
         });
     });
     
@@ -1201,6 +1260,101 @@ describe('ads-campaigns (UT)', function() {
                 expect(bannerUtils.createBanners.calls.length).toBe(2);
                 done();
             });
+        });
+    });
+    
+    describe('handlePricingHistory', function() {
+        var oldDate;
+        beforeEach(function() {
+            oldDate = new Date(new Date().valueOf() - 5000);
+            req.body = {
+                foo: 'bar',
+                pricing: {
+                    budget: 1000,
+                    dailyLimit: 200,
+                    model: 'cpv',
+                    cost: 0.1
+                }
+            };
+            var origPricing = {
+                budget: 500,
+                dailyLimit: 200,
+                model: 'cpv',
+                cost: 0.1
+            };
+            req.origObj = {
+                pricing: origPricing,
+                pricingHistory: [{
+                    pricing: origPricing,
+                    userId: 'u-2',
+                    user: 'admin@c6.com',
+                    date: oldDate
+                }]
+            };
+            req.user = { id: 'u-1', email: 'foo@bar.com' };
+        });
+        
+        it('should do nothing if req.body.pricing is not defined', function() {
+            delete req.body.pricing;
+            campModule.handlePricingHistory(req, nextSpy, doneSpy);
+            expect(req.body.pricingHistory).not.toBeDefined();
+            expect(nextSpy).toHaveBeenCalledWith();
+        });
+
+        it('should do nothing if the pricing is unchanged', function() {
+            req.body.pricing.budget = 500;
+            campModule.handlePricingHistory(req, nextSpy, doneSpy);
+            expect(req.body.pricingHistory).not.toBeDefined();
+            expect(nextSpy).toHaveBeenCalledWith();
+        });
+        
+        it('should add an entry to the pricingHistory', function() {
+            campModule.handlePricingHistory(req, nextSpy, doneSpy);
+            expect(req.body.pricingHistory).toEqual([
+                {
+                    pricing: {
+                        budget: 1000,
+                        dailyLimit: 200,
+                        model: 'cpv',
+                        cost: 0.1
+                    },
+                    userId: 'u-1',
+                    user: 'foo@bar.com',
+                    date: jasmine.any(Date)
+                },
+                {
+                    pricing: {
+                        budget: 500,
+                        dailyLimit: 200,
+                        model: 'cpv',
+                        cost: 0.1
+                    },
+                    userId: 'u-2',
+                    user: 'admin@c6.com',
+                    date: oldDate
+                }
+            ]);
+            expect(req.body.pricingHistory[0].date).toBeGreaterThan(oldDate);
+            expect(nextSpy).toHaveBeenCalledWith();
+        });
+        
+        it('should initalize the pricingHistory if not defined', function() {
+            delete req.origObj;
+            campModule.handlePricingHistory(req, nextSpy, doneSpy);
+            expect(req.body.pricingHistory).toEqual([
+                {
+                    pricing: {
+                        budget: 1000,
+                        dailyLimit: 200,
+                        model: 'cpv',
+                        cost: 0.1
+                    },
+                    userId: 'u-1',
+                    user: 'foo@bar.com',
+                    date: jasmine.any(Date)
+                }
+            ]);
+            expect(nextSpy).toHaveBeenCalledWith();
         });
     });
 
