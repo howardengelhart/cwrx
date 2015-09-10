@@ -1,5 +1,6 @@
 var q               = require('q'),
     util            = require('util'),
+    urlUtils        = require('url'),
     request         = require('request'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
@@ -18,7 +19,13 @@ describe('content public experience endpoints (E2E):', function() {
         describe('basic tests:', function() {
             beforeEach(function(done) {
                 options = {
-                    url: config.contentUrl + '/public/content/experience/e2e-pubget1'
+                    url: config.contentUrl + '/public/content/experience/e2e-pubget1',
+                    qs: {
+                        campaign: 'e2e-cam1',
+                        container: 'embed',
+                        hostApp: 'Mapsaurus',
+                        network: 'pocketmath'
+                    }
                 };
                 mockExps = [{
                     id: 'e2e-pubget1',
@@ -37,6 +44,7 @@ describe('content public experience endpoints (E2E):', function() {
             });
 
             it('should get an experience by id', function(done) {
+                options.qs.pageUrl = 'clickhole.com';
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body._id).not.toBeDefined();
@@ -44,6 +52,23 @@ describe('content public experience endpoints (E2E):', function() {
                     expect(resp.body.title).toBe('test exp');
                     expect(resp.body.data.foo).toBe('bar');
                     expect(resp.body.data.title).toBe('test exp');
+
+                    expect(resp.body.data.campaign).toEqual({
+                        launchUrls: [ jasmine.any(String) ]
+                    });
+                    var parsed = urlUtils.parse(resp.body.data.campaign.launchUrls[0], true, true);
+                    expect(parsed.host).toBeDefined();
+                    expect(parsed.pathname).toBeDefined();
+                    expect(parsed.query).toEqual({
+                        campaign    : 'e2e-cam1',
+                        experience  : 'e2e-pubget1',
+                        container   : 'embed',
+                        host        : 'clickhole.com',
+                        hostApp     : 'Mapsaurus',
+                        network     : 'pocketmath',
+                        event       : 'launch'
+                    });
+
                     expect(new Date(resp.body.lastStatusChange)).not.toEqual('Invalid Date');
                     expect(resp.body.user).not.toBeDefined();
                     expect(resp.body.org).not.toBeDefined();
@@ -376,7 +401,13 @@ describe('content public experience endpoints (E2E):', function() {
             beforeEach(function(done) {
                 options = {
                     url: config.contentUrl + '/public/content/experience/e2e-getcamps1',
-                    qs: { campaign: 'e2e-cam1' }
+                    qs: {
+                        campaign: 'e2e-cam1',
+                        container: 'embed',
+                        pageUrl: 'clickhole.com',
+                        hostApp: 'Mapsaurus',
+                        network: 'pocketmath'
+                    }
                 };
                 mockExps = [{
                     id: 'e2e-getcamps1',
@@ -448,7 +479,8 @@ describe('content public experience endpoints (E2E):', function() {
                             status: 'active',
                             foo: 'baz',
                             adtechId: 11,
-                            bannerId: 1
+                            bannerId: 1,
+                            campaign: jasmine.any(Object)
                         },
                         {
                             id: 'rc-sp2',
@@ -457,10 +489,43 @@ describe('content public experience endpoints (E2E):', function() {
                             status: 'active',
                             foo: 'buz',
                             adtechId: 12,
-                            bannerId: 2
+                            bannerId: 2,
+                            campaign: jasmine.any(Object)
                         },
                         { id: 'rc-p3' }
                     ]);
+                    
+                    ['rc-sp1', 'rc-sp2'].forEach(function(cardId) {
+                        var card = resp.body.data.deck.filter(function(deckCard) { return deckCard.id === cardId; })[0];
+                        if (!card) {
+                            expect(card).toBeDefined();
+                            return;
+                        }
+
+                        [
+                            { prop: 'clickUrls', event: 'click' },
+                            { prop: 'loadUrls', event: 'load' },
+                            { prop: 'countUrls', event: 'completedView' },
+                            { prop: 'q1Urls', event: 'q1' },
+                            { prop: 'q2Urls', event: 'q2' },
+                            { prop: 'q3Urls', event: 'q3' },
+                            { prop: 'q4Urls', event: 'q4' }
+                        ].forEach(function(obj) {
+                            var parsed = urlUtils.parse(card.campaign[obj.prop][0], true, true);
+                            expect(parsed.host).toBeDefined();
+                            expect(parsed.pathname).toBeDefined();
+                            expect(parsed.query).toEqual({
+                                campaign    : 'e2e-cam1',
+                                card        : cardId,
+                                experience  : 'e2e-getcamps1',
+                                container   : 'embed',
+                                host        : 'clickhole.com',
+                                hostApp     : 'Mapsaurus',
+                                network     : 'pocketmath',
+                                event       : obj.event
+                            });
+                        });
+                    });
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
@@ -534,7 +599,7 @@ describe('content public experience endpoints (E2E):', function() {
                     return requestUtils.qRequest('get', options);
                 }).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body).toEqual({id: 'e2e-pubget2', status: 'pending', access: 'public'});
+                    expect(resp.body).toEqual({id: 'e2e-pubget2', data: jasmine.any(Object), status: 'pending', access: 'public'});
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
@@ -544,7 +609,7 @@ describe('content public experience endpoints (E2E):', function() {
                 options.url = config.contentUrl + '/public/content/experience/e2e-pubget3';
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body).toEqual({id: 'e2e-pubget3', status: 'active', access: 'private'});
+                    expect(resp.body).toEqual({id: 'e2e-pubget3', data: jasmine.any(Object), status: 'active', access: 'private'});
                     options.headers.origin = 'https://staging.cinema6.com';
                     return requestUtils.qRequest('get', options);
                 }).then(function(resp) {
@@ -560,7 +625,7 @@ describe('content public experience endpoints (E2E):', function() {
                 options.headers = { referer: 'https://staging.cinema6.com' };
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body).toEqual({id: 'e2e-pubget2', status: 'pending', access: 'public'});
+                    expect(resp.body).toEqual({id: 'e2e-pubget2', data: jasmine.any(Object), status: 'pending', access: 'public'});
                     options.url = config.contentUrl + '/public/content/experience/e2e-pubget3';
                     return requestUtils.qRequest('get', options);
                 }).then(function(resp) {

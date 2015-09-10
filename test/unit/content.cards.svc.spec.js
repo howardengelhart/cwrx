@@ -1,9 +1,10 @@
 var flush = true;
 describe('content-cards (UT)', function() {
-    var q, cardModule, QueryCache, FieldValidator, CrudSvc, Status, logger, mockLog;
+    var urlUtils, q, cardModule, QueryCache, FieldValidator, CrudSvc, Status, logger, mockLog, req;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
+        urlUtils        = require('url');
         q               = require('q');
         cardModule      = require('../../bin/content-cards');
         CrudSvc         = require('../../lib/crudSvc');
@@ -22,6 +23,8 @@ describe('content-cards (UT)', function() {
         };
         spyOn(logger, 'createLog').andReturn(mockLog);
         spyOn(logger, 'getLog').andReturn(mockLog);
+        
+        req = { uuid: '1234', baseUrl: '', route: { path: '' }, params: {}, query: {} };
     });
 
     describe('setupCardSvc', function() {
@@ -32,9 +35,12 @@ describe('content-cards (UT)', function() {
             spyOn(FieldValidator, 'userFunc').andCallThrough();
 
             var mockColl = { collectionName: 'cards' },
-                cardSvc = cardModule.setupCardSvc(mockColl, { caches: 'yes' });
+                config = { trackingPixel: 'track.me' },
+                cardSvc = cardModule.setupCardSvc(mockColl, { caches: 'yes' }, config);
                 
             expect(cardModule.getPublicCard.bind).toHaveBeenCalledWith(cardModule, cardSvc, { caches: 'yes' });
+
+            expect(cardModule.config.trackingPixel).toBe('track.me');
             
             expect(cardSvc instanceof CrudSvc).toBe(true);
             expect(cardSvc._prefix).toBe('rc');
@@ -56,17 +62,203 @@ describe('content-cards (UT)', function() {
         });
     });
     
-    describe('getPublicCard', function() {
-        var req, cardSvc, mockCard, mockCamp, caches;
+    describe('formatUrl', function() {
+        var card;
         beforeEach(function() {
-            req = { uuid: '1234' };
+            card = { id: 'rc-1', campaignId: 'cam-1' };
+            req.originHost = 'cinema6.com';
+            req.route.path = '/api/public/content/experience/:id';
+            req.params.id = 'e-1';
+            req.query = {
+                container: 'embed',
+                hostApp: 'Mapsaurus',
+                network: 'pocketmath'
+            };
+            cardModule.config.trackingPixel = '//cinema6.com/track.png';
+        });
+        
+        it('should build a tracking pixel url', function() {
+            var url = cardModule.formatUrl(card, req, 'load'),
+                parsed = urlUtils.parse(url, true, true);
+                
+            expect(parsed.protocol).toBe(null);
+            expect(parsed.host).toBe('cinema6.com');
+            expect(parsed.pathname).toBe('/track.png');
+            expect(parsed.query).toEqual({
+                campaign: 'cam-1',
+                card: 'rc-1',
+                experience: 'e-1',
+                container: 'embed',
+                host: 'cinema6.com',
+                hostApp: 'Mapsaurus',
+                network: 'pocketmath',
+                event: 'load'
+            });
+        });
+        
+        it('should be able to get the experience id from query params', function() {
+            req.route.path = '/api/public/content/card/:id';
+            req.query.experience = 'e-2';
+            var url = cardModule.formatUrl(card, req, 'load'),
+                parsed = urlUtils.parse(url, true, true);
+            expect(parsed.query.experience).toBe('e-2');
+        });
+        
+        it('should allow overriding the host through the pageUrl param', function() {
+            req.query.pageUrl = 'clickhole.com';
+            var url = cardModule.formatUrl(card, req, 'load'),
+                parsed = urlUtils.parse(url, true, true);
+            expect(parsed.query.host).toBe('clickhole.com');
+        });
+        
+        it('should leave some params blank if they are not provided', function() {
+            req.route.path = '/api/public/content/card/:id';
+            req.query = {};
+            var url = cardModule.formatUrl(card, req, 'load'),
+                parsed = urlUtils.parse(url, true, true);
+
+            expect(parsed.protocol).toBe(null);
+            expect(parsed.host).toBe('cinema6.com');
+            expect(parsed.pathname).toBe('/track.png');
+            expect(parsed.query).toEqual({
+                campaign: 'cam-1',
+                card: 'rc-1',
+                experience: '',
+                container: '',
+                host: 'cinema6.com',
+                hostApp: '',
+                network: '',
+                event: 'load'
+            });
+        });
+    });
+    
+    describe('setupTrackingPixels', function() {
+        var card;
+        beforeEach(function() {
+            card = { id: 'rc-1', campaignId: 'cam-1' };
+        
+            spyOn(cardModule, 'formatUrl').andCallFake(function(card, req, event) {
+                return 'track.png?event=' + event;
+            });
+        });
+        
+        it('should setup a bunch of tracking pixel arrays on the card', function() {
+            cardModule.setupTrackingPixels(card, req);
+            expect(card).toEqual({
+                id          : 'rc-1',
+                campaignId  : 'cam-1',
+                campaign    : {
+                    clickUrls   : [ 'track.png?event=click' ],
+                    loadUrls    : [ 'track.png?event=load' ],
+                    countUrls   : [ 'track.png?event=completedView' ],
+                    q1Urls      : [ 'track.png?event=q1' ],
+                    q2Urls      : [ 'track.png?event=q2' ],
+                    q3Urls      : [ 'track.png?event=q3' ],
+                    q4Urls      : [ 'track.png?event=q4' ]
+                }
+            });
+        });
+        
+        it('should not overwrite any existing pixels', function() {
+            card.campaign = {
+                clickUrls   : [ 'click.me' ],
+                loadUrls    : [ 'load.me' ],
+                countUrls   : [ 'count.me' ],
+                q1Urls      : [ 'q1.me' ],
+                q2Urls      : [ 'q2.me' ],
+                q3Urls      : [ 'q3.me' ]
+            };
+            
+            cardModule.setupTrackingPixels(card, req);
+            expect(card).toEqual({
+                id          : 'rc-1',
+                campaignId  : 'cam-1',
+                campaign    : {
+                    clickUrls   : [ 'click.me', 'track.png?event=click' ],
+                    loadUrls    : [ 'load.me', 'track.png?event=load' ],
+                    countUrls   : [ 'count.me', 'track.png?event=completedView' ],
+                    q1Urls      : [ 'q1.me', 'track.png?event=q1' ],
+                    q2Urls      : [ 'q2.me', 'track.png?event=q2' ],
+                    q3Urls      : [ 'q3.me', 'track.png?event=q3' ],
+                    q4Urls      : [ 'track.png?event=q4' ]
+                }
+            });
+        });
+        
+        describe('if there are links on the card', function() {
+            beforeEach(function() {
+                card.links = {
+                    Facebook: 'http://facebook.com/foo',
+                    Twitter: 'http://twitter.com/bar'
+                };
+            });
+            
+            it('should also create tracking pixels for the links', function() {
+                cardModule.setupTrackingPixels(card, req);
+                expect(card).toEqual({
+                    id          : 'rc-1',
+                    campaignId  : 'cam-1',
+                    campaign    : {
+                        clickUrls   : [ 'track.png?event=click' ],
+                        loadUrls    : [ 'track.png?event=load' ],
+                        countUrls   : [ 'track.png?event=completedView' ],
+                        q1Urls      : [ 'track.png?event=q1' ],
+                        q2Urls      : [ 'track.png?event=q2' ],
+                        q3Urls      : [ 'track.png?event=q3' ],
+                        q4Urls      : [ 'track.png?event=q4' ]
+                    },
+                    links: {
+                        Facebook: {
+                            uri: 'http://facebook.com/foo',
+                            tracking: [ 'track.png?event=link.Facebook' ]
+                        },
+                        Twitter: {
+                            uri: 'http://twitter.com/bar',
+                            tracking: [ 'track.png?event=link.Twitter' ]
+                        }
+                    }
+                });
+            });
+            
+            it('should not overwrite existing tracking pixels for the links', function() {
+                card.links.Facebook = {
+                    uri: 'http://facebook.com/foo',
+                    tracking: ['track.facebook']
+                };
+
+                cardModule.setupTrackingPixels(card, req);
+                expect(card.links).toEqual({
+                    Facebook: {
+                        uri: 'http://facebook.com/foo',
+                        tracking: [ 'track.facebook', 'track.png?event=link.Facebook' ]
+                    },
+                    Twitter: {
+                        uri: 'http://twitter.com/bar',
+                        tracking: [ 'track.png?event=link.Twitter' ]
+                    }
+                });
+            });
+            
+            it('should do nothing if the links prop is empty', function() {
+                card.links = {};
+
+                cardModule.setupTrackingPixels(card, req);
+                expect(card.links).toEqual({});
+            });
+        });
+    });
+    
+    describe('getPublicCard', function() {
+        var cardSvc, mockCard, mockCamp, caches;
+        beforeEach(function() {
             mockCard = {
                 id: 'rc-1',
                 campaignId: 'cam-1',
+                campaign: {},
                 status: Status.Active,
                 user: 'u-1',
-                org: 'o-1',
-                foo: 'bar'
+                org: 'o-1'
             };
             mockCamp = {
                 id: 'cam-1',
@@ -94,10 +286,14 @@ describe('content-cards (UT)', function() {
             };
             cardSvc = {
                 formatOutput: jasmine.createSpy('svc.formatOutput').andCallFake(function(card) {
-                    card.formatted = true;
-                    return card;
+                    var newCard = JSON.parse(JSON.stringify(card));
+                    newCard.formatted = true;
+                    return newCard;
                 })
             };
+            spyOn(cardModule, 'setupTrackingPixels').andCallFake(function(card, req) {
+                card.campaign.pixels = 'setup';
+            });
         });
         
         it('should retrieve a card from the cache', function(done) {
@@ -105,14 +301,15 @@ describe('content-cards (UT)', function() {
                 expect(resp).toEqual({
                     id: 'rc-1',
                     campaignId: 'cam-1',
+                    campaign: { pixels: 'setup' },
                     status: Status.Active,
-                    foo: 'bar',
                     advertiserId: 'a-1',
                     adtechId: 11,
                     bannerId: 2,
                     formatted: true
                 });
                 expect(cardSvc.formatOutput).toHaveBeenCalled();
+                expect(cardModule.setupTrackingPixels).toHaveBeenCalledWith(resp, req);
                 expect(caches.cards.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
                 expect(caches.campaigns.getPromise).toHaveBeenCalledWith({id: 'cam-1'});
                 expect(mockLog.warn).not.toHaveBeenCalled();
@@ -128,6 +325,7 @@ describe('content-cards (UT)', function() {
                 expect(caches.cards.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
                 expect(caches.campaigns.getPromise).not.toHaveBeenCalled();
                 expect(cardSvc.formatOutput).not.toHaveBeenCalled();
+                expect(cardModule.setupTrackingPixels).not.toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -141,6 +339,7 @@ describe('content-cards (UT)', function() {
                 expect(caches.cards.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
                 expect(caches.campaigns.getPromise).not.toHaveBeenCalled();
                 expect(cardSvc.formatOutput).not.toHaveBeenCalled();
+                expect(cardModule.setupTrackingPixels).not.toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -154,6 +353,7 @@ describe('content-cards (UT)', function() {
                 expect(caches.cards.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
                 expect(caches.campaigns.getPromise).toHaveBeenCalledWith({id: 'cam-1'});
                 expect(cardSvc.formatOutput).toHaveBeenCalled();
+                expect(cardModule.setupTrackingPixels).toHaveBeenCalled();
                 expect(mockLog.warn).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -167,6 +367,7 @@ describe('content-cards (UT)', function() {
                 expect(caches.cards.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
                 expect(caches.campaigns.getPromise).toHaveBeenCalledWith({id: 'cam-1'});
                 expect(cardSvc.formatOutput).toHaveBeenCalled();
+                expect(cardModule.setupTrackingPixels).toHaveBeenCalled();
                 expect(mockLog.warn).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -180,6 +381,7 @@ describe('content-cards (UT)', function() {
                 expect(caches.cards.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
                 expect(caches.campaigns.getPromise).toHaveBeenCalledWith({id: 'cam-1'});
                 expect(cardSvc.formatOutput).toHaveBeenCalled();
+                expect(cardModule.setupTrackingPixels).toHaveBeenCalled();
                 expect(mockLog.warn).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -193,6 +395,7 @@ describe('content-cards (UT)', function() {
                 expect(caches.cards.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
                 expect(caches.campaigns.getPromise).toHaveBeenCalledWith({id: 'cam-1'});
                 expect(cardSvc.formatOutput).toHaveBeenCalled();
+                expect(cardModule.setupTrackingPixels).toHaveBeenCalled();
                 expect(mockLog.warn).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -209,14 +412,30 @@ describe('content-cards (UT)', function() {
                 expect(caches.cards.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
                 expect(caches.campaigns.getPromise).not.toHaveBeenCalled();
                 expect(cardSvc.formatOutput).not.toHaveBeenCalled();
+                expect(cardModule.setupTrackingPixels).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should fail if the campaign promise was rejected', function(done) {
+            caches.campaigns.getPromise.andReturn(q.reject('I GOT A PROBLEM'));
+            cardModule.getPublicCard(cardSvc, caches, 'rc-1', req).then(function(resp) {
+                expect('resolved').not.toBe('resolved');
+            }).catch(function(error) {
+                expect(error).toBe('Mongo error');
+                expect(mockLog.error).toHaveBeenCalled();
+                expect(caches.cards.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
+                expect(caches.campaigns.getPromise).toHaveBeenCalled();
+                expect(cardSvc.formatOutput).toHaveBeenCalled();
+                expect(cardModule.setupTrackingPixels).toHaveBeenCalled();
             }).done(done);
         });
     });
 
     describe('handlePublicGet', function() {
-        var req, res, cardSvc, config;
+        var res, cardSvc, config;
         beforeEach(function() {
-            req = { uuid: '1234', params: { id: 'e-1' }, originHost: 'http://cinema6.com' };
+            req.params.id = 'e-1';
+            req.originHost = 'http://cinema6.com';
             res = {
                 header: jasmine.createSpy('res.header()')
             };

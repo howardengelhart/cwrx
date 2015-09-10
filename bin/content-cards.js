@@ -3,15 +3,19 @@
 
     var q               = require('q'),
         express         = require('express'),
+        querystring     = require('querystring'),
+        path            = require('path'),
         logger          = require('../lib/logger'),
         authUtils       = require('../lib/authUtils'),
         CrudSvc         = require('../lib/crudSvc'),
         Status          = require('../lib/enums').Status,
 
-        cardModule = {};
+        cardModule = { config: {} };
 
         
-    cardModule.setupCardSvc = function(cardColl, caches) {
+    cardModule.setupCardSvc = function(cardColl, caches, config) {
+        cardModule.config.trackingPixel = config.trackingPixel;
+    
         var opts = { allowPublic: true },
             cardSvc = new CrudSvc(cardColl, 'rc', opts);
         
@@ -21,6 +25,62 @@
         cardSvc.getPublicCard = cardModule.getPublicCard.bind(cardModule, cardSvc, caches);
         
         return cardSvc;
+    };
+    
+    // Format a tracking pixel link, pulling data from query params.
+    cardModule.formatUrl = function(card, req, event) {
+        req.query = req.query || {};
+        
+        // get experience id from path if request for experience; else from query param
+        var expId = (/experience/.test(path.join(req.baseUrl, req.route.path)) && req.params.id) ||
+                    req.query.experience || '';
+
+        var qps = {
+            campaign    : card.campaignId,
+            card        : card.id,
+            experience  : expId,
+            container   : req.query.container,
+            host        : req.query.pageUrl || req.originHost,
+            hostApp     : req.query.hostApp,
+            network     : req.query.network,
+            event       : event
+        };
+        
+        return cardModule.config.trackingPixel + '?' + querystring.stringify(qps);
+    };
+    
+    // Adds tracking pixels to card.campaign, initializing arrays if needed
+    cardModule.setupTrackingPixels = function(card, req) {
+        card.campaign = card.campaign || {};
+        
+        function ensureList(prop) {
+            return card.campaign[prop] || (card.campaign[prop] = []);
+        }
+        
+        ensureList('clickUrls').push(cardModule.formatUrl(card, req, 'click'));
+        ensureList('loadUrls').push(cardModule.formatUrl(card, req, 'load'));
+        ensureList('countUrls').push(cardModule.formatUrl(card, req, 'completedView'));
+        ensureList('q1Urls').push(cardModule.formatUrl(card, req, 'q1'));
+        ensureList('q2Urls').push(cardModule.formatUrl(card, req, 'q2'));
+        ensureList('q3Urls').push(cardModule.formatUrl(card, req, 'q3'));
+        ensureList('q4Urls').push(cardModule.formatUrl(card, req, 'q4'));
+        
+        if (typeof card.links !== 'object') {
+            return;
+        }
+        
+        Object.keys(card.links).forEach(function(linkName) {
+            var origVal = card.links[linkName];
+
+            if (typeof origVal === 'string') {
+                card.links[linkName] = {
+                    uri: origVal,
+                    tracking: []
+                };
+            }
+            
+            card.links[linkName].tracking.push(cardModule.formatUrl(card, req, 'link.' + linkName));
+        });
     };
 
     // Get a card, using internal cache. Can be used across modules when 1st two args bound in
@@ -38,10 +98,10 @@
             }
             
             log.info('[%1] Retrieved card %2', req.uuid, id);
-
+            
             privateFields.forEach(function(key) { delete card[key]; });
-
             card = cardSvc.formatOutput(card);
+            cardModule.setupTrackingPixels(card, req);
             
             // fetch card's campaign so important props can be copied over
             return caches.campaigns.getPromise({ id: card.campaignId })

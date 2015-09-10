@@ -4,6 +4,7 @@
     var q               = require('q'),
         express         = require('express'),
         urlUtils        = require('url'),
+        querystring     = require('querystring'),
         logger          = require('../lib/logger'),
         uuid            = require('../lib/uuid'),
         mongoUtils      = require('../lib/mongoUtils'),
@@ -144,6 +145,26 @@
         newQuery['data.0.data.title'] = {$regex: '.*' + textParts.join('.*') + '.*', $options: 'i'};
         delete newQuery.text;
         return newQuery;
+    };
+    
+    // Setup a launchUrls property on exp.data.campaign. trackingPixel should come from config
+    expModule.setupTrackingPixels = function(exp, req, trackingPixel) {
+        exp.data = exp.data || {};
+        exp.data.campaign = exp.data.campaign || {};
+        
+        var qps = {
+            campaign    : req.query.campaign,
+            experience  : exp.id,
+            container   : req.query.container,
+            host        : req.query.pageUrl || req.originHost,
+            hostApp     : req.query.hostApp,
+            network     : req.query.network,
+            event       : 'launch'
+        };
+        
+        var url = trackingPixel + '?' + querystring.stringify(qps);
+        
+        (exp.data.campaign.launchUrls || (exp.data.campaign.launchUrls = [])).push(url);
     };
 
     // Ensure experience has adConfig, getting from its org if necessary
@@ -342,7 +363,7 @@
     };
 
 
-    expModule.getPublicExp = function(id, req, caches, cardSvc, defaults) {
+    expModule.getPublicExp = function(id, req, caches, cardSvc, config) {
         var log = logger.getLog(),
             qps = req.query,
             query = {id: id};
@@ -363,11 +384,13 @@
                 return q({code: 404, body: 'Experience not found'});
             }
             log.info('[%1] Retrieved experience %2', req.uuid, id);
+            
+            expModule.setupTrackingPixels(experiences[0], req, config.trackingPixel);
 
             return expModule.getAdConfig(experiences[0], results[0].org, caches.orgs)
             .then(function(exp) {
                 return expModule.getSiteConfig(exp, results[0].org, qps, req.originHost,
-                                               caches.sites, caches.orgs, defaults);
+                                               caches.sites, caches.orgs, config.defaultSiteConfig);
             })
             .then(function(exp) {
                 return expModule.handleCampaign(req, exp, qps.campaign, caches.campaigns, cardSvc);
@@ -694,33 +717,6 @@
         });
     };
 
-    // Handle requests for cards from /api/public/content/card/:id endpoints
-    expModule.handlePublicGet = function(req, res, cardSvc, config) {
-        return cardSvc.getPublicCard(req.params.id, req)
-        .then(function(card) {
-            if (!req.originHost.match(/(portal|staging).cinema6.com/)) {
-                res.header('cache-control', 'max-age=' + config.cacheTTLs.cloudFront*60);
-            }
-            
-            if (!card) {
-                return q({ code: 404, body: 'Card not found' });
-            }
-            
-            // if ext === 'js', return card as a CommonJS module; otherwise return JSON
-            if (req.params.ext === 'js') {
-                res.header('content-type', 'application/javascript');
-                return q({ code: 200, body: 'module.exports = ' + JSON.stringify(card) + ';' });
-            } else {
-                return q({ code: 200, body: card });
-            }
-        })
-        .catch(function(error) {
-            res.header('cache-control', 'max-age=60');
-            return q({code: 500, body: { error: 'Error retrieving card', detail: error }});
-        });
-    };
-
-
     expModule.setupEndpoints = function(app, expColl, caches, cardSvc, config,
                                         sessions, audit, jobManager) {
 
@@ -728,8 +724,7 @@
         
         // Used for handling public requests for experiences by id methods:
         function handlePublicGet(req, res) {
-            return expModule.getPublicExp(req.params.id, req, caches, cardSvc,
-                                          config.defaultSiteConfig)
+            return expModule.getPublicExp(req.params.id, req, caches, cardSvc, config)
             .then(function(resp) {
                 if (!req.originHost.match(/(portal|staging).cinema6.com/)) {
                     res.header('cache-control', 'max-age=' + config.cacheTTLs.cloudFront*60);
