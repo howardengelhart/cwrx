@@ -25,7 +25,9 @@
         svc._custColl = db.collection('customers');
         
         svc.createValidator._required.push('advertiserId', 'customerId');
-        svc.editValidator._forbidden.push('advertiserId', 'customerId', 'application');
+        svc.createValidator._forbidden.push('pricingHistory');
+        svc.editValidator._forbidden.push('advertiserId', 'customerId',
+                                          'application', 'pricingHistory');
 
         svc.createValidator._formats.cards = ['object'];
         svc.editValidator._formats.cards = ['object'];
@@ -38,17 +40,22 @@
         svc.createValidator._formats.staticCardMap = 'object';
         svc.editValidator._formats.staticCardMap = 'object';
         
+        var getAccountIds = campaignUtils.getAccountIds.bind(
+            campaignUtils,
+            svc._advertColl,
+            svc._custColl
+        );
+        
         svc.use('read', campModule.formatTextQuery);
-        svc.use('create', campaignUtils.getAccountIds.bind(campaignUtils, svc._advertColl,
-                                                           svc._custColl));
+        svc.use('create', getAccountIds);
         svc.use('create', campModule.validateDates);
         svc.use('create', campModule.ensureUniqueIds);
         svc.use('create', campModule.ensureUniqueNames);
         svc.use('create', campModule.createSponsoredCamps);
         svc.use('create', campModule.createTargetCamps);
+        svc.use('create', campModule.handlePricingHistory);
 
-        svc.use('edit', campaignUtils.getAccountIds.bind(campaignUtils, svc._advertColl,
-                                                         svc._custColl));
+        svc.use('edit', getAccountIds);
         svc.use('edit', campModule.extendListObjects);
         svc.use('edit', campModule.validateDates);
         svc.use('edit', campModule.ensureUniqueIds);
@@ -59,6 +66,7 @@
         svc.use('edit', campModule.cleanTargetCamps);
         svc.use('edit', campModule.editTargetCamps);
         svc.use('edit', campModule.createTargetCamps);
+        svc.use('edit', campModule.handlePricingHistory);
 
         svc.use('delete', campModule.deleteContent);
         svc.use('delete', campModule.deleteAdtechCamps);
@@ -579,6 +587,25 @@
             log.error('[%1] Error creating target campaigns: %2',req.uuid, err && err.stack || err);
             return q.reject('Adtech failure');
         });
+    };
+    
+    campModule.handlePricingHistory = function(req, next/*, done*/) { //TODO: comment, test
+        var orig = req.origObj || {};
+            
+        if (req.body.pricing && !objUtils.compareObjects(req.body.pricing, orig.pricing)) {
+            req.body.pricingHistory = orig.pricingHistory || [];
+            
+            var wrapper = {
+                pricing : req.body.pricing,
+                userId  : req.user.id,
+                user    : req.user.email,
+                date    : new Date()
+            };
+            
+            req.body.pricingHistory.unshift(wrapper);
+        }
+        
+        next();
     };
 
     // Middleware to delete all sponsored content associated with this to-be-deleted campaign

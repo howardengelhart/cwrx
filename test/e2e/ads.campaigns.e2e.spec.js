@@ -561,6 +561,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body.miniReels).not.toBeDefined();
                 expect(resp.body.cards).not.toBeDefined();
                 expect(resp.body.miniReelGroups).not.toBeDefined();
+                expect(resp.body.pricingHistory).not.toBeDefined();
                 expect(new Date(resp.body.created).toString()).not.toEqual('Invalid Date');
                 expect(resp.body.lastUpdated).toEqual(resp.body.created);
                 expect(resp.body.status).toBe('active');
@@ -577,6 +578,44 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(results[0].service).toBe('ads');
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'POST /api/campaign/', params: {}, query: {} });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should initialize pricingHistory when creating a campaign with pricing', function(done) {
+            options.json = {
+                name: 'withPricing',
+                advertiserId: keptAdvert.id,
+                customerId: keptCust.id,
+                pricing: {
+                    budget: 1000,
+                    dailyLimit: 200,
+                    model: 'cpv',
+                    cost: 0.1
+                }
+            };
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body.id).toBeDefined();
+                expect(resp.body.name).toBe('withPricing');
+                expect(resp.body.pricing).toEqual({
+                    budget: 1000,
+                    dailyLimit: 200,
+                    model: 'cpv',
+                    cost: 0.1
+                });
+                expect(resp.body.pricingHistory).toEqual([{
+                    date: jasmine.any(String),
+                    userId: 'e2e-user',
+                    user: 'adsvce2euser',
+                    pricing: {
+                        budget: 1000,
+                        dailyLimit: 200,
+                        model: 'cpv',
+                        cost: 0.1
+                    }
+                }]);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -700,8 +739,15 @@ describe('ads campaigns endpoints (E2E):', function() {
     });
 
     describe('PUT /api/campaign/:id', function() {
-        var mockCamps, options;
+        var mockCamps, options, origPricing, oldDate;
         beforeEach(function(done) {
+            oldDate = new Date(new Date().valueOf() - 5000);
+            origPricing = {
+                budget: 1000,
+                dailyLimit: 400,
+                model: 'cpv',
+                cost: 0.1
+            };
             mockCamps = [
                 {
                     id: 'e2e-put1', status: 'active', advertiserId: keptAdvert.id, customerId: keptCust.id,
@@ -714,6 +760,22 @@ describe('ads campaigns endpoints (E2E):', function() {
                 {
                     id: 'e2e-deleted', status: 'deleted', advertiserId: keptAdvert.id, customerId: keptCust.id,
                     name: 'deleted camp'
+                },
+                {
+                    id: 'e2e-withPricing',
+                    name: 'withPricing',
+                    status: 'active',
+                    advertiserId: keptAdvert.id,
+                    customerId: keptCust.id,
+                    user: 'e2e-user',
+                    org: 'e2e-org',
+                    pricing: origPricing,
+                    pricingHistory: [{
+                        date: oldDate,
+                        userId: 'u-admin',
+                        user: 'admin@c6.com',
+                        pricing: origPricing
+                    }]
                 }
             ];
             return testUtils.mongoFind('campaigns', {id: createdCamp.id}).then(function(results) {
@@ -721,7 +783,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 return testUtils.resetCollection('campaigns', mockCamps);
             }).done(done);
         });
-
+        
         it('should successfully update a campaign in our database', function(done) {
             options = {
                 url: config.adsUrl + '/campaign/e2e-put1',
@@ -734,6 +796,8 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body.user).toBe('not-e2e-user');
                 expect(resp.body.org).toBe('e2e-org');
                 expect(resp.body.name).toBe('updated fake camp');
+                expect(resp.body.pricing).not.toBeDefined();
+                expect(resp.body.pricingHistory).not.toBeDefined();
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
             }).then(function(results) {
                 expect(results[0].user).toBe('e2e-user');
@@ -746,6 +810,97 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'PUT /api/campaign/:id',
                                                  params: { id: 'e2e-put1' }, query: {} });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should update the pricingHistory if the pricing changes', function(done) {
+            var newPricing = {
+                budget: 1000,
+                dailyLimit: 200,
+                model: 'cpv',
+                cost: 0.1
+            };
+            options = {
+                url: config.adsUrl + '/campaign/e2e-withPricing',
+                json: { pricing: newPricing },
+                jar: cookieJar
+            };
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.name).toBe('withPricing');
+                expect(resp.body.pricing).toEqual(newPricing);
+                expect(resp.body.pricingHistory).toEqual([
+                    {
+                        date: jasmine.any(String),
+                        userId: 'e2e-user',
+                        user: 'adsvce2euser',
+                        pricing: newPricing
+                    },
+                    {
+                        date: oldDate.toISOString(),
+                        userId: 'u-admin',
+                        user: 'admin@c6.com',
+                        pricing: origPricing
+                    }
+                ]);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should not update the pricingHistory if the pricing stays the same', function(done) {
+            options = {
+                url: config.adsUrl + '/campaign/e2e-withPricing',
+                json: {
+                    name: 'withPricing-updated',
+                    pricing: {
+                        budget: 1000,
+                        dailyLimit: 400,
+                        model: 'cpv',
+                        cost: 0.1
+                    }
+                },
+                jar: cookieJar
+            };
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.name).toBe('withPricing-updated');
+                expect(resp.body.pricing).toEqual(origPricing);
+                expect(resp.body.pricingHistory).toEqual([{
+                    date: oldDate.toISOString(),
+                    userId: 'u-admin',
+                    user: 'admin@c6.com',
+                    pricing: origPricing
+                }]);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should be able to initialize the pricing + pricingHistory on an existing campaign', function(done) {
+            var newPricing = {
+                budget: 1000,
+                dailyLimit: 200,
+                model: 'cpv',
+                cost: 0.1
+            };
+            options = {
+                url: config.adsUrl + '/campaign/e2e-put1',
+                json: { pricing: newPricing },
+                jar: cookieJar
+            };
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.name).toBe('fake camp');
+                expect(resp.body.pricing).toEqual(newPricing);
+                expect(resp.body.pricingHistory).toEqual([{
+                    date: jasmine.any(String),
+                    userId: 'e2e-user',
+                    user: 'adsvce2euser',
+                    pricing: newPricing
+                }]);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
