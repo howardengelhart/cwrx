@@ -442,6 +442,7 @@ describe('content (UT)', function() {
                 host: 'cinema6.com',
                 hostApp: 'Mapsaurus',
                 network: 'pocketmath',
+                cb: '{cachebreaker}',
                 event: 'launch'
             });
         });

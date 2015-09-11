@@ -134,6 +134,7 @@ describe('content card endpoints (E2E):', function() {
                             host        : 'test.com',
                             hostApp     : 'Mapsaurus',
                             network     : 'pocketmath',
+                            cb          : '{cachebreaker}',
                             event       : obj.event
                         });
                     });
@@ -226,6 +227,7 @@ describe('content card endpoints (E2E):', function() {
                                 host        : 'test.com',
                                 hostApp     : 'Mapsaurus',
                                 network     : 'pocketmath',
+                                cb          : '{cachebreaker}',
                                 event       : 'link.' + prop
                             });
                         });
