@@ -46,7 +46,8 @@
             event       : event
         };
         
-        return cardModule.config.trackingPixel + '?' + querystring.stringify(qps);
+        return cardModule.config.trackingPixel + '?' + querystring.stringify(qps) +
+                                                       '&cb={cachebreaker}';
     };
     
     // Adds tracking pixels to card.campaign, initializing arrays if needed

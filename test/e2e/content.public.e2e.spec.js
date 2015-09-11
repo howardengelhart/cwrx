@@ -66,6 +66,7 @@ describe('content public experience endpoints (E2E):', function() {
                         host        : 'clickhole.com',
                         hostApp     : 'Mapsaurus',
                         network     : 'pocketmath',
+                        cb          : '{cachebreaker}',
                         event       : 'launch'
                     });
 
@@ -522,6 +523,7 @@ describe('content public experience endpoints (E2E):', function() {
                                 host        : 'clickhole.com',
                                 hostApp     : 'Mapsaurus',
                                 network     : 'pocketmath',
+                                cb          : '{cachebreaker}',
                                 event       : obj.event
                             });
                         });

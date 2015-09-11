@@ -589,7 +589,8 @@
         });
     };
     
-    campModule.handlePricingHistory = function(req, next/*, done*/) { //TODO: comment, test
+    // Initialize or update the pricingHistory property when the pricing changes
+    campModule.handlePricingHistory = function(req, next/*, done*/) {
         var orig = req.origObj || {};
             
         if (req.body.pricing && !objUtils.compareObjects(req.body.pricing, orig.pricing)) {

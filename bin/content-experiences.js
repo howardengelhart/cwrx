@@ -162,7 +162,7 @@
             event       : 'launch'
         };
         
-        var url = trackingPixel + '?' + querystring.stringify(qps);
+        var url = trackingPixel + '?' + querystring.stringify(qps) + '&cb={cachebreaker}';
         
         (exp.data.campaign.launchUrls || (exp.data.campaign.launchUrls = [])).push(url);
     };

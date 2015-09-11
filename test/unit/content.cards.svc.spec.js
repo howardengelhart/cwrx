@@ -92,6 +92,7 @@ describe('content-cards (UT)', function() {
                 host: 'cinema6.com',
                 hostApp: 'Mapsaurus',
                 network: 'pocketmath',
+                cb: '{cachebreaker}',
                 event: 'load'
             });
         });
@@ -128,6 +129,7 @@ describe('content-cards (UT)', function() {
                 host: 'cinema6.com',
                 hostApp: '',
                 network: '',
+                cb: '{cachebreaker}',
                 event: 'load'
             });
         });
