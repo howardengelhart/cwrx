@@ -1,7 +1,9 @@
 # Ads Service Changelog
 
+### 1.4.0: Mon Sep 14 14:20:07 EDT 2015
 * [FEATURE]: Set `pricingHistory` field on campaigns: [#495](https://github.com/cinema6/cwrx/issues/495)
 * [FIX]: Auth middleware will handle users with roles + policies: [#475](https://github.com/cinema6/cwrx/pull/475)
+* Extra deployment steps: None
 
 ### 1.3.3: Thu Aug 13 17:23:57 EDT 2015
 * [FEATURE]: Handle `application` field on campaigns: [#469](https://github.com/cinema6/cwrx/issues/469)
