@@ -12,21 +12,58 @@
 
 // TODO: consider some sort of middleware system here (CrudSvc or express) to modularize things
 
-    payModule.formatPaymentOutput = function(payment) {
-        //TODO: trim some fields, etc?
-        return payment;
+    payModule.formatPaymentOutput = function(orig) {
+        //TODO TODO: want to show campaignId or something here!
+        var formatted = {};
+        
+        ['id', 'status', 'type', 'amount', 'createdAt', 'updatedAt'].forEach(function(key) {
+            formatted[key] = orig[key];
+        });
+        
+        //TODO: anything to be done about missing default + timestamp fields?
+        if (orig.paymentInstrumentType === 'credit_card') {
+            formatted.method = payModule.formatMethodOutput(orig.creditCard);
+        } else {
+            formatted.method = payModule.formatMethodOutput(orig.paypal);
+        }
+        
+        return formatted;
     };
     
-    payModule.formatMethodOutput = function(method) {
-        //TODO: trim some fields, etc?
-        return method;
+    payModule.formatMethodOutput = function(orig) {
+        var formatted = {};
+        
+        ['token', 'createdAt', 'updatedAt', 'imageUrl', 'default'].forEach(function(key) {
+            formatted[key] = orig[key];
+        });
+        
+        formatted.type = !!orig.cardType ? 'creditCard' : 'paypal';
+        
+        if (formatted.type === 'creditCard') {
+            ['cardType', 'cardholderName', 'expirationDate', 'last4'].forEach(function(key) {
+                formatted[key] = orig[key];
+            });
+        } else {
+            formatted.email = orig.email;
+        }
+        
+        return formatted;
     };
     
-    payModule.fetchOrg = function(orgSvc, req, res, next) {
+    payModule.fetchOrg = function(required, orgSvc, req, res, next) {
         var log = logger.getLog();
         
-        log.trace('[%1] Fetching org %2', req.uuid, req.params.orgId);
-        return orgSvc.getObjs({ id: String(req.params.orgId) }, req, false)
+        if (!req.query.org) {
+            if (!!required) {
+                log.info('[%1] Required query param org not provided', req.uuid);
+                return res.send(400, 'org query param is required');
+            } else {
+                return next();
+            }
+        }
+        
+        log.trace('[%1] Fetching org %2', req.uuid, String(req.query.org));
+        return orgSvc.getObjs({ id: String(req.query.org) }, req, false)
         .then(function(resp) {
             if (resp.code !== 200) {
                 return res.send(resp.code, resp.body);
@@ -36,8 +73,8 @@
             next();
         })
         .catch(function(error) {
-            log.error('[%1] Error fetching org %2 for payment endpoint: %3',
-                      req.uuid, req.params.orgId, error && error.stack || error);
+            log.error('[%1] Error fetching org %2 for payment service: %3',
+                      req.uuid, req.query.org, error && error.stack || error);
             res.send(500, {
                 error: 'Error retrieving org',
                 detail: error
@@ -98,10 +135,16 @@
     payModule.createCustomerWithMethod = function(gateway, orgSvc, req) {
         var log = logger.getLog();
         
-        return q.npost(gateway.customer, 'create', [{
+        var newCust = {
             company: req.org.name, //TODO: can we fill in any other customer fields?
             paymentMethodNonce: req.body.paymentMethodNonce
-        }])
+        };
+        
+        if (req.body.cardholderName) {
+            newCust.creditCard = { cardholderName: req.body.cardholderName };
+        }
+        
+        return q.npost(gateway.customer, 'create', [newCust])
         .then(function(result) {
             if (!result.success) { //TODO: should eventually handle + 4xx for some results
                 return q.reject({ message: result.message, errors: result.errors });
@@ -117,7 +160,7 @@
                 req.org.id
             ).then(function() {
                 return q({
-                    code: 200,
+                    code: 201,
                     body: payModule.formatMethodOutput(result.customer.paymentMethods[0])
                 });
             });
@@ -148,7 +191,11 @@
         
         return q.npost(gateway.paymentMethod, 'create', [{
             customerId: req.org.braintreeCustomer,
-            paymentMethodNonce: req.body.paymentMethodNonce
+            cardholderName: req.body.cardholderName || undefined,
+            paymentMethodNonce: req.body.paymentMethodNonce,
+            options: {
+                makeDefault: !!req.body.makeDefault
+            }
         }])
         .then(function(result) {
             if (!result.success) {
@@ -158,7 +205,7 @@
             log.info('[%1] Successfully created payment method %2 for BT customer %3',
                      req.uuid, result.paymentMethod.token, req.org.braintreeCustomer);
             return q({
-                code: 200,
+                code: 201,
                 body: payModule.formatMethodOutput(result.paymentMethod)
             });
         })
@@ -184,7 +231,7 @@
         
         if (!req.org.braintreeCustomer) {
             log.info('[%1] No BT customer for org %2, not editing anything', req.uuid, req.org.id);
-            return q({ code: 400, body: 'No payment methods for this org' });
+            return q({ code: 404, body: 'No payment methods for this org' });
         }
         
         return q.npost(gateway.customer, 'find', [req.org.braintreeCustomer])
@@ -197,7 +244,7 @@
                 log.info('[%1] Payment method %2 does not exist for BT cust %3',
                          req.uuid, token, req.org.braintreeCustomer);
                 return q({
-                    code: 400,
+                    code: 404,
                     body: 'That payment method does not exist for this org'
                 });
             }
@@ -259,10 +306,7 @@
             if (!existsForCust) {
                 log.info('[%1] Payment method %2 does not exist for BT cust %3',
                          req.uuid, token, req.org.braintreeCustomer);
-                return q({
-                    code: 400,
-                    body: 'That payment method does not exist for this org'
-                });
+                return q({ code: 204 });
             }
             
             return q.npost(gateway.paymentMethod, 'delete', [token])
@@ -291,7 +335,6 @@
     };
 
 
-    // TODO: should this be able to just search for payments by org id, not requiring BT customer?
     payModule.getPayments = function(gateway, req) {
         var log = logger.getLog();
 
@@ -333,15 +376,14 @@
     
     payModule.setupEndpoints = function(app, orgSvc, gateway, sessions, audit, jobManager) {
         var router      = express.Router({ mergeParams: true }),
-            mountPath   = '/api/account/orgs?/:orgId/payments', // prefix to these endpoints
-            fetchOrg    = payModule.fetchOrg.bind(payModule, orgSvc);
+            mountPath   = '/api/payments', // prefix to these endpoints
+            fetchOrg    = payModule.fetchOrg.bind(payModule, true, orgSvc),  // org param required
+            fetchOrgOpt = payModule.fetchOrg.bind(payModule, false, orgSvc); // org param optional
             
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
-        //TODO TODO: FINISH FIGURING OUT WHY THESE JOBS AREN'T CANCELING TIMEOUTS PROPERLY
-
         var authGetOrg = authUtils.middlewarify({orgs: 'read'});
-        router.get('/clientToken', sessions, authGetOrg, fetchOrg, audit, function(req, res) {
+        router.get('/clientToken', sessions, authGetOrg, fetchOrgOpt, audit, function(req, res) {
             var promise = payModule.generateClientToken(gateway, req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -367,7 +409,7 @@
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {
-                    res.send(500, { error: 'Error generating clientToken',detail: error });
+                    res.send(500, { error: 'Error creating payment method', detail: error });
                 });
             });
         });
@@ -377,7 +419,7 @@
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {
-                    res.send(500, { error: 'Error generating clientToken',detail: error });
+                    res.send(500, { error: 'Error editing payment method', detail: error });
                 });
             });
         });
@@ -387,7 +429,7 @@
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {
-                    res.send(500, { error: 'Error generating clientToken',detail: error });
+                    res.send(500, { error: 'Error deleting payment method', detail: error });
                 });
             });
         });

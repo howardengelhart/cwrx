@@ -50,6 +50,7 @@
                 retryConnect : true
             }
         },
+        braintreeEnv: 'Sandbox', //TODO: cookbook, reconsider? put in secrets?
         pubsub: {
             cacheCfg: {
                 port: 21211,
@@ -78,7 +79,7 @@
         log.info('Running as cluster worker, proceed with setting up web server.');
         
         var gateway = braintree.connect({
-            environment : braintree.Environment.Sandbox, //TODO: make configurable
+            environment : braintree.Environment[state.config.braintreeEnv],
             merchantId  : state.secrets.braintree.merchantId,
             publicKey   : state.secrets.braintree.publicKey,
             privateKey  : state.secrets.braintree.privateKey
@@ -182,11 +183,8 @@
 
         app.use(bodyParser.json());
 
-        /*TODO: payModule's endpoints are matched by orgModule's router, so its endpoints must be
-         added first so jobTimeouts won't get set twice. Consider changing payModule's endpoints?*/
         payModule.setupEndpoints(app, orgSvc, gateway, sessWrap, audit, jobManager);
         orgModule.setupEndpoints(app, orgSvc, sessWrap, audit, jobManager);
-        
 
         app.use(function(err, req, res, next) {
             if (err) {

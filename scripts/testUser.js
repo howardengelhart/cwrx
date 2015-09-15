@@ -101,11 +101,7 @@ mongoUtils.connect(program.dbHost, program.dbPort, 'c6Db', program.dbUser, progr
     
     return q.npost(userColl, 'findOne', [{ $or: [{id: program.id}, {email: program.email}] }])
     .then(function(existing) {
-        if (existing) {
-            throw new Error('A user already exists with id ' + program.id + ' or email ' + program.email);
-        }
-        
-        console.log('Creating user', program.id, 'with email', program.email, 'and password "password"');
+        console.log('Creating/updating user', program.id, 'with email', program.email, 'and password "password"');
         
         var userPerms = program.perms === 'all' ? allEntities : program.perms.split(',').filter(function(objName) {
             return allEntities.some(function(perm) { return perm === objName; });
@@ -130,8 +126,8 @@ mongoUtils.connect(program.dbHost, program.dbPort, 'c6Db', program.dbUser, progr
         setupUserSvcFieldVal(policy);
         setupOrgSvcFieldVal(policy);
 
-        return q.npost(db.collection('policies'), 'findAndModify', [{id: 'p-testAdmin'}, {id: 1}, policy,
-                                                                    {w: 1, journal: true, new: true, upsert: true}]);
+        return q.npost(db.collection('policies'), 'findAndModify', [{ id: 'p-testAdmin'}, {id: 1}, policy,
+                                                                    { w: 1, journal: true, new: true, upsert: true }]);
     }).then(function(policy) {
         console.log('Created/updated policy p-testAdmin');
         
@@ -145,10 +141,11 @@ mongoUtils.connect(program.dbHost, program.dbPort, 'c6Db', program.dbUser, progr
             policies: ['testFullAdmin']
         };
         
-        return q.npost(userColl, 'insert', [mongoUtils.escapeKeys(newUser), {w: 1, journal: true}]);
+        return q.npost(userColl, 'findAndModify', [{ id: program.id}, {id: 1}, mongoUtils.escapeKeys(newUser),
+                                                   { w: 1, journal: true, new: true, upsert: true }]);
     })
     .then(function() {
-        console.log('Successfully created user', program.id);
+        console.log('Successfully created/updated user', program.id);
     });
 })
 .catch(function(error) {
