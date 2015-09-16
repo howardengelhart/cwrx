@@ -7,10 +7,35 @@
         logger          = require('../lib/logger'),
         authUtils       = require('../lib/authUtils'),
         mongoUtils      = require('../lib/mongoUtils'),
+        Status          = require('../lib/enums').Status,
         
         payModule = {}; // for exporting functions to unit tests
 
-// TODO: consider some sort of middleware system here (CrudSvc or express) to modularize things
+    payModule.extendSvc = function(orgSvc, gateway) {
+        var fetchOrgRequired = payModule.fetchOrg.bind(payModule, true, orgSvc),
+            fetchOrgOptional = payModule.fetchOrg.bind(payModule, false, orgSvc),
+            canEditOrg = payModule.canEditOrg.bind(payModule, orgSvc),
+            getExistingPayMethod = payModule.getExistingPayMethod.bind(payModule, gateway);
+            
+        orgSvc.use('getClientToken', fetchOrgOptional);
+        
+        orgSvc.use('getPaymentMethods', fetchOrgRequired);
+        
+        orgSvc.use('createPaymentMethod', fetchOrgRequired);
+        orgSvc.use('createPaymentMethod', canEditOrg);
+
+        orgSvc.use('editPaymentMethod', fetchOrgRequired);
+        orgSvc.use('editPaymentMethod', canEditOrg);
+        orgSvc.use('editPaymentMethod', getExistingPayMethod);
+
+        orgSvc.use('deletePaymentMethod', fetchOrgRequired);
+        orgSvc.use('deletePaymentMethod', canEditOrg);
+        orgSvc.use('deletePaymentMethod', getExistingPayMethod);
+        orgSvc.use('deletePaymentMethod', payModule.checkMethodInUse.bind(payModule, orgSvc));
+
+        orgSvc.use('getPayments', fetchOrgRequired);
+    };
+    
 
     payModule.formatPaymentOutput = function(orig) {
         //TODO TODO: want to show campaignId or something here!
@@ -50,15 +75,15 @@
         return formatted;
     };
     
-    payModule.fetchOrg = function(required, orgSvc, req, res, next) {
+    payModule.fetchOrg = function(required, orgSvc, req, next, done) {
         var log = logger.getLog();
         
         if (!req.query.org) {
             if (!!required) {
                 log.info('[%1] Required query param org not provided', req.uuid);
-                return res.send(400, 'org query param is required');
+                return q(done({ code: 400, body: 'org query param is required' }));
             } else {
-                return next();
+                return q(next());
             }
         }
         
@@ -66,69 +91,169 @@
         return orgSvc.getObjs({ id: String(req.query.org) }, req, false)
         .then(function(resp) {
             if (resp.code !== 200) {
-                return res.send(resp.code, resp.body);
+                return done(resp);
             }
             
             req.org = resp.body;
             next();
         })
-        .catch(function(error) {
+        .catch(function(error) { //TODO: hand-test this, i think you're gonna get like 3 errors
             log.error('[%1] Error fetching org %2 for payment service: %3',
                       req.uuid, req.query.org, error && error.stack || error);
-            res.send(500, {
-                error: 'Error retrieving org',
-                detail: error
-            });
+            return q.reject(error);
         });
     };
-    
-    payModule.generateClientToken = function(gateway, req) {
-        var log = logger.getLog(),
-            cfg = {};
-            
-        if (req.org.braintreeCustomer) {
-            cfg.customerId = req.org.braintreeCustomer;
+
+    payModule.canEditOrg = function(orgSvc, req, next, done) {
+        var log = logger.getLog();
+
+        if (!orgSvc.checkScope(req.user, req.org, 'edit')) {
+            log.info('[%1] Requester cannot edit org %2', req.uuid);
+            return done({ code: 403, body: 'Not authorized to edit this org' });
         }
         
-        return q.npost(gateway.clientToken, 'generate', [cfg])
-        .then(function(response) {
-            log.info(
-                '[%1] Successfully generated braintree client token for %2',
-                req.uuid,
-                cfg.customerId ? ('braintree customer ' + cfg.customerId) : 'new braintree customer'
-            );
-            return q({ code: 200, body: { clientToken: response.clientToken } });
+        next();
+    };
+    
+    payModule.getExistingPayMethod = function(gateway, req, next, done) {
+        var log = logger.getLog(),
+            token = req.params.token;
+
+        if (!req.org.braintreeCustomer) {
+            log.info('[%1] No BT customer for org %2, not making changes', req.uuid, req.org.id);
+            return done({ code: 400, body: 'No payment methods for this org' });
+        }
+        
+        return q.npost(gateway.customer, 'find', [req.org.braintreeCustomer])
+        .then(function(cust) {
+            var existing = (cust.paymentMethods || []).filter(function(method) {
+                return method.token === token;
+            })[0];
+
+            if (!existing) {
+                log.info('[%1] Payment method %2 does not exist for BT cust %3',
+                         req.uuid, token, req.org.braintreeCustomer);
+                         
+                if (req.method.toLowerCase() === 'delete') {
+                    return done({ code: 204 });
+                } else {
+                    return done({
+                        code: 404,
+                        body: 'That payment method does not exist for this org'
+                    });
+                }
+            }
+            
+            req.paymentMethod = existing;
+            
+            next();
         })
         .catch(function(error) {
-            log.error('[%1] Error generating braintree client token: %2',
-                      req.uuid, util.inspect(error));
-            return q.reject('Braintree error');
+            if (error && error.name === 'Not Found') {
+                log.warn('[%1] BT customer %2 on org %3 not found',
+                         req.uuid, req.org.braintreeCustomer, req.org.id);
+
+                return done({
+                    code: 400,
+                    body: 'Braintree customer for this org does not exist'
+                });
+            } else {
+                log.error('[%1] Error retrieving customer %2: %3',
+                          req.uuid, req.org.braintreeCustomer, util.inspect(error));
+                return q.reject(error);
+            }
+        });
+    };
+
+    payModule.checkMethodInUse = function(orgSvc, req, next, done) {
+        var log = logger.getLog(),
+            query = {
+                paymentMethod: req.paymentMethod.token,
+                status: { $nin: [Status.Deleted, Status.Expired, Status.Canceled] }
+            };
+            
+        return q.npost(orgSvc._db.collection('campaigns'), 'count', [query])
+        .then(function(campCount) {
+            if (campCount > 0) {
+                log.info('[%1] Payment Method %2 still used by %3 campaigns',
+                         req.uuid, req.paymentMethod.token, campCount);
+
+                return done({ code: 400, body: 'Payment method still in use by campaigns' });
+            }
+            
+            next();
+        })
+        .catch(function(error) {
+            log.error('[%1] Failed querying for campaigns: %2', req.uuid, error);
+            return q.reject(new Error('Mongo error'));
         });
     };
     
-    payModule.getPaymentMethods = function(gateway, req) {
+    payModule.handleValidationErrors = function(req, error) {
+        var log = logger.getLog();
+
+        if (/Credit card type is not accepted/.test(error && error.message)) {
+            log.info('[%1] Credit card type not accepted by our merchant account', req.uuid);
+            return q({ code: 400, body: 'Credit card type not accepted' });
+        }
+        //TODO: add in more cases
+        
+        return q.reject(error);
+    };
+
+
+
+    payModule.getClientToken = function(gateway, orgSvc, req) {
         var log = logger.getLog();
         
-        if (!req.org.braintreeCustomer) {
-            return q({ code: 200, body: [] });
-        }
-        
-        /*
-        return q.delay(6000).then(function() { //TODO: remove this
-            return q.npost(gateway.customer, 'find', [req.org.braintreeCustomer])
-        })*/
-        return q.npost(gateway.customer, 'find', [req.org.braintreeCustomer])
-        .then(function(customer) {
-            log.info('[%1] Successfully got BT customer %2', req.uuid, req.org.braintreeCustomer);
-            return q({
-                code: 200,
-                body: (customer.paymentMethods || []).map(payModule.formatMethodOutput)
+        return orgSvc.customMethod(req, 'getClientToken', function() {
+            var cfg = {};
+            
+            if (req.org && req.org.braintreeCustomer) {
+                cfg.customerId = req.org.braintreeCustomer;
+            }
+            
+            return q.npost(gateway.clientToken, 'generate', [cfg])
+            .then(function(response) {
+                var custMsg = cfg.customerId ? 'BT customer ' + cfg.customerId : 'new BT customer';
+
+                log.info(
+                    '[%1] Successfully generated braintree client token for %2',
+                    req.uuid,
+                    custMsg
+                );
+                return q({ code: 200, body: { clientToken: response.clientToken } });
+            })
+            .catch(function(error) {
+                log.error('[%1] Error generating braintree client token: %2',
+                          req.uuid, util.inspect(error));
+                return q.reject('Braintree error');
             });
-        })
-        .catch(function(error) {
-            log.error('[%1] Error fetching BT customer %2: %3',
-                      req.uuid, req.org.braintreeCustomer, util.inspect(error));
-            return q.reject('Braintree error');
+
+        });
+    };
+    
+    payModule.getPaymentMethods = function(gateway, orgSvc, req) {
+        var log = logger.getLog();
+        
+        return orgSvc.customMethod(req, 'getPaymentMethods', function() {
+            if (!req.org.braintreeCustomer) {
+                return q({ code: 200, body: [] });
+            }
+            
+            return q.npost(gateway.customer, 'find', [req.org.braintreeCustomer])
+            .then(function(customer) {
+                log.info('[%1] Successfully got BT customer %2', req.uuid, req.org.braintreeCustomer);
+                return q({
+                    code: 200,
+                    body: (customer.paymentMethods || []).map(payModule.formatMethodOutput)
+                });
+            })
+            .catch(function(error) {
+                log.error('[%1] Error fetching BT customer %2: %3',
+                          req.uuid, req.org.braintreeCustomer, util.inspect(error));
+                return q.reject('Braintree error');
+            });
         });
     };
     
@@ -146,7 +271,7 @@
         
         return q.npost(gateway.customer, 'create', [newCust])
         .then(function(result) {
-            if (!result.success) { //TODO: should eventually handle + 4xx for some results
+            if (!result.success) {
                 return q.reject({ message: result.message, errors: result.errors });
             }
         
@@ -165,6 +290,7 @@
                 });
             });
         })
+        .catch(payModule.handleValidationErrors.bind(payModule, req))
         .catch(function(error) {
             log.error('[%1] Error creating customer for org %2: %3',
                       req.uuid, req.org.id, util.inspect(error));
@@ -179,78 +305,59 @@
             log.info('[%1] Request has no paymentMethodNonce', req.uuid);
             return q({ code: 400, body: 'Must include a paymentMethodNonce' });
         }
-        
-        if (!orgSvc.checkScope(req.user, req.org, 'edit')) {
-            log.info('[%1] Requester cannot edit org %2', req.uuid);
-            return q({ code: 403, body: 'Not authorized to edit this org' });
-        }
-        
-        if (!req.org.braintreeCustomer) {
-            return payModule.createCustomerWithMethod(gateway, orgSvc, req);
-        }
-        
-        return q.npost(gateway.paymentMethod, 'create', [{
-            customerId: req.org.braintreeCustomer,
-            cardholderName: req.body.cardholderName || undefined,
-            paymentMethodNonce: req.body.paymentMethodNonce,
-            options: {
-                makeDefault: !!req.body.makeDefault
-            }
-        }])
-        .then(function(result) {
-            if (!result.success) {
-                return q.reject({ message: result.message, errors: result.errors });
-            }
 
-            log.info('[%1] Successfully created payment method %2 for BT customer %3',
-                     req.uuid, result.paymentMethod.token, req.org.braintreeCustomer);
-            return q({
-                code: 201,
-                body: payModule.formatMethodOutput(result.paymentMethod)
+        return orgSvc.customMethod(req, 'createPaymentMethod', function() {
+
+            if (!req.org.braintreeCustomer) {
+                return payModule.createCustomerWithMethod(gateway, orgSvc, req);
+            }
+            
+            return q.npost(gateway.paymentMethod, 'create', [{
+                customerId: req.org.braintreeCustomer,
+                cardholderName: req.body.cardholderName || undefined,
+                paymentMethodNonce: req.body.paymentMethodNonce,
+                options: {
+                    makeDefault: !!req.body.makeDefault
+                }
+            }])
+            .then(function(result) {
+                if (!result.success) {
+                    return q.reject({ message: result.message, errors: result.errors });
+                }
+
+                log.info('[%1] Successfully created payment method %2 for BT customer %3',
+                         req.uuid, result.paymentMethod.token, req.org.braintreeCustomer);
+                return q({
+                    code: 201,
+                    body: payModule.formatMethodOutput(result.paymentMethod)
+                });
+            })
+            .catch(payModule.handleValidationErrors.bind(payModule, req))
+            .catch(function(error) {
+                log.error('[%1] Error creating paymentMethod for BT customer %2: %3',
+                          req.uuid, req.org.braintreeCustomer, util.inspect(error));
+                return q.reject('Braintree error');
             });
-        })
-        .catch(function(error) {
-            log.error('[%1] Error creating paymentMethod for BT customer %2: %3',
-                      req.uuid, req.org.braintreeCustomer, util.inspect(error));
-            return q.reject('Braintree error');
         });
     };
     
-    payModule.editPaymentMethod = function(gateway, orgSvc, token, req) {
-        var log = logger.getLog();
+    payModule.editPaymentMethod = function(gateway, orgSvc, req) {
+        var log = logger.getLog(),
+            token = req.params.token;
         
         if (!req.body.paymentMethodNonce) {
             log.info('[%1] Request has no paymentMethodNonce', req.uuid);
             return q({ code: 400, body: 'Must include a paymentMethodNonce' });
         }
         
-        if (!orgSvc.checkScope(req.user, req.org, 'edit')) {
-            log.info('[%1] Requester cannot edit org %2', req.uuid);
-            return q({ code: 403, body: 'Not authorized to edit this org' });
-        }
-        
-        if (!req.org.braintreeCustomer) {
-            log.info('[%1] No BT customer for org %2, not editing anything', req.uuid, req.org.id);
-            return q({ code: 404, body: 'No payment methods for this org' });
-        }
-        
-        return q.npost(gateway.customer, 'find', [req.org.braintreeCustomer])
-        .then(function(cust) {
-            var existsForCust = (cust.paymentMethods || []).some(function(method) {
-                return method.token === token;
-            });
-            
-            if (!existsForCust) {
-                log.info('[%1] Payment method %2 does not exist for BT cust %3',
-                         req.uuid, token, req.org.braintreeCustomer);
-                return q({
-                    code: 404,
-                    body: 'That payment method does not exist for this org'
-                });
-            }
-            
+        return orgSvc.customMethod(req, 'editPaymentMethod', function() {
+
             return q.npost(gateway.paymentMethod, 'update', [token, {
-                paymentMethodNonce: req.body.paymentMethodNonce
+                cardholderName: req.body.cardholderName || undefined,
+                paymentMethodNonce: req.body.paymentMethodNonce,
+                options: {
+                    makeDefault: !!req.body.makeDefault
+                }
             }])
             .then(function(result) {
                 if (!result.success) {
@@ -263,128 +370,88 @@
                     code: 200,
                     body: payModule.formatMethodOutput(result.paymentMethod)
                 });
+            })
+            .catch(payModule.handleValidationErrors.bind(payModule, req))
+            .catch(function(error) {
+                log.error('[%1] Error editing payment method %2: %3',
+                          req.uuid, token, util.inspect(error));
+                return q.reject('Braintree error');
             });
-        }, function(error) {
-            if (error && error.name === 'Not Found') { //TODO: should this actually be log.error?
-                log.warn('[%1] BT customer %2 on org %3 not found',
-                         req.uuid, req.org.braintreeCustomer, req.org.id);
-                return q({
-                    code: 400,
-                    body: 'Braintree customer for this org does not exist'
-                });
-            } else {
-                return q.reject(error);
-            }
-        })
-        .catch(function(error) {
-            log.error('[%1] Error editing payment method %2: %3',
-                      req.uuid, token, util.inspect(error));
-            return q.reject('Braintree error');
         });
     };
     
-    //TODO: what happens to transactions/campaigns that will use this payment method?
-    payModule.deletePaymentMethod = function(gateway, orgSvc, token, req) {
-        var log = logger.getLog();
+    payModule.deletePaymentMethod = function(gateway, orgSvc, req) {
+        var log = logger.getLog(),
+            token = req.params.token;
         
-        if (!orgSvc.checkScope(req.user, req.org, 'edit')) {
-            log.info('[%1] Requester cannot edit org %2', req.uuid);
-            return q({ code: 403, body: 'Not authorized to edit this org' });
-        }
-        
-        if (!req.org.braintreeCustomer) {
-            log.info('[%1] No BT customer for org %2, not deleting anything', req.uuid, req.org.id);
-            return q({ code: 400, body: 'No payment methods for this org' });
-        }
-        
-        return q.npost(gateway.customer, 'find', [req.org.braintreeCustomer])
-        .then(function(cust) {
-            var existsForCust = (cust.paymentMethods || []).some(function(method) {
-                return method.token === token;
-            });
-            
-            if (!existsForCust) {
-                log.info('[%1] Payment method %2 does not exist for BT cust %3',
-                         req.uuid, token, req.org.braintreeCustomer);
-                return q({ code: 204 });
-            }
+        return orgSvc.customMethod(req, 'deletePaymentMethod', function() {
             
             return q.npost(gateway.paymentMethod, 'delete', [token])
             .then(function() {
                 log.info('[%1] Successfully deleted payment method %2 for BT customer %3',
                          req.uuid, token, req.org.braintreeCustomer);
                 return q({ code: 204 });
+            })
+            .catch(function(error) {
+                log.error('[%1] Error deleting payment method %2: %3',
+                          req.uuid, token, util.inspect(error));
+                return q.reject('Braintree error');
             });
-        }, function(error) {
-            if (error && error.name === 'Not Found') { //TODO: should this actually be log.error?
-                log.warn('[%1] BT customer %2 on org %3 not found',
-                         req.uuid, req.org.braintreeCustomer, req.org.id);
-                return q({
-                    code: 400,
-                    body: 'Braintree customer for this org does not exist'
-                });
-            } else {
-                return q.reject(error);
-            }
-        })
-        .catch(function(error) {
-            log.error('[%1] Error deleting payment method %2: %3',
-                      req.uuid, token, util.inspect(error));
-            return q.reject('Braintree error');
         });
     };
 
 
-    payModule.getPayments = function(gateway, req) {
+    payModule.getPayments = function(gateway, orgSvc, req) {
         var log = logger.getLog();
+        
+        return orgSvc.customMethod(req, 'getPayments', function() {
 
-        if (!req.org.braintreeCustomer) {
-            log.info('[%1] No braintreeCustomer for org %2, so no payments to show',
-                     req.uuid, req.org.id);
-            return q({ code: 200, body: [] });
-        }
-        
-        var streamDeferred = q.defer(),
-            results = [];
+            if (!req.org.braintreeCustomer) {
+                log.info('[%1] No braintreeCustomer for org %2, so no payments to show',
+                         req.uuid, req.org.id);
+                return q({ code: 200, body: [] });
+            }
+            
+            var streamDeferred = q.defer(),
+                results = [];
 
-        //TODO: handle pagination...
-        var stream = gateway.transaction.search(function(search) {
-            search.customerId().is(req.org.braintreeCustomer);
-            //TODO: other filters here? dates? statuses?
-        });
+            var stream = gateway.transaction.search(function(search) {
+                search.customerId().is(req.org.braintreeCustomer);
+                //TODO: other filters here? dates? statuses?
+            });
+            
+            stream.on('data', function(result) {
+                results.push(payModule.formatPaymentOutput(result));
+            })
+            .on('error', function(error) {
+                streamDeferred.reject('Error streaming transaction data: ' + util.inspect(error));
+            })
+            .on('end', function() {
+                streamDeferred.resolve();
+            });
+            
+            return streamDeferred.promise.then(function() {
+                log.info('[%1] Received %2 transaction records for BT customer %3',
+                         req.uuid, results.length, req.org.braintreeCustomer);
+                return q({ code: 200, body: results });
+            })
+            .catch(function(error) {
+                log.error('[%1] Error generating braintree client token: %2', req.uuid, error);
+                return q.reject('Braintree error');
+            });
         
-        stream.on('data', function(result) {
-            results.push(payModule.formatPaymentOutput(result));
-        })
-        .on('error', function(error) {
-            streamDeferred.reject('Error streaming transaction data: ' + util.inspect(error));
-        })
-        .on('end', function() {
-            streamDeferred.resolve();
-        });
-        
-        return streamDeferred.promise.then(function() {
-            log.info('[%1] Received %2 transaction records for BT customer %3',
-                     req.uuid, results.length, req.org.braintreeCustomer);
-            return q({ code: 200, body: results });
-        })
-        .catch(function(error) {
-            log.error('[%1] Error generating braintree client token: %2', req.uuid, error);
-            return q.reject('Braintree error');
         });
     };
     
     payModule.setupEndpoints = function(app, orgSvc, gateway, sessions, audit, jobManager) {
         var router      = express.Router({ mergeParams: true }),
-            mountPath   = '/api/payments', // prefix to these endpoints
-            fetchOrg    = payModule.fetchOrg.bind(payModule, true, orgSvc),  // org param required
-            fetchOrgOpt = payModule.fetchOrg.bind(payModule, false, orgSvc); // org param optional
+            mountPath   = '/api/payments'; // prefix to these endpoints
             
         router.use(jobManager.setJobTimeout.bind(jobManager));
         
         var authGetOrg = authUtils.middlewarify({orgs: 'read'});
-        router.get('/clientToken', sessions, authGetOrg, fetchOrgOpt, audit, function(req, res) {
-            var promise = payModule.generateClientToken(gateway, req);
+        router.get('/clientToken', sessions, authGetOrg, audit, function(req, res) {
+            var promise = payModule.getClientToken(gateway, orgSvc, req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {
@@ -393,8 +460,8 @@
             });
         });
 
-        router.get('/methods?/', sessions, authGetOrg, fetchOrg, audit, function(req, res) {
-            var promise = payModule.getPaymentMethods(gateway, req);
+        router.get('/methods?/', sessions, authGetOrg, audit, function(req, res) {
+            var promise = payModule.getPaymentMethods(gateway, orgSvc, req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {
@@ -404,7 +471,7 @@
         });
         
         var authPutOrg = authUtils.middlewarify({orgs: 'edit'});
-        router.post('/methods?/', sessions, authPutOrg, fetchOrg, audit, function(req, res) {
+        router.post('/methods?/', sessions, authPutOrg, audit, function(req, res) {
             var promise = payModule.createPaymentMethod(gateway, orgSvc, req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
@@ -414,8 +481,8 @@
             });
         });
 
-        router.put('/methods?/:token', sessions, authPutOrg, fetchOrg, audit, function(req, res) {
-            var promise = payModule.editPaymentMethod(gateway, orgSvc, req.params.token, req);
+        router.put('/methods?/:token', sessions, authPutOrg, audit, function(req, res) {
+            var promise = payModule.editPaymentMethod(gateway, orgSvc, req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {
@@ -424,8 +491,8 @@
             });
         });
         
-        router.delete('/methods?/:token', sessions, authPutOrg, fetchOrg, audit, function(req, res) {
-            var promise = payModule.deletePaymentMethod(gateway, orgSvc, req.params.token, req);
+        router.delete('/methods?/:token', sessions, authPutOrg, audit, function(req, res) {
+            var promise = payModule.deletePaymentMethod(gateway, orgSvc, req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {
@@ -434,8 +501,8 @@
             });
         });
         
-        router.get('/', sessions, authGetOrg, fetchOrg, audit, function(req, res) {
-            var promise = payModule.getPayments(gateway, req);
+        router.get('/', sessions, authGetOrg, audit, function(req, res) {
+            var promise = payModule.getPayments(gateway, orgSvc, req);
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {

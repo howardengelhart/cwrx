@@ -86,13 +86,13 @@
         });
             
         var app          = express(),
-            users        = state.dbs.c6Db.collection('users'),
-            orgs         = state.dbs.c6Db.collection('orgs'),
-            orgSvc       = orgModule.setupSvc(orgs, users, gateway),
+            orgSvc       = orgModule.setupSvc(state.dbs.c6Db, gateway),
             jobManager   = new JobManager(state.cache, state.config.jobTimeouts),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._db = state.dbs.c6Db;
+        
+        payModule.extendSvc(orgSvc, gateway);
         
         var sessionOpts = {
             key: state.config.sessions.key,
@@ -118,10 +118,8 @@
         var audit = auditJournal.middleware.bind(auditJournal);
 
         state.dbStatus.c6Db.on('reconnected', function() {
-            users = state.dbs.c6Db.collection('users');
-            orgs  = state.dbs.c6Db.collection('orgs');
-            orgSvc._coll = orgs;
-            orgSvc._userColl = users;
+            orgSvc._coll = state.dbs.c6Db.collection('orgs');
+            orgSvc._db = state.dbs.c6Db;
             authUtils._db = state.dbs.c6Db;
             log.info('Recreated collections from restarted c6Db');
         });

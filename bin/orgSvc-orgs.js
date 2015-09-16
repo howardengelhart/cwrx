@@ -47,11 +47,11 @@
         }
     };
 
-    orgModule.setupSvc = function(coll, userColl, gateway) {
+    orgModule.setupSvc = function(db, gateway) {
         var opts = { userProp: false, orgProp: false },
-            svc = new CrudSvc(coll, 'o', opts, orgModule.orgSchema);
+            svc = new CrudSvc(db.collection('orgs'), 'o', opts, orgModule.orgSchema);
             
-        svc._userColl = userColl;
+        svc._db = db;
         
         svc.userPermQuery = orgModule.userPermQuery;
         svc.checkScope = orgModule.checkScope;
@@ -145,7 +145,7 @@
         var log = logger.getLog(),
             query = { org: req.params.id, status: { $ne: Status.Deleted } };
 
-        return q.npost(svc._userColl.find(query), 'count')
+        return q.npost(svc._db.collection('users').find(query), 'count')
         .then(function(count) {
             if (count > 0) {
                 log.info('[%1] Can\'t delete org %2 since it still has %3 active users',
