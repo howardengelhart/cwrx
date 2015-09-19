@@ -1356,6 +1356,15 @@ describe('ads-campaigns (UT)', function() {
             ]);
             expect(nextSpy).toHaveBeenCalledWith();
         });
+
+        it('should delete the existing pricingHistory off req.body', function() {
+            req.body = {
+                pricingHistory: [{ pricing: 'yes', userId: 'u-3', user: 'me@c6.com', date: new Date() }]
+            };
+            campModule.handlePricingHistory(req, nextSpy, doneSpy);
+            expect(req.body.pricingHistory).not.toBeDefined();
+            expect(nextSpy).toHaveBeenCalledWith();
+        });
     });
 
     describe('sendDeleteRequest', function() {

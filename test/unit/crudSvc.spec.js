@@ -397,6 +397,15 @@ describe('CrudSvc', function() {
             ]);
             expect(nextSpy).toHaveBeenCalledWith();
         });
+        
+        it('should delete the existing statusHistory off req.body', function() {
+            req.body = {
+                statusHistory: [{ status: Status.Inactive, userId: 'u-3', user: 'me@c6.com', date: new Date() }]
+            };
+            svc.handleStatusHistory(req, nextSpy, doneSpy);
+            expect(req.body.statusHistory).not.toBeDefined();
+            expect(nextSpy).toHaveBeenCalledWith();
+        });
     });
     
     describe('checkExisting', function() {
