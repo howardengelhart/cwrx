@@ -133,6 +133,7 @@ mongoUtils.connect(program.dbHost, program.dbPort, 'c6Db', program.dbUser, progr
         
         var newUser = {
             id: program.id,
+            org: 'o-test',
             created: new Date(),
             lastUpdated: new Date(),
             email: program.email,

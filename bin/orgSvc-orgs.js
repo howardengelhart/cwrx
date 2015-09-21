@@ -55,7 +55,7 @@
         
         svc.userPermQuery = orgModule.userPermQuery;
         svc.checkScope = orgModule.checkScope;
-        
+
         svc.use('read', svc.preventGetAll.bind(svc));
 
         svc.use('create', orgModule.createPermCheck);
@@ -168,14 +168,34 @@
         
         return q.npost(gateway.customer, 'delete', [req.origObj.braintreeCustomer])
         .then(function() {
-            log.info('[%1] Successfully deleted BT customer %2 on org %3',
-                     req.uuid, req.origObj.braintreeCustomer, req.origObj.id);
+            log.info(
+                '[%1] Successfully deleted BT customer %2 on org %3',
+                 req.uuid,
+                 req.origObj.braintreeCustomer,
+                 req.origObj.id
+             );
             return q(next());
         })
         .catch(function(error) {
-            log.error('[%1] Error deleting BT customer %2 on org %3: %4',
-                     req.uuid, req.origObj.braintreeCustomer, req.origObj.id, util.inspect(error));
-            return q.reject('Braintree error');
+            if (error && error.name === 'notFoundError') {
+                log.warn(
+                    '[%1] BT customer %2 on org %3 not found',
+                    req.uuid,
+                    req.origObj.braintreeCustomer,
+                    req.origObj.id
+                );
+
+                return q(next());
+            } else {
+                log.error(
+                    '[%1] Error deleting BT customer %2 on org %3: %4',
+                     req.uuid,
+                     req.origObj.braintreeCustomer,
+                     req.origObj.id,
+                     util.inspect(error)
+                 );
+                return q.reject('Braintree error');
+            }
         });
     };
 
