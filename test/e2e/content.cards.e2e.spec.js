@@ -104,7 +104,8 @@ describe('content card endpoints (E2E):', function() {
                         adtechId: 10,
                         bannerId: 1,
                         campaign: {
-                            clickUrls: [jasmine.any(String)],
+                            viewUrls: [jasmine.any(String)],
+                            playUrls: [jasmine.any(String)],
                             loadUrls: [jasmine.any(String)],
                             countUrls: [jasmine.any(String)],
                             q1Urls: [jasmine.any(String)],
@@ -115,7 +116,8 @@ describe('content card endpoints (E2E):', function() {
                     });
                     
                     [
-                        { prop: 'clickUrls', event: 'click' },
+                        { prop: 'viewUrls', event: 'cardView' },
+                        { prop: 'playUrls', event: 'play' },
                         { prop: 'loadUrls', event: 'load' },
                         { prop: 'countUrls', event: 'completedView' },
                         { prop: 'q1Urls', event: 'q1' },
@@ -126,7 +128,8 @@ describe('content card endpoints (E2E):', function() {
                         var parsed = urlUtils.parse(resp.body.campaign[obj.prop][0], true, true);
                         expect(parsed.host).toBeDefined();
                         expect(parsed.pathname).toBeDefined();
-                        expect(parsed.query).toEqual({
+
+                        var expectedQuery = {
                             campaign    : 'cam-1',
                             card        : 'e2e-pubget1',
                             experience  : '',
@@ -136,7 +139,11 @@ describe('content card endpoints (E2E):', function() {
                             network     : 'pocketmath',
                             cb          : '{cachebreaker}',
                             event       : obj.event
-                        });
+                        };
+                        if (obj.prop === 'playUrls') {
+                            expectedQuery.pd = '{playDelay}';
+                        }
+                        expect(parsed.query).toEqual(expectedQuery);
                     });
 
                     expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
@@ -161,7 +168,7 @@ describe('content card endpoints (E2E):', function() {
                         campaign: jasmine.any(Object)
                     });
                     
-                    ['clickUrls', 'loadUrls', 'countUrls', 'q1Urls', 'q2Urls', 'q3Urls', 'q4Urls'].forEach(function(prop) {
+                    ['viewUrls', 'playUrls', 'loadUrls', 'countUrls', 'q1Urls', 'q2Urls', 'q3Urls', 'q4Urls'].forEach(function(prop) {
                         var parsed = urlUtils.parse(resp.body.campaign[prop][0], true, true);
                         expect(parsed.query.experience).toBe('e-1');
                     });
