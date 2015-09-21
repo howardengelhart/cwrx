@@ -1,5 +1,9 @@
 # Ads Service Changelog
 
+### 1.4.1: Sat Sep 19 13:12:16 EDT 2015
+* [FIX]: Ensure `pricingHistory` and `statusHistory` cannot be changed directly by client: [#501](https://github.com/cinema6/cwrx/pull/501)
+* Extra deployment steps: None
+
 ### 1.4.0: Mon Sep 14 14:20:07 EDT 2015
 * [FEATURE]: Set `pricingHistory` field on campaigns: [#495](https://github.com/cinema6/cwrx/issues/495)
 * [FIX]: Auth middleware will handle users with roles + policies: [#475](https://github.com/cinema6/cwrx/pull/475)

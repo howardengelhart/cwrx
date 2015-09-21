@@ -592,6 +592,8 @@
     // Initialize or update the pricingHistory property when the pricing changes
     campModule.handlePricingHistory = function(req, next/*, done*/) {
         var orig = req.origObj || {};
+        
+        delete req.body.pricingHistory;
             
         if (req.body.pricing && !objUtils.compareObjects(req.body.pricing, orig.pricing)) {
             req.body.pricingHistory = orig.pricingHistory || [];
