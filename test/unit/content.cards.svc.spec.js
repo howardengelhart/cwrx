@@ -133,6 +133,24 @@ describe('content-cards (UT)', function() {
                 event: 'load'
             });
         });
+        
+        it('should add a playDelay param if the event is play', function() {
+            var url = cardModule.formatUrl(card, req, 'play'),
+                parsed = urlUtils.parse(url, true, true);
+                
+            expect(parsed.query).toEqual({
+                campaign: 'cam-1',
+                card: 'rc-1',
+                experience: 'e-1',
+                container: 'embed',
+                host: 'cinema6.com',
+                hostApp: 'Mapsaurus',
+                network: 'pocketmath',
+                cb: '{cachebreaker}',
+                pd: '{playDelay}',
+                event: 'play'
+            });
+        });
     });
     
     describe('setupTrackingPixels', function() {
@@ -151,7 +169,8 @@ describe('content-cards (UT)', function() {
                 id          : 'rc-1',
                 campaignId  : 'cam-1',
                 campaign    : {
-                    clickUrls   : [ 'track.png?event=click' ],
+                    viewUrls    : [ 'track.png?event=cardView' ],
+                    playUrls    : [ 'track.png?event=play' ],
                     loadUrls    : [ 'track.png?event=load' ],
                     countUrls   : [ 'track.png?event=completedView' ],
                     q1Urls      : [ 'track.png?event=q1' ],
@@ -164,7 +183,8 @@ describe('content-cards (UT)', function() {
         
         it('should not overwrite any existing pixels', function() {
             card.campaign = {
-                clickUrls   : [ 'click.me' ],
+                viewUrls    : [ 'view.me' ],
+                playUrls    : [ 'play.me' ],
                 loadUrls    : [ 'load.me' ],
                 countUrls   : [ 'count.me' ],
                 q1Urls      : [ 'q1.me' ],
@@ -177,7 +197,8 @@ describe('content-cards (UT)', function() {
                 id          : 'rc-1',
                 campaignId  : 'cam-1',
                 campaign    : {
-                    clickUrls   : [ 'click.me', 'track.png?event=click' ],
+                    viewUrls    : [ 'view.me', 'track.png?event=cardView' ],
+                    playUrls    : [ 'play.me', 'track.png?event=play' ],
                     loadUrls    : [ 'load.me', 'track.png?event=load' ],
                     countUrls   : [ 'count.me', 'track.png?event=completedView' ],
                     q1Urls      : [ 'q1.me', 'track.png?event=q1' ],
@@ -202,7 +223,8 @@ describe('content-cards (UT)', function() {
                     id          : 'rc-1',
                     campaignId  : 'cam-1',
                     campaign    : {
-                        clickUrls   : [ 'track.png?event=click' ],
+                        viewUrls    : [ 'track.png?event=cardView' ],
+                        playUrls    : [ 'track.png?event=play' ],
                         loadUrls    : [ 'track.png?event=load' ],
                         countUrls   : [ 'track.png?event=completedView' ],
                         q1Urls      : [ 'track.png?event=q1' ],

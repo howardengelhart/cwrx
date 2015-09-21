@@ -1,5 +1,9 @@
 # Content Service Changelog
 
+### 2.0.1: Mon Sep 21 10:49:44 EDT 2015
+* Update tracking pixels with viewUrls + playUrls: [#502](https://github.com/cinema6/cwrx/issues/502)
+* Extra deployment steps: None
+
 ### 2.0.0: Wed Sep 16 17:09:59 EDT 2015
 * [FEATURE]: Pass extra tracking links on publicly retrieved cards + experiences: [#493](https://github.com/cinema6/cwrx/issues/493)
     * [BREAKING CHANGE]: format of `links` on publicly returned cards has changed

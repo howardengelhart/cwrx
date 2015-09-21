@@ -504,7 +504,8 @@ describe('content public experience endpoints (E2E):', function() {
                         }
 
                         [
-                            { prop: 'clickUrls', event: 'click' },
+                            { prop: 'viewUrls', event: 'cardView' },
+                            { prop: 'playUrls', event: 'play' },
                             { prop: 'loadUrls', event: 'load' },
                             { prop: 'countUrls', event: 'completedView' },
                             { prop: 'q1Urls', event: 'q1' },
@@ -515,7 +516,8 @@ describe('content public experience endpoints (E2E):', function() {
                             var parsed = urlUtils.parse(card.campaign[obj.prop][0], true, true);
                             expect(parsed.host).toBeDefined();
                             expect(parsed.pathname).toBeDefined();
-                            expect(parsed.query).toEqual({
+
+                            var expectedQuery = {
                                 campaign    : 'e2e-cam1',
                                 card        : cardId,
                                 experience  : 'e2e-getcamps1',
@@ -525,7 +527,11 @@ describe('content public experience endpoints (E2E):', function() {
                                 network     : 'pocketmath',
                                 cb          : '{cachebreaker}',
                                 event       : obj.event
-                            });
+                            };
+                            if (obj.prop === 'playUrls') {
+                                expectedQuery.pd = '{playDelay}';
+                            }
+                            expect(parsed.query).toEqual(expectedQuery);
                         });
                     });
                 }).catch(function(error) {
