@@ -13,7 +13,7 @@ jasmine.getEnv().defaultTimeoutInterval = 30000;
 
 describe('userSvc users (E2E):', function() {
     var cookieJar, adminJar, mockRequester, mockAdmin, testPolicies;
-        
+
     beforeEach(function(done) {
         if (cookieJar && cookieJar.cookies && adminJar && adminJar.cookies) {
             return done();
@@ -23,7 +23,7 @@ describe('userSvc users (E2E):', function() {
         mockRequester = {
             id: 'e2e-user',
             status: 'active',
-            email : 'usersvce2euser',
+            email : 'usersvce2euser@gmail.com',
             password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
             org: 'o-1234',
             policies: ['manageOrgUsers']
@@ -92,7 +92,7 @@ describe('userSvc users (E2E):', function() {
             url: config.authUrl + '/login',
             jar: cookieJar,
             json: {
-                email: 'usersvce2euser',
+                email: 'usersvce2euser@gmail.com',
                 password: 'password'
             }
         };
@@ -116,7 +116,7 @@ describe('userSvc users (E2E):', function() {
             done();
         });
     });
-    
+
     describe('GET /api/account/users/:id', function() {
         var mockUsers, options;
         beforeEach(function(done) {
@@ -130,7 +130,7 @@ describe('userSvc users (E2E):', function() {
                 done();
             });
         });
-        
+
         it('should get a user by id', function(done) {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -162,12 +162,12 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         describe('if decorated=true', function() {
             beforeEach(function() {
                 options.qs = { decorated: true };
             });
-            
+
             it('should decorate the user with permissions', function(done) {
                 options.url = config.usersUrl + '/e2e-user';
                 requestUtils.qRequest('get', options).then(function(resp) {
@@ -201,7 +201,7 @@ describe('userSvc users (E2E):', function() {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
-            
+
             it('should not do anything for non-200 responses', function(done) {
                 options.url = config.usersUrl + '/u-e2e-get2';
                 requestUtils.qRequest('get', options).then(function(resp) {
@@ -212,7 +212,7 @@ describe('userSvc users (E2E):', function() {
                 }).done(done);
             });
         });
-        
+
         it('should return a 404 if the requester cannot see the user', function(done) {
             options.url = config.usersUrl + '/u-e2e-get2';
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -229,7 +229,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 404 if nothing is found', function(done) {
             options.url = config.usersUrl + '/e2e-fake1';
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -239,7 +239,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should not show deleted users', function(done) {
             options.url = config.usersUrl + '/u-e2e-get3';
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -249,7 +249,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 401 error if the user is not authenticated', function(done) {
             delete options.jar;
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -260,7 +260,7 @@ describe('userSvc users (E2E):', function() {
             }).done(done);
         });
     });
-    
+
     describe('GET /api/account/users', function() {
         var mockUsers, options;
         beforeEach(function(done) {
@@ -274,7 +274,7 @@ describe('userSvc users (E2E):', function() {
             options = { url: config.usersUrl + '/', qs: { sort: 'id,1' }, jar: cookieJar };
             testUtils.resetCollection('users', mockUsers.concat([mockRequester, mockAdmin])).done(done);
         });
-        
+
         it('should get users by org', function(done) {
             options.qs.org = 'o-1234';
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -314,7 +314,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should get users by a list of ids', function(done) {
             options.qs.ids = 'u-e2e-get1,u-e2e-get2';
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -327,7 +327,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should get users by policy', function(done) {
             options.qs.policy = 'pol2';
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -351,7 +351,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should be able to sort and paginate the results', function(done) {
             options.qs.org = 'o-1234';
             options.qs.limit = 2;
@@ -373,7 +373,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should prevent a non-admin user from getting all users', function(done) {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
@@ -383,7 +383,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should allow admins to get all users', function(done) {
             options.jar = adminJar;
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -417,7 +417,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should prevent mongo query selector injection attacks', function(done) {
             q.all(['org', 'ids', 'policy', 'role'].map(function(field) {
                 options.qs = {};
@@ -447,7 +447,7 @@ describe('userSvc users (E2E):', function() {
             }).done(done);
         });
     });
-    
+
     describe('POST /api/account/users', function() {
         var mockUser, mockRoles, mockPols, options;
         beforeEach(function(done) {
@@ -476,7 +476,7 @@ describe('userSvc users (E2E):', function() {
                 done();
             });
         });
-        
+
         it('should be able to create a user', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
@@ -517,7 +517,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should lowercase the new email', function(done) {
             options.json.email = 'TestPostUser';
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -543,7 +543,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 409 error if a user with that email exists', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
@@ -556,7 +556,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 400 if some of the roles or policies do not exist', function(done) {
             mockUser.roles.push('role4');
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -572,7 +572,7 @@ describe('userSvc users (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 400 if the user cannot pass some of the roles or policies', function(done) {
             mockUser.roles.push('role3');
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -588,7 +588,7 @@ describe('userSvc users (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should let some users pass any existent roles or policies', function(done) {
             options.jar = adminJar;
             options.json.roles = ['role1', 'role2', 'role3'];
@@ -601,7 +601,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should trim off forbidden fields', function(done) {
             mockUser.org = 'o-4567';
             mockUser.permissions = { cards: { read: 'all' } };
@@ -619,7 +619,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 401 error if the user is not authenticated', function(done) {
             delete options.jar;
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -630,7 +630,7 @@ describe('userSvc users (E2E):', function() {
             }).done(done);
         });
     });
-    
+
     describe('PUT /api/account/users/:id', function() {
         var mockUsers, mockRoles, mockPols, options;
         beforeEach(function(done) {
@@ -686,7 +686,7 @@ describe('userSvc users (E2E):', function() {
                 done();
             });
         });
-        
+
         it('should successfully update a user', function(done) {
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -741,7 +741,7 @@ describe('userSvc users (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 400 if the user cannot pass some of the roles or policies', function(done) {
             options.json.roles.push('role3');
             requestUtils.qRequest('put', options).then(function(resp) {
@@ -757,7 +757,7 @@ describe('userSvc users (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should let some users pass any existent roles or policies', function(done) {
             options.jar = adminJar;
             options.json.roles = ['role1', 'role2', 'role3'];
@@ -800,7 +800,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 404 if the user does not exist', function(done) {
             options.url = config.usersUrl + '/u-e2e-fake';
             requestUtils.qRequest('put', options).then(function(resp) {
@@ -810,7 +810,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 403 if the requester is not authorized to edit the user', function(done) {
             options.url = config.usersUrl + '/u-e2e-put2';
             requestUtils.qRequest('put', options).then(function(resp) {
@@ -826,7 +826,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 401 error if the user is not authenticated', function(done) {
             delete options.jar;
             requestUtils.qRequest('put', options).then(function(resp) {
@@ -837,7 +837,7 @@ describe('userSvc users (E2E):', function() {
             }).done(done);
         });
     });
-    
+
     describe('DELETE /api/account/users/:id', function() {
         var mockUsers;
         beforeEach(function(done) {
@@ -848,7 +848,7 @@ describe('userSvc users (E2E):', function() {
             ];
             testUtils.resetCollection('users', mockUsers.concat([mockRequester, mockAdmin])).done(done);
         });
-        
+
         it('should successfully mark a user as deleted', function(done) {
             var options = { url: config.usersUrl + '/u-e2e-del1', jar: cookieJar };
             requestUtils.qRequest('delete', options).then(function(resp) {
@@ -884,7 +884,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should still return a 204 if the user does not exist', function(done) {
             var options = { url: config.usersUrl + '/u-e2e-fake', jar: cookieJar };
             requestUtils.qRequest('delete', options).then(function(resp) {
@@ -894,7 +894,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should still return a 204 if the user has already been deleted', function(done) {
             var options = { url: config.usersUrl + '/u-e2e-del3', jar: cookieJar };
             requestUtils.qRequest('delete', options).then(function(resp) {
@@ -904,7 +904,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should not allow a user to delete themselves', function(done) {
             var options = { url: config.usersUrl + '/e2e-user', jar: cookieJar };
             requestUtils.qRequest('delete', options).then(function(resp) {
@@ -919,7 +919,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 403 if the requester is not authorized to delete the user', function(done) {
             var options = { url: config.usersUrl + '/u-e2e-del2', jar: cookieJar };
             requestUtils.qRequest('delete', options).then(function(resp) {
@@ -939,7 +939,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-    
+
         it('should return a 401 error if the user is not authenticated', function(done) {
             var options = { url: config.usersUrl + '/e2e-fake' };
             requestUtils.qRequest('delete', options).then(function(resp) {
@@ -950,7 +950,7 @@ describe('userSvc users (E2E):', function() {
             }).done(done);
         });
     });
-    
+
     describe('POST /api/account/users/email', function() {
         var mockUser, reqBody, options;
         beforeEach(function(done) {
@@ -987,7 +987,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should fail if the user\'s email is invalid', function(done) {
             reqBody.email = 'mynewemail';
             options.json = reqBody;
@@ -998,7 +998,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should fail if the user\'s password is invalid', function(done) {
             reqBody.password = 'thisisnotapassword';
             options.json = reqBody;
@@ -1009,7 +1009,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should prevent mongo query selector injection attacks', function(done) {
             reqBody.email = { $gt: '' };
             options.json = reqBody;
@@ -1020,9 +1020,9 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should fail if a user with that email already exists', function(done) {
-            options.json.newEmail = 'usersvce2euser';
+            options.json.newEmail = 'usersvce2euser@gmail.com';
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(409);
                 expect(resp.body).toBe('An object with that email already exists');
@@ -1030,7 +1030,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should change the user\'s email successfully', function(done) {
             var mailman = new testUtils.Mailman();
             mailman.start().then(function() {
@@ -1114,7 +1114,7 @@ describe('userSvc users (E2E):', function() {
             });
         });
     });
-    
+
     describe('POST /api/account/users/password', function() {
         var user, reqBody, options;
         beforeEach(function(done) {
@@ -1162,7 +1162,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should fail if the current password is invalid', function(done) {
             reqBody.password = 'thisisnotapassword';
             options.json = reqBody;
@@ -1184,7 +1184,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should change the user\'s password successfully', function(done) {
             var mailman = new testUtils.Mailman();
             mailman.start().then(function() {
@@ -1260,13 +1260,13 @@ describe('userSvc users (E2E):', function() {
             });
         });
     });
-    
+
     describe('POST /api/account/users/logout/:id', function() {
         afterEach(function() { // deletes cookies, forcing re-login in first beforeEach
             cookieJar = null;
             adminJar = null;
         });
-        
+
         it('should logout another user\'s active sessions', function(done) {
             var statusOpts = { url: config.authUrl + '/status', jar: cookieJar },
                 logoutOpts = { url: config.usersUrl + '/logout/e2e-user', jar: adminJar };
@@ -1305,7 +1305,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should let a user log themselves out', function(done) {
             var statusOpts = { url: config.authUrl + '/status', jar: adminJar },
                 logoutOpts = { url: config.usersUrl + '/logout/e2e-admin-user', jar: adminJar };
@@ -1319,7 +1319,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should not allow a non-admin to logout another user', function(done) {
             var statusOpts = { url: config.authUrl + '/status', jar: adminJar },
                 logoutOpts = { url: config.usersUrl + '/logout/e2e-admin-user', jar: cookieJar };
@@ -1333,7 +1333,7 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 401 error if the user is not authenticated', function(done) {
             var statusOpts = { url: config.authUrl + '/status', jar: cookieJar },
                 logoutOpts = { url: config.usersUrl + '/logout/e2e-user' };
@@ -1344,6 +1344,54 @@ describe('userSvc users (E2E):', function() {
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
             }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+    });
+
+    describe('GET /api/account/user/validEmail', function() {
+        it('should respond with information about if a given email address is valid', function(done) {
+            var requestOpts = { url: config.usersUrl + '/validEmail', jar: cookieJar, qs: { email: 'JohnnyTestMonkey@gmail.com' } };
+            requestUtils.qRequest('', requestOpts).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBe(true);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should respond with a status code of 400 if the provided email is taken', function(done) {
+            var requestOpts = { url: config.usersUrl + '/validEmail', jar: cookieJar, qs: { email: 'usersvce2euser@gmail.com' } };
+            requestUtils.qRequest('', requestOpts).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.response.body).toBe('Invalid email address');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should respond with a status code of 400 if the required email query param is not specified', function(done) {
+            var requestOpts = { url: config.usersUrl + '/validEmail', jar: cookieJar };
+            requestUtils.qRequest('', requestOpts).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.response.body).toBe('Must provide an email');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should respond with a status code of 400 if the provided email is not an email', function(done) {
+            var testCases = ['not an email', 'StillNotAnEmail', 'AlmostAnEmail@NotQuite', 'DefinitelyAnEmail@justkidding.foo'];
+            var promises = testCases.map(function(testCase) {
+                var requestOpts = { url: config.usersUrl + '/validEmail', jar: cookieJar, qs: { email: testCase} };
+                return requestUtils.qRequest('', requestOpts);
+            });
+            q.all(promises).then(function(responses) {
+                responses.forEach(function(resp) {
+                    expect(resp.response.statusCode).toBe(400);
+                    expect(resp.response.body).toBe("Invalid email address");
+                });
+            }).catch(function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });

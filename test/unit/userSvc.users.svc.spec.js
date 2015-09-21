@@ -36,14 +36,14 @@ describe('userSvc (UT)', function() {
         nextSpy = jasmine.createSpy('next()');
         doneSpy = jasmine.createSpy('done()');
         errorSpy = jasmine.createSpy('caught error');
-        
+
         mockDb = {
             collection: jasmine.createSpy('db.collection()').andCallFake(function(objName) {
                 return { collectionName: objName };
             })
         };
     });
-    
+
     describe('setupSvc', function() {
         var result;
 
@@ -126,17 +126,17 @@ describe('userSvc (UT)', function() {
             expect(result._middleware.create).toContain(getBoundFn(result.validateUniqueProp, [result, 'email', null]));
             expect(result._middleware.create.indexOf(getBoundFn(result.validateUniqueProp, [result, 'email', null]))).toBeGreaterThan(result._middleware.create.indexOf(userModule.setupUser));
         });
-        
+
         it('should do additional validation for roles on create and edit', function() {
             expect(userModule.validateRoles.bind).toHaveBeenCalledWith(userModule, result);
             expect(result._middleware.create).toContain(getBoundFn(userModule.validateRoles, [userModule, result]));
         });
-        
+
         it('should do additional validation for policies on create and edit', function() {
             expect(userModule.validatePolicies.bind).toHaveBeenCalledWith(userModule, result);
             expect(result._middleware.create).toContain(getBoundFn(userModule.validatePolicies, [userModule, result]));
         });
-        
+
         it('should do additional validation for the password on create and edit', function() {
             expect(result._middleware.create).toContain(userModule.validatePassword);
             expect(result._middleware.edit).toContain(userModule.validatePassword);
@@ -169,7 +169,7 @@ describe('userSvc (UT)', function() {
             expect(result.userPermQuery).toBe(userModule.userPermQuery);
         });
     });
-    
+
     describe('user validation', function() {
         var svc, newObj, origObj, requester;
         beforeEach(function() {
@@ -178,26 +178,26 @@ describe('userSvc (UT)', function() {
             origObj = {};
             requester = { fieldValidation: { users: {} } };
         });
-        
+
         describe('when handling email', function() {
             it('should fail if the field is not a string', function() {
                 newObj.email = 123;
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: false, reason: 'email must be in format: string' });
             });
-            
+
             it('should allow the field to be set on create', function() {
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: true });
                 expect(newObj).toEqual({ email: 'test@me.com', password: 'pass' });
             });
-            
+
             it('should fail if the field is not defined', function() {
                 delete newObj.email;
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: false, reason: 'Missing required field: email' });
             });
-            
+
             it('should pass if the field was defined on the original object', function() {
                 origObj.email = 'old value';
                 delete newObj.email;
@@ -205,7 +205,7 @@ describe('userSvc (UT)', function() {
                     .toEqual({ isValid: true });
                 expect(newObj.email).toEqual('old value');
             });
-            
+
             it('should revert the field on edit', function() {
                 origObj.email = 'old value';
                 requester.fieldValidation.users.email = { __unchangeable: false };
@@ -221,13 +221,13 @@ describe('userSvc (UT)', function() {
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: false, reason: 'password must be in format: string' });
             });
-            
+
             it('should allow the field to be set on create', function() {
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: true });
                 expect(newObj).toEqual({ email: 'test@me.com', password: 'pass' });
             });
-            
+
             it('should pass if the field is not defined on edit', function() {
                 delete newObj.password;
                 expect(svc.model.validate('edit', newObj, origObj, requester))
@@ -245,7 +245,7 @@ describe('userSvc (UT)', function() {
                         .toEqual({ isValid: true });
                     expect(newObj).toEqual({ email: 'test@me.com', password: 'pass' });
                 });
-                
+
                 it('should not allow any requesters to set the field', function() {
                     requester.fieldValidation.users[field] = { __allowed: true };
                     newObj[field] = { foo: 'bar' };
@@ -265,7 +265,7 @@ describe('userSvc (UT)', function() {
                         .toEqual({ isValid: true });
                     expect(newObj).toEqual({ email: 'test@me.com', password: 'pass' });
                 });
-                
+
                 it('should be able to allow some requesters to set the field', function() {
                     newObj[field] = ['thing1', 'thing2'];
                     requester.fieldValidation.users[field] = {
@@ -277,7 +277,7 @@ describe('userSvc (UT)', function() {
                         .toEqual({ isValid: true });
                     expect(newObj[field]).toEqual(['thing1', 'thing2']);
                 });
-                
+
                 it('should fail if the field is not an array of strings', function() {
                     newObj[field] = [{ name: 'thing1' }, { name: 'thing2' }];
                     requester.fieldValidation.users[field] = {
@@ -288,7 +288,7 @@ describe('userSvc (UT)', function() {
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: false, reason: field + ' must be in format: stringArray' });
                 });
-                
+
                 it('should fail if the field does not contain acceptable values', function() {
                     newObj[field] = ['thing1', 'thing4'];
                     requester.fieldValidation.users[field] = {
@@ -437,7 +437,7 @@ describe('userSvc (UT)', function() {
                 expect(next).toHaveBeenCalledWith();
             });
         });
-        
+
         describe('if the user has no policies', function() {
             beforeEach(function() {
                 next.reset();
@@ -455,7 +455,7 @@ describe('userSvc (UT)', function() {
             });
         });
     });
-    
+
     describe('hashProp(prop, req, next, done)', function() {
         var prop, req, next, done;
         var success, failure;
@@ -570,7 +570,7 @@ describe('userSvc (UT)', function() {
             });
         });
     });
-    
+
     describe('validateRoles(svc, req, next, done)', function() {
         var roleColl, roles, svc;
         beforeEach(function() {
@@ -590,7 +590,7 @@ describe('userSvc (UT)', function() {
             mockDb.collection.andReturn(roleColl);
             req.body = { roles: ['role1', 'role2', 'role3'] };
         });
-        
+
         it('should call next if all roles on the request body exist', function(done) {
             userModule.validateRoles(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
@@ -606,7 +606,7 @@ describe('userSvc (UT)', function() {
                 done();
             });
         });
-        
+
         it('should skip if there are no roles on the request body', function(done) {
             delete req.body.roles;
             userModule.validateRoles(svc, req, nextSpy, doneSpy).catch(errorSpy);
@@ -618,7 +618,7 @@ describe('userSvc (UT)', function() {
                 done();
             });
         });
-        
+
         it('should call done with a 400 if not all roles are found', function(done) {
             req.body.roles.push('role4', 'role5');
             userModule.validateRoles(svc, req, nextSpy, doneSpy).catch(errorSpy);
@@ -633,7 +633,7 @@ describe('userSvc (UT)', function() {
                 done();
             });
         });
-        
+
         it('should reject if mongo fails', function(done) {
             roleColl.find.andReturn({ toArray: function(cb) { cb('I GOT A PROBLEM'); } });
             userModule.validateRoles(svc, req, nextSpy, doneSpy).catch(errorSpy);
@@ -667,7 +667,7 @@ describe('userSvc (UT)', function() {
             mockDb.collection.andReturn(polColl);
             req.body = { policies: ['pol1', 'pol2', 'pol3'] };
         });
-        
+
         it('should call next if all policies on the request body exist', function(done) {
             userModule.validatePolicies(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
@@ -683,7 +683,7 @@ describe('userSvc (UT)', function() {
                 done();
             });
         });
-        
+
         it('should skip if there are no policies on the request body', function(done) {
             delete req.body.policies;
             userModule.validatePolicies(svc, req, nextSpy, doneSpy).catch(errorSpy);
@@ -695,7 +695,7 @@ describe('userSvc (UT)', function() {
                 done();
             });
         });
-        
+
         it('should call done with a 400 if not all policies are found', function(done) {
             req.body.policies.push('pol4', 'pol5');
             userModule.validatePolicies(svc, req, nextSpy, doneSpy).catch(errorSpy);
@@ -710,7 +710,7 @@ describe('userSvc (UT)', function() {
                 done();
             });
         });
-        
+
         it('should reject if mongo fails', function(done) {
             polColl.find.andReturn({ toArray: function(cb) { cb('I GOT A PROBLEM'); } });
             userModule.validatePolicies(svc, req, nextSpy, doneSpy).catch(errorSpy);
@@ -1296,6 +1296,146 @@ describe('userSvc (UT)', function() {
             it('should call next()', function() {
                 expect(done).not.toHaveBeenCalled();
                 expect(next).toHaveBeenCalledWith();
+            });
+        });
+    });
+
+    describe('validEmail', function() {
+        var sv, req;
+
+        beforeEach(function() {
+            sv = {
+                _coll: mockDb.collection
+            };
+            req = {
+                query: {
+                    email: ''
+                }
+            };
+            spyOn(q, 'npost');
+        });
+
+        it('should reject the promise when an error occurs', function(done) {
+            q.npost.andReturn(q.reject('error'));
+            req.query.email = 'JohnnyTestMonkey@domain.com';
+            userModule.validEmail(sv, req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('error');
+            }).done(done);
+        });
+
+        describe('when a valid email is provided on the request body', function() {
+            var result;
+
+            beforeEach(function() {
+                q.npost.andReturn(q(0));
+
+                var testCases = [
+                    'email@example.com',
+                    'firstname.lastname@example.com',
+                    'email@subdomain.example.gov',
+                    'firstname+lastname@example.com',
+                    '1234567890@example.com',
+                    'email@example-one.net',
+                    '_______@example.com',
+                    'email@example.name',
+                    'email@example.museum',
+                    'firstname-lastname@example.com'
+                ];
+
+                var promises = testCases.map(function(testCase) {
+                    req.query.email = testCase;
+                    return userModule.validEmail(sv, req);
+                });
+                result = q.all(promises);
+            });
+
+            it('should resolve the promise with a 200 code', function(done) {
+                result.then(function(resps) {
+                    resps.forEach(function(resp) {
+                        expect(resp.code).toBe(200);
+                        expect(resp.body).toBe(true);
+                    });
+                }).catch(function(error) {
+                    expect(error).not.toBeDefined();
+                }).done(done);
+            });
+        });
+
+        describe('when an invalid email is provided on the request body', function() {
+            var result;
+
+            beforeEach(function() {
+
+                var testCases = [
+                    'plainaddress',
+                    '#@%^%#$@#$@#.com',
+                    '@example.com',
+                    'Joe Smith <email@example.com>',
+                    'email.example.com',
+                    'email@example@example.com',
+                    '.email@example.com',
+                    'email.@example.com',
+                    'email..email@example.com',
+                    'あいうえお@example.com',
+                    'email@example.com (Joe Smith)',
+                    'email@example',
+                    'email@-example.com',
+                    'email@example.web',
+                    'email@111.222.333.44444',
+                    'email@example..com',
+                    'Abc..123@example.com'
+                ];
+
+                var promises = testCases.map(function(testCase) {
+                    req.query.email = testCase;
+                    return userModule.validEmail(sv, req);
+                });
+                result = q.all(promises);
+            });
+
+            it('should resolve the promise with a 400 code', function(done) {
+                result.then(function(resps) {
+                    resps.forEach(function(resp) {
+                        expect(resp.code).toBe(400);
+                        expect(resp.body).toBe('Invalid email address');
+                    });
+                }).catch(function(error) {
+                    expect(error).not.toBeDefined();
+                }).done(done);
+            });
+        });
+
+        describe('when the email does not exist in the collection', function() {
+            beforeEach(function() {
+                req.query.email = 'JohnnyTestMonkey@domain.com';
+                q.npost.andReturn(q(0));
+            });
+
+            it('should resolve the promise with a 200 code and the correct body', function(done) {
+                userModule.validEmail(sv, req).then(function(resp) {
+                    expect(resp.code).toBe(200);
+                    expect(resp.body).toBe(true);
+                }).catch(function(error) {
+                    expect(error).not.toBeDefined();
+                }).done(done);
+            });
+        });
+
+        describe('when the email exists in the collection', function() {
+            beforeEach(function() {
+                req.query.email = 'JohnnyTestMonkey@domain.com';
+                q.npost.andReturn(q(1));
+            });
+
+            it('should resolve the promise with a 400 code and the correct body', function(done) {
+                userModule.validEmail(sv, req).then(function(resp) {
+                    expect(resp.code).toBe(400);
+                    expect(resp.body).toBe('Invalid email address');
+                }).catch(function(error) {
+                    expect(error).not.toBeDefined();
+                }).done(done);
             });
         });
     });
