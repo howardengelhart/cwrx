@@ -122,6 +122,69 @@ describe('player service', function() {
                     });
                 });
 
+                describe('__addResource__($document, src, type, contents)', function() {
+                    var data;
+                    var $orig;
+                    var $document, src, type, contents;
+                    var result;
+
+                    beforeEach(function() {
+                        data = { hello: 'world' };
+
+                        $orig = cheerio.load(playerHTML);
+                        $document = cheerio.load(playerHTML);
+                        src = 'http://portal.cinema6.com/api/public/content/experience/e-92160a770b81d5';
+                        type = 'application/json';
+                    });
+
+                    describe('if contents is a String', function() {
+                        beforeEach(function() {
+                            contents = JSON.stringify(data);
+
+                            result = Player.__addResource__($document, src, type, contents);
+                        });
+
+                        it('should return the $document', function() {
+                            expect(result).toBe($document);
+                        });
+
+                        it('should add a node to the $document', function() {
+                            expect($document('*').length).toBe($orig('*').length + 1);
+                        });
+
+                        it('should create a <script> for the resource', function() {
+                            var $script = $document('head > script[data-src="' + src + '"]');
+
+                            expect($script.length).toBe(1);
+                            expect($script.text()).toBe(contents);
+                            expect($script.attr('type')).toBe(type);
+                        });
+                    });
+
+                    describe('if contents is an Object', function() {
+                        beforeEach(function() {
+                            contents = data;
+
+                            result = Player.__addResource__($document, src, type, contents);
+                        });
+
+                        it('should return the $document', function() {
+                            expect(result).toBe($document);
+                        });
+
+                        it('should add a node to the $document', function() {
+                            expect($document('*').length).toBe($orig('*').length + 1);
+                        });
+
+                        it('should create a <script> for the resource', function() {
+                            var $script = $document('head > script[data-src="' + src + '"]');
+
+                            expect($script.length).toBe(1);
+                            expect($script.text()).toBe(JSON.stringify(contents));
+                            expect($script.attr('type')).toBe(type);
+                        });
+                    });
+                });
             });
         });
 

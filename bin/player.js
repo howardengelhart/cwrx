@@ -59,6 +59,19 @@ Player.__rebaseCSS__ = function __rebaseCSS__(css, base) {
     });
 };
 
+Player.__addResource__ = function __addResource__($document, src, type, contents) {
+    var $head = $document('head');
+    var text = (typeof contents === 'string') ? contents : JSON.stringify(contents);
+
+    var $script = $document('<script></script>');
+    $script.attr({ type: type, 'data-src': src });
+    $script.text(text);
+
+    $head.append($script);
+
+    return $document;
+};
+
 Player.prototype.__getExperience__ = function __getExperience__(id, params, origin, uuid) {
     var log = logger.getLog();
     var config = this.config;
