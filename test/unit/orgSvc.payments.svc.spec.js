@@ -1,14 +1,16 @@
 var flush = true;
 describe('orgSvc-payments (UT)', function() {
-    var payModule, orgModule, q, mockLog, mockLogger, logger, Model, enums, Status, Scope,
+    var payModule, orgModule, events, q, mockLog, mockLogger, logger, Model, mongoUtils, enums, Status, Scope,
         mockDb, mockGateway, mockPayment, mockPaymentMethod, orgSvc, req, nextSpy, doneSpy, errorSpy;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
+        events          = require('events')
         q               = require('q');
-        logger          = require('../../lib/logger');
         payModule       = require('../../bin/orgSvc-payments');
         orgModule       = require('../../bin/orgSvc-orgs');
+        logger          = require('../../lib/logger');
+        mongoUtils      = require('../../lib/mongoUtils');
         Model           = require('../../lib/model');
         enums           = require('../../lib/enums');
         Status          = enums.Status;
@@ -68,7 +70,7 @@ describe('orgSvc-payments (UT)', function() {
                 create: jasmine.createSpy('gateway.customer.create()'),
             },
             transaction: {
-                generate: jasmine.createSpy('gateway.transaction.search()')
+                search: jasmine.createSpy('gateway.transaction.search()')
             },
             clientToken: {
                 generate: jasmine.createSpy('gateway.clientToken.generate()')
@@ -84,6 +86,8 @@ describe('orgSvc-payments (UT)', function() {
         spyOn(orgSvc, 'customMethod').andCallFake(function(req, action, cb) {
             return cb();
         });
+        spyOn(payModule, 'formatMethodOutput').andCallThrough();
+        spyOn(payModule, 'handleBraintreeErrors').andCallThrough();
     });
     
     describe('extendSvc', function() {
@@ -660,7 +664,6 @@ describe('orgSvc-payments (UT)', function() {
             mockGateway.customer.find.andCallFake(function(cfg, cb) {
                 cb(null, mockCust);
             });
-            spyOn(payModule, 'formatMethodOutput').andCallThrough();
         });
         
         it('should get a customer and its payment methods', function(done) {
@@ -720,7 +723,7 @@ describe('orgSvc-payments (UT)', function() {
 
         it('should return the result of customMethod if it returns early', function(done) {
             orgSvc.customMethod.andReturn(q({ code: 400, body: 'Yo request is bad' }));
-            payModule.getClientToken(mockGateway, orgSvc, req).then(function(resp) {
+            payModule.getPaymentMethods(mockGateway, orgSvc, req).then(function(resp) {
                 expect(resp).toEqual({ code: 400, body: 'Yo request is bad' });
                 expect(mockGateway.customer.find).not.toHaveBeenCalled();
                 expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
@@ -765,22 +768,629 @@ describe('orgSvc-payments (UT)', function() {
     });
     
     describe('createCustomerWithMethod', function() {
-    
+        beforeEach(function() {
+            var mockCust = {
+                id: '123456',
+                paymentMethods: [
+                    { token: 'asdf1234', cardType: 'visa' }
+                ]
+            };
+            mockGateway.customer.create.andCallFake(function(cfg, cb) {
+                cb(null, { success: true, customer: mockCust });
+            });
+            spyOn(mongoUtils, 'editObject').andReturn(q());
+            req.org = { id: 'o-1', name: 'org 1' };
+            req.body = { paymentMethodNonce: 'thisislegit' };
+        });
+        
+        it('should create a new customer with the payment method', function(done) {
+            payModule.createCustomerWithMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp.code).toEqual(201);
+                expect(resp.body).toEqual({ token: 'asdf1234', type: 'creditCard', cardType: 'visa' });
+                expect(mockGateway.customer.create).toHaveBeenCalledWith({
+                    company: 'org 1',
+                    paymentMethodNonce: 'thisislegit'
+                }, jasmine.any(Function));
+                expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'orgs' }, { braintreeCustomer: '123456' }, 'o-1');
+                expect(payModule.formatMethodOutput).toHaveBeenCalledWith({ token: 'asdf1234', cardType: 'visa' });
+                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should include the cardholderName if defined', function(done) {
+            req.body.cardholderName = 'Johnny Testmonkey';
+            payModule.createCustomerWithMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp.code).toEqual(201);
+                expect(resp.body).toEqual({ token: 'asdf1234', type: 'creditCard', cardType: 'visa' });
+                expect(mockGateway.customer.create).toHaveBeenCalledWith({
+                    company: 'org 1',
+                    paymentMethodNonce: 'thisislegit',
+                    creditCard: {
+                        cardholderName: 'Johnny Testmonkey',
+                        options: {
+                            failOnDuplicatePaymentMethod: true
+                        }
+                    }
+                }, jasmine.any(Function));
+                expect(mongoUtils.editObject).toHaveBeenCalled();
+                expect(payModule.formatMethodOutput).toHaveBeenCalled();
+                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should reject if creating the customer returns an unsuccessful response', function(done) {
+            mockGateway.customer.create.andCallFake(function(id, cb) {
+                cb(null, { success: false, message: 'Not enough brains on trees' });
+            });
+            payModule.createCustomerWithMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error.toString()).toBe('Braintree error');
+                expect(mockGateway.customer.create).toHaveBeenCalled();
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
+                expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
+                expect(payModule.handleBraintreeErrors).toHaveBeenCalledWith(req,
+                    { success: false, message: 'Not enough brains on trees' });
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
+        });
+
+        it('should reject if creating the customer fails', function(done) {
+            mockGateway.customer.create.andCallFake(function(id, cb) {
+                cb('I GOT A PROBLEM');
+            });
+            payModule.createCustomerWithMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error.toString()).toBe('Braintree error');
+                expect(mockGateway.customer.create).toHaveBeenCalled();
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
+                expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
+                expect(payModule.handleBraintreeErrors).toHaveBeenCalledWith(req, 'I GOT A PROBLEM');
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should resolve if handleBraintreeErrors handles the error', function(done) {
+            payModule.handleBraintreeErrors.andReturn(q({code: 400, body: 'Your card is bad' }));
+            mockGateway.customer.create.andCallFake(function(id, cb) {
+                cb('I GOT A PROBLEM');
+            });
+            payModule.createCustomerWithMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp).toEqual({ code: 400, body: 'Your card is bad' });
+                expect(mockGateway.customer.create).toHaveBeenCalled();
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
+                expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
+                expect(payModule.handleBraintreeErrors).toHaveBeenCalledWith(req, 'I GOT A PROBLEM');
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should reject if editing the org fails', function(done) {
+            mongoUtils.editObject.andReturn(q.reject('I GOT A PROBLEM'));
+            payModule.createCustomerWithMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error.toString()).toBe('Braintree error');
+                expect(mockGateway.customer.create).toHaveBeenCalled();
+                expect(mongoUtils.editObject).toHaveBeenCalled();
+                expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
+        });
     });
     
     describe('createPaymentMethod', function() {
-    
+        beforeEach(function() {
+            mockGateway.paymentMethod.create.andCallFake(function(cfg, cb) {
+                cb(null, { success: true, paymentMethod: { token: 'asdf1234', cardType: 'visa' } });
+            });
+            spyOn(payModule, 'createCustomerWithMethod').andReturn(q(
+                { code: 201, body: { token: 'asdf1234', type: 'creditCard', cardType: 'visa' } }));
+            req.org = { id: 'o-1', braintreeCustomer: '123456' };
+            req.body = { paymentMethodNonce: 'thisislegit', makeDefault: true };
+        });
+        
+        it('should create a new payment method', function(done) {
+            payModule.createPaymentMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp.code).toEqual(201);
+                expect(resp.body).toEqual({ token: 'asdf1234', type: 'creditCard', cardType: 'visa' });
+                expect(orgSvc.customMethod).toHaveBeenCalledWith(req, 'createPaymentMethod', jasmine.any(Function));
+                expect(mockGateway.paymentMethod.create).toHaveBeenCalledWith({
+                    customerId: '123456',
+                    paymentMethodNonce: 'thisislegit',
+                    options: {
+                        makeDefault: true,
+                        failOnDuplicatePaymentMethod: true
+                    }
+                }, jasmine.any(Function));
+                expect(payModule.formatMethodOutput).toHaveBeenCalledWith({ token: 'asdf1234', cardType: 'visa' });
+                expect(payModule.createCustomerWithMethod).not.toHaveBeenCalled();
+                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should be able to pass in the cardholderName', function(done) {
+            req.body.cardholderName = 'Johnny Testmonkey';
+            req.body.makeDefault = false;
+            payModule.createPaymentMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp.code).toEqual(201);
+                expect(mockGateway.paymentMethod.create).toHaveBeenCalledWith({
+                    customerId: '123456',
+                    cardholderName: 'Johnny Testmonkey',
+                    paymentMethodNonce: 'thisislegit',
+                    options: {
+                        makeDefault: false,
+                        failOnDuplicatePaymentMethod: true
+                    }
+                }, jasmine.any(Function));
+                expect(payModule.formatMethodOutput).toHaveBeenCalled();
+                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should skip if the body has no paymentMethodNonce', function(done) {
+            delete req.body.paymentMethodNonce;
+            payModule.createPaymentMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp).toEqual({ code: 400, body: 'Must include a paymentMethodNonce' });
+                expect(orgSvc.customMethod).not.toHaveBeenCalled();
+                expect(mockGateway.paymentMethod.create).not.toHaveBeenCalled();
+                expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
+                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should skip if the body has an invalid cardholderName', function(done) {    
+            q.all([
+                { foo: 'bar' },
+                Array(176).join(',').split(',').map(function() { return 'a'; }).join('')
+            ].map(function(badName) {
+                var thisReq = JSON.parse(JSON.stringify(req));
+                thisReq.body.cardholderName = badName;
+                return payModule.createPaymentMethod(mockGateway, orgSvc, thisReq);
+            })).then(function(results) {
+                results.forEach(function(resp) {
+                    expect(resp).toEqual({ code: 400, body: 'Invalid cardholderName' });
+                });
+                expect(orgSvc.customMethod).not.toHaveBeenCalled();
+                expect(mockGateway.paymentMethod.create).not.toHaveBeenCalled();
+                expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
+                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should call createCustomerWithMethod if the org has no braintreeCustomer', function(done) {
+            delete req.org.braintreeCustomer;
+            payModule.createPaymentMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp.code).toEqual(201);
+                expect(resp.body).toEqual({ token: 'asdf1234', type: 'creditCard', cardType: 'visa' });
+                expect(orgSvc.customMethod).toHaveBeenCalled();
+                expect(mockGateway.paymentMethod.create).not.toHaveBeenCalled();
+                expect(payModule.createCustomerWithMethod).toHaveBeenCalledWith(mockGateway, orgSvc, req);
+                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return the result of customMethod if it returns early', function(done) {
+            orgSvc.customMethod.andReturn(q({ code: 400, body: 'Yo request is bad' }));
+            payModule.createPaymentMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp).toEqual({ code: 400, body: 'Yo request is bad' });
+                expect(mockGateway.paymentMethod.create).not.toHaveBeenCalled();
+                expect(payModule.createCustomerWithMethod).not.toHaveBeenCalled();
+                expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
+                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should reject if creating the payment method returns an unsuccessful response', function(done) {
+            mockGateway.paymentMethod.create.andCallFake(function(id, cb) {
+                cb(null, { success: false, message: 'Not enough brains on trees' });
+            });
+            payModule.createPaymentMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error.toString()).toBe('Braintree error');
+                expect(mockGateway.paymentMethod.create).toHaveBeenCalled();
+                expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
+                expect(payModule.handleBraintreeErrors).toHaveBeenCalledWith(req,
+                    { success: false, message: 'Not enough brains on trees' });
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should reject if creating the payment method fails', function(done) {
+            mockGateway.paymentMethod.create.andCallFake(function(id, cb) {
+                cb('I GOT A PROBLEM');
+            });
+            payModule.createPaymentMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error.toString()).toBe('Braintree error');
+                expect(mockGateway.paymentMethod.create).toHaveBeenCalled();
+                expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
+                expect(payModule.handleBraintreeErrors).toHaveBeenCalledWith(req, 'I GOT A PROBLEM');
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should reject if creating a customer is needed and fails', function(done) {
+            payModule.createCustomerWithMethod.andReturn(q.reject('I GOT A PROBLEM'));
+            delete req.org.braintreeCustomer;
+            payModule.createPaymentMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error.toString()).toBe('I GOT A PROBLEM');
+                expect(mockGateway.paymentMethod.create).not.toHaveBeenCalled();
+                expect(payModule.createCustomerWithMethod).toHaveBeenCalled();
+                expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
+                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should resolve if handleBraintreeError handles the error', function(done) {
+            payModule.handleBraintreeErrors.andReturn(q({code: 400, body: 'Your card is bad' }));
+            mockGateway.paymentMethod.create.andCallFake(function(id, cb) {
+                cb('I GOT A PROBLEM');
+            });
+            payModule.createPaymentMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp).toEqual({ code: 400, body: 'Your card is bad' });
+                expect(mockGateway.paymentMethod.create).toHaveBeenCalled();
+                expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
+                expect(payModule.handleBraintreeErrors).toHaveBeenCalledWith(req, 'I GOT A PROBLEM');
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
     });
     
     describe('editPaymentMethod', function() {
-    
+        beforeEach(function() {
+            mockGateway.paymentMethod.update.andCallFake(function(token, cfg, cb) {
+                cb(null, { success: true, paymentMethod: { token: 'asdf1234', cardType: 'visa' } });
+            });
+            req.org = { id: 'o-1', braintreeCustomer: '123456' };
+            req.body = { paymentMethodNonce: 'thisislegit', makeDefault: true };
+            req.params = { token: 'asdf1234' };
+        });
+        
+        it('should edit a payment method', function(done) {
+            payModule.editPaymentMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp.code).toEqual(200);
+                expect(resp.body).toEqual({ token: 'asdf1234', type: 'creditCard', cardType: 'visa' });
+                expect(orgSvc.customMethod).toHaveBeenCalledWith(req, 'editPaymentMethod', jasmine.any(Function));
+                expect(mockGateway.paymentMethod.update).toHaveBeenCalledWith('asdf1234', {
+                    paymentMethodNonce: 'thisislegit',
+                    options: {
+                        makeDefault: true,
+                        verifyCard: true
+                    }
+                }, jasmine.any(Function));
+                expect(payModule.formatMethodOutput).toHaveBeenCalledWith({ token: 'asdf1234', cardType: 'visa' });
+                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should be able to pass in a new cardholderName', function(done) {
+            req.body.cardholderName = 'Jenny Testmonkey';
+            req.body.makeDefault = false;
+            payModule.editPaymentMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp.code).toEqual(200);
+                expect(resp.body).toEqual({ token: 'asdf1234', type: 'creditCard', cardType: 'visa' });
+                expect(mockGateway.paymentMethod.update).toHaveBeenCalledWith('asdf1234', {
+                    cardholderName: 'Jenny Testmonkey',
+                    paymentMethodNonce: 'thisislegit',
+                    options: {
+                        makeDefault: false,
+                        verifyCard: true
+                    }
+                }, jasmine.any(Function));
+                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should skip if the body has no paymentMethodNonce', function(done) {
+            req.body = { cardholderName: 'Jenny Testmonkey' };
+            payModule.editPaymentMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp).toEqual({ code: 400, body: 'Must include a paymentMethodNonce' });
+                expect(orgSvc.customMethod).not.toHaveBeenCalled();
+                expect(mockGateway.paymentMethod.update).not.toHaveBeenCalled();
+                expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
+                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should skip if the body has an invalid cardholderName', function(done) {
+            q.all([
+                { foo: 'bar' },
+                Array(176).join(',').split(',').map(function() { return 'a'; }).join('')
+            ].map(function(badName) {
+                var thisReq = JSON.parse(JSON.stringify(req));
+                thisReq.body.cardholderName = badName;
+                return payModule.editPaymentMethod(mockGateway, orgSvc, thisReq);
+            })).then(function(results) {
+                results.forEach(function(resp) {
+                    expect(resp).toEqual({ code: 400, body: 'Invalid cardholderName' });
+                });
+                expect(orgSvc.customMethod).not.toHaveBeenCalled();
+                expect(mockGateway.paymentMethod.update).not.toHaveBeenCalled();
+                expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
+                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should allow a user to just make an existing method their default', function(done) {
+            req.body = { makeDefault: false };
+            payModule.editPaymentMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp.code).toEqual(200);
+                expect(resp.body).toEqual({ token: 'asdf1234', type: 'creditCard', cardType: 'visa' });
+                expect(mockGateway.paymentMethod.update).toHaveBeenCalledWith('asdf1234', {
+                    options: {
+                        makeDefault: false,
+                        verifyCard: false
+                    }
+                }, jasmine.any(Function));
+                expect(payModule.formatMethodOutput).toHaveBeenCalled();
+                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return the result of customMethod if it returns early', function(done) {
+            orgSvc.customMethod.andReturn(q({ code: 400, body: 'Yo request is bad' }));
+            payModule.editPaymentMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp).toEqual({ code: 400, body: 'Yo request is bad' });
+                expect(mockGateway.paymentMethod.update).not.toHaveBeenCalled();
+                expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
+                expect(payModule.handleBraintreeErrors).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should reject if editing the payment method returns an unsuccessful response', function(done) {
+            mockGateway.paymentMethod.update.andCallFake(function(token, cfg, cb) {
+                cb(null, { success: false, message: 'Not enough brains on trees' });
+            });
+            payModule.editPaymentMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error.toString()).toBe('Braintree error');
+                expect(mockGateway.paymentMethod.update).toHaveBeenCalled();
+                expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
+                expect(payModule.handleBraintreeErrors).toHaveBeenCalledWith(req,
+                    { success: false, message: 'Not enough brains on trees' });
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should reject if editing the payment method fails', function(done) {
+            mockGateway.paymentMethod.update.andCallFake(function(token, cfg, cb) {
+                cb('I GOT A PROBLEM');
+            });
+            payModule.editPaymentMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error.toString()).toBe('Braintree error');
+                expect(mockGateway.paymentMethod.update).toHaveBeenCalled();
+                expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
+                expect(payModule.handleBraintreeErrors).toHaveBeenCalledWith(req, 'I GOT A PROBLEM');
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
+        });
+        
+        it('should resolve if handleBraintreeError handles the error', function(done) {
+            payModule.handleBraintreeErrors.andReturn(q({code: 400, body: 'Your card is bad' }));
+            mockGateway.paymentMethod.update.andCallFake(function(token, cfg, cb) {
+                cb('I GOT A PROBLEM');
+            });
+            payModule.editPaymentMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp).toEqual({ code: 400, body: 'Your card is bad' });
+                expect(mockGateway.paymentMethod.update).toHaveBeenCalled();
+                expect(payModule.formatMethodOutput).not.toHaveBeenCalled();
+                expect(payModule.handleBraintreeErrors).toHaveBeenCalledWith(req, 'I GOT A PROBLEM');
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
     });
     
     describe('deletePaymentMethod', function() {
-    
+        beforeEach(function() {
+            mockGateway.paymentMethod.delete.andCallFake(function(token, cb) {
+                cb();
+            });
+            req.org = { id: 'o-1', braintreeCustomer: '123456' };
+            req.params = { token: 'asdf1234' };
+        });
+        
+        it('should successfully delete a payment method', function(done) {
+            payModule.deletePaymentMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp).toEqual({ code: 204 });
+                expect(orgSvc.customMethod).toHaveBeenCalledWith(req, 'deletePaymentMethod', jasmine.any(Function));
+                expect(mockGateway.paymentMethod.delete).toHaveBeenCalledWith('asdf1234', jasmine.any(Function));
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should return the result of customMethod if it returns early', function(done) {
+            orgSvc.customMethod.andReturn(q({ code: 400, body: 'Yo request is bad' }));
+            payModule.deletePaymentMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp).toEqual({ code: 400, body: 'Yo request is bad' });
+                expect(mockGateway.paymentMethod.delete).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should reject if deleting the payment method fails', function(done) {
+            mockGateway.paymentMethod.delete.andCallFake(function(token, cb) {
+                cb('I GOT A PROBLEM');
+            });
+            payModule.deletePaymentMethod(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error.toString()).toBe('Braintree error');
+                expect(mockGateway.paymentMethod.delete).toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
+        });
     });
     
     describe('getPayments', function() {
-    
+        var mockStream, mockSearch;
+        beforeEach(function() {
+            mockStream = new events.EventEmitter();
+            mockSearch = {
+                customerId: jasmine.createSpy('search.customerId()').andCallFake(function() { return mockSearch._customerId; }),
+                _customerId: {
+                    is: jasmine.createSpy('customerId().is()')
+                }
+            };
+            
+            mockGateway.transaction.search.andCallFake(function(queryCb) {
+                queryCb(mockSearch);
+                
+                process.nextTick(function() {
+                    mockStream.emit('data', {
+                        id: 'p1',
+                        amount: '10.00',
+                        paymentInstrumentType: 'credit_card',
+                        creditCard: { token: 'asdf1234', cardType: 'visa' }
+                    });
+                    mockStream.emit('data', {
+                        id: 'p2',
+                        amount: '20.00',
+                        paymentInstrumentType: 'paypal',
+                        paypal: { token: 'qwer5678', email: 'jen@test.com' }
+                    });
+                    mockStream.emit('end');
+                });
+
+                return mockStream;
+            });
+            spyOn(payModule, 'formatPaymentOutput').andCallThrough();
+            req.org = { id: 'o-1', braintreeCustomer: '123456' };
+        });
+        
+        it('should get payments for the org', function(done) {
+            payModule.getPayments(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp.code).toEqual(200);
+                expect(resp.body).toEqual([
+                    {
+                        id: 'p1',
+                        amount: '10.00',
+                        method: { token: 'asdf1234', type: 'creditCard', cardType: 'visa' }
+                    },
+                    {
+                        id: 'p2',
+                        amount: '20.00',
+                        method: { token: 'qwer5678', type: 'paypal', email: 'jen@test.com' }
+                    }
+                ]);
+                expect(orgSvc.customMethod).toHaveBeenCalledWith(req, 'getPayments', jasmine.any(Function));
+                expect(mockGateway.transaction.search).toHaveBeenCalledWith(jasmine.any(Function));
+                expect(mockSearch.customerId).toHaveBeenCalledWith();
+                expect(mockSearch._customerId.is).toHaveBeenCalledWith('123456');
+                expect(payModule.formatPaymentOutput.calls.length).toBe(2);
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a 200 and [] if the org has no braintreeCustomer', function(done) {
+            delete req.org.braintreeCustomer;
+            payModule.getPayments(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp).toEqual({ code: 200, body: [] });
+                expect(orgSvc.customMethod).toHaveBeenCalledWith(req, 'getPayments', jasmine.any(Function));
+                expect(mockGateway.transaction.search).not.toHaveBeenCalled();
+                expect(payModule.formatPaymentOutput).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return the result if customMethod if returns early', function(done) {
+            orgSvc.customMethod.andReturn(q({ code: 400, body: 'Yo request is bad' }));
+            payModule.getPayments(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp).toEqual({ code: 400, body: 'Yo request is bad' });
+                expect(orgSvc.customMethod).toHaveBeenCalledWith(req, 'getPayments', jasmine.any(Function));
+                expect(mockGateway.transaction.search).not.toHaveBeenCalled();
+                expect(payModule.formatPaymentOutput).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should reject if streaming the results encounters an error', function(done) {
+            mockGateway.transaction.search.andCallFake(function(queryCb) {
+                queryCb(mockSearch);
+                
+                process.nextTick(function() {
+                    mockStream.emit('error', 'I GOT A PROBLEM');
+                    mockStream.emit('end');
+                });
+
+                return mockStream;
+            });
+            
+            payModule.getPayments(mockGateway, orgSvc, req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error.toString()).toBe('Braintree error');
+                expect(orgSvc.customMethod).toHaveBeenCalledWith(req, 'getPayments', jasmine.any(Function));
+                expect(mockGateway.transaction.search).toHaveBeenCalled();
+                expect(payModule.formatPaymentOutput).not.toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
+        });
     });
 });

@@ -11,6 +11,7 @@
         
         payModule = {};
 
+    // Adds extra middleware to orgSvc for custom payment methods. gateway === braintree client
     payModule.extendSvc = function(orgSvc, gateway) {
         var fetchOrg = payModule.fetchOrg.bind(payModule, orgSvc),
             canEditOrg = payModule.canEditOrg.bind(payModule, orgSvc),
@@ -35,8 +36,7 @@
         orgSvc.use('getPayments', fetchOrg);
     };
     
-    //TODO: remember to comment everything!
-
+    // Format braintree transaction records for returning to the client
     payModule.formatPaymentOutput = function(orig) {
         var formatted = {};
         
@@ -55,6 +55,7 @@
         return formatted;
     };
     
+    // Format braintree payment method records for returning to the client
     payModule.formatMethodOutput = function(orig) {
         var formatted = {};
         
@@ -75,6 +76,7 @@
         return formatted;
     };
     
+    // Middleware to fetch the org and attach it as req.org.
     payModule.fetchOrg = function(orgSvc, req, next, done) {
         var log = logger.getLog(),
             orgId = req.query.org || req.user.org;
@@ -91,6 +93,7 @@
         });
     };
 
+    // Middleware to check if the requester can edit the org they're operating on (req.org)
     payModule.canEditOrg = function(orgSvc, req, next, done) {
         var log = logger.getLog();
 
@@ -102,6 +105,8 @@
         next();
     };
     
+    /* Middleware to get an existing payment method. First fetches the org's braintree customer;
+     * thus this will return 400 if the payment method does not exist for this customer. */
     payModule.getExistingPayMethod = function(gateway, req, next, done) {
         var log = logger.getLog(),
             token = req.params.token;
@@ -152,6 +157,7 @@
         });
     };
 
+    // Checks if the payment method is in use non-finished campaigns
     payModule.checkMethodInUse = function(orgSvc, req, next, done) {
         var log = logger.getLog(),
             query = {
@@ -176,6 +182,8 @@
         });
     };
     
+    /* Attempt to handle expected braintree errors (from invalid input or declined cards).
+     * Returns a 400 + msg if the error is handled, otherwise rejects the original error. */
     payModule.handleBraintreeErrors = function(req, error) {
         var log = logger.getLog(),
             validationErrors = [];
@@ -232,7 +240,7 @@
         return q.reject(error);
     };
 
-
+    // Generate a braintree client token, which may be customized for the org's braintreeCustomer
     payModule.getClientToken = function(gateway, orgSvc, req) {
         var log = logger.getLog();
         
@@ -262,6 +270,7 @@
         });
     };
     
+    // Get existing payment methods for the org
     payModule.getPaymentMethods = function(gateway, orgSvc, req) {
         var log = logger.getLog();
         
@@ -296,6 +305,9 @@
         });
     };
     
+    /* Create a new braintree customer with the payment method from the request. Called by
+     * createPaymentMethod() if the org has no existing braintree customer. Updates the org with
+     * the new customer's id (direct edit bypassing permission checks). */
     payModule.createCustomerWithMethod = function(gateway, orgSvc, req) {
         var log = logger.getLog();
         
@@ -342,6 +354,7 @@
         });
     };
     
+    // Create a new payment method for the org. Creates a new braintree customer if needed.
     payModule.createPaymentMethod = function(gateway, orgSvc, req) {
         var log = logger.getLog(),
             cardName = req.body.cardholderName;
@@ -392,6 +405,8 @@
         });
     };
     
+    /* Edit an existing payment method for the org. req.body must either include a
+     * paymentMethodNonce or only include a makeDefault flag */
     payModule.editPaymentMethod = function(gateway, orgSvc, req) {
         var log = logger.getLog(),
             cardName = req.body.cardholderName,
@@ -441,6 +456,7 @@
         });
     };
     
+    // Deletes the payment method specified in req.params.token (if tied to the org)
     payModule.deletePaymentMethod = function(gateway, orgSvc, req) {
         var log = logger.getLog(),
             token = req.params.token;
@@ -461,7 +477,8 @@
         });
     };
 
-
+    /* Gets all transactions made by the org. Fetches transactions for all payment methods, even
+     * methods that have since been deleted. */
     payModule.getPayments = function(gateway, orgSvc, req) {
         var log = logger.getLog();
         
