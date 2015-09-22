@@ -12,6 +12,7 @@ var express = require('express');
 var logger = require('../lib/logger');
 var uuid = require('../lib/uuid');
 var inherits = require('util').inherits;
+var inspect = require('util').inspect;
 var BrowserInfo = require('../lib/browserInfo');
 var resolvePath = require('path').resolve;
 var inspect = require('util').inspect;
@@ -35,10 +36,17 @@ ServiceError.prototype.toString = function toString() {
 };
 
 function Player(config) {
+    var contentCache = new FunctionCache({
+        freshTTL: config.cacheTTLs.content.fresh,
+        maxTTL: config.cacheTTLs.content.max
+    });
+
     this.config = config;
 
     // Memoize Player.prototype.__getPlayer__() method.
     this.__getPlayer__ = staticCache.add(this.__getPlayer__.bind(this), -1);
+    // Memoize Player.prototype.__getExperience__() method.
+    this.__getExperience__ = contentCache.add(this.__getExperience__.bind(this), -1);
 }
 
 /***************************************************************************************************
@@ -48,6 +56,37 @@ function Player(config) {
 Player.__rebaseCSS__ = function __rebaseCSS__(css, base) {
     return css.replace(/url\(['"]?(.+?)['"]?\)/g, function(match, url) {
         return 'url(' + resolveURL(base, url) + ')';
+    });
+};
+
+Player.prototype.__getExperience__ = function __getExperience__(id, params, origin, uuid) {
+    var log = logger.getLog();
+    var config = this.config;
+    var contentLocation = resolveURL(config.envRoot, config.contentLocation);
+    var url = resolveURL(contentLocation, id || '');
+
+    if (!id) {
+        return q.reject(new ServiceError('experience must be specified', 400));
+    }
+
+    log.trace(
+        '[%1] Fetching experience from "%2" with params (%3) as "%4."',
+        uuid, url, inspect(params), origin
+    );
+
+    return q(request.get(url, {
+        qs: params,
+        headers: { origin: origin },
+        json: true
+    })).catch(function convertError(reason) {
+        var message = reason.message;
+        var statusCode = reason.statusCode;
+
+        if (statusCode >= 500) {
+            log.error('[%1] Error fetching experience: [%2] {%3}.', uuid, statusCode, message);
+        }
+
+        throw new ServiceError(message, statusCode);
     });
 };
 
@@ -152,14 +191,23 @@ Player.startService = function startService() {
             appName: 'player',
             appDir: __dirname,
             pidDir: resolvePath(__dirname, '../pids'),
-            playerLocation: 'https://portal.cinema6.com/apps/mini-reel-player/index.html',
+            envRoot: 'https://portal.cinema6.com/',
+            playerLocation: 'apps/mini-reel-player/index.html',
+            contentLocation: 'api/public/content/experience/',
+            mobileType: 'mobile',
+            playerVersion: 'v0.25.0-0-g8b946d4',
             validTypes: [
                 'full-np', 'full', 'solo-ads', 'solo',
                 'light',
                 'lightbox-playlist', 'lightbox',
                 'mobile',  'swipe'
             ],
-            mobileType: 'mobile'
+            cacheTTLs: {
+                content: {
+                    fresh: 1,
+                    max: 5
+                }
+            }
         }
     };
 

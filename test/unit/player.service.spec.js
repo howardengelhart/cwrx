@@ -196,14 +196,23 @@ describe('player service', function() {
                                 pidDir: require('path').resolve(__dirname, '../../pids'),
                                 appName: 'player',
                                 appDir: require('path').dirname(require.resolve('../../bin/player')),
-                                playerLocation: 'https://portal.cinema6.com/apps/mini-reel-player/index.html',
+                                envRoot: 'https://portal.cinema6.com/',
+                                playerLocation: 'apps/mini-reel-player/index.html',
+                                contentLocation: 'api/public/content/experience/',
+                                mobileType: 'mobile',
+                                playerVersion: 'v0.25.0-0-g8b946d4',
                                 validTypes: [
                                     'full-np', 'full', 'solo-ads', 'solo',
                                     'light',
                                     'lightbox-playlist', 'lightbox',
                                     'mobile',  'swipe'
                                 ],
-                                mobileType: 'mobile'
+                                cacheTTLs: {
+                                    content: {
+                                        fresh: 1,
+                                        max: 5
+                                    }
+                                }
                             }
                         }));
                         expect(service.parseCmdLine).toHaveBeenCalledWith(service.start.calls.mostRecent().args[0]);
@@ -503,11 +512,30 @@ describe('player service', function() {
             config = {
                 envRoot: 'https://portal.cinema6.com/',
                 playerLocation: 'apps/mini-reel-player/index.html',
+                contentLocation: 'api/public/content/experience/',
                 playerVersion: 'v0.25.0-0-g8b946d4',
                 validTypes: ['full-np', 'full', 'light', 'lightbox-playlist', 'lightbox', 'mobile', 'solo-ads', 'solo', 'swipe'],
-
+                contentParams: [
+                    'campaign', 'branding', 'placementId',
+                    'container', 'wildCardPlacement',
+                    'pageUrl', 'hostApp', 'network'
+                ],
+                defaultOrigin: 'http://www.cinema6.com/',
+                cacheTTLs: {
+                    content: {
+                        fresh: 1,
+                        max: 5
+                    }
+                }
             };
             player = new Player(config);
+        });
+
+        it('should create a FunctionCache for experiences', function() {
+            expect(MockFunctionCache).toHaveBeenCalledWith({
+                freshTTL: config.cacheTTLs.content.fresh,
+                maxTTL: config.cacheTTLs.content.max
+            });
         });
 
         describe('@public', function() {
@@ -553,6 +581,139 @@ describe('player service', function() {
 
         describe('@private', function() {
             describe('methods:', function() {
+                describe('__getExperience__(id, params, origin, uuid)', function() {
+                    var id, params, origin, uuid;
+                    var result;
+                    var success, failure;
+                    var contentURL;
+
+                    beforeEach(function(done) {
+                        id = 'e-92160a770b81d5';
+                        params = {
+                            campaign: 'cam-c3de383f7e37ce',
+                            src: 'mopub',
+                            branding: 'elitedaily'
+                        };
+                        origin = 'http://cinema6.com/solo';
+                        uuid = 'fuweyhrf84yr3';
+
+                        contentURL = 'https://portal.cinema6.com/api/public/content/experience/e-92160a770b81d5';
+
+                        success = jasmine.createSpy('success()');
+                        failure = jasmine.createSpy('failure()');
+
+                        result = player.__getExperience__(id, params, origin);
+                        result.then(success, failure);
+                        q().then(done);
+                    });
+
+                    it('should cache the function', function() {
+                        expect(fnCaches[1].add.calls.all().map(function(call) { return call.returnValue; })).toContain(player.__getExperience__);
+                        fnCaches[1].add.calls.all().forEach(function(call) {
+                            if (call.returnValue === player.__getExperience__) {
+                                expect(call.args).toEqual([jasmine.any(Function), -1]);
+                            }
+                        });
+                    });
+
+                    it('should return a Promise', function() {
+                        expect(result).toEqual(jasmine.any(Promise));
+                    });
+
+                    it('should make a request to the content service', function() {
+                        expect(request.get).toHaveBeenCalledWith(contentURL, {
+                            qs: params,
+                            headers: { origin: origin },
+                            json: true
+                        });
+                    });
+
+                    describe('when the request succeeds', function() {
+                        var experience;
+
+                        beforeEach(function(done) {
+                            experience = { id: 'e-92160a770b81d5' };
+
+                            requestDeferreds[request.get.calls.mostRecent().args[0]].resolve(experience);
+                            result.finally(done);
+                        });
+
+                        it('should fulfill with the experience', function() {
+                            expect(success).toHaveBeenCalledWith(experience);
+                        });
+                    });
+
+                    describe('when the request fails', function() {
+                        describe('with a 4xx status', function() {
+                            beforeEach(function(done) {
+                                requestDeferreds[request.get.calls.mostRecent().args[0]].reject({
+                                    statusCode: 404,
+                                    message: '404 - experience not found'
+                                });
+
+                                result.finally(done);
+                            });
+
+                            it('should not log an error', function() {
+                                expect(log.error).not.toHaveBeenCalled();
+                            });
+
+                            it('should return a ServiceError', function() {
+                                var error = failure.calls.mostRecent().args[0];
+
+                                expect(error.constructor.name).toBe('ServiceError');
+                                expect(error.message).toBe('404 - experience not found');
+                                expect(error.status).toBe(404);
+                            });
+                        });
+
+                        describe('with a 5xx status', function() {
+                            beforeEach(function(done) {
+                                requestDeferreds[request.get.calls.mostRecent().args[0]].reject({
+                                    statusCode: 500,
+                                    message: 'Internal error'
+                                });
+
+                                result.finally(done);
+                            });
+
+                            it('should log an error', function() {
+                                expect(log.error).toHaveBeenCalled();
+                            });
+
+                            it('should return a ServiceError', function() {
+                                var error = failure.calls.mostRecent().args[0];
+
+                                expect(error.constructor.name).toBe('ServiceError');
+                                expect(error.message).toBe('Internal error');
+                                expect(error.status).toBe(500);
+                            });
+                        });
+                    });
+
+                    describe('if called with no id', function() {
+                        beforeEach(function(done) {
+                            failure.calls.reset();
+                            success.calls.reset();
+                            request.get.calls.reset();
+
+                            player.__getExperience__(undefined, params, origin).then(success, failure).finally(done);
+                        });
+
+                        it('should reject the promise', function() {
+                            var error = failure.calls.mostRecent().args[0];
+
+                            expect(error.constructor.name).toBe('ServiceError');
+                            expect(error.status).toBe(400);
+                            expect(error.message).toBe('experience must be specified');
+                        });
+
+                        it('should not get anything', function() {
+                            expect(request.get).not.toHaveBeenCalled();
+                        });
+                    });
+                });
+
                 describe('__getPlayer__(mode)', function() {
                     var success, failure;
                     var mode;
