@@ -10,6 +10,7 @@ describe('player service', function() {
     var express;
     var formatURL;
     var logger;
+    var resolveURL;
 
     var requestDeferreds;
     var fnCaches;
@@ -34,6 +35,7 @@ describe('player service', function() {
         express = require('express');
         formatURL = require('url').format;
         logger = require('../../lib/logger');
+        resolveURL = require('url').resolve;
 
         playerHTML = require('fs').readFileSync(require.resolve('./helpers/player.html')).toString();
         playerCSS = require('fs').readFileSync(require.resolve('./helpers/lightbox.css')).toString();
@@ -103,20 +105,20 @@ describe('player service', function() {
                     var base;
 
                     beforeEach(function() {
-                        base = 'https://portal.cineam6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css';
+                        base = 'https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css';
                         result = Player.__rebaseCSS__(playerCSS, base);
                     });
 
                     it('should replace URLs with no quotes', function() {
-                        expect(result).toContain('.player__playIcon{height:45%;width:100%;background:url(https://portal.cineam6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/img/play-icon.svg) 56% 50%/contain no-repeat}');
+                        expect(result).toContain('.player__playIcon{height:45%;width:100%;background:url(https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/img/play-icon.svg) 56% 50%/contain no-repeat}');
                     });
 
                     it('should replace URLs with single quotes', function() {
-                        expect(result).toContain('.recap__imgBox{width:8em;height:5em;background:url(https://portal.cineam6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/img/default_square.jpg) 50% 50%/cover no-repeat;float:left;margin:0 1em 0 3em}');
+                        expect(result).toContain('.recap__imgBox{width:8em;height:5em;background:url(https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/img/default_square.jpg) 50% 50%/cover no-repeat;float:left;margin:0 1em 0 3em}');
                     });
 
                     it('should replace URLs with double quotes', function() {
-                        expect(result).toContain('.instag____profileDesc__logo{background:url(https://portal.cineam6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/img/social-card-sprites.png) -1em -1em/19em no-repeat;width:5em;height:1.5em;margin:1em 0 0;display:block}');
+                        expect(result).toContain('.instag____profileDesc__logo{background:url(https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/img/social-card-sprites.png) -1em -1em/19em no-repeat;width:5em;height:1.5em;margin:1em 0 0;display:block}');
                     });
                 });
 
@@ -499,9 +501,11 @@ describe('player service', function() {
 
         beforeEach(function() {
             config = {
+                envRoot: 'https://portal.cinema6.com/',
+                playerLocation: 'apps/mini-reel-player/index.html',
                 playerVersion: 'v0.25.0-0-g8b946d4',
-                playerLocation: 'https://portal.cineam6.com/apps/mini-reel-player/index.html',
-                validTypes: ['full-np', 'full', 'light', 'lightbox-playlist', 'lightbox', 'mobile', 'solo-ads', 'solo', 'swipe']
+                validTypes: ['full-np', 'full', 'light', 'lightbox-playlist', 'lightbox', 'mobile', 'solo-ads', 'solo', 'swipe'],
+
             };
             player = new Player(config);
         });
@@ -577,7 +581,7 @@ describe('player service', function() {
                     });
 
                     it('should make a request for the player', function() {
-                        expect(request.get).toHaveBeenCalledWith(config.playerLocation, { gzip: true });
+                        expect(request.get).toHaveBeenCalledWith(resolveURL(config.envRoot, config.playerLocation), { gzip: true });
                     });
 
                     describe('when the player fails to be fetched', function() {
@@ -585,7 +589,7 @@ describe('player service', function() {
 
                         beforeEach(function(done) {
                             reason = new Error('Could not download stuff.');
-                            requestDeferreds[config.playerLocation].reject(reason);
+                            requestDeferreds[resolveURL(config.envRoot, config.playerLocation)].reject(reason);
 
                             result.finally(done);
                         });
@@ -603,19 +607,19 @@ describe('player service', function() {
                         beforeEach(function(done) {
                             q().then(function() {
                                 request.get.calls.reset();
-                                requestDeferreds[config.playerLocation].resolve(playerHTML);
+                                requestDeferreds[resolveURL(config.envRoot, config.playerLocation)].resolve(playerHTML);
                             }).then(function() {
-                                return requestDeferreds[config.playerLocation].promise;
+                                return requestDeferreds[resolveURL(config.envRoot, config.playerLocation)].promise;
                             }).then(function() {
                                 return new q.Promise(function(resolve) {
                                     setTimeout(resolve, 0);
                                 });
-                            }).then(done, done);
+                            }).done(done);
                         });
 
                         it('should make requests for the local CSS/JS files', function() {
-                            expect(request.get).toHaveBeenCalledWith('https://portal.cineam6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css', { gzip: true });
-                            expect(request.get).toHaveBeenCalledWith('https://portal.cineam6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js', { gzip: true });
+                            expect(request.get).toHaveBeenCalledWith('https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css', { gzip: true });
+                            expect(request.get).toHaveBeenCalledWith('https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js', { gzip: true });
                             expect(request.get.calls.count()).toBe(2);
                         });
 
@@ -624,7 +628,7 @@ describe('player service', function() {
 
                             beforeEach(function(done) {
                                 reason = new Error('Could not download stuff.');
-                                requestDeferreds['https://portal.cineam6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js'].reject(reason);
+                                requestDeferreds['https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js'].reject(reason);
 
                                 result.finally(done);
                             });
@@ -640,8 +644,8 @@ describe('player service', function() {
 
                         describe('and the sub-resources are fetched', function() {
                             beforeEach(function(done) {
-                                requestDeferreds['https://portal.cineam6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'].resolve(playerCSS);
-                                requestDeferreds['https://portal.cineam6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js'].resolve(playerJS);
+                                requestDeferreds['https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'].resolve(playerCSS);
+                                requestDeferreds['https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js'].resolve(playerJS);
 
                                 result.then(function() {}).then(done, done);
                             });
@@ -657,9 +661,9 @@ describe('player service', function() {
                                 expect($result('link[href="css/${mode}.css"]').length).toBe(0);
                                 expect($result('link[href="css/lightbox.css"]').length).toBe(0);
 
-                                expect($result('script[data-src="https://portal.cineam6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js"]').text()).toBe(playerJS);
-                                expect($result('style[data-href="https://portal.cineam6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css"]').text()).toBe(Player.__rebaseCSS__(playerCSS, 'https://portal.cineam6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'));
-                                expect($result('base').attr('href')).toBe('https://portal.cineam6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/');
+                                expect($result('script[data-src="https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js"]').text()).toBe(playerJS);
+                                expect($result('style[data-href="https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css"]').text()).toBe(Player.__rebaseCSS__(playerCSS, 'https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'));
+                                expect($result('base').attr('href')).toBe('https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/');
                             });
                         });
                     });

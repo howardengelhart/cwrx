@@ -58,7 +58,8 @@ Player.__rebaseCSS__ = function __rebaseCSS__(css, base) {
  */
 Player.prototype.__getPlayer__ = function __getPlayer__(mode, uuid) {
     var log = logger.getLog();
-    var playerLocation = this.config.playerLocation;
+    var config = this.config;
+    var playerLocation = resolveURL(config.envRoot, config.playerLocation);
     var rebaseCSS = Player.__rebaseCSS__;
 
     var sameHostAsPlayer = (function() {
