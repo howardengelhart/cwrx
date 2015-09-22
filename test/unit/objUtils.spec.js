@@ -18,6 +18,51 @@ describe('objUtils', function() {
             expect(objUtils.isPOJO({ foo: 'bar' })).toBe(true);
         });
     });
+
+    describe('filter(object, predicate)', function() {
+        var object, predicate;
+        var result;
+
+        beforeEach(function() {
+            object = {
+                a: 1,
+                b: 2,
+                c: 3,
+                d: 4,
+                e: 5,
+                f: 6,
+                g: 7,
+                h: 8,
+                i: 9,
+                j: 10
+            };
+            predicate = jasmine.createSpy('predicate()').andCallFake(function(value) {
+                return value > 2 && value < 8;
+            });
+
+            result = objUtils.filter(object, predicate);
+        });
+
+        it('should call the predicate for each key of the object', function() {
+            expect(predicate.callCount).toBe(Object.keys(object).length);
+            Object.keys(object).forEach(function(key, index) {
+                var call = predicate.calls[index];
+
+                expect(call.args).toEqual([object[key], key, index, object]);
+            });
+        });
+
+        it('should return a new object containing only the props for which the predicate returned truthy', function() {
+            expect(result).not.toBe(object);
+            expect(result).toEqual({
+                c: 3,
+                d: 4,
+                e: 5,
+                f: 6,
+                g: 7
+            });
+        });
+    });
    
     describe('sortObject', function() {
         it('should simply return the obj if not an object', function() {
