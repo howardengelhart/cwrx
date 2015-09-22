@@ -26,20 +26,11 @@
         },
         config: {
             __allowed: true,
-            __type: 'object',
-            __default: {},
+            __type: 'object'
         },
         waterfalls: {
-            __type: 'object',
-            __default: {},
-            video: {
-                __allowed: true,
-                __type: 'stringArray'
-            },
-            display: {
-                __allowed: true,
-                __type: 'stringArray'
-            }
+            __allowed: true,
+            __type: 'object'
         },
         braintreeCustomer: {
             __allowed: false,
@@ -101,6 +92,7 @@
         return newQuery;
     };
     
+    // Only allow creating org if requester has admin priviledges
     orgModule.createPermCheck = function(req, next, done) {
         var log = logger.getLog();
 
@@ -112,7 +104,12 @@
         return q(next());
     };
 
+    // Setup some default waterfalls
     orgModule.setupConfig = function(req, next/*, done*/) {
+        if (!req.body.config) {
+            req.body.config = {};
+        }
+
         if (!req.body.waterfalls) {
             req.body.waterfalls = {};
         }
@@ -125,6 +122,7 @@
         return q(next());
     };
     
+    // Only allow org to be deleted if not requester's org + they have admin priviledges
     orgModule.deletePermCheck = function(req, next, done) {
         var log = logger.getLog();
         
@@ -141,11 +139,12 @@
         return q(next());
     };
     
+    // Only allow org to be deleted if it has no active users
     orgModule.activeUserCheck = function(svc, req, next, done) {
         var log = logger.getLog(),
             query = { org: req.params.id, status: { $ne: Status.Deleted } };
 
-        return q.npost(svc._db.collection('users').find(query), 'count')
+        return q.npost(svc._db.collection('users'), 'count', [query])
         .then(function(count) {
             if (count > 0) {
                 log.info('[%1] Can\'t delete org %2 since it still has %3 active users',
@@ -157,8 +156,8 @@
         });
     };
 
-
-    orgModule.deleteBraintreeCustomer = function(gateway, req, next/*, done*/) {//TODO: test,comment
+    // Delete the org's braintreeCustomer, if it exists
+    orgModule.deleteBraintreeCustomer = function(gateway, req, next/*, done*/) {
         var log = logger.getLog();
         
         if (!req.origObj.braintreeCustomer) {

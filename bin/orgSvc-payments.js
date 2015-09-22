@@ -9,7 +9,7 @@
         mongoUtils      = require('../lib/mongoUtils'),
         Status          = require('../lib/enums').Status,
         
-        payModule = {}; // for exporting functions to unit tests
+        payModule = {};
 
     payModule.extendSvc = function(orgSvc, gateway) {
         var fetchOrg = payModule.fetchOrg.bind(payModule, orgSvc),
@@ -35,6 +35,7 @@
         orgSvc.use('getPayments', fetchOrg);
     };
     
+    //TODO: remember to comment everything!
 
     payModule.formatPaymentOutput = function(orig) {
         var formatted = {};
@@ -43,7 +44,6 @@
             formatted[key] = orig[key];
         });
         
-        //TODO: anything to be done about missing default + timestamp fields?
         if (orig.paymentInstrumentType === 'credit_card') {
             formatted.method = payModule.formatMethodOutput(orig.creditCard);
         } else {
@@ -108,7 +108,7 @@
 
         if (!req.org.braintreeCustomer) {
             log.info('[%1] No BT customer for org %2, not making changes', req.uuid, req.org.id);
-            return done({ code: 400, body: 'No payment methods for this org' });
+            return q(done({ code: 400, body: 'No payment methods for this org' }));
         }
         
         return q.npost(gateway.customer, 'find', [req.org.braintreeCustomer])
@@ -147,7 +147,7 @@
             } else {
                 log.error('[%1] Error retrieving customer %2: %3',
                           req.uuid, req.org.braintreeCustomer, util.inspect(error));
-                return q.reject(error);
+                return q.reject('Braintree error');
             }
         });
     };
@@ -155,7 +155,7 @@
     payModule.checkMethodInUse = function(orgSvc, req, next, done) {
         var log = logger.getLog(),
             query = {
-                paymentMethod: req.paymentMethod.token,
+                paymentMethod: req.params.token,
                 status: { $nin: [Status.Deleted, Status.Expired, Status.Canceled] }
             };
             
@@ -163,7 +163,7 @@
         .then(function(campCount) {
             if (campCount > 0) {
                 log.info('[%1] Payment Method %2 still used by %3 campaigns',
-                         req.uuid, req.paymentMethod.token, campCount);
+                         req.uuid, req.params.token, campCount);
 
                 return done({ code: 400, body: 'Payment method still in use by campaigns' });
             }
@@ -233,7 +233,6 @@
     };
 
 
-
     payModule.getClientToken = function(gateway, orgSvc, req) {
         var log = logger.getLog();
         
@@ -260,7 +259,6 @@
                           req.uuid, util.inspect(error));
                 return q.reject('Braintree error');
             });
-
         });
     };
     
@@ -513,7 +511,7 @@
         
         var authGetOrg = authUtils.middlewarify({orgs: 'read'});
         router.get('/clientToken', sessions, authGetOrg, audit, function(req, res) {
-            delete req.query.org; // unsupported for this endpoint //TODO: inelegant af...
+            delete req.query.org; // unsupported for this endpoint
 
             var promise = payModule.getClientToken(gateway, orgSvc, req);
             promise.finally(function() {

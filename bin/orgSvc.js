@@ -50,7 +50,6 @@
                 retryConnect : true
             }
         },
-        braintreeEnv: 'Sandbox', //TODO: cookbook, reconsider? put in secrets?
         pubsub: {
             cacheCfg: {
                 port: 21211,
@@ -79,7 +78,7 @@
         log.info('Running as cluster worker, proceed with setting up web server.');
         
         var gateway = braintree.connect({
-            environment : braintree.Environment[state.config.braintreeEnv],
+            environment : braintree.Environment[state.secrets.braintree.environment],
             merchantId  : state.secrets.braintree.merchantId,
             publicKey   : state.secrets.braintree.publicKey,
             privateKey  : state.secrets.braintree.privateKey
@@ -219,8 +218,8 @@
         .then(main)
         .catch(function(err) {
             var log = logger.getLog();
-            console.log(err.message || err);
-            log.error(err.message || err);
+            console.log(err.stack || err);
+            log.error(err.stack || err);
             if (err.code)   {
                 process.exit(err.code);
             }
