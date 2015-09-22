@@ -626,7 +626,7 @@ describe('player service', function() {
                         };
 
                         $document = cheerio.load(playerHTML);
-                        spyOn(player, '__getPlayer__').and.returnValue(q($document));
+                        spyOn(player, '__getPlayer__').and.returnValue(q($document.html()));
 
                         player.get(options).then(success, failure).finally(done);
                     });
@@ -876,9 +876,9 @@ describe('player service', function() {
 
                             it('should fulfill with a cheerio document where the external resources are replaced with inline ones', function() {
                                 var $orig = cheerio.load(playerHTML);
-                                var $result = success.calls.mostRecent().args[0];
+                                var $result = cheerio.load(success.calls.mostRecent().args[0]);
 
-                                expect(success).toHaveBeenCalledWith(jasmine.any(Function));
+                                expect(success).toHaveBeenCalledWith(jasmine.any(String));
                                 expect($result('*').length).toBe($orig('*').length);
                                 expect($result('script[src="${mode}.js"]').length).toBe(0);
                                 expect($result('script[src="lightbox.js"]').length).toBe(0);

@@ -186,7 +186,7 @@ Player.prototype.__getPlayer__ = function __getPlayer__(mode, uuid) {
 
         log.trace('[%1] Successfully inlined JS and CSS.', uuid);
 
-        return $;
+        return $.html();
     }).catch(function logRejection(reason) {
         log.error('[%1] Error getting %2 player template: %3.', uuid, mode, inspect(reason));
         throw reason;
@@ -332,12 +332,7 @@ Player.startService = function startService() {
 };
 
 Player.prototype.get = function get(options) {
-    var log = logger.getLog();
-
-    return this.__getPlayer__(options.type, options.uuid).then(function stringify($document) {
-        log.trace('[%1] Stringifying document.', options.uuid);
-        return $document.html();
-    });
+    return this.__getPlayer__(options.type, options.uuid);
 };
 
 module.exports = Player;
