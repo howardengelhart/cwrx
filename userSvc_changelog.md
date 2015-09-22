@@ -1,5 +1,6 @@
 # User Service Changelog
 
+* [FEATURE]: Added endpoint for looking up whether an email address is in use : [#488](https://github.com/cinema6/cwrx/issues/488)
 * [FEATURE]: Add endpoints for roles + policies: [#475](https://github.com/cinema6/cwrx/pull/475)
 * [FIX]: Auth middleware will handle users with roles + policies: [#475](https://github.com/cinema6/cwrx/pull/475)
 * [FIX]: Use Model to validate user docs: [#475](https://github.com/cinema6/cwrx/pull/475)
@@ -75,7 +76,7 @@
 * [FIX]: Setup default config object on new users: [#224](https://github.com/cinema6/cwrx/pull/224)
 * [FEATURE]: Allow admins to query for all users: [#219](https://github.com/cinema6/cwrx/pull/219)
 * [FEATURE]: Email notifications for account updates: [#209](https://github.com/cinema6/cwrx/pull/209)
-* Extra deployment steps: 
+* Extra deployment steps:
     * Deploy new userSvc cookbook to staging/production envs
     * Verify that staging/production IAM roles have proper access to SES
 

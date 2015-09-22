@@ -16,7 +16,7 @@
         Scope           = enums.Scope,
 
         userModule  = {};
-        
+
     userModule.userSchema = {
         email: {
             __allowed: true,
@@ -78,9 +78,9 @@
     userModule.setupSvc = function setupSvc(db) {
         var opts = { userProp: false },
             userSvc = new CrudSvc(db.collection('users'), 'u', opts, userModule.userSchema);
-        
+
         userSvc._db = db;
-        
+
         var preventGetAll = userSvc.preventGetAll.bind(userSvc);
         var hashPassword = userModule.hashProp.bind(userModule, 'password');
         var hashNewPassword = userModule.hashProp.bind(userModule, 'newPassword');
@@ -98,7 +98,7 @@
         userSvc.transformMongoDoc = mongoUtils.safeUser;
         userSvc.checkScope = userModule.checkScope;
         userSvc.userPermQuery = userModule.userPermQuery;
-        
+
         userSvc.use('read', preventGetAll);
 
         userSvc.use('create', userModule.validatePassword);
@@ -159,7 +159,7 @@
      * trimmed off the origObj, so replicate that validation logic here. */
     userModule.validatePassword = function(req, next, done) {
         var log = logger.getLog();
-        
+
         if (!req.origObj) {
             if (!req.body.password) {
                 log.info('[%1] No password provided when creating new user', req.uuid);
@@ -168,7 +168,7 @@
         } else {
             delete req.body.password;
         }
-        
+
         return next();
     };
 
@@ -200,36 +200,36 @@
             roles: [],
             policies: []
         });
-        
+
         newUser.email = newUser.email.toLowerCase();
 
         return next();
     };
-    
+
     // Check that all of the user's roles exist
     userModule.validateRoles = function(svc, req, next, done) {
         var log = logger.getLog();
-        
+
         if (!req.body.roles || req.body.roles.length === 0) {
             return q(next());
         }
-        
+
         var cursor = svc._db.collection('roles').find(
             { name: { $in: req.body.roles }, status: { $ne: Status.Deleted } },
             { fields: { name: 1 } }
         );
-        
+
         return q.npost(cursor, 'toArray').then(function(fetched) {
             if (fetched.length === req.body.roles.length) {
                 return next();
             }
-            
+
             var missing = req.body.roles.filter(function(reqRole) {
                 return fetched.every(function(role) { return role.name !== reqRole; });
             });
-            
+
             var msg = 'These roles were not found: [' + missing.join(',') + ']';
-            
+
             log.info('[%1] Not saving user: %2', req.uuid, msg);
             return done({ code: 400, body: msg });
         })
@@ -242,27 +242,27 @@
     // Check that all of the user's policies exist
     userModule.validatePolicies = function(svc, req, next, done) {
         var log = logger.getLog();
-        
+
         if (!req.body.policies || req.body.policies.length === 0) {
             return q(next());
         }
-        
+
         var cursor = svc._db.collection('policies').find(
             { name: { $in: req.body.policies }, status: { $ne: Status.Deleted } },
             { fields: { name: 1 } }
         );
-        
+
         return q.npost(cursor, 'toArray').then(function(fetched) {
             if (fetched.length === req.body.policies.length) {
                 return next();
             }
-            
+
             var missing = req.body.policies.filter(function(reqPol) {
                 return fetched.every(function(pol) { return pol.name !== reqPol; });
             });
-            
+
             var msg = 'These policies were not found: [' + missing.join(',') + ']';
-            
+
             log.info('[%1] Not saving user: %2', req.uuid, msg);
             return done({ code: 400, body: msg });
         })
@@ -436,13 +436,50 @@
                 });
         });
     };
-    
-    
+
+    // Custom method that looks up whether an email address is in use.
+    userModule.validEmail = function validEmail(sv, req) {
+        var log = logger.getLog();
+        var email = req.query.email;
+        /**
+         * More practical version of the RFC 2822 standard definition of an email address.
+         * Removes double quote and bracket syntax, allows two letter country codes and
+         * specific top level domains.
+         */
+        var emailRegex = new RegExp('^[a-z0-9!#$%&’*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&’*+/=?^_`{|}' +
+            '~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+(?:[A-Z]{2}|com|org|net|gov|mil|biz|' +
+            'info|mobi|name|aero|jobs|museum)$');
+
+        if (!email || typeof email !== 'string') {
+            log.info('[%1] Did not provide an email', req.uuid);
+            return q({ code: 400, body: 'Must provide an email' });
+        }
+
+        email = email.toLowerCase();
+
+        if(!email.match(emailRegex)) {
+            log.info('[%1] The provided email is not valid', req.uuid);
+            return q({ code: 400, body: 'Invalid email address' });
+        }
+
+        var query = {
+            email: email
+        };
+
+        return q.npost(sv._coll, 'count', [query]).then(function(count) {
+            if (count > 0) {
+                return { code: 400, body: 'Invalid email address' };
+            } else {
+                return { code: 200, body: true };
+            }
+        });
+    };
+
     userModule.setupEndpoints = function(app, svc, sessions, audit, sessionStore, config) {
         var router      = express.Router(),
             mountPath   = '/api/account/users?'; // prefix to all endpoints declared here
-        
-        
+
+
         var credsChecker = authUtils.userPassChecker();
         router.post('/email', credsChecker, audit, function(req, res) {
             userModule.changeEmail(svc, req, config.ses.sender).then(function(resp) {
@@ -466,6 +503,18 @@
             });
         });
 
+        router.get('/validEmail', function(req, res) {
+            userModule.validEmail(svc, req)
+            .then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error checking for valid email',
+                    detail: error
+                });
+            });
+        });
+
         var authGetUser = authUtils.middlewarify({users: 'read'});
         router.get('/:id', sessions, authGetUser, audit, function(req,res) {
             svc.getObjs({ id: req.params.id }, req, false)
@@ -474,7 +523,7 @@
                     resp.body.id === undefined) {
                     return res.send(resp.code, resp.body);
                 }
-                
+
                 return authUtils.decorateUser(resp.body).then(function(user) {
                     res.send(resp.code, user);
                 });
@@ -566,9 +615,9 @@
                 });
             });
         });
-        
+
         app.use(mountPath, router);
     };
-    
+
     module.exports = userModule;
 }());

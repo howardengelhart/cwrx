@@ -89,7 +89,7 @@
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._db = state.dbs.c6Db;
-        
+
         // Nodemailer will automatically get SES creds, but need to set region here
         aws.config.region = state.config.ses.region;
 
@@ -177,7 +177,7 @@
         app.get('/api/account/user/version',function(req, res) {
             res.send(200, state.config.appVersion);
         });
-        
+
         userModule.setupEndpoints(app, userSvc, sessWrap, audit, state.sessionStore, state.config);
         roleModule.setupEndpoints(app, roleSvc, sessWrap, audit);
         polModule.setupEndpoints(app, polSvc, sessWrap, audit);
