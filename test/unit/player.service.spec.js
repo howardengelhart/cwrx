@@ -11,6 +11,7 @@ describe('player service', function() {
     var formatURL;
     var logger;
     var resolveURL;
+    var extend;
 
     var requestDeferreds;
     var fnCaches;
@@ -36,6 +37,7 @@ describe('player service', function() {
         formatURL = require('url').format;
         logger = require('../../lib/logger');
         resolveURL = require('url').resolve;
+        extend = require('../../lib/objUtils').extend;
 
         playerHTML = require('fs').readFileSync(require.resolve('./helpers/player.html')).toString();
         playerCSS = require('fs').readFileSync(require.resolve('./helpers/lightbox.css')).toString();
@@ -262,6 +264,12 @@ describe('player service', function() {
                                 envRoot: 'https://portal.cinema6.com/',
                                 playerLocation: 'apps/mini-reel-player/index.html',
                                 contentLocation: 'api/public/content/experience/',
+                                contentParams: [
+                                    'campaign', 'branding', 'placementId',
+                                    'container', 'wildCardPlacement',
+                                    'pageUrl', 'hostApp', 'network'
+                                ],
+                                defaultOrigin: 'http://www.cinema6.com/',
                                 mobileType: 'mobile',
                                 playerVersion: 'v0.25.0-0-g8b946d4',
                                 validTypes: [
@@ -276,6 +284,7 @@ describe('player service', function() {
                                         max: 5
                                     }
                                 }
+
                             }
                         }));
                         expect(service.parseCmdLine).toHaveBeenCalledWith(service.start.calls.mostRecent().args[0]);
@@ -330,25 +339,26 @@ describe('player service', function() {
                             var state;
                             var middleware;
                             var request, response;
+                            var headers;
                             var getDeferred;
 
                             beforeEach(function(done) {
                                 state = service.daemonize.calls.mostRecent().args[0];
 
                                 middleware = expressRoutes.get['/api/public/players/:type'][0];
+                                headers = {
+                                    'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.99 Safari/537.36',
+                                    'origin': 'https://github.com/cinema6/cwrx/pull/504/files'
+                                };
                                 request = {
                                     params: { type: 'lightbox' },
                                     query: {
-                                        foo: 'bar'
+                                        foo: 'bar',
+                                        bleh: 'hey'
                                     },
                                     uuid: '8w94yr4389',
                                     get: function(header) {
-                                        switch (header.toLowerCase()) {
-                                        case 'user-agent':
-                                            return 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.99 Safari/537.36';
-                                        default:
-                                            return undefined;
-                                        }
+                                        return headers[header.toLowerCase()];
                                     }
                                 };
                                 response = {
@@ -368,10 +378,11 @@ describe('player service', function() {
                             });
 
                             it('should get() the player', function() {
-                                expect(player.get).toHaveBeenCalledWith({
+                                expect(player.get).toHaveBeenCalledWith(extend({
                                     type: request.params.type,
-                                    uuid: request.uuid
-                                });
+                                    uuid: request.uuid,
+                                    origin: request.get('origin')
+                                }, request.query));
                             });
 
                             describe('and the get() succeeds', function() {
@@ -468,6 +479,26 @@ describe('player service', function() {
                                         it('should use the status', function() {
                                             expect(response.send).toHaveBeenCalledWith(404, error.message);
                                         });
+                                    });
+                                });
+                            });
+
+                            describe('if the request has no origin', function() {
+                                beforeEach(function() {
+                                    player.get.calls.reset();
+                                    player.get.and.returnValue(q(playerHTML));
+                                    delete headers.origin;
+                                });
+
+                                describe('but has a referer', function() {
+                                    beforeEach(function(done) {
+                                        headers.referer = 'https://nodejs.org/api/modules.html#modules_module_filename';
+
+                                        middleware(request, response).finally(done);
+                                    });
+
+                                    it('should set the referer as the origin', function() {
+                                        expect(player.get).toHaveBeenCalledWith(jasmine.objectContaining({ origin: request.get('referer') }));
                                     });
                                 });
                             });
@@ -614,7 +645,7 @@ describe('player service', function() {
                 describe('get(options)', function() {
                     var success, failure;
                     var options;
-                    var $document;
+                    var $document, experience;
 
                     beforeEach(function(done) {
                         success = jasmine.createSpy('success()');
@@ -622,11 +653,32 @@ describe('player service', function() {
 
                         options = {
                             type: 'lightbox',
-                            uuid: 'efh7384ry43785t'
+                            uuid: 'efh7384ry43785t',
+                            experience: 'e-92160a770b81d5',
+                            campaign: 'cam-c3de383f7e37ce',
+                            branding: 'cinema6',
+                            network: 'mopub',
+                            origin: 'http://cinema6.com/solo?id=e-92160a770b81d5&cb=fu92yr483r76472&foo=wer89437r83947r#foofurief',
+                            placementId: '1673285684',
+                            container: 'mopub',
+                            wildCardPlacement: '238974285',
+                            pageUrl: 'http://www.foo.com/bar',
+                            hostApp: 'My Talking Tom',
+                            mobileMode: 'swipe',
+                            preview: true
                         };
 
-                        $document = cheerio.load(playerHTML);
-                        spyOn(player, '__getPlayer__').and.returnValue(q($document.html()));
+                        var load = cheerio.load;
+                        spyOn(cheerio, 'load').and.callFake(function() {
+                            return ($document = load.apply(cheerio, arguments));
+                        });
+
+                        experience = { id: 'e-92160a770b81d5', data: { deck: [] } };
+                        spyOn(player, '__getExperience__').and.returnValue(q(experience));
+
+                        spyOn(player, '__getPlayer__').and.returnValue(q(playerHTML));
+
+                        spyOn(Player, '__addResource__').and.callThrough();
 
                         player.get(options).then(success, failure).finally(done);
                     });
@@ -635,8 +687,38 @@ describe('player service', function() {
                         expect(player.__getPlayer__).toHaveBeenCalledWith(options.type, options.uuid);
                     });
 
+                    it('should get the experience', function() {
+                        expect(player.__getExperience__).toHaveBeenCalledWith(options.experience, {
+                            campaign: 'cam-c3de383f7e37ce',
+                            branding: 'cinema6',
+                            network: 'mopub',
+                            placementId: '1673285684',
+                            container: 'mopub',
+                            wildCardPlacement: '238974285',
+                            pageUrl: 'http://www.foo.com/bar',
+                            hostApp: 'My Talking Tom'
+                        }, 'http://cinema6.com/solo', options.uuid);
+                    });
+
+                    it('should add the experience as a resource', function() {
+                        expect(Player.__addResource__).toHaveBeenCalledWith($document, 'experience', 'application/json', experience);
+                    });
+
                     it('should resolve to the player as a string of HTML', function() {
                         expect(success).toHaveBeenCalledWith($document.html());
+                    });
+
+                    describe('if called without an origin', function() {
+                        beforeEach(function(done) {
+                            player.__getExperience__.calls.reset();
+                            options.origin = undefined;
+
+                            player.get(options).finally(done);
+                        });
+
+                        it('should use the default origin', function() {
+                            expect(player.__getExperience__).toHaveBeenCalledWith(jasmine.any(String), jasmine.any(Object), config.defaultOrigin, jasmine.any(String));
+                        });
                     });
                 });
             });
@@ -654,8 +736,16 @@ describe('player service', function() {
                         id = 'e-92160a770b81d5';
                         params = {
                             campaign: 'cam-c3de383f7e37ce',
-                            src: 'mopub',
-                            branding: 'elitedaily'
+                            branding: 'elitedaily',
+                            placementId: '1673285684',
+                            container: 'mopub',
+                            wildCardPlacement: '238974285',
+                            pageUrl: 'http://www.foo.com/bar',
+                            hostApp: 'My Talking Tom',
+                            network: 'mopub',
+                            id: id,
+                            mobileMode: 'swipe',
+                            preview: true
                         };
                         origin = 'http://cinema6.com/solo';
                         uuid = 'fuweyhrf84yr3';

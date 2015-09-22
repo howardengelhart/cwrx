@@ -16,12 +16,24 @@ var inspect = require('util').inspect;
 var BrowserInfo = require('../lib/browserInfo');
 var resolvePath = require('path').resolve;
 var inspect = require('util').inspect;
+var filterObject = require('../lib/objUtils').filter;
+var extend = require('../lib/objUtils').extend;
 
 var staticCache = new FunctionCache({
     freshTTL: Infinity,
     maxTTL: Infinity,
     gcInterval: Infinity
 });
+
+function stripURL(url) {
+    var parsed = parseURL(url);
+
+    return formatURL({
+        protocol: parsed.protocol,
+        host: parsed.host,
+        pathname: parsed.pathname
+    });
+}
 
 function ServiceError(message, status) {
     Error.call(this, message);
@@ -197,6 +209,8 @@ Player.prototype.__getPlayer__ = function __getPlayer__(mode, uuid) {
  * @public methods * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  **************************************************************************************************/
 
+module.exports = Player;
+
 Player.startService = function startService() {
     var Player = this;
     var state = {
@@ -207,6 +221,12 @@ Player.startService = function startService() {
             envRoot: 'https://portal.cinema6.com/',
             playerLocation: 'apps/mini-reel-player/index.html',
             contentLocation: 'api/public/content/experience/',
+            contentParams: [
+                'campaign', 'branding', 'placementId',
+                'container', 'wildCardPlacement',
+                'pageUrl', 'hostApp', 'network'
+            ],
+            defaultOrigin: 'http://www.cinema6.com/',
             mobileType: 'mobile',
             playerVersion: 'v0.25.0-0-g8b946d4',
             validTypes: [
@@ -268,9 +288,12 @@ Player.startService = function startService() {
         });
 
         app.get('/api/public/players/:type', function playerRoute(req, res) {
+            var config = state.config;
             var type = req.params.type;
             var uuid = req.uuid;
-            var mobileType = req.query.mobileType || state.config.mobileType;
+            var query = req.query;
+            var mobileType = query.mobileType || config.mobileType;
+            var origin = req.get('origin') || req.get('referer');
             var agent = req.get('user-agent');
 
             if (new BrowserInfo(agent).isMobile && type !== mobileType) {
@@ -278,10 +301,11 @@ Player.startService = function startService() {
                 return q(res.redirect(303, mobileType + formatURL({ query: req.query })));
             }
 
-            return player.get({
+            return player.get(extend({
                 type: type,
-                uuid: uuid
-            }).then(function sendResponse(html) {
+                uuid: uuid,
+                origin: origin
+            }, query)).then(function sendResponse(html) {
                 log.info('[%1] {GET %2} Response Length: %3.', uuid, req.url, html.length);
                 return res.send(200, html);
             }).catch(function handleRejection(reason) {
@@ -332,7 +356,33 @@ Player.startService = function startService() {
 };
 
 Player.prototype.get = function get(options) {
-    return this.__getPlayer__(options.type, options.uuid);
+    var log = logger.getLog();
+    var config = this.config;
+    var type = options.type;
+    var experience = options.experience;
+    var params = filterObject(options, function(value, key) {
+        return config.contentParams.indexOf(key) > -1;
+    });
+    var origin = stripURL(options.origin || config.defaultOrigin);
+    var uuid = options.uuid;
+
+    log.trace('[%1] Getting player with options (%2.)', uuid, inspect(options));
+
+    return q.all([
+        this.__getPlayer__(type, uuid),
+        this.__getExperience__(experience, params, origin, uuid)
+    ]).spread(function inlineResources(html, experience) {
+        var $document = cheerio.load(html);
+
+        log.trace(
+            '[%1] Inlining experience (%2) to %3 player HTML.',
+            uuid, experience.id, type
+        );
+        return Player.__addResource__($document, 'experience', 'application/json', experience);
+    }).then(function stringify($document) {
+        log.trace('[%1] Stringifying document.', uuid);
+        return $document.html();
+    });
 };
 
 module.exports = Player;

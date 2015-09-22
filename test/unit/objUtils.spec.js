@@ -36,7 +36,7 @@ describe('objUtils', function() {
                 i: 9,
                 j: 10
             };
-            predicate = jasmine.createSpy('predicate()').andCallFake(function(value) {
+            predicate = jasmine.createSpy('predicate()').and.callFake(function(value) {
                 return value > 2 && value < 8;
             });
 
@@ -44,9 +44,9 @@ describe('objUtils', function() {
         });
 
         it('should call the predicate for each key of the object', function() {
-            expect(predicate.callCount).toBe(Object.keys(object).length);
+            expect(predicate.calls.count()).toBe(Object.keys(object).length);
             Object.keys(object).forEach(function(key, index) {
-                var call = predicate.calls[index];
+                var call = predicate.calls.all()[index];
 
                 expect(call.args).toEqual([object[key], key, index, object]);
             });
