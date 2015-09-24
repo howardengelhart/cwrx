@@ -52,6 +52,8 @@
         
         formatted.campaign = orig.customFields && orig.customFields.campaign;
         
+        // TODO: display camaign names here too...
+        
         return formatted;
     };
     
@@ -70,7 +72,7 @@
                 formatted[key] = orig[key];
             });
         } else {
-            formatted.email = orig.email;
+            formatted.email = orig.email || orig.payerEmail;
         }
         
         return formatted;
@@ -157,7 +159,7 @@
         });
     };
 
-    // Checks if the payment method is in use non-finished campaigns
+    // Checks if the payment method is in use unfinished campaigns
     payModule.checkMethodInUse = function(orgSvc, req, next, done) {
         var log = logger.getLog(),
             query = {
@@ -194,11 +196,9 @@
         try {
             var errorColls = error.errors.errorCollections;
             ['customer', 'paymentMethod', 'creditCard', 'paypal'].forEach(function(type) {
-                if (errorColls[type] && errorColls[type].validationErrors &&
-                    Object.keys(errorColls[type].validationErrors).length !== 0) {
-
+                if (errorColls[type] && Object.keys(errorColls[type]).length !== 0) {
                     var obj = {};
-                    obj[type] = errorColls[type].validationErrors;
+                    obj[type] = errorColls[type];
                     validationErrors.push(obj);
                 }
             });
@@ -209,8 +209,9 @@
                 '[%1] Validation errors on payment method for %2: %3',
                 req.uuid,
                 req.org && req.org.braintreeCustomer ? req.org.braintreeCustomer : 'new BT cust',
-                JSON.stringify(validationErrors, null, 2)
+                error.message
             );
+            log.trace('[%1] errors: %2', req.uuid, JSON.stringify(validationErrors, null, 2));
             return q({ code: 400, body: 'Invalid payment method' });
         }
         
@@ -269,6 +270,49 @@
             });
         });
     };
+
+    /* Gets all transactions made by the org. Fetches transactions for all payment methods, even
+     * methods that have since been deleted. */
+    payModule.getPayments = function(gateway, orgSvc, req) {
+        var log = logger.getLog();
+        
+        return orgSvc.customMethod(req, 'getPayments', function() {
+
+            if (!req.org.braintreeCustomer) {
+                log.info('[%1] No braintreeCustomer for org %2, so no payments to show',
+                         req.uuid, req.org.id);
+                return q({ code: 200, body: [] });
+            }
+            
+            var streamDeferred = q.defer(),
+                results = [];
+
+            var stream = gateway.transaction.search(function(search) {
+                search.customerId().is(req.org.braintreeCustomer);
+            });
+            
+            stream.on('data', function(result) {
+                results.push(payModule.formatPaymentOutput(result));
+            })
+            .on('error', function(error) {
+                streamDeferred.reject('Error streaming transaction data: ' + util.inspect(error));
+            })
+            .on('end', function() {
+                streamDeferred.resolve();
+            });
+            
+            return streamDeferred.promise.then(function() {
+                log.info('[%1] Received %2 transaction records for BT customer %3',
+                         req.uuid, results.length, req.org.braintreeCustomer);
+                return q({ code: 200, body: results });
+            })
+            .catch(function(error) {
+                log.error('[%1] Error generating braintree client token: %2', req.uuid, error);
+                return q.reject('Braintree error');
+            });
+        
+        });
+    };
     
     // Get existing payment methods for the org
     payModule.getPaymentMethods = function(gateway, orgSvc, req) {
@@ -318,10 +362,7 @@
         
         if (req.body.cardholderName) {
             newCust.creditCard = {
-                cardholderName: req.body.cardholderName,
-                options: {
-                    failOnDuplicatePaymentMethod: true
-                }
+                cardholderName: req.body.cardholderName
             };
         }
         
@@ -380,8 +421,7 @@
                 cardholderName: cardName || undefined,
                 paymentMethodNonce: req.body.paymentMethodNonce,
                 options: {
-                    makeDefault: !!req.body.makeDefault,
-                    failOnDuplicatePaymentMethod: true
+                    makeDefault: !!req.body.makeDefault
                 }
             }])
             .then(function(result) {
@@ -477,49 +517,6 @@
         });
     };
 
-    /* Gets all transactions made by the org. Fetches transactions for all payment methods, even
-     * methods that have since been deleted. */
-    payModule.getPayments = function(gateway, orgSvc, req) {
-        var log = logger.getLog();
-        
-        return orgSvc.customMethod(req, 'getPayments', function() {
-
-            if (!req.org.braintreeCustomer) {
-                log.info('[%1] No braintreeCustomer for org %2, so no payments to show',
-                         req.uuid, req.org.id);
-                return q({ code: 200, body: [] });
-            }
-            
-            var streamDeferred = q.defer(),
-                results = [];
-
-            var stream = gateway.transaction.search(function(search) {
-                search.customerId().is(req.org.braintreeCustomer);
-            });
-            
-            stream.on('data', function(result) {
-                results.push(payModule.formatPaymentOutput(result));
-            })
-            .on('error', function(error) {
-                streamDeferred.reject('Error streaming transaction data: ' + util.inspect(error));
-            })
-            .on('end', function() {
-                streamDeferred.resolve();
-            });
-            
-            return streamDeferred.promise.then(function() {
-                log.info('[%1] Received %2 transaction records for BT customer %3',
-                         req.uuid, results.length, req.org.braintreeCustomer);
-                return q({ code: 200, body: results });
-            })
-            .catch(function(error) {
-                log.error('[%1] Error generating braintree client token: %2', req.uuid, error);
-                return q.reject('Braintree error');
-            });
-        
-        });
-    };
-    
     payModule.setupEndpoints = function(app, orgSvc, gateway, sessions, audit, jobManager) {
         var router      = express.Router({ mergeParams: true }),
             mountPath   = '/api/payments'; // prefix to these endpoints

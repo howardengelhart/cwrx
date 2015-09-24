@@ -57,6 +57,7 @@
         
         svc.use('delete', orgModule.deletePermCheck);
         svc.use('delete', orgModule.activeUserCheck.bind(orgModule, svc));
+        svc.use('delete', orgModule.runningCampaignCheck.bind(orgModule, svc));
         svc.use('delete', orgModule.deleteBraintreeCustomer.bind(orgModule, gateway));
         
         return svc;
@@ -86,7 +87,17 @@
         }
         
         if (readScope === Scope.Own || readScope === Scope.Org) {
-            newQuery.id = requester.org;
+            if (!newQuery.id || newQuery.id === requester.org) {
+                newQuery.id = requester.org;
+            } else {
+                if (newQuery.id.$in instanceof Array) {
+                    newQuery.id.$in = newQuery.id.$in.filter(function(id) {
+                        return id === requester.org;
+                    });
+                } else {
+                    newQuery.id = { $in: [] };
+                }
+            }
         }
         
         return newQuery;
@@ -153,6 +164,36 @@
             }
             
             return q(next());
+        })
+        .catch(function(error) {
+            log.error('[%1] Failed querying for users: %2', req.uuid, error);
+            return q.reject(new Error('Mongo error'));
+        });
+    };
+
+    /* Checks if the org still has unfinished campaigns. This prevents deleting org's braintree
+     * customer whose payment methods may still be attached to these campaigns */
+    orgModule.runningCampaignCheck = function(orgSvc, req, next, done) {
+        var log = logger.getLog(),
+            query = {
+                org: req.params.id,
+                status: { $nin: [Status.Deleted, Status.Expired, Status.Canceled] }
+            };
+            
+        return q.npost(orgSvc._db.collection('campaigns'), 'count', [query])
+        .then(function(campCount) {
+            if (campCount > 0) {
+                log.info('[%1] Org %2 still has %3 unfinished campaigns',
+                         req.uuid, req.params.id, campCount);
+
+                return done({ code: 400, body: 'Org still has unfinished campaigns' });
+            }
+            
+            next();
+        })
+        .catch(function(error) {
+            log.error('[%1] Failed querying for campaigns: %2', req.uuid, error);
+            return q.reject(new Error('Mongo error'));
         });
     };
 

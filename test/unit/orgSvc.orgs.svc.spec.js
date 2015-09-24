@@ -275,11 +275,16 @@ describe('orgSvc-orgs (UT)', function() {
             expect(query).toEqual({});
         });
         
-        it('should check that the ids match if the requester has Scope.Own or Scope.Org', function() {
-            var expected = { id: 'o-1', status: { $ne: Status.Deleted } };
-            expect(orgModule.userPermQuery(query, requester)).toEqual(expected);
-            requester.permissions.orgs.read = Scope.Org;
-            expect(orgModule.userPermQuery(query, requester)).toEqual(expected);
+        it('should only let the requester fetch their own org if they have Scope.Own', function() {
+            var statusQry = { $ne: Status.Deleted };
+            
+            expect(orgModule.userPermQuery({}, requester)).toEqual({ id: 'o-1', status: statusQry });
+            expect(orgModule.userPermQuery({ id: 'o-1' }, requester)).toEqual({ id: 'o-1', status: statusQry });
+            expect(orgModule.userPermQuery({ id: 'o-2' }, requester)).toEqual({ id: { $in: [] }, status: statusQry });
+            expect(orgModule.userPermQuery({ id: { $in: ['o-1', 'o-2', 'o-3'] } }, requester))
+                .toEqual({ id: { $in: ['o-1'] }, status: statusQry });
+            expect(orgModule.userPermQuery({ id: { $in: ['o-2', 'o-3'] } }, requester))
+                .toEqual({ id: { $in: [] }, status: statusQry });
         });
                 
         it('should log a warning if the requester has an invalid scope', function() {
@@ -413,6 +418,7 @@ describe('orgSvc-orgs (UT)', function() {
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(mockDb.collection).toHaveBeenCalledWith('users');
                 expect(mockColl.count).toHaveBeenCalledWith({ org: 'o-2', status: { $ne: Status.Deleted } }, jasmine.any(Function));
+                expect(mockLog.error).not.toHaveBeenCalled();
                 done();
             });
         });
@@ -425,6 +431,7 @@ describe('orgSvc-orgs (UT)', function() {
                 expect(nextSpy).toHaveBeenCalledWith();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
                 done();
             });
         });
@@ -436,7 +443,64 @@ describe('orgSvc-orgs (UT)', function() {
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
+                expect(errorSpy).toHaveBeenCalledWith(new Error('Mongo error'));
+                expect(mockLog.error).toHaveBeenCalled();
+                done();
+            });
+        });
+    });
+    
+    describe('runningCampaignCheck', function() {
+        var orgSvc, mockColl;
+        beforeEach(function() {
+            req.params = { id: 'o-2' };
+            
+            mockColl = {
+                count: jasmine.createSpy('cursor.count').andCallFake(function(query, cb) { cb(null, 3); })
+            };
+            mockDb.collection.andReturn(mockColl);
+
+            orgSvc = orgModule.setupSvc(mockDb, mockGateway);
+        });
+        
+        it('should call done if the org still has unfinished campaigns', function(done) {
+            orgModule.runningCampaignCheck(orgSvc, req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Org still has unfinished campaigns' });
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockDb.collection).toHaveBeenCalledWith('campaigns');
+                expect(mockColl.count).toHaveBeenCalledWith({
+                    org: 'o-2',
+                    status: { $nin: [Status.Deleted, Status.Expired, Status.Canceled] }
+                }, jasmine.any(Function));
+                expect(mockLog.error).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should call next if the org has no unfinished campaigns', function(done) {
+            mockColl.count.andCallFake(function(query, cb) { cb(null, 0); });
+        
+            orgModule.runningCampaignCheck(orgSvc, req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalledWith();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+                done();
+            });
+        });
+
+        it('should reject if mongo has an error', function(done) {
+            mockColl.count.andCallFake(function(query, cb) { cb('I GOT A PROBLEM'); });
+        
+            orgModule.runningCampaignCheck(orgSvc, req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith(new Error('Mongo error'));
+                expect(mockLog.error).toHaveBeenCalled();
                 done();
             });
         });
