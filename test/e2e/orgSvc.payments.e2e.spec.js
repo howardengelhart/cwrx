@@ -13,8 +13,8 @@ var q               = require('q'),
     gateway = braintree.connect({
         environment : braintree.Environment.Sandbox,
         merchantId  : 'ztrphcf283bxgn2f',
-        publicKey   : 'jpqghw7xgc5jh8tf',
-        privateKey  : '32de5ae191d10ffdc374b3232520ef7c'
+        publicKey   : 'rz2pht7gyn6d266b',
+        privateKey  : '0a150dac004756370706a195e2bde296'
     });
 
 jasmine.getEnv().defaultTimeoutInterval = 30000;
