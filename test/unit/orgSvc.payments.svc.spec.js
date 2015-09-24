@@ -193,7 +193,7 @@ describe('orgSvc-payments (UT)', function() {
                 amount: '10.00',
                 createdAt: '2015-09-21T21:54:50.507Z',
                 updatedAt: '2015-09-21T21:55:00.884Z',
-                campaign: 'cam-1',
+                campaignId: 'cam-1',
                 method: jasmine.any(Object)
             });
         });
@@ -683,6 +683,12 @@ describe('orgSvc-payments (UT)', function() {
                 return mockStream;
             });
             spyOn(payModule, 'formatPaymentOutput').andCallThrough();
+            spyOn(payModule, 'decoratePayments').andCallFake(function(payments, orgSvc, req) {
+                return payments.map(function(payment) {
+                    payment.decorated = true;
+                    return payment;
+                });
+            });
             req.org = { id: 'o-1', braintreeCustomer: '123456' };
         });
         
@@ -693,11 +699,13 @@ describe('orgSvc-payments (UT)', function() {
                     {
                         id: 'p1',
                         amount: '10.00',
+                        decorated: true,
                         method: { token: 'asdf1234', type: 'creditCard', cardType: 'visa' }
                     },
                     {
                         id: 'p2',
                         amount: '20.00',
+                        decorated: true,
                         method: { token: 'qwer5678', type: 'paypal', email: 'jen@test.com' }
                     }
                 ]);
@@ -758,6 +766,90 @@ describe('orgSvc-payments (UT)', function() {
                 expect(mockGateway.transaction.search).toHaveBeenCalled();
                 expect(payModule.formatPaymentOutput).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
+        });
+    });
+    
+    describe('decoratePayments', function() {
+        var payments, camps, mockColl, mockCursor;
+        beforeEach(function() {
+            payments = [
+                { id: 'p1', amount: '10', campaignId: 'cam-1' },
+                { id: 'p2', amount: '20' },
+                { id: 'p3', amount: '30', campaignId: 'cam-2' },
+                { id: 'p4', amount: '40', campaignId: 'cam-3' }
+            ];
+            camps = [
+                { id: 'cam-1', name: 'campaign 1' },
+                { id: 'cam-2', name: 'campaign 2' },
+                { id: 'cam-3', name: 'campaign 3' }
+            ];
+            mockCursor = {
+                toArray: jasmine.createSpy('cursor.toArray()').andCallFake(function(cb) { cb(null, camps); })
+            };
+            mockColl = {
+                find: jasmine.createSpy('coll.find()').andReturn(mockCursor)
+            };
+            mockDb.collection.andReturn(mockColl);
+        });
+        
+        it('should decorate each payment that has a campaignId with a campaignName', function(done) {
+            payModule.decoratePayments(payments, orgSvc, req).then(function(decorated) {
+                expect(decorated).toEqual([
+                    { id: 'p1', amount: '10', campaignId: 'cam-1', campaignName: 'campaign 1' },
+                    { id: 'p2', amount: '20' },
+                    { id: 'p3', amount: '30', campaignId: 'cam-2', campaignName: 'campaign 2' },
+                    { id: 'p4', amount: '40', campaignId: 'cam-3', campaignName: 'campaign 3' }
+                ]);
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should skip if there are no payments with campaign ids', function(done) {
+            payments = [ payments[1] ];
+            payModule.decoratePayments(payments, orgSvc, req).then(function(decorated) {
+                expect(decorated).toEqual([
+                    { id: 'p2', amount: '20' }
+                ]);
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should log warnings if some campaigns are not found', function(done) {
+            camps.pop();
+            payModule.decoratePayments(payments, orgSvc, req).then(function(decorated) {
+                expect(decorated).toEqual([
+                    { id: 'p1', amount: '10', campaignId: 'cam-1', campaignName: 'campaign 1' },
+                    { id: 'p2', amount: '20' },
+                    { id: 'p3', amount: '30', campaignId: 'cam-2', campaignName: 'campaign 2' },
+                    { id: 'p4', amount: '40', campaignId: 'cam-3' }
+                ]);
+                expect(mockLog.warn).toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should log an error but not reject if mongo fails', function(done) {
+            mockCursor.toArray.andCallFake(function(cb) { cb('I GOT A PROBLEM'); });
+            payModule.decoratePayments(payments, orgSvc, req).then(function(decorated) {
+                expect(decorated).toEqual([
+                    { id: 'p1', amount: '10', campaignId: 'cam-1' },
+                    { id: 'p2', amount: '20' },
+                    { id: 'p3', amount: '30', campaignId: 'cam-2' },
+                    { id: 'p4', amount: '40', campaignId: 'cam-3' }
+                ]);
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
     });

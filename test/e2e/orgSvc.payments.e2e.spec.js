@@ -10,7 +10,7 @@ var q               = require('q'),
         paymentUrl  : 'http://' + (host === 'localhost' ? host + ':3700' : host) + '/api/payments',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     },
-    gateway = braintree.connect({ //TODO reconsider?
+    gateway = braintree.connect({
         environment : braintree.Environment.Sandbox,
         merchantId  : 'ztrphcf283bxgn2f',
         publicKey   : 'jpqghw7xgc5jh8tf',
@@ -220,6 +220,11 @@ describe('orgSvc payments (E2E):', function() {
                 });
             })).then(function() {
                 paymentsCreated = true;
+                
+                testUtils.resetCollection('campaigns', [
+                    { id: 'cam-1', status: 'active', name: 'campaign 1' },
+                    { id: 'cam-3', status: 'expired', name: 'campaign 3' },
+                ]);
             }).done(done);
         });
             
@@ -252,7 +257,8 @@ describe('orgSvc payments (E2E):', function() {
                         createdAt: jasmine.any(String),
                         updatedAt: jasmine.any(String),
                         method: expectedCard,
-                        campaign: 'cam-1',
+                        campaignId: 'cam-1',
+                        campaignName: 'campaign 1'
                     },
                     {
                         id: jasmine.any(String),
@@ -262,7 +268,7 @@ describe('orgSvc payments (E2E):', function() {
                         createdAt: jasmine.any(String),
                         updatedAt: jasmine.any(String),
                         method: expectedCard,
-                        campaign: 'cam-2',
+                        campaignId: 'cam-2'
                     },
                     {
                         id: jasmine.any(String),
@@ -272,7 +278,8 @@ describe('orgSvc payments (E2E):', function() {
                         createdAt: jasmine.any(String),
                         updatedAt: jasmine.any(String),
                         method: expectedPaypal,
-                        campaign: 'cam-3',
+                        campaignId: 'cam-3',
+                        campaignName: 'campaign 3'
                     }
                 ]);
             }).catch(function(error) {

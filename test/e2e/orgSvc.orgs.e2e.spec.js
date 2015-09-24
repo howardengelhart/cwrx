@@ -9,7 +9,7 @@ var q               = require('q'),
         orgSvcUrl   : 'http://' + (host === 'localhost' ? host + ':3700' : host) + '/api/account/orgs',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     },
-    gateway = braintree.connect({ //TODO reconsider?
+    gateway = braintree.connect({
         environment : braintree.Environment.Sandbox,
         merchantId  : 'ztrphcf283bxgn2f',
         publicKey   : 'jpqghw7xgc5jh8tf',

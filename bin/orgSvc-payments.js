@@ -50,9 +50,7 @@
             formatted.method = payModule.formatMethodOutput(orig.paypal);
         }
         
-        formatted.campaign = orig.customFields && orig.customFields.campaign;
-        
-        // TODO: display camaign names here too...
+        formatted.campaignId = orig.customFields && orig.customFields.campaign;
         
         return formatted;
     };
@@ -270,6 +268,52 @@
             });
         });
     };
+    
+    // Decorate payments with campaign names by querying mongo for campaigns
+    payModule.decoratePayments = function(payments, orgSvc, req) {
+        var log = logger.getLog(),
+            campIds = [],
+            cursor;
+            
+        payments.forEach(function(payment) {
+            if (payment.campaignId) {
+                campIds.push(payment.campaignId);
+            }
+        });
+        
+        if (campIds.length === 0) {
+            return q(payments);
+        }
+            
+        // Note this query bypasses perm checks, and can get deleted campaigns
+        cursor = orgSvc._db.collection('campaigns').find(
+            { id: { $in: campIds } },
+            { id: 1, name: 1 }
+        );
+        
+        return q.npost(cursor, 'toArray').then(function(campaigns) {
+            var mapping = campaigns.reduce(function(map, camp) {
+                map[camp.id] = camp.name;
+                return map;
+            }, {});
+            
+            payments.forEach(function(payment) {
+                payment.campaignName = mapping[payment.campaignId];
+                
+                if (payment.campaignId && !payment.campaignName) {
+                    log.warn('[%1] Campaign %2 from payment %3 not found in db',
+                             req.uuid, payment.campaignId, payment.id);
+                }
+            });
+        })
+        .catch(function(error) {
+            log.error('[%1] Error looking up campaigns for payments: %2',
+                      req.uuid, util.inspect(error));
+        })
+        .then(function() { // always show payments, even if we fail to decorate them
+            return payments;
+        });
+    };
 
     /* Gets all transactions made by the org. Fetches transactions for all payment methods, even
      * methods that have since been deleted. */
@@ -304,13 +348,15 @@
             return streamDeferred.promise.then(function() {
                 log.info('[%1] Received %2 transaction records for BT customer %3',
                          req.uuid, results.length, req.org.braintreeCustomer);
-                return q({ code: 200, body: results });
+                         
+                return payModule.decoratePayments(results, orgSvc, req);
+            }).then(function(decorated) {
+                return q({ code: 200, body: decorated });
             })
             .catch(function(error) {
                 log.error('[%1] Error generating braintree client token: %2', req.uuid, error);
                 return q.reject('Braintree error');
             });
-        
         });
     };
     

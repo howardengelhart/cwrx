@@ -1,6 +1,11 @@
 # Org Service Changelog
 
+* [FEATURE]: Add payment endpoints: [#477](https://github.com/cinema6/cwrx/issues/477)
+* [FEATURE]: Add job caching to all orgSvc endpoints: [#506](https://github.com/cinema6/cwrx/pull/506)
 * [FIX]: Auth middleware will handle users with roles + policies: [#475](https://github.com/cinema6/cwrx/pull/475)
+* Extra deployment steps:
+    * Deploy updated orgSvc cookbook
+    * For deploying to production: setup production braintree account
 
 ###  1.3.2: Mon Jul 20 17:22:58 EDT 2015
 * [REFACTOR]: Re-write to use CrudSvc: [#458](https://github.com/cinema6/cwrx/pull/458)
