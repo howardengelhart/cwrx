@@ -103,7 +103,9 @@ Player.prototype.__getExperience__ = function __getExperience__(id, params, orig
         qs: params,
         headers: { origin: origin },
         json: true
-    })).catch(function convertError(reason) {
+    })).then(function decorate(experience) {
+        return extend(experience, { $params: params });
+    }).catch(function convertError(reason) {
         var message = reason.message;
         var statusCode = reason.statusCode;
 

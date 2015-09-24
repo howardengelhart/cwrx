@@ -794,6 +794,10 @@ describe('player service', function() {
                         it('should fulfill with the experience', function() {
                             expect(success).toHaveBeenCalledWith(experience);
                         });
+
+                        it('should decorate the experience with params', function() {
+                            expect(experience.$params).toEqual(params);
+                        });
                     });
 
                     describe('when the request fails', function() {
