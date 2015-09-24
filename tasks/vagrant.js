@@ -9,6 +9,7 @@ module.exports = function(grunt) {
         orgSvc      : 'auth',
         search      : 'auth',
         userSvc     : 'auth',
+        querybot    : 'auth',
         vote        : 'auth'
     };
 

@@ -1,4 +1,4 @@
-source 'https://api.berkshelf.com'
+#source 'https://api.berkshelf.com'
 
 cookbook 'c6mongo', git: 'git@bitbucket.org:cinema6/c6mongo.git'
 cookbook 'c6env', git: 'git@bitbucket.org:cinema6/c6env.git'

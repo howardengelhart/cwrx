@@ -165,8 +165,23 @@ function handleFileChange(file,stat,watchData){
     restartServices(services);
 }
 
+function initWatches(watches) {
+    var services = getServices();
+    Object.keys(watches).forEach(function(watch){
+        watches[watch].files.forEach(function(file){
+            services.forEach(function(service){
+                copyFileToService(file,service);
+            });
+        });
+    });
+    restartServices(services);
+}
+
 config.dirs.forEach(function(d){
     setupWatch(d,watches,handleFileChange);
 });
 
+initWatches(watches);
+
 console.log('\n\nWaiting for things to change...');
+
