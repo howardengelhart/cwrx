@@ -3,7 +3,7 @@ describe('cacheLib', function() {
     var q, mockLog, logger, cacheLib, mockMemLib, mockMemClient, anyFunc, Memcached;
     
     beforeEach(function() {
-        jasmine.Clock.useMock();
+        jasmine.clock().install();
 
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q           = require('q');
@@ -18,12 +18,12 @@ describe('cacheLib', function() {
             add: jasmine.createSpy('memcached.add()'),
             delete: jasmine.createSpy('memcached.delete()'),
             end: jasmine.createSpy('memcached.end()'),
-            on: jasmine.createSpy('memcached.on()').andCallFake(function(event, fn) {
+            on: jasmine.createSpy('memcached.on()').and.callFake(function(event, fn) {
                 mockMemClient['on' + event] = fn;
             })
         };
         
-        mockMemLib = jasmine.createSpy('Memcached()').andReturn(mockMemClient);
+        mockMemLib = jasmine.createSpy('Memcached()').and.returnValue(mockMemClient);
         require.cache[require.resolve('memcached')] = { exports: mockMemLib };
         
         delete require.cache[require.resolve('../../lib/cacheLib')];
@@ -37,10 +37,14 @@ describe('cacheLib', function() {
             fatal : jasmine.createSpy('log_fatal'),
             log   : jasmine.createSpy('log_log')
         };
-        spyOn(logger, 'createLog').andReturn(mockLog);
-        spyOn(logger, 'getLog').andReturn(mockLog);
+        spyOn(logger, 'createLog').and.returnValue(mockLog);
+        spyOn(logger, 'getLog').and.returnValue(mockLog);
         
-        spyOn(cacheLib.Cache.prototype, '_initClient').andCallThrough();
+        spyOn(cacheLib.Cache.prototype, '_initClient').and.callThrough();
+    });
+
+    afterEach(function() {
+        jasmine.clock().uninstall();
     });
     
     describe('Cache', function() {
@@ -68,18 +72,18 @@ describe('cacheLib', function() {
 
             it('should handle different formats of server lists', function() {
                 var c1 = new cacheLib.Cache(['host1:123', 'host2:456', 'host3:789']);
-                expect(cacheLib.Cache.prototype._initClient.calls[0].args).toEqual([['host1:123', 'host2:456', 'host3:789']]);
+                expect(cacheLib.Cache.prototype._initClient.calls.all()[0].args).toEqual([['host1:123', 'host2:456', 'host3:789']]);
                 
                 var c2 = new cacheLib.Cache([]);
-                expect(cacheLib.Cache.prototype._initClient.calls[1].args).toEqual([[]]);
+                expect(cacheLib.Cache.prototype._initClient.calls.all()[1].args).toEqual([[]]);
                 expect(c2._memcached).not.toBeDefined();
                 
                 var c3 = new cacheLib.Cache('');
-                expect(cacheLib.Cache.prototype._initClient.calls[2].args).toEqual([[]]);
+                expect(cacheLib.Cache.prototype._initClient.calls.all()[2].args).toEqual([[]]);
                 expect(c3._memcached).not.toBeDefined();
 
                 var c4 = new cacheLib.Cache('host1:123');
-                expect(cacheLib.Cache.prototype._initClient.calls[3].args).toEqual([['host1:123']]);
+                expect(cacheLib.Cache.prototype._initClient.calls.all()[3].args).toEqual([['host1:123']]);
             });
         });
         
@@ -153,7 +157,7 @@ describe('cacheLib', function() {
                     swap: jasmine.createSpy('HashRing.swap'),
                     remove: jasmine.createSpy('HashRing.remove')
                 };
-                spyOn(cache, 'checkConnection').andReturn(q(true));
+                spyOn(cache, 'checkConnection').and.returnValue(q(true));
             });
             
             it('should swap in new servers and call checkConnection', function(done) {
@@ -253,7 +257,7 @@ describe('cacheLib', function() {
             });
             
             it('should reject if checkConnection fails', function(done) {
-                cache.checkConnection.andReturn(q.reject('I GOT A PROBLEM'));
+                cache.checkConnection.and.returnValue(q.reject('I GOT A PROBLEM'));
                 cache.updateServers('h2:11,h2:22').then(function(val) {
                     expect(val).not.toBeDefined();
                 }).catch(function(error) {
@@ -268,8 +272,8 @@ describe('cacheLib', function() {
             var cache;
             beforeEach(function() {
                 cache = new cacheLib.Cache('host1:11211', 1000, 2000);
-                mockMemClient.stats.andCallFake(function(cb) { cb(null, ['stats1', 'stats2']); });
-                mockMemClient.set.andCallFake(function(key, val, ttl, cb) { cb(); });
+                mockMemClient.stats.and.callFake(function(cb) { cb(null, ['stats1', 'stats2']); });
+                mockMemClient.set.and.callFake(function(key, val, ttl, cb) { cb(); });
             });
             
             it('should call the appropriate command on the memcached client', function(done) {
@@ -293,7 +297,7 @@ describe('cacheLib', function() {
             });
             
             it('should reject if the command fails', function(done) {
-                mockMemClient.stats.andCallFake(function(cb) { cb('I GOT A PROBLEM'); });
+                mockMemClient.stats.and.callFake(function(cb) { cb('I GOT A PROBLEM'); });
                 cache._memcachedCommand('stats', 'read').then(function(resp) {
                     expect(resp).not.toBeDefined();
                 }).catch(function(error) {
@@ -304,11 +308,11 @@ describe('cacheLib', function() {
             });
             
             it('should reject if the command times out', function(done) {
-                mockMemClient.set.andCallFake(function(key, val, ttl, cb) {
+                mockMemClient.set.and.callFake(function(key, val, ttl, cb) {
                     setTimeout(function() { cb(null, 'success'); }, cache.timeouts.write + 10);
                 });
                 var promise = cache._memcachedCommand('set', 'write', ['foo', 'bar', 1000]);
-                process.nextTick(function() { jasmine.Clock.tick(cache.timeouts.write + 5); });
+                process.nextTick(function() { jasmine.clock().tick(cache.timeouts.write + 5); });
 
                 promise.then(function(resp) {
                     expect(resp).not.toBeDefined();
@@ -320,11 +324,11 @@ describe('cacheLib', function() {
             });
             
             it('should use the read timeout if an invalid opType is passed', function(done) {
-                mockMemClient.delete.andCallFake(function(key, vall, tll, cb) {
+                mockMemClient.delete.and.callFake(function(key, vall, tll, cb) {
                     setTimeout(function() { cb(null, 'success'); }, cache.timeouts.read + 10);
                 });
                 var promise = cache._memcachedCommand('delete', 'something', ['foo']);
-                process.nextTick(function() { jasmine.Clock.tick(cache.timeouts.read + 5); });
+                process.nextTick(function() { jasmine.clock().tick(cache.timeouts.read + 5); });
 
                 promise.then(function(resp) {
                     expect(resp).not.toBeDefined();
@@ -351,7 +355,7 @@ describe('cacheLib', function() {
             var cache;
             beforeEach(function() {
                 cache = new cacheLib.Cache('host1:11211');
-                spyOn(cache, '_memcachedCommand').andReturn(q(['stats1', 'stats2']));
+                spyOn(cache, '_memcachedCommand').and.returnValue(q(['stats1', 'stats2']));
             });
             
             it('should call _memcachedCommand with stats', function(done) {
@@ -364,7 +368,7 @@ describe('cacheLib', function() {
             });
             
             it('should pass through errors', function(done) {
-                cache._memcachedCommand.andReturn(q.reject('I GOT A PROBLEM'));
+                cache._memcachedCommand.and.returnValue(q.reject('I GOT A PROBLEM'));
                 cache.checkConnection().then(function() {
                     expect('resolved').not.toBe('resolved');
                 }).catch(function(error) {
@@ -386,7 +390,7 @@ describe('cacheLib', function() {
             var cache;
             beforeEach(function() {
                 cache = new cacheLib.Cache('host1:11211');
-                spyOn(cache, '_memcachedCommand').andReturn(q('bar'));
+                spyOn(cache, '_memcachedCommand').and.returnValue(q('bar'));
             });
             
             it('should call _memcachedCommand with get', function(done) {
@@ -399,7 +403,7 @@ describe('cacheLib', function() {
             });
             
             it('should pass through errors', function(done) {
-                cache._memcachedCommand.andReturn(q.reject('I GOT A PROBLEM'));
+                cache._memcachedCommand.and.returnValue(q.reject('I GOT A PROBLEM'));
                 cache.get('foo').then(function() {
                     expect('resolved').not.toBe('resolved');
                 }).catch(function(error) {
@@ -421,7 +425,7 @@ describe('cacheLib', function() {
             var cache;
             beforeEach(function() {
                 cache = new cacheLib.Cache('host1:11211');
-                spyOn(cache, '_memcachedCommand').andReturn(q('success'));
+                spyOn(cache, '_memcachedCommand').and.returnValue(q('success'));
             });
             
             it('should call _memcachedCommand with set', function(done) {
@@ -434,7 +438,7 @@ describe('cacheLib', function() {
             });
             
             it('should pass through errors', function(done) {
-                cache._memcachedCommand.andReturn(q.reject('I GOT A PROBLEM'));
+                cache._memcachedCommand.and.returnValue(q.reject('I GOT A PROBLEM'));
                 cache.set('foo', {a: 1, aKey: 'aVal'}, 60*60*1000).then(function(resp) {
                     expect('resolved').not.toBe('resolved');
                 }).catch(function(error) {
@@ -456,7 +460,7 @@ describe('cacheLib', function() {
             var cache;
             beforeEach(function() {
                 cache = new cacheLib.Cache('host1:11211', 1000, 2000);
-                mockMemClient.add.andCallFake(function(key, val, ttl, cb) { cb(null, 'success'); });
+                mockMemClient.add.and.callFake(function(key, val, ttl, cb) { cb(null, 'success'); });
             });
             
             it('should call the appropriate command on the memcached client', function(done) {
@@ -470,7 +474,7 @@ describe('cacheLib', function() {
             });
             
             it('should reject if the command fails', function(done) {
-                mockMemClient.add.andCallFake(function(cb) { cb('I GOT A PROBLEM'); });
+                mockMemClient.add.and.callFake(function(cb) { cb('I GOT A PROBLEM'); });
                 cache.add('foo', 'bar', 5000).then(function(resp) {
                     expect(resp).not.toBeDefined();
                 }).catch(function(error) {
@@ -481,11 +485,11 @@ describe('cacheLib', function() {
             });
             
             it('should reject if the command times out', function(done) {
-                mockMemClient.add.andCallFake(function(key, val, ttl, cb) {
+                mockMemClient.add.and.callFake(function(key, val, ttl, cb) {
                     setTimeout(function() { cb(null, 'success'); }, cache.timeouts.write + 10);
                 });
                 var promise = cache.add('foo', 'bar', 5000);
-                process.nextTick(function() { jasmine.Clock.tick(cache.timeouts.write + 5); });
+                process.nextTick(function() { jasmine.clock().tick(cache.timeouts.write + 5); });
 
                 promise.then(function(resp) {
                     expect(resp).not.toBeDefined();
@@ -497,7 +501,7 @@ describe('cacheLib', function() {
             });
             
             it('should resolve if memcached.add fails because the key was already stored', function(done) {
-                mockMemClient.add.andCallFake(function(key, val, ttl, cb) { cb(new Error('Item is not stored')); });
+                mockMemClient.add.and.callFake(function(key, val, ttl, cb) { cb(new Error('Item is not stored')); });
                 cache.add('foo', 'bar', 5000).then(function(resp) {
                     expect(resp).toBe();
                     expect(mockMemClient.add).toHaveBeenCalledWith('foo', 'bar', 5, anyFunc);
@@ -521,7 +525,7 @@ describe('cacheLib', function() {
             var cache;
             beforeEach(function() {
                 cache = new cacheLib.Cache('host1:11211');
-                spyOn(cache, '_memcachedCommand').andReturn(q('success'));
+                spyOn(cache, '_memcachedCommand').and.returnValue(q('success'));
             });
             
             it('should call _memcachedCommand with delete', function(done) {
@@ -534,7 +538,7 @@ describe('cacheLib', function() {
             });
             
             it('should pass through errors', function(done) {
-                cache._memcachedCommand.andReturn(q.reject('I GOT A PROBLEM'));
+                cache._memcachedCommand.and.returnValue(q.reject('I GOT A PROBLEM'));
                 cache.delete('foo').then(function(resp) {
                     expect('resolved').not.toBe('resolved');
                 }).catch(function(error) {
