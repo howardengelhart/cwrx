@@ -17,8 +17,8 @@ describe('ads-advertisers (UT)', function() {
             fatal : jasmine.createSpy('log_fatal'),
             log   : jasmine.createSpy('log_log')
         };
-        spyOn(logger, 'createLog').andReturn(mockLog);
-        spyOn(logger, 'getLog').andReturn(mockLog);
+        spyOn(logger, 'createLog').and.returnValue(mockLog);
+        spyOn(logger, 'getLog').and.returnValue(mockLog);
         
         req = { uuid: '1234' };
         
@@ -35,13 +35,13 @@ describe('ads-advertisers (UT)', function() {
                 return;
             }
             adtech.customerAdmin[prop] = adtech.customerAdmin[prop].bind(adtech.customerAdmin, mockClient);
-            spyOn(adtech.customerAdmin, prop).andCallThrough();
+            spyOn(adtech.customerAdmin, prop).and.callThrough();
         });
     });
 
     describe('setupSvc', function() {
         it('should setup the advertiser service', function() {
-            spyOn(CrudSvc.prototype.preventGetAll, 'bind').andReturn(CrudSvc.prototype.preventGetAll);
+            spyOn(CrudSvc.prototype.preventGetAll, 'bind').and.returnValue(CrudSvc.prototype.preventGetAll);
             var mockColl = { collectionName: 'advertisers' },
                 svc = advertModule.setupSvc(mockColl);
 
@@ -114,7 +114,7 @@ describe('ads-advertisers (UT)', function() {
             
             expect(advertModule.formatAdtechAdvert({name: 'testy'}, orig)).toEqual({
                 companyData: {address: {}, url: 'http://cinema6.com'},
-                extId: 'a-1', id: 123, name: 'testy'
+                extId: 'a-1', id: 123, name: 'testy', assignedUsers: undefined, contacts: undefined
             });
         });
     });
@@ -122,7 +122,7 @@ describe('ads-advertisers (UT)', function() {
     describe('createAdtechAdvert', function() {
         beforeEach(function() {
             req.body = { id: 'a-1', name: 'testy' };
-            adtech.customerAdmin.createAdvertiser.andReturn(q({id: 123}));
+            adtech.customerAdmin.createAdvertiser.and.returnValue(q({id: 123}));
         });
         
         it('should create a new advertiser in adtech', function(done) {
@@ -139,7 +139,7 @@ describe('ads-advertisers (UT)', function() {
         });
         
         it('should reject if adtech fails', function(done) {
-            adtech.customerAdmin.createAdvertiser.andReturn(q.reject('I GOT A PROBLEM'));
+            adtech.customerAdmin.createAdvertiser.and.returnValue(q.reject('I GOT A PROBLEM'));
             advertModule.createAdtechAdvert(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -155,9 +155,9 @@ describe('ads-advertisers (UT)', function() {
         beforeEach(function() {
             req.body = { name: 'new name' };
             req.origObj = { id: 'a-1', name: 'testy', adtechId: 123 };
-            adtech.customerAdmin.getAdvertiserById.andReturn(q({old: true, id: 123}));
-            adtech.customerAdmin.updateAdvertiser.andReturn(q({id: 123}));
-            spyOn(advertModule, 'formatAdtechAdvert').andReturn({formatted: true});
+            adtech.customerAdmin.getAdvertiserById.and.returnValue(q({old: true, id: 123}));
+            adtech.customerAdmin.updateAdvertiser.and.returnValue(q({id: 123}));
+            spyOn(advertModule, 'formatAdtechAdvert').and.returnValue({formatted: true});
         });
 
         it('should edit an advertiser in adtech', function(done) {
@@ -187,7 +187,7 @@ describe('ads-advertisers (UT)', function() {
         });
 
         it('should reject if finding the existing advertiser fails', function(done) {
-            adtech.customerAdmin.getAdvertiserById.andReturn(q.reject('I GOT A PROBLEM'));
+            adtech.customerAdmin.getAdvertiserById.and.returnValue(q.reject('I GOT A PROBLEM'));
             advertModule.editAdtechAdvert(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -200,7 +200,7 @@ describe('ads-advertisers (UT)', function() {
         });
 
         it('should reject if updating the advertiser fails', function(done) {
-            adtech.customerAdmin.updateAdvertiser.andReturn(q.reject('I GOT A PROBLEM'));
+            adtech.customerAdmin.updateAdvertiser.and.returnValue(q.reject('I GOT A PROBLEM'));
             advertModule.editAdtechAdvert(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -216,7 +216,7 @@ describe('ads-advertisers (UT)', function() {
     describe('deleteAdtechAdvert', function() {
         beforeEach(function() {
             req.origObj = { id: 'a-1', name: 'testy', adtechId: 123 };
-            adtech.customerAdmin.deleteAdvertiser.andReturn(q());
+            adtech.customerAdmin.deleteAdvertiser.and.returnValue(q());
         });
         
         it('should delete an advertiser in adtech', function(done) {
@@ -244,7 +244,7 @@ describe('ads-advertisers (UT)', function() {
         });
         
         it('should reject if adtech fails', function(done) {
-            adtech.customerAdmin.deleteAdvertiser.andReturn(q.reject('I GOT A PROBLEM'));
+            adtech.customerAdmin.deleteAdvertiser.and.returnValue(q.reject('I GOT A PROBLEM'));
             advertModule.deleteAdtechAdvert(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
