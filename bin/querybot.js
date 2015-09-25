@@ -32,7 +32,7 @@ state.defaultConfig = {
             retryConnect : true
         }
     },
-    secretsPath: path.join(process.env.HOME,'.ads.secrets.json'),
+    secretsPath: path.join(process.env.HOME,'.querybot.secrets.json'),
     mongo: {
         c6Db: {
             host: null,
