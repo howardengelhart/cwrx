@@ -1,15 +1,14 @@
-
 describe('promise',function(){
     var flush = true, promise, q;
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         promise = require('../../lib/promise');
         q = require('q');
-        jasmine.Clock.useMock();
+        jasmine.clock().install();
     });
 
     afterEach(function(){
-
+        jasmine.clock().uninstall();
     });
 
     describe('Keeper',function(){
@@ -179,7 +178,7 @@ describe('promise',function(){
             it('removes completed promises',function(done){
                 keeper.defer('abc').reject({}); 
                 process.nextTick(function(){
-                    expect(rejectSpy.callCount).toEqual(1);
+                    expect(rejectSpy.calls.count()).toEqual(1);
                     expect(keeper.getDeferred('abc',true)).toBeDefined();
                     expect(keeper.getDeferred('def',true)).toBeDefined();
                     expect(keeper.getDeferred('ghi',true)).toBeDefined();
@@ -206,10 +205,10 @@ describe('promise',function(){
             it('will resolve all pending promises with passed value',function(done){
                 keeper.resolveAll(100);
                 process.nextTick(function(){
-                    expect(resolveSpy.callCount).toEqual(3);
-                    expect(resolveSpy.argsForCall[0][0]).toEqual(100);
-                    expect(resolveSpy.argsForCall[1][0]).toEqual(100);
-                    expect(resolveSpy.argsForCall[2][0]).toEqual(100);
+                    expect(resolveSpy.calls.count()).toEqual(3);
+                    expect(resolveSpy.calls.allArgs()[0][0]).toEqual(100);
+                    expect(resolveSpy.calls.allArgs()[1][0]).toEqual(100);
+                    expect(resolveSpy.calls.allArgs()[2][0]).toEqual(100);
                     done();
                 });
             });
@@ -217,10 +216,10 @@ describe('promise',function(){
             it('will resolve all pending promises with id if not passed value',function(done){
                 keeper.resolveAll();
                 process.nextTick(function(){
-                    expect(resolveSpy.callCount).toEqual(3);
-                    expect(resolveSpy.argsForCall[0][0]).toEqual('abc');
-                    expect(resolveSpy.argsForCall[1][0]).toEqual('def');
-                    expect(resolveSpy.argsForCall[2][0]).toEqual('ghi');
+                    expect(resolveSpy.calls.count()).toEqual(3);
+                    expect(resolveSpy.calls.allArgs()[0][0]).toEqual('abc');
+                    expect(resolveSpy.calls.allArgs()[1][0]).toEqual('def');
+                    expect(resolveSpy.calls.allArgs()[2][0]).toEqual('ghi');
                     done();
                 });
             });
@@ -229,9 +228,9 @@ describe('promise',function(){
                 keeper.getDeferred('def').reject({});
                 keeper.resolveAll();
                 process.nextTick(function(){
-                    expect(resolveSpy.callCount).toEqual(2);
-                    expect(resolveSpy.argsForCall[0][0]).toEqual('abc');
-                    expect(resolveSpy.argsForCall[1][0]).toEqual('ghi');
+                    expect(resolveSpy.calls.count()).toEqual(2);
+                    expect(resolveSpy.calls.allArgs()[0][0]).toEqual('abc');
+                    expect(resolveSpy.calls.allArgs()[1][0]).toEqual('ghi');
                     done();
                 });
             });
@@ -251,10 +250,10 @@ describe('promise',function(){
             it('will reject all pending promises with passed value',function(done){
                 keeper.rejectAll(100);
                 process.nextTick(function(){
-                    expect(rejectSpy.callCount).toEqual(3);
-                    expect(rejectSpy.argsForCall[0][0]).toEqual(100);
-                    expect(rejectSpy.argsForCall[1][0]).toEqual(100);
-                    expect(rejectSpy.argsForCall[2][0]).toEqual(100);
+                    expect(rejectSpy.calls.count()).toEqual(3);
+                    expect(rejectSpy.calls.allArgs()[0][0]).toEqual(100);
+                    expect(rejectSpy.calls.allArgs()[1][0]).toEqual(100);
+                    expect(rejectSpy.calls.allArgs()[2][0]).toEqual(100);
                     done();
                 });
             });
@@ -262,10 +261,10 @@ describe('promise',function(){
             it('will reject all pending promises with id if not passed value',function(done){
                 keeper.rejectAll();
                 process.nextTick(function(){
-                    expect(rejectSpy.callCount).toEqual(3);
-                    expect(rejectSpy.argsForCall[0][0]).toEqual('abc');
-                    expect(rejectSpy.argsForCall[1][0]).toEqual('def');
-                    expect(rejectSpy.argsForCall[2][0]).toEqual('ghi');
+                    expect(rejectSpy.calls.count()).toEqual(3);
+                    expect(rejectSpy.calls.allArgs()[0][0]).toEqual('abc');
+                    expect(rejectSpy.calls.allArgs()[1][0]).toEqual('def');
+                    expect(rejectSpy.calls.allArgs()[2][0]).toEqual('ghi');
                     done();
                 });
             });
@@ -274,9 +273,9 @@ describe('promise',function(){
                 keeper.getDeferred('def').resolve();
                 keeper.rejectAll();
                 process.nextTick(function(){
-                    expect(rejectSpy.callCount).toEqual(2);
-                    expect(rejectSpy.argsForCall[0][0]).toEqual('abc');
-                    expect(rejectSpy.argsForCall[1][0]).toEqual('ghi');
+                    expect(rejectSpy.calls.count()).toEqual(2);
+                    expect(rejectSpy.calls.allArgs()[0][0]).toEqual('abc');
+                    expect(rejectSpy.calls.allArgs()[1][0]).toEqual('ghi');
                     done();
                 });
             });
@@ -321,7 +320,7 @@ describe('promise',function(){
                     success = jasmine.createSpy('success()');
                     failure = jasmine.createSpy('failure()');
 
-                    jasmine.Clock.tick(WAIT_TIME);
+                    jasmine.clock().tick(WAIT_TIME);
 
                     result = timer.watch(deferred.promise);
                     result.then(success, failure);
@@ -338,9 +337,9 @@ describe('promise',function(){
                     beforeEach(function(done) {
                         value = { foo: 'bar' };
 
-                        jasmine.Clock.tick(time - WAIT_TIME - 1);
+                        jasmine.clock().tick(time - WAIT_TIME - 1);
                         deferred.resolve(value);
-                        q().then(done);
+                        q.allSettled([success, failure]).finally(done);
                     });
 
                     it('should fulfill the returned promise', function() {
@@ -354,9 +353,9 @@ describe('promise',function(){
                     beforeEach(function(done) {
                         reason = new Error('I suck.');
 
-                        jasmine.Clock.tick(time - WAIT_TIME - 1);
+                        jasmine.clock().tick(time - WAIT_TIME - 1);
                         deferred.reject(reason);
-                        q().then(done);
+                        q.allSettled([success, failure]).finally(done);
                     });
 
                     it('should reject the returned promise', function() {
@@ -366,10 +365,10 @@ describe('promise',function(){
 
                 describe('if the timer expires', function() {
                     beforeEach(function(done) {
-                        jasmine.Clock.tick((time - WAIT_TIME) + 1);
+                        jasmine.clock().tick((time - WAIT_TIME) + 1);
                         deferred.resolve('foo');
 
-                        q().then(done);
+                        q.allSettled([success, failure]).finally(done);
                     });
 
                     it('should set expired to true', function() {
@@ -378,7 +377,7 @@ describe('promise',function(){
 
                     it('should reject the promise with a timeout error', function() {
                         expect(failure).toHaveBeenCalledWith(jasmine.any(Error));
-                        var error = failure.mostRecentCall.args[0];
+                        var error = failure.calls.mostRecent().args[0];
 
                         expect(error.message).toBe('Timed out after ' + time + ' ms');
                         expect(error.code).toBe('ETIMEDOUT');
@@ -386,17 +385,17 @@ describe('promise',function(){
 
                     describe('if another promise is watched', function() {
                         beforeEach(function(done) {
-                            failure.reset();
-                            success.reset();
+                            failure.calls.reset();
+                            success.calls.reset();
 
                             timer.watch(q({})).then(success, failure);
-                            q().then(done);
+                            q.allSettled([success, failure]).finally(done);
                         });
 
                         it('should reject the promise', function() {
                             expect(failure).toHaveBeenCalledWith(jasmine.any(Error));
 
-                            var error = failure.mostRecentCall.args[0];
+                            var error = failure.calls.mostRecent().args[0];
                             expect(error.message).toBe('Timed out after ' + time + ' ms');
                             expect(error.code).toBe('ETIMEDOUT');
                         });
@@ -432,8 +431,8 @@ describe('promise',function(){
 
                     describe('and the timer expires', function() {
                         beforeEach(function(done) {
-                            jasmine.Clock.tick(time + 1);
-                            q().then(done);
+                            jasmine.clock().tick(time + 1);
+                            q().then(function() {}).then(done);
                         });
 
                         it('should reject all the promises', function() {
@@ -454,7 +453,7 @@ describe('promise',function(){
                             firstDeferred = timer.__private__.deferreds[0];
                             deferred1.resolve({});
 
-                            q().then(done);
+                            q().then(function() {}).then(done);
                         });
 
                         it('should remove the reference to that promise\'s deferred', function() {
@@ -470,7 +469,7 @@ describe('promise',function(){
                             secondDeferred = timer.__private__.deferreds[1];
                             deferred2.reject(new Error());
 
-                            q().then(done);
+                            q().then(function() {}).then(done);
                         });
 
                         it('should remove the reference to that promise\'s deferred', function() {
@@ -504,7 +503,7 @@ describe('promise',function(){
                         arg = { foo: 'bar' };
                         watchPromise = q.defer().promise;
 
-                        spyOn(timer, 'watch').andReturn(watchPromise);
+                        spyOn(timer, 'watch').and.returnValue(watchPromise);
                     });
 
                     describe('if fn() returns a promise', function() {
@@ -514,7 +513,7 @@ describe('promise',function(){
                         beforeEach(function(done) {
                             value = { val: 'hello' };
                             promise = q(value);
-                            fn.andReturn(promise);
+                            fn.and.returnValue(promise);
 
                             fnResult = result(arg);
                             q().then(done);
@@ -527,7 +526,7 @@ describe('promise',function(){
                         it('should watch() the returned promise', function(done) {
                             expect(timer.watch).toHaveBeenCalledWith(jasmine.any(q().constructor));
 
-                            q.all([promise, timer.watch.mostRecentCall.args[0]]).then(function(vals) {
+                            q.all([promise, timer.watch.calls.mostRecent().args[0]]).then(function(vals) {
                                 expect(vals[0]).toBe(vals[1]);
                             }).done(done);
                         });
@@ -542,7 +541,7 @@ describe('promise',function(){
 
                         beforeEach(function(done) {
                             value = { value: 'value' };
-                            fn.andReturn(value);
+                            fn.and.returnValue(value);
 
                             fnResult = result(arg);
                             q().then(done);
@@ -555,7 +554,7 @@ describe('promise',function(){
                         it('should watch() a promise that fulfills with the return value', function(done) {
                             expect(timer.watch).toHaveBeenCalledWith(jasmine.any(q().constructor));
 
-                            timer.watch.mostRecentCall.args[0].then(function(val) {
+                            timer.watch.calls.mostRecent().args[0].then(function(val) {
                                 expect(val).toBe(value);
                             }).done(done);
                         });
