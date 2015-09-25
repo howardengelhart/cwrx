@@ -46,7 +46,7 @@ describe('config', function() {
 
     describe('createConfiguration', function() {
         beforeEach(function() {
-            spyOn(config, 'mergeObjects').andCallThrough();
+            spyOn(config, 'mergeObjects').and.callThrough();
         });
 
         it('should create a configuration object without a config file',function(){
@@ -92,7 +92,7 @@ describe('config', function() {
                     'v2' : 2
                 }
             };
-            fs.readJsonSync.andReturn(userCfg);
+            fs.readJsonSync.and.returnValue(userCfg);
             
             var res = config.createConfigObject('tmpcfg.json', defaultCfg);
             expect(res.settingA).toEqual('banana');
