@@ -16,8 +16,8 @@ describe('Model', function() {
             fatal : jasmine.createSpy('log.fatal'),
             log   : jasmine.createSpy('log.log')
         };
-        spyOn(logger, 'createLog').andReturn(mockLog);
-        spyOn(logger, 'getLog').andReturn(mockLog);
+        spyOn(logger, 'createLog').and.returnValue(mockLog);
+        spyOn(logger, 'getLog').and.returnValue(mockLog);
     });
 
     describe('initialization', function() {
@@ -185,7 +185,7 @@ describe('Model', function() {
             expect(Model.checkFormat({foo: 'bar'}, 'asdf')).toBe(true);
             expect(mockLog.warn).toHaveBeenCalled();
             expect(Model.checkFormat('poopArray', ['asdf'])).toBe(true);
-            expect(mockLog.warn.calls.length).toBe(2);
+            expect(mockLog.warn.calls.count()).toBe(2);
         });
     });
     
@@ -266,16 +266,16 @@ describe('Model', function() {
             
             it('should pass if the field is present on the newObj', function() {
                 newObj.name = 'scruffles';
-                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true });
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'scruffles' });
             });
 
             it('should pass if the field is present on the origObj', function() {
                 origObj.name = 'puffles';
-                expect(model.validate('edit', newObj, origObj, requester)).toEqual({ isValid: true });
+                expect(model.validate('edit', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'puffles' });
                 newObj.name = 'scruffles';
-                expect(model.validate('edit', newObj, origObj, requester)).toEqual({ isValid: true });
+                expect(model.validate('edit', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'scruffles' });
             });
         });
@@ -289,19 +289,19 @@ describe('Model', function() {
             
             it('should trim the field off if present on newObj', function() {
                 newObj.name = 'scruffles';
-                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true });
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({});
             });
             
             it('should revert to the existing value if present on newObj and origObj', function() {
                 origObj.name = 'puffles';
                 newObj.name = 'scruffles';
-                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true });
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'puffles' });
             });
             
             it('should pass if the field is not set on newObj', function() {
-                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true });
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({});
             });
         });
@@ -315,19 +315,19 @@ describe('Model', function() {
             
             it('should allow the field to be set if previously unset', function() {
                 newObj.name = 'scruffles';
-                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true });
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'scruffles' });
             });
             
             it('should trim the field if it was previously set', function() {
                 origObj.name = 'puffles';
                 newObj.name = 'scruffles';
-                expect(model.validate('edit', newObj, origObj, requester)).toEqual({ isValid: true });
+                expect(model.validate('edit', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'puffles' });
             });
             
             it('should pass if the field is not set on newObj', function() {
-                expect(model.validate('edit', newObj, origObj, requester)).toEqual({ isValid: true });
+                expect(model.validate('edit', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({});
             });
         });
@@ -341,7 +341,7 @@ describe('Model', function() {
 
             it('should cast date strings to Dates', function() {
                 newObj.born = '2015-08-06T14:31:17.199Z';
-                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true });
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ born: new Date('2015-08-06T14:31:17.199Z') });
             });
             
@@ -353,7 +353,7 @@ describe('Model', function() {
             
             it('should leave Date objects alone', function() {
                 newObj.born = new Date('2015-08-06T14:31:17.199Z');
-                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true });
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ born: new Date('2015-08-06T14:31:17.199Z') });
             });
         });
@@ -367,7 +367,7 @@ describe('Model', function() {
             
             it('should pass if the value is the correct type', function() {
                 newObj.doggieFriends = ['knut', 'charlie'];
-                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true });
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ doggieFriends: ['knut', 'charlie'] });
             });
 
@@ -378,7 +378,7 @@ describe('Model', function() {
             });
 
             it('should pass if the value is not set on newObj', function() {
-                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true });
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({});
             });
         });
@@ -392,7 +392,7 @@ describe('Model', function() {
             
             it('should pass if the value fits the limits', function() {
                 newObj.paws = 3;
-                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true });
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ paws: 3 });
             });
 
@@ -403,7 +403,7 @@ describe('Model', function() {
             });
 
             it('should pass if the value is not set on newObj', function() {
-                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true });
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({});
             });
         });
@@ -431,7 +431,7 @@ describe('Model', function() {
                     kibbles: 'yes', bacon: 'always', chocolate: 'do want'
                 };
                 
-                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true });
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ snax: { kibbles: 'yes', bacon: 'always' } });
             });
             
@@ -450,7 +450,7 @@ describe('Model', function() {
                     kibbles: 'yes', bacon: 'always', chocolate: 'do want'
                 };
                 
-                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true });
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({});
             });
         });
@@ -497,7 +497,7 @@ describe('Model', function() {
                     { name: 'scruffles', paws: 3 },
                 ];
                 
-                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true });
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj.doggieFriends).toEqual([
                     { name: 'knut', paws: 4 },
                     { name: 'scruffles', paws: 3 }
@@ -508,7 +508,7 @@ describe('Model', function() {
                     reason: 'doggieFriends[2].paws must be less than the max: 4' });
                     
                 model.schema.doggieFriends.__entries.paws.__allowed = false;
-                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true });
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj.doggieFriends).toEqual([
                     { name: 'knut' },
                     { name: 'scruffles' },
@@ -523,7 +523,7 @@ describe('Model', function() {
         beforeEach(function() {
             model = new Model('puppies', { woof: 'yes', meow: 'no' });
             req = { body: { name: 'woofles', dog: 'yes' }, user: { id: 'u-1' } };
-            spyOn(model, 'validate').andReturn({ isValid: true });
+            spyOn(model, 'validate').and.returnValue({ isValid: true });
             nextSpy = jasmine.createSpy('next()');
             doneSpy = jasmine.createSpy('done()');
         });
@@ -552,7 +552,7 @@ describe('Model', function() {
         });
 
         it('should call done if req.body fails validate()', function(done) {
-            model.validate.andReturn({ isValid: false, reason: 'woofles is actually a cat' });
+            model.validate.and.returnValue({ isValid: false, reason: 'woofles is actually a cat' });
             model.midWare('create', req, nextSpy, doneSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
