@@ -192,33 +192,26 @@
         
         // attempt to find validationErrors nested in braintree's error object
         try {
-            var errorColls = error.errors.errorCollections;
-            ['customer', 'paymentMethod', 'creditCard', 'paypal'].forEach(function(type) {
-                if (errorColls[type] && Object.keys(errorColls[type]).length !== 0) {
-                    var obj = {};
-                    obj[type] = errorColls[type];
-                    validationErrors.push(obj);
-                }
-            });
+            validationErrors = error.errors.deepErrors();
         } catch(e) {}
         
         if (validationErrors.length !== 0) {
-            log.info(
-                '[%1] Validation errors on payment method for %2: %3',
+            log.warn(
+                '[%1] Failed payment method for %2: validation errors: %3',
                 req.uuid,
-                req.org && req.org.braintreeCustomer ? req.org.braintreeCustomer : 'new BT cust',
+                req.org.id,
                 error.message
             );
-            log.trace('[%1] errors: %2', req.uuid, JSON.stringify(validationErrors, null, 2));
+            log.info('[%1] errors: %2', req.uuid, JSON.stringify(validationErrors, null, 2));
             return q({ code: 400, body: 'Invalid payment method' });
         }
         
         // also handle processor declined + gateway rejected errors
         if (error.verification && error.verification.status === 'processor_declined') {
-            log.info(
-                '[%1] Processor declined payment method for %2: code - %3, text - %4',
+            log.warn(
+                '[%1] Failed payment method for %2: processor decline, code - %3, text - %4',
                 req.uuid,
-                req.org && req.org.braintreeCustomer ? req.org.braintreeCustomer : 'new BT cust',
+                req.org.id,
                 error.verification.processorResponseCode,
                 error.verification.processorResponseText
             );
@@ -226,10 +219,10 @@
             return q({ code: 400, body: 'Processor declined payment method' });
         }
         else if (error.verification && error.verification.status === 'gateway_rejected') {
-            log.info(
-                '[%1] Gateway rejected payment method for %2: reason - %3',
+            log.warn(
+                '[%1] Failed payment method for %2: gateway rejection: reason - %3',
                 req.uuid,
-                req.org && req.org.braintreeCustomer ? req.org.braintreeCustomer : 'new BT cust',
+                req.org.id,
                 error.verification.gatewayRejectionReason
             );
             

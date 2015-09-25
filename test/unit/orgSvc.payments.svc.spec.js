@@ -528,7 +528,7 @@ describe('orgSvc-payments (UT)', function() {
             error = {
                 success: false,
                 errors: {
-                    errorCollections: {}
+                    deepErrors: jasmine.createSpy('errors.deepErrors').andReturn([])
                 },
                 verification: {},
                 message: 'I GOT A PROBLEM CROSBY'
@@ -537,20 +537,18 @@ describe('orgSvc-payments (UT)', function() {
         });
         
         it('should handle any expected validation errors', function(done) {
-            q.all(['customer', 'paymentMethod', 'creditCard', 'paypal'].map(function(type) {
-                var err = JSON.parse(JSON.stringify(error));
-                err.errors.errorCollections[type] = { validationErrors: { paymentMethodNonce: {
-                    attribute: 'payment_method_nonce',
-                    code: '93103',
-                    message: 'Nonce is required.'
-                } } };
-                
-                return payModule.handleBraintreeErrors(req, err);
-            })).then(function(results) {
-                results.forEach(function(resp) {
-                    expect(resp).toEqual({ code: 400, body: 'Invalid payment method' });
-                });
-                expect(mockLog.info.calls.length).toBe(4);
+            error.errors.deepErrors.andReturn([
+                { attribute: 'number', code: '123', message: 'card number invalid' },
+                { attribute: 'number', code: '456', message: 'and your card is stupid' }
+            ]);
+            payModule.handleBraintreeErrors(req, error).then(function(resp) {
+                expect(resp).toEqual({ code: 400, body: 'Invalid payment method' });
+                expect(mockLog.warn).toHaveBeenCalled();
+                expect(mockLog.warn.mostRecentCall.args).toContain('I GOT A PROBLEM CROSBY');
+                expect(mockLog.info.mostRecentCall.args).toContain(JSON.stringify([
+                    { attribute: 'number', code: '123', message: 'card number invalid' },
+                    { attribute: 'number', code: '456', message: 'and your card is stupid' }
+                ], null, 2));
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
@@ -565,9 +563,9 @@ describe('orgSvc-payments (UT)', function() {
             
             payModule.handleBraintreeErrors(req, error).then(function(resp) {
                 expect(resp).toEqual({ code: 400, body: 'Processor declined payment method' });
-                expect(mockLog.info).toHaveBeenCalled();
-                expect(mockLog.info.mostRecentCall.args).toContain('2000');
-                expect(mockLog.info.mostRecentCall.args).toContain('Do Not Honor');
+                expect(mockLog.warn).toHaveBeenCalled();
+                expect(mockLog.warn.mostRecentCall.args).toContain('2000');
+                expect(mockLog.warn.mostRecentCall.args).toContain('Do Not Honor');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
@@ -581,8 +579,8 @@ describe('orgSvc-payments (UT)', function() {
             
             payModule.handleBraintreeErrors(req, error).then(function(resp) {
                 expect(resp).toEqual({ code: 400, body: 'Gateway declined payment method' });
-                expect(mockLog.info).toHaveBeenCalled();
-                expect(mockLog.info.mostRecentCall.args).toContain('cvv');
+                expect(mockLog.warn).toHaveBeenCalled();
+                expect(mockLog.warn.mostRecentCall.args).toContain('cvv');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
