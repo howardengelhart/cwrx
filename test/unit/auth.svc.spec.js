@@ -25,12 +25,12 @@ describe('auth (UT)', function() {
             fatal : jasmine.createSpy('log_fatal'),
             log   : jasmine.createSpy('log_log')
         };
-        spyOn(logger, 'createLog').andReturn(mockLog);
-        spyOn(logger, 'getLog').andReturn(mockLog);
+        spyOn(logger, 'createLog').and.returnValue(mockLog);
+        spyOn(logger, 'getLog').and.returnValue(mockLog);
         req = {
             uuid: '12345',
             session: {
-                regenerate: jasmine.createSpy('regenerate_session').andCallFake(function(cb) {
+                regenerate: jasmine.createSpy('regenerate_session').and.callFake(function(cb) {
                     req.session.cookie = {};
                     cb();
                 })
@@ -41,9 +41,9 @@ describe('auth (UT)', function() {
             update: jasmine.createSpy('users_update'),
             findAndModify: jasmine.createSpy('users_findAndModify')
         };
-        auditJournal = { writeAuditEntry: jasmine.createSpy('auditJournal.writeAuditEntry').andReturn(q()) };
-        spyOn(mongoUtils, 'safeUser').andCallThrough();
-        spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
+        auditJournal = { writeAuditEntry: jasmine.createSpy('auditJournal.writeAuditEntry').and.returnValue(q()) };
+        spyOn(mongoUtils, 'safeUser').and.callThrough();
+        spyOn(mongoUtils, 'unescapeKeys').and.callThrough();
         anyFunc = jasmine.any(Function);
     });
     
@@ -57,13 +57,13 @@ describe('auth (UT)', function() {
                 email: 'user',
                 password: 'hashpass'
             };
-            users.findOne.andCallFake(function(query, cb) {
+            users.findOne.and.callFake(function(query, cb) {
                 cb(null, origUser);
             });
-            spyOn(bcrypt, 'compare').andCallFake(function(pass, hashed, cb) {
+            spyOn(bcrypt, 'compare').and.callFake(function(pass, hashed, cb) {
                 cb(null, true);
             });
-            spyOn(authUtils, 'decorateUser').andReturn(q({ id: 'u-123', decorated: true }));
+            spyOn(authUtils, 'decorateUser').and.returnValue(q({ id: 'u-123', decorated: true }));
         });
     
         it('should resolve with a 400 if not provided with the required parameters', function(done) {
@@ -116,7 +116,7 @@ describe('auth (UT)', function() {
                 expect(origUser.password).toBe('hashpass'); // shouldn't accidentally delete this
                 
                 expect(users.findOne).toHaveBeenCalled();
-                expect(users.findOne.calls[0].args[0]).toEqual({'email': 'user'});
+                expect(users.findOne.calls.all()[0].args[0]).toEqual({'email': 'user'});
                 expect(bcrypt.compare).toHaveBeenCalledWith('pass', 'hashpass', anyFunc);
                 expect(req.session.regenerate).toHaveBeenCalled();
                 expect(mongoUtils.safeUser).toHaveBeenCalledWith(origUser);
@@ -147,7 +147,7 @@ describe('auth (UT)', function() {
         });
         
         it('should resolve with a 401 code if the passwords do not match', function(done) {
-            bcrypt.compare.andCallFake(function(pass, hashed, cb) {
+            bcrypt.compare.and.callFake(function(pass, hashed, cb) {
                 cb(null, false);
             });
             auth.login(req, users, 1000, auditJournal).then(function(resp) {
@@ -163,7 +163,7 @@ describe('auth (UT)', function() {
         });
         
         it('should resolve with a 401 code if the user does not exist', function(done) {
-            users.findOne.andCallFake(function(query, cb) {
+            users.findOne.and.callFake(function(query, cb) {
                 cb(null, null);
             });
             auth.login(req, users, 1000, auditJournal).then(function(resp) {
@@ -196,7 +196,7 @@ describe('auth (UT)', function() {
         });
         
         it('should not reject if writing to the journals fail', function(done) {
-            auditJournal.writeAuditEntry.andReturn(q.reject('audit journal fail'));
+            auditJournal.writeAuditEntry.and.returnValue(q.reject('audit journal fail'));
             auth.login(req, users, 1000, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({ id: 'u-123', decorated: true });
@@ -210,7 +210,7 @@ describe('auth (UT)', function() {
         });
         
         it('should reject with an error if session.regenerate fails with an error', function(done) {
-            req.session.regenerate.andCallFake(function(cb) {
+            req.session.regenerate.and.callFake(function(cb) {
                 cb('Error!');
             });
             auth.login(req, users, 1000, auditJournal).then(function(resp) {
@@ -225,7 +225,7 @@ describe('auth (UT)', function() {
         });
         
         it('should reject with an error if bcrypt.compare fails with an error', function(done) {
-            bcrypt.compare.andCallFake(function(pass, hashed, cb) {
+            bcrypt.compare.and.callFake(function(pass, hashed, cb) {
                 cb('Error!', null);
             });
             auth.login(req, users, 1000, auditJournal).then(function(resp) {
@@ -241,7 +241,7 @@ describe('auth (UT)', function() {
         });
         
         it('should reject with an error if users.findOne fails with an error', function(done) {
-            users.findOne.andCallFake(function(query, cb) {
+            users.findOne.and.callFake(function(query, cb) {
                 cb('Error!', null);
             });
             auth.login(req, users, 1000, auditJournal).then(function(resp) {
@@ -258,7 +258,7 @@ describe('auth (UT)', function() {
         });
         
         it('should reject if decorating the user fails', function(done) {
-            authUtils.decorateUser.andReturn(q.reject('Decorating is for squares'));
+            authUtils.decorateUser.and.returnValue(q.reject('Decorating is for squares'));
 
             auth.login(req, users, 1000, auditJournal).then(function(resp) {
                 expect(resp).not.toBeDefined();
@@ -276,7 +276,7 @@ describe('auth (UT)', function() {
         beforeEach(function() {
             req.session = {
                 user: 'u-123',
-                destroy: jasmine.createSpy('session_destroy').andCallFake(function(cb) { cb(); })
+                destroy: jasmine.createSpy('session_destroy').and.callFake(function(cb) { cb(); })
             };
         });
         
@@ -307,7 +307,7 @@ describe('auth (UT)', function() {
         });
 
         it('should not reject if writing to the journal fails', function(done) {
-            auditJournal.writeAuditEntry.andReturn(q.reject('audit journal fail'));
+            auditJournal.writeAuditEntry.and.returnValue(q.reject('audit journal fail'));
             auth.logout(req, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(204);
                 expect(resp.body).not.toBeDefined();
@@ -321,7 +321,7 @@ describe('auth (UT)', function() {
         });
         
         it('should pass along errors from req.session.destroy', function(done) {
-            req.session.destroy.andCallFake(function(cb) {
+            req.session.destroy.and.callFake(function(cb) {
                 cb('Error!');
             });
             auth.logout(req, auditJournal).then(function(resp) {
@@ -338,7 +338,7 @@ describe('auth (UT)', function() {
     
     describe('mailResetToken', function() {
         beforeEach(function() {
-            spyOn(email, 'compileAndSend').andReturn(q('success'));
+            spyOn(email, 'compileAndSend').and.returnValue(q('success'));
         });
         
         it('should correctly call compileAndSend', function(done) {
@@ -352,7 +352,7 @@ describe('auth (UT)', function() {
         });
         
         it('should pass along errors from compileAndSend', function(done) {
-            email.compileAndSend.andReturn(q.reject('I GOT A PROBLEM'));
+            email.compileAndSend.and.returnValue(q.reject('I GOT A PROBLEM'));
             auth.mailResetToken('send', 'recip', 'reset-pwd.com').then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
@@ -373,12 +373,12 @@ describe('auth (UT)', function() {
                 email: 'user@c6.com',
                 password: 'hashpass'
             };
-            users.findOne.andCallFake(function(query, cb) { cb(null, origUser); });
-            users.update.andCallFake(function(query, obj, opts, cb) { cb(null, 'updated'); });
-            spyOn(crypto, 'randomBytes').andCallFake(function(bytes, cb) { cb(null, new Buffer('HELLO')); });
-            spyOn(bcrypt, 'genSaltSync').andReturn('sodiumChloride');
-            spyOn(bcrypt, 'hash').andCallFake(function(txt, salt, cb) { cb(null, 'hashToken'); });
-            spyOn(auth, 'mailResetToken').andReturn(q('success'));
+            users.findOne.and.callFake(function(query, cb) { cb(null, origUser); });
+            users.update.and.callFake(function(query, obj, opts, cb) { cb(null, 'updated'); });
+            spyOn(crypto, 'randomBytes').and.callFake(function(bytes, cb) { cb(null, new Buffer('HELLO')); });
+            spyOn(bcrypt, 'genSaltSync').and.returnValue('sodiumChloride');
+            spyOn(bcrypt, 'hash').and.callFake(function(txt, salt, cb) { cb(null, 'hashToken'); });
+            spyOn(auth, 'mailResetToken').and.returnValue(q('success'));
         });
         
         it('should fail with a 400 if the request is incomplete', function(done) {
@@ -440,7 +440,7 @@ describe('auth (UT)', function() {
                     { $set: { lastUpdated: jasmine.any(Date),
                               resetToken: { token: 'hashToken', expires: jasmine.any(Date) } } },
                     { w: 1, journal: true}, anyFunc);
-                expect((users.update.calls[0].args[1]['$set'].resetToken.expires - now) >= 10000).toBeTruthy();
+                expect((users.update.calls.all()[0].args[1]['$set'].resetToken.expires - now) >= 10000).toBeTruthy();
                 expect(auth.mailResetToken).toHaveBeenCalledWith('test@c6.com', 'user@c6.com',
                     'https://c6.com/forgot?id=u-1&token=48454c4c4f');
                 expect(auditJournal.writeAuditEntry).toHaveBeenCalledWith(req, 'u-1');
@@ -455,7 +455,7 @@ describe('auth (UT)', function() {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toBe('Successfully generated reset token');
                 expect(users.findOne).toHaveBeenCalledWith({email: 'user@c6.com'}, anyFunc);
-                expect(users.update.calls[0].args[0]).toEqual({ email: 'user@c6.com' });
+                expect(users.update.calls.all()[0].args[0]).toEqual({ email: 'user@c6.com' });
                 expect(auth.mailResetToken).toHaveBeenCalledWith('test@c6.com', 'user@c6.com',
                     'https://c6.com/forgot?id=u-1&token=48454c4c4f');
             }).catch(function(error) {
@@ -464,7 +464,7 @@ describe('auth (UT)', function() {
         });
         
         it('should fail with a 404 if the user does not exist', function(done) {
-            users.findOne.andCallFake(function(query, cb) { cb(null, null); });
+            users.findOne.and.callFake(function(query, cb) { cb(null, null); });
             auth.forgotPassword(req, users, 10000, 'test@c6.com', targets, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(404);
                 expect(resp.body).toBe('That user does not exist');
@@ -510,7 +510,7 @@ describe('auth (UT)', function() {
         });
 
         it('should not reject if writing to the journal fails', function(done) {
-            auditJournal.writeAuditEntry.andReturn(q.reject('audit journal fail'));
+            auditJournal.writeAuditEntry.and.returnValue(q.reject('audit journal fail'));
             auth.forgotPassword(req, users, 10000, 'test@c6.com', targets, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toBe('Successfully generated reset token');
@@ -524,7 +524,7 @@ describe('auth (UT)', function() {
         });
         
         it('should fail if looking up the user fails', function(done) {
-            users.findOne.andCallFake(function(query, cb) { cb('I GOT A PROBLEM', null); });
+            users.findOne.and.callFake(function(query, cb) { cb('I GOT A PROBLEM', null); });
             auth.forgotPassword(req, users, 10000, 'test@c6.com', targets, auditJournal).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
@@ -537,7 +537,7 @@ describe('auth (UT)', function() {
         });
         
         it('should fail if creating a random token fails', function(done) {
-            crypto.randomBytes.andCallFake(function(bytes, cb) { cb('I GOT A PROBLEM', null); });
+            crypto.randomBytes.and.callFake(function(bytes, cb) { cb('I GOT A PROBLEM', null); });
             auth.forgotPassword(req, users, 10000, 'test@c6.com', targets, auditJournal).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
@@ -551,7 +551,7 @@ describe('auth (UT)', function() {
         });
         
         it('should fail if hashing the token fails', function(done) {
-            bcrypt.hash.andCallFake(function(txt, salt, cb) { cb('I GOT A PROBLEM', null); });
+            bcrypt.hash.and.callFake(function(txt, salt, cb) { cb('I GOT A PROBLEM', null); });
             auth.forgotPassword(req, users, 10000, 'test@c6.com', targets, auditJournal).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
@@ -564,7 +564,7 @@ describe('auth (UT)', function() {
         });
         
         it('should fail if saving the token to the db fails', function(done) {
-            users.update.andCallFake(function(query, obj, opts, cb) { cb('I GOT A PROBLEM', null); });
+            users.update.and.callFake(function(query, obj, opts, cb) { cb('I GOT A PROBLEM', null); });
             auth.forgotPassword(req, users, 10000, 'test@c6.com', targets, auditJournal).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
@@ -576,7 +576,7 @@ describe('auth (UT)', function() {
         });
         
         it('should fail if sending the email fails', function(done) {
-            auth.mailResetToken.andReturn(q.reject('I GOT A PROBLEM'));
+            auth.mailResetToken.and.returnValue(q.reject('I GOT A PROBLEM'));
             auth.forgotPassword(req, users, 10000, 'test@c6.com', targets, auditJournal).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
@@ -597,15 +597,15 @@ describe('auth (UT)', function() {
                 id: 'u-1', email: 'user@c6.com', password: 'oldpass', status: Status.Active,
                 resetToken: { token: 'hashed', expires: new Date(now.valueOf() + 10000) }
             };
-            users.findOne.andCallFake(function(query, cb) { cb(null, origUser); });
-            users.findAndModify.andCallFake(function(query, sort, obj, opts, cb) {
+            users.findOne.and.callFake(function(query, cb) { cb(null, origUser); });
+            users.findAndModify.and.callFake(function(query, sort, obj, opts, cb) {
                 cb(null, [{ id: 'u-1', updated: true, password: 'hashPass' }]);
             });
-            spyOn(bcrypt, 'compare').andCallFake(function(orig, hashed, cb) { cb(null, true); });
-            spyOn(bcrypt, 'genSaltSync').andReturn('sodiumChloride');
-            spyOn(bcrypt, 'hash').andCallFake(function(txt, salt, cb) { cb(null, 'hashPass'); });
-            spyOn(email, 'notifyPwdChange').andReturn(q('success'));
-            spyOn(authUtils, 'decorateUser').andReturn(q({ id: 'u-1', decorated: true }));
+            spyOn(bcrypt, 'compare').and.callFake(function(orig, hashed, cb) { cb(null, true); });
+            spyOn(bcrypt, 'genSaltSync').and.returnValue('sodiumChloride');
+            spyOn(bcrypt, 'hash').and.callFake(function(txt, salt, cb) { cb(null, 'hashPass'); });
+            spyOn(email, 'notifyPwdChange').and.returnValue(q('success'));
+            spyOn(authUtils, 'decorateUser').and.returnValue(q({ id: 'u-1', decorated: true }));
         });
         
         it('should fail with a 400 if the request is incomplete', function(done) {
@@ -678,7 +678,7 @@ describe('auth (UT)', function() {
         });
         
         it('should fail with a 404 if the user does not exist', function(done) {
-            users.findOne.andCallFake(function(query, cb) { cb(null, null); });
+            users.findOne.and.callFake(function(query, cb) { cb(null, null); });
             auth.resetPassword(req, users, 'test@c6.com', 10000, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(404);
                 expect(resp.body).toBe('That user does not exist');
@@ -740,7 +740,7 @@ describe('auth (UT)', function() {
         });
         
         it('should fail with a 403 if the request token does not match the reset token', function(done) {
-            bcrypt.compare.andCallFake(function(orig, hashed, cb) { cb(null, false); });
+            bcrypt.compare.and.callFake(function(orig, hashed, cb) { cb(null, false); });
             auth.resetPassword(req, users, 'test@c6.com', 10000, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(403);
                 expect(resp.body).toBe('Invalid request token');
@@ -755,7 +755,7 @@ describe('auth (UT)', function() {
         });
 
         it('should not reject if writing to the journal fails', function(done) {
-            auditJournal.writeAuditEntry.andReturn(q.reject('audit journal fail'));
+            auditJournal.writeAuditEntry.and.returnValue(q.reject('audit journal fail'));
             auth.resetPassword(req, users, 'test@c6.com', 10000, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({id: 'u-1', decorated: true});
@@ -773,7 +773,7 @@ describe('auth (UT)', function() {
         });
         
         it('should fail if finding the user fails', function(done) {
-            users.findOne.andCallFake(function(query, cb) { cb('I GOT A PROBLEM', null); });
+            users.findOne.and.callFake(function(query, cb) { cb('I GOT A PROBLEM', null); });
             auth.resetPassword(req, users, 'test@c6.com', 10000, auditJournal).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
@@ -788,7 +788,7 @@ describe('auth (UT)', function() {
         });
         
         it('should fail if checking the reset token fails', function(done) {
-            bcrypt.compare.andCallFake(function(orig, hashed, cb) { cb('I GOT A PROBLEM', false); });
+            bcrypt.compare.and.callFake(function(orig, hashed, cb) { cb('I GOT A PROBLEM', false); });
             auth.resetPassword(req, users, 'test@c6.com', 10000, auditJournal).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
@@ -803,7 +803,7 @@ describe('auth (UT)', function() {
         });
         
         it('should fail if hashing the new password fails', function(done) {
-            bcrypt.hash.andCallFake(function(orig, hashed, cb) { cb('I GOT A PROBLEM', null); });
+            bcrypt.hash.and.callFake(function(orig, hashed, cb) { cb('I GOT A PROBLEM', null); });
             auth.resetPassword(req, users, 'test@c6.com', 10000, auditJournal).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
@@ -817,7 +817,7 @@ describe('auth (UT)', function() {
         });
         
         it('should fail if updating the user fails', function(done) {
-            users.findAndModify.andCallFake(function(query, sort, obj, opts, cb) { cb('I GOT A PROBLEM', null); });
+            users.findAndModify.and.callFake(function(query, sort, obj, opts, cb) { cb('I GOT A PROBLEM', null); });
             auth.resetPassword(req, users, 'test@c6.com', 10000, auditJournal).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
@@ -832,7 +832,7 @@ describe('auth (UT)', function() {
         });
         
         it('should just log an error if sending a notification fails', function(done) {
-            email.notifyPwdChange.andReturn(q.reject('I GOT A PROBLEM'));
+            email.notifyPwdChange.and.returnValue(q.reject('I GOT A PROBLEM'));
             auth.resetPassword(req, users, 'test@c6.com', 10000, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({id: 'u-1', decorated: true});
