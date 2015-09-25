@@ -1,4 +1,4 @@
-var flush = true;    
+var flush = true;
 describe('mongoUtils', function() {
     var mongodb, mongoUtils, q, logger, mockLog;
     
@@ -17,13 +17,13 @@ describe('mongoUtils', function() {
             fatal : jasmine.createSpy('log_fatal'),
             log   : jasmine.createSpy('log_log')
         };
-        spyOn(logger, 'createLog').andReturn(mockLog);
-        spyOn(logger, 'getLog').andReturn(mockLog);
+        spyOn(logger, 'createLog').and.returnValue(mockLog);
+        spyOn(logger, 'getLog').and.returnValue(mockLog);
     });
     
     describe('connect', function() {
         beforeEach(function() {
-            spyOn(mongodb.MongoClient, 'connect').andCallFake(function(url, opts, cb) {
+            spyOn(mongodb.MongoClient, 'connect').and.callFake(function(url, opts, cb) {
                 cb(null, 'fakeDb');
             });
         });
@@ -32,9 +32,9 @@ describe('mongoUtils', function() {
             mongoUtils.connect('10.0.0.1', '666', 'fakeDb').then(function(db) {
                 expect(db).toBe('fakeDb');
                 expect(mongodb.MongoClient.connect).toHaveBeenCalled();
-                expect(mongodb.MongoClient.connect.calls[0].args[0])
+                expect(mongodb.MongoClient.connect.calls.all()[0].args[0])
                     .toBe('mongodb://10.0.0.1:666/fakeDb?readPreference=primaryPreferred');
-                expect(mongodb.MongoClient.connect.calls[0].args[1]).toEqual({
+                expect(mongodb.MongoClient.connect.calls.all()[0].args[1]).toEqual({
                     server: { auto_reconnect: true },
                     db: { native_parser: true, bufferMaxEntries: 0 }
                 });
@@ -50,7 +50,7 @@ describe('mongoUtils', function() {
             .then(function(db) {
                 expect(db).toBe('fakeDb');
                 expect(mongodb.MongoClient.connect).toHaveBeenCalled();
-                expect(mongodb.MongoClient.connect.calls[0].args[0])
+                expect(mongodb.MongoClient.connect.calls.all()[0].args[0])
                     .toBe('mongodb://10.0.0.1:666/fakeDb?readPreference=primaryPreferred');
                 done();
             }).catch(function(error) {
@@ -65,9 +65,9 @@ describe('mongoUtils', function() {
             .then(function(db) {
                 expect(db).toBe('fakeDb');
                 expect(mongodb.MongoClient.connect).toHaveBeenCalled();
-                expect(mongodb.MongoClient.connect.calls[0].args[0])
+                expect(mongodb.MongoClient.connect.calls.all()[0].args[0])
                     .toBe('mongodb://10.0.1.1:123,10.0.1.2:456/fakeDb?readPreference=primaryPreferred&replicaSet=devReplSet');
-                expect(mongodb.MongoClient.connect.calls[0].args[1]).toEqual({
+                expect(mongodb.MongoClient.connect.calls.all()[0].args[1]).toEqual({
                     server: { auto_reconnect: true },
                     db: { native_parser: true, bufferMaxEntries: 0 }
                 });
@@ -83,7 +83,7 @@ describe('mongoUtils', function() {
             .then(function(db) {
                 expect(db).toBe('fakeDb');
                 expect(mongodb.MongoClient.connect).toHaveBeenCalled();
-                expect(mongodb.MongoClient.connect.calls[0].args[0])
+                expect(mongodb.MongoClient.connect.calls.all()[0].args[0])
                     .toBe('mongodb://test:password@10.0.0.1:666/fakeDb?readPreference=primaryPreferred');
                 done();
             }).catch(function(error) {
@@ -110,12 +110,12 @@ describe('mongoUtils', function() {
         });
         
         it('should pass along errors from connecting', function(done) {
-            mongodb.MongoClient.connect.andCallFake(function(url, opts, cb) {
+            mongodb.MongoClient.connect.and.callFake(function(url, opts, cb) {
                 cb('Error!');
             });
             mongoUtils.connect('10.0.0.1', '666', 'fakeDb').catch(function(error) {
                 expect(error).toBe('Error!');
-                expect(mongodb.MongoClient.connect.calls[0].args[0])
+                expect(mongodb.MongoClient.connect.calls.all()[0].args[0])
                     .toBe('mongodb://10.0.0.1:666/fakeDb?readPreference=primaryPreferred');
                 done();
             });
@@ -124,7 +124,7 @@ describe('mongoUtils', function() {
     
     describe('safe user', function() {
         beforeEach(function() {
-            spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
+            spyOn(mongoUtils, 'unescapeKeys').and.callThrough();
         });
 
         it('should create a new user object without any sensitive fields', function() {
@@ -239,11 +239,11 @@ describe('mongoUtils', function() {
         var mockColl;
         beforeEach(function() {
             mockColl = {
-                insert: jasmine.createSpy('coll.insert()').andCallFake(function(obj, opts, cb) {
+                insert: jasmine.createSpy('coll.insert()').and.callFake(function(obj, opts, cb) {
                     cb(null, true);
                 })
             };
-            spyOn(mongoUtils, 'escapeKeys').andReturn({ escaped: 'yes' });
+            spyOn(mongoUtils, 'escapeKeys').and.returnValue({ escaped: 'yes' });
         });
         
         it('should insert an object into a collection with some opts', function(done) {
@@ -257,7 +257,7 @@ describe('mongoUtils', function() {
         });
         
         it('should log an error and reject if inserting the object fails', function(done) {
-            mockColl.insert.andCallFake(function(obj, opts, cb) { cb('I GOT A PROBLEM'); });
+            mockColl.insert.and.callFake(function(obj, opts, cb) { cb('I GOT A PROBLEM'); });
 
             mongoUtils.createObject(mockColl, { orig: 'yes' }).then(function(resp) {
                 expect(resp).not.toBeDefined();
@@ -284,11 +284,11 @@ describe('mongoUtils', function() {
         var mockColl;
         beforeEach(function() {
             mockColl = {
-                findAndModify: jasmine.createSpy('coll.findAndModify()').andCallFake(function(query, sort, updates, opts, cb) {
+                findAndModify: jasmine.createSpy('coll.findAndModify()').and.callFake(function(query, sort, updates, opts, cb) {
                     cb(null, [{ updated: 'yes' }]);
                 })
             };
-            spyOn(mongoUtils, 'escapeKeys').andReturn({ escaped: 'yes' });
+            spyOn(mongoUtils, 'escapeKeys').and.returnValue({ escaped: 'yes' });
         });
         
         it('should edit an object in a collection', function(done) {
@@ -303,7 +303,7 @@ describe('mongoUtils', function() {
         });
         
         it('should log an error and reject if inserting the object fails', function(done) {
-            mockColl.findAndModify.andCallFake(function(query, sort, updates, opts, cb) { cb('I GOT A PROBLEM'); });
+            mockColl.findAndModify.and.callFake(function(query, sort, updates, opts, cb) { cb('I GOT A PROBLEM'); });
 
             mongoUtils.editObject(mockColl, { orig: 'yes' }, 'e-1').then(function(resp) {
                 expect(resp).not.toBeDefined();
