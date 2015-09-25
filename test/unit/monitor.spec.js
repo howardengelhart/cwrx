@@ -5,7 +5,7 @@ describe('monitor',function(){
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
 
-        jasmine.Clock.useMock();
+        jasmine.clock().install();
         
         q               = require('q');
         mockGlob        = require('glob');
@@ -41,27 +41,31 @@ describe('monitor',function(){
 
         anyFunc = jasmine.any(Function);
 
-        mockHttpReq.on.andCallFake(function(eventName,handler){
+        mockHttpReq.on.and.callFake(function(eventName,handler){
             mockHttpReq._on[eventName] = handler;
         });
 
-        mockHttpRes.on.andCallFake(function(eventName,handler){
+        mockHttpRes.on.and.callFake(function(eventName,handler){
             mockHttpRes._on[eventName] = handler;
         });
 
         spyOn(mockGlob,'Glob');
 
-        spyOn(mockLogger,'createLog').andReturn(mockLog);
-        spyOn(mockLogger,'getLog').andReturn(mockLog);
+        spyOn(mockLogger,'createLog').and.returnValue(mockLog);
+        spyOn(mockLogger,'getLog').and.returnValue(mockLog);
         
         spyOn(mockFs,'existsSync');
         spyOn(mockFs,'readFileSync');
         spyOn(mockFs,'readJsonSync');
 
-        spyOn(mockHttp,  'request').andReturn(mockHttpReq);
-        spyOn(mockHttps, 'request').andReturn(mockHttpReq);
+        spyOn(mockHttp,  'request').and.returnValue(mockHttpReq);
+        spyOn(mockHttps, 'request').and.returnValue(mockHttpReq);
 
         spyOn(process , 'kill');
+    });
+
+    afterEach(function() {
+        jasmine.clock().uninstall();
     });
 
     /* checkHttp -- begin */
@@ -90,8 +94,8 @@ describe('monitor',function(){
             })
             .done(done);
 
-            var reqOpts = mockHttp.request.argsForCall[0][0],
-                reqCb = mockHttp.request.argsForCall[0][1];
+            var reqOpts = mockHttp.request.calls.allArgs()[0][0],
+                reqCb = mockHttp.request.calls.allArgs()[0][1];
 
             expect(reqOpts.hostname).toEqual(params.checkHttp.host);
             expect(reqOpts.port).toEqual(params.checkHttp.port);
@@ -112,12 +116,12 @@ describe('monitor',function(){
             .finally(function(){
                 expect(resolveSpy).not.toHaveBeenCalled();
                 expect(rejectSpy).toHaveBeenCalled();
-                expect(rejectSpy.mostRecentCall.args[0].httpCode).toEqual(502);
-                expect(rejectSpy.mostRecentCall.args[0].message).toEqual('This is an error.');
+                expect(rejectSpy.calls.mostRecent().args[0].httpCode).toEqual(502);
+                expect(rejectSpy.calls.mostRecent().args[0].message).toEqual('This is an error.');
             })
             .done(done);
 
-            var reqCb = mockHttp.request.argsForCall[0][1];
+            var reqCb = mockHttp.request.calls.allArgs()[0][1];
 
             //Trigger the http.request response callback
             mockHttpRes.statusCode = 400;
@@ -135,8 +139,8 @@ describe('monitor',function(){
             .finally(function(){
                 expect(resolveSpy).not.toHaveBeenCalled();
                 expect(rejectSpy).toHaveBeenCalled();
-                expect(rejectSpy.mostRecentCall.args[0].httpCode).toEqual(500);
-                expect(rejectSpy.mostRecentCall.args[0].message).toEqual('This is an error.');
+                expect(rejectSpy.calls.mostRecent().args[0].httpCode).toEqual(500);
+                expect(rejectSpy.calls.mostRecent().args[0].message).toEqual('This is an error.');
             })
             .done(done);
 
@@ -153,21 +157,21 @@ describe('monitor',function(){
             params.checkHttp.https = true;
             delete params.checkHttp.port;
             app.checkHttp(params);
-            var reqOpts = mockHttps.request.argsForCall[0][0];
+            var reqOpts = mockHttps.request.calls.allArgs()[0][0];
             expect(reqOpts.port).toEqual(443);
         });
         
         it('sets port to 80 if !params.checkHttp.https and port is undefined',function(){
             delete params.checkHttp.port;
             app.checkHttp(params);
-            var reqOpts = mockHttp.request.argsForCall[0][0];
+            var reqOpts = mockHttp.request.calls.allArgs()[0][0];
             expect(reqOpts.port).toEqual(80);
         });
 
         it('sets hostname to localhost if not set', function(){
             delete params.checkHttp.host;
             app.checkHttp(params);
-            var reqOpts = mockHttp.request.argsForCall[0][0];
+            var reqOpts = mockHttp.request.calls.allArgs()[0][0];
             expect(reqOpts.hostname).toEqual('localhost');
         });
     });
@@ -187,34 +191,34 @@ describe('monitor',function(){
         });
         
         it('will reject if pidfile is missing',function(done){
-            mockFs.existsSync.andReturn(false);
+            mockFs.existsSync.and.returnValue(false);
             app.checkProcess(params).then(resolveSpy,rejectSpy)
             .finally(function(){
                 expect(resolveSpy).not.toHaveBeenCalled();
                 expect(rejectSpy).toHaveBeenCalled();
-                expect(rejectSpy.mostRecentCall.args[0].message)
+                expect(rejectSpy.calls.mostRecent().args[0].message)
                     .toEqual('Process unavailable.');
             })
             .done(done);
         });
 
         it('will reject if pidfile is missing',function(done){
-            mockFs.existsSync.andReturn(false);
+            mockFs.existsSync.and.returnValue(false);
             app.checkProcess(params).then(resolveSpy,rejectSpy)
             .finally(function(){
                 expect(mockFs.existsSync).toHaveBeenCalledWith(params.checkProcess.pidPath);
                 expect(resolveSpy).not.toHaveBeenCalled();
                 expect(rejectSpy).toHaveBeenCalled();
-                expect(rejectSpy.mostRecentCall.args[0].message)
+                expect(rejectSpy.calls.mostRecent().args[0].message)
                     .toEqual('Process unavailable.');
             })
             .done(done);
         });
         
         it('will reject if process not running',function(done){
-            mockFs.existsSync.andReturn(true);
-            mockFs.readFileSync.andReturn('9332');
-            process.kill.andCallFake(function(pid,signal){
+            mockFs.existsSync.and.returnValue(true);
+            mockFs.readFileSync.and.returnValue('9332');
+            process.kill.and.callFake(function(pid,signal){
                 throw new Error('kill ESRCH');
             });
             app.checkProcess(params).then(resolveSpy,rejectSpy)
@@ -223,16 +227,16 @@ describe('monitor',function(){
                 expect(process.kill).toHaveBeenCalledWith(9332,0);
                 expect(resolveSpy).not.toHaveBeenCalled();
                 expect(rejectSpy).toHaveBeenCalled();
-                expect(rejectSpy.mostRecentCall.args[0].message)
+                expect(rejectSpy.calls.mostRecent().args[0].message)
                     .toEqual('Process unavailable.');
             })
             .done(done);
         });
 
         it('will resolve if process is running',function(done){
-            mockFs.existsSync.andReturn(true);
-            mockFs.readFileSync.andReturn('9332');
-            process.kill.andReturn(true);
+            mockFs.existsSync.and.returnValue(true);
+            mockFs.readFileSync.and.returnValue('9332');
+            process.kill.and.returnValue(true);
             app.checkProcess(params).then(resolveSpy,rejectSpy)
             .finally(function(){
                 expect(resolveSpy).toHaveBeenCalledWith(params);
@@ -263,8 +267,8 @@ describe('monitor',function(){
                 }
             };
             
-            app.checkProcess.andReturn(q(params));
-            app.checkHttp.andReturn(q(params));
+            app.checkProcess.and.returnValue(q(params));
+            app.checkHttp.and.returnValue(q(params));
 
             app.checkService(params)
                 .then(resolveSpy,rejectSpy)
@@ -283,8 +287,8 @@ describe('monitor',function(){
                 }
             };
 
-            app.checkProcess.andReturn(q(params));
-            app.checkHttp.andReturn(q(params));
+            app.checkProcess.and.returnValue(q(params));
+            app.checkHttp.and.returnValue(q(params));
             
             app.checkService(params)
                 .then(resolveSpy,rejectSpy)
@@ -301,8 +305,8 @@ describe('monitor',function(){
             .finally(function(){
                 expect(resolveSpy).not.toHaveBeenCalled();
                 expect(rejectSpy).toHaveBeenCalled();
-                expect(rejectSpy.mostRecentCall.args[0].httpCode).toEqual(500);
-                expect(rejectSpy.mostRecentCall.args[0].message)
+                expect(rejectSpy.calls.mostRecent().args[0].httpCode).toEqual(500);
+                expect(rejectSpy.calls.mostRecent().args[0].message)
                     .toEqual('No checks performed.');
             })
             .done(done);
@@ -319,13 +323,13 @@ describe('monitor',function(){
                     pidPath : 'path'
                 }
             };
-            app.checkProcess.andReturn(q(params));
-            app.checkHttp.andReturn(q.reject({message : 'Failed', httpCode : 500 }));
+            app.checkProcess.and.returnValue(q(params));
+            app.checkHttp.and.returnValue(q.reject({message : 'Failed', httpCode : 500 }));
             app.checkService(params).then(resolveSpy,rejectSpy)
             .finally(function(){
                 expect(resolveSpy).not.toHaveBeenCalled();
-                expect(rejectSpy.mostRecentCall.args[0].httpCode).toEqual(500);
-                expect(rejectSpy.mostRecentCall.args[0].message).toEqual('Failed');
+                expect(rejectSpy.calls.mostRecent().args[0].httpCode).toEqual(500);
+                expect(rejectSpy.calls.mostRecent().args[0].message).toEqual('Failed');
             })
             .done(done);
         });
@@ -341,8 +345,8 @@ describe('monitor',function(){
                     pidPath : 'path'
                 }
             };
-            app.checkProcess.andReturn(q(params));
-            app.checkHttp.andReturn(q(params));
+            app.checkProcess.and.returnValue(q(params));
+            app.checkHttp.and.returnValue(q(params));
             app.checkService(params).then(resolveSpy,rejectSpy)
             .finally(function(){
                 expect(resolveSpy).toHaveBeenCalledWith(params);
@@ -383,8 +387,8 @@ describe('monitor',function(){
         });
 
         it('will resolve if all services pass all checks',function(done){
-            app.checkProcess.andCallFake(function(p){ return q(p); });
-            app.checkHttp.andCallFake(function(p){ return q(p); });
+            app.checkProcess.and.callFake(function(p){ return q(p); });
+            app.checkHttp.and.callFake(function(p){ return q(p); });
             
             app.checkServices(params)
             .then(resolveSpy,rejectSpy)
@@ -398,8 +402,8 @@ describe('monitor',function(){
         });
 
         it('will reject if there are no services ',function(done){
-            app.checkProcess.andCallFake(function(p){ return q(p); });
-            app.checkHttp.andCallFake(function(p){ return q(p); });
+            app.checkProcess.and.callFake(function(p){ return q(p); });
+            app.checkHttp.and.callFake(function(p){ return q(p); });
             
             app.checkServices([])
             .then(resolveSpy,rejectSpy)
@@ -411,13 +415,13 @@ describe('monitor',function(){
         });
 
         it('will reject if any of the service checks fail',function(done){
-            app.checkProcess.andCallFake(function(p){
+            app.checkProcess.and.callFake(function(p){
                 if (p.checkProcess.pidPath === 'pidPath_serviceB'){
                     return q.reject({ message : 'FAIL!', httpCode : 500});
                 }
                 return q(p);
             });
-            app.checkHttp.andCallFake(function(p){ return q(p); });
+            app.checkHttp.and.callFake(function(p){ return q(p); });
             
             app.checkServices(params)
             .then(resolveSpy,rejectSpy)
@@ -437,8 +441,8 @@ describe('monitor',function(){
             resolveSpy = jasmine.createSpy('handleGetStatus.resolve');
             rejectSpy  = jasmine.createSpy('handleGetStatus.reject');
             
-            spyOn(app,'checkProcess').andCallFake(function(p){ return q(p); });
-            spyOn(app,'checkHttp').andCallFake(function(p){ return q(p); });
+            spyOn(app,'checkProcess').and.callFake(function(p){ return q(p); });
+            spyOn(app,'checkHttp').and.callFake(function(p){ return q(p); });
             
             state = {
                 config   : {},
@@ -488,7 +492,7 @@ describe('monitor',function(){
 
 
         it('will generate a 502 response if an http check fails', function(done){
-            app.checkHttp.andCallFake(function(p){
+            app.checkHttp.and.callFake(function(p){
                 if (p.name === 'serviceC'){
                     return q.reject({ httpCode : 502, message : 'Failed' });
                 }
@@ -507,13 +511,13 @@ describe('monitor',function(){
         });
 
         it('will generate a 503 response if a checkProcess call fails', function(done){
-            app.checkProcess.andCallFake(function(p){
+            app.checkProcess.and.callFake(function(p){
                 if (p.name === 'serviceB'){
                     return q.reject({ httpCode : 503, message : 'Process unavailable' });
                 }
                 return q(p);
             });
-            app.checkHttp.andCallFake(function(p){
+            app.checkHttp.and.callFake(function(p){
                 if (p.name === 'serviceC'){
                     return q.reject({ httpCode : 502, message : 'Failed' });
                 }
@@ -532,7 +536,7 @@ describe('monitor',function(){
         });
         
         it('will generate a 504 response if a check times out', function(done){
-            app.checkHttp.andCallFake(function(p){
+            app.checkHttp.and.callFake(function(p){
                 setTimeout(function(){
                     return q(p);
                 },2000);
@@ -546,7 +550,7 @@ describe('monitor',function(){
                 expect(mockHttpRes.send).toHaveBeenCalledWith(504,'Request timed out.');
             })
             .done(done);
-            jasmine.Clock.tick(1200);
+            jasmine.clock().tick(1200);
         });
     });
     /* handleGetStatus -- end */
@@ -564,7 +568,7 @@ describe('monitor',function(){
 
          it('uses the state.monitorInc setting to find files',function(done){
             var globPattern;
-            mockGlob.Glob.andCallFake(function(pattern,callback){
+            mockGlob.Glob.and.callFake(function(pattern,callback){
                 globPattern = pattern;
                 callback(null,[]);
             });
@@ -580,10 +584,10 @@ describe('monitor',function(){
         });
 
         it('adds the contents of the monitor files to the state.services array',function(done){
-            mockGlob.Glob.andCallFake(function(pattern,callback){
+            mockGlob.Glob.and.callFake(function(pattern,callback){
                 callback(null,['fileA.json','fileB.json']);
             });
-            mockFs.readJsonSync.andCallFake(function(fpath){
+            mockFs.readJsonSync.and.callFake(function(fpath){
                 if (fpath === 'fileA.json'){
                     return { name : 'serviceA', checkProgress : {} };
                 }
@@ -595,17 +599,17 @@ describe('monitor',function(){
             .finally(function(){
                 expect(resolveSpy).toHaveBeenCalled();
                 expect(rejectSpy).not.toHaveBeenCalled();
-                expect(mockFs.readJsonSync.callCount).toEqual(2);
+                expect(mockFs.readJsonSync.calls.count()).toEqual(2);
                 expect(state.services.length).toEqual(2);
             })
             .done(done);
         });
         
         it('rejects if there is an error reading a config file',function(done){
-            mockGlob.Glob.andCallFake(function(pattern,callback){
+            mockGlob.Glob.and.callFake(function(pattern,callback){
                 callback(null,['fileA.json','fileB.json']);
             });
-            mockFs.readJsonSync.andCallFake(function(fpath){
+            mockFs.readJsonSync.and.callFake(function(fpath){
                 if (fpath === 'fileA.json'){
                     return { name : 'serviceA', checkProgress : {} };
                 }
@@ -617,7 +621,7 @@ describe('monitor',function(){
             .finally(function(){
                 expect(resolveSpy).not.toHaveBeenCalled();
                 expect(rejectSpy).toHaveBeenCalled();
-                expect(rejectSpy.mostRecentCall.args[0].message)
+                expect(rejectSpy.calls.mostRecent().args[0].message)
                     .toEqual('Failed to read fileB.json with NOT JSON');
             })
             .done(done);
@@ -664,7 +668,7 @@ describe('monitor',function(){
             .finally(function(){
                 expect(resolveSpy).not.toHaveBeenCalled();
                 expect(rejectSpy).toHaveBeenCalled();
-                expect(rejectSpy.mostRecentCall.args[0].message)
+                expect(rejectSpy.calls.mostRecent().args[0].message)
                     .toEqual('Service at index 1 requires a name.');
             })
             .done(done);
@@ -680,7 +684,7 @@ describe('monitor',function(){
             .finally(function(){
                 expect(resolveSpy).not.toHaveBeenCalled();
                 expect(rejectSpy).toHaveBeenCalled();
-                expect(rejectSpy.mostRecentCall.args[0].message)
+                expect(rejectSpy.calls.mostRecent().args[0].message)
                     .toEqual('Service serviceB requires pidPath for checkProcess.');
             })
             .done(done);
@@ -696,7 +700,7 @@ describe('monitor',function(){
             .finally(function(){
                 expect(resolveSpy).not.toHaveBeenCalled();
                 expect(rejectSpy).toHaveBeenCalled();
-                expect(rejectSpy.mostRecentCall.args[0].message)
+                expect(rejectSpy.calls.mostRecent().args[0].message)
                     .toEqual('Service serviceB requires path for checkHttp.');
             })
             .done(done);
@@ -712,7 +716,7 @@ describe('monitor',function(){
             .finally(function(){
                 expect(resolveSpy).not.toHaveBeenCalled();
                 expect(rejectSpy).toHaveBeenCalled();
-                expect(rejectSpy.mostRecentCall.args[0].message)
+                expect(rejectSpy.calls.mostRecent().args[0].message)
                     .toEqual('Service serviceA requires checkProcess or checkHttp.');
             })
             .done(done);
@@ -779,10 +783,10 @@ describe('monitor',function(){
                 { Instances: [ { InstanceId: 'i-1', PrivateIpAddress: '1.2.3.4' } ] },
                 { Instances: [ { InstanceId: 'i-3', PrivateIpAddress: '5.6.7.8' } ] }
             ];
-            ASG = { describeAutoScalingGroups: jasmine.createSpy('describeASGs').andCallFake(function(params, cb) {
+            ASG = { describeAutoScalingGroups: jasmine.createSpy('describeASGs').and.callFake(function(params, cb) {
                 cb(null, { AutoScalingGroups: mockGroups });
             }) };
-            EC2 = { describeInstances: jasmine.createSpy('describeInstances').andCallFake(function(params, cb) {
+            EC2 = { describeInstances: jasmine.createSpy('describeInstances').and.callFake(function(params, cb) {
                 cb(null, { Reservations: mockReservations });
             }) };
         });
@@ -828,7 +832,7 @@ describe('monitor',function(){
         });
 
         it('should reject if describing the ASG fails', function(done) {
-            ASG.describeAutoScalingGroups.andCallFake(function(params, cb) { cb('I GOT A PROBLEM'); });
+            ASG.describeAutoScalingGroups.and.callFake(function(params, cb) { cb('I GOT A PROBLEM'); });
 
             app.getASGInstances(ASG, EC2, 'testGroup').then(function(ips) {
                 expect(ips).not.toBeDefined();
@@ -841,7 +845,7 @@ describe('monitor',function(){
         });
 
         it('should reject if describing the instances fails', function(done) {
-            EC2.describeInstances.andCallFake(function(params, cb) { cb('I GOT A PROBLEM'); });
+            EC2.describeInstances.and.callFake(function(params, cb) { cb('I GOT A PROBLEM'); });
 
             app.getASGInstances(ASG, EC2, 'testGroup').then(function(ips) {
                 expect(ips).not.toBeDefined();
@@ -860,15 +864,15 @@ describe('monitor',function(){
         var cfg;
         beforeEach(function() {
             cfg = { groupName: 'testGroup', cachePort: 123, scanTimeout: 2000, serverIps: ['3.3.3.3', '4.4.4.4'] };
-            spyOn(app, 'getASGInstances').andReturn(q(['1.1.1.1', '2.2.2.2']));
-            spyOn(requestUtils, 'portScan').andReturn(q(true));
+            spyOn(app, 'getASGInstances').and.returnValue(q(['1.1.1.1', '2.2.2.2']));
+            spyOn(requestUtils, 'portScan').and.returnValue(q(true));
         });
         
         it('should lookup servers from the ASG and verify that the cache is running on each', function(done) {
             app.getCacheServers('mockASG', 'mockEC2', cfg).then(function(hosts) {
                 expect(hosts).toEqual(['1.1.1.1:123', '2.2.2.2:123']);
                 expect(app.getASGInstances).toHaveBeenCalledWith('mockASG', 'mockEC2', 'testGroup');
-                expect(requestUtils.portScan.calls.length).toBe(2);
+                expect(requestUtils.portScan.calls.count()).toBe(2);
                 expect(requestUtils.portScan).toHaveBeenCalledWith('1.1.1.1', 123, 2000);
                 expect(requestUtils.portScan).toHaveBeenCalledWith('2.2.2.2', 123, 2000);
                 expect(mockLog.error).not.toHaveBeenCalled();
@@ -883,7 +887,7 @@ describe('monitor',function(){
             app.getCacheServers('mockASG', 'mockEC2', cfg).then(function(hosts) {
                 expect(hosts).toEqual(['3.3.3.3:123', '4.4.4.4:123']);
                 expect(app.getASGInstances).not.toHaveBeenCalled();
-                expect(requestUtils.portScan.calls.length).toBe(2);
+                expect(requestUtils.portScan.calls.count()).toBe(2);
                 expect(requestUtils.portScan).toHaveBeenCalledWith('3.3.3.3', 123, 2000);
                 expect(requestUtils.portScan).toHaveBeenCalledWith('4.4.4.4', 123, 2000);
                 expect(mockLog.error).not.toHaveBeenCalled();
@@ -908,13 +912,13 @@ describe('monitor',function(){
         });
         
         it('should log a warning if the cache is not running on a server', function(done) {
-            requestUtils.portScan.andCallFake(function(host, port, timeout) {
+            requestUtils.portScan.and.callFake(function(host, port, timeout) {
                 if (host === '1.1.1.1') return q.reject('nope');
                 else return q(true);
             });
             app.getCacheServers('mockASG', 'mockEC2', cfg).then(function(hosts) {
                 expect(hosts).toEqual(['2.2.2.2:123']);
-                expect(requestUtils.portScan.calls.length).toBe(2);
+                expect(requestUtils.portScan.calls.count()).toBe(2);
                 expect(mockLog.error).not.toHaveBeenCalled();
                 expect(mockLog.warn).toHaveBeenCalled();
             }).catch(function(error) {
@@ -923,7 +927,7 @@ describe('monitor',function(){
         });
         
         it('should reject if getASGInstances fails', function(done) {
-            app.getASGInstances.andReturn(q.reject('I GOT A PROBLEM'));
+            app.getASGInstances.and.returnValue(q.reject('I GOT A PROBLEM'));
             app.getCacheServers('mockASG', 'mockEC2', cfg).then(function(hosts) {
                 expect(hosts).not.toBeDefined();
             }).catch(function(error) {
