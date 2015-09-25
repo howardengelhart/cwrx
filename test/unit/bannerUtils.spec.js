@@ -3,7 +3,7 @@ describe('bannerUtils', function() {
     var q, path, fs, mockLog, logger, adtech, bannerUtils, mockClient;
     
     beforeEach(function() {
-        jasmine.Clock.useMock();
+        jasmine.clock().install();
 
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q               = require('q');
@@ -20,8 +20,8 @@ describe('bannerUtils', function() {
             fatal : jasmine.createSpy('log_fatal'),
             log   : jasmine.createSpy('log_log')
         };
-        spyOn(logger, 'createLog').andReturn(mockLog);
-        spyOn(logger, 'getLog').andReturn(mockLog);
+        spyOn(logger, 'createLog').and.returnValue(mockLog);
+        spyOn(logger, 'getLog').and.returnValue(mockLog);
         
         mockClient = {client: 'yes'};
         delete require.cache[require.resolve('adtech/lib/banner')];
@@ -32,8 +32,12 @@ describe('bannerUtils', function() {
                 return;
             }
             adtech.bannerAdmin[prop] = adtech.bannerAdmin[prop].bind(adtech.bannerAdmin, mockClient);
-            spyOn(adtech.bannerAdmin, prop).andCallThrough();
+            spyOn(adtech.bannerAdmin, prop).and.callThrough();
         });
+    });
+
+    afterEach(function() {
+        jasmine.clock().uninstall();
     });
 
     describe('formatBanners', function() {
@@ -104,11 +108,11 @@ describe('bannerUtils', function() {
             oldBanns = [];
             newBanns = [{id: 'rc-1'}, {id: 'rc-2'}];
             
-            adtech.bannerAdmin.createBanner.andCallFake(function(campId, banner, bannerInfo) {
-                var num = this.createBanner.calls.length;
+            adtech.bannerAdmin.createBanner.and.callFake(function(campId, banner, bannerInfo) {
+                var num = this.createBanner.calls.count();
                 return q({name: banner.name, extId: banner.extId, bannerNumber: num, id: num*100});
             });
-            spyOn(bannerUtils, 'formatBanner').andCallFake(function(type, id, isSponsored) {
+            spyOn(bannerUtils, 'formatBanner').and.callFake(function(type, id, isSponsored) {
                 return {banner: {extId: id, name: type + ' ' + id}, bannerInfo: {name: type + ' ' + id}};
             });
         });
@@ -129,7 +133,7 @@ describe('bannerUtils', function() {
                 ]);
                 expect(bannerUtils.formatBanner).toHaveBeenCalledWith('card', 'rc-1', false);
                 expect(bannerUtils.formatBanner).toHaveBeenCalledWith('card', 'rc-2', false);
-                expect(adtech.bannerAdmin.createBanner.calls.length).toBe(2);
+                expect(adtech.bannerAdmin.createBanner.calls.count()).toBe(2);
                 expect(adtech.bannerAdmin.createBanner).toHaveBeenCalledWith(12345,
                     {extId: 'rc-1', name: 'card rc-1'}, {name: 'card rc-1'});
                 expect(adtech.bannerAdmin.createBanner).toHaveBeenCalledWith(12345,
@@ -149,9 +153,9 @@ describe('bannerUtils', function() {
                     {id: 'rc-1', bannerId: 100, bannerNumber: 1},
                     {id: 'rc-2', bannerId: 200, bannerNumber: 2}
                 ]);
-                expect(bannerUtils.formatBanner.calls.length).toBe(1);
+                expect(bannerUtils.formatBanner.calls.count()).toBe(1);
                 expect(bannerUtils.formatBanner).toHaveBeenCalledWith('card', 'rc-1', false);
-                expect(adtech.bannerAdmin.createBanner.calls.length).toBe(1);
+                expect(adtech.bannerAdmin.createBanner.calls.count()).toBe(1);
                 expect(adtech.bannerAdmin.createBanner).toHaveBeenCalledWith(12345,
                     {extId: 'rc-1', name: 'card rc-1'}, {name: 'card rc-1'});
             }).catch(function(error) {
@@ -167,21 +171,21 @@ describe('bannerUtils', function() {
                 ]);
                 expect(bannerUtils.formatBanner).toHaveBeenCalledWith('card', 'rc-1', true);
                 expect(bannerUtils.formatBanner).toHaveBeenCalledWith('card', 'rc-2', true);
-                expect(adtech.bannerAdmin.createBanner.calls.length).toBe(2);
+                expect(adtech.bannerAdmin.createBanner.calls.count()).toBe(2);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
         
         it('should reject if one of the adtech calls fails', function(done) {
-            adtech.bannerAdmin.createBanner.andReturn(q.reject('I GOT A PROBLEM'));
+            adtech.bannerAdmin.createBanner.and.returnValue(q.reject('I GOT A PROBLEM'));
             bannerUtils.createBanners(newBanns, oldBanns, 'card', false, 12345).then(function() {
                 expect('resolved').not.toBe('resolved');
             }).catch(function(error) {
-                expect(error).toEqual(new Error('I GOT A PROBLEM'));
+                expect(error).toEqual(new Error('Adtech failure'));
                 expect(mockLog.error).toHaveBeenCalled();
-                expect(bannerUtils.formatBanner.calls.length).toBe(2);
-                expect(adtech.bannerAdmin.createBanner.calls.length).toBe(1);
+                expect(bannerUtils.formatBanner.calls.count()).toBe(2);
+                expect(adtech.bannerAdmin.createBanner.calls.count()).toBe(1);
             }).done(done);
         });
     });
@@ -195,7 +199,7 @@ describe('bannerUtils', function() {
                 { id: 'rc-4', bannerId: 400, bannerNumber: 4 }
             ];
             newBanns = [{id: 'rc-1'}, {id: 'rc-2'}];
-            adtech.bannerAdmin.deleteBanner.andReturn(q());
+            adtech.bannerAdmin.deleteBanner.and.returnValue(q());
         });
         
         it('should skip if either list is undefined', function(done) {
@@ -211,7 +215,7 @@ describe('bannerUtils', function() {
         
         it('should delete old banners not in the set of new banners', function(done) {
             bannerUtils.cleanBanners(newBanns, oldBanns, 12345).then(function() {
-                expect(adtech.bannerAdmin.deleteBanner.calls.length).toBe(2);
+                expect(adtech.bannerAdmin.deleteBanner.calls.count()).toBe(2);
                 expect(adtech.bannerAdmin.deleteBanner).toHaveBeenCalledWith(300);
                 expect(adtech.bannerAdmin.deleteBanner).toHaveBeenCalledWith(400);
             }).catch(function(error) {
@@ -229,18 +233,18 @@ describe('bannerUtils', function() {
         });
         
         it('should reject if one of the adtech calls fails', function(done) {
-            adtech.bannerAdmin.deleteBanner.andReturn(q.reject('I GOT A PROBLEM'));
+            adtech.bannerAdmin.deleteBanner.and.returnValue(q.reject('I GOT A PROBLEM'));
             bannerUtils.cleanBanners(newBanns, oldBanns, 12345).then(function() {
                 expect('resolved').not.toBe('resolved');
             }).catch(function(error) {
-                expect(error).toEqual(new Error('I GOT A PROBLEM'));
+                expect(error).toEqual(new Error('Adtech failure'));
                 expect(mockLog.error).toHaveBeenCalled();
-                expect(adtech.bannerAdmin.deleteBanner.calls.length).toBe(1);
+                expect(adtech.bannerAdmin.deleteBanner.calls.count()).toBe(1);
             }).done(done);
         });
         
         it('should reject with a c6warn if deleting the last banner in an active campaign', function(done) {
-            adtech.bannerAdmin.deleteBanner.andReturn(q.reject({ root: { Envelope: { Body: { Fault: {
+            adtech.bannerAdmin.deleteBanner.and.returnValue(q.reject({ root: { Envelope: { Body: { Fault: {
                 faultstring: 'You cannot remove the last display banner from an active or validated campaign!'
             } } } } }));
             bannerUtils.cleanBanners(newBanns, oldBanns, 12345).then(function() {
@@ -248,7 +252,7 @@ describe('bannerUtils', function() {
             }).catch(function(error) {
                 expect(error).toEqual({ c6warn: 'Cannot delete last active banner in campaign' });
                 expect(mockLog.error).not.toHaveBeenCalled();
-                expect(adtech.bannerAdmin.deleteBanner.calls.length).toBe(1);
+                expect(adtech.bannerAdmin.deleteBanner.calls.count()).toBe(1);
             }).done(done);
         });
     });
