@@ -36,7 +36,7 @@ Vagrant.configure("2") do |config|
     chef.json = {
         :c6mongo => {
             :users => {
-                :ids => ["evan", "howard", "e2eTests", "content", "collateral", "auth", "userSvc", "orgSvc", "vote", "siteSvc", "search", "deepthought", "ads"]
+                :ids => ["evan", "howard", "e2eTests", "content", "collateral", "auth", "userSvc", "orgSvc", "vote", "siteSvc", "search", "deepthought", "ads", "querybot"]
             },
             "cappedColls" => [
                 {
@@ -79,7 +79,7 @@ Vagrant.configure("2") do |config|
         "recipe[maint]"
     ]
     
-    svcs = ['ads', 'collateral', 'content', 'monitor', 'orgSvc', 'search', 'userSvc', 'vote']
+    svcs = ['ads', 'collateral', 'content', 'monitor', 'orgSvc', 'search', 'userSvc', 'vote', 'querybot', 'c6postgres']
     
     if ENV['CWRX_APP'] == 'all'
         chosen = svcs
@@ -105,6 +105,13 @@ Vagrant.configure("2") do |config|
         }
         if svc == 'vote'
             chef.json[svc][:mongo][:voteDb] = { :host => "127.0.0.1" }
+        end
+        
+        if svc == 'c6postgres'
+            chef.json[svc][:pg_hba] = [
+                "local all all md5",
+                "host all all 33.33.33.0/24 md5"
+            ]
         end
     end
   end

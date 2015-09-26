@@ -9,7 +9,7 @@ module.exports = function(grunt) {
         orgSvc      : 'auth',
         search      : 'auth',
         userSvc     : 'auth',
-        querybot    : 'ads',
+        querybot    : 'ads,auth,content,monitor,c6postgres',
         vote        : 'auth'
     };
 
@@ -93,6 +93,8 @@ module.exports = function(grunt) {
         });
 
         myEnv.CWRX_APP = services.join(',');
+
+        grunt.log.writelns('CWRX_APP: ',myEnv.CWRX_APP);
 
         vagrant  = spawn('vagrant', ['up'], { env : myEnv });
         vagrant.stdout.on('data', function(data){
