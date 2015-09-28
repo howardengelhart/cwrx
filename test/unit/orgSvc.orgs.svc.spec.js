@@ -22,8 +22,8 @@ describe('orgSvc-orgs (UT)', function() {
             fatal : jasmine.createSpy('log_fatal'),
             log   : jasmine.createSpy('log_log')
         };
-        spyOn(logger, 'createLog').andReturn(mockLog);
-        spyOn(logger, 'getLog').andReturn(mockLog);
+        spyOn(logger, 'createLog').and.returnValue(mockLog);
+        spyOn(logger, 'getLog').and.returnValue(mockLog);
 
         req = { uuid: '1234', user: { id: 'u-1', org: 'o-1' } };
         nextSpy = jasmine.createSpy('next()');
@@ -31,7 +31,7 @@ describe('orgSvc-orgs (UT)', function() {
         errorSpy = jasmine.createSpy('caught error');
         
         mockDb = {
-            collection: jasmine.createSpy('db.collection()').andCallFake(function(objName) {
+            collection: jasmine.createSpy('db.collection()').and.callFake(function(objName) {
                 return { collectionName: objName };
             })
         };
@@ -47,7 +47,7 @@ describe('orgSvc-orgs (UT)', function() {
         beforeEach(function() {
             [CrudSvc.prototype.preventGetAll, CrudSvc.prototype.validateUniqueProp,
              orgModule.activeUserCheck].forEach(function(fn) {
-                spyOn(fn, 'bind').andReturn(fn);
+                spyOn(fn, 'bind').and.returnValue(fn);
             });
 
             svc = orgModule.setupSvc(mockDb, mockGateway);
@@ -117,7 +117,7 @@ describe('orgSvc-orgs (UT)', function() {
             
             it('should allow the field to be set on create', function() {
                 expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'test' });
             });
 
@@ -131,14 +131,14 @@ describe('orgSvc-orgs (UT)', function() {
                 delete newObj.name;
                 origObj.name = 'old org name';
                 expect(svc.model.validate('edit', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'old org name' });
             });
 
             it('should allow the field to be changed', function() {
                 origObj.name = 'old pol name';
                 expect(svc.model.validate('edit', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'test' });
             });
         });
@@ -147,7 +147,7 @@ describe('orgSvc-orgs (UT)', function() {
             it('should trim the field if set', function() {
                 newObj.adConfig = { ads: 'yes' };
                 expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'test' });
             });
             
@@ -156,7 +156,7 @@ describe('orgSvc-orgs (UT)', function() {
                 requester.fieldValidation.orgs.adConfig = { __allowed: true };
 
                 expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'test', adConfig: { ads: 'yes' } });
             });
             
@@ -181,7 +181,7 @@ describe('orgSvc-orgs (UT)', function() {
                 it('should allow the field to be set', function() {
                     newObj[field] = { foo: 'bar' };
                     expect(svc.model.validate('create', newObj, origObj, requester))
-                        .toEqual({ isValid: true });
+                        .toEqual({ isValid: true, reason: undefined });
                     expect(newObj[field]).toEqual({ foo: 'bar' });
                 });
             });
@@ -191,7 +191,7 @@ describe('orgSvc-orgs (UT)', function() {
             it('should trim the field if set', function() {
                 newObj.braintreeCustomer = '123456';
                 expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'test' });
             });
             
@@ -200,7 +200,7 @@ describe('orgSvc-orgs (UT)', function() {
                 requester.fieldValidation.orgs.braintreeCustomer = { __allowed: true };
 
                 expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'test', braintreeCustomer: '123456' });
             });
             
@@ -403,9 +403,9 @@ describe('orgSvc-orgs (UT)', function() {
             req.params = { id: 'o-2' };
             
             mockColl = {
-                count: jasmine.createSpy('cursor.count').andCallFake(function(query, cb) { cb(null, 3); })
+                count: jasmine.createSpy('cursor.count').and.callFake(function(query, cb) { cb(null, 3); })
             };
-            mockDb.collection.andReturn(mockColl);
+            mockDb.collection.and.returnValue(mockColl);
 
             orgSvc = orgModule.setupSvc(mockDb, mockGateway);
         });
@@ -424,7 +424,7 @@ describe('orgSvc-orgs (UT)', function() {
         });
         
         it('should call next if the org has no active users', function(done) {
-            mockColl.count.andCallFake(function(query, cb) { cb(null, 0); });
+            mockColl.count.and.callFake(function(query, cb) { cb(null, 0); });
         
             orgModule.activeUserCheck(orgSvc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
@@ -437,7 +437,7 @@ describe('orgSvc-orgs (UT)', function() {
         });
 
         it('should reject if mongo has an error', function(done) {
-            mockColl.count.andCallFake(function(query, cb) { cb('I GOT A PROBLEM'); });
+            mockColl.count.and.callFake(function(query, cb) { cb('I GOT A PROBLEM'); });
         
             orgModule.activeUserCheck(orgSvc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
@@ -456,9 +456,9 @@ describe('orgSvc-orgs (UT)', function() {
             req.params = { id: 'o-2' };
             
             mockColl = {
-                count: jasmine.createSpy('cursor.count').andCallFake(function(query, cb) { cb(null, 3); })
+                count: jasmine.createSpy('cursor.count').and.callFake(function(query, cb) { cb(null, 3); })
             };
-            mockDb.collection.andReturn(mockColl);
+            mockDb.collection.and.returnValue(mockColl);
 
             orgSvc = orgModule.setupSvc(mockDb, mockGateway);
         });
@@ -480,7 +480,7 @@ describe('orgSvc-orgs (UT)', function() {
         });
         
         it('should call next if the org has no unfinished campaigns', function(done) {
-            mockColl.count.andCallFake(function(query, cb) { cb(null, 0); });
+            mockColl.count.and.callFake(function(query, cb) { cb(null, 0); });
         
             orgModule.runningCampaignCheck(orgSvc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
@@ -493,7 +493,7 @@ describe('orgSvc-orgs (UT)', function() {
         });
 
         it('should reject if mongo has an error', function(done) {
-            mockColl.count.andCallFake(function(query, cb) { cb('I GOT A PROBLEM'); });
+            mockColl.count.and.callFake(function(query, cb) { cb('I GOT A PROBLEM'); });
         
             orgModule.runningCampaignCheck(orgSvc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
@@ -508,7 +508,7 @@ describe('orgSvc-orgs (UT)', function() {
     
     describe('deleteBraintreeCustomer', function() {
         beforeEach(function() {
-            mockGateway.customer.delete.andCallFake(function(id, cb) {
+            mockGateway.customer.delete.and.callFake(function(id, cb) {
                 cb();
             });
             
@@ -543,7 +543,7 @@ describe('orgSvc-orgs (UT)', function() {
         });
         
         it('should just log a warning if the customer does not exist', function(done) {
-            mockGateway.customer.delete.andCallFake(function(id, cb) {
+            mockGateway.customer.delete.and.callFake(function(id, cb) {
                 var error = new Error('Customer not found');
                 error.name = 'notFoundError';
                 cb(error);
@@ -562,7 +562,7 @@ describe('orgSvc-orgs (UT)', function() {
         });
         
         it('should reject if braintree returns a different error', function(done) {
-            mockGateway.customer.delete.andCallFake(function(id, cb) {
+            mockGateway.customer.delete.and.callFake(function(id, cb) {
                 var error = new Error('I GOT A PROBLEM');
                 error.name = 'badError';
                 cb(error);
