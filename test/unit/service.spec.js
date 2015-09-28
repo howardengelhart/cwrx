@@ -7,7 +7,7 @@ describe('service (UT)',function(){
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         
-        jasmine.Clock.useMock();
+        jasmine.clock().install();
         
         path        = require('path');
         q           = require('q');
@@ -51,8 +51,8 @@ describe('service (UT)',function(){
         spyOn(process,'setuid');
         spyOn(process,'setgid');
 
-        spyOn(logger,'createLog').andReturn(mockLog);
-        spyOn(logger,'getLog').andReturn(mockLog);
+        spyOn(logger,'createLog').and.returnValue(mockLog);
+        spyOn(logger,'getLog').and.returnValue(mockLog);
 
         spyOn(fs,'existsSync');
         spyOn(fs,'readFileSync');
@@ -68,12 +68,13 @@ describe('service (UT)',function(){
             process[prop] = processProperties[prop];
         }
         console.log = console._log;
+        jasmine.clock().uninstall();
     });
 
     describe('getVersion',function(){
         beforeEach(function(){
-            fs.existsSync.andReturn(true);
-            fs.readFileSync.andReturn('abc123');
+            fs.existsSync.and.returnValue(true);
+            fs.readFileSync.and.returnValue('abc123');
         });
 
         it('looks for version file with name if passed',function(){
@@ -92,16 +93,16 @@ describe('service (UT)',function(){
         });
 
         it('returns undefined if the version file does not exist',function(){
-            fs.existsSync.andReturn(false);
+            fs.existsSync.and.returnValue(false);
             expect(service.getVersion()).not.toBeDefined();
         });
 
         it('returns undefined if reading the file results in an exception',function(){
-            fs.readFileSync.andCallFake(function(){
+            fs.readFileSync.and.callFake(function(){
                 throw new Error('test error');
             });
             expect(service.getVersion()).not.toBeDefined();
-            expect(mockLog.error.callCount).toEqual(1);
+            expect(mockLog.error.calls.count()).toEqual(1);
         });
     });
 
@@ -234,16 +235,16 @@ describe('service (UT)',function(){
                  }
             };
 
-            fs.existsSync.andReturn(false);
+            fs.existsSync.and.returnValue(false);
             q.fcall(service.configure,state)
                 .then(resolveSpy,rejectSpy)
                 .finally(function(){
                     expect(resolveSpy).toHaveBeenCalledWith(state);
                     expect(rejectSpy).not.toHaveBeenCalled();
-                    expect(fs.existsSync.argsForCall[0][0]).toEqual('/opt/sixxy/run');
-                    expect(fs.existsSync.argsForCall[1][0]).toEqual('/opt/sixxy/log');
-                    expect(fs.mkdirsSync.argsForCall[0][0]).toEqual('/opt/sixxy/run');
-                    expect(fs.mkdirsSync.argsForCall[1][0]).toEqual('/opt/sixxy/log');
+                    expect(fs.existsSync.calls.allArgs()[0][0]).toEqual('/opt/sixxy/run');
+                    expect(fs.existsSync.calls.allArgs()[1][0]).toEqual('/opt/sixxy/log');
+                    expect(fs.mkdirsSync.calls.allArgs()[0][0]).toEqual('/opt/sixxy/run');
+                    expect(fs.mkdirsSync.calls.allArgs()[1][0]).toEqual('/opt/sixxy/log');
                 }).done(done);
         });
 
@@ -256,7 +257,7 @@ describe('service (UT)',function(){
                  }
             };
 
-            fs.existsSync.andReturn(false);
+            fs.existsSync.and.returnValue(false);
             q.fcall(service.configure,state)
                 .then(resolveSpy,rejectSpy)
                 .finally(function(){
@@ -272,7 +273,7 @@ describe('service (UT)',function(){
             state.defaultConfig = {
                 secretsPath: '/opt/sixxy/ut.secrets.json'
             };
-            spyOn(fs, 'readJsonSync').andReturn('sosecret');
+            spyOn(fs, 'readJsonSync').and.returnValue('sosecret');
             
             q.fcall(service.configure, state)
                 .then(resolveSpy, rejectSpy)
@@ -329,11 +330,11 @@ describe('service (UT)',function(){
                 .finally(function(){
                     expect(resolveSpy).toHaveBeenCalledWith(state);
                     expect(rejectSpy).not.toHaveBeenCalled();
-                    expect(process.on.callCount).toEqual(4);
-                    expect(process.on.argsForCall[0][0]).toEqual('uncaughtException');
-                    expect(process.on.argsForCall[1][0]).toEqual('SIGINT');
-                    expect(process.on.argsForCall[2][0]).toEqual('SIGHUP');
-                    expect(process.on.argsForCall[3][0]).toEqual('SIGTERM');
+                    expect(process.on.calls.count()).toEqual(4);
+                    expect(process.on.calls.allArgs()[0][0]).toEqual('uncaughtException');
+                    expect(process.on.calls.allArgs()[1][0]).toEqual('SIGINT');
+                    expect(process.on.calls.allArgs()[2][0]).toEqual('SIGHUP');
+                    expect(process.on.calls.allArgs()[3][0]).toEqual('SIGTERM');
                 }).done(done);
         });
         
@@ -357,10 +358,10 @@ describe('service (UT)',function(){
             it('on master will call hup on logger and send hup to kids ',function(){
                 state.onSIGHUP      = undefined;
                 state.clusterMaster = true;
-                var cb = process.on.argsForCall[2][1];
+                var cb = process.on.calls.allArgs()[2][1];
                 cb();
-                expect(mockKid.send.callCount).toEqual(2);
-                expect(mockLog.refresh.callCount).toEqual(1);
+                expect(mockKid.send.calls.count()).toEqual(2);
+                expect(mockLog.refresh.calls.count()).toEqual(1);
             });
         });
     });
@@ -395,17 +396,17 @@ describe('service (UT)',function(){
                     run : '/opt/sixxy/run',
                  }
             };
-            spyOn(daemon,'daemonize').andCallFake(function(pidFile,cb){
+            spyOn(daemon,'daemonize').and.callFake(function(pidFile,cb){
                 cb(4,'test error');
             });
             q.fcall(service.configure,state)
                 .then(service.daemonize)
                 .then(resolveSpy,rejectSpy)
                 .finally(function(){
-                    expect(daemon.daemonize.argsForCall[0][0]).toEqual('/opt/sixxy/run/test.pid');
+                    expect(daemon.daemonize.calls.allArgs()[0][0]).toEqual('/opt/sixxy/run/test.pid');
                     expect(resolveSpy).not.toHaveBeenCalledWith(state);
                     expect(rejectSpy).toHaveBeenCalled();
-                    expect(rejectSpy.argsForCall[0]).toEqual(
+                    expect(rejectSpy.calls.allArgs()[0]).toEqual(
                         [{ message: 'test error', code : 4}]
                     );
                 }).done(done);
@@ -446,7 +447,7 @@ describe('service (UT)',function(){
                 .finally(function(){
                     expect(resolveSpy).toHaveBeenCalledWith(state);
                     expect(rejectSpy).not.toHaveBeenCalled();
-                    expect(cluster.fork.callCount).toEqual(3);
+                    expect(cluster.fork.calls.count()).toEqual(3);
                     expect(state.clusterMaster).toEqual(true);
                 }).done(done);
         });
@@ -462,7 +463,7 @@ describe('service (UT)',function(){
             db1 = new events.EventEmitter();
             db2 = new events.EventEmitter();
             state.secrets = {mongoCredentials: {user: 'ut', password: 'password'}};
-            spyOn(mongoUtils, 'connect').andCallFake(function(host, port, db) {
+            spyOn(mongoUtils, 'connect').and.callFake(function(host, port, db) {
                 if (db === 'db1') return q(db1);
                 else return q(db2);
             });
@@ -504,10 +505,10 @@ describe('service (UT)',function(){
             .finally(function() {
                 expect(resolveSpy).toHaveBeenCalledWith(state);
                 expect(rejectSpy).not.toHaveBeenCalled();
-                expect(mongoUtils.connect.calls.length).toBe(2);
-                expect(mongoUtils.connect.calls[0].args)
+                expect(mongoUtils.connect.calls.count()).toBe(2);
+                expect(mongoUtils.connect.calls.all()[0].args)
                     .toEqual(['1.2.3.4', 1234, 'db1', 'ut', 'password', undefined, undefined]);
-                expect(mongoUtils.connect.calls[1].args)
+                expect(mongoUtils.connect.calls.all()[1].args)
                     .toEqual([undefined,undefined,'db2','ut','password',['h1:p1','h2:p2'],'devRepl']);
                 expect(state.dbs.db1).toBe(db1);
                 expect(state.dbs.db2).toBe(db2);
@@ -518,7 +519,7 @@ describe('service (UT)',function(){
         });
         
         it('will reject with an error if connecting to mongo fails', function(done) {
-            mongoUtils.connect.andCallFake(function(host, port, db, user, pass, hosts, replSet) {
+            mongoUtils.connect.and.callFake(function(host, port, db, user, pass, hosts, replSet) {
                 if (db === 'db1') {
                     return q.reject('Error!');
                 } else {
@@ -528,7 +529,7 @@ describe('service (UT)',function(){
             service.initMongo(state).then(resolveSpy, rejectSpy)
             .finally(function() {
                 expect(state.dbs.db1).not.toBeDefined();
-                expect(mongoUtils.connect.calls.length).toBe(2);
+                expect(mongoUtils.connect.calls.count()).toBe(2);
                 expect(resolveSpy).not.toHaveBeenCalled();
                 expect(rejectSpy).toHaveBeenCalledWith('Error!');
             }).done(done);
@@ -537,18 +538,18 @@ describe('service (UT)',function(){
         it('will attempt auto reconnects if configured to', function(done){
             delete state.config.mongo.db2;
             state.config.mongo.db1.retryConnect = true;
-            mongoUtils.connect.andCallFake(function(){
-                if (this.connect.callCount >= 5){
+            mongoUtils.connect.and.callFake(function(){
+                if (this.connect.calls.count() >= 5){
                     return q(db1);
                 }
                 return q.reject('Error!');
             });
             service.initMongo(state).then(resolveSpy, rejectSpy)
             .progress(function(p){
-                jasmine.Clock.tick(1000);
+                jasmine.clock().tick(1000);
             })
             .finally(function() {
-                expect(mongoUtils.connect.callCount).toEqual(5);
+                expect(mongoUtils.connect.calls.count()).toEqual(5);
                 expect(resolveSpy).toHaveBeenCalled();
                 expect(rejectSpy).not.toHaveBeenCalled();
             }).done(done);
@@ -557,18 +558,18 @@ describe('service (UT)',function(){
         it('will not auto reconnect if authentication fails', function(done) {
             delete state.config.mongo.db2;
             state.config.mongo.db1.retryConnect = true;
-            mongoUtils.connect.andCallFake(function(){
-                if (this.connect.callCount >= 5){
+            mongoUtils.connect.and.callFake(function(){
+                if (this.connect.calls.count() >= 5){
                     return q(db1);
                 }
                 return q.reject({name: 'MongoError', errmsg: 'auth fails'});
             });
             service.initMongo(state).then(resolveSpy, rejectSpy)
             .progress(function(p){
-                jasmine.Clock.tick(1000);
+                jasmine.clock().tick(1000);
             })
             .finally(function() {
-                expect(mongoUtils.connect.callCount).toEqual(1);
+                expect(mongoUtils.connect.calls.count()).toEqual(1);
                 expect(resolveSpy).not.toHaveBeenCalled();
                 expect(rejectSpy).toHaveBeenCalledWith({name: 'MongoError', errmsg: 'auth fails'});
             }).done(done);
@@ -583,7 +584,7 @@ describe('service (UT)',function(){
 
                 state.dbStatus.db1.on('reconnected', function() {
                     expect(mockLog.error).toHaveBeenCalled();
-                    expect(mongoUtils.connect.calls.length).toBe(2);
+                    expect(mongoUtils.connect.calls.count()).toBe(2);
                     expect(state.dbs.db1).toBe(db1);
                     done();
                 });
@@ -599,7 +600,7 @@ describe('service (UT)',function(){
 
                 state.dbStatus.db1.on('reconnected', function() {
                     expect(mockLog.error).toHaveBeenCalled();
-                    expect(mongoUtils.connect.calls.length).toBe(2);
+                    expect(mongoUtils.connect.calls.count()).toBe(2);
                     expect(state.dbs.db1).toBe(db1);
                     done();
                 });
@@ -611,7 +612,7 @@ describe('service (UT)',function(){
         var fakeExpress, fakeMongoStore, fakeDb;
         beforeEach(function() {
             delete require.cache[require.resolve('../../lib/service')];
-            fakeMongoStore = jasmine.createSpy('new_MongoStore').andCallFake(function(opts) {
+            fakeMongoStore = jasmine.createSpy('new_MongoStore').and.callFake(function(opts) {
                 this.db = fakeDb;
             });
             require.cache[require.resolve('connect-mongo')] = { exports: function() {
@@ -626,7 +627,7 @@ describe('service (UT)',function(){
                 mongo: { host: 'fakeHost', port: 111, hosts: ['h1:p1', 'h2:p2'], replSet: 'devRepl' }
             };
             fakeDb = new events.EventEmitter();
-            spyOn(mongoUtils, 'connect').andReturn(q(fakeDb));
+            spyOn(mongoUtils, 'connect').and.returnValue(q(fakeDb));
         });
         
         it('should skip if the process is the cluster master', function(done) {
@@ -648,28 +649,28 @@ describe('service (UT)',function(){
                 expect(mongoUtils.connect).toHaveBeenCalledWith('fakeHost', 111, 'sessions',
                     'fakeUser', 'fakePass', ['h1:p1', 'h2:p2'], 'devRepl');
                 expect(fakeMongoStore).toHaveBeenCalled();
-                expect(fakeMongoStore.calls[0].args[0]).toEqual({ db: fakeDb, stringify: false, touchAfter: 60*1000 });
+                expect(fakeMongoStore.calls.all()[0].args[0]).toEqual({ db: fakeDb, stringify: false, touchAfter: 60*1000 });
                 expect(state.sessionStore).toBeDefined();
             }).done(done);
         });
         
         it('should reject if given incomplete params', function(done) {
             delete state.config.sessions;
-            resolveSpy.andReturn();
-            rejectSpy.andReturn();
+            resolveSpy.and.returnValue();
+            rejectSpy.and.returnValue();
             service.initSessionStore(state).then(resolveSpy, rejectSpy).then(function() {
                 state.config.sessions = { mongo: { host: 'fakeHost', port: 111 } };
                 delete state.secrets;
                 return service.initSessionStore(state).then(resolveSpy, rejectSpy);
             }).finally(function() {
                 expect(resolveSpy).not.toHaveBeenCalled();
-                expect(rejectSpy.calls.length).toBe(2);
+                expect(rejectSpy.calls.count()).toBe(2);
                 expect(fakeMongoStore).not.toHaveBeenCalled();
             }).done(done);
         });
 
         it('will reject with an error if connecting to mongo fails', function(done) {
-            mongoUtils.connect.andReturn(q.reject('I GOT A PROBLEM'));
+            mongoUtils.connect.and.returnValue(q.reject('I GOT A PROBLEM'));
             service.initSessionStore(state).then(resolveSpy, rejectSpy)
             .finally(function() {
                 expect(state.sessionStore).not.toBeDefined();
@@ -681,18 +682,18 @@ describe('service (UT)',function(){
 
         it('will attempt auto reconnects if configured to', function(done){
             state.config.sessions.mongo.retryConnect = true;
-            mongoUtils.connect.andCallFake(function(){
-                if (this.connect.callCount >= 5){
+            mongoUtils.connect.and.callFake(function(){
+                if (this.connect.calls.count() >= 5){
                     return q(fakeDb);
                 }
                 return q.reject('Error!');
             });
             service.initSessionStore(state).then(resolveSpy, rejectSpy)
             .progress(function(p){
-                jasmine.Clock.tick(1000);
+                jasmine.clock().tick(1000);
             })
             .finally(function() {
-                expect(mongoUtils.connect.callCount).toEqual(5);
+                expect(mongoUtils.connect.calls.count()).toEqual(5);
                 expect(resolveSpy).toHaveBeenCalled();
                 expect(rejectSpy).not.toHaveBeenCalled();
             }).done(done);
@@ -700,18 +701,18 @@ describe('service (UT)',function(){
         
         it('will not auto reconnect if authentication fails', function(done) {
             state.config.sessions.mongo.retryConnect = true;
-            mongoUtils.connect.andCallFake(function(){
-                if (this.connect.callCount >= 5){
+            mongoUtils.connect.and.callFake(function(){
+                if (this.connect.calls.count() >= 5){
                     return q(fakeDb);
                 }
                 return q.reject({name: 'MongoError', errmsg: 'auth fails'});
             });
             service.initSessionStore(state).then(resolveSpy, rejectSpy)
             .progress(function(p){
-                jasmine.Clock.tick(1000);
+                jasmine.clock().tick(1000);
             })
             .finally(function() {
-                expect(mongoUtils.connect.callCount).toEqual(1);
+                expect(mongoUtils.connect.calls.count()).toEqual(1);
                 expect(resolveSpy).not.toHaveBeenCalled();
                 expect(rejectSpy).toHaveBeenCalledWith({name: 'MongoError', errmsg: 'auth fails'});
             }).done(done);
@@ -725,7 +726,7 @@ describe('service (UT)',function(){
 
                 state.dbStatus.sessions.on('reconnected', function() {
                     expect(mockLog.error).toHaveBeenCalled();
-                    expect(mongoUtils.connect.calls.length).toBe(2);
+                    expect(mongoUtils.connect.calls.count()).toBe(2);
                     expect(state.sessionStore).toBeDefined();
                     done();
                 });
@@ -740,7 +741,7 @@ describe('service (UT)',function(){
 
                 state.dbStatus.sessions.on('reconnected', function() {
                     expect(mockLog.error).toHaveBeenCalled();
-                    expect(mongoUtils.connect.calls.length).toBe(2);
+                    expect(mongoUtils.connect.calls.count()).toBe(2);
                     expect(state.sessionStore).toBeDefined();
                     done();
                 });
@@ -770,9 +771,9 @@ describe('service (UT)',function(){
                     test2: jasmine.any(pubsub.Subscriber),
                     test3: jasmine.any(pubsub.Subscriber)
                 });
-                expect(pubsub.Subscriber.calls[0].args).toEqual(['test1', { port: 111 }, { reconnectDelay: 2000 }]);
-                expect(pubsub.Subscriber.calls[1].args).toEqual(['test2', { port: 222, host: 'h1' }, undefined]);
-                expect(pubsub.Subscriber.calls[2].args).toEqual(['test3', { path: '/tmp/test3' }, undefined]);
+                expect(pubsub.Subscriber.calls.all()[0].args).toEqual(['test1', { port: 111, path: undefined, host: undefined }, { reconnectDelay: 2000 }]);
+                expect(pubsub.Subscriber.calls.all()[1].args).toEqual(['test2', { port: 222, path: undefined, host: 'h1' }, undefined]);
+                expect(pubsub.Subscriber.calls.all()[2].args).toEqual(['test3', { port: undefined, path: '/tmp/test3', host: undefined }, undefined]);
             }).done(done);
         });
         
@@ -789,9 +790,9 @@ describe('service (UT)',function(){
                     test1: jasmine.any(pubsub.Subscriber),
                     test3: jasmine.any(pubsub.Subscriber)
                 });
-                expect(pubsub.Publisher.calls[0].args).toEqual(['test2', { port: 222, host: 'h1' }]);
-                expect(pubsub.Subscriber.calls[0].args).toEqual(['test1', { port: 111 }, { reconnectDelay: 2000 }]);
-                expect(pubsub.Subscriber.calls[1].args).toEqual(['test3', { path: '/tmp/test3' }, undefined]);
+                expect(pubsub.Publisher.calls.all()[0].args).toEqual(['test2', { port: 222, path: undefined, host: 'h1' }]);
+                expect(pubsub.Subscriber.calls.all()[0].args).toEqual(['test1', { port: 111, path: undefined, host: undefined }, { reconnectDelay: 2000 }]);
+                expect(pubsub.Subscriber.calls.all()[1].args).toEqual(['test3', { port: undefined, path: '/tmp/test3', host: undefined }, undefined]);
             }).done(done);
         });
 
@@ -816,7 +817,7 @@ describe('service (UT)',function(){
                 timeouts: { read: 200, stats: 300, write: 400 }
             };
             spyOn(cacheLib.Cache.prototype, '_initClient');
-            spyOn(cacheLib.Cache.prototype, 'updateServers').andReturn(q());
+            spyOn(cacheLib.Cache.prototype, 'updateServers').and.returnValue(q());
         });
         
         it('should initialize a cache instance based on config', function(done) {
@@ -895,9 +896,9 @@ describe('service (UT)',function(){
             state.dbs = {};
             Object.keys(state.config.mongo).forEach(function(dbName) {
                 state.dbs[dbName] = {
-                    collection: jasmine.createSpy('db.collection').andCallFake(function(collName) {
+                    collection: jasmine.createSpy('db.collection').and.callFake(function(collName) {
                         collections[collName] = {
-                            ensureIndex: jasmine.createSpy('coll.ensureIndex').andCallFake(function(field, cb) {
+                            ensureIndex: jasmine.createSpy('coll.ensureIndex').and.callFake(function(field, cb) {
                                 cb(null, 'success');
                             })
                         };
@@ -964,9 +965,9 @@ describe('service (UT)',function(){
         });
         
         it('should fail if even one ensureIndex call fails', function(done) {
-            state.dbs.db1.collection.andCallFake(function(collName) {
+            state.dbs.db1.collection.and.callFake(function(collName) {
                 collections[collName] = {
-                    ensureIndex: jasmine.createSpy('coll.ensureIndex').andCallFake(function(field, cb) {
+                    ensureIndex: jasmine.createSpy('coll.ensureIndex').and.callFake(function(field, cb) {
                         if (field === 'bar') cb('I GOT A PROBLEM');
                         else cb(null, 'success');
                     })
