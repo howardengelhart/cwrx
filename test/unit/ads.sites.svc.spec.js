@@ -19,8 +19,8 @@ describe('ads-sites (UT)', function() {
             fatal : jasmine.createSpy('log_fatal'),
             log   : jasmine.createSpy('log_log')
         };
-        spyOn(logger, 'createLog').andReturn(mockLog);
-        spyOn(logger, 'getLog').andReturn(mockLog);
+        spyOn(logger, 'createLog').and.returnValue(mockLog);
+        spyOn(logger, 'getLog').and.returnValue(mockLog);
 
         req = { uuid: '1234' };
         
@@ -40,16 +40,16 @@ describe('ads-sites (UT)', function() {
                     return;
                 }
                 adtech[admin][prop] = adtech[admin][prop].bind(adtech[admin], mockClient);
-                spyOn(adtech[admin], prop).andCallThrough();
+                spyOn(adtech[admin], prop).and.callThrough();
             });
         });
     });
 
     describe('setupSvc', function() {
         it('should setup the site service', function() {
-            spyOn(CrudSvc.prototype.preventGetAll, 'bind').andReturn(CrudSvc.prototype.preventGetAll);
-            spyOn(CrudSvc.prototype.validateUniqueProp, 'bind').andReturn(CrudSvc.prototype.validateUniqueProp);
-            spyOn(FieldValidator, 'orgFunc').andCallThrough();
+            spyOn(CrudSvc.prototype.preventGetAll, 'bind').and.returnValue(CrudSvc.prototype.preventGetAll);
+            spyOn(CrudSvc.prototype.validateUniqueProp, 'bind').and.returnValue(CrudSvc.prototype.validateUniqueProp);
+            spyOn(FieldValidator, 'orgFunc').and.callThrough();
             var mockColl = { collectionName: 'sites' },
                 svc = siteModule.setupSvc(mockColl);
 
@@ -138,7 +138,7 @@ describe('ads-sites (UT)', function() {
             var orig = { URL: 'http://foo.com', extId: 's-1', id: 123, name: 'site 1' };
             
             expect(siteModule.formatAdtechSite({host: 'bar.foo.com'}, orig)).toEqual({
-                URL: 'http://bar.foo.com', extId: 's-1', id: 123, name: 'site 1'
+                URL: 'http://bar.foo.com', extId: 's-1', id: 123, name: 'site 1', pageList: undefined, assignedUsers: undefined
             });
         });
     });
@@ -194,7 +194,7 @@ describe('ads-sites (UT)', function() {
             siteModule.validateContainers(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy.calls.length).toBe(1);
+                expect(doneSpy.calls.count()).toBe(1);
                 expect(doneSpy).toHaveBeenCalledWith({code: 400, body: 'All containers must have an id'});
                 expect(errorSpy).not.toHaveBeenCalled();
                 done();
@@ -210,7 +210,7 @@ describe('ads-sites (UT)', function() {
                 {id: 'c', displayPlacementId: 456, contentPlacementId: 567},
             ]};
             req.body = { id: 's-1', containers: [{id: 'c'}, {id: 'd'}] };
-            adtech.websiteAdmin.deletePlacement.andReturn(q());
+            adtech.websiteAdmin.deletePlacement.and.returnValue(q());
         });
         
         it('should skip if the new or original site has no containers property defined', function(done) {
@@ -219,7 +219,7 @@ describe('ads-sites (UT)', function() {
                 siteModule.cleanPlacements(newReq, nextSpy, doneSpy).catch(errorSpy);
             });
             process.nextTick(function() {
-                expect(nextSpy.calls.length).toBe(2);
+                expect(nextSpy.calls.count()).toBe(2);
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(adtech.websiteAdmin.deletePlacement).not.toHaveBeenCalled();
@@ -233,7 +233,7 @@ describe('ads-sites (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(adtech.websiteAdmin.deletePlacement.calls.length).toBe(3);
+                expect(adtech.websiteAdmin.deletePlacement.calls.count()).toBe(3);
                 expect(adtech.websiteAdmin.deletePlacement).toHaveBeenCalledWith(123);
                 expect(adtech.websiteAdmin.deletePlacement).toHaveBeenCalledWith(234);
                 expect(adtech.websiteAdmin.deletePlacement).toHaveBeenCalledWith(345);
@@ -254,7 +254,7 @@ describe('ads-sites (UT)', function() {
         });
         
         it('should handle placements that still have active campaigns', function(done) {
-            adtech.websiteAdmin.deletePlacement.andCallFake(function(id) {
+            adtech.websiteAdmin.deletePlacement.and.callFake(function(id) {
                 if (id === 345) return q();
                 else return q.reject({root: {Envelope: {Body: {Fault: {faultstring:
                     'Placement deletion cannot be performed because 1 campaign(s) run on the affected placement'}}}}});
@@ -263,22 +263,22 @@ describe('ads-sites (UT)', function() {
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({code: 400, body: 'Cannot delete in-use placements'});
-                expect(doneSpy.calls.length).toBe(1);
+                expect(doneSpy.calls.count()).toBe(1);
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
-                expect(adtech.websiteAdmin.deletePlacement.calls.length).toBe(3);
+                expect(adtech.websiteAdmin.deletePlacement.calls.count()).toBe(3);
                 done();
             });
         });
         
         it('should reject if one of the adtech calls fails', function(done) {
-            adtech.websiteAdmin.deletePlacement.andReturn(q.reject('I GOT A PROBLEM'));
+            adtech.websiteAdmin.deletePlacement.and.returnValue(q.reject('I GOT A PROBLEM'));
             siteModule.cleanPlacements(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).toHaveBeenCalledWith(new Error('Adtech failure'));
-                expect(errorSpy.calls.length).toBe(1);
+                expect(errorSpy.calls.count()).toBe(1);
                 expect(mockLog.error).toHaveBeenCalled();
                 done();
             });
@@ -289,8 +289,8 @@ describe('ads-sites (UT)', function() {
         beforeEach(function() {
             req.origObj = { id: 's-1', adtechId: 123, pageId: 234, containers: [] };
             req.body = { id: 's-1', containers: [{id: 'a'}, {id: 'b'}] };
-            adtech.websiteAdmin.createPlacement.andCallFake(function(placement) {
-                return q({id: this.createPlacement.calls.length*100});
+            adtech.websiteAdmin.createPlacement.and.callFake(function(placement) {
+                return q({id: this.createPlacement.calls.count()*100});
             });
         });
         
@@ -317,7 +317,7 @@ describe('ads-sites (UT)', function() {
                     { id: 'a', contentPlacementId: 100, displayPlacementId: 200 },
                     { id: 'b', contentPlacementId: 300, displayPlacementId: 400 }
                 ]);
-                expect(adtech.websiteAdmin.createPlacement.calls.length).toBe(4);
+                expect(adtech.websiteAdmin.createPlacement.calls.count()).toBe(4);
                 expect(adtech.websiteAdmin.createPlacement).toHaveBeenCalledWith({name: 'a_display', pageId: 234, websiteId: 123});
                 expect(adtech.websiteAdmin.createPlacement).toHaveBeenCalledWith({name: 'a_content', pageId: 234, websiteId: 123});
                 expect(adtech.websiteAdmin.createPlacement).toHaveBeenCalledWith({name: 'b_display', pageId: 234, websiteId: 123});
@@ -334,7 +334,7 @@ describe('ads-sites (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body.containers).toEqual([{id: 'a', displayPlacementId: 100, contentPlacementId: 321}]);
-                expect(adtech.websiteAdmin.createPlacement.calls.length).toBe(1);
+                expect(adtech.websiteAdmin.createPlacement.calls.count()).toBe(1);
                 expect(adtech.websiteAdmin.createPlacement).toHaveBeenCalledWith({name: 'a_display', pageId: 234, websiteId: 123});
                 done();
             });
@@ -351,7 +351,7 @@ describe('ads-sites (UT)', function() {
                     { id: 'a', contentPlacementId: 100, displayPlacementId: 321 },
                     { id: 'b', contentPlacementId: 200, displayPlacementId: 300 }
                 ]);
-                expect(adtech.websiteAdmin.createPlacement.calls.length).toBe(3);
+                expect(adtech.websiteAdmin.createPlacement.calls.count()).toBe(3);
                 expect(adtech.websiteAdmin.createPlacement).toHaveBeenCalledWith({name: 'a_content', pageId: 234, websiteId: 123});
                 expect(adtech.websiteAdmin.createPlacement).toHaveBeenCalledWith({name: 'b_display', pageId: 234, websiteId: 123});
                 expect(adtech.websiteAdmin.createPlacement).toHaveBeenCalledWith({name: 'b_content', pageId: 234, websiteId: 123});
@@ -360,13 +360,13 @@ describe('ads-sites (UT)', function() {
         });
         
         it('should reject if one of the adtech calls fails', function(done) {
-            adtech.websiteAdmin.createPlacement.andReturn(q.reject('I GOT A PROBLEM'));
+            adtech.websiteAdmin.createPlacement.and.returnValue(q.reject('I GOT A PROBLEM'));
             siteModule.createPlacements(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).toHaveBeenCalledWith(new Error('Adtech failure'));
-                expect(errorSpy.calls.length).toBe(1);
+                expect(errorSpy.calls.count()).toBe(1);
                 expect(mockLog.error).toHaveBeenCalled();
                 done();
             });
@@ -376,8 +376,8 @@ describe('ads-sites (UT)', function() {
     describe('createAdtechSite', function() {
         beforeEach(function() {
             req.body = { id: 's-1', host: 'foo.com', name: 'site 1' };
-            adtech.websiteAdmin.createWebsite.andReturn(q({id: 123}));
-            adtech.websiteAdmin.createPage.andReturn(q({id: 456}));
+            adtech.websiteAdmin.createWebsite.and.returnValue(q({id: 123}));
+            adtech.websiteAdmin.createPage.and.returnValue(q({id: 456}));
         });
         
         it('should create a website and page', function(done) {
@@ -395,7 +395,7 @@ describe('ads-sites (UT)', function() {
         });
         
         it('should reject if creating the website fails', function(done) {
-            adtech.websiteAdmin.createWebsite.andReturn(q.reject('I GOT A PROBLEM'));
+            adtech.websiteAdmin.createWebsite.and.returnValue(q.reject('I GOT A PROBLEM'));
             siteModule.createAdtechSite(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -409,7 +409,7 @@ describe('ads-sites (UT)', function() {
         });
         
         it('should reject if creating the page fails', function(done) {
-            adtech.websiteAdmin.createPage.andReturn(q.reject('I GOT A PROBLEM'));
+            adtech.websiteAdmin.createPage.and.returnValue(q.reject('I GOT A PROBLEM'));
             siteModule.createAdtechSite(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -426,8 +426,8 @@ describe('ads-sites (UT)', function() {
         beforeEach(function() {
             req.origObj = { id: 's-1', host: 'foo.com', name: 'old name', adtechId: 123 };
             req.body = { id: 's-1', host: 'bar.com', name: 'new name' };
-            adtech.websiteAdmin.getWebsiteById.andReturn(q({id: 123, extId: 's-1'}));
-            adtech.websiteAdmin.updateWebsite.andReturn(q({id: 123}));
+            adtech.websiteAdmin.getWebsiteById.and.returnValue(q({id: 123, extId: 's-1'}));
+            adtech.websiteAdmin.updateWebsite.and.returnValue(q({id: 123}));
         });
         
         it('should edit a website in adtech', function(done) {
@@ -438,7 +438,7 @@ describe('ads-sites (UT)', function() {
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body).toEqual({id: 's-1', host: 'bar.com', name: 'new name'});
                 expect(adtech.websiteAdmin.updateWebsite).toHaveBeenCalledWith(
-                    {URL: 'http://bar.com', extId: 's-1', id: 123, name: 'new name'});
+                    {pageList: undefined, assignedUsers: undefined,URL: 'http://bar.com', extId: 's-1', id: 123, name: 'new name'});
                 done();
             });
         });
@@ -483,7 +483,7 @@ describe('ads-sites (UT)', function() {
         });
 
         it('should reject if finding the existing website fails', function(done) {
-            adtech.websiteAdmin.getWebsiteById.andReturn(q.reject('I GOT A PROBLEM'));
+            adtech.websiteAdmin.getWebsiteById.and.returnValue(q.reject('I GOT A PROBLEM'));
             siteModule.editAdtechSite(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -496,7 +496,7 @@ describe('ads-sites (UT)', function() {
         });
 
         it('should reject if updating the website fails', function(done) {
-            adtech.websiteAdmin.updateWebsite.andReturn(q.reject('I GOT A PROBLEM'));
+            adtech.websiteAdmin.updateWebsite.and.returnValue(q.reject('I GOT A PROBLEM'));
             siteModule.editAdtechSite(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -511,7 +511,7 @@ describe('ads-sites (UT)', function() {
     describe('deleteAdtechSite', function() {
         beforeEach(function() {
             req.origObj = { id: 's-1', host: 'foo.com', name: 'site 1', adtechId: 123 };
-            adtech.websiteAdmin.deleteWebsite.andReturn(q());
+            adtech.websiteAdmin.deleteWebsite.and.returnValue(q());
         });
         
         it('should delete a website from adtech', function(done) {
@@ -539,7 +539,7 @@ describe('ads-sites (UT)', function() {
         });
         
         it('should handle websites that still have active campaigns', function(done) {
-            adtech.websiteAdmin.deleteWebsite.andReturn(q.reject({root: {Envelope: {Body: {Fault: {faultstring:
+            adtech.websiteAdmin.deleteWebsite.and.returnValue(q.reject({root: {Envelope: {Body: {Fault: {faultstring:
                 'Website deletion cannot be performed because 1 campaign(s) run on one or more of the affected placements'}}}}}));
 
             siteModule.deleteAdtechSite(req, nextSpy, doneSpy).catch(errorSpy);
@@ -554,7 +554,7 @@ describe('ads-sites (UT)', function() {
         });
         
         it('should reject if adtech fails', function(done) {
-            adtech.websiteAdmin.deleteWebsite.andReturn(q.reject('I GOT A PROBLEM'));
+            adtech.websiteAdmin.deleteWebsite.and.returnValue(q.reject('I GOT A PROBLEM'));
             siteModule.deleteAdtechSite(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();

@@ -45,6 +45,7 @@ module.exports = function (grunt) {
             grunt.task.run('get_logs');
         }
     });
-    
+
+    grunt.registerTask('unit_tests', ['jasmine:unit']);
 };
 

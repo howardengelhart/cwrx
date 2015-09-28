@@ -8,11 +8,11 @@ var q               = require('q'),
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
 
-jasmine.getEnv().defaultTimeoutInterval = 30000;
-
 describe('auth (E2E):', function() {
     var now, mockUser, mockPol, mailman, urlRegex;
     beforeEach(function(done) {
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
+
         now = new Date();
         urlRegex = /https:\/\/.*cinema6.com.*id=u-1.*token=[0-9a-f]{48}/;
 

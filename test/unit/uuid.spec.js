@@ -37,10 +37,10 @@ describe('uuid', function() {
             fakeStream = new events.EventEmitter();
             fakeHash = {
                 update: jasmine.createSpy('hash.update'),
-                digest: jasmine.createSpy('hash.digest').andReturn('hashbrownsaretasty')
+                digest: jasmine.createSpy('hash.digest').and.returnValue('hashbrownsaretasty')
             };
-            spyOn(fs, 'createReadStream').andReturn(fakeStream);
-            spyOn(crypto, 'createHash').andReturn(fakeHash);
+            spyOn(fs, 'createReadStream').and.returnValue(fakeStream);
+            spyOn(crypto, 'createHash').and.returnValue(fakeHash);
         });
         
         it('should read and hash a file', function(done) {
@@ -52,9 +52,9 @@ describe('uuid', function() {
             promise.then(function(hash) {
                 expect(hash).toBe('hashbrownsaretasty');
                 expect(fs.createReadStream).toHaveBeenCalledWith('/ut/fake');
-                expect(fakeHash.update.calls.length).toBe(2);
-                expect(fakeHash.update.calls[0].args[0]).toBe('asdf');
-                expect(fakeHash.update.calls[1].args[0] instanceof Buffer).toBe(true);
+                expect(fakeHash.update.calls.count()).toBe(2);
+                expect(fakeHash.update.calls.all()[0].args[0]).toBe('asdf');
+                expect(fakeHash.update.calls.all()[1].args[0] instanceof Buffer).toBe(true);
                 expect(fakeHash.digest).toHaveBeenCalledWith('hex');
                 done();
             }).catch(function(error) {

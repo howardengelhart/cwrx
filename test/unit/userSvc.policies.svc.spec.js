@@ -42,14 +42,14 @@ describe('userSvc-policies (UT)', function() {
             fatal : jasmine.createSpy('log_fatal'),
             log   : jasmine.createSpy('log_log')
         };
-        spyOn(logger, 'createLog').andReturn(mockLog);
-        spyOn(logger, 'getLog').andReturn(mockLog);
+        spyOn(logger, 'createLog').and.returnValue(mockLog);
+        spyOn(logger, 'getLog').and.returnValue(mockLog);
         
         mockColl = {
             find: jasmine.createSpy('find')
         };
         mockDb = {
-            collection: jasmine.createSpy('db.collection()').andReturn(mockColl)
+            collection: jasmine.createSpy('db.collection()').and.returnValue(mockColl)
         };
 
         req = { uuid: '1234', user: { id: 'u-1' } };
@@ -61,10 +61,10 @@ describe('userSvc-policies (UT)', function() {
     describe('setupSvc', function() {
         var svc;
         beforeEach(function() {
-            mockDb.collection.andCallFake(function(objName) { return { collectionName: objName }; });
+            mockDb.collection.and.callFake(function(objName) { return { collectionName: objName }; });
 
             [CrudSvc.prototype.validateUniqueProp, polModule.checkPolicyInUse, polModule.validateApplications].forEach(function(fn) {
-                spyOn(fn, 'bind').andReturn(fn);
+                spyOn(fn, 'bind').and.returnValue(fn);
             });
 
             svc = polModule.setupSvc(mockDb, mockCfg);
@@ -129,7 +129,7 @@ describe('userSvc-policies (UT)', function() {
             
             it('should allow the field to be set on create', function() {
                 expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'test', priority: 1 });
             });
 
@@ -143,14 +143,14 @@ describe('userSvc-policies (UT)', function() {
                 delete newObj.name;
                 origObj.name = 'old pol name';
                 expect(svc.model.validate('edit', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'old pol name', priority: 1 });
             });
 
             it('should revert the field if defined on edit', function() {
                 origObj.name = 'old pol name';
                 expect(svc.model.validate('edit', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'old pol name', priority: 1 });
             });
         });
@@ -164,7 +164,7 @@ describe('userSvc-policies (UT)', function() {
             
             it('should allow the field to be set on create', function() {
                 expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'test', priority: 1 });
             });
 
@@ -179,7 +179,7 @@ describe('userSvc-policies (UT)', function() {
                 origObj.name = 'old pol name';
                 origObj.priority = 2;
                 expect(svc.model.validate('edit', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'old pol name', priority: 2 });
             });
 
@@ -187,7 +187,7 @@ describe('userSvc-policies (UT)', function() {
                 origObj.name = 'old pol name';
                 origObj.priority = 2;
                 expect(svc.model.validate('edit', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'old pol name', priority: 1 });
             });
         });
@@ -198,7 +198,7 @@ describe('userSvc-policies (UT)', function() {
                 it('should trim the field if set', function() {
                     newObj[field] = 'me';
                     expect(svc.model.validate('create', newObj, origObj, requester))
-                        .toEqual({ isValid: true });
+                        .toEqual({ isValid: true, reason: undefined });
                     expect(newObj).toEqual({ name: 'test', priority: 1 });
                 });
                 
@@ -206,7 +206,7 @@ describe('userSvc-policies (UT)', function() {
                     requester.fieldValidation.policies[field] = { __allowed: true };
                     newObj[field] = 'me';
                     expect(svc.model.validate('create', newObj, origObj, requester))
-                        .toEqual({ isValid: true });
+                        .toEqual({ isValid: true, reason: undefined });
                     expect(newObj[field]).toBe('me');
                 });
 
@@ -223,7 +223,7 @@ describe('userSvc-policies (UT)', function() {
             it('should trim the field if set', function() {
                 newObj.applications = ['e-app1', 'e-app2'];
                 expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'test', priority: 1 });
             });
             
@@ -235,7 +235,7 @@ describe('userSvc-policies (UT)', function() {
                 };
 
                 expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'test', priority: 1, applications: ['e-app1', 'e-app2'] });
             });
             
@@ -266,7 +266,7 @@ describe('userSvc-policies (UT)', function() {
             it('should trim the field if set', function() {
                 newObj.entitlements = { doThings: 'yes' };
                 expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'test', priority: 1 });
             });
             
@@ -275,7 +275,7 @@ describe('userSvc-policies (UT)', function() {
                 requester.fieldValidation.policies.entitlements = { __allowed: true };
 
                 expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'test', priority: 1, entitlements: { doThings: 'yes' } });
             });
             
@@ -293,7 +293,7 @@ describe('userSvc-policies (UT)', function() {
                 it('should allow the field to be set', function() {
                     newObj[field] = {};
                     expect(svc.model.validate('create', newObj, origObj, requester))
-                        .toEqual({ isValid: true });
+                        .toEqual({ isValid: true, reason: undefined });
                     expect(newObj[field]).toEqual({});
                 });
                 
@@ -310,7 +310,7 @@ describe('userSvc-policies (UT)', function() {
                             newObj[field][subfield] = { someRules: 'yes' };
 
                             expect(svc.model.validate('create', newObj, origObj, requester))
-                                .toEqual({ isValid: true });
+                                .toEqual({ isValid: true, reason: undefined });
                             expect(newObj[field]).toEqual({});
                         });
                         
@@ -321,7 +321,7 @@ describe('userSvc-policies (UT)', function() {
                             requester.fieldValidation.policies[field][subfield] = { __allowed: true };
 
                             expect(svc.model.validate('create', newObj, origObj, requester))
-                                .toEqual({ isValid: true });
+                                .toEqual({ isValid: true, reason: undefined });
                             expect(newObj[field][subfield]).toEqual({ someRules: 'yes' });
                         });
                         
@@ -383,7 +383,7 @@ describe('userSvc-policies (UT)', function() {
             polModule.validatePermissions(req1, nextSpy, doneSpy);
             polModule.validatePermissions(req2, nextSpy, doneSpy);
             process.nextTick(function() {
-                expect(nextSpy.calls.length).toBe(2);
+                expect(nextSpy.calls.count()).toBe(2);
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(req1.body).toEqual({ id: 'p-1' });
                 expect(req2.body).toEqual({ id: 'p-2', permissions: {} });
@@ -444,7 +444,7 @@ describe('userSvc-policies (UT)', function() {
         beforeEach(function() {
             svc = polModule.setupSvc(mockDb, mockCfg);
             apps = [{ id: 'e-app1' }, { id: 'e-app2' }, { id: 'e-app3' }];
-            mockColl.find.andCallFake(function() {
+            mockColl.find.and.callFake(function() {
                 return {
                     toArray: function(cb) {
                         cb(null, apps);
@@ -498,7 +498,7 @@ describe('userSvc-policies (UT)', function() {
         });
         
         it('should reject if mongo fails', function(done) {
-            mockColl.find.andReturn({ toArray: function(cb) { cb('I GOT A PROBLEM'); } });
+            mockColl.find.and.returnValue({ toArray: function(cb) { cb('I GOT A PROBLEM'); } });
             polModule.validateApplications(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -515,16 +515,16 @@ describe('userSvc-policies (UT)', function() {
         var roleColl, userColl, svc;
         beforeEach(function() {
             roleColl = {
-                count: jasmine.createSpy('roles.count()').andCallFake(function(query, cb) {
+                count: jasmine.createSpy('roles.count()').and.callFake(function(query, cb) {
                     cb(null, 0);
                 })
             };
             userColl = {
-                count: jasmine.createSpy('users.count()').andCallFake(function(query, cb) {
+                count: jasmine.createSpy('users.count()').and.callFake(function(query, cb) {
                     cb(null, 0);
                 })
             };
-            mockDb.collection.andCallFake(function(collName) {
+            mockDb.collection.and.callFake(function(collName) {
                 if (collName === 'roles') return roleColl;
                 else if (collName === 'users') return userColl;
                 else return { collectionName: 'policies' };
@@ -551,7 +551,7 @@ describe('userSvc-policies (UT)', function() {
         });
         
         it('should call done with a 400 if roles use the policy', function(done) {
-            roleColl.count.andCallFake(function(query, cb) { cb(null, 1); });
+            roleColl.count.and.callFake(function(query, cb) { cb(null, 1); });
             polModule.checkPolicyInUse(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -565,7 +565,7 @@ describe('userSvc-policies (UT)', function() {
         });
 
         it('should call done with a 400 if roles use the policy', function(done) {
-            userColl.count.andCallFake(function(query, cb) { cb(null, 5); });
+            userColl.count.and.callFake(function(query, cb) { cb(null, 5); });
             polModule.checkPolicyInUse(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -579,7 +579,7 @@ describe('userSvc-policies (UT)', function() {
         });
         
         it('should reject if users.count() fails', function(done) {
-            userColl.count.andCallFake(function(query, cb) { cb('users got problems'); });
+            userColl.count.and.callFake(function(query, cb) { cb('users got problems'); });
             polModule.checkPolicyInUse(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -593,7 +593,7 @@ describe('userSvc-policies (UT)', function() {
         });
 
         it('should reject if roles.count() fails', function(done) {
-            roleColl.count.andCallFake(function(query, cb) { cb('roles got problems'); });
+            roleColl.count.and.callFake(function(query, cb) { cb('roles got problems'); });
             polModule.checkPolicyInUse(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();

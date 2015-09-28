@@ -5,7 +5,7 @@ describe('vote.elecDb (UT)',function(){
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
 
-        jasmine.Clock.useMock();
+        jasmine.clock().install();
         
         q           = require('q');
         logger      = require('../../lib/logger');
@@ -47,21 +47,25 @@ describe('vote.elecDb (UT)',function(){
             }
         };
 
-        spyOn(logger,'createLog').andReturn(mockLog);
-        spyOn(logger,'getLog').andReturn(mockLog);
-        spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
+        spyOn(logger,'createLog').and.returnValue(mockLog);
+        spyOn(logger,'getLog').and.returnValue(mockLog);
+        spyOn(mongoUtils, 'unescapeKeys').and.callThrough();
+    });
+
+    afterEach(function() {
+        jasmine.clock().uninstall();
     });
 
     describe('ElectionDb',function(){
 
         describe('initialization',function(){
             it('fails if no db is passed',function(){
-                expect(function(){ new ElectionDb() }).toThrow('A mongo db connection is required.');
+                expect(function(){ new ElectionDb() }).toThrow(new Error('A mongo db connection is required.'));
             });
 
             it ('fails if syncIval is < 1000 ms.',function(){
                 expect(function(){ new ElectionDb({}, 1) })
-                    .toThrow('ElectionDb syncIval cannot be less than 1000 ms.');
+                    .toThrow(new Error('ElectionDb syncIval cannot be less than 1000 ms.'));
             });
 
             it('defaults syncIval to 10000 ms.',function(){
@@ -143,8 +147,8 @@ describe('vote.elecDb (UT)',function(){
                     baz: { id: 'baz' }
                 };
                 elDb._cache.bar.votingBooth.voteForBallotItem('cool', 'tapes');
-                spyOn(elDb, 'getCachedElections').andCallThrough();
-                spyOn(elDb, 'syncElections').andReturn(q(['fakeElection']));
+                spyOn(elDb, 'getCachedElections').and.callThrough();
+                spyOn(elDb, 'syncElections').and.returnValue(q(['fakeElection']));
                 resolveSpy = jasmine.createSpy('syncCached.resolve');
                 rejectSpy = jasmine.createSpy('syncCached.reject');
             });
@@ -161,7 +165,7 @@ describe('vote.elecDb (UT)',function(){
             });
             
             it('should just pass on errors', function(done) {
-                elDb.syncElections.andReturn(q.reject('I GOT A PROBLEM'));
+                elDb.syncElections.and.returnValue(q.reject('I GOT A PROBLEM'));
                 elDb.syncCached()
                     .then(resolveSpy, rejectSpy)
                     .finally(function() {
@@ -185,13 +189,13 @@ describe('vote.elecDb (UT)',function(){
                 resolveSpy = jasmine.createSpy('syncElections.resolve');
                 rejectSpy = jasmine.createSpy('syncElections.reject');
                 fakeCursor = {
-                    toArray: jasmine.createSpy('cursor.toArray').andCallFake(function(cb) {
+                    toArray: jasmine.createSpy('cursor.toArray').and.callFake(function(cb) {
                         mockData._id = 'mongoId';
                         cb(null, [mockData]);
                     })
                 };
-                mockDb.find.andReturn(fakeCursor);
-                mockDb.findAndModify.andCallFake(function(query, sort, updates, opts, cb) {
+                mockDb.find.and.returnValue(fakeCursor);
+                mockDb.findAndModify.and.callFake(function(query, sort, updates, opts, cb) {
                     var newObj = JSON.parse(JSON.stringify(mockData));
                     newObj._id = 'mongoId';
                     newObj.updated = true;
@@ -232,8 +236,8 @@ describe('vote.elecDb (UT)',function(){
                     .finally(function() {
                         expect(resolveSpy).toHaveBeenCalled();
                         expect(rejectSpy).not.toHaveBeenCalled();
-                        expect(resolveSpy.calls[0].args[0][0]._id).not.toBeDefined();
-                        expect(resolveSpy.calls[0].args[0][0].updated).toBe(true);
+                        expect(resolveSpy.calls.all()[0].args[0][0]._id).not.toBeDefined();
+                        expect(resolveSpy.calls.all()[0].args[0][0].updated).toBe(true);
                         expect(elDb._cache['el-abc'].lastSync).toBeGreaterThan(oldDate);
                         expect(elDb._cache['el-abc'].votingBooth.dirty).toBe(false);
                         expect(mockDb.find).toHaveBeenCalled();
@@ -254,8 +258,8 @@ describe('vote.elecDb (UT)',function(){
                     .finally(function() {
                         expect(resolveSpy).toHaveBeenCalled();
                         expect(rejectSpy).not.toHaveBeenCalled();
-                        expect(resolveSpy.calls[0].args[0][0]._id).not.toBeDefined();
-                        expect(resolveSpy.calls[0].args[0][0].updated).toBe(true);
+                        expect(resolveSpy.calls.all()[0].args[0][0]._id).not.toBeDefined();
+                        expect(resolveSpy.calls.all()[0].args[0][0].updated).toBe(true);
                         expect(elDb._cache['el-abc'].lastSync).toBeGreaterThan(oldDate);
                         expect(elDb._cache['el-abc'].votingBooth.dirty).toBe(false);
                         expect(mockDb.find).toHaveBeenCalled();
@@ -298,7 +302,7 @@ describe('vote.elecDb (UT)',function(){
             });
             
             it('should remove the cached election if not found in the db', function(done) {
-                fakeCursor.toArray.andCallFake(function(cb) { cb(null, []); });
+                fakeCursor.toArray.and.callFake(function(cb) { cb(null, []); });
                 elDb.syncElections(['el-abc'])
                     .then(resolveSpy, rejectSpy)
                     .finally(function() {
@@ -315,11 +319,11 @@ describe('vote.elecDb (UT)',function(){
                     { id: 'el-2', ballot: { b2: { c: 0, d: 1 } } },
                     { id: 'el-3', ballot: { b3: { e: 0, f: 1 } } }
                 ];
-                fakeCursor.toArray.andCallFake(function(cb) { cb(null, elecs.slice(0, 2)); });
+                fakeCursor.toArray.and.callFake(function(cb) { cb(null, elecs.slice(0, 2)); });
                 elecs.forEach(function(elec) {
                     elDb._cache[elec.id] = {lastSync: oldDate, data: elec, votingBooth: new VotingBooth(elec.id)};
                 });
-                mockDb.findAndModify.andCallFake(function(query, sort, updates, opts, cb) {
+                mockDb.findAndModify.and.callFake(function(query, sort, updates, opts, cb) {
                     var newObj = JSON.parse(JSON.stringify(elDb._cache[query.id].data));
                     newObj._id = 'mongoId';
                     newObj.updated = true;
@@ -335,19 +339,19 @@ describe('vote.elecDb (UT)',function(){
                     .finally(function() {
                         expect(resolveSpy).toHaveBeenCalled();
                         expect(rejectSpy).not.toHaveBeenCalled();
-                        expect(resolveSpy.calls[0].args[0].length).toBe(2);
-                        expect(resolveSpy.calls[0].args[0][0].updated).toBe(true);
-                        expect(resolveSpy.calls[0].args[0][1].updated).toBe(true);
+                        expect(resolveSpy.calls.all()[0].args[0].length).toBe(2);
+                        expect(resolveSpy.calls.all()[0].args[0][0].updated).toBe(true);
+                        expect(resolveSpy.calls.all()[0].args[0][1].updated).toBe(true);
                         expect(elDb._cache['el-1'].lastSync).toBeGreaterThan(oldDate);
                         expect(elDb._cache['el-2'].lastSync).toBeGreaterThan(oldDate);
                         expect(elDb._cache['el-3']).not.toBeDefined();
                         expect(mockDb.find).toHaveBeenCalledWith({id:{'$in':['el-1','el-2','el-3']}});
-                        expect(mockDb.findAndModify.calls.length).toBe(2);
-                        expect(mockDb.findAndModify.calls[0].args).toEqual([
+                        expect(mockDb.findAndModify.calls.count()).toBe(2);
+                        expect(mockDb.findAndModify.calls.all()[0].args).toEqual([
                             {id:'el-1'}, null, {'$inc':{'ballot.b1.a':1}},
                             {new:true,w:0,journal:true}, jasmine.any(Function)
                         ]);
-                        expect(mockDb.findAndModify.calls[1].args).toEqual([
+                        expect(mockDb.findAndModify.calls.all()[1].args).toEqual([
                             {id:'el-2'}, null, {'$inc':{'ballot.b2.d':1}},
                             {new:true,w:0,journal:true}, jasmine.any(Function)
                         ]);
@@ -362,7 +366,7 @@ describe('vote.elecDb (UT)',function(){
                     .finally(function() {
                         expect(resolveSpy).toHaveBeenCalled();
                         expect(rejectSpy).not.toHaveBeenCalled();
-                        expect(resolveSpy.calls[0].args[0][0].updated).toBe(true);
+                        expect(resolveSpy.calls.all()[0].args[0][0].updated).toBe(true);
                         expect(elDb._cache['el-abc'].lastSync).toBeGreaterThan(oldDate);
                         expect(elDb._cache['el-abc'].votingBooth.dirty).toBe(false);
                         expect(mockDb.find).toHaveBeenCalled();
@@ -375,7 +379,7 @@ describe('vote.elecDb (UT)',function(){
             });
             
             it('should fail if coll.find fails', function(done) {
-                fakeCursor.toArray.andCallFake(function(cb) { cb('I GOT A PROBLEM'); });
+                fakeCursor.toArray.and.callFake(function(cb) { cb('I GOT A PROBLEM'); });
                 elDb.syncElections(['el-abc'])
                     .then(resolveSpy, rejectSpy)
                     .finally(function() {
@@ -390,7 +394,7 @@ describe('vote.elecDb (UT)',function(){
             
             it('should log an error but return the item if findAndModify fails', function(done) {
                 elDb._cache['el-abc'].votingBooth.voteForBallotItem('item-2', 'smelly');
-                mockDb.findAndModify.andCallFake(function(query, sort, updates, opts, cb) { cb('I GOT A PROBLEM'); });
+                mockDb.findAndModify.and.callFake(function(query, sort, updates, opts, cb) { cb('I GOT A PROBLEM'); });
                 elDb.syncElections(['el-abc'])
                     .then(resolveSpy, rejectSpy)
                     .finally(function() {
@@ -412,7 +416,7 @@ describe('vote.elecDb (UT)',function(){
                 resolveSpy = jasmine.createSpy('getElection.resolve');
                 rejectSpy = jasmine.createSpy('getElection.reject');
                 mockData = { id: 'abc', status: Status.Active, foo: 'bar' };
-                spyOn(elDb, 'syncElections').andReturn(q([mockData]));
+                spyOn(elDb, 'syncElections').and.returnValue(q([mockData]));
             });
 
             it('returns the cached election if lastSync < syncInterval',function(done){
@@ -428,7 +432,7 @@ describe('vote.elecDb (UT)',function(){
                         expect(resolveSpy).toHaveBeenCalled();
                         expect(rejectSpy).not.toHaveBeenCalled();
                         expect(elDb.syncElections).not.toHaveBeenCalled();
-                        expect(resolveSpy.argsForCall[0][0]).toEqual(mockData);
+                        expect(resolveSpy.calls.allArgs()[0][0]).toEqual(mockData);
                         expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                     }).done(done);
             });
@@ -506,7 +510,7 @@ describe('vote.elecDb (UT)',function(){
             });
             
             it('returns nothing if the election is not available',function(done){
-                elDb.syncElections.andReturn(q([]));
+                elDb.syncElections.and.returnValue(q([]));
                 elDb.getElection('abc')
                     .then(resolveSpy,rejectSpy)
                     .finally(function(){
@@ -520,9 +524,9 @@ describe('vote.elecDb (UT)',function(){
             });
 
             it('fails with timeout if passed timeout parameter',function(done){
-                elDb.syncElections.andCallFake(function(electionId){
+                elDb.syncElections.and.callFake(function(electionId){
                     var deferred = q.defer();
-                    setTimeout(2000, deferred.resolve);
+                    setTimeout(deferred.resolve, 2000);
                     return deferred.promise;
                 });
                 elDb.getElection('abc',1000)
@@ -530,15 +534,15 @@ describe('vote.elecDb (UT)',function(){
                     .finally(function(){
                         expect(resolveSpy).not.toHaveBeenCalled();
                         expect(rejectSpy).toHaveBeenCalled();
-                        expect(rejectSpy.argsForCall[0][0].message)
+                        expect(rejectSpy.calls.allArgs()[0][0].message)
                             .toEqual('Timed out after 1000 ms');
                         expect(elDb._keeper.getDeferred('abc')).toBeDefined();
                     }).done(done);
-                jasmine.Clock.tick(1500);
+                jasmine.clock().tick(1500);
             });
 
             it('batches calls while waiting for mongo',function(done){
-                elDb.syncElections.andCallFake(function(electionId){
+                elDb.syncElections.and.callFake(function(electionId){
                     var deferred = q.defer();
                     process.nextTick(function() { deferred.resolve([mockData]); });
                     return deferred.promise;
@@ -551,18 +555,18 @@ describe('vote.elecDb (UT)',function(){
                     .finally(function(){
                         expect(resolveSpy).toHaveBeenCalled();
                         expect(rejectSpy).not.toHaveBeenCalled();
-                        expect(elDb.syncElections.callCount).toEqual(1);
-                        expect(resolveSpy.argsForCall[0][0].length).toEqual(3);
+                        expect(elDb.syncElections.calls.count()).toEqual(1);
+                        expect(resolveSpy.calls.allArgs()[0][0].length).toEqual(3);
                         expect(elDb._keeper.getDeferred('abc',true)).not.toBeDefined();
                         expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                     }).done(done);
             });
             
             it('does not return elections the user is not allowed to see', function(done) {
-                spyOn(app, 'checkScope').andCallFake(function(user, election, verb) {
+                spyOn(app, 'checkScope').and.callFake(function(user, election, verb) {
                     return !!user;
                 });
-                spyOn(elDb._keeper, 'getDeferred').andCallThrough();
+                spyOn(elDb._keeper, 'getDeferred').and.callThrough();
                 mockData.status = Status.Inactive;
 
                 q.all([ elDb.getElection('abc'),
@@ -571,20 +575,20 @@ describe('vote.elecDb (UT)',function(){
                     .finally(function(){
                         expect(resolveSpy).toHaveBeenCalled();
                         expect(rejectSpy).not.toHaveBeenCalled();
-                        expect(elDb.syncElections.callCount).toEqual(1);
-                        expect(app.checkScope.callCount).toEqual(2);
-                        expect(app.checkScope.argsForCall[0][0]).not.toBeDefined();
-                        expect(app.checkScope.argsForCall[1][0]).toBe('fakeUser');
-                        expect(resolveSpy.argsForCall[0][0].length).toEqual(2);
-                        expect(resolveSpy.argsForCall[0][0][0]).not.toBeDefined()
-                        expect(resolveSpy.argsForCall[0][0][1]).toBeDefined()
-                        expect(resolveSpy.argsForCall[0][0][1].status).toBe(Status.Inactive);
+                        expect(elDb.syncElections.calls.count()).toEqual(1);
+                        expect(app.checkScope.calls.count()).toEqual(2);
+                        expect(app.checkScope.calls.allArgs()[0][0]).not.toBeDefined();
+                        expect(app.checkScope.calls.allArgs()[1][0]).toBe('fakeUser');
+                        expect(resolveSpy.calls.allArgs()[0][0].length).toEqual(2);
+                        expect(resolveSpy.calls.allArgs()[0][0][0]).not.toBeDefined()
+                        expect(resolveSpy.calls.allArgs()[0][0][1]).toBeDefined()
+                        expect(resolveSpy.calls.allArgs()[0][0][1].status).toBe(Status.Inactive);
                         expect(elDb._keeper.getDeferred('abc',true)).not.toBeDefined();
                     }).done(done);
             });
             
             it('does not show any deleted experiences', function(done) {
-                spyOn(app, 'checkScope').andReturn(true);
+                spyOn(app, 'checkScope').and.returnValue(true);
                 mockData.status = Status.Deleted;
 
                 elDb.getElection('abc', null, 'fakeUser')
@@ -592,7 +596,7 @@ describe('vote.elecDb (UT)',function(){
                     .finally(function(){
                         expect(resolveSpy).toHaveBeenCalledWith(undefined);
                         expect(rejectSpy).not.toHaveBeenCalled();
-                        expect(elDb.syncElections.callCount).toEqual(1);
+                        expect(elDb.syncElections.calls.count()).toEqual(1);
                         expect(elDb._keeper.getDeferred('abc',true)).not.toBeDefined();
                     }).done(done);
             });

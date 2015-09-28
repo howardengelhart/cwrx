@@ -24,20 +24,20 @@ describe('authUtils', function() {
         };
         
         mockColl = {
-            findOne: jasmine.createSpy('coll.findOne').andCallFake(function(query, cb) {
+            findOne: jasmine.createSpy('coll.findOne').and.callFake(function(query, cb) {
                 cb(null, mockUser);
             })
         };
         mockDb = {
-            collection: jasmine.createSpy('db.collection()').andReturn(mockColl)
+            collection: jasmine.createSpy('db.collection()').and.returnValue(mockColl)
         };
         
         res = { send: jasmine.createSpy('res.send()') };
         next = jasmine.createSpy('next()');
         
         authUtils._db = mockDb;
-        spyOn(mongoUtils, 'safeUser').andCallThrough();
-        spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
+        spyOn(mongoUtils, 'safeUser').and.callThrough();
+        spyOn(mongoUtils, 'unescapeKeys').and.callThrough();
         anyFunc = jasmine.any(Function);
 
         mockLog = {
@@ -48,12 +48,12 @@ describe('authUtils', function() {
             fatal : jasmine.createSpy('log.fatal'),
             log   : jasmine.createSpy('log.log')
         };
-        spyOn(logger, 'getLog').andReturn(mockLog);
+        spyOn(logger, 'getLog').and.returnValue(mockLog);
     });
     
     describe('getUser', function() {
         beforeEach(function() {
-            spyOn(authUtils, 'decorateUser').andCallFake(function(user) {
+            spyOn(authUtils, 'decorateUser').and.callFake(function(user) {
                 if (user) return q({ decorated: 'yes' });
                 else return user;
             });
@@ -74,7 +74,7 @@ describe('authUtils', function() {
         });
         
         it('should resolve with nothing if no results are found', function(done) {
-            mockColl.findOne.andCallFake(function(query, cb) { cb(); });
+            mockColl.findOne.and.callFake(function(query, cb) { cb(); });
             authUtils.getUser('u-1234').then(function(user) {
                 expect(user).not.toBeDefined();
                 expect(mongoUtils.safeUser).toHaveBeenCalledWith(undefined);
@@ -84,7 +84,7 @@ describe('authUtils', function() {
         });
         
         it('should pass on errors from mongo', function(done) {
-            mockColl.findOne.andCallFake(function(query, cb) { cb('I GOT A PROBLEM'); });
+            mockColl.findOne.and.callFake(function(query, cb) { cb('I GOT A PROBLEM'); });
             authUtils.getUser('u-1234').then(function(user) {
                 expect(user).not.toBeDefined();
             }).catch(function(error) {
@@ -95,7 +95,7 @@ describe('authUtils', function() {
         });
 
         it('should pass on errors from decorateUser', function(done) {
-            authUtils.decorateUser.andReturn(q.reject('no decorating skills'));
+            authUtils.decorateUser.and.returnValue(q.reject('no decorating skills'));
             authUtils.getUser('u-1234').then(function(user) {
                 expect(user).not.toBeDefined();
             }).catch(function(error) {
@@ -126,28 +126,28 @@ describe('authUtils', function() {
                 { id: 'p-4', name: 'pol4' }
             ];
             roleColl = {
-                find: jasmine.createSpy('roles.find()').andCallFake(function(query) {
+                find: jasmine.createSpy('roles.find()').and.callFake(function(query) {
                     return { toArray: function(cb) {
                         cb(null, mockRoles);
                     } };
                 })
             };
             polColl = {
-                find: jasmine.createSpy('policies.find()').andCallFake(function(query) {
+                find: jasmine.createSpy('policies.find()').and.callFake(function(query) {
                     return { toArray: function(cb) {
                         cb(null, mockPolicies);
                     } };
                 })
             };
-            mockDb.collection.andCallFake(function(collName) {
+            mockDb.collection.and.callFake(function(collName) {
                 if (collName === 'roles') return roleColl;
                 else return polColl;
             });
 
-            spyOn(authUtils, 'mergePermissions').andReturn({ perms: 'yes' });
-            spyOn(authUtils, 'mergeValidation').andReturn({ fieldVal: 'yes' });
-            spyOn(authUtils, 'mergeEntitlements').andReturn({ entitled: 'yes' });
-            spyOn(authUtils, 'mergeApplications').andReturn({ applicated: 'yes' });
+            spyOn(authUtils, 'mergePermissions').and.returnValue({ perms: 'yes' });
+            spyOn(authUtils, 'mergeValidation').and.returnValue({ fieldVal: 'yes' });
+            spyOn(authUtils, 'mergeEntitlements').and.returnValue({ entitled: 'yes' });
+            spyOn(authUtils, 'mergeApplications').and.returnValue({ applicated: 'yes' });
         });
         
         it('should look up a user\'s roles + policies and merge them together', function(done) {
@@ -258,7 +258,7 @@ describe('authUtils', function() {
         });
         
         it('should fail if roles.find() fails', function(done) {
-            roleColl.find.andReturn({ toArray: function(cb) { cb('I GOT A PROBLEM') } });
+            roleColl.find.and.returnValue({ toArray: function(cb) { cb('I GOT A PROBLEM') } });
             authUtils.decorateUser(mockUser).then(function(user) {
                 expect(user).not.toBeDefined();
             }).catch(function(error) {
@@ -273,7 +273,7 @@ describe('authUtils', function() {
         });
 
         it('should fail if policies.find() fails', function(done) {
-            polColl.find.andReturn({ toArray: function(cb) { cb('I GOT A PROBLEM') } });
+            polColl.find.and.returnValue({ toArray: function(cb) { cb('I GOT A PROBLEM') } });
             authUtils.decorateUser(mockUser).then(function(user) {
                 expect(user).not.toBeDefined();
             }).catch(function(error) {
@@ -701,8 +701,8 @@ describe('authUtils', function() {
         var perms;
         beforeEach(function() {
             perms = { users: 'read' };
-            spyOn(authUtils, '_compare').andReturn(true);
-            spyOn(authUtils, 'getUser').andCallFake(function(id) {
+            spyOn(authUtils, '_compare').and.returnValue(true);
+            spyOn(authUtils, 'getUser').and.callFake(function(id) {
                 return q(mongoUtils.unescapeKeys(mongoUtils.safeUser(mockUser)));
             });
         });
@@ -721,7 +721,7 @@ describe('authUtils', function() {
         });
         
         it('should return a fail message if the permissions do not match', function(done) {
-            authUtils._compare.andReturn(false);
+            authUtils._compare.and.returnValue(false);
             authUtils.authUser('u-1234', perms).then(function(result) {
                 expect(result).toBe('Permissions do not match');
                 expect(result.user).not.toBeDefined();
@@ -743,7 +743,7 @@ describe('authUtils', function() {
         });
         
         it('should fail if getting the user fails', function(done) {
-            authUtils.getUser.andReturn(q.reject('I GOT A PROBLEM'));
+            authUtils.getUser.and.returnValue(q.reject('I GOT A PROBLEM'));
             authUtils.authUser('u-1234', perms).then(function(result) {
                 expect(result).not.toBeDefined();
             }).catch(function(error) {
@@ -765,7 +765,7 @@ describe('authUtils', function() {
             var perms, req;
             beforeEach(function() {
                 perms = 'fakePerms';
-                spyOn(uuid, 'createUuid').andReturn('1234567890abcd');
+                spyOn(uuid, 'createUuid').and.returnValue('1234567890abcd');
                 req = {
                     uuid: '1234',
                     method: 'get',
@@ -777,7 +777,7 @@ describe('authUtils', function() {
                         user: 'u-123'
                     }
                 };
-                spyOn(authUtils, 'authUser').andReturn(q({ user: { id: 'u-123' } }));
+                spyOn(authUtils, 'authUser').and.returnValue(q({ user: { id: 'u-123' } }));
             });
         
             it('should correctly wrap authUser', function(done) {
@@ -822,7 +822,7 @@ describe('authUtils', function() {
             });
             
             it('should fail with a 403 if the user is unauthorized', function(done) {
-                authUtils.authUser.andReturn(q('HE DON\'T BELONG HERE'));
+                authUtils.authUser.and.returnValue(q('HE DON\'T BELONG HERE'));
                 var midWare = authUtils.middlewarify(perms);
                 midWare(req, res, next);
                 process.nextTick(function() {
@@ -836,7 +836,7 @@ describe('authUtils', function() {
             });
             
             it('should fail with a 500 if there was an internal error', function(done) {
-                authUtils.authUser.andReturn(q.reject('I GOT A PROBLEM'));
+                authUtils.authUser.and.returnValue(q.reject('I GOT A PROBLEM'));
                 var midWare = authUtils.middlewarify(perms);
                 midWare(req, res, next);
                 process.nextTick(function() {
@@ -869,10 +869,10 @@ describe('authUtils', function() {
                     body: { email: 'otter', password: 'thisisapassword' }
                 };
                 midWare = authUtils.userPassChecker();
-                spyOn(bcrypt, 'compare').andCallFake(function(password, hashed, cb) {
+                spyOn(bcrypt, 'compare').and.callFake(function(password, hashed, cb) {
                     cb(null, true);
                 });
-                spyOn(authUtils, 'decorateUser').andCallFake(function(user) {
+                spyOn(authUtils, 'decorateUser').and.callFake(function(user) {
                     if (user) return q({ decorated: 'yes' });
                     else return user;
                 });
@@ -897,9 +897,9 @@ describe('authUtils', function() {
                 req.body = { password: 'thisisapassword' };
                 midWare(req, res, next);
                 process.nextTick(function() {
-                    expect(res.send.calls.length).toBe(2);
-                    expect(res.send.calls[0].args).toEqual([400, 'Must provide email and password']);
-                    expect(res.send.calls[1].args).toEqual([400, 'Must provide email and password']);
+                    expect(res.send.calls.count()).toBe(2);
+                    expect(res.send.calls.all()[0].args).toEqual([400, 'Must provide email and password']);
+                    expect(res.send.calls.all()[1].args).toEqual([400, 'Must provide email and password']);
                     expect(next).not.toHaveBeenCalled();
                     expect(mockLog.error).not.toHaveBeenCalled();
                     expect(mockColl.findOne).not.toHaveBeenCalled();
@@ -914,9 +914,9 @@ describe('authUtils', function() {
                 req.body = { email: 'otter', password: { $exists: true } };
                 midWare(req, res, next);
                 process.nextTick(function() {
-                    expect(res.send.calls.length).toBe(2);
-                    expect(res.send.calls[0].args).toEqual([400, 'Must provide email and password']);
-                    expect(res.send.calls[1].args).toEqual([400, 'Must provide email and password']);
+                    expect(res.send.calls.count()).toBe(2);
+                    expect(res.send.calls.all()[0].args).toEqual([400, 'Must provide email and password']);
+                    expect(res.send.calls.all()[1].args).toEqual([400, 'Must provide email and password']);
                     expect(next).not.toHaveBeenCalled();
                     expect(mockLog.error).not.toHaveBeenCalled();
                     expect(mockColl.findOne).not.toHaveBeenCalled();
@@ -959,7 +959,7 @@ describe('authUtils', function() {
             });
             
             it('should fail with a 401 if the user does not exist', function(done) {
-                mockColl.findOne.andCallFake(function(query, cb) {
+                mockColl.findOne.and.callFake(function(query, cb) {
                     cb(null, null);
                 });
                 midWare(req, res, next);
@@ -991,7 +991,7 @@ describe('authUtils', function() {
             });
             
             it('should fail with a 401 if the password is incorrect', function(done) {
-                bcrypt.compare.andCallFake(function(password, hashed, cb) {
+                bcrypt.compare.and.callFake(function(password, hashed, cb) {
                     cb(null, false);
                 });
                 midWare(req, res, next);
@@ -1008,7 +1008,7 @@ describe('authUtils', function() {
             });
             
             it('should reject with an error if bcrypt.compare fails', function(done) {
-                bcrypt.compare.andCallFake(function(password, hashed, cb) {
+                bcrypt.compare.and.callFake(function(password, hashed, cb) {
                     cb('I GOT A PROBLEM');
                 });
                 midWare(req, res, next);
@@ -1025,7 +1025,7 @@ describe('authUtils', function() {
             });
             
             it('should reject with an error if users.findOne fails', function(done) {
-                mockColl.findOne.andCallFake(function(query, cb) {
+                mockColl.findOne.and.callFake(function(query, cb) {
                     cb('I GOT A PROBLEM');
                 });
                 midWare(req, res, next);
@@ -1042,7 +1042,7 @@ describe('authUtils', function() {
             });
 
             it('should reject with an error if decorateUsers fails', function(done) {
-                authUtils.decorateUser.andReturn(q.reject('no decorating skills'));
+                authUtils.decorateUser.and.returnValue(q.reject('no decorating skills'));
                 midWare(req, res, next);
                 process.nextTick(function() {
                     expect(res.send).toHaveBeenCalledWith(500, 'Error checking authorization of user');

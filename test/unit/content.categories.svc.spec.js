@@ -19,13 +19,13 @@ describe('content-categories (UT)', function() {
             fatal : jasmine.createSpy('log_fatal'),
             log   : jasmine.createSpy('log_log')
         };
-        spyOn(logger, 'createLog').andReturn(mockLog);
-        spyOn(logger, 'getLog').andReturn(mockLog);
+        spyOn(logger, 'createLog').and.returnValue(mockLog);
+        spyOn(logger, 'getLog').and.returnValue(mockLog);
     });
 
     describe('setupCatSvc', function() {
         it('should setup the category service', function() {
-            spyOn(CrudSvc.prototype.validateUniqueProp, 'bind').andReturn(CrudSvc.prototype.validateUniqueProp);
+            spyOn(CrudSvc.prototype.validateUniqueProp, 'bind').and.returnValue(CrudSvc.prototype.validateUniqueProp);
             var mockColl = { collectionName: 'categories' },
                 catSvc = catModule.setupCatSvc(mockColl);
 
@@ -68,8 +68,8 @@ describe('content-categories (UT)', function() {
             req.user.permissions.categories = {create: Scope.Own};
             catModule.adminCreateCheck(req, nextSpy, doneSpy);
             expect(nextSpy).not.toHaveBeenCalled();
-            expect(doneSpy.calls.length).toBe(3);
-            doneSpy.calls.forEach(function(call) {
+            expect(doneSpy.calls.count()).toBe(3);
+            doneSpy.calls.all().forEach(function(call) {
                 expect(call.args).toEqual([{code: 403, body: 'Not authorized to create categories'}]);
             });
         });

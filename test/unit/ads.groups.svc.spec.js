@@ -20,8 +20,8 @@ describe('ads-groups (UT)', function() {
             fatal : jasmine.createSpy('log_fatal'),
             log   : jasmine.createSpy('log_log')
         };
-        spyOn(logger, 'createLog').andReturn(mockLog);
-        spyOn(logger, 'getLog').andReturn(mockLog);
+        spyOn(logger, 'createLog').and.returnValue(mockLog);
+        spyOn(logger, 'getLog').and.returnValue(mockLog);
 
         groupModule.groupsCfg = { advertiserId: 987, customerId: 876 };
         groupModule.campsCfg = {
@@ -37,15 +37,15 @@ describe('ads-groups (UT)', function() {
     
     describe('setupSvc', function() {
         it('should setup the group service', function() {
-            spyOn(CrudSvc.prototype.preventGetAll, 'bind').andReturn(CrudSvc.prototype.preventGetAll);
-            spyOn(CrudSvc.prototype.validateUniqueProp, 'bind').andReturn(CrudSvc.prototype.validateUniqueProp);
-            spyOn(groupModule.getAccountIds, 'bind').andReturn(groupModule.getAccountIds);
-            spyOn(groupModule.formatOutput, 'bind').andReturn(groupModule.formatOutput);
+            spyOn(CrudSvc.prototype.preventGetAll, 'bind').and.returnValue(CrudSvc.prototype.preventGetAll);
+            spyOn(CrudSvc.prototype.validateUniqueProp, 'bind').and.returnValue(CrudSvc.prototype.validateUniqueProp);
+            spyOn(groupModule.getAccountIds, 'bind').and.returnValue(groupModule.getAccountIds);
+            spyOn(groupModule.formatOutput, 'bind').and.returnValue(groupModule.formatOutput);
             
             var config = { campaigns: { statusDelay: 100, statusAttempts: 5 },
                            minireelGroups: { advertiserId: 123, customerId: 234 } };
             var mockDb = {
-                collection: jasmine.createSpy('db.collection()').andCallFake(function(name) {
+                collection: jasmine.createSpy('db.collection()').and.callFake(function(name) {
                     return { collectionName: name };
                 })
             };
@@ -90,7 +90,7 @@ describe('ads-groups (UT)', function() {
     describe('validateDates', function() {
         beforeEach(function() {
             req.body = { name: 'group 1' };
-            spyOn(campaignUtils, 'validateDates').andCallThrough();
+            spyOn(campaignUtils, 'validateDates').and.callThrough();
         });
         
         it('should call next if campaignUtils.validateDates returns true', function(done) {
@@ -181,7 +181,7 @@ describe('ads-groups (UT)', function() {
             req.origObj = { advertiserId: 234, customerId: 432 };
             svc = { _advertColl: 'fakeAdvertColl', _custColl: 'fakeCustColl' };
             spyOn(campaignUtils, 'getAccountIds')
-                .andCallFake(function(advertColl, custColl, req, next, done) { return q(next()); });
+                .and.callFake(function(advertColl, custColl, req, next, done) { return q(next()); });
         });
         
         it('should take the advertiserId and customerId from the body', function(done) {
@@ -236,7 +236,7 @@ describe('ads-groups (UT)', function() {
         });
         
         it('should reject if campaignUtils.getAccountIds rejects', function(done) {
-            campaignUtils.getAccountIds.andReturn(q.reject('I GOT A PROBLEM'));
+            campaignUtils.getAccountIds.and.returnValue(q.reject('I GOT A PROBLEM'));
             groupModule.getAccountIds(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -250,8 +250,8 @@ describe('ads-groups (UT)', function() {
     describe('createAdtechGroup', function() {
         beforeEach(function() {
             req.body = { id: 'g-1', name: 'group 1', categories: ['food', 'sports'] };
-            spyOn(campaignUtils, 'makeKeywordLevels').andReturn(q({keys: 'yes'}));
-            spyOn(campaignUtils, 'createCampaign').andReturn(q({id: '1234'}));
+            spyOn(campaignUtils, 'makeKeywordLevels').and.returnValue(q({keys: 'yes'}));
+            spyOn(campaignUtils, 'createCampaign').and.returnValue(q({id: '1234'}));
         });
         
         it('should make keywords and call createCampaign', function(done) {
@@ -291,13 +291,13 @@ describe('ads-groups (UT)', function() {
                 expect(req.body).toEqual({id: 'g-1', adtechId: 1234, name: 'group 1',
                     startDate: jasmine.any(String), endDate: jasmine.any(String)});
                 expect(campaignUtils.makeKeywordLevels).toHaveBeenCalledWith({level3: undefined});
-                expect(campaignUtils.createCampaign.calls[0].args[0].keywords).toEqual({keys: 'yes'});
+                expect(campaignUtils.createCampaign.calls.all()[0].args[0].keywords).toEqual({keys: 'yes'});
                 done();
             });
         });
         
         it('should reject if making keywords fails', function(done) {
-            campaignUtils.makeKeywordLevels.andReturn(q.reject('I GOT A PROBLEM'));
+            campaignUtils.makeKeywordLevels.and.returnValue(q.reject('I GOT A PROBLEM'));
             groupModule.createAdtechGroup(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -310,7 +310,7 @@ describe('ads-groups (UT)', function() {
         });
         
         it('should reject if creating the campaign fails', function(done) {
-            campaignUtils.createCampaign.andReturn(q.reject('I GOT A PROBLEM'));
+            campaignUtils.createCampaign.and.returnValue(q.reject('I GOT A PROBLEM'));
             groupModule.createAdtechGroup(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -326,7 +326,7 @@ describe('ads-groups (UT)', function() {
         beforeEach(function() {
             req.body = { miniReels: ['e-1', 'e-2'] };
             req.origObj = { adtechId: 123, miniReels: [{id: 'e-2'}, {id: 'e-3'}] };
-            spyOn(bannerUtils, 'createBanners').andReturn(q());
+            spyOn(bannerUtils, 'createBanners').and.returnValue(q());
         });
         
         it('should call createBanners', function(done) {
@@ -352,18 +352,18 @@ describe('ads-groups (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(req1.body).toEqual({});
+                expect(req1.body).toEqual({ miniReels: undefined });
                 expect(req2.body).toEqual({ adtechId: 234, miniReels: [{id: 'e-1'}, {id: 'e-2'}] });
-                expect(bannerUtils.createBanners.calls[0].args).toEqual([undefined,
+                expect(bannerUtils.createBanners.calls.all()[0].args).toEqual([undefined,
                     [{id: 'e-2'}, {id: 'e-3'}], 'contentMiniReel', false, 123]);
-                expect(bannerUtils.createBanners.calls[1].args).toEqual([[{id: 'e-1'}, {id: 'e-2'}],
+                expect(bannerUtils.createBanners.calls.all()[1].args).toEqual([[{id: 'e-1'}, {id: 'e-2'}],
                     [], 'contentMiniReel', false, 234]);
                 done();
             });
         });
         
         it('should reject if createBanners fails', function(done) {
-            bannerUtils.createBanners.andReturn(q.reject('I GOT A PROBLEM'));
+            bannerUtils.createBanners.and.returnValue(q.reject('I GOT A PROBLEM'));
             groupModule.createBanners(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -378,7 +378,7 @@ describe('ads-groups (UT)', function() {
         beforeEach(function() {
             req.body = { miniReels: ['e-1', 'e-2'] };
             req.origObj = { adtechId: 123, miniReels: [{id: 'e-2'}, {id: 'e-3'}] };
-            spyOn(bannerUtils, 'cleanBanners').andReturn(q());
+            spyOn(bannerUtils, 'cleanBanners').and.returnValue(q());
         });
         
         it('should call cleanBanners', function(done) {
@@ -404,18 +404,18 @@ describe('ads-groups (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(req1.body).toEqual({});
+                expect(req1.body).toEqual({ miniReels: undefined });
                 expect(req2.body).toEqual({ miniReels: [{id: 'e-1'}, {id: 'e-2'}] });
-                expect(bannerUtils.cleanBanners.calls[0].args).toEqual([undefined,
+                expect(bannerUtils.cleanBanners.calls.all()[0].args).toEqual([undefined,
                     [{id: 'e-2'}, {id: 'e-3'}], 123]);
-                expect(bannerUtils.cleanBanners.calls[1].args).toEqual([[{id: 'e-1'}, {id: 'e-2'}],
+                expect(bannerUtils.cleanBanners.calls.all()[1].args).toEqual([[{id: 'e-1'}, {id: 'e-2'}],
                     undefined, 123]);
                 done();
             });
         });
         
         it('should reject if cleanBanners fails', function(done) {
-            bannerUtils.cleanBanners.andReturn(q.reject('I GOT A PROBLEM'));
+            bannerUtils.cleanBanners.and.returnValue(q.reject('I GOT A PROBLEM'));
             groupModule.cleanBanners(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -426,7 +426,7 @@ describe('ads-groups (UT)', function() {
         });
         
         it('should call done if it receives an error with a c6warn property', function(done) {
-            bannerUtils.cleanBanners.andReturn(q.reject({ c6warn: 'you did a bad thing' }));
+            bannerUtils.cleanBanners.and.returnValue(q.reject({ c6warn: 'you did a bad thing' }));
             groupModule.cleanBanners(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -441,8 +441,8 @@ describe('ads-groups (UT)', function() {
         beforeEach(function() {
             req.body = { name: 'new name', categories: ['sports', 'food'] };
             req.origObj = { adtechId: 123, name: 'old name', categories: ['sport', 'food'] };
-            spyOn(campaignUtils, 'editCampaign').andReturn(q());
-            spyOn(campaignUtils, 'makeKeywordLevels').andReturn(q({keys: 'yes'}));
+            spyOn(campaignUtils, 'editCampaign').and.returnValue(q());
+            spyOn(campaignUtils, 'makeKeywordLevels').and.returnValue(q({keys: 'yes'}));
         });
         
         it('should be able to edit the name and keywords', function(done) {
@@ -488,7 +488,7 @@ describe('ads-groups (UT)', function() {
         });
         
         it('should reject if making keywords fails', function(done) {
-            campaignUtils.makeKeywordLevels.andReturn(q.reject('I GOT A PROBLEM'));
+            campaignUtils.makeKeywordLevels.and.returnValue(q.reject('I GOT A PROBLEM'));
             groupModule.editAdtechGroup(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -501,7 +501,7 @@ describe('ads-groups (UT)', function() {
         });
         
         it('should reject if editing the campaign fails', function(done) {
-            campaignUtils.editCampaign.andReturn(q.reject('I GOT A PROBLEM'));
+            campaignUtils.editCampaign.and.returnValue(q.reject('I GOT A PROBLEM'));
             groupModule.editAdtechGroup(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -517,7 +517,7 @@ describe('ads-groups (UT)', function() {
     describe('deleteAdtechGroup', function() {
         beforeEach(function() {
             req.origObj = { id: 'g-1', adtechId: 123 };
-            spyOn(campaignUtils, 'deleteCampaigns').andReturn(q());
+            spyOn(campaignUtils, 'deleteCampaigns').and.returnValue(q());
         });
         
         it('should delete the group\'s adtech campaign', function(done) {
@@ -546,7 +546,7 @@ describe('ads-groups (UT)', function() {
         });
 
         it('should reject if deleting the campaign fails', function(done) {
-            campaignUtils.deleteCampaigns.andReturn(q.reject('I GOT A PROBLEM'));
+            campaignUtils.deleteCampaigns.and.returnValue(q.reject('I GOT A PROBLEM'));
             groupModule.deleteAdtechGroup(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();

@@ -16,12 +16,12 @@ var q               = require('q'),
         privateKey  : '32de5ae191d10ffdc374b3232520ef7c'
     });
     
-jasmine.getEnv().defaultTimeoutInterval = 30000;
-
 describe('orgSvc orgs (E2E):', function() {
     var cookieJar, nonAdminJar, mockRequester, nonAdminUser, testPolicies;
     
     beforeEach(function(done) {
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
+
         if (cookieJar && cookieJar.cookies && nonAdminJar && nonAdminJar.cookies) {
             return done();
         }

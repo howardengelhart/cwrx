@@ -2,8 +2,6 @@ var q               = require('q');
     testUtils       = require('./testUtils');
     requestUtils    = require('../../lib/requestUtils');
 
-jasmine.getEnv().defaultTimeoutInterval = 10000;
-
 describe('vote (E2E)', function(){
     var makeUrl, mockData, cookieJar, restart = true,
         dbEnv = JSON.parse(process.env['mongo'] || '{}');
@@ -13,10 +11,10 @@ describe('vote (E2E)', function(){
     process.env['mongo'] = JSON.stringify(dbEnv);
     
     beforeEach(function(){
-        var urlBase;
+        var urlBase = 'http://' + (process.env['host'] ? process.env['host'] : 'localhost');
 
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
 
-        urlBase = 'http://' + (process.env['host'] ? process.env['host'] : 'localhost');
         makeUrl = function(fragment){
             return urlBase + fragment;
         }

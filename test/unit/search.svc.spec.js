@@ -17,8 +17,8 @@ describe('search (UT)', function() {
             fatal : jasmine.createSpy('log_fatal'),
             log   : jasmine.createSpy('log_log')
         };
-        spyOn(logger, 'createLog').andReturn(mockLog);
-        spyOn(logger, 'getLog').andReturn(mockLog);
+        spyOn(logger, 'createLog').and.returnValue(mockLog);
+        spyOn(logger, 'getLog').and.returnValue(mockLog);
         req = {
             uuid: '1234',
             user: { id: 'u1' }
@@ -79,7 +79,7 @@ describe('search (UT)', function() {
             durs.forEach(function(dur) {
                 expect(search.parseDuration(dur)).toBe(undefined);
             });
-            expect(mockLog.warn.callCount).toBe(durs.length);
+            expect(mockLog.warn.calls.count()).toBe(durs.length);
         });
     });
 
@@ -87,7 +87,7 @@ describe('search (UT)', function() {
         var stats;
         beforeEach(function() {
             stats = { startIndex: 11, count: 20, totalResults: 50 };
-            spyOn(search, 'parseDuration').andCallThrough();
+            spyOn(search, 'parseDuration').and.callThrough();
         });
 
         it('should correctly format youtube results', function() {
@@ -232,7 +232,7 @@ describe('search (UT)', function() {
             var results = search.formatGoogleResults(stats, items);
             expect(results.meta).toEqual({skipped: 10, numResults: 6, totalResults: 50});
             expect(results.items).toEqual([]);
-            expect(mockLog.warn.callCount).toBe(3);
+            expect(mockLog.warn.calls.count()).toBe(3);
         });
 
         it('should handle the case where google returns no items', function() {
@@ -247,7 +247,7 @@ describe('search (UT)', function() {
     describe('findVideosWithGoogle', function() {
         var opts, googleCfg, apiKey;
         beforeEach(function() {
-            spyOn(requestUtils, 'qRequest').andReturn(q({
+            spyOn(requestUtils, 'qRequest').and.returnValue(q({
                 response: { statusCode: 200 },
                 body: {
                     queries: { request: [{ startIndex:11, count:20, totalResults:50 }] },
@@ -257,7 +257,7 @@ describe('search (UT)', function() {
             opts = { query: 'foo', limit: 10, start: 20 };
             googleCfg = {apiUrl: 'http://google.com/cse', engineId: 'asdf1234', fields: 'fakeFields'};
             apiKey = 'zxcv5678';
-            spyOn(search, 'formatGoogleResults').andReturn('formatted');
+            spyOn(search, 'formatGoogleResults').and.returnValue('formatted');
         });
 
         it('should return a 400 if the user is trying to query past the 100th result', function(done) {
@@ -294,7 +294,7 @@ describe('search (UT)', function() {
             opts.sites = ['youtube.com', 'vimeo.com'];
             search.findVideosWithGoogle(req, opts, googleCfg, apiKey).then(function(resp) {
                 expect(resp).toEqual({code: 200, body: 'formatted'});
-                var reqOpts = requestUtils.qRequest.calls[0].args[1];
+                var reqOpts = requestUtils.qRequest.calls.all()[0].args[1];
                 expect(reqOpts.qs.q).toBe('foo site:youtube.com OR site:vimeo.com');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -305,7 +305,7 @@ describe('search (UT)', function() {
             opts.hd = 'true';
             search.findVideosWithGoogle(req, opts, googleCfg, apiKey).then(function(resp) {
                 expect(resp).toEqual({code: 200, body: 'formatted'});
-                var reqOpts = requestUtils.qRequest.calls[0].args[1];
+                var reqOpts = requestUtils.qRequest.calls.all()[0].args[1];
                 expect(reqOpts.qs.sort).toBe('videoobject-height:r:720');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -316,7 +316,7 @@ describe('search (UT)', function() {
             opts.hd = 'false';
             search.findVideosWithGoogle(req, opts, googleCfg, apiKey).then(function(resp) {
                 expect(resp).toEqual({code: 200, body: 'formatted'});
-                var reqOpts = requestUtils.qRequest.calls[0].args[1];
+                var reqOpts = requestUtils.qRequest.calls.all()[0].args[1];
                 expect(reqOpts.qs.sort).toBe('videoobject-height:r::719');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -324,8 +324,8 @@ describe('search (UT)', function() {
         });
 
         it('should be able to retry failed requests to google', function(done) {
-            requestUtils.qRequest.andCallFake(function(method, opts) {
-                if (this.qRequest.callCount >= 2) {
+            requestUtils.qRequest.and.callFake(function(method, opts) {
+                if (this.qRequest.calls.count() >= 2) {
                     return q({
                         response: { statusCode: 200 },
                         body: {
@@ -339,8 +339,8 @@ describe('search (UT)', function() {
             });
             search.findVideosWithGoogle(req, opts, googleCfg, apiKey).then(function(resp) {
                 expect(resp).toEqual({code: 200, body: 'formatted'});
-                expect(mockLog.warn.callCount).toBe(1);
-                expect(requestUtils.qRequest.callCount).toBe(2);
+                expect(mockLog.warn.calls.count()).toBe(1);
+                expect(requestUtils.qRequest.calls.count()).toBe(2);
                 expect(search.formatGoogleResults).toHaveBeenCalledWith(
                     { startIndex: 11, count: 20, totalResults: 50 }, 'fakeItems');
             }).catch(function(error) {
@@ -349,7 +349,7 @@ describe('search (UT)', function() {
         });
 
         it('should never report that it found more than 100 results', function(done) {
-            requestUtils.qRequest.andReturn(q({
+            requestUtils.qRequest.and.returnValue(q({
                 response: { statusCode: 200 },
                 body: {
                     queries: { request: [{ startIndex:11, count:20, totalResults:500 }] },
@@ -368,14 +368,14 @@ describe('search (UT)', function() {
 
         it('should return a 500 code if google returns a non-2xx status code', function(done) {
             q.all([100, 300, 400, 500].map(function(code) {
-                requestUtils.qRequest.andReturn(q({response: {statusCode: code}, body: 'fake'}));
+                requestUtils.qRequest.and.returnValue(q({response: {statusCode: code}, body: 'fake'}));
                 return search.findVideosWithGoogle(req, opts, googleCfg, apiKey);
             })).then(function(results) {
                 results.forEach(function(result) {
                     expect(result).toEqual({code: 500, body: 'Error querying google'});
                 });
-                expect(mockLog.warn.callCount).toBe(8);
-                expect(requestUtils.qRequest.callCount).toBe(8);
+                expect(mockLog.warn.calls.count()).toBe(8);
+                expect(requestUtils.qRequest.calls.count()).toBe(8);
                 expect(search.formatGoogleResults).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -385,14 +385,14 @@ describe('search (UT)', function() {
         it('should return a 500 code if google returns an incomplete body', function(done) {
             q.all([{items: []}, {queries: 'fake', items: []}]
             .map(function(body) {
-                requestUtils.qRequest.andReturn(q({response: {statusCode: 200}, body: body}));
+                requestUtils.qRequest.and.returnValue(q({response: {statusCode: 200}, body: body}));
                 return search.findVideosWithGoogle(req, opts, googleCfg, apiKey);
             })).then(function(results) {
                 results.forEach(function(result) {
                     expect(result).toEqual({code: 500, body: 'Error querying google'});
                 });
-                expect(mockLog.warn.callCount).toBe(4);
-                expect(requestUtils.qRequest.callCount).toBe(4);
+                expect(mockLog.warn.calls.count()).toBe(4);
+                expect(requestUtils.qRequest.calls.count()).toBe(4);
                 expect(search.formatGoogleResults).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -400,11 +400,11 @@ describe('search (UT)', function() {
         });
 
         it('should return a 500 code if the request fails', function(done) {
-            requestUtils.qRequest.andReturn(q.reject({error: 'I GOT A PROBLEM'}));
+            requestUtils.qRequest.and.returnValue(q.reject({error: 'I GOT A PROBLEM'}));
             search.findVideosWithGoogle(req, opts, googleCfg, apiKey).then(function(resp) {
                 expect(resp).toEqual({code: 500, body: 'Error querying google'});
-                expect(mockLog.warn.callCount).toBe(2);
-                expect(requestUtils.qRequest.callCount).toBe(2);
+                expect(mockLog.warn.calls.count()).toBe(2);
+                expect(requestUtils.qRequest.calls.count()).toBe(2);
                 expect(search.formatGoogleResults).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -418,7 +418,7 @@ describe('search (UT)', function() {
             req.query = {query: 'foo', limit: '10', skip: '20', sites: 'youtube,vimeo', hd: 'true'};
             config = { google: 'fakeGoogleCfg', foo: 'bar' };
             secrets = { googleKey: 'asdf1234', other: 'yes' };
-            spyOn(search, 'findVideosWithGoogle').andReturn(q('fakeResp'));
+            spyOn(search, 'findVideosWithGoogle').and.returnValue(q('fakeResp'));
         });
 
         it('should call findVideosWithGoogle', function(done) {
@@ -464,9 +464,9 @@ describe('search (UT)', function() {
             })).then(function(results) {
                 results.forEach(function(result, idx) {
                     expect(result).toBe('fakeResp');
-                    if (idx === 1) expect(search.findVideosWithGoogle.calls[idx].args[1].limit).toBe(1);
-                    else expect(search.findVideosWithGoogle.calls[idx].args[1].limit).toBe(10);
-                    expect(search.findVideosWithGoogle.calls[idx].args[1].start).toBe(1);
+                    if (idx === 1) expect(search.findVideosWithGoogle.calls.all()[idx].args[1].limit).toBe(1);
+                    else expect(search.findVideosWithGoogle.calls.all()[idx].args[1].limit).toBe(10);
+                    expect(search.findVideosWithGoogle.calls.all()[idx].args[1].start).toBe(1);
                 });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -484,7 +484,7 @@ describe('search (UT)', function() {
         });
 
         it('should reject if findVideosWithGoogle fails', function(done) {
-            search.findVideosWithGoogle.andReturn(q.reject('I GOT A PROBLEM'));
+            search.findVideosWithGoogle.and.returnValue(q.reject('I GOT A PROBLEM'));
             search.findVideos(req, config, secrets).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {

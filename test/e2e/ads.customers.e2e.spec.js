@@ -10,12 +10,13 @@ var q               = require('q'),
         authUrl : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
     };
     
-jasmine.getEnv().defaultTimeoutInterval = 90000;
 
 describe('ads customers endpoints (E2E):', function() {
     var cookieJar, mockUser, createdCust, createdAdverts, keptCust, keptAdvert;
 
     beforeEach(function(done) {
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 90000;
+
         if (cookieJar && cookieJar.cookies) {
             return done();
         }
@@ -539,7 +540,7 @@ describe('ads customers endpoints (E2E):', function() {
                 .then(function(cust) {
                     expect(cust).not.toBeDefined();
                 }).catch(function(err) {
-                    expect(err).toEqual(new Error('Unable to locate object: ' + createdCust.adtechId));
+                    expect(err).toEqual(new Error('Unable to locate object: ' + createdCust.adtechId + '.'));
                 });
             }).catch(function(error) {
                 expect(error).not.toBeDefined();

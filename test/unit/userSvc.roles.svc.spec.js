@@ -22,14 +22,14 @@ describe('userSvc-roles (UT)', function() {
             fatal : jasmine.createSpy('log_fatal'),
             log   : jasmine.createSpy('log_log')
         };
-        spyOn(logger, 'createLog').andReturn(mockLog);
-        spyOn(logger, 'getLog').andReturn(mockLog);
+        spyOn(logger, 'createLog').and.returnValue(mockLog);
+        spyOn(logger, 'getLog').and.returnValue(mockLog);
         
         mockColl = {
             find: jasmine.createSpy('find')
         };
         mockDb = {
-            collection: jasmine.createSpy('db.collection()').andReturn(mockColl)
+            collection: jasmine.createSpy('db.collection()').and.returnValue(mockColl)
         };
 
         req = { uuid: '1234', user: { id: 'u-1' } };
@@ -41,10 +41,10 @@ describe('userSvc-roles (UT)', function() {
     describe('setupSvc', function() {
         var svc;
         beforeEach(function() {
-            mockDb.collection.andCallFake(function(objName) { return { collectionName: objName }; });
+            mockDb.collection.and.callFake(function(objName) { return { collectionName: objName }; });
 
             [CrudSvc.prototype.validateUniqueProp, roleModule.validatePolicies, roleModule.checkRoleInUse].forEach(function(fn) {
-                spyOn(fn, 'bind').andReturn(fn);
+                spyOn(fn, 'bind').and.returnValue(fn);
             });
 
             svc = roleModule.setupSvc(mockDb);
@@ -104,7 +104,7 @@ describe('userSvc-roles (UT)', function() {
             
             it('should allow the name to be set on create', function() {
                 expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'test', foo: 'bar' });
             });
 
@@ -118,14 +118,14 @@ describe('userSvc-roles (UT)', function() {
                 delete newObj.name;
                 origObj.name = 'old role name';
                 expect(svc.model.validate('edit', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'old role name', foo: 'bar' });
             });
 
             it('should revert the name if defined on edit', function() {
                 origObj.name = 'old role name';
                 expect(svc.model.validate('edit', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'old role name', foo: 'bar' });
             });
         });
@@ -136,7 +136,7 @@ describe('userSvc-roles (UT)', function() {
                 it('should trim the field if set', function() {
                     newObj[field] = 'me';
                     expect(svc.model.validate('create', newObj, origObj, requester))
-                        .toEqual({ isValid: true });
+                        .toEqual({ isValid: true, reason: undefined });
                     expect(newObj).toEqual({ name: 'test', foo: 'bar' });
                 });
                 
@@ -144,7 +144,7 @@ describe('userSvc-roles (UT)', function() {
                     requester.fieldValidation.roles[field] = { __allowed: true };
                     newObj[field] = 'me';
                     expect(svc.model.validate('create', newObj, origObj, requester))
-                        .toEqual({ isValid: true });
+                        .toEqual({ isValid: true, reason: undefined });
                     expect(newObj[field]).toBe('me');
                 });
 
@@ -167,7 +167,7 @@ describe('userSvc-roles (UT)', function() {
             it('should allow the field to be set', function() {
                 newObj.policies = ['pol1', 'pol2'];
                 expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'test', foo: 'bar', policies: ['pol1', 'pol2'] });
             });
             
@@ -175,7 +175,7 @@ describe('userSvc-roles (UT)', function() {
                 requester.fieldValidation.roles.policies = { __allowed: false };
                 newObj.policies = ['pol1', 'pol2'];
                 expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'test', foo: 'bar' });
             });
         });
@@ -190,7 +190,7 @@ describe('userSvc-roles (UT)', function() {
                 { id: 'p-2', name: 'pol2' },
                 { id: 'p-3', name: 'pol3' }
             ];
-            mockColl.find.andCallFake(function() {
+            mockColl.find.and.callFake(function() {
                 return {
                     toArray: function(cb) {
                         cb(null, policies);
@@ -244,7 +244,7 @@ describe('userSvc-roles (UT)', function() {
         });
         
         it('should reject if mongo fails', function(done) {
-            mockColl.find.andReturn({ toArray: function(cb) { cb('I GOT A PROBLEM'); } });
+            mockColl.find.and.returnValue({ toArray: function(cb) { cb('I GOT A PROBLEM'); } });
             roleModule.validatePolicies(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -288,7 +288,7 @@ describe('userSvc-roles (UT)', function() {
         var svc;
         beforeEach(function() {
             svc = roleModule.setupSvc(mockDb);
-            mockColl.count = jasmine.createSpy('coll.count()').andCallFake(function(query, cb) {
+            mockColl.count = jasmine.createSpy('coll.count()').and.callFake(function(query, cb) {
                 cb(null, 0);
             });
             req.origObj = { id: 'r-1', name: 'role1' };
@@ -308,7 +308,7 @@ describe('userSvc-roles (UT)', function() {
         });
         
         it('should call done with a 400 if there are users with the role', function(done) {
-            mockColl.count.andCallFake(function(query, cb) { cb(null, 3); });
+            mockColl.count.and.callFake(function(query, cb) { cb(null, 3); });
             roleModule.checkRoleInUse(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -320,7 +320,7 @@ describe('userSvc-roles (UT)', function() {
         });
         
         it('should reject if mongo fails', function(done) {
-            mockColl.count.andCallFake(function(query, cb) { cb('I GOT A PROBLEM'); });
+            mockColl.count.and.callFake(function(query, cb) { cb('I GOT A PROBLEM'); });
             roleModule.checkRoleInUse(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();

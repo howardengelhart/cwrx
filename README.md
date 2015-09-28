@@ -10,19 +10,13 @@ Development Quickstart
 
  1. Install Node. Currently (6/24/2015) cwrx is known to support Node v0.10; v0.12 may be compatible, but just in case, it may be best to download what our API servers use, [v0.10.24](https://nodejs.org/dist/v0.10.24/).
  
- 2. Install `jasmine-node`:
-   
-   ```bash
-   $ npm install jasmine-node -g
-   ```
-   
- 3. Install our dependencies:
+ 2. Install our dependencies:
  
    ```bash
    $ npm install
    ```
    
- 4. (Optional) Install the pre-commit hook. This lints and unit-tests your code before every commit, so you don't need to wait for Jenkins to tell you that your pull request breaks everything. You may need to manually comment out the lines in `.git/hooks/pre-commit` if you ever need to push up WIP commits which don't pass linting and/or unit tests.
+ 3. (Optional) Install the pre-commit hook. This lints and unit-tests your code before every commit, so you don't need to wait for Jenkins to tell you that your pull request breaks everything. You may need to manually comment out the lines in `.git/hooks/pre-commit` if you ever need to push up WIP commits which don't pass linting and/or unit tests.
   
    ```bash
    $ grunt install_hook

@@ -21,18 +21,18 @@ describe('content-cards (UT)', function() {
             fatal : jasmine.createSpy('log_fatal'),
             log   : jasmine.createSpy('log_log')
         };
-        spyOn(logger, 'createLog').andReturn(mockLog);
-        spyOn(logger, 'getLog').andReturn(mockLog);
+        spyOn(logger, 'createLog').and.returnValue(mockLog);
+        spyOn(logger, 'getLog').and.returnValue(mockLog);
         
         req = { uuid: '1234', baseUrl: '', route: { path: '' }, params: {}, query: {} };
     });
 
     describe('setupCardSvc', function() {
         it('should setup the card service', function() {
-            spyOn(CrudSvc.prototype.preventGetAll, 'bind').andReturn(CrudSvc.prototype.preventGetAll);
-            spyOn(cardModule.getPublicCard, 'bind').andReturn(cardModule.getPublicCard);
-            spyOn(FieldValidator, 'orgFunc').andCallThrough();
-            spyOn(FieldValidator, 'userFunc').andCallThrough();
+            spyOn(CrudSvc.prototype.preventGetAll, 'bind').and.returnValue(CrudSvc.prototype.preventGetAll);
+            spyOn(cardModule.getPublicCard, 'bind').and.returnValue(cardModule.getPublicCard);
+            spyOn(FieldValidator, 'orgFunc').and.callThrough();
+            spyOn(FieldValidator, 'userFunc').and.callThrough();
 
             var mockColl = { collectionName: 'cards' },
                 config = { trackingPixel: 'track.me' },
@@ -158,7 +158,7 @@ describe('content-cards (UT)', function() {
         beforeEach(function() {
             card = { id: 'rc-1', campaignId: 'cam-1' };
         
-            spyOn(cardModule, 'formatUrl').andCallFake(function(card, req, event) {
+            spyOn(cardModule, 'formatUrl').and.callFake(function(card, req, event) {
                 return 'track.png?event=' + event;
             });
         });
@@ -298,24 +298,24 @@ describe('content-cards (UT)', function() {
             };
             caches = {
                 cards: {
-                    getPromise: jasmine.createSpy('caches.cards.getPromise').andCallFake(function() {
+                    getPromise: jasmine.createSpy('caches.cards.getPromise').and.callFake(function() {
                         return q([mockCard]);
                     })
                 },
                 campaigns: {
-                    getPromise: jasmine.createSpy('caches.campaigns.getPromise').andCallFake(function() {
+                    getPromise: jasmine.createSpy('caches.campaigns.getPromise').and.callFake(function() {
                         return q([mockCamp]);
                     })
                 }
             };
             cardSvc = {
-                formatOutput: jasmine.createSpy('svc.formatOutput').andCallFake(function(card) {
+                formatOutput: jasmine.createSpy('svc.formatOutput').and.callFake(function(card) {
                     var newCard = JSON.parse(JSON.stringify(card));
                     newCard.formatted = true;
                     return newCard;
                 })
             };
-            spyOn(cardModule, 'setupTrackingPixels').andCallFake(function(card, req) {
+            spyOn(cardModule, 'setupTrackingPixels').and.callFake(function(card, req) {
                 card.campaign.pixels = 'setup';
             });
         });
@@ -343,7 +343,7 @@ describe('content-cards (UT)', function() {
         });
         
         it('should return nothing if the card was not found', function(done) {
-            caches.cards.getPromise.andReturn(q([]));
+            caches.cards.getPromise.and.returnValue(q([]));
             cardModule.getPublicCard(cardSvc, caches, 'rc-1', req).then(function(resp) {
                 expect(resp).not.toBeDefined();
                 expect(caches.cards.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
@@ -371,7 +371,7 @@ describe('content-cards (UT)', function() {
         });
 
         it('should return nothing if the card\'s campaign was not found', function(done) {
-            caches.campaigns.getPromise.andReturn(q([]));
+            caches.campaigns.getPromise.and.returnValue(q([]));
             cardModule.getPublicCard(cardSvc, caches, 'rc-1', req).then(function(resp) {
                 expect(resp).not.toBeDefined();
                 expect(caches.cards.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
@@ -427,7 +427,7 @@ describe('content-cards (UT)', function() {
         });
 
         it('should fail if the card promise was rejected', function(done) {
-            caches.cards.getPromise.andReturn(q.reject('I GOT A PROBLEM'));
+            caches.cards.getPromise.and.returnValue(q.reject('I GOT A PROBLEM'));
             cardModule.getPublicCard(cardSvc, caches, 'rc-1', req).then(function(resp) {
                 expect('resolved').not.toBe('resolved');
             }).catch(function(error) {
@@ -441,7 +441,7 @@ describe('content-cards (UT)', function() {
         });
         
         it('should fail if the campaign promise was rejected', function(done) {
-            caches.campaigns.getPromise.andReturn(q.reject('I GOT A PROBLEM'));
+            caches.campaigns.getPromise.and.returnValue(q.reject('I GOT A PROBLEM'));
             cardModule.getPublicCard(cardSvc, caches, 'rc-1', req).then(function(resp) {
                 expect('resolved').not.toBe('resolved');
             }).catch(function(error) {
@@ -464,7 +464,7 @@ describe('content-cards (UT)', function() {
                 header: jasmine.createSpy('res.header()')
             };
             cardSvc = {
-                getPublicCard: jasmine.createSpy('cardSvc.getPublicCard()').andReturn(q({ card: 'yes' }))
+                getPublicCard: jasmine.createSpy('cardSvc.getPublicCard()').and.returnValue(q({ card: 'yes' }))
             };
             config = { cacheTTLs: { cloudFront: 5 } };
         });
@@ -473,7 +473,7 @@ describe('content-cards (UT)', function() {
             cardModule.handlePublicGet(req, res, cardSvc, config).then(function(resp) {
                 expect(resp).toEqual({ code: 200, body: { card: 'yes' } });
                 expect(cardSvc.getPublicCard).toHaveBeenCalledWith('e-1', req);
-                expect(res.header.calls.length).toBe(1);
+                expect(res.header.calls.count()).toBe(1);
                 expect(res.header).toHaveBeenCalledWith('cache-control', 'max-age=300');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -481,10 +481,10 @@ describe('content-cards (UT)', function() {
         });
         
         it('should return a 404 if no card is found', function(done) {
-            cardSvc.getPublicCard.andReturn(q());
+            cardSvc.getPublicCard.and.returnValue(q());
             cardModule.handlePublicGet(req, res, cardSvc, config).then(function(resp) {
                 expect(resp).toEqual({ code: 404, body: 'Card not found' });
-                expect(res.header.calls.length).toBe(1);
+                expect(res.header.calls.count()).toBe(1);
                 expect(res.header).toHaveBeenCalledWith('cache-control', 'max-age=300');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -492,10 +492,10 @@ describe('content-cards (UT)', function() {
         });
 
         it('should return a 500 if getPublicCard fails', function(done) {
-            cardSvc.getPublicCard.andReturn(q.reject('I GOT A PROBLEM'));
+            cardSvc.getPublicCard.and.returnValue(q.reject('I GOT A PROBLEM'));
             cardModule.handlePublicGet(req, res, cardSvc, config).then(function(resp) {
                 expect(resp).toEqual({ code: 500, body: { error: 'Error retrieving card', detail: 'I GOT A PROBLEM' } });
-                expect(res.header.calls.length).toBe(1);
+                expect(res.header.calls.count()).toBe(1);
                 expect(res.header).toHaveBeenCalledWith('cache-control', 'max-age=60');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -511,7 +511,7 @@ describe('content-cards (UT)', function() {
                 cardModule.handlePublicGet(req, res, cardSvc, config).then(function(resp) {
                     expect(resp).toEqual({ code: 200, body: 'module.exports = {"card":"yes"};' });
                     expect(cardSvc.getPublicCard).toHaveBeenCalledWith('e-1', req);
-                    expect(res.header.calls.length).toBe(2);
+                    expect(res.header.calls.count()).toBe(2);
                     expect(res.header).toHaveBeenCalledWith('cache-control', 'max-age=300');
                     expect(res.header).toHaveBeenCalledWith('content-type', 'application/javascript');
                 }).catch(function(error) {
@@ -520,10 +520,10 @@ describe('content-cards (UT)', function() {
             });
             
             it('should not alter the response if no card is found', function(done) {
-                cardSvc.getPublicCard.andReturn(q());
+                cardSvc.getPublicCard.and.returnValue(q());
                 cardModule.handlePublicGet(req, res, cardSvc, config).then(function(resp) {
                     expect(resp).toEqual({ code: 404, body: 'Card not found' });
-                    expect(res.header.calls.length).toBe(1);
+                    expect(res.header.calls.count()).toBe(1);
                     expect(res.header).toHaveBeenCalledWith('cache-control', 'max-age=300');
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();

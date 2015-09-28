@@ -17,9 +17,9 @@ describe('FieldValidator', function() {
             fatal : jasmine.createSpy('log_fatal'),
             log   : jasmine.createSpy('log_log')
         };
-        spyOn(logger, 'createLog').andReturn(mockLog);
-        spyOn(logger, 'getLog').andReturn(mockLog);
-        spyOn(FieldValidator, 'checkFormat').andCallThrough();
+        spyOn(logger, 'createLog').and.returnValue(mockLog);
+        spyOn(logger, 'getLog').and.returnValue(mockLog);
+        spyOn(FieldValidator, 'checkFormat').and.callThrough();
     });
 
     describe('initialization', function() {
@@ -104,19 +104,19 @@ describe('FieldValidator', function() {
         });
         
         it('should return false if the update object contains conditonally forbidden fields', function() {
-            var fooSpy = jasmine.createSpy('foo').andReturn(true);
-            var barSpy = jasmine.createSpy('bar').andReturn(false);
+            var fooSpy = jasmine.createSpy('foo').and.returnValue(true);
+            var barSpy = jasmine.createSpy('bar').and.returnValue(false);
             var v =  new FieldValidator({ condForbidden: { foo: fooSpy, bar: barSpy } });
             expect(v.validate({foo: 1, bar: 2}, { a: 1}, { b: 2})).toBe(false);
             expect(fooSpy).toHaveBeenCalledWith({foo: 1, bar: 2}, { a: 1}, { b: 2});
             expect(barSpy).toHaveBeenCalledWith({foo: 1, bar: 2}, { a: 1}, { b: 2});
             expect(v.validate({foo: 2}, { a: 1}, { b: 2})).toBe(true);
-            fooSpy.andReturn(false);
+            fooSpy.and.returnValue(false);
             expect(v.validate({foo: 1}, { a: 1}, { b: 2})).toBe(false);
         });
         
         it('should not return false if a forbidden field is unchanged', function() {
-            var fooSpy = jasmine.createSpy('foo').andReturn(false);
+            var fooSpy = jasmine.createSpy('foo').and.returnValue(false);
             var v = new FieldValidator({ forbidden: ['a'], condForbidden: { foo: fooSpy } });
             expect(v.validate({a: 1}, {a: 2}, {})).toBe(false);
             expect(v.validate({a: 2}, {a: 2}, {})).toBe(true);
@@ -159,8 +159,8 @@ describe('FieldValidator', function() {
     
     describe('orgFunc', function() {
         it('should return a function that validates the org field', function() {
-            spyOn(FieldValidator, 'eqReqFieldFunc').andCallThrough();
-            spyOn(FieldValidator, 'scopeFunc').andCallThrough();
+            spyOn(FieldValidator, 'eqReqFieldFunc').and.callThrough();
+            spyOn(FieldValidator, 'scopeFunc').and.callThrough();
             var requester = { org: 'o1', permissions: { users: { read: Scope.All, create: Scope.Org } } };
             
             var func = FieldValidator.orgFunc('users', 'create');
@@ -178,7 +178,7 @@ describe('FieldValidator', function() {
         var v, next, done, req;
         beforeEach(function() {
             v = new FieldValidator({forbidden: ['a']});
-            spyOn(v, 'validate').andReturn(true);
+            spyOn(v, 'validate').and.returnValue(true);
             next = jasmine.createSpy('next spy');
             done = jasmine.createSpy('done spy');
             req = { body: 'fakeBody', user: 'fakeUser', origObj: 'fakeOrig' };
@@ -192,7 +192,7 @@ describe('FieldValidator', function() {
         });
         
         it('should call done if validate returns false', function() {
-            v.validate.andReturn(false);
+            v.validate.and.returnValue(false);
             v.midWare(req, next, done);
             expect(next).not.toHaveBeenCalled();
             expect(done).toHaveBeenCalledWith({code: 400, body: 'Invalid request body'});

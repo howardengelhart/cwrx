@@ -5,7 +5,7 @@ describe('vote (UT)',function(){
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
 
-        jasmine.Clock.useMock();
+        jasmine.clock().install();
         
         q             = require('q');
         logger        = require('../../lib/logger');
@@ -29,11 +29,15 @@ describe('vote (UT)',function(){
         
         elections = {};
         
-        spyOn(logger,'createLog').andReturn(mockLog);
-        spyOn(logger,'getLog').andReturn(mockLog);
-        spyOn(mongoUtils, 'escapeKeys').andCallThrough();
-        spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
+        spyOn(logger,'createLog').and.returnValue(mockLog);
+        spyOn(logger,'getLog').and.returnValue(mockLog);
+        spyOn(mongoUtils, 'escapeKeys').and.callThrough();
+        spyOn(mongoUtils, 'unescapeKeys').and.callThrough();
         req = {uuid: '1234'};
+    });
+
+    afterEach(function() {
+        jasmine.clock().uninstall();
     });
 
     describe('checkScope', function() {
@@ -138,7 +142,7 @@ describe('vote (UT)',function(){
     describe('VotingBooth',function(){
         describe('initialization',function(){
             it('fails without an election id',function(){
-                expect(function(){ new VotingBooth() }).toThrow('ElectionId is required.');
+                expect(function(){ new VotingBooth() }).toThrow(new SyntaxError('ElectionId is required.'));
             });
 
             it('sets electionId property based on electionId param.',function(){
@@ -251,20 +255,20 @@ describe('vote (UT)',function(){
             it('execs callback with data for each vote if exists',function(){
                 vb._items = mockVotes;
                 vb.each(eachSpy);
-                expect(eachSpy.callCount).toEqual(5);
-                expect(eachSpy.argsForCall[0]).toEqual(['item1','happy',2]);
-                expect(eachSpy.argsForCall[1]).toEqual(['item1','sad',1]);
-                expect(eachSpy.argsForCall[4]).toEqual(['item2','blue',1]);
+                expect(eachSpy.calls.count()).toEqual(5);
+                expect(eachSpy.calls.allArgs()[0]).toEqual(['item1','happy',2]);
+                expect(eachSpy.calls.allArgs()[1]).toEqual(['item1','sad',1]);
+                expect(eachSpy.calls.allArgs()[4]).toEqual(['item2','blue',1]);
             });
             
             it('works for ballot items that are arrays or objects', function() {
                 vb._items = { item1: mockVotes.item1, item3: [1, 2] };
                 vb.each(eachSpy);
-                expect(eachSpy.callCount).toEqual(4);
-                expect(eachSpy.calls[0].args).toEqual(['item1', 'happy', 2]);
-                expect(eachSpy.calls[1].args).toEqual(['item1', 'sad', 1]);
-                expect(eachSpy.calls[2].args).toEqual(['item3', '0', 1]);
-                expect(eachSpy.calls[3].args).toEqual(['item3', '1', 2]);
+                expect(eachSpy.calls.count()).toEqual(4);
+                expect(eachSpy.calls.all()[0].args).toEqual(['item1', 'happy', 2]);
+                expect(eachSpy.calls.all()[1].args).toEqual(['item1', 'sad', 1]);
+                expect(eachSpy.calls.all()[2].args).toEqual(['item3', '0', 1]);
+                expect(eachSpy.calls.all()[3].args).toEqual(['item3', '1', 2]);
             });
         });
     });
@@ -329,9 +333,9 @@ describe('vote (UT)',function(){
                 req.body = { ballot: { fake: { yes: 0, no: 0 } } };
                 req.user = {id: 'u-1234', org: 'o-1234'};
                 elections.insert = jasmine.createSpy('elections.insert')
-                    .andCallFake(function(obj, opts, cb) { cb(); });
-                spyOn(uuid, 'createUuid').andReturn('1234');
-                spyOn(app.createValidator, 'validate').andReturn(true);
+                    .and.callFake(function(obj, opts, cb) { cb(); });
+                spyOn(uuid, 'createUuid').and.returnValue('1234');
+                spyOn(app.createValidator, 'validate').and.returnValue(true);
             });
             
             it('should fail with a 400 if no election is provided', function(done) {
@@ -360,8 +364,8 @@ describe('vote (UT)',function(){
                     expect(resp.body.status).toBe(Status.Active);
                     expect(app.createValidator.validate).toHaveBeenCalledWith(req.body, {}, req.user);
                     expect(elections.insert).toHaveBeenCalled();
-                    expect(elections.insert.calls[0].args[0]).toEqual(resp.body);
-                    expect(elections.insert.calls[0].args[1]).toEqual({w: 1, journal: true});
+                    expect(elections.insert.calls.all()[0].args[0]).toEqual(resp.body);
+                    expect(elections.insert.calls.all()[0].args[1]).toEqual({w: 1, journal: true});
                     expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                     expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
                     done();
@@ -372,7 +376,7 @@ describe('vote (UT)',function(){
             });
             
             it('should fail with a 400 if the request body contains illegal fields', function(done) {
-                app.createValidator.validate.andReturn(false);
+                app.createValidator.validate.and.returnValue(false);
                 app.createElection(req, elections).then(function(resp) {
                     expect(resp).toBeDefined();
                     expect(resp.code).toBe(400);
@@ -405,7 +409,7 @@ describe('vote (UT)',function(){
             });
             
             it('should fail with an error if inserting the record fails', function(done) {
-                elections.insert.andCallFake(function(obj, opts, cb) { cb('Error!'); });
+                elections.insert.and.callFake(function(obj, opts, cb) { cb('Error!'); });
                 app.createElection(req, elections).then(function(resp) {
                     expect(resp).not.toBeDefined();
                     done();
@@ -427,13 +431,13 @@ describe('vote (UT)',function(){
                 oldElec = {id:'el-1234',tag:'fake1',user:'u-1234',created:start,lastUpdated:start};
                 req.user = {id: 'u-1234'};
                 elections.findOne = jasmine.createSpy('elections.findOne')
-                    .andCallFake(function(query, cb) { cb(null, oldElec); });
-                elections.findAndModify = jasmine.createSpy('elections.findAndModify').andCallFake(
+                    .and.callFake(function(query, cb) { cb(null, oldElec); });
+                elections.findAndModify = jasmine.createSpy('elections.findAndModify').and.callFake(
                     function(query, sort, obj, opts, cb) {
                         cb(null, [{ id: 'el-1234', updated: true }]);
                     });
-                spyOn(app, 'checkScope').andReturn(true);
-                spyOn(app.updateValidator, 'validate').andReturn(true);
+                spyOn(app, 'checkScope').and.returnValue(true);
+                spyOn(app.updateValidator, 'validate').and.returnValue(true);
             });
 
             it('should fail with a 400 if no update object is provided', function(done) {
@@ -454,16 +458,16 @@ describe('vote (UT)',function(){
                     expect(resp.code).toBe(200);
                     expect(resp.body).toEqual({id: 'el-1234', updated: true});
                     expect(elections.findOne).toHaveBeenCalled();
-                    expect(elections.findOne.calls[0].args[0]).toEqual({id: 'el-1234'});
+                    expect(elections.findOne.calls.all()[0].args[0]).toEqual({id: 'el-1234'});
                     expect(app.updateValidator.validate).toHaveBeenCalledWith(req.body, oldElec, req.user);
                     expect(elections.findAndModify).toHaveBeenCalled();
-                    expect(elections.findAndModify.calls[0].args[0]).toEqual({id: 'el-1234'});
-                    expect(elections.findAndModify.calls[0].args[1]).toEqual({id: 1});
-                    var updates = elections.findAndModify.calls[0].args[2];
+                    expect(elections.findAndModify.calls.all()[0].args[0]).toEqual({id: 'el-1234'});
+                    expect(elections.findAndModify.calls.all()[0].args[1]).toEqual({id: 1});
+                    var updates = elections.findAndModify.calls.all()[0].args[2];
                     expect(Object.keys(updates)).toEqual(['$set']);
                     expect(updates.$set.tag).toBe('fake2');
                     expect(updates.$set.lastUpdated instanceof Date).toBeTruthy('lastUpdated is Date');
-                    expect(elections.findAndModify.calls[0].args[3])
+                    expect(elections.findAndModify.calls.all()[0].args[3])
                         .toEqual({w: 1, journal: true, new: true});
                     expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                     expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
@@ -475,7 +479,7 @@ describe('vote (UT)',function(){
             });
 
             it('should not edit the election if the updates contain illegal fields', function(done) {
-                app.updateValidator.validate.andReturn(false);
+                app.updateValidator.validate.and.returnValue(false);
                 app.updateElection(req, elections).then(function(resp) {
                     expect(resp.code).toBe(400);
                     expect(resp.body).toBe('Invalid request body');
@@ -498,7 +502,7 @@ describe('vote (UT)',function(){
                     expect(elections.findOne).toHaveBeenCalled();
                     expect(app.updateValidator.validate).toHaveBeenCalledWith(req.body, oldElec, req.user);
                     expect(elections.findAndModify).toHaveBeenCalled();
-                    expect(elections.findAndModify.calls[0].args[2]).toEqual(
+                    expect(elections.findAndModify.calls.all()[0].args[2]).toEqual(
                         {'$set': {tag: 'fake2', lastUpdated: jasmine.any(Date), 'ballot.b4': [10,20]}});
                     expect(mongoUtils.escapeKeys).toHaveBeenCalled();
                     expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
@@ -510,7 +514,7 @@ describe('vote (UT)',function(){
             });
             
             it('should only let a user edit elections they are authorized to edit', function(done) {
-                app.checkScope.andReturn(false);
+                app.checkScope.and.returnValue(false);
                 app.updateElection(req, elections).then(function(resp) {
                     expect(resp.code).toBe(403);
                     expect(resp.body).toBe("Not authorized to edit this election");
@@ -525,7 +529,7 @@ describe('vote (UT)',function(){
             });
             
             it('should not create an election if it does not already exist', function(done) {
-                elections.findOne.andCallFake(function(query, cb) { cb(); });
+                elections.findOne.and.callFake(function(query, cb) { cb(); });
                 app.updateElection(req, elections).then(function(resp) {
                     expect(resp.code).toBe(404);
                     expect(resp.body).toBe('That election does not exist');
@@ -539,7 +543,7 @@ describe('vote (UT)',function(){
             });
             
             it('should fail with an error if modifying the record fails', function(done) {
-                elections.findAndModify.andCallFake(function(query, sort, obj, opts, cb) { cb('Error!'); });
+                elections.findAndModify.and.callFake(function(query, sort, obj, opts, cb) { cb('Error!'); });
                 app.updateElection(req, elections).then(function(resp) {
                     expect(resp).not.toBeDefined();
                     done();
@@ -551,7 +555,7 @@ describe('vote (UT)',function(){
             });
             
             it('should fail with an error if looking up the record fails', function(done) {
-                elections.findOne.andCallFake(function(query, cb) { cb('Error!'); });
+                elections.findOne.and.callFake(function(query, cb) { cb('Error!'); });
                 app.updateElection(req, elections).then(function(resp) {
                     expect(resp).not.toBeDefined();
                     done();
@@ -572,10 +576,10 @@ describe('vote (UT)',function(){
                 oldElec = {id:'el-1234', status: Status.Active, user:'u-1234', lastUpdated:start};
                 req.user = {id: 'u-1234'};
                 elections.findOne = jasmine.createSpy('elections.findOne')
-                    .andCallFake(function(query, cb) { cb(null, oldElec); });
+                    .and.callFake(function(query, cb) { cb(null, oldElec); });
                 elections.update = jasmine.createSpy('elections.update')
-                    .andCallFake(function(query, obj, opts, cb) { cb(null, 1); });
-                spyOn(app, 'checkScope').andReturn(true);
+                    .and.callFake(function(query, obj, opts, cb) { cb(null, 1); });
+                spyOn(app, 'checkScope').and.returnValue(true);
             });
             
             it('should successfully delete an election', function(done) {
@@ -584,15 +588,15 @@ describe('vote (UT)',function(){
                     expect(resp.code).toBe(204);
                     expect(resp.body).not.toBeDefined();
                     expect(elections.findOne).toHaveBeenCalled();
-                    expect(elections.findOne.calls[0].args[0]).toEqual({id: 'el-1234'});
+                    expect(elections.findOne.calls.all()[0].args[0]).toEqual({id: 'el-1234'});
                     expect(app.checkScope).toHaveBeenCalledWith(req.user, oldElec, 'delete');
                     expect(elections.update).toHaveBeenCalled();
-                    expect(elections.update.calls[0].args[0]).toEqual({id: 'el-1234'});
-                    var setProps = elections.update.calls[0].args[1];
+                    expect(elections.update.calls.all()[0].args[0]).toEqual({id: 'el-1234'});
+                    var setProps = elections.update.calls.all()[0].args[1];
                     expect(setProps.$set.status).toBe(Status.Deleted);
                     expect(setProps.$set.lastUpdated instanceof Date).toBeTruthy('lastUpdated is a Date');
                     expect(setProps.$set.lastUpdated).toBeGreaterThan(start);
-                    expect(elections.update.calls[0].args[2]).toEqual({w: 1, journal: true});
+                    expect(elections.update.calls.all()[0].args[2]).toEqual({w: 1, journal: true});
                     done();
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
@@ -601,7 +605,7 @@ describe('vote (UT)',function(){
             });
             
             it('should not do anything if the election does not exist', function(done) {
-                elections.findOne.andCallFake(function(query, cb) { cb(); });
+                elections.findOne.and.callFake(function(query, cb) { cb(); });
                 app.deleteElection(req, elections).then(function(resp) {
                     expect(resp).toBeDefined();
                     expect(resp.code).toBe(204);
@@ -631,7 +635,7 @@ describe('vote (UT)',function(){
             });
             
             it('should only let a user delete elections they are authorized to delete', function(done) {
-                app.checkScope.andReturn(false);
+                app.checkScope.and.returnValue(false);
                 app.deleteElection(req, elections).then(function(resp) {
                     expect(resp).toBeDefined();
                     expect(resp.code).toBe(403);
@@ -647,7 +651,7 @@ describe('vote (UT)',function(){
             });
             
             it('should fail with an error if modifying the record fails', function(done) {
-                elections.update.andCallFake(function(query, obj, opts, cb) { cb('Error!'); });
+                elections.update.and.callFake(function(query, obj, opts, cb) { cb('Error!'); });
                 app.deleteElection(req, elections).then(function(resp) {
                     expect(resp).not.toBeDefined();
                     done();
@@ -659,7 +663,7 @@ describe('vote (UT)',function(){
             });
             
             it('should fail with an error if looking up the record fails', function(done) {
-                elections.findOne.andCallFake(function(query, cb) { cb('Error!'); });
+                elections.findOne.and.callFake(function(query, cb) { cb('Error!'); });
                 app.deleteElection(req, elections).then(function(resp) {
                     expect(resp).not.toBeDefined();
                     done();

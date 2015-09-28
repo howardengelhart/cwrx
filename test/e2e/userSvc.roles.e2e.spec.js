@@ -8,12 +8,12 @@ var q               = require('q'),
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
 
-jasmine.getEnv().defaultTimeoutInterval = 10000;
-
 describe('userSvc roles endpoints (E2E):', function() {
     var cookieJar, mockRequester, roleAdminPol;
         
     beforeEach(function(done) {
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
+
         if (cookieJar && cookieJar.cookies) {
             return done();
         }

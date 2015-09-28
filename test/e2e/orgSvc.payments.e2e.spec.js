@@ -17,12 +17,12 @@ var q               = require('q'),
         privateKey  : '0a150dac004756370706a195e2bde296'
     });
 
-jasmine.getEnv().defaultTimeoutInterval = 30000;
-
 describe('orgSvc payments (E2E):', function() {
     var cookieJar, readOnlyJar, mockRequester, readOnlyUser, testPolicies, mockCust, mockOrgs, origCard, origPaypal;
     
     beforeEach(function(done) {
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
+
         if (cookieJar && cookieJar.cookies && readOnlyJar && readOnlyJar.cookies) {
             return done();
         }

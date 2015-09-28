@@ -10,9 +10,6 @@ var q               = require('q'),
         adsUrl  : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api',
         authUrl : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
     };
-    
-jasmine.getEnv().defaultTimeoutInterval = 90000;
-
 
 function getPlacementsBySite(siteId) {
     var aove = new adtech.AOVE();
@@ -41,6 +38,8 @@ describe('ads sites endpoints (E2E):', function() {
     var cookieJar, mockUser, createdSite;
 
     beforeEach(function(done) {
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 90000;
+
         if (cookieJar && cookieJar.cookies) {
             return done();
         }

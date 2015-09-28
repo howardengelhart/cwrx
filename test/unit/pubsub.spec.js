@@ -14,27 +14,20 @@ describe('pubsub', function() {
         self.remotePort = portNum * 100;
         
         self.connect = jasmine.createSpy('socket.connect()');
-        self.end = jasmine.createSpy('socket.end()').andCallFake(function() {
+        self.end = jasmine.createSpy('socket.end()').and.callFake(function() {
             self.emit('end');
         });
-        self.write = jasmine.createSpy('socket.write()').andCallFake(function(data, cb) {
+        self.write = jasmine.createSpy('socket.write()').and.callFake(function(data, cb) {
             if (typeof cb === 'function') cb();
         });
         self.resume = jasmine.createSpy('socket.resume()');
-        self.address = jasmine.createSpy('socket.address()').andReturn({ port: self.localPort,
+        self.address = jasmine.createSpy('socket.address()').and.returnValue({ port: self.localPort,
                                                                          address: self.localAddress });
     }
     util.inherits(MockSocket, events.EventEmitter);
     
     beforeEach(function() {
-        jasmine.Clock.useMock();
-        // clearTimeout/clearInterval not properly mocked in jasmine-node: https://github.com/mhevery/jasmine-node/issues/276
-        spyOn(global, 'clearTimeout').andCallFake(function() {
-            return jasmine.Clock.installed.clearTimeout.apply(this, arguments);
-        });
-        spyOn(global, 'clearInterval').andCallFake(function() {
-            return jasmine.Clock.installed.clearInterval.apply(this, arguments);
-        });
+        jasmine.clock().install();
 
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q           = require('q');
@@ -51,19 +44,23 @@ describe('pubsub', function() {
             fatal : jasmine.createSpy('log_fatal'),
             log   : jasmine.createSpy('log_log')
         };
-        spyOn(logger, 'createLog').andReturn(mockLog);
-        spyOn(logger, 'getLog').andReturn(mockLog);
+        spyOn(logger, 'createLog').and.returnValue(mockLog);
+        spyOn(logger, 'getLog').and.returnValue(mockLog);
         
         portNum = 0;
         
         mockServer = new events.EventEmitter();
         mockServer.close = jasmine.createSpy('server.close()');
         mockServer.listen = jasmine.createSpy('server.listen()');
-        spyOn(net, 'createServer').andReturn(mockServer);
+        spyOn(net, 'createServer').and.returnValue(mockServer);
 
-        spyOn(net, 'connect').andCallFake(function() {
+        spyOn(net, 'connect').and.callFake(function() {
             return new MockSocket();
         });
+    });
+
+    afterEach(function() {
+        jasmine.clock().uninstall();
     });
     
     describe('Publisher', function() {
@@ -86,7 +83,7 @@ describe('pubsub', function() {
             });
 
             it('should throw an error if not provided with a complete connection config', function() {
-                var msg = 'Must provide a cfg object with port or socket path';
+                var msg = new Error('Must provide a cfg object with port or socket path');
                 expect(function() { var p = new pubsub.Publisher('test'); }).toThrow(msg);
                 expect(function() { var p = new pubsub.Publisher('test', {}); }).toThrow(msg);
                 expect(function() { var p = new pubsub.Publisher('test', { host: 'h1' }); }).toThrow(msg);
@@ -115,7 +112,7 @@ describe('pubsub', function() {
                 expect(sock2._clientAddr).toBe('127.0.0.1:200');
                 expect(sock2.write).toHaveBeenCalledWith('foo');
                 expect(sock2.resume).toHaveBeenCalledWith();
-                expect(sock1.write.calls.length).toBe(1);
+                expect(sock1.write.calls.count()).toBe(1);
             });
         });
         
@@ -189,7 +186,7 @@ describe('pubsub', function() {
             });
             
             it('should reject if one of the writes fails', function(done) {
-                sock2.write.andCallFake(function(data, cb) {
+                sock2.write.and.callFake(function(data, cb) {
                     if (typeof cb === 'function') cb('I GOT A PROBLEM');
                 });
                 pub._server.emit('connection', sock1); pub._server.emit('connection', sock2);
@@ -231,7 +228,7 @@ describe('pubsub', function() {
             });
             
             it('should throw an error if not provided with a complete connection config', function() {
-                var msg = 'Must provide a cfg object with port or socket path';
+                var msg = new Error('Must provide a cfg object with port or socket path');
                 expect(function() { var s = new pubsub.Subscriber('test'); }).toThrow(msg);
                 expect(function() { var s = new pubsub.Subscriber('test', {}); }).toThrow(msg);
                 expect(function() { var s = new pubsub.Subscriber('test', { host: 'h1' }); }).toThrow(msg);
@@ -246,25 +243,25 @@ describe('pubsub', function() {
                 sub._socket.emit('connect');
                 expect(sub.localAddr).toBe('127.0.0.1:1');
                 expect(sub.ping._interval).toBeDefined();
-                jasmine.Clock.tick(5001);
+                jasmine.clock().tick(5001);
                 expect(sub._socket.write).toHaveBeenCalledWith('ping');
-                jasmine.Clock.tick(5001);
-                jasmine.Clock.tick(5001);
-                expect(sub._socket.write.calls.length).toBe(3);
+                jasmine.clock().tick(5001);
+                jasmine.clock().tick(5001);
+                expect(sub._socket.write.calls.count()).toBe(3);
             });
             
             it('should clear the reconnect interval', function() {
                 var sub = new pubsub.Subscriber('test', {port: 123});
                 sub.beginReconnect();
                 expect(sub.reconnect._interval).toBeDefined();
-                jasmine.Clock.tick(5001);
-                expect(sub._socket.connect.calls.length).toBe(1);
+                jasmine.clock().tick(5001);
+                expect(sub._socket.connect.calls.count()).toBe(1);
                 
                 sub._socket.emit('connect');
                 expect(sub.reconnect._interval).not.toBeDefined();
-                jasmine.Clock.tick(5001);
-                jasmine.Clock.tick(5001);
-                expect(sub._socket.connect.calls.length).toBe(1);
+                jasmine.clock().tick(5001);
+                jasmine.clock().tick(5001);
+                expect(sub._socket.connect.calls.count()).toBe(1);
             });
         });
         
@@ -317,26 +314,26 @@ describe('pubsub', function() {
                 var sub = new pubsub.Subscriber('test', {port: 123}, { reconnectDelay: 2000 });
                 sub.beginReconnect();
                 expect(sub.reconnect._interval).toBeDefined();
-                jasmine.Clock.tick(2001);
+                jasmine.clock().tick(2001);
                 expect(sub._socket.connect).toHaveBeenCalledWith({port: 123});
-                expect(sub._socket.connect.calls.length).toBe(1);
-                jasmine.Clock.tick(2001);
-                jasmine.Clock.tick(2001);
-                expect(sub._socket.connect.calls.length).toBe(3);
+                expect(sub._socket.connect.calls.count()).toBe(1);
+                jasmine.clock().tick(2001);
+                jasmine.clock().tick(2001);
+                expect(sub._socket.connect.calls.count()).toBe(3);
             });
             
             it('should clear the ping interval', function() {
                 var sub = new pubsub.Subscriber('test', {port: 123});
                 sub._socket.emit('connect');
                 expect(sub.ping._interval).toBeDefined();
-                jasmine.Clock.tick(5001);
-                expect(sub._socket.write.calls.length).toBe(1);
+                jasmine.clock().tick(5001);
+                expect(sub._socket.write.calls.count()).toBe(1);
                 
                 sub.beginReconnect();
                 expect(sub.ping._interval).not.toBeDefined();
-                jasmine.Clock.tick(5001);
-                jasmine.Clock.tick(5001);
-                expect(sub._socket.write.calls.length).toBe(1);
+                jasmine.clock().tick(5001);
+                jasmine.clock().tick(5001);
+                expect(sub._socket.write.calls.count()).toBe(1);
             });
             
             it('should do nothing if the interval has already been created', function() {
@@ -344,15 +341,15 @@ describe('pubsub', function() {
                 sub.beginReconnect();
                 sub.beginReconnect();
                 expect(sub.reconnect._interval).toBeDefined();
-                jasmine.Clock.tick(2001);
-                expect(sub._socket.connect.calls.length).toBe(1);
+                jasmine.clock().tick(2001);
+                expect(sub._socket.connect.calls.count()).toBe(1);
             });
             
             it('should do nothing if reconnecting is disabled', function() {
                 var sub = new pubsub.Subscriber('test', {port: 123}, { reconnect: false });
                 sub.beginReconnect();
                 expect(sub.reconnect._interval).not.toBeDefined();
-                jasmine.Clock.tick(2001);
+                jasmine.clock().tick(2001);
                 expect(sub._socket.connect).not.toHaveBeenCalled();
             });
         });
@@ -363,7 +360,7 @@ describe('pubsub', function() {
                 sub.close();
                 expect(sub.reconnect._interval).not.toBeDefined();
                 expect(sub.reconnect.enabled).toBe(false);
-                jasmine.Clock.tick(2001);
+                jasmine.clock().tick(2001);
                 expect(sub._socket.connect).not.toHaveBeenCalled();
             });
         });
@@ -380,18 +377,18 @@ describe('pubsub', function() {
                 expect(sub.reconnect._interval).toBeDefined();
 
                 // reconnect attempts, but no success yet
-                jasmine.Clock.tick(2001);
-                jasmine.Clock.tick(2001);
-                jasmine.Clock.tick(2001);
-                expect(sub._socket.connect.calls.length).toBe(3);
+                jasmine.clock().tick(2001);
+                jasmine.clock().tick(2001);
+                jasmine.clock().tick(2001);
+                expect(sub._socket.connect.calls.count()).toBe(3);
                 
                 // reconnect
                 sub._socket.emit('connect');
                 expect(sub.reconnect._interval).not.toBeDefined();
 
                 // should not be calling socket.connect anymore
-                jasmine.Clock.tick(2001);
-                expect(sub._socket.connect.calls.length).toBe(3);
+                jasmine.clock().tick(2001);
+                expect(sub._socket.connect.calls.count()).toBe(3);
             });
         });
     });
