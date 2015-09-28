@@ -45,6 +45,7 @@
     "load-grunt-config": "~0.7.1",
     "mailparser": "~0.4.4",
     "filewatcher": "^3.0.0",
-    "jasmine": "~2.3.2"
+    "jasmine": "~2.3.2",
+    "jasmine-reporters": "~2.0.7"
   }
 }
