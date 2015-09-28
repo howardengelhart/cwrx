@@ -9,6 +9,8 @@ var q               = require('q'),
 describe('/api/ads/job/:reqId', function() {
     var mockData, cacheConn;
     beforeEach(function(done) {
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 5000;
+
         mockData = {
             'a1234': { code: 200, body: [{ foo: 'bar' }, {foo: 'baz'}] },
             'b4567': { code: 202, body: { url: '/api/ads/job/b4567' } },

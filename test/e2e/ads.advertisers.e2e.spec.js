@@ -9,13 +9,13 @@ var q               = require('q'),
         adsUrl  : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api',
         authUrl : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
     };
-    
-jasmine.getEnv().defaultTimeoutInterval = 90000;
 
 describe('ads advertisers endpoints (E2E):', function() {
     var cookieJar, mockUser, createdAdvert;
 
     beforeEach(function(done) {
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 90000;
+
         if (cookieJar && cookieJar.cookies) {
             return done();
         }
@@ -478,7 +478,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 .then(function(advert) {
                     expect(advert).not.toBeDefined();
                 }).catch(function(err) {
-                    expect(err).toEqual(new Error('Unable to locate object: ' + createdAdvert.adtechId));
+                    expect(err).toEqual(new Error('Unable to locate object: ' + createdAdvert.adtechId + '.'));
                 });
             }).catch(function(error) {
                 expect(error).not.toBeDefined();

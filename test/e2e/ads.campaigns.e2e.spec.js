@@ -14,12 +14,12 @@ var q               = require('q'),
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
     };
     
-jasmine.getEnv().defaultTimeoutInterval = 90000;
-
 describe('ads campaigns endpoints (E2E):', function() {
     var cookieJar, mockUser, createdCamp, keptAdvert, keptCust;
 
     beforeEach(function(done) {
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 90000;
+
         if (cookieJar && cookieJar.cookies) {
             return done();
         }
