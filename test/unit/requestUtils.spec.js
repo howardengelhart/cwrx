@@ -3,14 +3,7 @@ describe('requestUtils', function() {
     var requestUtils, fs, q, net, events;
     
     beforeEach(function() {
-        jasmine.Clock.useMock();
-        // clearTimeout/clearInterval not properly mocked in jasmine-node: https://github.com/mhevery/jasmine-node/issues/276
-        spyOn(global, 'clearTimeout').andCallFake(function() {
-            return jasmine.Clock.installed.clearTimeout.apply(this, arguments);
-        });
-        spyOn(global, 'clearInterval').andCallFake(function() {
-            return jasmine.Clock.installed.clearInterval.apply(this, arguments);
-        });
+        jasmine.clock().install();
 
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         requestUtils    = require('../../lib/requestUtils');
@@ -19,21 +12,25 @@ describe('requestUtils', function() {
         net             = require('net');
         events          = require('events');
     });
+
+    afterEach(function() {
+        jasmine.clock().uninstall();
+    });
     
     describe('qRequest', function() {
         var requestSpy, opts, fakeReq, fakeForm;
         beforeEach(function() {
             delete require.cache[require.resolve('../../lib/requestUtils')];
-            requestSpy = jasmine.createSpy('request').andCallFake(function(opts, cb) {
+            requestSpy = jasmine.createSpy('request').and.callFake(function(opts, cb) {
                 cb(null, {statusCode: 200}, 'Success!');
                 return fakeReq;
             });
             require.cache[require.resolve('request')] = { exports: requestSpy };
             requestUtils = require('../../lib/requestUtils');
             opts = { url: 'http://c6.com' };
-            spyOn(fs, 'createReadStream').andReturn('fakeStream');
+            spyOn(fs, 'createReadStream').and.returnValue('fakeStream');
             fakeForm = { append: jasmine.createSpy('form.append') };
-            fakeReq = { form: jasmine.createSpy('req.form').andReturn(fakeForm) };
+            fakeReq = { form: jasmine.createSpy('req.form').and.returnValue(fakeForm) };
         });
 
         it('should make a request and return a promise for the result', function(done) {
@@ -49,7 +46,7 @@ describe('requestUtils', function() {
         });
         
         it('should parse the body as JSON if possible', function(done) {
-            requestSpy.andCallFake(function(opts, cb) {
+            requestSpy.and.callFake(function(opts, cb) {
                 cb(null, {statusCode: 200}, '{"foo": "bar"}');
             });
             requestUtils.qRequest('get', opts).then(function(resp) {
@@ -87,7 +84,7 @@ describe('requestUtils', function() {
         });
         
         it('should reject if request calls back with an error', function(done) {
-            requestSpy.andCallFake(function(opts, cb) {
+            requestSpy.and.callFake(function(opts, cb) {
                 cb('I GOT A PROBLEM');
             });
             requestUtils.qRequest('get', opts, {}).then(function(resp) {
@@ -98,7 +95,7 @@ describe('requestUtils', function() {
         });
         
         it('should reject if the response is not defined', function(done) {
-            requestSpy.andCallFake(function(opts, cb) {
+            requestSpy.and.callFake(function(opts, cb) {
                 cb(null, null, 'Success?');
             });
             requestUtils.qRequest('get', opts, {}).then(function(resp) {
@@ -109,7 +106,7 @@ describe('requestUtils', function() {
         });
         
         it('should reject if the body contains an error property', function(done) {
-            requestSpy.andCallFake(function(opts, cb) {
+            requestSpy.and.callFake(function(opts, cb) {
                 cb(null, {statusCode: 500, headers: 'fakeHeaders'}, '{"foo": "bar", "error": "Server is borked"}');
             });
             requestUtils.qRequest('get', opts, {}).then(function(resp) {
@@ -120,7 +117,7 @@ describe('requestUtils', function() {
         });
         
         it('should not necessarily reject if the status code is not 2xx', function(done) {
-            requestSpy.andCallFake(function(opts, cb) {
+            requestSpy.and.callFake(function(opts, cb) {
                 cb(null, {statusCode: 500}, '{"foo": "bar"}');
             });
             requestUtils.qRequest('get', opts, {}).then(function(resp) {
@@ -135,7 +132,7 @@ describe('requestUtils', function() {
             beforeEach(function() {
                 jobPolling = { maxAttempts: 4, delay: 1000 };
                 callCount = 0;
-                requestSpy.andCallFake(function(opts, cb) {
+                requestSpy.and.callFake(function(opts, cb) {
                     if (!!opts.url.match(/\/api\/job\/1234/)) {
                         callCount++;
                         if (callCount >= 3) {
@@ -147,26 +144,26 @@ describe('requestUtils', function() {
                     cb(null, { statusCode: 202 }, '{ "url": "/api/job/1234" }');
                     return fakeReq;
                 });
-                spyOn(requestUtils, 'qRequest').andCallThrough();
+                spyOn(requestUtils, 'qRequest').and.callThrough();
             });
             
             it('should repeatedly poll for the job result', function(done) {
                 var promise = requestUtils.qRequest('get', opts, null, jobPolling);
-                expect(requestUtils.qRequest.calls.length).toBe(1);
-                jasmine.Clock.tick(1001);
-                expect(requestUtils.qRequest.calls.length).toBe(2);
-                jasmine.Clock.tick(1001);
-                expect(requestUtils.qRequest.calls.length).toBe(3);
-                jasmine.Clock.tick(1001);
+                expect(requestUtils.qRequest.calls.count()).toBe(1);
+                jasmine.clock().tick(1001);
+                expect(requestUtils.qRequest.calls.count()).toBe(2);
+                jasmine.clock().tick(1001);
+                expect(requestUtils.qRequest.calls.count()).toBe(3);
+                jasmine.clock().tick(1001);
                 
                 promise.then(function(resp) {
                     expect(resp).toEqual({ response: { statusCode: 200 }, body: 'Success!' });
-                    expect(requestSpy.calls.length).toBe(4);
-                    expect(requestUtils.qRequest.calls.length).toBe(4);
-                    expect(requestUtils.qRequest.calls[0].args).toEqual(['get',
+                    expect(requestSpy.calls.count()).toBe(4);
+                    expect(requestUtils.qRequest.calls.count()).toBe(4);
+                    expect(requestUtils.qRequest.calls.all()[0].args).toEqual(['get',
                         { url: 'http://c6.com', method: 'get' }, null, jobPolling]);
                     for (var i = 1; i <= 3; i++) {
-                        expect(requestUtils.qRequest.calls[i].args).toEqual(['get',
+                        expect(requestUtils.qRequest.calls.all()[i].args).toEqual(['get',
                             { url: 'http://c6.com/api/job/1234', method: 'get' }, null, jobPolling]);
                     }
                 }).catch(function(error) {
@@ -177,16 +174,16 @@ describe('requestUtils', function() {
             it('should fully match the host and protocol of the original request for job result requests', function(done) {
                 opts.url = 'https://localhost:3300/api/content/foo?q=bloop&preview=yes';
                 var promise = requestUtils.qRequest('get', opts, null, jobPolling);
-                jasmine.Clock.tick(1001);
-                jasmine.Clock.tick(1001);
-                jasmine.Clock.tick(1001);
+                jasmine.clock().tick(1001);
+                jasmine.clock().tick(1001);
+                jasmine.clock().tick(1001);
                 
                 promise.then(function(resp) {
                     expect(resp).toEqual({ response: { statusCode: 200 }, body: 'Success!' });
-                    expect(requestSpy.calls.length).toBe(4);
-                    expect(requestUtils.qRequest.calls.length).toBe(4);
+                    expect(requestSpy.calls.count()).toBe(4);
+                    expect(requestUtils.qRequest.calls.count()).toBe(4);
                     for (var i = 1; i <= 3; i++) {
-                        expect(requestUtils.qRequest.calls[i].args[1].url).toEqual('https://localhost:3300/api/job/1234');
+                        expect(requestUtils.qRequest.calls.all()[i].args[1].url).toEqual('https://localhost:3300/api/job/1234');
                     }
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
@@ -196,55 +193,55 @@ describe('requestUtils', function() {
             it('should reject if the maxAttempts are exceeded before a non-202 status is returned', function(done) {
                 jobPolling.maxAttempts = 2;
                 var promise = requestUtils.qRequest('get', opts, null, jobPolling);
-                jasmine.Clock.tick(1001);
-                jasmine.Clock.tick(1001);
-                jasmine.Clock.tick(1001);
+                jasmine.clock().tick(1001);
+                jasmine.clock().tick(1001);
+                jasmine.clock().tick(1001);
                 
                 promise.then(function(resp) {
                     expect(resp).not.toBeDefined();
                 }).catch(function(error) {
                     expect(error).toBe('Timed out getting job result after 2 attempts');
-                    expect(requestSpy.calls.length).toBe(3);
-                    expect(requestUtils.qRequest.calls.length).toBe(3);
+                    expect(requestSpy.calls.count()).toBe(3);
+                    expect(requestUtils.qRequest.calls.count()).toBe(3);
                 }).done(done);
             });
             
             it('should just return normally if jobPolling is disabled', function(done) {
                 jobPolling.enabled = false;
                 var promise = requestUtils.qRequest('get', opts, null, jobPolling);
-                jasmine.Clock.tick(1001);
-                jasmine.Clock.tick(1001);
-                jasmine.Clock.tick(1001);
+                jasmine.clock().tick(1001);
+                jasmine.clock().tick(1001);
+                jasmine.clock().tick(1001);
                 
                 promise.then(function(resp) {
                     expect(resp).toEqual({ response: { statusCode: 202 }, body: { url: '/api/job/1234' }});
-                    expect(requestSpy.calls.length).toBe(1);
-                    expect(requestUtils.qRequest.calls.length).toBe(1);
+                    expect(requestSpy.calls.count()).toBe(1);
+                    expect(requestUtils.qRequest.calls.count()).toBe(1);
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);
             });
             
             it('should just return normally if no url is included in the 202 response\'s body', function(done) {
-                requestSpy.andCallFake(function(opts, cb) {
+                requestSpy.and.callFake(function(opts, cb) {
                     cb(null, {statusCode: 202}, { foo: 'bar' });
                 });
                 var promise = requestUtils.qRequest('get', opts, null, jobPolling);
-                jasmine.Clock.tick(1001);
-                jasmine.Clock.tick(1001);
-                jasmine.Clock.tick(1001);
+                jasmine.clock().tick(1001);
+                jasmine.clock().tick(1001);
+                jasmine.clock().tick(1001);
                 
                 promise.then(function(resp) {
                     expect(resp).toEqual({ response: { statusCode: 202 }, body: { foo: 'bar' }});
-                    expect(requestSpy.calls.length).toBe(1);
-                    expect(requestUtils.qRequest.calls.length).toBe(1);
+                    expect(requestSpy.calls.count()).toBe(1);
+                    expect(requestUtils.qRequest.calls.count()).toBe(1);
                 }).catch(function(error) {
                     expect(error.toString()).not.toBeDefined();
                 }).done(done);
             });
             
             it('should reject the original promise if a job result request fails', function(done) {
-                requestSpy.andCallFake(function(opts, cb) {
+                requestSpy.and.callFake(function(opts, cb) {
                     if (!!opts.url.match(/\/api\/job\/1234/)) {
                         callCount++;
                         if (callCount >= 2) {
@@ -260,16 +257,16 @@ describe('requestUtils', function() {
                     return fakeReq;
                 });
                 var promise = requestUtils.qRequest('get', opts, null, jobPolling);
-                jasmine.Clock.tick(1001);
-                jasmine.Clock.tick(1001);
-                jasmine.Clock.tick(1001);
+                jasmine.clock().tick(1001);
+                jasmine.clock().tick(1001);
+                jasmine.clock().tick(1001);
                 
                 promise.then(function(resp) {
                     expect(resp).not.toBeDefined();
                 }).catch(function(error) {
-                    expect(error).toEqual({code: 500, body: {error: 'Server is borked'}});
-                    expect(requestSpy.calls.length).toBe(3);
-                    expect(requestUtils.qRequest.calls.length).toBe(3);
+                    expect(error).toEqual({code: 500, headers: undefined, body: {error: 'Server is borked'}});
+                    expect(requestSpy.calls.count()).toBe(3);
+                    expect(requestUtils.qRequest.calls.count()).toBe(3);
                 }).done(done);
             });
         });
@@ -280,25 +277,25 @@ describe('requestUtils', function() {
         beforeEach(function() {
             mockSock = new events.EventEmitter();
             mockSock.destroy = jasmine.createSpy('destroy');
-            mockSock.setTimeout = jasmine.createSpy('setTimeout').andCallFake(function(delay, fn) {
+            mockSock.setTimeout = jasmine.createSpy('setTimeout').and.callFake(function(delay, fn) {
                 var timeout = setTimeout(fn, delay);
                 mockSock.on('connect', function() { clearTimeout(timeout); });
                 mockSock.on('error', function() { clearTimeout(timeout); });
             });
-            spyOn(net, 'connect').andReturn(mockSock);
+            spyOn(net, 'connect').and.returnValue(mockSock);
         });
         
         it('should resolve with true if the connection is made', function(done) {
             var promise = requestUtils.portScan('host1', 80, 2000);
-            jasmine.Clock.tick(1000);
+            jasmine.clock().tick(1000);
             mockSock.emit('connect');
-            jasmine.Clock.tick(1001);
+            jasmine.clock().tick(1001);
 
             promise.then(function(val) {
                 expect(val).toBe(true);
                 expect(net.connect).toHaveBeenCalledWith({host: 'host1', port: 80});
                 expect(mockSock.setTimeout).toHaveBeenCalledWith(2000, jasmine.any(Function));
-                expect(mockSock.destroy.calls.length).toBe(1);
+                expect(mockSock.destroy.calls.count()).toBe(1);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -306,22 +303,22 @@ describe('requestUtils', function() {
         
         it('should reject if the connection has an error', function(done) {
             var promise = requestUtils.portScan('host1', 80, 2000);
-            jasmine.Clock.tick(1000);
+            jasmine.clock().tick(1000);
             mockSock.emit('error', new Error('I GOT A PROBLEM'));
-            jasmine.Clock.tick(1001);
+            jasmine.clock().tick(1001);
 
             promise.then(function(val) {
                 expect(val).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Connection received error: [Error: I GOT A PROBLEM]');
-                expect(mockSock.destroy.calls.length).toBe(1);
+                expect(mockSock.destroy.calls.count()).toBe(1);
             }).done(done);
         });
         
         it('should reject if the connection times out', function(done) {
             var promise = requestUtils.portScan('host1', 80, 2000);
-            jasmine.Clock.tick(1000);
-            jasmine.Clock.tick(1001);
+            jasmine.clock().tick(1000);
+            jasmine.clock().tick(1001);
             mockSock.emit('connect');
 
             promise.then(function(val) {
