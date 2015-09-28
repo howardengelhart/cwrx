@@ -10,6 +10,9 @@ var q               = require('q'),
     };
 
 describe('content public experience endpoints (E2E):', function() {
+    beforeEach(function() {
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 5000;
+    });
 
     describe('GET /api/public/content/experience/:id', function() {
         var dateStr = String(new Date().valueOf()), // used for cache busting on site with csv branding

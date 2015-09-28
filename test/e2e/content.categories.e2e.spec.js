@@ -13,6 +13,8 @@ describe('content category endpoints (E2E):', function() {
     var e2eUserJar, somePermsJar, adminJar, mockUsers, mockCats;
 
     beforeEach(function(done) {
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 5000;
+
         mockCats = [
             { id: 'e2e-id1', name: 'snuffles', status: 'active' },
             { id: 'e2e-id2', name: 'fluffles', status: 'inactive' },

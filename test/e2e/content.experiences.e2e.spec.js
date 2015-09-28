@@ -13,6 +13,8 @@ describe('content experience endpoints (E2E):', function() {
     var cookieJar, mockUsers;
 
     beforeEach(function(done) {
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 5000;
+
         if (cookieJar && cookieJar.cookies) {
             return done();
         }
