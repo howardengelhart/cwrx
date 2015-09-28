@@ -28,17 +28,17 @@ describe('userSvc (UT)', function() {
             fatal : jasmine.createSpy('log_fatal'),
             log   : jasmine.createSpy('log_log')
         };
-        spyOn(logger, 'createLog').andReturn(mockLog);
-        spyOn(logger, 'getLog').andReturn(mockLog);
-        spyOn(mongoUtils, 'escapeKeys').andCallThrough();
-        spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
+        spyOn(logger, 'createLog').and.returnValue(mockLog);
+        spyOn(logger, 'getLog').and.returnValue(mockLog);
+        spyOn(mongoUtils, 'escapeKeys').and.callThrough();
+        spyOn(mongoUtils, 'unescapeKeys').and.callThrough();
         req = {uuid: '1234'};
         nextSpy = jasmine.createSpy('next()');
         doneSpy = jasmine.createSpy('done()');
         errorSpy = jasmine.createSpy('caught error');
         
         mockDb = {
-            collection: jasmine.createSpy('db.collection()').andCallFake(function(objName) {
+            collection: jasmine.createSpy('db.collection()').and.callFake(function(objName) {
                 return { collectionName: objName };
             })
         };
@@ -81,7 +81,7 @@ describe('userSvc (UT)', function() {
             boundFns = [];
             [CrudSvc.prototype.preventGetAll, CrudSvc.prototype.validateUniqueProp, userModule.checkExistingWithNewEmail,
              userModule.hashProp, userModule.validateRoles, userModule.validatePolicies].forEach(function(fn) {
-                spyOn(fn, 'bind').andCallFake(function() {
+                spyOn(fn, 'bind').and.callFake(function() {
                     var boundFn = bind.apply(fn, arguments);
 
                     boundFns.push({
@@ -188,7 +188,7 @@ describe('userSvc (UT)', function() {
             
             it('should allow the field to be set on create', function() {
                 expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ email: 'test@me.com', password: 'pass' });
             });
             
@@ -202,7 +202,7 @@ describe('userSvc (UT)', function() {
                 origObj.email = 'old value';
                 delete newObj.email;
                 expect(svc.model.validate('edit', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj.email).toEqual('old value');
             });
             
@@ -210,7 +210,7 @@ describe('userSvc (UT)', function() {
                 origObj.email = 'old value';
                 requester.fieldValidation.users.email = { __unchangeable: false };
                 expect(svc.model.validate('edit', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj.email).toEqual('old value');
             });
         });
@@ -224,14 +224,14 @@ describe('userSvc (UT)', function() {
             
             it('should allow the field to be set on create', function() {
                 expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ email: 'test@me.com', password: 'pass' });
             });
             
             it('should pass if the field is not defined on edit', function() {
                 delete newObj.password;
                 expect(svc.model.validate('edit', newObj, origObj, requester))
-                    .toEqual({ isValid: true });
+                    .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ email: 'test@me.com' });
             });
         });
@@ -242,7 +242,7 @@ describe('userSvc (UT)', function() {
                 it('should trim the field if set', function() {
                     newObj[field] = { foo: 'bar' };
                     expect(svc.model.validate('create', newObj, origObj, requester))
-                        .toEqual({ isValid: true });
+                        .toEqual({ isValid: true, reason: undefined });
                     expect(newObj).toEqual({ email: 'test@me.com', password: 'pass' });
                 });
                 
@@ -250,7 +250,7 @@ describe('userSvc (UT)', function() {
                     requester.fieldValidation.users[field] = { __allowed: true };
                     newObj[field] = { foo: 'bar' };
                     expect(svc.model.validate('create', newObj, origObj, requester))
-                        .toEqual({ isValid: true });
+                        .toEqual({ isValid: true, reason: undefined });
                     expect(newObj).toEqual({ email: 'test@me.com', password: 'pass' });
                 });
             });
@@ -262,7 +262,7 @@ describe('userSvc (UT)', function() {
                 it('should trim the field if set', function() {
                     newObj[field] = ['thing1', 'thing2'];
                     expect(svc.model.validate('create', newObj, origObj, requester))
-                        .toEqual({ isValid: true });
+                        .toEqual({ isValid: true, reason: undefined });
                     expect(newObj).toEqual({ email: 'test@me.com', password: 'pass' });
                 });
                 
@@ -274,7 +274,7 @@ describe('userSvc (UT)', function() {
                     };
 
                     expect(svc.model.validate('create', newObj, origObj, requester))
-                        .toEqual({ isValid: true });
+                        .toEqual({ isValid: true, reason: undefined });
                     expect(newObj[field]).toEqual(['thing1', 'thing2']);
                 });
                 
@@ -423,7 +423,7 @@ describe('userSvc (UT)', function() {
 
         describe('if the user has no config', function() {
             beforeEach(function() {
-                next.reset();
+                next.calls.reset();
                 delete req.body.config;
 
                 userModule.setupUser(req, next, done);
@@ -440,7 +440,7 @@ describe('userSvc (UT)', function() {
         
         describe('if the user has no policies', function() {
             beforeEach(function() {
-                next.reset();
+                next.calls.reset();
                 delete req.body.policies;
 
                 userModule.setupUser(req, next, done);
@@ -479,10 +479,10 @@ describe('userSvc (UT)', function() {
             salt = '1db621a7d17a0bc84a3a6016c323';
             hash = '234c8eccef2c27732686dd2dbe6eedaadf7fd061d81e5fa26386607d';
 
-            spyOn(bcrypt, 'hash').andCallFake(function(data, salt, cb) {
+            spyOn(bcrypt, 'hash').and.callFake(function(data, salt, cb) {
                 hashCallback = cb;
             });
-            spyOn(bcrypt, 'genSaltSync').andReturn(salt);
+            spyOn(bcrypt, 'genSaltSync').and.returnValue(salt);
 
             userModule.hashProp(prop, req, next, done).then(success, failure);
 
@@ -496,11 +496,11 @@ describe('userSvc (UT)', function() {
         [null, undefined, true, false, 20, ''].forEach(function(value) {
             describe('if the prop is "' + value + '"', function() {
                 beforeEach(function(proceed) {
-                    next.reset();
-                    done.reset();
-                    success.reset();
-                    failure.reset();
-                    bcrypt.hash.reset();
+                    next.calls.reset();
+                    done.calls.reset();
+                    success.calls.reset();
+                    failure.calls.reset();
+                    bcrypt.hash.calls.reset();
                     prop = 'foo';
                     req.body[prop] = value;
 
@@ -535,7 +535,7 @@ describe('userSvc (UT)', function() {
             beforeEach(function(proceed) {
                 error = new Error('I GOT A PROBLEM.');
                 hashCallback(error);
-                q().then(proceed);
+                q().then(function() {}).then(function() {}).then(proceed);
             });
 
             it('should reject the promise', function() {
@@ -554,7 +554,7 @@ describe('userSvc (UT)', function() {
         describe('if there is no error', function() {
             beforeEach(function(proceed) {
                 hashCallback(null, hash);
-                q().then(proceed);
+                q().then(function() {}).then(function() {}).then(proceed);
             });
 
             it('should set the password to the hash', function() {
@@ -581,13 +581,13 @@ describe('userSvc (UT)', function() {
                 { id: 'r-3', name: 'role3' }
             ];
             roleColl = {
-                find: jasmine.createSpy('roles.find()').andCallFake(function() {
+                find: jasmine.createSpy('roles.find()').and.callFake(function() {
                     return { toArray: function(cb) {
                         cb(null, roles);
                     } };
                 })
             };
-            mockDb.collection.andReturn(roleColl);
+            mockDb.collection.and.returnValue(roleColl);
             req.body = { roles: ['role1', 'role2', 'role3'] };
         });
         
@@ -635,7 +635,7 @@ describe('userSvc (UT)', function() {
         });
         
         it('should reject if mongo fails', function(done) {
-            roleColl.find.andReturn({ toArray: function(cb) { cb('I GOT A PROBLEM'); } });
+            roleColl.find.and.returnValue({ toArray: function(cb) { cb('I GOT A PROBLEM'); } });
             userModule.validateRoles(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -658,13 +658,13 @@ describe('userSvc (UT)', function() {
                 { id: 'p-3', name: 'pol3' }
             ];
             polColl = {
-                find: jasmine.createSpy('policies.find()').andCallFake(function() {
+                find: jasmine.createSpy('policies.find()').and.callFake(function() {
                     return { toArray: function(cb) {
                         cb(null, roles);
                     } };
                 })
             };
-            mockDb.collection.andReturn(polColl);
+            mockDb.collection.and.returnValue(polColl);
             req.body = { policies: ['pol1', 'pol2', 'pol3'] };
         });
         
@@ -712,7 +712,7 @@ describe('userSvc (UT)', function() {
         });
         
         it('should reject if mongo fails', function(done) {
-            polColl.find.andReturn({ toArray: function(cb) { cb('I GOT A PROBLEM'); } });
+            polColl.find.and.returnValue({ toArray: function(cb) { cb('I GOT A PROBLEM'); } });
             userModule.validatePolicies(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -795,7 +795,7 @@ describe('userSvc (UT)', function() {
             };
 
             svc = {
-                customMethod: jasmine.createSpy('svc.customMethod(req, actionName, cb)').andReturn(deferred.promise),
+                customMethod: jasmine.createSpy('svc.customMethod(req, actionName, cb)').and.returnValue(deferred.promise),
                 _coll: users
             };
             req = {
@@ -823,12 +823,12 @@ describe('userSvc (UT)', function() {
             var editObjectDeferred;
 
             beforeEach(function(done) {
-                callback = svc.customMethod.mostRecentCall.args[2];
+                callback = svc.customMethod.calls.mostRecent().args[2];
                 success = jasmine.createSpy('success()');
                 failure = jasmine.createSpy('failure()');
 
                 editObjectDeferred = q.defer();
-                spyOn(mongoUtils, 'editObject').andReturn(editObjectDeferred.promise);
+                spyOn(mongoUtils, 'editObject').and.returnValue(editObjectDeferred.promise);
 
                 callback().then(success, failure);
 
@@ -847,7 +847,7 @@ describe('userSvc (UT)', function() {
                     spyOn(email, 'notifyPwdChange');
 
                     editObjectDeferred.reject(error);
-                    q().then(done);
+                    editObjectDeferred.promise.finally(done);
                 });
 
                 it('should reject the promise', function() {
@@ -868,10 +868,10 @@ describe('userSvc (UT)', function() {
 
                 beforeEach(function(done) {
                     notifyDeffered = q.defer();
-                    spyOn(email, 'notifyPwdChange').andReturn(notifyDeffered.promise);
+                    spyOn(email, 'notifyPwdChange').and.returnValue(notifyDeffered.promise);
 
                     editObjectDeferred.resolve();
-                    q().then(done);
+                    editObjectDeferred.promise.finally(done);
                 });
 
                 it('should send an email notifying the user of the password change', function() {
@@ -907,7 +907,7 @@ describe('userSvc (UT)', function() {
                         error = new Error('USPS is defunct.');
                         notifyDeffered.reject(error);
 
-                        q().then(done);
+                        notifyDeffered.promise.finally(done);
                     });
 
                     it('should log an error', function() {
@@ -932,7 +932,7 @@ describe('userSvc (UT)', function() {
             };
 
             svc = {
-                customMethod: jasmine.createSpy('svc.customMethod(req, actionName, cb)').andReturn(deferred.promise),
+                customMethod: jasmine.createSpy('svc.customMethod(req, actionName, cb)').and.returnValue(deferred.promise),
                 _coll: users
             };
             req = {
@@ -960,12 +960,12 @@ describe('userSvc (UT)', function() {
             var editObjectDeferred;
 
             beforeEach(function(done) {
-                callback = svc.customMethod.mostRecentCall.args[2];
+                callback = svc.customMethod.calls.mostRecent().args[2];
                 success = jasmine.createSpy('success()');
                 failure = jasmine.createSpy('failure()');
 
                 editObjectDeferred = q.defer();
-                spyOn(mongoUtils, 'editObject').andReturn(editObjectDeferred.promise);
+                spyOn(mongoUtils, 'editObject').and.returnValue(editObjectDeferred.promise);
 
                 callback().then(success, failure);
 
@@ -985,7 +985,7 @@ describe('userSvc (UT)', function() {
 
                     editObjectDeferred.reject(error);
 
-                    q().then(done);
+                    editObjectDeferred.promise.finally(done);
                 });
 
                 it('should log an error', function() {
@@ -1006,10 +1006,10 @@ describe('userSvc (UT)', function() {
 
                 beforeEach(function(done) {
                     emailDeferred = q.defer();
-                    spyOn(email, 'compileAndSend').andReturn(emailDeferred.promise);
+                    spyOn(email, 'compileAndSend').and.returnValue(emailDeferred.promise);
 
                     editObjectDeferred.resolve();
-                    q().then(done);
+                    editObjectDeferred.promise.finally(done);
                 });
 
                 it('should send the user an email', function() {
@@ -1051,7 +1051,7 @@ describe('userSvc (UT)', function() {
                         error = new Error('You addressed your thing wrong.');
                         emailDeferred.reject(error);
 
-                        q().then(done);
+                        emailDeferred.promise.finally(done);
                     });
 
                     it('should log an error', function() {
@@ -1075,7 +1075,7 @@ describe('userSvc (UT)', function() {
             validateUniquePropDeferred = q.defer();
 
             svc = {
-                validateUniqueProp: jasmine.createSpy('svc.validateUniqueProp()').andReturn(validateUniquePropDeferred.promise)
+                validateUniqueProp: jasmine.createSpy('svc.validateUniqueProp()').and.returnValue(validateUniquePropDeferred.promise)
             };
             req = {
                 user: { id: 'u-19fa31cb1a8e0f' },
@@ -1092,7 +1092,7 @@ describe('userSvc (UT)', function() {
         [undefined, null, 44, '', true, false].forEach(function(data) {
             describe('if newEmail is "' + data + '"', function() {
                 beforeEach(function() {
-                    svc.validateUniqueProp.reset();
+                    svc.validateUniqueProp.calls.reset();
                     req.body.newEmail = data;
 
                     userModule.checkExistingWithNewEmail(svc, req, next, done);
@@ -1144,7 +1144,7 @@ describe('userSvc (UT)', function() {
             customMethodDeffered = q.defer();
 
             svc = {
-                customMethod: jasmine.createSpy('svc.customMethod()').andReturn(customMethodDeffered.promise)
+                customMethod: jasmine.createSpy('svc.customMethod()').and.returnValue(customMethodDeffered.promise)
             };
             req = {
                 user: { id: 'u-19fa31cb1a8e0f' },
@@ -1167,7 +1167,7 @@ describe('userSvc (UT)', function() {
             var success, failure;
 
             beforeEach(function(done) {
-                callback = svc.customMethod.mostRecentCall.args[2];
+                callback = svc.customMethod.calls.mostRecent().args[2];
                 success = jasmine.createSpy('success()');
                 failure = jasmine.createSpy('failure()');
 
@@ -1188,11 +1188,11 @@ describe('userSvc (UT)', function() {
                 var error;
 
                 beforeEach(function(done) {
-                    removeCallback = sessions.remove.mostRecentCall.args[2];
+                    removeCallback = sessions.remove.calls.mostRecent().args[2];
                     error = new Error('I suck.');
 
                     removeCallback(error);
-                    q().then(done);
+                    q().then(function() {}).then(function() {}).then(done);
                 });
 
                 it('should log an error', function() {
@@ -1208,10 +1208,10 @@ describe('userSvc (UT)', function() {
                 var removeCallback;
 
                 beforeEach(function(done) {
-                    removeCallback = sessions.remove.mostRecentCall.args[2];
+                    removeCallback = sessions.remove.calls.mostRecent().args[2];
 
                     removeCallback(null);
-                    q().then(done);
+                    q().then(function() {}).then(function() {}).then(done);
                 });
 
                 it('should not log an error', function() {
