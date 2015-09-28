@@ -9,6 +9,10 @@ var q               = require('q'),
     makeUrl         = function(fragment) { return urlBase + fragment; };
     
 describe('monitor (E2E)', function(){
+    beforeEach(function() {
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 5000;
+    });
+
     describe('GET /api/status', function() {
         function restartService(){
             var options = {
