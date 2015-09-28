@@ -260,6 +260,40 @@ describe('content (UT)', function() {
             }).done(done);
         });
 
+        it('should ignore the limit param if invalid', function(done) {
+            req.query.limit = -123.4;
+            expModule.getExperiences(query, req, expColl, false).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(expColl.find).toHaveBeenCalledWith('userPermQuery', { sort: { id: 1 }, limit: 0, skip: 10 });
+                
+                expColl.find.calls.reset();
+                req.query.limit = { foo: 'bar' };
+                return expModule.getExperiences(query, req, expColl, false);
+            }).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(expColl.find).toHaveBeenCalledWith('userPermQuery', { sort: { id: 1 }, limit: 0, skip: 10 });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should ignore the skip param if invalid', function(done) {
+            req.query.skip = -123.4;
+            expModule.getExperiences(query, req, expColl, false).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(expColl.find).toHaveBeenCalledWith('userPermQuery', { sort: { id: 1 }, limit: 20, skip: 0 });
+                
+                expColl.find.calls.reset();
+                req.query.skip = { foo: 'bar' };
+                return expModule.getExperiences(query, req, expColl, false);
+            }).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(expColl.find).toHaveBeenCalledWith('userPermQuery', { sort: { id: 1 }, limit: 20, skip: 0 });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
         it('should properly use hints if querying by user or org', function(done) {
             expModule.userPermQuery.and.callFake(function(orig) { return orig; });
             expModule.getExperiences({user: 'u-1'}, req, expColl, false).then(function(resp) {

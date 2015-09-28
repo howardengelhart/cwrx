@@ -826,6 +826,40 @@ describe('CrudSvc', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
+        
+        it('should ignore the limit param if invalid', function(done) {
+            req.query.limit = -123.4;
+            svc.getObjs(query, req, false).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(mockColl.find).toHaveBeenCalledWith('userPermQuery', { sort: { id: 1 }, limit: 0, skip: 10 });
+                
+                mockColl.find.calls.reset();
+                req.query.limit = { foo: 'bar' };
+                return svc.getObjs(query, req, false);
+            }).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(mockColl.find).toHaveBeenCalledWith('userPermQuery', { sort: { id: 1 }, limit: 0, skip: 10 });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should ignore the skip param if invalid', function(done) {
+            req.query.skip = -123.4;
+            svc.getObjs(query, req, false).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(mockColl.find).toHaveBeenCalledWith('userPermQuery', { sort: { id: 1 }, limit: 20, skip: 0 });
+                
+                mockColl.find.calls.reset();
+                req.query.skip = { foo: 'bar' };
+                return svc.getObjs(query, req, false);
+            }).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(mockColl.find).toHaveBeenCalledWith('userPermQuery', { sort: { id: 1 }, limit: 20, skip: 0 });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
 
         it('should construct queries with Array values', function(done) {
             query = { type: 'foo', id: ['u-bbe668b7376b76', 'u-c78552acd80e22'] };
