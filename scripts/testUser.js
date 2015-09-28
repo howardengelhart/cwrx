@@ -75,6 +75,48 @@ function setupOrgSvcFieldVal(policy) {
         }
     };
 }
+
+// setup permissive fieldValidation rules for campaigns
+function setupCampaignSvcFieldVal(policy) {
+    var sponsoredCampVal = {
+        name: {
+            __allowed: true
+        },
+        startDate: {
+            __allowed: true
+        },
+        endDate: {
+            __allowed: true
+        },
+        reportingId: {
+            __allowed: true
+        }
+    };
+
+    policy.fieldValidation.campaigns = {
+        advertiserId: {
+            __allowed: true
+        },
+        customerId: {
+            __allowed: true
+        },
+        staticCardMap: {
+            __allowed: true
+        },
+        cards: {
+            __length: 10,
+            __createOnly: false,
+            __entries: sponsoredCampVal
+        },
+        miniReels: {
+            __allowed: true,
+            __entries: sponsoredCampVal
+        },
+        miniReelGroups: {
+            __allowed: true
+        }
+    };
+}
     
 program
     .version('0.0.1')
