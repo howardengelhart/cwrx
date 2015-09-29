@@ -263,30 +263,34 @@ describe('player service', function() {
                                 pidDir: require('path').resolve(__dirname, '../../pids'),
                                 appName: 'player',
                                 appDir: require('path').dirname(require.resolve('../../bin/player')),
-                                envRoot: 'https://portal.cinema6.com/',
-                                playerLocation: 'apps/mini-reel-player/index.html',
-                                contentLocation: 'api/public/content/experience/',
-                                contentParams: [
-                                    'campaign', 'branding', 'placementId',
-                                    'container', 'wildCardPlacement',
-                                    'pageUrl', 'hostApp', 'network'
-                                ],
-                                defaultOrigin: 'http://www.cinema6.com/',
-                                mobileType: 'mobile',
-                                playerVersion: 'v0.25.0-0-g8b946d4',
+                                api: {
+                                    root: 'https://portal.cinema6.com/',
+                                    player: {
+                                        endpoint: 'apps/mini-reel-player/index.html'
+                                    },
+                                    experience: {
+                                        endpoint: 'api/public/content/experience/',
+                                        validParams: [
+                                            'campaign', 'branding', 'placementId',
+                                            'container', 'wildCardPlacement',
+                                            'pageUrl', 'hostApp', 'network'
+                                        ],
+                                        cacheTTLs: {
+                                            fresh: 1,
+                                            max: 5
+                                        }
+                                    }
+                                },
+                                defaults: {
+                                    origin: 'http://www.cinema6.com/',
+                                    mobileType: 'mobile'
+                                },
                                 validTypes: [
                                     'full-np', 'full', 'solo-ads', 'solo',
                                     'light',
                                     'lightbox-playlist', 'lightbox',
                                     'mobile',  'swipe'
-                                ],
-                                cacheTTLs: {
-                                    content: {
-                                        fresh: 1,
-                                        max: 5
-                                    }
-                                }
-
+                                ]
                             }
                         }));
                         expect(service.parseCmdLine).toHaveBeenCalledWith(service.start.calls.mostRecent().args[0]);
@@ -561,7 +565,7 @@ describe('player service', function() {
                                     });
 
                                     it('should redirect the agent to the default mobileType', function() {
-                                        expect(response.redirect).toHaveBeenCalledWith(303, state.config.mobileType + formatURL({
+                                        expect(response.redirect).toHaveBeenCalledWith(303, state.config.defaults.mobileType + formatURL({
                                             query: request.query
                                         }));
                                     });
@@ -577,7 +581,7 @@ describe('player service', function() {
                                             player.get.calls.reset();
                                             response.send.calls.reset();
 
-                                            request.params.type = state.config.mobileType;
+                                            request.params.type = state.config.defaults.mobileType;
 
                                             middleware(request, response).finally(done);
                                         });
@@ -606,31 +610,42 @@ describe('player service', function() {
 
         beforeEach(function() {
             config = {
-                envRoot: 'https://portal.cinema6.com/',
-                playerLocation: 'apps/mini-reel-player/index.html',
-                contentLocation: 'api/public/content/experience/',
-                playerVersion: 'v0.25.0-0-g8b946d4',
-                validTypes: ['full-np', 'full', 'light', 'lightbox-playlist', 'lightbox', 'mobile', 'solo-ads', 'solo', 'swipe'],
-                contentParams: [
-                    'campaign', 'branding', 'placementId',
-                    'container', 'wildCardPlacement',
-                    'pageUrl', 'hostApp', 'network'
-                ],
-                defaultOrigin: 'http://www.cinema6.com/',
-                cacheTTLs: {
-                    content: {
-                        fresh: 1,
-                        max: 5
+                api: {
+                    root: 'https://portal.cinema6.com/',
+                    player: {
+                        endpoint: 'apps/mini-reel-player/index.html'
+                    },
+                    experience: {
+                        endpoint: 'api/public/content/experience/',
+                        validParams: [
+                            'campaign', 'branding', 'placementId',
+                            'container', 'wildCardPlacement',
+                            'pageUrl', 'hostApp', 'network'
+                        ],
+                        cacheTTLs: {
+                            fresh: 1,
+                            max: 5
+                        }
                     }
-                }
+                },
+                defaults: {
+                    origin: 'http://www.cinema6.com/',
+                    mobileType: 'mobile'
+                },
+                validTypes: [
+                    'full-np', 'full', 'solo-ads', 'solo',
+                    'light',
+                    'lightbox-playlist', 'lightbox',
+                    'mobile',  'swipe'
+                ]
             };
             player = new Player(config);
         });
 
         it('should create a FunctionCache for experiences', function() {
             expect(MockFunctionCache).toHaveBeenCalledWith({
-                freshTTL: config.cacheTTLs.content.fresh,
-                maxTTL: config.cacheTTLs.content.max,
+                freshTTL: config.api.experience.cacheTTLs.fresh,
+                maxTTL: config.api.experience.cacheTTLs.max,
                 extractor: clonePromise
             });
         });
@@ -720,7 +735,7 @@ describe('player service', function() {
                         });
 
                         it('should use the default origin', function() {
-                            expect(player.__getExperience__).toHaveBeenCalledWith(jasmine.any(String), jasmine.any(Object), config.defaultOrigin, jasmine.any(String));
+                            expect(player.__getExperience__).toHaveBeenCalledWith(jasmine.any(String), jasmine.any(Object), config.defaults.origin, jasmine.any(String));
                         });
                     });
                 });
@@ -902,7 +917,7 @@ describe('player service', function() {
                     });
 
                     it('should make a request for the player', function() {
-                        expect(request.get).toHaveBeenCalledWith(resolveURL(config.envRoot, config.playerLocation), { gzip: true });
+                        expect(request.get).toHaveBeenCalledWith(resolveURL(config.api.root, config.api.player.endpoint), { gzip: true });
                     });
 
                     describe('when the player fails to be fetched', function() {
@@ -910,7 +925,7 @@ describe('player service', function() {
 
                         beforeEach(function(done) {
                             reason = new Error('Could not download stuff.');
-                            requestDeferreds[resolveURL(config.envRoot, config.playerLocation)].reject(reason);
+                            requestDeferreds[resolveURL(config.api.root, config.api.player.endpoint)].reject(reason);
 
                             result.finally(done);
                         });
@@ -928,9 +943,9 @@ describe('player service', function() {
                         beforeEach(function(done) {
                             q().then(function() {
                                 request.get.calls.reset();
-                                requestDeferreds[resolveURL(config.envRoot, config.playerLocation)].resolve(playerHTML);
+                                requestDeferreds[resolveURL(config.api.root, config.api.player.endpoint)].resolve(playerHTML);
                             }).then(function() {
-                                return requestDeferreds[resolveURL(config.envRoot, config.playerLocation)].promise;
+                                return requestDeferreds[resolveURL(config.api.root, config.api.player.endpoint)].promise;
                             }).then(function() {
                                 return new q.Promise(function(resolve) {
                                     setTimeout(resolve, 0);

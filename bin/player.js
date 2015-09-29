@@ -50,8 +50,8 @@ ServiceError.prototype.toString = function toString() {
 
 function Player(config) {
     var contentCache = new FunctionCache({
-        freshTTL: config.cacheTTLs.content.fresh,
-        maxTTL: config.cacheTTLs.content.max,
+        freshTTL: config.api.experience.cacheTTLs.fresh,
+        maxTTL: config.api.experience.cacheTTLs.max,
         extractor: clonePromise
     });
 
@@ -89,7 +89,7 @@ Player.__addResource__ = function __addResource__($document, src, type, contents
 Player.prototype.__getExperience__ = function __getExperience__(id, params, origin, uuid) {
     var log = logger.getLog();
     var config = this.config;
-    var contentLocation = resolveURL(config.envRoot, config.contentLocation);
+    var contentLocation = resolveURL(config.api.root, config.api.experience.endpoint);
     var url = resolveURL(contentLocation, id || '');
 
     if (!id) {
@@ -127,7 +127,7 @@ Player.prototype.__getExperience__ = function __getExperience__(id, params, orig
 Player.prototype.__getPlayer__ = function __getPlayer__(mode, uuid) {
     var log = logger.getLog();
     var config = this.config;
-    var playerLocation = resolveURL(config.envRoot, config.playerLocation);
+    var playerLocation = resolveURL(config.api.root, config.api.player.endpoint);
     var rebaseCSS = Player.__rebaseCSS__;
 
     var sameHostAsPlayer = (function() {
@@ -222,29 +222,34 @@ Player.startService = function startService() {
             appName: 'player',
             appDir: __dirname,
             pidDir: resolvePath(__dirname, '../pids'),
-            envRoot: 'https://portal.cinema6.com/',
-            playerLocation: 'apps/mini-reel-player/index.html',
-            contentLocation: 'api/public/content/experience/',
-            contentParams: [
-                'campaign', 'branding', 'placementId',
-                'container', 'wildCardPlacement',
-                'pageUrl', 'hostApp', 'network'
-            ],
-            defaultOrigin: 'http://www.cinema6.com/',
-            mobileType: 'mobile',
-            playerVersion: 'v0.25.0-0-g8b946d4',
+            api: {
+                root: 'https://portal.cinema6.com/',
+                player: {
+                    endpoint: 'apps/mini-reel-player/index.html'
+                },
+                experience: {
+                    endpoint: 'api/public/content/experience/',
+                    validParams: [
+                        'campaign', 'branding', 'placementId',
+                        'container', 'wildCardPlacement',
+                        'pageUrl', 'hostApp', 'network'
+                    ],
+                    cacheTTLs: {
+                        fresh: 1,
+                        max: 5
+                    }
+                }
+            },
+            defaults: {
+                origin: 'http://www.cinema6.com/',
+                mobileType: 'mobile'
+            },
             validTypes: [
                 'full-np', 'full', 'solo-ads', 'solo',
                 'light',
                 'lightbox-playlist', 'lightbox',
                 'mobile',  'swipe'
-            ],
-            cacheTTLs: {
-                content: {
-                    fresh: 1,
-                    max: 5
-                }
-            }
+            ]
         }
     };
 
@@ -296,7 +301,7 @@ Player.startService = function startService() {
             var type = req.params.type;
             var uuid = req.uuid;
             var query = req.query;
-            var mobileType = query.mobileType || config.mobileType;
+            var mobileType = query.mobileType || config.defaults.mobileType;
             var origin = req.get('origin') || req.get('referer');
             var agent = req.get('user-agent');
 
@@ -359,15 +364,17 @@ Player.startService = function startService() {
         });
 };
 
-Player.prototype.get = function get(options) {
+Player.prototype.get = function get(/*options*/) {
+    var options = extend(arguments[0], this.config.defaults);
+
     var log = logger.getLog();
     var config = this.config;
     var type = options.type;
     var experience = options.experience;
     var params = filterObject(options, function(value, key) {
-        return config.contentParams.indexOf(key) > -1;
+        return config.api.experience.validParams.indexOf(key) > -1;
     });
-    var origin = stripURL(options.origin || config.defaultOrigin);
+    var origin = stripURL(options.origin);
     var uuid = options.uuid;
 
     log.trace('[%1] Getting player with options (%2.)', uuid, inspect(options));
