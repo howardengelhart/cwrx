@@ -14,6 +14,7 @@ describe('player service', function() {
     var extend;
     var clonePromise;
     var AdLoader;
+    var expressUtils;
 
     var requestDeferreds;
     var fnCaches;
@@ -61,6 +62,10 @@ describe('player service', function() {
 
             return req;
         });
+
+        delete require.cache[require.resolve('../../lib/expressUtils')];
+        expressUtils = require('../../lib/expressUtils');
+        spyOn(expressUtils, 'parseQuery').and.callThrough();
 
         delete require.cache[require.resolve('../../lib/adLoader')];
         AdLoader = require('../../lib/adLoader');
@@ -248,7 +253,9 @@ describe('player service', function() {
 
                             spyOn(expressApp, 'listen');
                             spyOn(expressApp, 'use');
-                            spyOn(expressApp, 'get').and.callFake(function(route, middleware) {
+                            spyOn(expressApp, 'get').and.callFake(function(route/*, middleware*/) {
+                                var middleware = Array.prototype.slice.call(arguments, 1);
+
                                 (expressRoutes.get[route] || (expressRoutes.get[route] = [])).push(middleware);
                             });
 
@@ -335,6 +342,12 @@ describe('player service', function() {
                         expect(mockExpress).toHaveBeenCalledWith();
                     });
 
+                    it('should create some middleware for parsing query params', function() {
+                        expect(expressUtils.parseQuery).toHaveBeenCalledWith({
+                            arrays: ['categories', 'playUrls', 'countUrls', 'launchUrls']
+                        });
+                    });
+
                     it('should create a Player instance', function() {
                         expect(MockPlayer).toHaveBeenCalledWith(service.daemonize.calls.mostRecent().args[0].config);
                     });
@@ -369,7 +382,7 @@ describe('player service', function() {
 
                     describe('route: GET /api/public/players/:type', function() {
                         it('should exist', function() {
-                            expect(expressApp.get).toHaveBeenCalledWith('/api/public/players/:type', jasmine.any(Function));
+                            expect(expressApp.get).toHaveBeenCalledWith('/api/public/players/:type', expressUtils.parseQuery.calls.mostRecent().returnValue, jasmine.any(Function));
                         });
 
                         describe('when invoked', function() {
@@ -382,7 +395,7 @@ describe('player service', function() {
                             beforeEach(function(done) {
                                 state = service.daemonize.calls.mostRecent().args[0];
 
-                                middleware = expressRoutes.get['/api/public/players/:type'][0];
+                                middleware = expressRoutes.get['/api/public/players/:type'][0][1];
                                 headers = {
                                     'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.99 Safari/537.36',
                                     'origin': 'https://github.com/cinema6/cwrx/pull/504/files'

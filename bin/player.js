@@ -20,6 +20,7 @@ var filterObject = require('../lib/objUtils').filter;
 var extend = require('../lib/objUtils').extend;
 var clonePromise = require('../lib/promise').clone;
 var AdLoader = require('../lib/adLoader');
+var parseQuery = require('../lib/expressUtils').parseQuery;
 var push = Array.prototype.push;
 
 var staticCache = new FunctionCache({
@@ -284,6 +285,9 @@ Player.startService = function startService() {
         var started = new Date();
         var app = express();
         var player = new Player(state.config);
+        var parsePlayerQuery = parseQuery({
+            arrays: ['categories', 'playUrls', 'countUrls', 'launchUrls']
+        });
 
         app.use(function(req, res, next) {
             res.header(
@@ -322,7 +326,7 @@ Player.startService = function startService() {
             res.send(200, state.config.appVersion);
         });
 
-        app.get('/api/public/players/:type', function playerRoute(req, res) {
+        app.get('/api/public/players/:type', parsePlayerQuery, function route(req, res) {
             var config = state.config;
             var type = req.params.type;
             var uuid = req.uuid;
