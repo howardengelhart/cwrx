@@ -343,6 +343,8 @@ describe('auth (E2E):', function() {
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
+                return q.delay(3000)
+            }).then(function() {
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
             }).then(function(results) {
                 expect(results[0].user).toBe('u-1');

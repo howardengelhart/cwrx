@@ -1,6 +1,8 @@
 # Org Service Changelog
 
 ### 1.4.0: Mon Sep 28 10:33:32 EDT 2015
+* [FIX]: Validate pagination params: [#512](https://github.com/cinema6/cwrx/issues/512)
+* [FEATURE]: Add handling for `fields` param: [#454](https://github.com/cinema6/cwrx/issues/454)
 * [FEATURE]: Add payment endpoints: [#477](https://github.com/cinema6/cwrx/issues/477)
 * [FEATURE]: Add job caching to all orgSvc endpoints: [#506](https://github.com/cinema6/cwrx/pull/506)
 * [FIX]: Auth middleware will handle users with roles + policies: [#475](https://github.com/cinema6/cwrx/pull/475)

@@ -409,6 +409,8 @@
         var limit = req.query && Number(req.query.limit) || 0,
             skip = req.query && Number(req.query.skip) || 0,
             sort = req.query && req.query.sort,
+            fields = req.query && req.query.fields && String(req.query.fields),
+            fieldsObj = {},
             sortObj = {},
             resp = {},
             log = logger.getLog();
@@ -419,6 +421,19 @@
             } else {
                 sortObj[sortParts[0]] = Number(sortParts[1]);
             }
+        }
+
+        if (fields) {
+            var fieldsSplit = fields.split(',');
+            fieldsSplit.forEach(function(field) {
+                if (/^data/.test(field)) {
+                    fieldsObj['data.' + field] = 1;
+                } else {
+                    fieldsObj[field] = 1;
+                }
+            });
+
+            fieldsObj.id = 1; // always show the id
         }
 
         if (limit < 0) {
@@ -453,11 +468,12 @@
             query = expModule.formatTextQuery(query);
         }
 
-        log.info('[%1] User %2 getting experiences with %3, sort %4, limit %5, skip %6',
-                 req.uuid,req.user.id,JSON.stringify(query),JSON.stringify(sortObj),limit,skip);
+        log.info('[%1] User %2 getting experiences with %3, sort %4, limit %5, skip %6, fields %7',
+                 req.uuid, req.user.id, JSON.stringify(query), JSON.stringify(sortObj), limit, skip,
+                 JSON.stringify(fieldsObj));
 
         var permQuery = expModule.userPermQuery(query, req.user, req.isC6Origin),
-            opts = {sort: sortObj, limit: limit, skip: skip},
+            opts = { sort: sortObj, limit: limit, skip: skip, fields: fieldsObj },
             cursor;
 
         log.trace('[%1] permQuery = %2', req.uuid, JSON.stringify(permQuery));

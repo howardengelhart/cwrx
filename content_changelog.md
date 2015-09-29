@@ -1,5 +1,10 @@
 # Content Service Changelog
 
+### 2.1.0: Tue Sep 29 13:35:21 EDT 2015
+* [FIX]: Validate pagination params: [#512](https://github.com/cinema6/cwrx/issues/512)
+* [FEATURE]: Add handling for `fields` param: [#454](https://github.com/cinema6/cwrx/issues/454)
+* Extra deployment steps: None
+
 ### 2.0.1: Mon Sep 21 10:49:44 EDT 2015
 * Update tracking pixels with viewUrls + playUrls: [#502](https://github.com/cinema6/cwrx/issues/502)
 * Extra deployment steps: None

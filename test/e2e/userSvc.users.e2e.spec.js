@@ -162,6 +162,21 @@ describe('userSvc users (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+
+        it('should allow a user to specify which fields to return', function(done) {
+            options.qs = { fields: 'email,status,password' };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({
+                    id: 'u-e2e-get1',
+                    email: 'user1',
+                    status: 'active'
+                });
+                expect(resp.response.headers['content-range']).not.toBeDefined();
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
         
         describe('if decorated=true', function() {
             beforeEach(function() {
@@ -310,6 +325,22 @@ describe('userSvc users (E2E):', function() {
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'GET /api/account/users/',
                                                  params: {}, query: { org: 'o-1234', sort: 'id,1' } });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow a user to specify which fields to return', function(done) {
+            options.qs.org = 'o-1234';
+            options.qs.fields = 'status,password';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([
+                    { id: 'e2e-user', status: 'active' },
+                    { id: 'u-e2e-get1', status: 'active' },
+                    { id: 'u-e2e-get2', status: 'active' },
+                    { id: 'u-e2e-get3', status: 'active' }
+                ]);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
