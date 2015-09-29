@@ -238,6 +238,21 @@ Player.startService = function startService() {
                         fresh: 1,
                         max: 5
                     }
+                },
+                card: {
+                    endpoint: 'api/public/content/card/',
+                    cacheTTLs: {
+                        fresh: 1,
+                        max: 5
+                    }
+                }
+            },
+            adtech: {
+                server: 'adserver.adtechus.com',
+                network: '5491.1',
+                request: {
+                    maxSockets: 250,
+                    timeout: 3000
                 }
             },
             defaults: {
