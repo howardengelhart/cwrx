@@ -13,6 +13,8 @@ describe('content experience endpoints (E2E):', function() {
     var cookieJar, mockUsers;
 
     beforeEach(function(done) {
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 5000;
+
         if (cookieJar && cookieJar.cookies) {
             return done();
         }
@@ -150,6 +152,23 @@ describe('content experience endpoints (E2E):', function() {
                                                  params: { 'id': 'e2e-getid1' }, query: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should let a user specify which fields to return', function(done) {
+            var options = {
+                url: config.contentUrl + '/content/experience/e2e-getid1',
+                qs: { fields: 'id,user' },
+                jar: cookieJar
+            };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({
+                    id: 'e2e-getid1',
+                    user: 'e2e-user'
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -312,6 +331,58 @@ describe('content experience endpoints (E2E):', function() {
                                                  params: {}, query: { ids: 'e2e-getquery1', sort: 'id,1' } });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should let a user specifiy which fields to return', function(done) {
+            var options = {
+                url: config.contentUrl + '/content/experiences',
+                qs: {
+                    ids: 'e2e-getquery1,e2e-getquery3',
+                    fields: 'user,data.foo',
+                    sort: 'id,1'
+                },
+                jar: cookieJar
+            };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([
+                    {
+                        id: 'e2e-getquery1',
+                        user: 'e2e-user',
+                        data: { foo: 'bar' }
+                    },
+                    {
+                        id: 'e2e-getquery3',
+                        user: 'not-e2e-user',
+                        data: { foo: 'bar' }
+                    }
+                ]);
+                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should guard against invalid fields params', function(done) {
+            var options = {
+                url: config.contentUrl + '/content/experiences',
+                qs: {
+                    ids: 'e2e-getquery1,e2e-getquery3',
+                    fields: { foo: 'bar' },
+                    sort: 'id,1'
+                },
+                jar: cookieJar
+            };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([
+                    { id: 'e2e-getquery1' },
+                    { id: 'e2e-getquery3' }
+                ]);
+                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 

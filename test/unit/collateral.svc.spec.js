@@ -8,7 +8,7 @@ describe('collateral (UT):', function() {
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
 
-        jasmine.Clock.useMock();
+        jasmine.clock().install();
 
         EventEmitter= require('events').EventEmitter;
         request     = require('request-promise');
@@ -35,10 +35,14 @@ describe('collateral (UT):', function() {
             fatal : jasmine.createSpy('log_fatal'),
             log   : jasmine.createSpy('log_log')
         };
-        spyOn(os,'tmpdir').andReturn('/tmp');
-        spyOn(logger, 'createLog').andReturn(mockLog);
-        spyOn(logger, 'getLog').andReturn(mockLog);
+        spyOn(os,'tmpdir').and.returnValue('/tmp');
+        spyOn(logger, 'createLog').and.returnValue(mockLog);
+        spyOn(logger, 'getLog').and.returnValue(mockLog);
         anyFunc = jasmine.any(Function);
+    });
+
+    afterEach(function() {
+        jasmine.clock().uninstall();
     });
 
     describe('upload', function() {
@@ -46,14 +50,14 @@ describe('collateral (UT):', function() {
         beforeEach(function() {
             req = { uuid: '1234', user: { id: 'u-1', org: 'o-1' } };
             s3 = {
-                headObject: jasmine.createSpy('s3.headObject').andCallFake(function(params, cb) {
+                headObject: jasmine.createSpy('s3.headObject').and.callFake(function(params, cb) {
                     cb('that does not exist', null);
                 })
             };
             config = { s3: { bucket: 'bkt' }, cacheControl: { default: 'max-age=31556926' } };
             fileOpts = { name: 'foo.txt', path: '/ut/foo.txt', type: 'text/plain' };
-            spyOn(uuid, 'hashFile').andReturn(q('fakeHash'));
-            spyOn(s3util, 'putObject').andReturn(q({ETag: '"qwer1234"'}));
+            spyOn(uuid, 'hashFile').and.returnValue(q('fakeHash'));
+            spyOn(s3util, 'putObject').and.returnValue(q({ETag: '"qwer1234"'}));
         });
         
         it('should upload a file', function(done) {
@@ -61,7 +65,7 @@ describe('collateral (UT):', function() {
                 expect(response).toEqual({key: 'ut/o-1/fakeHash.txt', md5: 'qwer1234'});
                 expect(uuid.hashFile).toHaveBeenCalledWith('/ut/foo.txt');
                 expect(s3.headObject).toHaveBeenCalled();
-                expect(s3.headObject.calls[0].args[0]).toEqual({Bucket:'bkt', Key:'ut/o-1/fakeHash.txt'});
+                expect(s3.headObject.calls.all()[0].args[0]).toEqual({Bucket:'bkt', Key:'ut/o-1/fakeHash.txt'});
                 expect(s3util.putObject).toHaveBeenCalledWith(s3, '/ut/foo.txt',
                     {Bucket:'bkt',Key:'ut/o-1/fakeHash.txt',ACL:'public-read',CacheControl:'max-age=31556926',ContentType:'text/plain'});
             }).catch(function(error) {
@@ -70,7 +74,7 @@ describe('collateral (UT):', function() {
         });
         
         it('should skip uploading if the file exists', function(done) {
-            s3.headObject.andCallFake(function(params, cb) {
+            s3.headObject.and.callFake(function(params, cb) {
                 cb(null, { ETag: '"qwer1234"' });
             });
             collateral.upload(req, 'ut/o-1', fileOpts, s3, config).then(function(response) {
@@ -84,7 +88,7 @@ describe('collateral (UT):', function() {
         });
         
         it('should fail if hashing the file fails', function(done) {
-            uuid.hashFile.andReturn(q.reject('I GOT A PROBLEM'));
+            uuid.hashFile.and.returnValue(q.reject('I GOT A PROBLEM'));
             collateral.upload(req, 'ut/o-1', fileOpts, s3, config).then(function(response) {
                 expect(response).not.toBeDefined();
             }).catch(function(error) {
@@ -96,7 +100,7 @@ describe('collateral (UT):', function() {
         });
         
         it('should fail if uploading the file fails', function(done) {
-            s3util.putObject.andReturn(q.reject('I GOT A PROBLEM'));
+            s3util.putObject.and.returnValue(q.reject('I GOT A PROBLEM'));
             collateral.upload(req, 'ut/o-1', fileOpts, s3, config).then(function(response) {
                 expect(response).not.toBeDefined();
             }).catch(function(error) {
@@ -112,7 +116,7 @@ describe('collateral (UT):', function() {
         var buff;
         beforeEach(function() {
             buff = new Buffer([]);
-            spyOn(fs, 'readFile').andCallFake(function(fpath, cb) { cb(null, buff); });
+            spyOn(fs, 'readFile').and.callFake(function(fpath, cb) { cb(null, buff); });
         });
         
         it('should correctly identify jpeg images', function(done) {
@@ -154,21 +158,21 @@ describe('collateral (UT):', function() {
                 'badGif1':  new Buffer([0x42, 0x49, 0x46, 0x38, 0x39, 0x61]),
                 'badGif2':  new Buffer([0x47, 0x49, 0x46, 0x38, 0x38, 0x61])
             };
-            fs.readFile.andCallFake(function(fpath, cb) { cb(null, badBuffers[fpath]); });
+            fs.readFile.and.callFake(function(fpath, cb) { cb(null, badBuffers[fpath]); });
             
             q.all(Object.keys(badBuffers).map(collateral.checkImageType)).then(function(results) {
                 results.forEach(function(result) { expect(result).toBe(false); });
-                expect(fs.readFile.calls[0].args).toEqual(['badJpeg', jasmine.any(Function)]);
-                expect(fs.readFile.calls[1].args).toEqual(['badPng', jasmine.any(Function)]);
-                expect(fs.readFile.calls[2].args).toEqual(['badGif1', jasmine.any(Function)]);
-                expect(fs.readFile.calls[3].args).toEqual(['badGif2', jasmine.any(Function)]);
+                expect(fs.readFile.calls.all()[0].args).toEqual(['badJpeg', jasmine.any(Function)]);
+                expect(fs.readFile.calls.all()[1].args).toEqual(['badPng', jasmine.any(Function)]);
+                expect(fs.readFile.calls.all()[2].args).toEqual(['badGif1', jasmine.any(Function)]);
+                expect(fs.readFile.calls.all()[3].args).toEqual(['badGif2', jasmine.any(Function)]);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
         
         it('should fail if reading the file fails', function(done) {
-            fs.readFile.andCallFake(function(fpath, cb) { cb('I GOT A PROBLEM'); });
+            fs.readFile.and.callFake(function(fpath, cb) { cb('I GOT A PROBLEM'); });
             collateral.checkImageType('fakePath').then(function(type) {
                 expect(type).not.toBeDefined();
             }).catch(function(error) {
@@ -194,7 +198,7 @@ describe('collateral (UT):', function() {
 
         beforeEach(function(done) {
             jobId = uuid.createUuid();
-            spyOn(uuid, 'createUuid').andReturn(jobId);
+            spyOn(uuid, 'createUuid').and.returnValue(jobId);
 
             spyOn(fs, 'createWriteStream');
             spyOn(fs, 'remove');
@@ -233,7 +237,7 @@ describe('collateral (UT):', function() {
             };
 
             responseDeferred = responseDefer();
-            spyOn(request, 'head').andReturn(responseDeferred.promise);
+            spyOn(request, 'head').and.returnValue(responseDeferred.promise);
 
             promise = collateral.importFile(req, s3, config);
             promise.then(success, failure);
@@ -244,10 +248,10 @@ describe('collateral (UT):', function() {
             beforeEach(function(done) {
                 done = noArgs(done);
 
-                request.head.reset();
-                success.reset();
-                failure.reset();
-                spyOn(request, 'get').andReturn(responseDefer().promise);
+                request.head.calls.reset();
+                success.calls.reset();
+                failure.calls.reset();
+                spyOn(request, 'get').and.returnValue(responseDefer().promise);
 
                 req.body.uri = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg==';
                 collateral.importFile(req, s3, config).then(success, failure).then(done, done);
@@ -258,10 +262,10 @@ describe('collateral (UT):', function() {
             });
 
             it('should fulfill the promise with a 400', function() {
-                expect(success).toHaveBeenCalledWith({
+                expect(success).toHaveBeenCalledWith(jasmine.objectContaining({
                     code: 400,
                     body: '"' + req.body.uri + '" is not a valid URI.'
-                });
+                }));
             });
 
             it('should log a warning', function() {
@@ -277,11 +281,11 @@ describe('collateral (UT):', function() {
             beforeEach(function(done) {
                 done = noArgs(done);
 
-                request.head.reset();
-                success.reset();
-                failure.reset();
-                request.head.andReturn(q.reject(new Error('Could not HEAD')));
-                spyOn(request, 'get').andReturn(q.reject(new Error('Could no GET')));
+                request.head.calls.reset();
+                success.calls.reset();
+                failure.calls.reset();
+                request.head.and.returnValue(q.reject(new Error('Could not HEAD')));
+                spyOn(request, 'get').and.returnValue(q.reject(new Error('Could no GET')));
 
                 req.body.uri = 'http://pbs.twimg.com/profile_images/554776783967363072/2lxo5V22_400x400.png';
                 collateral.importFile(req, s3, config).then(success, failure).then(done, done);
@@ -300,19 +304,19 @@ describe('collateral (UT):', function() {
             beforeEach(function(done) {
                 done = noArgs(done);
 
-                request.head.reset();
-                success.reset();
-                failure.reset();
+                request.head.calls.reset();
+                success.calls.reset();
+                failure.calls.reset();
                 req.body = {};
 
                 collateral.importFile(req, s3, config).then(success, failure).then(done, done);
             });
 
             it('should fail with a 400', function() {
-                expect(success).toHaveBeenCalledWith({
+                expect(success).toHaveBeenCalledWith(jasmine.objectContaining({
                     code: 400,
                     body: 'No image URI specified.'
-                });
+                }));
             });
 
             it('should log a warning', function() {
@@ -326,16 +330,15 @@ describe('collateral (UT):', function() {
 
         describe('if the provided URI is invalid', function() {
             beforeEach(function(done) {
-                success.reset();
-                failure.reset();
-                request.head.reset();
+                success.calls.reset();
+                failure.calls.reset();
+                request.head.calls.reset();
 
-                spyOn(request, 'get').andReturn(responseDefer().promise);
+                spyOn(request, 'get').and.returnValue(responseDefer().promise);
 
                 req.body.uri = 'fn8942yrh8943';
                 promise = collateral.importFile(req, s3, config);
-                promise.then(success, failure);
-                q().then(done);
+                promise.then(success, failure).finally(done);
             });
 
             it('should not HEAD the image', function() {
@@ -343,10 +346,10 @@ describe('collateral (UT):', function() {
             });
 
             it('should fulfill the promise with a 400', function() {
-                expect(success).toHaveBeenCalledWith({
+                expect(success).toHaveBeenCalledWith(jasmine.objectContaining({
                     code: 400,
                     body: '"' + req.body.uri + '" is not a valid URI.'
-                });
+                }));
             });
 
             it('should log a warning', function() {
@@ -371,8 +374,8 @@ describe('collateral (UT):', function() {
                 responseDeferred.resolve({
                     headers: {}
                 });
-                jasmine.Clock.tick(config.maxDownloadTime + 1);
-                q().then(done);
+                jasmine.clock().tick(config.maxDownloadTime + 1);
+                promise.finally(done);
             });
 
             it('should not GET the image', function() {
@@ -388,10 +391,10 @@ describe('collateral (UT):', function() {
             });
 
             it('should fulfill the promise with a 408', function() {
-                expect(success).toHaveBeenCalledWith({
+                expect(success).toHaveBeenCalledWith(jasmine.objectContaining({
                     code: 408,
                     body: 'Timed out downloading file [' + req.body.uri + '].'
-                });
+                }));
             });
         });
 
@@ -399,10 +402,10 @@ describe('collateral (UT):', function() {
             beforeEach(function(done) {
                 done = noArgs(done);
 
-                spyOn(request, 'get').andReturn(responseDefer().promise);
+                spyOn(request, 'get').and.returnValue(responseDefer().promise);
 
                 responseDeferred.reject('I BROKE!');
-                responseDeferred.promise.then(done, done);
+                responseDeferred.promise.catch(function() {}).then(function() {}).finally(done);
             });
 
             it('should still make a GET', function() {
@@ -415,7 +418,7 @@ describe('collateral (UT):', function() {
             var HEAD_TIME = 150;
 
             beforeEach(function() {
-                jasmine.Clock.tick(HEAD_TIME);
+                jasmine.clock().tick(HEAD_TIME);
 
                 headResponse = {
                     headers: {}
@@ -429,7 +432,7 @@ describe('collateral (UT):', function() {
                     delete headResponse.headers;
 
                     responseDeferred.resolve(headResponse);
-                    responseDeferred.promise.then(done, done);
+                    promise.finally(done);
                 });
 
                 it('should log an error', function() {
@@ -447,10 +450,10 @@ describe('collateral (UT):', function() {
 
                     headResponse.headers['content-length'] = (config.maxFileSize - 1).toString();
 
-                    spyOn(request, 'get').andReturn(responseDefer().promise);
+                    spyOn(request, 'get').and.returnValue(responseDefer().promise);
 
                     responseDeferred.resolve(headResponse);
-                    responseDeferred.promise.then(done, done);
+                    responseDeferred.promise.then(function() {}).then(function() {}).finally(done);
                 });
 
                 it('should make a GET request for the resource', function() {
@@ -469,15 +472,15 @@ describe('collateral (UT):', function() {
                     delete headResponse.headers['content-length'];
 
                     getDeferred = responseDefer();
-                    spyOn(request, 'get').andReturn(getDeferred.promise);
+                    spyOn(request, 'get').and.returnValue(getDeferred.promise);
 
                     writeStream = { writeStream: true };
-                    fs.createWriteStream.andReturn(writeStream);
+                    fs.createWriteStream.and.returnValue(writeStream);
 
                     tmpPath = path.join(os.tmpdir(), jobId + path.extname(req.body.uri));
 
                     responseDeferred.resolve(headResponse);
-                    responseDeferred.promise.then(done, done);
+                    responseDeferred.promise.then(function() {}).then(function() {}).finally(done);
                 });
 
                 it('should make a GET request for the resource', function() {
@@ -491,10 +494,10 @@ describe('collateral (UT):', function() {
 
                 describe('but GETting the image takes too long', function() {
                     beforeEach(function(done) {
-                        spyOn(collateral, 'checkImageType').andReturn(q.defer().promise);
+                        spyOn(collateral, 'checkImageType').and.returnValue(q.defer().promise);
 
-                        jasmine.Clock.tick((config.maxDownloadTime - HEAD_TIME) + 1);
-                        q().then(done);
+                        jasmine.clock().tick((config.maxDownloadTime - HEAD_TIME) + 1);
+                        promise.finally(done);
                     });
 
                     it('should abort() the request', function() {
@@ -514,10 +517,10 @@ describe('collateral (UT):', function() {
                     });
 
                     it('should fulfill the promise with a 408', function() {
-                        expect(success).toHaveBeenCalledWith({
+                        expect(success).toHaveBeenCalledWith(jasmine.objectContaining({
                             code: 408,
                             body: 'Timed out downloading file [' + req.body.uri + '].'
-                        });
+                        }));
                     });
                 });
 
@@ -525,7 +528,7 @@ describe('collateral (UT):', function() {
                     beforeEach(function(done) {
                         done = noArgs(done);
 
-                        spyOn(collateral, 'checkImageType').andReturn(q.defer().promise);
+                        spyOn(collateral, 'checkImageType').and.returnValue(q.defer().promise);
                         getDeferred.promise.response = {
                             statusCode: 404
                         };
@@ -536,14 +539,14 @@ describe('collateral (UT):', function() {
                                 statusCode: 404
                             }
                         });
-                        getDeferred.promise.then(done, done);
+                        promise.finally(done);
                     });
 
                     it('should respond with a 400', function() {
-                        expect(success).toHaveBeenCalledWith({
+                        expect(success).toHaveBeenCalledWith(jasmine.objectContaining({
                             code: 400,
                             body: 'Could not fetch image from "' + req.body.uri + '."'
-                        });
+                        }));
                     });
 
                     it('should not check the type of the image', function() {
@@ -577,7 +580,7 @@ describe('collateral (UT):', function() {
                         // This one byte will set it over the edge...
                         response.emit('data', new Buffer(1));
 
-                        spyOn(collateral, 'checkImageType').andReturn(q.defer().promise);
+                        spyOn(collateral, 'checkImageType').and.returnValue(q.defer().promise);
                         getDeferred.promise.response = {
                             statusCode: 201
                         };
@@ -588,10 +591,10 @@ describe('collateral (UT):', function() {
                     });
 
                     it('should respond with a 413', function() {
-                        expect(success).toHaveBeenCalledWith({
+                        expect(success).toHaveBeenCalledWith(jasmine.objectContaining({
                             code: 413,
                             body: 'File [' + req.body.uri + '] is too large.'
-                        });
+                        }));
                     });
 
                     it('should abort() the file download', function() {
@@ -619,15 +622,15 @@ describe('collateral (UT):', function() {
                         response.emit('data', new Buffer(250));
 
                         checkImageTypeDeferred = q.defer();
-                        spyOn(collateral, 'checkImageType').andReturn(checkImageTypeDeferred.promise);
+                        spyOn(collateral, 'checkImageType').and.returnValue(checkImageTypeDeferred.promise);
 
-                        jasmine.Clock.tick(config.maxDownloadTime - HEAD_TIME - 1);
+                        jasmine.clock().tick(config.maxDownloadTime - HEAD_TIME - 1);
                         getDeferred.promise.response = {
                             statusCode: 201
                         };
                         getDeferred.resolve(new Buffer(500));
                         response.emit('end', new Buffer(500));
-                        getDeferred.promise.then(done, done);
+                        getDeferred.promise.then(function() {}).finally(done);
                     });
 
                     it('should not abort() the download', function() {
@@ -642,16 +645,16 @@ describe('collateral (UT):', function() {
                         beforeEach(function(done) {
                             done = noArgs(done);
 
-                            spyOn(collateral, 'upload').andReturn(q.defer().promise);
+                            spyOn(collateral, 'upload').and.returnValue(q.defer().promise);
                             checkImageTypeDeferred.resolve(false);
-                            checkImageTypeDeferred.promise.then(done, done);
+                            promise.finally(done);
                         });
 
                         it('should respond with a 415', function() {
-                            expect(success).toHaveBeenCalledWith({
+                            expect(success).toHaveBeenCalledWith(jasmine.objectContaining({
                                 code: 415,
                                 body: 'File [' + req.body.uri + '] is not an image.'
-                            });
+                            }));
                         });
 
                         it('should log a warning', function() {
@@ -674,10 +677,10 @@ describe('collateral (UT):', function() {
                             done = noArgs(done);
 
                             uploadDeferred = q.defer();
-                            spyOn(collateral, 'upload').andReturn(uploadDeferred.promise);
+                            spyOn(collateral, 'upload').and.returnValue(uploadDeferred.promise);
 
                             checkImageTypeDeferred.resolve('image/png');
-                            checkImageTypeDeferred.promise.then(done, done);
+                            checkImageTypeDeferred.promise.then(function() {}).finally(done);
                         });
 
                         it('should upload the image to S3', function() {
@@ -689,14 +692,14 @@ describe('collateral (UT):', function() {
                                 done = noArgs(done);
 
                                 uploadDeferred.resolve({ key: path.join(config.s3.path, 'userFiles/' + req.user.id), md5: 'fu934yrhf7438rr' });
-                                uploadDeferred.promise.then(done, done);
+                                promise.finally(done);
                             });
 
                             it('should resolve the promise with the upload location', function() {
-                                expect(success).toHaveBeenCalledWith({
+                                expect(success).toHaveBeenCalledWith(jasmine.objectContaining({
                                     code: 201,
                                     body: { path: path.join(config.s3.path, 'userFiles/' + req.user.id) }
-                                });
+                                }));
                             });
 
                             it('should remove the tmp file', function() {
@@ -709,7 +712,7 @@ describe('collateral (UT):', function() {
                                 beforeEach(function() {
                                     error = new Error();
 
-                                    fs.remove.mostRecentCall.args[1](error);
+                                    fs.remove.calls.mostRecent().args[1](error);
                                 });
 
                                 it('should log a warning', function() {
@@ -719,7 +722,7 @@ describe('collateral (UT):', function() {
 
                             describe('if there is no error removing the tmp file', function() {
                                 beforeEach(function() {
-                                    fs.remove.mostRecentCall.args[1](null);
+                                    fs.remove.calls.mostRecent().args[1](null);
                                 });
 
                                 it('should not log a warning', function() {
@@ -733,14 +736,14 @@ describe('collateral (UT):', function() {
                                 done = noArgs(done);
 
                                 uploadDeferred.reject('WOAH I SUCK.');
-                                uploadDeferred.promise.then(done, done);
+                                promise.finally(done);
                             });
 
                             it('should respond with a 500', function() {
-                                expect(success).toHaveBeenCalledWith({
+                                expect(success).toHaveBeenCalledWith(jasmine.objectContaining({
                                     code: 500,
                                     body: 'Could not upload file [' + req.body.uri + '].'
-                                });
+                                }));
                             });
 
                             it('should log an error', function() {
@@ -761,10 +764,10 @@ describe('collateral (UT):', function() {
 
                     headResponse.headers['content-length'] = (config.maxFileSize + 1).toString();
 
-                    spyOn(request, 'get').andReturn(responseDefer().promise);
+                    spyOn(request, 'get').and.returnValue(responseDefer().promise);
 
                     responseDeferred.resolve(headResponse);
-                    responseDeferred.promise.then(done, done);
+                    promise.finally(done);
                 });
 
                 it('should not make a GET request for the resource', function() {
@@ -772,11 +775,11 @@ describe('collateral (UT):', function() {
                 });
 
                 it('should respond with a 413', function() {
-                    expect(success).toHaveBeenCalledWith({
+                    expect(success).toHaveBeenCalledWith(jasmine.objectContaining({
                         code: 413,
                         body: 'File [' + req.body.uri + '] is too large (' +
                             headResponse.headers['content-length'] + ' bytes.)'
-                    });
+                    }));
                 });
 
                 it('should log a warning', function() {
@@ -798,9 +801,9 @@ describe('collateral (UT):', function() {
             };
             s3 = 'fakeS3';
             config = { maxFileSize: 1000, s3: { path: 'ut/' } };
-            spyOn(fs, 'remove').andCallFake(function(path, cb) { cb(); });
-            spyOn(collateral, 'upload').andReturn(q({key: '/path/on/s3', md5: 'qwer1234'}));
-            spyOn(collateral, 'checkImageType').andReturn(q('image/jpeg'));
+            spyOn(fs, 'remove').and.callFake(function(path, cb) { cb(); });
+            spyOn(collateral, 'upload').and.returnValue(q({key: '/path/on/s3', md5: 'qwer1234'}));
+            spyOn(collateral, 'checkImageType').and.returnValue(q('image/jpeg'));
         });
         
         it('should fail with a 400 if no files are provided', function(done) {
@@ -833,7 +836,7 @@ describe('collateral (UT):', function() {
         });
         
         it('should fail if the file is not a supported image type', function(done) {
-            collateral.checkImageType.andReturn(q(false));
+            collateral.checkImageType.and.returnValue(q(false));
             collateral.uploadFiles(req, s3, config).then(function(resp) {
                 expect(resp.code).toBe(415);
                 expect(resp.body).toEqual([{code: 415, name: 'testFile', error: 'Unsupported file type' }]);
@@ -852,14 +855,14 @@ describe('collateral (UT):', function() {
                     {name: 'test', type:'image/jpeg',path:'/tmp/123'},'fakeS3',config);
                 expect(collateral.checkImageType).toHaveBeenCalledWith('/tmp/123');
                 expect(fs.remove).toHaveBeenCalled();
-                expect(fs.remove.calls[0].args[0]).toBe('/tmp/123');
+                expect(fs.remove.calls.all()[0].args[0]).toBe('/tmp/123');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
 
         it('should fail if uploading the file fails', function(done) {
-            collateral.upload.andReturn(q.reject('I GOT A PROBLEM'));
+            collateral.upload.and.returnValue(q.reject('I GOT A PROBLEM'));
             collateral.uploadFiles(req, s3, config).then(function(resp) {
                 expect(resp.code).toBe(500);
                 expect(resp.body).toEqual([{code: 500, name: 'testFile', error: 'I GOT A PROBLEM'}]);
@@ -872,7 +875,7 @@ describe('collateral (UT):', function() {
         });
         
         it('should just log a warning if deleting the temp file fails', function(done) {
-            fs.remove.andCallFake(function(fpath, cb) { cb('I GOT A PROBLEM'); });
+            fs.remove.and.callFake(function(fpath, cb) { cb('I GOT A PROBLEM'); });
             collateral.uploadFiles(req, s3, config).then(function(resp) {
                 expect(resp.code).toBe(201);
                 expect(resp.body).toEqual([{code: 201, name: 'testFile', path: '/path/on/s3'}]);
@@ -895,7 +898,7 @@ describe('collateral (UT):', function() {
                 file2: { name: '2.txt', type: 'text/plain', path: '/tmp/2', truncated: true },
                 file3: { name: '3.txt', type: 'text/plain', path: '/tmp/3' }
             };
-            collateral.upload.andCallFake(function(req, org, fileOpts, versionate, s3, config) {
+            collateral.upload.and.callFake(function(req, org, fileOpts, versionate, s3, config) {
                 if (fileOpts.name === '3.txt') return q.reject('I GOT A PROBLEM');
                 else return q({key: '/path/to/' + fileOpts.name, md5: 'qwer1234'});
             });
@@ -907,8 +910,8 @@ describe('collateral (UT):', function() {
                     {code: 413, name: 'file2', error: 'File is too big'},
                     {code: 500, name: 'file3', error: 'I GOT A PROBLEM'}
                 ]);
-                expect(collateral.upload.calls.length).toBe(2);
-                expect(fs.remove.calls.length).toBe(3);
+                expect(collateral.upload.calls.count()).toBe(2);
+                expect(fs.remove.calls.count()).toBe(3);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -972,23 +975,23 @@ describe('collateral (UT):', function() {
             collateral.splashCache = {};
             config = {s3:{path:'ut/'},splash:{quality:75,maxDimension:1000,timeout:10000,cacheTTL:24*60}};
             phantObj = {
-                createPage: jasmine.createSpy('ph.createPage').andCallFake(function(cb) { cb(page); }),
+                createPage: jasmine.createSpy('ph.createPage').and.callFake(function(cb) { cb(page); }),
                 exit: jasmine.createSpy('ph.exit')
             };
             page = {
-                set: jasmine.createSpy('page.set').andCallFake(function(prop,data,cb){ cb('i did it'); }),
-                open: jasmine.createSpy('page.open').andCallFake(function(url,cb){ cb('success'); }),
-                render: jasmine.createSpy('page.render').andCallFake(function(fpath,opts,cb){ cb('i did it'); }),
+                set: jasmine.createSpy('page.set').and.callFake(function(prop,data,cb){ cb('i did it'); }),
+                open: jasmine.createSpy('page.open').and.callFake(function(url,cb){ cb('success'); }),
+                render: jasmine.createSpy('page.render').and.callFake(function(fpath,opts,cb){ cb('i did it'); }),
                 close: jasmine.createSpy('page.close')
             };
-            spyOn(uuid, 'createUuid').andReturn('fakeUuid');
-            spyOn(phantom, 'create').andCallFake(function(opts, cb) { cb(phantObj); });
-            spyOn(fs, 'writeFile').andCallFake(function(fpath, data, cb) { cb(); });
-            spyOn(fs, 'remove').andCallFake(function(fpath, cb) { cb(); });
-            spyOn(collateral, 'chooseTemplateNum').andCallThrough();
-            spyOn(collateral, 'upload').andReturn(q({key: '/path/on/s3', md5: 'qwer1234'}));
-            compilerSpy = jasmine.createSpy('handlebars compiler').andReturn('compiledHtml');
-            spyOn(handlebars, 'compile').andReturn(compilerSpy);
+            spyOn(uuid, 'createUuid').and.returnValue('fakeUuid');
+            spyOn(phantom, 'create').and.callFake(function(opts, cb) { cb(phantObj); });
+            spyOn(fs, 'writeFile').and.callFake(function(fpath, data, cb) { cb(); });
+            spyOn(fs, 'remove').and.callFake(function(fpath, cb) { cb(); });
+            spyOn(collateral, 'chooseTemplateNum').and.callThrough();
+            spyOn(collateral, 'upload').and.returnValue(q({key: '/path/on/s3', md5: 'qwer1234'}));
+            compilerSpy = jasmine.createSpy('handlebars compiler').and.returnValue('compiledHtml');
+            spyOn(handlebars, 'compile').and.returnValue(compilerSpy);
         });
                 
         it('should successfully generate and upload a splash image', function(done) {
@@ -1006,9 +1009,9 @@ describe('collateral (UT):', function() {
                 process.nextTick(function() {
                     expect(page.close).toHaveBeenCalled();
                     expect(phantObj.exit).toHaveBeenCalled();
-                    expect(fs.remove.calls.length).toBe(2);
-                    expect(fs.remove.calls[0].args).toEqual(['/tmp/fakeUuid-compiled.html',anyFunc]);
-                    expect(fs.remove.calls[1].args).toEqual(['/tmp/fakeUuid-splash.jpg',anyFunc]);
+                    expect(fs.remove.calls.count()).toBe(2);
+                    expect(fs.remove.calls.all()[0].args).toEqual(['/tmp/fakeUuid-compiled.html',anyFunc]);
+                    expect(fs.remove.calls.all()[1].args).toEqual(['/tmp/fakeUuid-splash.jpg',anyFunc]);
                     done();
                 });
             }).catch(function(error) {
@@ -1018,7 +1021,7 @@ describe('collateral (UT):', function() {
         });
         
         it('should fail if writing the compiled html fails', function(done) {
-            fs.writeFile.andCallFake(function(fpath, opts, cb) { cb('I GOT A PROBLEM'); });
+            fs.writeFile.and.callFake(function(fpath, opts, cb) { cb('I GOT A PROBLEM'); });
             collateral.generate(req, imgSpec, 'fakeTempl', 'fakeHash', s3, config).then(function(key) {
                 expect(key).not.toBeDefined();
             }).catch(function(error) {
@@ -1032,7 +1035,7 @@ describe('collateral (UT):', function() {
         });
         
         it('should fail if uploading the splash image fails', function(done) {
-            collateral.upload.andReturn(q.reject('I GOT A PROBLEM'));
+            collateral.upload.and.returnValue(q.reject('I GOT A PROBLEM'));
             collateral.generate(req, imgSpec, 'fakeTempl', 'fakeHash', s3, config).then(function(key) {
                 expect(key).not.toBeDefined();
                 done();
@@ -1045,16 +1048,16 @@ describe('collateral (UT):', function() {
                 process.nextTick(function() {
                     expect(page.close).toHaveBeenCalled();
                     expect(phantObj.exit).toHaveBeenCalled();
-                    expect(fs.remove.calls.length).toBe(2);
-                    expect(fs.remove.calls[0].args).toEqual(['/tmp/fakeUuid-compiled.html',anyFunc]);
-                    expect(fs.remove.calls[1].args).toEqual(['/tmp/fakeUuid-splash.jpg',anyFunc]);
+                    expect(fs.remove.calls.count()).toBe(2);
+                    expect(fs.remove.calls.all()[0].args).toEqual(['/tmp/fakeUuid-compiled.html',anyFunc]);
+                    expect(fs.remove.calls.all()[1].args).toEqual(['/tmp/fakeUuid-splash.jpg',anyFunc]);
                     done();
                 });
             });
         });
         
         it('should fail if opening the page with phantom fails', function(done) {
-            page.open.andCallFake(function(url, cb) { cb('fail'); });
+            page.open.and.callFake(function(url, cb) { cb('fail'); });
             collateral.generate(req, imgSpec, 'fakeTempl', 'fakeHash', s3, config).then(function(key) {
                 expect(key).not.toBeDefined();
             }).catch(function(error) {
@@ -1068,11 +1071,11 @@ describe('collateral (UT):', function() {
         
         it('should fail if phantom quits prematurely', function(done) {
             var handlers;
-            phantom.create.andCallFake(function(opts, cb) {
+            phantom.create.and.callFake(function(opts, cb) {
                 handlers = opts;
                 cb(phantObj);
             });
-            page.open.andCallFake(function(url, cb) {
+            page.open.and.callFake(function(url, cb) {
                 handlers.onExit(1, 'PROBLEMS');
                 cb('success');
             });
@@ -1087,11 +1090,11 @@ describe('collateral (UT):', function() {
         
         it('should just log a warning if phantom logs error messages', function(done) {
             var handlers;
-            phantom.create.andCallFake(function(opts, cb) {
+            phantom.create.and.callFake(function(opts, cb) {
                 handlers = opts;
                 cb(phantObj);
             });
-            page.open.andCallFake(function(url, cb) {
+            page.open.and.callFake(function(url, cb) {
                 handlers.onStderr('I THINK I GOT A PROBLEM');
                 cb('success');
             });
@@ -1106,12 +1109,12 @@ describe('collateral (UT):', function() {
         });
         
         it('should timeout if any part of the process takes too long', function(done) {
-            page.open.andCallFake(function(url, cb) {
+            page.open.and.callFake(function(url, cb) {
                 setTimeout(function() { cb('success'); }, 12*1000);
             });
             
             var promise = collateral.generate(req, imgSpec, 'fakeTemplate', 'fakeHash', s3, config);
-            jasmine.Clock.tick(11*1000);
+            jasmine.clock().tick(11*1000);
             promise.then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
@@ -1128,7 +1131,7 @@ describe('collateral (UT):', function() {
             req = {uuid:'1234',user:{id:'u-1'},params:{expId:'e-1'},body:{ratio:'foo',thumbs:['http://image.jpg']}};
             imgSpec = { height: 600, width: 600, ratio: 'foo' };
             s3 = {
-                headObject: jasmine.createSpy('s3.headObject').andCallFake(function(params, cb) {
+                headObject: jasmine.createSpy('s3.headObject').and.callFake(function(params, cb) {
                     cb('not found', null);
                 })
             };
@@ -1136,11 +1139,11 @@ describe('collateral (UT):', function() {
             config = { s3: { path: 'ut/', bucket: 'bkt' },
                        splash: { quality: 75, maxDimension: 1000, timeout: 10000, cacheTTL: 24*60 } };
             templDir = path.join(__dirname, '../../templates/splashTemplates');
-            spyOn(glob, 'sync').andReturn(['template1', 'template2', 'etc']);
-            spyOn(fs, 'readFile').andCallFake(function(fpath, opts, cb) { cb(null, 'fakeTemplate'); });
-            spyOn(uuid, 'hashText').andReturn('fakeHash');
-            spyOn(collateral, 'chooseTemplateNum').andCallThrough();
-            spyOn(collateral, 'generate').andReturn(q('/path/on/s3'));
+            spyOn(glob, 'sync').and.returnValue(['template1', 'template2', 'etc']);
+            spyOn(fs, 'readFile').and.callFake(function(fpath, opts, cb) { cb(null, 'fakeTemplate'); });
+            spyOn(uuid, 'hashText').and.returnValue('fakeHash');
+            spyOn(collateral, 'chooseTemplateNum').and.callThrough();
+            spyOn(collateral, 'generate').and.returnValue(q('/path/on/s3'));
         });
     
         it('should reject if the imgSpec is incomplete', function(done) {
@@ -1167,7 +1170,7 @@ describe('collateral (UT):', function() {
         });
         
         it('should reject if the ratio name is invalid', function(done) {
-            glob.sync.andReturn([]);
+            glob.sync.and.returnValue([]);
             collateral.generateSplash(req, imgSpec, s3, config).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
@@ -1217,7 +1220,7 @@ describe('collateral (UT):', function() {
                 return collateral.generateSplash(req, imgSpec, s3, config);
             }).then(function(resp) {
                 expect(resp).toEqual({code:201,ratio:'foo',path:'/path/on/s3'});
-                expect(s3.headObject.calls[1].args).toEqual([{Bucket:'bkt',Key:'ut/userFiles/u-1/qwer1234.jpg'},anyFunc]);
+                expect(s3.headObject.calls.all()[1].args).toEqual([{Bucket:'bkt',Key:'ut/userFiles/u-1/qwer1234.jpg'},anyFunc]);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -1225,7 +1228,7 @@ describe('collateral (UT):', function() {
         
         it('should regenerate the splash if there is a file on s3 with the wrong md5', function(done) {
             collateral.splashCache['fakeHash'] = { md5: 'qwer1234', date: new Date() };
-            s3.headObject.andCallFake(function(params, cb) { cb(null, {ETag: '"qwer5678"'}); });
+            s3.headObject.and.callFake(function(params, cb) { cb(null, {ETag: '"qwer5678"'}); });
             collateral.generateSplash(req, imgSpec, s3, config).then(function(resp) {
                 expect(resp).toEqual({code:201,ratio:'foo',path:'/path/on/s3'});
                 expect(s3.headObject).toHaveBeenCalledWith({Bucket:'bkt',Key:'ut/userFiles/u-1/qwer1234.jpg'},anyFunc);
@@ -1237,7 +1240,7 @@ describe('collateral (UT):', function() {
         
         it('should not regenerate the splash if the correct file is on s3', function(done) {
             collateral.splashCache['fakeHash'] = { md5: 'qwer1234', date: new Date() };
-            s3.headObject.andCallFake(function(params, cb) { cb(null, {ETag: '"qwer1234"'}); });
+            s3.headObject.and.callFake(function(params, cb) { cb(null, {ETag: '"qwer1234"'}); });
             collateral.generateSplash(req, imgSpec, s3, config).then(function(resp) {
                 expect(resp).toEqual({code:201,ratio:'foo',path:'ut/userFiles/u-1/qwer1234.jpg'});
                 expect(s3.headObject).toHaveBeenCalledWith({Bucket:'bkt',Key:'ut/userFiles/u-1/qwer1234.jpg'},anyFunc);
@@ -1249,7 +1252,7 @@ describe('collateral (UT):', function() {
         });
         
         it('should fail if reading the template file fails', function(done) {
-            fs.readFile.andCallFake(function(fpath, opts, cb) { cb('I GOT A PROBLEM'); });
+            fs.readFile.and.callFake(function(fpath, opts, cb) { cb('I GOT A PROBLEM'); });
             collateral.generateSplash(req, imgSpec, s3, config).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
@@ -1261,7 +1264,7 @@ describe('collateral (UT):', function() {
         });
         
         it('should fail if collateral.generate fails', function(done) {
-            collateral.generate.andReturn(q.reject('I GOT A PROBLEM'));
+            collateral.generate.and.returnValue(q.reject('I GOT A PROBLEM'));
             collateral.generateSplash(req, imgSpec, s3, config).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
@@ -1287,7 +1290,7 @@ describe('collateral (UT):', function() {
             };
             s3 = 'fakeS3';
             config = {s3:{path:'ut/'}, splash:{quality:75, maxDimension:1000, timeout:10000}};
-            spyOn(collateral, 'generateSplash').andReturn(q(
+            spyOn(collateral, 'generateSplash').and.returnValue(q(
                 { code: 201, name: 'splash', ratio: 'foo', path: '/path/on/s3' }
             ));
         });
@@ -1380,7 +1383,7 @@ describe('collateral (UT):', function() {
                 { name: 'splash2', height: 600, width: 600, ratio: 'b' },
                 { name: 'splash3', height: 600, width: 600, ratio: 'c' }
             ];
-            collateral.generateSplash.andCallFake(function(req, imgSpec, s3, config) {
+            collateral.generateSplash.and.callFake(function(req, imgSpec, s3, config) {
                 switch(imgSpec.name) {
                     case 'splash1':
                         return q.reject({code: 400, ratio: imgSpec.ratio, name: 'splash1', error: 'YOU GOT A PROBLEM'})
@@ -1400,10 +1403,10 @@ describe('collateral (UT):', function() {
                     { code: 500, ratio: 'b', name: 'splash2', error: 'I GOT A PROBLEM'},
                     { code: 201, ratio: 'c', name: 'splash3', path: '/path/on/s3' }
                 ]});
-                expect(collateral.generateSplash.calls.length).toBe(3);
-                expect(collateral.generateSplash.calls[0].args).toEqual([req,req.body.imageSpecs[0],s3,config]);
-                expect(collateral.generateSplash.calls[1].args).toEqual([req,req.body.imageSpecs[1],s3,config]);
-                expect(collateral.generateSplash.calls[2].args).toEqual([req,req.body.imageSpecs[2],s3,config]);
+                expect(collateral.generateSplash.calls.count()).toBe(3);
+                expect(collateral.generateSplash.calls.all()[0].args).toEqual([req,req.body.imageSpecs[0],s3,config]);
+                expect(collateral.generateSplash.calls.all()[1].args).toEqual([req,req.body.imageSpecs[1],s3,config]);
+                expect(collateral.generateSplash.calls.all()[2].args).toEqual([req,req.body.imageSpecs[2],s3,config]);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -1416,10 +1419,10 @@ describe('collateral (UT):', function() {
             req = { uuid: '1234', user: {id: 'u-1'}, body: {path: 'ut/foo.txt', 'max-age': 100} };
             config = { s3: { bucket: 'bkt' }, cacheControl: { default: 'max-age=15' } };
             s3 = {
-                headObject: jasmine.createSpy('s3.headObject').andCallFake(function(params, cb) {
+                headObject: jasmine.createSpy('s3.headObject').and.callFake(function(params, cb) {
                     cb(null, { ContentType: 'text/plain' });
                 }),
-                copyObject: jasmine.createSpy('s3.copyObject').andCallFake(function(params, cb) {
+                copyObject: jasmine.createSpy('s3.copyObject').and.callFake(function(params, cb) {
                     cb(null, 'i did it yo');
                 })
             };
@@ -1479,7 +1482,7 @@ describe('collateral (UT):', function() {
         
         it('should return a 404 if headObject has an error or returns no data', function(done) {
             var files = ['ut/1.txt', 'ut/2.txt', 'ut/3.txt'];
-            s3.headObject.andCallFake(function(params, cb) {
+            s3.headObject.and.callFake(function(params, cb) {
                 if (params.Key === 'ut/1.txt') cb('GOT A PROBLEM', 'foo');
                 if (params.Key === 'ut/2.txt') cb(null, null);
                 else cb(null, { foo: 'bar' });
@@ -1490,7 +1493,7 @@ describe('collateral (UT):', function() {
             })).then(function(results) {
                 results.forEach(function(resp, index) {
                     expect(resp).toEqual({code: 404, body: 'File not found'});
-                    expect(s3.headObject.calls[index].args[0].Key).toBe('ut/' + (index + 1) + '.txt');
+                    expect(s3.headObject.calls.all()[index].args[0].Key).toBe('ut/' + (index + 1) + '.txt');
                 });
                 expect(mockLog.error).not.toHaveBeenCalled();
                 expect(s3.headObject).toHaveBeenCalled();
@@ -1501,7 +1504,7 @@ describe('collateral (UT):', function() {
         });
         
         it('should reject if copyObject has an error', function(done) {
-            s3.copyObject.andCallFake(function(params, cb) { cb('I GOT A PROBLEM'); });
+            s3.copyObject.and.callFake(function(params, cb) { cb('I GOT A PROBLEM'); });
             collateral.setHeaders(req, s3, config).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {

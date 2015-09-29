@@ -1,5 +1,8 @@
 # User Service Changelog
 
+### 2.0.0: Mon Sep 28 10:33:32 EDT 2015
+* [FIX]: Validate pagination params: [#512](https://github.com/cinema6/cwrx/issues/512)
+* [FEATURE]: Add handling for `fields` param: [#454](https://github.com/cinema6/cwrx/issues/454)
 * [FEATURE]: Add endpoints for roles + policies: [#475](https://github.com/cinema6/cwrx/pull/475)
 * [FIX]: Auth middleware will handle users with roles + policies: [#475](https://github.com/cinema6/cwrx/pull/475)
 * [FIX]: Use Model to validate user docs: [#475](https://github.com/cinema6/cwrx/pull/475)

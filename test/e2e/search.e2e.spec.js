@@ -11,11 +11,11 @@ var q               = require('q'),
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
     };
 
-jasmine.getEnv().defaultTimeoutInterval = 30000;
-
 describe('search (E2E):', function() {
     var cookieJar, mockUser;
     beforeEach(function(done) {
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
+
         if (cookieJar && cookieJar.cookies) {
             return done();
         }

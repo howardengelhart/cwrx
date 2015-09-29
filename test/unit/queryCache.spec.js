@@ -12,12 +12,16 @@ describe('QueryCache', function() {
         
         fakeColl = { find: jasmine.createSpy('coll.find') };
         
-        jasmine.Clock.useMock();
+        jasmine.clock().install();
+    });
+
+    afterEach(function() {
+        jasmine.clock().uninstall();
     });
    
     describe('initialization', function() {
         it('should throw an error if not provided with the right params', function() {
-            var msg = "Must provide a freshTTL, maxTTL, and mongo collection";
+            var msg = new Error('Must provide a freshTTL, maxTTL, and mongo collection');
             expect(function() { new QueryCache() }).toThrow(msg);
             expect(function() { new QueryCache(5) }).toThrow(msg);
             expect(function() { new QueryCache(5, 10) }).toThrow(msg);
@@ -38,7 +42,7 @@ describe('QueryCache', function() {
         var query;
         beforeEach(function() {
             query = {};
-            spyOn(objUtils, 'sortObject').andCallThrough();
+            spyOn(objUtils, 'sortObject').and.callThrough();
         });
         
         it('should transform arrays into mongo-style $in objects', function() {
@@ -55,13 +59,14 @@ describe('QueryCache', function() {
             query = { id: "e-1234" };
             opts = { sort: { id: 1 }, limit: 0, skip: 0 };
             cache = new QueryCache(1, 2, fakeColl);
-            spyOn(uuid, 'hashText').andReturn('fakeHash');
+            spyOn(uuid, 'hashText').and.returnValue('fakeHash');
             fakeCursor = {
-                toArray: jasmine.createSpy('cursor.toArray').andCallFake(function(cb) {
+                toArray: jasmine.createSpy('cursor.toArray').and.callFake(function(cb) {
                     cb(null, [{id: 'e-1234'}])
                 })
             };
-            fakeColl.find.andReturn(fakeCursor);
+            fakeColl.find.and.returnValue(fakeCursor);
+            jasmine.clock().mockDate();
         });
         
         it('should retrieve a promise from the cache if the query matches', function(done) {
@@ -103,14 +108,17 @@ describe('QueryCache', function() {
             var start = new Date(new Date() - (cache.freshTTL + 1));
             deferred.keeperCreateTime = start;
             deferred.resolve([{id: 'e-1234'}]);
-            fakeCursor.toArray.andCallFake(function(cb) {
+            fakeCursor.toArray.and.callFake(function(cb) {
                 cb(null, [{id: 'e-4567'}])
             });
             cache.getPromise(query, opts.sort, opts.limit, opts.skip)
             .then(function(exps) {
                 expect(exps).toEqual([{id: 'e-1234'}]);
+                return new q.Promise(function(resolve) {
+                    process.nextTick(resolve);
+                });
+            }).then(function() {
                 expect(fakeColl.find).toHaveBeenCalledWith(query, opts);
-                return;
             }).then(function() {
                 var newDeferred = cache._keeper._deferreds.fakeHash;
                 expect(newDeferred).toBeDefined();
@@ -128,7 +136,7 @@ describe('QueryCache', function() {
             var start = new Date(new Date() - (cache.freshTTL + 1));
             deferred.keeperCreateTime = start;
             deferred.resolve([{id: 'e-1234'}]);
-            fakeCursor.toArray.andCallFake(function(cb) {
+            fakeCursor.toArray.and.callFake(function(cb) {
                 cb(null, [{id: 'e-4567'}])
             });
             q.all([cache.getPromise(query, opts.sort, opts.limit, opts.skip),
@@ -136,8 +144,12 @@ describe('QueryCache', function() {
             .spread(function(exps1, exps2) {
                 expect(exps1).toEqual([{id: 'e-1234'}]);
                 expect(exps2).toEqual([{id: 'e-1234'}]);
+                return new q.Promise(function(resolve) {
+                    process.nextTick(resolve);
+                });
+            }).then(function() {
                 expect(fakeColl.find).toHaveBeenCalledWith(query, opts);
-                expect(fakeColl.find.calls.length).toBe(1);
+                expect(fakeColl.find.calls.count()).toBe(1);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -150,7 +162,7 @@ describe('QueryCache', function() {
             var start = new Date(new Date() - (cache.maxTTL + 1));
             deferred.keeperCreateTime = start;
             deferred.resolve([{id: 'e-1234'}]);
-            fakeCursor.toArray.andCallFake(function(cb) {
+            fakeCursor.toArray.and.callFake(function(cb) {
                 cb(null, [{id: 'e-4567'}])
             });
             cache.getPromise(query, opts.sort, opts.limit, opts.skip)
@@ -168,7 +180,7 @@ describe('QueryCache', function() {
         
         it('should pass along errors from mongo', function(done) {
             spyOn(cache._keeper, 'remove');
-            fakeCursor.toArray.andCallFake(function(cb) { cb('Error!'); });
+            fakeCursor.toArray.and.callFake(function(cb) { cb('Error!'); });
             cache.getPromise(query, opts.sort, opts.limit, opts.skip)
             .then(function(exps) {
                 expect(exps).not.toBeDefined();
@@ -180,7 +192,7 @@ describe('QueryCache', function() {
                 expect(uuid.hashText).toHaveBeenCalled();
                 expect(cache._keeper._deferreds.fakeHash).toBeDefined();
                 expect(cache._keeper.rejectedCount).toBe(1);
-                jasmine.Clock.tick(10*1000);
+                jasmine.clock().tick(10*1000);
                 expect(cache._keeper.remove).toHaveBeenCalledWith('fakeHash', true);
                 done();
             });

@@ -3,18 +3,18 @@ var q               = require('q'),
     util            = require('util'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
-    host            = process.env['host'] || 'localhost',
+    host            = process.env.host || 'localhost',
     config = {
         usersUrl    : 'http://' + (host === 'localhost' ? host + ':3500' : host) + '/api/account/users',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
 
-jasmine.getEnv().defaultTimeoutInterval = 30000;
-
 describe('userSvc users (E2E):', function() {
     var cookieJar, adminJar, mockRequester, mockAdmin, testPolicies;
         
     beforeEach(function(done) {
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
+
         if (cookieJar && cookieJar.cookies && adminJar && adminJar.cookies) {
             return done();
         }
@@ -158,6 +158,21 @@ describe('userSvc users (E2E):', function() {
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'GET /api/account/users/:id',
                                                  params: { id: 'u-e2e-get1' }, query: {} });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow a user to specify which fields to return', function(done) {
+            options.qs = { fields: 'email,status,password' };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({
+                    id: 'u-e2e-get1',
+                    email: 'user1',
+                    status: 'active'
+                });
+                expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -310,6 +325,22 @@ describe('userSvc users (E2E):', function() {
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'GET /api/account/users/',
                                                  params: {}, query: { org: 'o-1234', sort: 'id,1' } });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow a user to specify which fields to return', function(done) {
+            options.qs.org = 'o-1234';
+            options.qs.fields = 'status,password';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([
+                    { id: 'e2e-user', status: 'active' },
+                    { id: 'u-e2e-get1', status: 'active' },
+                    { id: 'u-e2e-get2', status: 'active' },
+                    { id: 'u-e2e-get3', status: 'active' }
+                ]);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -1198,7 +1229,7 @@ describe('userSvc users (E2E):', function() {
                     mailman.stop();
                     done();
                 });
-                return requestUtils.qRequest('post', options)
+                return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBe('Successfully changed password');
@@ -1244,7 +1275,7 @@ describe('userSvc users (E2E):', function() {
                     mailman.stop();
                     done();
                 });
-                return requestUtils.qRequest('post', options)
+                return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBe('Successfully changed password');

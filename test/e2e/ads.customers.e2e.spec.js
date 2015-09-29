@@ -4,18 +4,19 @@ var q               = require('q'),
     testUtils       = require('./testUtils'),
     adtechErr       = testUtils.handleAdtechError,
     requestUtils    = require('../../lib/requestUtils'),
-    host            = process.env['host'] || 'localhost',
+    host            = process.env.host || 'localhost',
     config = {
         adsUrl  : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api',
         authUrl : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
     };
     
-jasmine.getEnv().defaultTimeoutInterval = 90000;
 
 describe('ads customers endpoints (E2E):', function() {
     var cookieJar, mockUser, createdCust, createdAdverts, keptCust, keptAdvert;
 
     beforeEach(function(done) {
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 90000;
+
         if (cookieJar && cookieJar.cookies) {
             return done();
         }
@@ -123,6 +124,21 @@ describe('ads customers endpoints (E2E):', function() {
             }).done(done);
         });
         
+        it('should allow a user to specify which fields to return', function(done) {
+            var options = {
+                url: config.adsUrl + '/account/customer/e2e-cu-keepme',
+                qs: { fields: 'id,name' },
+                jar: cookieJar
+            };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({ id: 'e2e-cu-keepme', name: keptCust.name });
+                expect(resp.response.headers['content-range']).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+        
         it('should set the advertisers list to an empty array for customers without advertisers', function(done) {
             var options = {url: config.adsUrl + '/account/customer/e2e-getid1', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -209,6 +225,21 @@ describe('ads customers endpoints (E2E):', function() {
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'GET /api/account/customers/',
                                                  params: {}, query: { sort: 'id,1' } });
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should allow specifying which fields to return', function(done) {
+            options.qs.fields = 'name,status';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([
+                    { id: 'e2e-cu-keepme', name: keptCust.name, status: 'active' },
+                    { id: 'e2e-getquery1', name: 'cust 1', status: 'active' },
+                    { id: 'e2e-getquery2', name: 'cust 2', status: 'inactive' }
+                ]);
+                expect(resp.response.headers['content-range']).toBe('items 1-3/3');
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);
@@ -379,7 +410,7 @@ describe('ads customers endpoints (E2E):', function() {
                 url: config.adsUrl + '/account/customer/' + createdCust.id,
                 json: { name: 'e2e_test_updated' },
                 jar: cookieJar
-            }
+            };
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).not.toEqual(createdCust);
@@ -433,7 +464,7 @@ describe('ads customers endpoints (E2E):', function() {
                 url: config.adsUrl + '/account/customer/' + createdCust.id,
                 json: { advertisers: [createdAdverts[1].id, createdAdverts[2].id] },
                 jar: cookieJar
-            }
+            };
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).not.toEqual(createdCust);
@@ -455,7 +486,7 @@ describe('ads customers endpoints (E2E):', function() {
                 url: config.adsUrl + '/account/customer/e2e-cu-keepme',
                 json: { name: 'e2e_cu_KEEP_ME_' + new Date().toISOString() },
                 jar: cookieJar
-            }
+            };
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.name).toBe(options.json.name);
@@ -539,7 +570,7 @@ describe('ads customers endpoints (E2E):', function() {
                 .then(function(cust) {
                     expect(cust).not.toBeDefined();
                 }).catch(function(err) {
-                    expect(err).toEqual(new Error('Unable to locate object: ' + createdCust.adtechId));
+                    expect(err).toEqual(new Error('Unable to locate object: ' + createdCust.adtechId + '.'));
                 });
             }).catch(function(error) {
                 expect(error).not.toBeDefined();

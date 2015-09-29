@@ -48,34 +48,34 @@ describe('daemon', function() {
         it('should daemonize correctly', function() {
             spyOn(console, 'log');
             spyOn(process, 'exit');
-            readPidFile.andReturn();
+            readPidFile.and.returnValue();
             var fakeChild = {
                 pid: 888888,
                 unref: jasmine.createSpy('unref')
             };
-            spawn.andReturn(fakeChild);
+            spawn.and.returnValue(fakeChild);
             
             daemon.daemonize(pidPath, done);
             expect(readPidFile).toHaveBeenCalledWith(pidPath);
             expect(process.env.RUNNING_AS_DAEMON).toBeTruthy();
             expect(spawn).toHaveBeenCalled();
-            var spawnArgs = spawn.calls[0].args;
-            expect(spawn.calls[0].args[1]).toEqual(process.argv.slice(1));
-            expect(spawn.calls[0].args[2].env).toBe(process.env);
+            var spawnArgs = spawn.calls.all()[0].args;
+            expect(spawn.calls.all()[0].args[1]).toEqual(process.argv.slice(1));
+            expect(spawn.calls.all()[0].args[2].env).toBe(process.env);
             expect(writePidFile).toHaveBeenCalledWith(pidPath, fakeChild.pid);
             expect(process.exit).toHaveBeenCalledWith(0);
         });
         
         it('should daemonize correctly even if there is an existing pid', function() {
             spyOn(console, 'log');
-            spyOn(process, 'kill').andReturn();
+            spyOn(process, 'kill').and.returnValue();
             spyOn(process, 'exit');
-            readPidFile.andReturn(999999);
+            readPidFile.and.returnValue(999999);
             var fakeChild = {
                 pid: 888888,
                 unref: jasmine.createSpy('unref')
             };
-            spawn.andReturn(fakeChild);
+            spawn.and.returnValue(fakeChild);
             
             daemon.daemonize(pidPath, done);
             expect(readPidFile).toHaveBeenCalledWith(pidPath);
@@ -83,17 +83,17 @@ describe('daemon', function() {
             expect(removePidFile).toHaveBeenCalledWith(pidPath);
             expect(process.env.RUNNING_AS_DAEMON).toBeTruthy();
             expect(spawn).toHaveBeenCalled();
-            var spawnArgs = spawn.calls[0].args;
-            expect(spawn.calls[0].args[1]).toEqual(process.argv.slice(1));
-            expect(spawn.calls[0].args[2].env).toBe(process.env);
+            var spawnArgs = spawn.calls.all()[0].args;
+            expect(spawn.calls.all()[0].args[1]).toEqual(process.argv.slice(1));
+            expect(spawn.calls.all()[0].args[2].env).toBe(process.env);
             expect(writePidFile).toHaveBeenCalledWith(pidPath, fakeChild.pid);
             expect(process.exit).toHaveBeenCalledWith(0);
         });
 
         it('should fail to daemonize if already running', function() {
             spyOn(console, 'error');
-            spyOn(process, 'kill').andReturn('this exists');
-            readPidFile.andReturn(999999);
+            spyOn(process, 'kill').and.returnValue('this exists');
+            readPidFile.and.returnValue(999999);
             
             daemon.daemonize(pidPath, done);
             expect(readPidFile).toHaveBeenCalledWith(pidPath);

@@ -1,21 +1,22 @@
 var q               = require('q'),
+    util            = require('util'),
     adtech          = require('adtech'),
     request         = require('request'),
     testUtils       = require('./testUtils'),
     adtechErr       = testUtils.handleAdtechError,
     requestUtils    = require('../../lib/requestUtils'),
-    host            = process.env['host'] || 'localhost',
+    host            = process.env.host || 'localhost',
     config = {
         adsUrl  : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api',
         authUrl : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
     };
-    
-jasmine.getEnv().defaultTimeoutInterval = 90000;
 
 describe('ads advertisers endpoints (E2E):', function() {
     var cookieJar, mockUser, createdAdvert;
 
     beforeEach(function(done) {
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 90000;
+
         if (cookieJar && cookieJar.cookies) {
             return done();
         }
@@ -96,6 +97,24 @@ describe('ads advertisers endpoints (E2E):', function() {
             }).done(done);
         });
 
+        it('should allow a user to specify which fields to return', function(done) {
+            var options = {
+                url: config.adsUrl + '/account/advertiser/e2e-getid1',
+                qs: { fields: 'name,status' },
+                jar: cookieJar
+            };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({
+                    id: 'e2e-getid1',
+                    name: 'advert 1',
+                    status: 'active'
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
         it('should not show deleted advertisers', function(done) {
             var options = {url: config.adsUrl + '/account/advertiser/e2e-getid2', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -170,6 +189,20 @@ describe('ads advertisers endpoints (E2E):', function() {
                                                  params: {}, query: { sort: 'id,1' } });
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow a user to specify which fields to return', function(done) {
+            options.qs.fields = 'name,status';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([
+                    { id: 'e2e-getquery1', name: 'advert 1', status: 'active' },
+                    { id: 'e2e-getquery2', name: 'advert 2', status: 'inactive' },
+                    { id: 'e2e-getquery3', name: 'advert 3', status: 'active' }
+                ]);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -345,7 +378,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 url: config.adsUrl + '/account/advertiser/' + createdAdvert.id,
                 json: { name: 'e2e_test_updated' },
                 jar: cookieJar
-            }
+            };
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).not.toEqual(createdAdvert);
@@ -396,7 +429,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 url: config.adsUrl + '/account/advertiser/e2e-a-keepme',
                 json: { name: 'e2e_a_KEEP_ME_' + new Date().toISOString() },
                 jar: cookieJar
-            }
+            };
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.name).toBe(options.json.name);
@@ -478,7 +511,7 @@ describe('ads advertisers endpoints (E2E):', function() {
                 .then(function(advert) {
                     expect(advert).not.toBeDefined();
                 }).catch(function(err) {
-                    expect(err).toEqual(new Error('Unable to locate object: ' + createdAdvert.adtechId));
+                    expect(err).toEqual(new Error('Unable to locate object: ' + createdAdvert.adtechId + '.'));
                 });
             }).catch(function(error) {
                 expect(error).not.toBeDefined();

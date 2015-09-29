@@ -2,18 +2,18 @@ var q               = require('q'),
     util            = require('util'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
-    host            = process.env['host'] || 'localhost',
+    host            = process.env.host || 'localhost',
     config = {
         rolesUrl    : 'http://' + (host === 'localhost' ? host + ':3500' : host) + '/api/account/roles',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
 
-jasmine.getEnv().defaultTimeoutInterval = 10000;
-
 describe('userSvc roles endpoints (E2E):', function() {
     var cookieJar, mockRequester, roleAdminPol;
         
     beforeEach(function(done) {
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
+
         if (cookieJar && cookieJar.cookies) {
             return done();
         }
@@ -95,6 +95,24 @@ describe('userSvc roles endpoints (E2E):', function() {
             }).done(done);
         });
 
+        it('should allow a user to specify which fields to return', function(done) {
+            var options = {
+                url: config.rolesUrl + '/r-e2e-get1',
+                qs: { fields: 'name' },
+                jar: cookieJar
+            };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({
+                    id: 'r-e2e-get1',
+                    name: 'role1'
+                });
+                expect(resp.response.headers['content-range']).not.toBeDefined();
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
         it('should not show deleted roles', function(done) {
             var options = {url: config.rolesUrl + '/r-e2e-get2', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -169,6 +187,20 @@ describe('userSvc roles endpoints (E2E):', function() {
                                                  params: {}, query: { sort: 'id,1' } });
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow a user to specify which fields to return', function(done) {
+            options.qs.fields = 'name,status';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([
+                    { id: 'r-e2e-getQry1', name: 'role1', status: 'active' },
+                    { id: 'r-e2e-getQry2', name: 'role2', status: 'inactive' },
+                    { id: 'r-e2e-getQry3', name: 'role3', status: 'active' }
+                ]);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 

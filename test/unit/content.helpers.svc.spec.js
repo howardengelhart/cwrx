@@ -25,11 +25,11 @@ describe('content (UT)', function() {
             fatal : jasmine.createSpy('log_fatal'),
             log   : jasmine.createSpy('log_log')
         };
-        spyOn(logger, 'createLog').andReturn(mockLog);
-        spyOn(logger, 'getLog').andReturn(mockLog);
-        spyOn(expModule, 'formatOutput').andCallThrough();
-        spyOn(mongoUtils, 'escapeKeys').andCallThrough();
-        spyOn(mongoUtils, 'unescapeKeys').andCallThrough();
+        spyOn(logger, 'createLog').and.returnValue(mockLog);
+        spyOn(logger, 'getLog').and.returnValue(mockLog);
+        spyOn(expModule, 'formatOutput').and.callThrough();
+        spyOn(mongoUtils, 'escapeKeys').and.callThrough();
+        spyOn(mongoUtils, 'unescapeKeys').and.callThrough();
         
         req = { uuid: '1234', params: {}, query: {} };
     });
@@ -87,7 +87,7 @@ describe('content (UT)', function() {
         beforeEach(function() {
             exp = { id: 'e1', status: Status.Pending, access: Access.Private };
             user = null;
-            spyOn(expModule, 'checkScope').andReturn(false);
+            spyOn(expModule, 'checkScope').and.returnValue(false);
         });
         
         it('should let a guest see an active experience from outside cinema6.com', function() {
@@ -106,7 +106,7 @@ describe('content (UT)', function() {
         it('should let an authenticated user see an experience if their permissions are valid', function() {
             user = { foo: 'bar' };
             expect(expModule.canGetExperience(exp, user, false)).toBe(false);
-            expModule.checkScope.andReturn(true);
+            expModule.checkScope.and.returnValue(true);
             expect(expModule.canGetExperience(exp, user, false)).toBe(true);
             expect(expModule.checkScope).toHaveBeenCalledWith({foo: 'bar'}, exp, 'experiences', 'read');
         });
@@ -118,7 +118,7 @@ describe('content (UT)', function() {
         
         it('should never let anyone see a deleted experience', function() {
             exp = { id: 'e1', status: Status.Deleted, access: Access.Public };
-            expModule.checkScope.andReturn(true);
+            expModule.checkScope.and.returnValue(true);
             expect(expModule.canGetExperience(exp, user, true)).toBe(false);
         });
     });
@@ -307,7 +307,7 @@ describe('content (UT)', function() {
                 { email: 'crosby', date: now, data: { title: 'Not Cool Tapes', foo: 'bar' } }
             ]};
             expect(expModule.formatOutput(experience))
-                .toEqual({ id: 'e1', title: 'Cool Tapes', data: {title: 'Cool Tapes', foo: 'baz'} });
+                .toEqual({ id: 'e1', title: 'Cool Tapes', data: {title: 'Cool Tapes', foo: 'baz'}, versionId: undefined });
             expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
         });
 
@@ -494,7 +494,7 @@ describe('content (UT)', function() {
         beforeEach(function() {
             mockOrg = { id: 'o-1', status: Status.Active, adConfig: { foo: 'bar' } };
             exp = { id: 'e-1', data: { good: 'yes' } };
-            orgCache = { getPromise: jasmine.createSpy('orgCache.getPromise').andReturn(q([mockOrg])) };
+            orgCache = { getPromise: jasmine.createSpy('orgCache.getPromise').and.returnValue(q([mockOrg])) };
         });
         
         it('should do nothing if the experience has no data', function(done) {
@@ -529,7 +529,7 @@ describe('content (UT)', function() {
         });
         
         it('should do nothing if the org could not be found', function(done) {
-            orgCache.getPromise.andReturn(q([]));
+            orgCache.getPromise.and.returnValue(q([]));
             expModule.getAdConfig(exp, 'o-1', orgCache).then(function(result) {
                 expect(result).toEqual({ id: 'e-1', data: { good: 'yes' } });
                 expect(orgCache.getPromise).toHaveBeenCalledWith({id: 'o-1'});
@@ -562,7 +562,7 @@ describe('content (UT)', function() {
         });
         
         it('should reject if getPromise returns a rejected promise', function(done) {
-            orgCache.getPromise.andReturn(q.reject('I GOT A PROBLEM'));
+            orgCache.getPromise.and.returnValue(q.reject('I GOT A PROBLEM'));
             expModule.getAdConfig(exp, 'o-1', orgCache).then(function(result) {
                 expect(result).not.toBeDefined();
             }).catch(function(error) {
@@ -653,12 +653,12 @@ describe('content (UT)', function() {
             mockOrg = { id: 'o-1', status: Status.Active, branding: 'orgBrand' };
             queryParams = { branding: 'widgetBrand', placementId: 123, wildCardPlacement: 321 };
             host = 'games.wired.com';
-            siteCache = { getPromise: jasmine.createSpy('siteCache.getPromise').andReturn(q(['fake1', 'fake2'])) };
-            orgCache = { getPromise: jasmine.createSpy('orgCache.getPromise').andReturn(q([mockOrg])) };
+            siteCache = { getPromise: jasmine.createSpy('siteCache.getPromise').and.returnValue(q(['fake1', 'fake2'])) };
+            orgCache = { getPromise: jasmine.createSpy('orgCache.getPromise').and.returnValue(q([mockOrg])) };
             defaultSiteCfg = { branding: 'c6', placementId: 789, wildCardPlacement: 987 };
-            spyOn(expModule, 'buildHostQuery').andCallThrough();
-            spyOn(expModule, 'chooseSite').andReturn(mockSite);
-            spyOn(expModule, 'chooseBranding').andCallThrough();
+            spyOn(expModule, 'buildHostQuery').and.callThrough();
+            spyOn(expModule, 'chooseSite').and.returnValue(mockSite);
+            spyOn(expModule, 'chooseBranding').and.callThrough();
         });
         
         it('should log a warning if the experience has no data', function(done) {
@@ -746,7 +746,7 @@ describe('content (UT)', function() {
         
         describe('fetching container', function(done) {
             beforeEach(function() {
-                expModule.chooseSite.andReturn({id: 's-2', host: 'foo.com', branding: 'siteBrand', containers: [
+                expModule.chooseSite.and.returnValue({id: 's-2', host: 'foo.com', branding: 'siteBrand', containers: [
                     { id: 'embed', contentPlacementId: 12, displayPlacementId: 13 },
                     { id: 'mr2', contentPlacementId: 14, displayPlacementId: 15 }
                 ], placementId: 11, wildCardPlacement: 22 });
@@ -780,7 +780,7 @@ describe('content (UT)', function() {
         
         it('should not try to get the site if the host is not defined', function(done) {
             queryParams = {};
-            expModule.chooseSite.andReturn(null);
+            expModule.chooseSite.and.returnValue(null);
             expModule.getSiteConfig(exp, 'o-1', queryParams, '', siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar',
@@ -796,7 +796,7 @@ describe('content (UT)', function() {
         
         it('should next fall back to the org\'s config', function(done) {
             queryParams = {};
-            expModule.chooseSite.andReturn(null);
+            expModule.chooseSite.and.returnValue(null);
             expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar',
@@ -811,7 +811,7 @@ describe('content (UT)', function() {
         
         it('should handle the site object not having necessary props', function(done) {
             queryParams = {};
-            expModule.chooseSite.andReturn([{id: 's-1'}]);
+            expModule.chooseSite.and.returnValue([{id: 's-1'}]);
             expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar',
@@ -824,8 +824,8 @@ describe('content (UT)', function() {
 
         it('should use the default config as a last resort', function(done) {
             queryParams = {};
-            expModule.chooseSite.andReturn(null);
-            orgCache.getPromise.andReturn(q([]));
+            expModule.chooseSite.and.returnValue(null);
+            orgCache.getPromise.and.returnValue(q([]));
             expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar',
@@ -839,8 +839,8 @@ describe('content (UT)', function() {
         
         it('should handle the org object not having a branding', function(done) {
             queryParams = {};
-            expModule.chooseSite.andReturn(null);
-            orgCache.getPromise.andReturn(q([{id: 'o-1'}]));
+            expModule.chooseSite.and.returnValue(null);
+            orgCache.getPromise.and.returnValue(q([{id: 'o-1'}]));
             expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar',
@@ -853,7 +853,7 @@ describe('content (UT)', function() {
         
         it('should not use the org if it is not active', function(done) {
             queryParams = {};
-            expModule.chooseSite.andReturn(null);
+            expModule.chooseSite.and.returnValue(null);
             mockOrg.status = Status.Deleted;
             expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
@@ -868,7 +868,7 @@ describe('content (UT)', function() {
         it('should be able to get props from different sources', function(done) {
             exp.data.branding = 'expBranding';
             queryParams = {};
-            expModule.chooseSite.andReturn({id :'w-1', wildCardPlacement: 876});
+            expModule.chooseSite.and.returnValue({id :'w-1', wildCardPlacement: 876});
             expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).toEqual({id: 'e-1', data: {foo: 'bar',
@@ -881,7 +881,7 @@ describe('content (UT)', function() {
         
         it('should reject if siteCache.getPromise returns a rejected promise', function(done) {
             queryParams = {};
-            siteCache.getPromise.andReturn(q.reject('I GOT A PROBLEM'));
+            siteCache.getPromise.and.returnValue(q.reject('I GOT A PROBLEM'));
             expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).not.toBeDefined();
@@ -893,8 +893,8 @@ describe('content (UT)', function() {
 
         it('should reject if orgCache.getPromise returns a rejected promise', function(done) {
             queryParams = {};
-            expModule.chooseSite.andReturn(null);
-            orgCache.getPromise.andReturn(q.reject('I GOT A PROBLEM'));
+            expModule.chooseSite.and.returnValue(null);
+            orgCache.getPromise.and.returnValue(q.reject('I GOT A PROBLEM'));
             expModule.getSiteConfig(exp, 'o-1', queryParams, host, siteCache, orgCache, defaultSiteCfg)
             .then(function(exp) {
                 expect(exp).not.toBeDefined();
@@ -919,7 +919,7 @@ describe('content (UT)', function() {
                 cards: [{ id: 'rc-1' }, { id: 'rc-2' }],
                 staticCardMap: { 'e-1': { 'rc-p1': 'rc-2', 'rc-p2': 'rc-fake' } }
             };
-            cardSvc = { getPublicCard: jasmine.createSpy('getPubCard').andCallFake(function(newId, req) {
+            cardSvc = { getPublicCard: jasmine.createSpy('getPubCard').and.callFake(function(newId, req) {
                 return q({ id: newId, title: 'sp card ' + newId });
             }) };
         });
@@ -939,7 +939,7 @@ describe('content (UT)', function() {
         });
         
         it('should log a warning if the card cannot be found', function(done) {
-            cardSvc.getPublicCard.andReturn(q());
+            cardSvc.getPublicCard.and.returnValue(q());
             expModule.swapCard(req, exp, 0, camp, cardSvc).then(function() {
                 expect(exp.data.deck[0]).toEqual({ id: 'rc-p1', title: 'placeholder 1' });
                 expect(cardSvc.getPublicCard).toHaveBeenCalled();
@@ -950,7 +950,7 @@ describe('content (UT)', function() {
         });
         
         it('should reject if the card service fails', function(done) {
-            cardSvc.getPublicCard.andReturn(q.reject('I GOT A PROBLEM'));
+            cardSvc.getPublicCard.and.returnValue(q.reject('I GOT A PROBLEM'));
             expModule.swapCard(req, exp, 0, camp, cardSvc).then(function() {
                 expect('resolved').not.toBe('resolved');
             }).catch(function(error) {
@@ -975,9 +975,9 @@ describe('content (UT)', function() {
                 status: Status.Active,
                 staticCardMap: { 'e-1': { 'rc-p1': 'rc-2', 'rc-p2': 'rc-3' } }
             };
-            campCache = { getPromise: jasmine.createSpy('getPromise').andCallFake(function() { return q([mockCamp]); }) };
+            campCache = { getPromise: jasmine.createSpy('getPromise').and.callFake(function() { return q([mockCamp]); }) };
             cardSvc = 'fakeCardSvc';
-            spyOn(expModule, 'swapCard').andReturn(q());
+            spyOn(expModule, 'swapCard').and.returnValue(q());
         });
         
         it('should get the campaign and call swapCard for each mapping the staticCardMap', function(done) {
@@ -989,7 +989,7 @@ describe('content (UT)', function() {
                     { id: 'rc-p3', title: 'placeholder 3' }
                 ] } });
                 expect(campCache.getPromise).toHaveBeenCalledWith({id: 'cam-1'});
-                expect(expModule.swapCard.calls.length).toBe(2);
+                expect(expModule.swapCard.calls.count()).toBe(2);
                 expect(expModule.swapCard).toHaveBeenCalledWith(req, exp, 0, mockCamp, 'fakeCardSvc');
                 expect(expModule.swapCard).toHaveBeenCalledWith(req, exp, 2, mockCamp, 'fakeCardSvc');
                 expect(mockLog.warn).not.toHaveBeenCalled();
@@ -1052,7 +1052,7 @@ describe('content (UT)', function() {
             mockCamp.status = Status.Inactive;
             expModule.handleCampaign(req, exp, 'cam-1', campCache, cardSvc).then(function(resp) {
                 expect(resp).toBe(exp);
-                campCache.getPromise.andReturn(q([]));
+                campCache.getPromise.and.returnValue(q([]));
                 return expModule.handleCampaign(req, exp, 'cam-1', campCache, cardSvc);
             }).then(function(resp) {
                 expect(resp).toBe(exp);
@@ -1074,7 +1074,7 @@ describe('content (UT)', function() {
         });
         
         it('should reject if retrieving the campaign fails', function(done) {
-            campCache.getPromise.andReturn(q.reject('I GOT A PROBLEM'));
+            campCache.getPromise.and.returnValue(q.reject('I GOT A PROBLEM'));
             expModule.handleCampaign(req, exp, 'cam-1', campCache, cardSvc).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
@@ -1085,7 +1085,7 @@ describe('content (UT)', function() {
         });
         
         it('should reject if one of the swapCard calls fails', function(done) {
-            expModule.swapCard.andCallFake(function(req, exp, idx, camp, cardSvc) {
+            expModule.swapCard.and.callFake(function(req, exp, idx, camp, cardSvc) {
                 if (idx === 0) return q.reject('I GOT A PROBLEM');
                 else return q();
             });
@@ -1094,7 +1094,7 @@ describe('content (UT)', function() {
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
                 expect(campCache.getPromise).toHaveBeenCalled();
-                expect(expModule.swapCard.calls.length).toBe(2);
+                expect(expModule.swapCard.calls.count()).toBe(2);
             }).done(done);
         });
     });
@@ -1111,7 +1111,7 @@ describe('content (UT)', function() {
                 status: [{user: 'johnny', userId: 'u-2', date: start, status: Status.Pending}]
             };
             user = { id: 'u-1', email: 'otter' };
-            spyOn(uuid, 'hashText').andCallFake(function(dataString) {
+            spyOn(uuid, 'hashText').and.callFake(function(dataString) {
                 return dataString === JSON.stringify({foo:'bar'}) ? 'version1.0' : 'version2.0';
             });
         });

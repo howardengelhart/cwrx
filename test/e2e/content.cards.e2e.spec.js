@@ -14,6 +14,8 @@ describe('content card endpoints (E2E):', function() {
     var cookieJar, mockUsers;
 
     beforeEach(function(done) {
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 5000;
+
         if (cookieJar && cookieJar.cookies) {
             return done();
         }
@@ -412,6 +414,25 @@ describe('content card endpoints (E2E):', function() {
             }).done(done);
         });
 
+        it('should allow a user to specify which fields to return', function(done) {
+            var options = {
+                url: config.contentUrl + '/content/card/e2e-getid1',
+                qs: { fields: 'campaignId,status' },
+                jar: cookieJar
+            };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({
+                    id: 'e2e-getid1',
+                    campaignId: 'cam-1',
+                    status: 'inactive'
+                });
+                expect(resp.response.headers['content-range']).not.toBeDefined();
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
         it('should let the user see active cards they do not own', function(done) {
             var options = {url: config.contentUrl + '/content/card/e2e-getid2', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -526,6 +547,19 @@ describe('content card endpoints (E2E):', function() {
             }).done(done);
         });
 
+        it('should allow a user to specify which fields to return', function(done) {
+            options.qs.user = 'e2e-user';
+            options.qs.fields = 'campaignId,status';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([
+                    { id: 'e2e-getquery1', campaignId: 'cam-123', status: 'inactive' }
+                ]);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
         it('should get cards by org', function(done) {
             options.qs.org = 'e2e-org';
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -591,7 +625,7 @@ describe('content card endpoints (E2E):', function() {
             }).done(done);
         });
 
-        it('should not allow non-admins to retrieve all experiences', function(done) {
+        it('should not allow non-admins to retrieve all cards', function(done) {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Not authorized to read all cards');
@@ -601,7 +635,7 @@ describe('content card endpoints (E2E):', function() {
             }).done(done);
         });
 
-        it('should allow an admin to see any non-deleted experience', function(done) {
+        it('should allow an admin to see any non-deleted cards', function(done) {
             var altJar = request.jar();
             var loginOpts = {
                 url: config.authUrl + '/auth/login',

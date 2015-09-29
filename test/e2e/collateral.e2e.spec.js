@@ -11,11 +11,11 @@ var q               = require('q'),
         authUrl         : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
     };
 
-jasmine.getEnv().defaultTimeoutInterval = 30000;
-
 describe('collateral (E2E):', function() {
     var cookieJar, mockUser;
     beforeEach(function(done) {
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
+
         if (cookieJar && cookieJar.cookies) {
             return done();
         }
@@ -290,11 +290,11 @@ describe('collateral (E2E):', function() {
                 }
             ];
 
-            success = jasmine.createSpy('success()').andCallFake(function(response) {
+            success = jasmine.createSpy('success()').and.callFake(function(response) {
                 apiResponse = response;
                 if (response.body.path) { rmList.push(response.body.path); }
             });
-            failure = jasmine.createSpy('failure()').andCallFake(function(error) {
+            failure = jasmine.createSpy('failure()').and.callFake(function(error) {
                 console.error(error);
             });
 
@@ -316,7 +316,7 @@ describe('collateral (E2E):', function() {
             });
 
             it('should respond with a 201', function() {
-                var response = success.mostRecentCall.args[0];
+                var response = success.calls.mostRecent().args[0];
 
                 expect(response.response.statusCode).toBe(201);
                 expect(response.body).toEqual({

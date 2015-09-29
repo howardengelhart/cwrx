@@ -1,18 +1,19 @@
 var q               = require('q'),
+    util            = require('util'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
-    host            = process.env['host'] || 'localhost',
+    host            = process.env.host || 'localhost',
     config = {
         polsUrl     : 'http://' + (host === 'localhost' ? host + ':3500' : host) + '/api/account/policies',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
 
-jasmine.getEnv().defaultTimeoutInterval = 10000;
-
 describe('userSvc policies endpoints (E2E):', function() {
     var cookieJar, mockRequester, polAdminPol;
         
     beforeEach(function(done) {
+        jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
+
         if (cookieJar && cookieJar.cookies) {
             return done();
         }
@@ -122,6 +123,25 @@ describe('userSvc policies endpoints (E2E):', function() {
             }).done(done);
         });
 
+        it('should allow a user to specify which fields to return', function(done) {
+            var options = {
+                url: config.polsUrl + '/p-e2e-get1',
+                qs: { fields: 'name,status' },
+                jar: cookieJar
+            };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({
+                    id: 'p-e2e-get1',
+                    name: 'pol1',
+                    status: 'active'
+                });
+                expect(resp.response.headers['content-range']).not.toBeDefined();
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
         it('should not show deleted policies', function(done) {
             var options = {url: config.polsUrl + '/p-e2e-get2', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -197,6 +217,21 @@ describe('userSvc policies endpoints (E2E):', function() {
                                                  params: {}, query: { sort: 'id,1' } });
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow a user to specify which fields to return', function(done) {
+            options.qs.fields = 'name,status';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([
+                    { id: 'p-e2e-admin', name: 'e2ePolAdmin', status: 'active' },
+                    { id: 'p-e2e-getQry1', name: 'pol1', status: 'active' },
+                    { id: 'p-e2e-getQry2', name: 'pol2', status: 'inactive' },
+                    { id: 'p-e2e-getQry3', name: 'pol3', status: 'active' }
+                ]);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 
@@ -457,7 +492,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                     id: 'p-e2e-put2',
                     name: 'testPol2',
                     status: 'active',
-                    priority: 2, 
+                    priority: 2,
                 },
                 {
                     id: 'p-e2e-deleted',

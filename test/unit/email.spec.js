@@ -15,7 +15,7 @@ describe('email', function() {
 
     describe('notifyPwdChange', function() {
         beforeEach(function() {
-            spyOn(email, 'compileAndSend').andReturn(q('success'));
+            spyOn(email, 'compileAndSend').and.returnValue(q('success'));
         });
         
         it('should correctly call compileAndSend', function(done) {
@@ -29,7 +29,7 @@ describe('email', function() {
         });
         
         it('should pass along errors from compileAndSend', function(done) {
-            email.compileAndSend.andReturn(q.reject('I GOT A PROBLEM'));
+            email.compileAndSend.and.returnValue(q.reject('I GOT A PROBLEM'));
             email.notifyPwdChange('send', 'recip').then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
@@ -43,19 +43,19 @@ describe('email', function() {
         var compilerSpy, fakeTransport, sesTportSpy;
         beforeEach(function() {
             delete require.cache[require.resolve('../../lib/email')];
-            sesTportSpy = jasmine.createSpy('ses-transport').andReturn('fakeSesTport');
+            sesTportSpy = jasmine.createSpy('ses-transport').and.returnValue('fakeSesTport');
             require.cache[require.resolve('nodemailer-ses-transport')] = { exports: sesTportSpy };
             email = require('../../lib/email');
-            spyOn(fs, 'readFile').andCallFake(function(path, opts, cb) { cb(null, 'templateHtml'); });
-            compilerSpy = jasmine.createSpy('handlebars compiler').andReturn('compiledHtml');
-            spyOn(handlebars, 'compile').andReturn(compilerSpy);
+            spyOn(fs, 'readFile').and.callFake(function(path, opts, cb) { cb(null, 'templateHtml'); });
+            compilerSpy = jasmine.createSpy('handlebars compiler').and.returnValue('compiledHtml');
+            spyOn(handlebars, 'compile').and.returnValue(compilerSpy);
             fakeTransport = {
-                sendMail: jasmine.createSpy('transport.sendMail').andCallFake(function(opts, cb) {
+                sendMail: jasmine.createSpy('transport.sendMail').and.callFake(function(opts, cb) {
                     cb(null, 'success');
                 })
             };
-            spyOn(nodemailer, 'createTransport').andReturn(fakeTransport);
-            spyOn(htmlToText, 'fromString').andReturn('compiledText');
+            spyOn(nodemailer, 'createTransport').and.returnValue(fakeTransport);
+            spyOn(htmlToText, 'fromString').and.returnValue('compiledText');
         });
 
         it('should successfully compile the template and send an email', function(done) {
@@ -76,7 +76,7 @@ describe('email', function() {
         });
         
         it('should fail if reading the template fails', function(done) {
-            fs.readFile.andCallFake(function(path, opts, cb) { cb('I GOT A PROBLEM'); });
+            fs.readFile.and.callFake(function(path, opts, cb) { cb('I GOT A PROBLEM'); });
             email.compileAndSend('sender','recip','subj','templ',{foo:'bar'}).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
@@ -91,7 +91,7 @@ describe('email', function() {
         });
         
         it('should fail if sending the email fails', function(done) {
-            fakeTransport.sendMail.andCallFake(function(opts, cb) { cb('I GOT A PROBLEM'); });
+            fakeTransport.sendMail.and.callFake(function(opts, cb) { cb('I GOT A PROBLEM'); });
             email.compileAndSend('sender','recip','subj','templ',{foo:'bar'}).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {

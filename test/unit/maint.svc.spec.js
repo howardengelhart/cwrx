@@ -6,7 +6,7 @@ describe('maint (UT)', function() {
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
 
-        jasmine.Clock.useMock();
+        jasmine.clock().install();
 
         path            = require('path');
         fs              = require('fs-extra');
@@ -34,10 +34,14 @@ describe('maint (UT)', function() {
             fatal : fatalSpy,
             log   : logSpy        
         };
-        spyOn(logger, 'createLog').andReturn(mockLog);
-        spyOn(logger, 'getLog').andReturn(mockLog);
+        spyOn(logger, 'createLog').and.returnValue(mockLog);
+        spyOn(logger, 'getLog').and.returnValue(mockLog);
         spyOn(aws.config, 'loadFromPath');
         maint = require('../../bin/maint');
+    });
+
+    afterEach(function() {
+        jasmine.clock().uninstall();
     });
 
     describe('getVersion', function() {
@@ -53,8 +57,8 @@ describe('maint (UT)', function() {
         });
         
         it('should attempt to read a version file', function() {
-            existsSpy.andReturn(true);
-            readFileSpy.andReturn('ut123');
+            existsSpy.and.returnValue(true);
+            readFileSpy.and.returnValue('ut123');
             
             expect(maint.getVersion()).toEqual('ut123');
             expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../../bin/maint.version'));
@@ -62,13 +66,13 @@ describe('maint (UT)', function() {
         });
         
         it('should return "unknown" if it fails to read the version file', function() {
-            existsSpy.andReturn(false);
+            existsSpy.and.returnValue(false);
             expect(maint.getVersion()).toEqual('unknown');
             expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../../bin/maint.version'));
             expect(readFileSpy).not.toHaveBeenCalled();
             
-            existsSpy.andReturn(true);
-            readFileSpy.andThrow('Exception!');
+            existsSpy.and.returnValue(true);
+            readFileSpy.and.throwError('Exception!');
             expect(maint.getVersion()).toEqual('unknown');
             expect(existsSpy).toHaveBeenCalledWith(path.join(__dirname, '../../bin/maint.version'));
             expect(readFileSpy).toHaveBeenCalledWith(path.join(__dirname, '../../bin/maint.version'));
@@ -93,7 +97,7 @@ describe('maint (UT)', function() {
                     auth: 'fakeAuth.json'
                 }
             },
-            createConfig = spyOn(cwrxConfig, 'createConfigObject').andReturn(mockConfig);
+            createConfig = spyOn(cwrxConfig, 'createConfigObject').and.returnValue(mockConfig);
         });
     
         it('should exist', function() {
@@ -113,10 +117,10 @@ describe('maint (UT)', function() {
         });
         
         it('should throw an error if it can\'t load the s3 config', function() {
-            aws.config.loadFromPath.andThrow('Exception!');
+            aws.config.loadFromPath.and.throwError('Exception!');
             expect(function() {maint.createConfiguration({config: 'utConfig'})}).toThrow();
 
-            aws.config.loadFromPath.andReturn();
+            aws.config.loadFromPath.and.returnValue();
             delete mockConfig.s3;
             expect(function() {maint.createConfiguration({config: 'utConfig'})}).toThrow();
         });
@@ -124,10 +128,10 @@ describe('maint (UT)', function() {
         describe('ensurePaths method', function() {
             it('should create directories if needed', function() {
                 var cfgObject = maint.createConfiguration({config: 'utConfig'});
-                existsSpy.andReturn(false);
+                existsSpy.and.returnValue(false);
                 cfgObject.ensurePaths();
-                expect(existsSpy.calls.length).toBe(2);
-                expect(mkdirSpy.calls.length).toBe(2);
+                expect(existsSpy.calls.count()).toBe(2);
+                expect(mkdirSpy.calls.count()).toBe(2);
                 expect(existsSpy).toHaveBeenCalledWith('ut/line/');
                 expect(mkdirSpy).toHaveBeenCalledWith('ut/line/');
                 expect(existsSpy).toHaveBeenCalledWith('ut/script/');
@@ -136,9 +140,9 @@ describe('maint (UT)', function() {
             
             it('should not create directories if they exist', function() {
                 var cfgObject = maint.createConfiguration({config: 'utConfig'});
-                existsSpy.andReturn(true);
+                existsSpy.and.returnValue(true);
                 cfgObject.ensurePaths();
-                expect(existsSpy.calls.length).toBe(2);
+                expect(existsSpy.calls.count()).toBe(2);
                 expect(mkdirSpy).not.toHaveBeenCalled();
             });
         });
@@ -163,16 +167,16 @@ describe('maint (UT)', function() {
         });
         
         it('should remove a list of files', function(done) {
-            existsSpy.andReturn(true);
-            removeSpy.andCallFake(function(fpath, cb) {
+            existsSpy.and.returnValue(true);
+            removeSpy.and.callFake(function(fpath, cb) {
                 cb(null, 'Success!');
             });
             maint.removeFiles(files).then(function(count) {
                 expect(count).toBe(2);
-                expect(removeSpy.calls.length).toBe(2);
-                expect(existsSpy.calls.length).toBe(2);
-                expect(removeSpy.calls[0].args[0]).toBe('abc.mp3');
-                expect(removeSpy.calls[1].args[0]).toBe('line/ghi.json');
+                expect(removeSpy.calls.count()).toBe(2);
+                expect(existsSpy.calls.count()).toBe(2);
+                expect(removeSpy.calls.all()[0].args[0]).toBe('abc.mp3');
+                expect(removeSpy.calls.all()[1].args[0]).toBe('line/ghi.json');
                 expect(existsSpy).toHaveBeenCalledWith('abc.mp3');
                 expect(existsSpy).toHaveBeenCalledWith('line/ghi.json');
             }).catch(function(error) {
@@ -181,10 +185,10 @@ describe('maint (UT)', function() {
         });
         
         it('should not remove non-existent files', function(done) {
-            existsSpy.andReturn(false);
+            existsSpy.and.returnValue(false);
             maint.removeFiles(files).then(function(count) {
                 expect(count).toBe(0);
-                expect(existsSpy.calls.length).toBe(2);
+                expect(existsSpy.calls.count()).toBe(2);
                 expect(removeSpy).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -192,8 +196,8 @@ describe('maint (UT)', function() {
         });
         
         it('should handle errors from deleting files correctly', function(done) {
-            existsSpy.andReturn(true);
-            removeSpy.andCallFake(function(fpath, cb) {
+            existsSpy.and.returnValue(true);
+            removeSpy.and.callFake(function(fpath, cb) {
                 if (fpath === 'abc.mp3') {
                     cb('Error on ' + fpath, null);
                 } else {
@@ -203,8 +207,8 @@ describe('maint (UT)', function() {
             maint.removeFiles(files).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
-                expect(existsSpy.calls.length).toBe(2);
-                expect(removeSpy.calls.length).toBe(2);
+                expect(existsSpy.calls.count()).toBe(2);
+                expect(removeSpy.calls.count()).toBe(2);
                 expect(error).toBe('Error on abc.mp3');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -215,11 +219,11 @@ describe('maint (UT)', function() {
     describe('restartService', function(){
         var resolveSpy, rejectSpy;
         beforeEach(function() {
-            spyOn(request, 'get').andCallFake(function(opts, cb) {
-                if (this.get.callCount > 3) cb(null, {statusCode: 200}, 'success');
+            spyOn(request, 'get').and.callFake(function(opts, cb) {
+                if (this.get.calls.count() > 3) cb(null, {statusCode: 200}, 'success');
                 else cb(null, {statusCode: 502}, 'Bad Gateway');
             });
-            spyOn(child_process,'exec').andCallFake(function(cmd,cb){
+            spyOn(child_process,'exec').and.callFake(function(cmd,cb){
                 cb(null,'OK',null);
             });
             resolveSpy = jasmine.createSpy('restartService.resolve');
@@ -228,12 +232,12 @@ describe('maint (UT)', function() {
 
         it('will resolve a promise if it succeeds',function(done){
             var promise = maint.restartService('abc', 'http://testUrl.com', 500, 4);
-            for (var i = 0; i < 4; i++) { jasmine.Clock.tick(501); }
+            for (var i = 0; i < 4; i++) { jasmine.clock().tick(501); }
             promise.then(resolveSpy,rejectSpy)
                 .finally(function(){
                     expect(child_process.exec).toHaveBeenCalled();
-                    expect(request.get.calls.length).toBe(4);
-                    request.get.calls.forEach(function(callObj) {
+                    expect(request.get.calls.count()).toBe(4);
+                    request.get.calls.all().forEach(function(callObj) {
                         expect(callObj.args).toEqual([{url: 'http://testUrl.com'}, jasmine.any(Function)]);
                     });
                     expect(resolveSpy).toHaveBeenCalledWith('abc'); 
@@ -244,11 +248,11 @@ describe('maint (UT)', function() {
         
         it('will fail if checking if the service is running times out', function(done) {
             var promise = maint.restartService('abc', 'http://testUrl.com', 500, 3);
-            for (var i = 0; i < 4; i++) { jasmine.Clock.tick(501); }
+            for (var i = 0; i < 4; i++) { jasmine.clock().tick(501); }
             promise.then(resolveSpy,rejectSpy)
                 .finally(function(){
                     expect(child_process.exec).toHaveBeenCalled();
-                    expect(request.get.calls.length).toBe(3);
+                    expect(request.get.calls.count()).toBe(3);
                     expect(resolveSpy).not.toHaveBeenCalled(); 
                     expect(rejectSpy).toHaveBeenCalledWith({message: 'Hit max call count for checking service'}); 
                     done();
@@ -256,7 +260,7 @@ describe('maint (UT)', function() {
         });
 
         it('will reject if exec fails',function(done){
-            child_process.exec.andCallFake(function(cmd,cb){
+            child_process.exec.and.callFake(function(cmd,cb){
                 cb({ message : 'failed' },null,null);
             });
 

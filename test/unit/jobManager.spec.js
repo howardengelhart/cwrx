@@ -3,14 +3,7 @@ describe('JobManager', function() {
     var JobManager, q, logger, mockLog, mockCache, req, res, nextSpy, events, jobMgr;
     
     beforeEach(function() {
-        jasmine.Clock.useMock();
-        // clearTimeout/clearInterval not properly mocked in jasmine-node: https://github.com/mhevery/jasmine-node/issues/276
-        spyOn(global, 'clearTimeout').andCallFake(function() {
-            return jasmine.Clock.installed.clearTimeout.apply(this, arguments);
-        });
-        spyOn(global, 'clearInterval').andCallFake(function() {
-            return jasmine.Clock.installed.clearInterval.apply(this, arguments);
-        });
+        jasmine.clock().install();
 
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         events      = require('events');
@@ -26,8 +19,8 @@ describe('JobManager', function() {
             fatal : jasmine.createSpy('log_fatal'),
             log   : jasmine.createSpy('log_log')
         };
-        spyOn(logger, 'createLog').andReturn(mockLog);
-        spyOn(logger, 'getLog').andReturn(mockLog);
+        spyOn(logger, 'createLog').and.returnValue(mockLog);
+        spyOn(logger, 'getLog').and.returnValue(mockLog);
 
         req = { uuid: '1234' };
         res = new events.EventEmitter();
@@ -36,13 +29,17 @@ describe('JobManager', function() {
         nextSpy = jasmine.createSpy('next()');
 
         mockCache = {
-            set: jasmine.createSpy('cache.set').andReturn(q()),
-            add: jasmine.createSpy('cache.add').andReturn(q()),
-            get: jasmine.createSpy('cache.get').andReturn(q())
+            set: jasmine.createSpy('cache.set').and.returnValue(q()),
+            add: jasmine.createSpy('cache.add').and.returnValue(q()),
+            get: jasmine.createSpy('cache.get').and.returnValue(q())
         };
 
         jobMgr = new JobManager(mockCache, { enabled: true, timeout: 2000, cacheTTL: 6000, urlPrefix: '/api/job' });
-        spyOn(jobMgr, 'sendResponse').andCallThrough();
+        spyOn(jobMgr, 'sendResponse').and.callThrough();
+    });
+
+    afterEach(function() {
+        jasmine.clock().uninstall();
     });
     
     describe('initialization', function() {
@@ -128,7 +125,7 @@ describe('JobManager', function() {
                 jobMgr.setJobTimeout(req, res, nextSpy);
                 expect(req._job.timedOut).toBe(false);
                 expect(nextSpy).toHaveBeenCalled();
-                jasmine.Clock.tick(jobMgr.cfg.timeout + 1);
+                jasmine.clock().tick(jobMgr.cfg.timeout + 1);
                 process.nextTick(function() {
                     expect(req._job.timedOut).toBe(true);
                     expect(mockCache.add).toHaveBeenCalledWith('req:1234', {code: 202, body: {url: '/api/job/1234'}}, jobMgr.cfg.cacheTTL);
@@ -139,11 +136,11 @@ describe('JobManager', function() {
             });
             
             it('should log a warning and set timedOut to false if writing to the cache fails', function(done) {
-                mockCache.add.andReturn(q.reject('I GOT A PROBLEM'));
+                mockCache.add.and.returnValue(q.reject('I GOT A PROBLEM'));
                 jobMgr.setJobTimeout(req, res, nextSpy);
                 expect(req._job.timedOut).toBe(false);
                 expect(nextSpy).toHaveBeenCalled();
-                jasmine.Clock.tick(jobMgr.cfg.timeout + 1);
+                jasmine.clock().tick(jobMgr.cfg.timeout + 1);
                 process.nextTick(function() {
                     expect(req._job.timedOut).toBe(false);
                     expect(mockCache.add).toHaveBeenCalled();
@@ -158,7 +155,7 @@ describe('JobManager', function() {
                 expect(req._job.timedOut).toBe(false);
                 expect(nextSpy).toHaveBeenCalled();
                 res.emit('finish');
-                jasmine.Clock.tick(jobMgr.cfg.timeout + 1);
+                jasmine.clock().tick(jobMgr.cfg.timeout + 1);
                 process.nextTick(function() {
                     expect(req._job.timedOut).toBe(false);
                     expect(mockCache.add).not.toHaveBeenCalled();
@@ -178,11 +175,11 @@ describe('JobManager', function() {
         
         it('should do nothing if req timeouts are not enabled', function(done) {
             jobMgr.cfg.enabled = false;
-            jasmine.Clock.tick(jobMgr.cfg.timeout + 1000);
+            jasmine.clock().tick(jobMgr.cfg.timeout + 1000);
             jobMgr.endJob(req, res, promiseResult).then(function() {
                 expect(req._job.timedOut).toBe(true);
                 expect(mockCache.set).not.toHaveBeenCalled();
-                expect(jobMgr.sendResponse.calls.length).toBe(2);
+                expect(jobMgr.sendResponse.calls.count()).toBe(2);
                 expect(jobMgr.sendResponse).toHaveBeenCalledWith(res, {code: 200, body: 'all good'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -190,13 +187,13 @@ describe('JobManager', function() {
         });
 
         it('should just clear the timeout if it has not fired yet', function(done) {
-            jasmine.Clock.tick(jobMgr.cfg.timeout - 1000);
+            jasmine.clock().tick(jobMgr.cfg.timeout - 1000);
             jobMgr.endJob(req, res, promiseResult).then(function() {
                 expect(req._job.timedOut).toBe(false);
                 expect(mockCache.set).not.toHaveBeenCalled();
-                expect(jobMgr.sendResponse.calls.length).toBe(1);
+                expect(jobMgr.sendResponse.calls.count()).toBe(1);
                 expect(jobMgr.sendResponse).toHaveBeenCalledWith(res, {code: 200, body: 'all good'});
-                jasmine.Clock.tick(1000);
+                jasmine.clock().tick(1000);
                 expect(req._job.timedOut).toBe(false);
                 expect(mockCache.add).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -205,12 +202,12 @@ describe('JobManager', function() {
         });
         
         it('should write the final result to the cache', function(done) {
-            jasmine.Clock.tick(jobMgr.cfg.timeout + 1000);
+            jasmine.clock().tick(jobMgr.cfg.timeout + 1000);
             expect(mockCache.add).toHaveBeenCalled();
             jobMgr.endJob(req, res, promiseResult).then(function() {
                 expect(req._job.timedOut).toBe(true);
                 expect(mockCache.set).toHaveBeenCalledWith('req:1234', {code: 200, body: 'all good'}, jobMgr.cfg.cacheTTL);
-                expect(jobMgr.sendResponse.calls.length).toBe(1);
+                expect(jobMgr.sendResponse.calls.count()).toBe(1);
                 expect(jobMgr.sendResponse).not.toHaveBeenCalledWith(res, {code: 200, body: 'all good'});
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -220,12 +217,12 @@ describe('JobManager', function() {
         
         it('should write a 500 to the cache if the promiseResult was rejected', function(done) {
             promiseResult = q.reject('I GOT A PROBLEM').inspect();
-            jasmine.Clock.tick(jobMgr.cfg.timeout + 1000);
+            jasmine.clock().tick(jobMgr.cfg.timeout + 1000);
             jobMgr.endJob(req, res, promiseResult).then(function() {
                 expect(mockCache.set).toHaveBeenCalledWith('req:1234',
                     { code: 500, body: { error: 'Internal Error', detail: '\'I GOT A PROBLEM\'' } },
                     jobMgr.cfg.cacheTTL);
-                expect(jobMgr.sendResponse.calls.length).toBe(1);
+                expect(jobMgr.sendResponse.calls.count()).toBe(1);
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -233,12 +230,12 @@ describe('JobManager', function() {
         });
 
         it('should just log an error if cache.set fails', function(done) {
-            mockCache.set.andReturn(q.reject('I GOT A PROBLEM'));
-            jasmine.Clock.tick(jobMgr.cfg.timeout + 1000);
+            mockCache.set.and.returnValue(q.reject('I GOT A PROBLEM'));
+            jasmine.clock().tick(jobMgr.cfg.timeout + 1000);
             jobMgr.endJob(req, res, promiseResult).then(function() {
                 expect(mockCache.set).toHaveBeenCalled();
                 expect(mockLog.warn).toHaveBeenCalled();
-                expect(jobMgr.sendResponse.calls.length).toBe(1);
+                expect(jobMgr.sendResponse.calls.count()).toBe(1);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -247,7 +244,7 @@ describe('JobManager', function() {
     
     describe('getJobResult', function() {
         it('should get a result from the cache', function(done) {
-            mockCache.get.andReturn(q({code: 200, body: 'yes'}));
+            mockCache.get.and.returnValue(q({code: 200, body: 'yes'}));
             jobMgr.getJobResult(req, res, '5678').then(function(resp) {
                 expect(jobMgr.sendResponse).toHaveBeenCalledWith(res, {code: 200, body: 'yes'});
                 expect(mockCache.get).toHaveBeenCalledWith('req:5678');
@@ -271,7 +268,7 @@ describe('JobManager', function() {
         });
         
         it('should send a 404 if no result is found', function(done) {
-            mockCache.get.andReturn(q());
+            mockCache.get.and.returnValue(q());
             jobMgr.getJobResult(req, res, '5678').then(function(resp) {
                 expect(jobMgr.sendResponse).toHaveBeenCalledWith(res, {code: 404, body: 'No result with that id found'});
                 expect(mockCache.get).toHaveBeenCalledWith('req:5678');
@@ -283,7 +280,7 @@ describe('JobManager', function() {
         });
         
         it('should handle cache errors', function(done) {
-            mockCache.get.andReturn(q.reject('I GOT A PROBLEM'));
+            mockCache.get.and.returnValue(q.reject('I GOT A PROBLEM'));
             jobMgr.getJobResult(req, res, '5678').then(function(resp) {
                 expect('resolved').not.toBe('resolved');
             }).catch(function(error) {
