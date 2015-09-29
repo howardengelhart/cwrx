@@ -131,6 +131,20 @@ describe('orgSvc orgs (E2E):', function() {
             }).done(done);
         });
 
+        it('should allow a user to specify which fields to return', function(done) {
+            options.qs = { fields: 'name' };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({
+                    id: 'o-1234',
+                    name: 'e2e-getId1'
+                });
+                expect(resp.response.headers['content-range']).not.toBeDefined();
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
         it('should not be able to get a deleted org', function(done) {
             options.url = config.orgSvcUrl + '/o-deleted';
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -231,6 +245,20 @@ describe('orgSvc orgs (E2E):', function() {
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'GET /api/account/orgs/',
                                                  params: {}, query: { sort: 'id,1' } });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should allow a user to specify which fields to return', function(done) {
+            options.qs.fields = 'name';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([
+                    { id: 'o-1234', name: 'e2e-getOrg3' },
+                    { id: 'o-4567', name: 'e2e-getOrg2' },
+                    { id: 'o-7890', name: 'e2e-getOrg1' }
+                ]);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

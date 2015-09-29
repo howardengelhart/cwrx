@@ -118,6 +118,25 @@ describe('ads minireelGroups endpoints (E2E):', function() {
             }).done(done);
         });
 
+        it('should allow a user to specify which fields to return', function(done) {
+            var options = {
+                url: config.adsUrl + '/minireelGroup/e2e-getid1',
+                qs: { fields: 'name,status' },
+                jar: cookieJar
+            };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({
+                    id: 'e2e-getid1',
+                    name: 'group 1',
+                    status: 'active'
+                });
+                expect(resp.response.headers['content-range']).not.toBeDefined();
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
         it('should not show deleted groups', function(done) {
             var options = {url: config.adsUrl + '/minireelGroup/e2e-getid2', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -190,6 +209,21 @@ describe('ads minireelGroups endpoints (E2E):', function() {
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'GET /api/minireelGroups/',
                                                  params: {}, query: { sort: 'id,1' } });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+
+        it('should allow a user to specify which fields to return', function(done) {
+            options.qs.fields = 'name,status';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([
+                    { id: 'e2e-getquery1', name: 'group 1', status: 'active' },
+                    { id: 'e2e-getquery2', name: 'group 2', status: 'inactive' },
+                    { id: 'e2e-getquery3', name: 'group 3', status: 'active' }
+                ]);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

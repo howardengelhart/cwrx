@@ -36,6 +36,10 @@
             aove = new adtech.AOVE(),
             customers = resp.body instanceof Array ? resp.body : [resp.body],
             ids = customers.map(function(cust) { return cust.id; });
+            
+        if (req.query && req.query.fields && !/advertisers/.test(req.query.fields)) {
+            return q(resp);
+        }
         
         if (resp.code < 200 || resp.code >= 300 || typeof resp.body !== 'object') {
             return q(resp);

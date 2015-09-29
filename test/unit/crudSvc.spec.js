@@ -779,7 +779,8 @@ describe('CrudSvc', function() {
                 expect(svc.runMiddleware).toHaveBeenCalledWith(req, 'read', anyFunc);
                 expect(svc.runMiddleware.calls.count()).toBe(1);
                 expect(svc.userPermQuery).toHaveBeenCalledWith({ type: 'foo' }, { id: 'u1', org: 'o1' });
-                expect(mockColl.find).toHaveBeenCalledWith('userPermQuery', {sort: { id: 1 }, limit: 20, skip: 10});
+                expect(mockColl.find).toHaveBeenCalledWith('userPermQuery',
+                    { sort: { id: 1 }, limit: 20, skip: 10, fields: {} });
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(fakeCursor.count).not.toHaveBeenCalled();
                 expect(svc.formatOutput).toHaveBeenCalledWith(transformedObj);
@@ -797,7 +798,8 @@ describe('CrudSvc', function() {
                 expect(svc.runMiddleware).toHaveBeenCalledWith(req, 'read', anyFunc);
                 expect(svc.runMiddleware.calls.count()).toBe(1);
                 expect(svc.userPermQuery).toHaveBeenCalledWith({ type: 'foo' }, { id: 'u1', org: 'o1' });
-                expect(mockColl.find).toHaveBeenCalledWith('userPermQuery', {sort: { id: 1 }, limit: 20, skip: 10});
+                expect(mockColl.find).toHaveBeenCalledWith('userPermQuery',
+                    { sort: { id: 1 }, limit: 20, skip: 10, fields: {} });
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(fakeCursor.count).not.toHaveBeenCalled();
                 expect(svc.formatOutput).toHaveBeenCalledWith(transformedObj);
@@ -811,7 +813,8 @@ describe('CrudSvc', function() {
             req = { uuid: '1234', user: 'fakeUser' };
             svc.getObjs(query, req, false).then(function(resp) {
                 expect(resp).toEqual({code: 200, body: 'formatted'});
-                expect(mockColl.find).toHaveBeenCalledWith('userPermQuery', {sort: {}, limit: 0, skip: 0});
+                expect(mockColl.find).toHaveBeenCalledWith('userPermQuery',
+                    { sort: {}, limit: 0, skip: 0, fields: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -821,7 +824,79 @@ describe('CrudSvc', function() {
             req.query.sort = 'foo';
             svc.getObjs(query, req, false).then(function(resp) {
                 expect(resp).toEqual({code: 200, body: 'formatted'});
-                expect(mockColl.find).toHaveBeenCalledWith('userPermQuery', {sort: {}, limit: 20, skip: 10});
+                expect(mockColl.find).toHaveBeenCalledWith('userPermQuery',
+                    { sort: {}, limit: 20, skip: 10, fields: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should ignore the limit param if invalid', function(done) {
+            req.query.limit = -123.4;
+            svc.getObjs(query, req, false).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(mockColl.find).toHaveBeenCalledWith('userPermQuery',
+                    { sort: { id: 1 }, limit: 0, skip: 10, fields: {} });
+                
+                mockColl.find.calls.reset();
+                req.query.limit = { foo: 'bar' };
+                return svc.getObjs(query, req, false);
+            }).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(mockColl.find).toHaveBeenCalledWith('userPermQuery',
+                    { sort: { id: 1 }, limit: 0, skip: 10, fields: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should ignore the skip param if invalid', function(done) {
+            req.query.skip = -123.4;
+            svc.getObjs(query, req, false).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(mockColl.find).toHaveBeenCalledWith('userPermQuery',
+                    { sort: { id: 1 }, limit: 20, skip: 0, fields: {} });
+                
+                mockColl.find.calls.reset();
+                req.query.skip = { foo: 'bar' };
+                return svc.getObjs(query, req, false);
+            }).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(mockColl.find).toHaveBeenCalledWith('userPermQuery',
+                    { sort: { id: 1 }, limit: 20, skip: 0, fields: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should allow specifiying which fields to return', function(done) {
+            req.query.fields = 'id,user,data.nest.foo';
+            svc.getObjs(query, req, false).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(mockColl.find).toHaveBeenCalledWith('userPermQuery',
+                    { sort: { id: 1 }, limit: 20, skip: 10, fields: { id: 1, user: 1, 'data.nest.foo': 1 } });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should always include the id field', function(done) {
+            req.query.fields = 'user,org';
+            svc.getObjs(query, req, false).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(mockColl.find).toHaveBeenCalledWith('userPermQuery',
+                    { sort: { id: 1 }, limit: 20, skip: 10, fields: { id: 1, user: 1, org: 1 } });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should guard against non-string fields params', function(done) {
+            req.query.fields = { foo: 'bar' };
+            svc.getObjs(query, req, false).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(mockColl.find).toHaveBeenCalledWith('userPermQuery',
+                    { sort: { id: 1 }, limit: 20, skip: 10, fields: { '[object Object]': 1, id: 1 } });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -836,7 +911,8 @@ describe('CrudSvc', function() {
                     type: 'foo',
                     id: { $in: ['u-bbe668b7376b76', 'u-c78552acd80e22'] }
                 }, { id: 'u1', org: 'o1' });
-                expect(mockColl.find).toHaveBeenCalledWith('userPermQuery', {sort: { id: 1 }, limit: 20, skip: 10});
+                expect(mockColl.find).toHaveBeenCalledWith('userPermQuery',
+                    { sort: { id: 1 }, limit: 20, skip: 10, fields: {} });
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             }).done(done);

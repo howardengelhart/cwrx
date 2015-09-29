@@ -231,7 +231,8 @@ describe('content (UT)', function() {
             expModule.getExperiences(query, req, expColl, false).then(function(resp) {
                 expect(resp).toEqual({code: 200, body: 'formatted'});
                 expect(expModule.userPermQuery).toHaveBeenCalledWith({type:'minireel'},'fakeUser',false);
-                expect(expColl.find).toHaveBeenCalledWith('userPermQuery', {sort: { id: 1 }, limit: 20, skip: 10});
+                expect(expColl.find).toHaveBeenCalledWith('userPermQuery',
+                    { sort: { id: 1 }, limit: 20, skip: 10, fields: {} });
                 expect(fakeCursor.toArray).toHaveBeenCalled();
                 expect(fakeCursor.count).not.toHaveBeenCalled();
                 expect(expModule.formatOutput).toHaveBeenCalledWith({id: 'e1'}, false);
@@ -244,7 +245,8 @@ describe('content (UT)', function() {
             req = { uuid: '1234', user: 'fakeUser' };
             expModule.getExperiences(query, req, expColl, false).then(function(resp) {
                 expect(resp).toEqual({code: 200, body: 'formatted'});
-                expect(expColl.find).toHaveBeenCalledWith('userPermQuery', {sort: {}, limit: 0, skip: 0});
+                expect(expColl.find).toHaveBeenCalledWith('userPermQuery',
+                    { sort: {}, limit: 0, skip: 0, fields: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -254,7 +256,90 @@ describe('content (UT)', function() {
             req.query.sort = 'foo';
             expModule.getExperiences(query, req, expColl, false).then(function(resp) {
                 expect(resp).toEqual({code: 200, body: 'formatted'});
-                expect(expColl.find).toHaveBeenCalledWith('userPermQuery', {sort: {}, limit: 20, skip: 10});
+                expect(expColl.find).toHaveBeenCalledWith('userPermQuery',
+                    { sort: {}, limit: 20, skip: 10, fields: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should ignore the limit param if invalid', function(done) {
+            req.query.limit = -123.4;
+            expModule.getExperiences(query, req, expColl, false).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(expColl.find).toHaveBeenCalledWith('userPermQuery',
+                    { sort: { id: 1 }, limit: 0, skip: 10, fields: {} });
+                
+                expColl.find.calls.reset();
+                req.query.limit = { foo: 'bar' };
+                return expModule.getExperiences(query, req, expColl, false);
+            }).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(expColl.find).toHaveBeenCalledWith('userPermQuery',
+                    { sort: { id: 1 }, limit: 0, skip: 10, fields: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should ignore the skip param if invalid', function(done) {
+            req.query.skip = -123.4;
+            expModule.getExperiences(query, req, expColl, false).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(expColl.find).toHaveBeenCalledWith('userPermQuery',
+                    { sort: { id: 1 }, limit: 20, skip: 0, fields: {} });
+                
+                expColl.find.calls.reset();
+                req.query.skip = { foo: 'bar' };
+                return expModule.getExperiences(query, req, expColl, false);
+            }).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(expColl.find).toHaveBeenCalledWith('userPermQuery',
+                    { sort: { id: 1 }, limit: 20, skip: 0, fields: {} });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should allow specifiying which fields to return', function(done) {
+            req.query.fields = 'id,user';
+            expModule.getExperiences(query, req, expColl, false).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(expColl.find).toHaveBeenCalledWith('userPermQuery',
+                    { sort: { id: 1 }, limit: 20, skip: 10, fields: { id: 1, user: 1 } });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should always include the id field', function(done) {
+            req.query.fields = 'user,org';
+            expModule.getExperiences(query, req, expColl, false).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(expColl.find).toHaveBeenCalledWith('userPermQuery',
+                    { sort: { id: 1 }, limit: 20, skip: 10, fields: { id: 1, user: 1, org: 1 } });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should handle data specially in the fields param', function(done) {
+            req.query.fields = 'data.foo,data.nest.bar';
+            expModule.getExperiences(query, req, expColl, false).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(expColl.find).toHaveBeenCalledWith('userPermQuery',
+                    { sort: { id: 1 }, limit: 20, skip: 10, fields: { 'data.data.foo': 1, 'data.data.nest.bar': 1, id: 1 } });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should guard against non-string fields params', function(done) {
+            req.query.fields = { foo: 'bar' };
+            expModule.getExperiences(query, req, expColl, false).then(function(resp) {
+                expect(resp).toEqual({code: 200, body: 'formatted'});
+                expect(expColl.find).toHaveBeenCalledWith('userPermQuery',
+                    { sort: { id: 1 }, limit: 20, skip: 10, fields: { '[object Object]': 1, id: 1 } });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -264,11 +349,13 @@ describe('content (UT)', function() {
             expModule.userPermQuery.and.callFake(function(orig) { return orig; });
             expModule.getExperiences({user: 'u-1'}, req, expColl, false).then(function(resp) {
                 expect(resp).toEqual({code: 200, body: 'formatted'});
-                expect(expColl.find).toHaveBeenCalledWith({user: 'u-1'}, {sort: {id: 1}, limit: 20, skip: 10, hint: {user: 1}});
+                expect(expColl.find).toHaveBeenCalledWith({ user: 'u-1' },
+                    { sort: {id: 1}, limit: 20, skip: 10, hint: {user: 1}, fields: {} });
                 return expModule.getExperiences({org: 'o-1'}, req, expColl, false);
             }).then(function(resp) {
                 expect(resp).toEqual({code: 200, body: 'formatted'});
-                expect(expColl.find.calls.all()[1].args).toEqual([{org: 'o-1'}, {sort: {id: 1}, limit: 20, skip: 10, hint: {org: 1}}]);
+                expect(expColl.find.calls.all()[1].args).toEqual([{org: 'o-1'},
+                    { sort: {id: 1}, limit: 20, skip: 10, hint: {org: 1}, fields: {} }]);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -279,7 +366,7 @@ describe('content (UT)', function() {
             expModule.getExperiences({org: 'o-1', user: 'u-1'}, req, expColl, false).then(function(resp) {
                 expect(resp).toEqual({code: 200, body: 'formatted'});
                 expect(expColl.find).toHaveBeenCalledWith({org: 'o-1', user: 'u-1'},
-                    {sort: {id: 1}, limit: 20, skip: 10, hint: {user: 1}});
+                    { sort: {id: 1}, limit: 20, skip: 10, hint: {user: 1}, fields: {} });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);

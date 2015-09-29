@@ -1,5 +1,10 @@
 # Ads Service Changelog
 
+### 1.5.0: Tue Sep 29 13:35:21 EDT 2015
+* [FIX]: Validate pagination params: [#512](https://github.com/cinema6/cwrx/issues/512)
+* [FEATURE]: Add handling for `fields` param: [#454](https://github.com/cinema6/cwrx/issues/454)
+* Extra deployment steps: None
+
 ### 1.4.1: Sat Sep 19 13:12:16 EDT 2015
 * [FIX]: Ensure `pricingHistory` and `statusHistory` cannot be changed directly by client: [#501](https://github.com/cinema6/cwrx/pull/501)
 * Extra deployment steps: None

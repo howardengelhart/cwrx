@@ -5,7 +5,7 @@ var q               = require('q'),
     testUtils       = require('./testUtils'),
     adtechErr       = testUtils.handleAdtechError,
     requestUtils    = require('../../lib/requestUtils'),
-    host            = process.env['host'] || 'localhost',
+    host            = process.env.host || 'localhost',
     config = {
         adsUrl  : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api',
         authUrl : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api'
@@ -121,6 +121,25 @@ describe('ads sites endpoints (E2E):', function() {
             }).done(done);
         });
 
+        it('should allow a user to specify which fields to return', function(done) {
+            var options = {
+                url: config.adsUrl + '/site/e2e-getid1',
+                qs: { fields: 'name,status' },
+                jar: cookieJar
+            };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({
+                    id: 'e2e-getid1',
+                    name: 'site 1',
+                    status: 'active'
+                });
+                expect(resp.response.headers['content-range']).not.toBeDefined();
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
         it('should not show deleted sites', function(done) {
             var options = {url: config.adsUrl + '/site/e2e-getid2', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -193,6 +212,21 @@ describe('ads sites endpoints (E2E):', function() {
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'GET /api/sites/',
                                                  params: {}, query: { sort: 'id,1' } });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+
+        it('should allow a user to specify which fields to return', function(done) {
+            options.qs.fields = 'name,status';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([
+                    { id: 'e2e-getquery1', name: 'site 1', status: 'active' },
+                    { id: 'e2e-getquery2', name: 'site 2', status: 'inactive' },
+                    { id: 'e2e-getquery3', name: 'site 3', status: 'active' }
+                ]);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -487,7 +521,7 @@ describe('ads sites endpoints (E2E):', function() {
                 url: config.adsUrl + '/site/e2e-s-keepme',
                 json: { name: 'e2e_s_KEEP_ME_' + new Date().toISOString() },
                 jar: cookieJar
-            }
+            };
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.name).toBe(options.json.name);

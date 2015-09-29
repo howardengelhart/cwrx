@@ -193,6 +193,25 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+        
+        it('should allow a user to specify which fields to return', function(done) {
+            var options = {
+                url: config.adsUrl + '/campaign/e2e-getid1',
+                qs: { fields: 'name,status' },
+                jar: cookieJar
+            };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({
+                    id: 'e2e-getid1',
+                    name: 'camp 1',
+                    status: 'active'
+                });
+                expect(resp.response.headers['content-range']).not.toBeDefined();
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
 
         it('should not show deleted campaigns', function(done) {
             var options = {url: config.adsUrl + '/campaign/e2e-getid2', jar: cookieJar};
@@ -279,6 +298,36 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'GET /api/campaigns/',
                                                  params: {}, query: { sort: 'id,1' } });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow a user to specify which fields to return', function(done) {
+            options.qs.fields = 'name,application';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([
+                    { id: 'e2e-getquery1', name: 'camp 1', application: 'studio' },
+                    { id: 'e2e-getquery2', name: 'camp 2 is great', application: 'studio' },
+                    { id: 'e2e-getquery3', name: 'camp 3', application: 'selfie' },
+                    { id: 'e2e-getquery5', name: 'camp 5 is great', application: 'selfie' }
+                ]);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should guard against invalid fields params', function(done) {
+            options.qs.fields = { foo: 'bar' };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([
+                    { id: 'e2e-getquery1' },
+                    { id: 'e2e-getquery2' },
+                    { id: 'e2e-getquery3' },
+                    { id: 'e2e-getquery5' }
+                ]);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

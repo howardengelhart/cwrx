@@ -122,6 +122,24 @@ describe('content category endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+
+        it('should allow a user to specify which fields to return', function(done) {
+            var options = {
+                url: config.contentUrl + '/content/category/e2e-id1',
+                qs: { fields: 'name' },
+                jar: e2eUserJar
+            };
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual({
+                    id: 'e2e-id1',
+                    name: 'snuffles'
+                });
+                expect(resp.response.headers['content-range']).not.toBeDefined();
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
         
         it('should not let non-admins retrieve inactive categories', function(done) {
             var options = {url: config.contentUrl + '/content/category/e2e-id2', jar: e2eUserJar};
@@ -224,6 +242,19 @@ describe('content category endpoints (E2E):', function() {
                 expect(results[0].version).toEqual(jasmine.any(String));
                 expect(results[0].data).toEqual({route: 'GET /api/content/categories/',
                                                  params: {}, query: { sort: 'id,1' } });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should allow a user to specify which fields to return', function(done) {
+            options.qs.fields = 'name';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([
+                    { id: 'e2e-id1', name: 'snuffles' },
+                    { id: 'e2e-id4', name: 'soterios_johnson' }
+                ]);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
