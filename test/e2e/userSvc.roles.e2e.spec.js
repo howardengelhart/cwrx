@@ -2,7 +2,7 @@ var q               = require('q'),
     util            = require('util'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
-    host            = process.env['host'] || 'localhost',
+    host            = process.env.host || 'localhost',
     config = {
         rolesUrl    : 'http://' + (host === 'localhost' ? host + ':3500' : host) + '/api/account/roles',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'

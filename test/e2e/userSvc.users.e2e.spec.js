@@ -3,7 +3,7 @@ var q               = require('q'),
     util            = require('util'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
-    host            = process.env['host'] || 'localhost',
+    host            = process.env.host || 'localhost',
     config = {
         usersUrl    : 'http://' + (host === 'localhost' ? host + ':3500' : host) + '/api/account/users',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
@@ -1198,7 +1198,7 @@ describe('userSvc users (E2E):', function() {
                     mailman.stop();
                     done();
                 });
-                return requestUtils.qRequest('post', options)
+                return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBe('Successfully changed password');
@@ -1244,7 +1244,7 @@ describe('userSvc users (E2E):', function() {
                     mailman.stop();
                     done();
                 });
-                return requestUtils.qRequest('post', options)
+                return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBe('Successfully changed password');

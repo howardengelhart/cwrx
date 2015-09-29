@@ -1,7 +1,8 @@
 var q               = require('q'),
+    util            = require('util'),
     testUtils       = require('./testUtils'),
     requestUtils    = require('../../lib/requestUtils'),
-    host            = process.env['host'] || 'localhost',
+    host            = process.env.host || 'localhost',
     config = {
         polsUrl     : 'http://' + (host === 'localhost' ? host + ':3500' : host) + '/api/account/policies',
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
@@ -457,7 +458,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                     id: 'p-e2e-put2',
                     name: 'testPol2',
                     status: 'active',
-                    priority: 2, 
+                    priority: 2,
                 },
                 {
                     id: 'p-e2e-deleted',
