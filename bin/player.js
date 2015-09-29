@@ -19,6 +19,8 @@ var inspect = require('util').inspect;
 var filterObject = require('../lib/objUtils').filter;
 var extend = require('../lib/objUtils').extend;
 var clonePromise = require('../lib/promise').clone;
+var AdLoader = require('../lib/adLoader');
+var push = Array.prototype.push;
 
 var staticCache = new FunctionCache({
     freshTTL: Infinity,
@@ -56,6 +58,15 @@ function Player(config) {
     });
 
     this.config = config;
+    this.adLoader = new AdLoader({
+        envRoot: config.api.root,
+        cardEndpoint: config.api.card.endpoint,
+        cardCacheTTLs: config.api.card.cacheTTLs,
+        server: config.adtech.server,
+        network: config.adtech.network,
+        maxSockets: config.adtech.request.maxSockets,
+        timeout: config.adtech.request.timeout
+    });
 
     // Memoize Player.prototype.__getPlayer__() method.
     this.__getPlayer__ = staticCache.add(this.__getPlayer__.bind(this), -1);
@@ -384,6 +395,7 @@ Player.prototype.get = function get(/*options*/) {
 
     var log = logger.getLog();
     var config = this.config;
+    var adLoader = this.adLoader;
     var type = options.type;
     var experience = options.experience;
     var params = filterObject(options, function(value, key) {
@@ -391,19 +403,53 @@ Player.prototype.get = function get(/*options*/) {
     });
     var origin = stripURL(options.origin);
     var uuid = options.uuid;
+    var categories = options.categories;
+    var campaign = options.campaign;
+    var preview = options.preview;
+    var playUrls = options.playUrls;
+    var countUrls = options.countUrls;
+    var launchUrls = options.launchUrls;
 
     log.trace('[%1] Getting player with options (%2.)', uuid, inspect(options));
 
+    function addTrackingPixels(experience) {
+        var campaign = experience.data.campaign;
+
+        push.apply(campaign.launchUrls || (campaign.launchUrls = []), launchUrls);
+
+        AdLoader.getSponsoredCards(experience).forEach(function addPixels(card) {
+            AdLoader.addTrackingPixels({
+                playUrls: playUrls,
+                countUrls: countUrls
+            }, card);
+        });
+
+        return experience;
+    }
+
     return q.all([
         this.__getPlayer__(type, uuid),
-        this.__getExperience__(experience, params, origin, uuid)
+        this.__getExperience__(experience, params, origin, uuid).then(function loadAds(experience) {
+            if (preview || !AdLoader.hasAds(experience)) {
+                log.trace('[%1] Skipping ad calls.', uuid);
+                return addTrackingPixels(AdLoader.removePlaceholders(experience));
+            }
+
+            return adLoader.loadAds(experience, categories, campaign, uuid)
+                .catch(function trimCards(reason) {
+                    log.warn('[%1] Unexpected failure loading ads: %2', uuid, inspect(reason));
+
+                    AdLoader.removePlaceholders(experience);
+                    AdLoader.removeSponsoredCards(experience);
+                })
+                .thenResolve(experience)
+                .then(addTrackingPixels);
+        })
     ]).spread(function inlineResources(html, experience) {
         var $document = cheerio.load(html);
 
-        log.trace(
-            '[%1] Inlining experience (%2) to %3 player HTML.',
-            uuid, experience.id, type
-        );
+        log.trace('[%1] Inlining experience (%2) to %3 player HTML.', uuid, experience.id, type);
+
         return Player.__addResource__($document, 'experience', 'application/json', experience);
     }).then(function stringify($document) {
         log.trace('[%1] Stringifying document.', uuid);
