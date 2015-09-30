@@ -223,7 +223,7 @@ Player.startService = function startService() {
             appDir: __dirname,
             pidDir: resolvePath(__dirname, '../pids'),
             api: {
-                root: 'https://portal.cinema6.com/',
+                root: 'https://staging.cinema6.com/',
                 player: {
                     endpoint: 'apps/mini-reel-player/index.html'
                 },
