@@ -92,9 +92,14 @@ module.exports = function(grunt) {
             myEnv[key] = process.env[key];
         });
 
+        if (grunt.option('branch')){
+            myEnv.CWRX_DEV_BRANCH = grunt.option('branch');
+        }
+
         myEnv.CWRX_APP = services.join(',');
 
         grunt.log.writelns('CWRX_APP: ',myEnv.CWRX_APP);
+        grunt.log.writelns('CWRX_DEV_BRANCH: ',myEnv.CWRX_DEV_BRANCH);
 
         vagrant  = spawn('vagrant', [cmd], { env : myEnv });
         vagrant.stdout.on('data', function(data){

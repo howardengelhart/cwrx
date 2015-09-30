@@ -2,16 +2,17 @@
 
 var __ut__      = (global.jasmine !== undefined) ? true : false;
 
-var /*q               = require('q'),*/
+var q               = require('q'),
     path            = require('path'),
     express         = require('express'),
     bodyParser      = require('body-parser'),
     sessionLib      = require('express-session'),
+    pg              = require('pg.js'),
+    dbpass          = require('../lib/dbpass'),
     logger          = require('../lib/logger'),
     uuid            = require('../lib/uuid'),
     authUtils       = require('../lib/authUtils'),
     service         = require('../lib/service'),
-    
     state   = {},
     lib     = {};
 
@@ -45,10 +46,95 @@ state.defaultConfig = {
             retryConnect : true
         }
     },
+    pg : {
+        defaults : {
+            poolSize        : 20,
+            poolIdleTimeout : 900000
+        }
+    },
     cache: {
         timeouts: {},
         servers: null
     }
+};
+
+lib.pgInit = function(state) {
+    var lookup = dbpass.open();
+
+    ['database','host','user'].forEach(function(key){
+        if (!(!!state.config.pg.defaults[key])){
+            throw new Error('Missing configuration: pg.defaults.' + key);
+        } else {
+            pg.defaults[key] = state.config.pg.defaults[key];
+        }
+    });
+
+    ['port','poolSize','poolIdleTimeout','reapIntervalMillis'].forEach(function(key){
+        if (state.config.pg.defaults[key]) {
+            pg.defaults[key] = state.config.pg.defaults[key];
+        }
+    });
+
+    pg.defaults.password = lookup(
+        pg.defaults.host,pg.defaults.port,
+        pg.defaults.database,pg.defaults.user
+    );
+
+    return state;
+};
+
+lib.campaignIdsFromRequest = function(req){
+    var ids = {};
+    
+    if (req.params.id) {
+        ids[req.params.id] = 1;
+    }
+    
+    if (req.query.id) {
+        req.query.id.split(',').forEach(function(id){
+            ids[id] = 1;
+        });
+    }
+
+    req.campaignIds = Object.keys(ids);
+    return req;
+};
+
+lib.queryCampaignSummarySQL = function(req) {
+    var deferred = q.defer(), idCount = req.campaignIds.length, statement;
+    
+    if (idCount < 1) {
+        throw new Error('At least one campaignId is required!');
+    }
+
+    statement =
+        'SELECT campaign_id,impressions,views,clicks,total_spend ' +
+        'FROM fct.v_cpv_campaign_activity_crosstab WHERE campaign_id in ($1)';
+
+    pg.connect(function(err, client, done) {
+        if (err) {
+            return deferred.reject(err);
+        }
+
+        client.query(statement,req.campaignIds,function(err,result){
+            done();
+            if (err) {
+                deferred.reject(err);
+            } else {
+                req.campaignSummaryResults = result;
+                deferred.resolve(req);
+            }
+        });
+    });
+
+    return deferred.promise;
+};
+
+lib.getCampaignAnalytics = function(req){
+//    var log = logger.getLog();
+
+    lib.campaignIdsFromRequest(req);
+    return lib.queryCampaignSummarySQL(req);
 };
 
 lib.main = function(state) {
@@ -143,7 +229,20 @@ lib.main = function(state) {
     
     var authAnalCamp = authUtils.middlewarify({campaigns: 'read'});
     app.get('/api/analytics/campaigns/:id', sessions, authAnalCamp, function(req, res) {
+        lib.getCampaignAnalytics(req);
         res.send(200,'OK');
+    });
+    
+    app.get('/api/analytics/campaigns/', sessions, authAnalCamp, function(req, res, next) {
+        lib.getCampaignAnalytics(req)
+        .then(function(){
+            res.send(200,'OK');
+            next();
+        })
+        .catch(function(err){
+            res.send(500,err.message);
+            next();
+        });
     });
     
     app.use(function(err, req, res, next) {
@@ -175,6 +274,7 @@ if (!__ut__){
     .then(service.cluster)
     .then(service.initMongo)
     .then(service.initSessionStore)
+    .then(lib.pgInit)
     .then(lib.main)
     .catch(function(err) {
         var log = logger.getLog();

@@ -134,7 +134,7 @@ Vagrant.configure("2") do |config|
                     "c6Journal" => { "host" => "127.0.0.1", "port" => 27017 }
                 },
                 "pg" => {
-                    "campfire" => {
+                    "defaults" => {
                         "database"  => "campfire_cwrx",
                         "host"      => "localhost",
                         "user"      => "sixxy"

@@ -137,11 +137,23 @@ function restartServices(services){
 
 function copyFileToService(file,service){
     var target =  '/opt/sixxy/install/' + service + '/current' + file.replace('/vagrant',''),
-        stats = fs.statSync(target);
+        stats, overwriteMode;
     try {
+        
+        if (fs.existsSync(target)){
+            stats = fs.statSync(target); 
+            overwriteMode = true;
+        } else {
+            stats = fs.statSync('/opt/sixxy/'); 
+        }
+        
         fs.copySync(file,target);
-        fs.chmodSync(target,stats.mode);
         fs.chownSync(target,stats.uid,stats.gid);
+   
+        if (overwriteMode) {
+            fs.chmodSync(target,stats.mode);
+        }
+
     }catch(e){
         console.log('Failed to copy ', file, ' to ', target, ': ' + e.message);
         process.exit(1);

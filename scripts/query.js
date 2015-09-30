@@ -55,7 +55,7 @@ function authenticate() {
 function getData() {
     
     var opts = {
-        url: queryUrl + '/' + 'ABC',
+        url: queryUrl + '/?id=ABC,DEF',
         rejectUnauthorized : false,
         headers: {
             'Cookie': authCookie
