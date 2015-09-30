@@ -79,10 +79,10 @@ module.exports = function(grunt) {
 
     }
 
-    function vagrantUp(service,done){
+    function vagrantUp(cmd,service,done){
         var vagrant, services = [ service ], myEnv = {};
 
-        if (service) {
+        if ((service) && (cmd === 'up')) {
             if (serviceDepends[service]){
                 services = Array.prototype.concat([service],serviceDepends[service].split(','));
             }
@@ -96,7 +96,7 @@ module.exports = function(grunt) {
 
         grunt.log.writelns('CWRX_APP: ',myEnv.CWRX_APP);
 
-        vagrant  = spawn('vagrant', ['up'], { env : myEnv });
+        vagrant  = spawn('vagrant', [cmd], { env : myEnv });
         vagrant.stdout.on('data', function(data){
             grunt.log.write(data.toString());
         });
@@ -136,7 +136,11 @@ module.exports = function(grunt) {
         var done = this.async(), service  = grunt.option('service');
 
         if (cmd === 'up') {
-            return vagrantUp(service,done);
+            return vagrantUp('up',service,done);
+        }
+
+        if (cmd === 'provision') {
+            return vagrantUp('provision',service,done);
         }
 
         if (cmd === 'halt') {

@@ -113,6 +113,35 @@ Vagrant.configure("2") do |config|
                 "host all all 33.33.33.0/24 md5"
             ]
         end
+
+        if svc == 'querybot'
+            chef.json[svc][:config] = {
+                "log" => {
+                    "logLevel" => "info",
+                    "logDir"   => "/opt/sixxy/logs",
+                    "logName"  => "querybot.log",
+                    "media"    => [ { "type" => "file" } ]
+                },
+                "caches" => { "run" => "/opt/sixxy/run/" },
+                "sessions" => {
+                    "key"     => "c6Auth",
+                    "maxAge"  => 14,  # days
+                    "secure"  => false,
+                    "mongo" => { "host" => "127.0.0.1", "port" => 27017 }
+                },
+                "mongo" => {
+                    "c6Db" => { "host" => "127.0.0.1", "port" => 27017 },
+                    "c6Journal" => { "host" => "127.0.0.1", "port" => 27017 }
+                },
+                "pg" => {
+                    "campfire" => {
+                        "database"  => "campfire_cwrx",
+                        "host"      => "localhost",
+                        "user"      => "sixxy"
+                    }
+                }
+            }
+        end
     end
   end
 end
