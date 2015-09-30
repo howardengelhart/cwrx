@@ -18,6 +18,7 @@ var resolvePath = require('path').resolve;
 var inspect = require('util').inspect;
 var filterObject = require('../lib/objUtils').filter;
 var extend = require('../lib/objUtils').extend;
+var clonePromise = require('../lib/promise').clone;
 
 var staticCache = new FunctionCache({
     freshTTL: Infinity,
@@ -50,7 +51,8 @@ ServiceError.prototype.toString = function toString() {
 function Player(config) {
     var contentCache = new FunctionCache({
         freshTTL: config.cacheTTLs.content.fresh,
-        maxTTL: config.cacheTTLs.content.max
+        maxTTL: config.cacheTTLs.content.max,
+        extractor: clonePromise
     });
 
     this.config = config;

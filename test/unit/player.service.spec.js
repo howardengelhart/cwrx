@@ -12,6 +12,7 @@ describe('player service', function() {
     var logger;
     var resolveURL;
     var extend;
+    var clonePromise;
 
     var requestDeferreds;
     var fnCaches;
@@ -38,6 +39,7 @@ describe('player service', function() {
         logger = require('../../lib/logger');
         resolveURL = require('url').resolve;
         extend = require('../../lib/objUtils').extend;
+        clonePromise = require('../../lib/promise').clone;
 
         playerHTML = require('fs').readFileSync(require.resolve('./helpers/player.html')).toString();
         playerCSS = require('fs').readFileSync(require.resolve('./helpers/lightbox.css')).toString();
@@ -628,7 +630,8 @@ describe('player service', function() {
         it('should create a FunctionCache for experiences', function() {
             expect(MockFunctionCache).toHaveBeenCalledWith({
                 freshTTL: config.cacheTTLs.content.fresh,
-                maxTTL: config.cacheTTLs.content.max
+                maxTTL: config.cacheTTLs.content.max,
+                extractor: clonePromise
             });
         });
 
