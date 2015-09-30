@@ -26,19 +26,19 @@ if [  "$1" = "-init" ] || [ "$1" = "--init" ]; then
     export PGPASSWORD=password
 
     psql -c "CREATE ROLE viewer NOSUPERUSER INHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;"
-    psql -c "CREATE USER campfire WITH CREATEDB LOGIN PASSWORD 'password';"
+    psql -c "CREATE USER cwrx WITH CREATEDB LOGIN PASSWORD 'password';"
     psql -c "CREATE USER sixxy WITH NOCREATEDB NOCREATEROLE LOGIN PASSWORD 'password';"
     psql -c "GRANT viewer TO sixxy;"
 fi
 
 # From here down we're destroying and recreating our test db
-export PGUSER=campfire
+export PGUSER=cwrx
 export PGPASSWORD=password
 
-dropdb 'campfire'
-createdb 'campfire'
+dropdb 'campfire_cwrx'
+createdb 'campfire_cwrx'
 
-export PGDATABASE='campfire'
+export PGDATABASE='campfire_cwrx'
 
 psql -c "CREATE SCHEMA fct;"
 psql -c "GRANT USAGE ON SCHEMA fct TO viewer;"

@@ -1,5 +1,5 @@
 var flush = true;
-ddescribe('querybot (UT)', function() {
+fdescribe('querybot (UT)', function() {
     var mockLog, logger, q, mockClient, nextSpy, doneSpy, errorSpy, req;
 
     beforeEach(function() {
@@ -15,8 +15,8 @@ ddescribe('querybot (UT)', function() {
             fatal : jasmine.createSpy('log_fatal'),
             log   : jasmine.createSpy('log_log')
         };
-        spyOn(logger, 'createLog').andReturn(mockLog);
-        spyOn(logger, 'getLog').andReturn(mockLog);
+        //spyOn(logger, 'createLog').andReturn(mockLog);
+        //spyOn(logger, 'getLog').andReturn(mockLog);
         
         req = { uuid: '1234' };
         
