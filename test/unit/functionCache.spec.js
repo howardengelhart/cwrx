@@ -23,7 +23,13 @@ describe('FunctionCache()', function() {
         var cache;
 
         beforeEach(function() {
-            config = { freshTTL: 15, maxTTL: 60, errorTTL: 2, gcInterval: 120  };
+            config = {
+                freshTTL: 15,
+                maxTTL: 60,
+                errorTTL: 2,
+                gcInterval: 120,
+                extractor: jasmine.createSpy('extractor()').and.callFake(function(value) { return value; })
+            };
 
             cache = new FunctionCache(config);
         });
@@ -69,6 +75,20 @@ describe('FunctionCache()', function() {
             });
         });
 
+        describe('if instantiated without an extractor', function() {
+            beforeEach(function() {
+                delete config.extractor;
+
+                cache = new FunctionCache(config);
+            });
+
+            it('should make it an identity function', function() {
+                var value = {};
+
+                expect(cache.extractor(value)).toBe(value);
+            });
+        });
+
         describe('properties:', function() {
             describe('freshTTL', function() {
                 it('should be the supplied freshTTL in ms', function() {
@@ -91,6 +111,12 @@ describe('FunctionCache()', function() {
             describe('gcInterval', function() {
                 it('should be the supplied gcInterval in ms', function() {
                     expect(cache.gcInterval).toBe(120*60*1000);
+                });
+            });
+
+            describe('extractor', function() {
+                it('should be the supplied extractor', function() {
+                    expect(cache.extractor).toBe(config.extractor);
                 });
             });
         });
@@ -355,8 +381,9 @@ describe('FunctionCache()', function() {
                         expect(fn).toHaveBeenCalledWith('one', 'two', 'three');
                     });
 
-                    it('should return the result of calling the function', function() {
-                        expect(result).toBe(fnResult);
+                    it('should return the result of calling extractor with the result of the function', function() {
+                        expect(cache.extractor).toHaveBeenCalledWith(fnResult);
+                        expect(result).toBe(cache.extractor.calls.mostRecent().returnValue);
                     });
 
                     describe('and the added function returns a non-object', function() {
@@ -405,6 +432,8 @@ describe('FunctionCache()', function() {
 
                         beforeEach(function() {
                             fn.calls.reset();
+                            cache.extractor.calls.reset();
+                            cache.extractor.and.returnValue({ foo: 'bar' });
 
                             secondResult = cachedFn('one', 'two', 'three');
                         });
@@ -413,8 +442,9 @@ describe('FunctionCache()', function() {
                             expect(fn).not.toHaveBeenCalled();
                         });
 
-                        it('should return the previously-returned value', function() {
-                            expect(secondResult).toBe(result);
+                        it('should return the result of calling the extractor with the previous value', function() {
+                            expect(cache.extractor).toHaveBeenCalledWith(result);
+                            expect(secondResult).toBe(cache.extractor.calls.mostRecent().returnValue);
                         });
 
                         describe('after the freshTTL has expired', function() {
@@ -426,6 +456,7 @@ describe('FunctionCache()', function() {
                                 jasmine.clock().tick(cache.freshTTL + 1);
                                 fn.calls.reset();
                                 fn.and.returnValue(newResult);
+                                cache.extractor.and.callFake(function(value) { return value; });
 
                                 secondResult = cachedFn('one', 'two', 'three');
                             });
@@ -464,6 +495,7 @@ describe('FunctionCache()', function() {
                                 jasmine.clock().tick(cache.maxTTL + 1);
                                 fn.calls.reset();
                                 fn.and.returnValue(newResult);
+                                cache.extractor.and.callFake(function(value) { return value; });
 
                                 secondResult = cachedFn('one', 'two', 'three');
                             });
