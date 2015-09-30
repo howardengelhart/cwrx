@@ -12,6 +12,7 @@ describe('userSvc (UT)', function() {
         userModule      = require('../../bin/userSvc-users');
         q               = require('q');
         bcrypt          = require('bcrypt');
+        crypto          = require('crypto');
         uuid            = require('../../lib/uuid');
         logger          = require('../../lib/logger');
         CrudSvc         = require('../../lib/crudSvc.js');
@@ -19,6 +20,7 @@ describe('userSvc (UT)', function() {
         mongoUtils      = require('../../lib/mongoUtils');
         objUtils        = require('../../lib/objUtils');
         email           = require('../../lib/email');
+        uuid            = require('../../lib/uuid');
 
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -36,14 +38,24 @@ describe('userSvc (UT)', function() {
         nextSpy = jasmine.createSpy('next()');
         doneSpy = jasmine.createSpy('done()');
         errorSpy = jasmine.createSpy('caught error');
-        
+
         mockDb = {
             collection: jasmine.createSpy('db.collection()').and.callFake(function(objName) {
                 return { collectionName: objName };
             })
         };
+        mockConfig = {
+            ses: {
+                region: 'us-east-1',
+                sender: 'support@cinema6.com'
+            },
+            activationTokenTTL: 60000,
+            activationTarget: 'https://www.selfie.cinema6.com/activate',
+            newUserRoles: ['newUserRole1'],
+            newUserPolicies: ['newUserPol1']
+        };
     });
-    
+
     describe('setupSvc', function() {
         var result;
 
@@ -56,6 +68,9 @@ describe('userSvc (UT)', function() {
             return array1.every(function(array1Value, index) {
                 var array2Value = array2[index];
 
+                if(Array.isArray(array1Value) && Array.isArray(array2Value)) {
+                    return equals(array1Value, array2Value);
+                }
                 return array1Value === array2Value;
             });
         }
@@ -80,7 +95,8 @@ describe('userSvc (UT)', function() {
             var bind = Function.prototype.bind;
             boundFns = [];
             [CrudSvc.prototype.preventGetAll, CrudSvc.prototype.validateUniqueProp, userModule.checkExistingWithNewEmail,
-             userModule.hashProp, userModule.validateRoles, userModule.validatePolicies].forEach(function(fn) {
+             userModule.hashProp, userModule.validateRoles, userModule.validatePolicies, userModule.setupNewObj,
+             userModule.filterProps, userModule.giveActivationToken, userModule.sendActivationEmail].forEach(function(fn) {
                 spyOn(fn, 'bind').and.callFake(function() {
                     var boundFn = bind.apply(fn, arguments);
 
@@ -94,7 +110,7 @@ describe('userSvc (UT)', function() {
                 });
             });
 
-            result = userModule.setupSvc(mockDb);
+            result = userModule.setupSvc(mockDb, mockConfig);
         });
 
         it('should return a CrudSvc', function() {
@@ -126,17 +142,17 @@ describe('userSvc (UT)', function() {
             expect(result._middleware.create).toContain(getBoundFn(result.validateUniqueProp, [result, 'email', null]));
             expect(result._middleware.create.indexOf(getBoundFn(result.validateUniqueProp, [result, 'email', null]))).toBeGreaterThan(result._middleware.create.indexOf(userModule.setupUser));
         });
-        
+
         it('should do additional validation for roles on create and edit', function() {
             expect(userModule.validateRoles.bind).toHaveBeenCalledWith(userModule, result);
             expect(result._middleware.create).toContain(getBoundFn(userModule.validateRoles, [userModule, result]));
         });
-        
+
         it('should do additional validation for policies on create and edit', function() {
             expect(userModule.validatePolicies.bind).toHaveBeenCalledWith(userModule, result);
             expect(result._middleware.create).toContain(getBoundFn(userModule.validatePolicies, [userModule, result]));
         });
-        
+
         it('should do additional validation for the password on create and edit', function() {
             expect(result._middleware.create).toContain(userModule.validatePassword);
             expect(result._middleware.edit).toContain(userModule.validatePassword);
@@ -168,36 +184,74 @@ describe('userSvc (UT)', function() {
             expect(result.checkScope).toBe(userModule.checkScope);
             expect(result.userPermQuery).toBe(userModule.userPermQuery);
         });
+
+        it('should setupNewObj when signing up a user', function() {
+            expect(userModule.setupNewObj.bind).toHaveBeenCalledWith(userModule, 'u', ['newUserRole1'], ['newUserPol1']);
+            expect(result._middleware.signupUser).toContain(getBoundFn(userModule.setupNewObj, [userModule, 'u', ['newUserRole1'], ['newUserPol1']]));
+        });
+
+        it('should filter props when signing up a user', function() {
+            expect(userModule.filterProps.bind).toHaveBeenCalledWith(userModule, ['org', 'customer', 'advertiser', 'roles', 'policies']);
+            expect(result._middleware.signupUser).toContain(getBoundFn(userModule.filterProps, [userModule, ['org', 'customer', 'advertiser', 'roles', 'policies']]));
+        });
+
+        it('should validate the password when signing up a user', function() {
+            expect(result._middleware.signupUser).toContain(userModule.validatePassword);
+        });
+
+        it('should hash the password when signing up a user', function() {
+            expect(userModule.hashProp.bind).toHaveBeenCalledWith(userModule, 'password');
+            expect(result._middleware.signupUser).toContain(getBoundFn(userModule.hashProp, [userModule, 'password']));
+        });
+
+        it('should setup the user when signing up a user', function() {
+            expect(result._middleware.signupUser).toContain(userModule.setupUser);
+        });
+
+        it('should validate a unique email address when signing up a user', function() {
+            expect(result.validateUniqueProp.bind).toHaveBeenCalledWith(result, 'email', null);
+            expect(result._middleware.signupUser).toContain(getBoundFn(result.validateUniqueProp, [result, 'email', null]));
+        });
+
+        it('should give an activation token when signing up a user', function() {
+            expect(userModule.giveActivationToken.bind).toHaveBeenCalledWith(userModule, 60000);
+            expect(result._middleware.signupUser).toContain(getBoundFn(userModule.giveActivationToken, [userModule, 60000]));
+        });
+
+        it('should send an activation email when signing up a user', function() {
+            expect(userModule.sendActivationEmail.bind).toHaveBeenCalledWith(userModule, 'support@cinema6.com', 'https://www.selfie.cinema6.com/activate');
+            expect(result._middleware.signupUser).toContain(getBoundFn(userModule.sendActivationEmail, [userModule, 'support@cinema6.com', 'https://www.selfie.cinema6.com/activate']));
+        });
     });
-    
+
     describe('user validation', function() {
         var svc, newObj, origObj, requester;
         beforeEach(function() {
-            svc = userModule.setupSvc(mockDb);
+            svc = userModule.setupSvc(mockDb, mockConfig);
             newObj = { email: 'test@me.com', password: 'pass' };
             origObj = {};
             requester = { fieldValidation: { users: {} } };
         });
-        
+
         describe('when handling email', function() {
             it('should fail if the field is not a string', function() {
                 newObj.email = 123;
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: false, reason: 'email must be in format: string' });
             });
-            
+
             it('should allow the field to be set on create', function() {
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ email: 'test@me.com', password: 'pass' });
             });
-            
+
             it('should fail if the field is not defined', function() {
                 delete newObj.email;
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: false, reason: 'Missing required field: email' });
             });
-            
+
             it('should pass if the field was defined on the original object', function() {
                 origObj.email = 'old value';
                 delete newObj.email;
@@ -205,7 +259,7 @@ describe('userSvc (UT)', function() {
                     .toEqual({ isValid: true, reason: undefined });
                 expect(newObj.email).toEqual('old value');
             });
-            
+
             it('should revert the field on edit', function() {
                 origObj.email = 'old value';
                 requester.fieldValidation.users.email = { __unchangeable: false };
@@ -221,13 +275,13 @@ describe('userSvc (UT)', function() {
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: false, reason: 'password must be in format: string' });
             });
-            
+
             it('should allow the field to be set on create', function() {
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ email: 'test@me.com', password: 'pass' });
             });
-            
+
             it('should pass if the field is not defined on edit', function() {
                 delete newObj.password;
                 expect(svc.model.validate('edit', newObj, origObj, requester))
@@ -245,7 +299,7 @@ describe('userSvc (UT)', function() {
                         .toEqual({ isValid: true, reason: undefined });
                     expect(newObj).toEqual({ email: 'test@me.com', password: 'pass' });
                 });
-                
+
                 it('should not allow any requesters to set the field', function() {
                     requester.fieldValidation.users[field] = { __allowed: true };
                     newObj[field] = { foo: 'bar' };
@@ -265,7 +319,7 @@ describe('userSvc (UT)', function() {
                         .toEqual({ isValid: true, reason: undefined });
                     expect(newObj).toEqual({ email: 'test@me.com', password: 'pass' });
                 });
-                
+
                 it('should be able to allow some requesters to set the field', function() {
                     newObj[field] = ['thing1', 'thing2'];
                     requester.fieldValidation.users[field] = {
@@ -277,7 +331,7 @@ describe('userSvc (UT)', function() {
                         .toEqual({ isValid: true, reason: undefined });
                     expect(newObj[field]).toEqual(['thing1', 'thing2']);
                 });
-                
+
                 it('should fail if the field is not an array of strings', function() {
                     newObj[field] = [{ name: 'thing1' }, { name: 'thing2' }];
                     requester.fieldValidation.users[field] = {
@@ -288,7 +342,7 @@ describe('userSvc (UT)', function() {
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: false, reason: field + ' must be in format: stringArray' });
                 });
-                
+
                 it('should fail if the field does not contain acceptable values', function() {
                     newObj[field] = ['thing1', 'thing4'];
                     requester.fieldValidation.users[field] = {
@@ -299,6 +353,218 @@ describe('userSvc (UT)', function() {
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: false, reason: field + '[1] is UNACCEPTABLE! acceptable values are: [thing1,thing2,thing3]' });
                 });
+            });
+        });
+    });
+
+    describe('setupNewObj', function() {
+        var req, next, done;
+
+        beforeEach(function() {
+            spyOn(uuid, 'createUuid').and.returnValue('abcdefghijklmnopqrstuvwxyz');
+            var newUserRoles = ['newUserRole1', 'newUserRole2'];
+            var newUserPols = ['newUserPol1', 'newUserPol2'];
+            req = {
+                body: { }
+            };
+            next = jasmine.createSpy('next()');
+            done = jasmine.createSpy('done()');
+            userModule.setupNewObj('u', newUserRoles, newUserPols, req, next, done);
+        });
+
+        it('should give the object an id', function() {
+            expect(req.body.id).toBe('u-abcdefghijklmn');
+        });
+
+        it('should set the created date of the object', function() {
+            expect(req.body.created).toEqual(jasmine.any(Date));
+            expect(req.body.created).toBe(req.body.lastUpdated);
+        });
+
+        it('should set the last updated date of the object', function() {
+            expect(req.body.lastUpdated).toEqual(jasmine.any(Date));
+            expect(req.body.lastUpdated).toBe(req.body.created);
+        });
+
+        it('should set the status of the object to new', function() {
+            expect(req.body.status).toBe('new');
+        });
+
+        it('should set roles on the new object', function() {
+            expect(req.body.roles).toEqual(['newUserRole1', 'newUserRole2']);
+        });
+
+        it('should set policies on the new object', function() {
+            expect(req.body.policies).toEqual(['newUserPol1', 'newUserPol2']);
+        });
+
+        it('should call next', function() {
+            expect(next).toHaveBeenCalled();
+        });
+
+        it('should not call done', function() {
+            expect(done).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('filterProps', function() {
+        var req, next, done;
+
+        beforeEach(function() {
+            next = jasmine.createSpy('next()');
+            done = jasmine.createSpy('done()');
+            req = {
+                body: {
+                    foo: 'bar',
+                    goo: 'bla',
+                    key: 'value',
+                    hey: 'listen'
+                }
+            };
+            userModule.filterProps(['foo', 'goo'], req, next, done);
+        });
+
+        it('should filter properties off the body of an object', function() {
+            expect(req.body).toEqual({
+                key: 'value',
+                hey: 'listen'
+            });
+        });
+
+        it('should call next', function() {
+            expect(next).toHaveBeenCalled();
+        });
+
+        it('should not call done', function() {
+            expect(done).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('giveActivationToken', function() {
+        var req, nextSpy, cryptoSpy, bcryptSpy;
+
+        beforeEach(function() {
+            req = {
+                body: { }
+            };
+            spyOn(q, 'npost').and.callFake(function(object, methodName, args) {
+                switch(object) {
+                case crypto:
+                    cryptoSpy(args);
+                    return q(new Buffer('abcdefghijklmnopqrstuvwx', 'utf-8'));
+                case bcrypt:
+                    bcryptSpy(args);
+                    return q('hashed-activation-token');
+                }
+            });
+            nextSpy = jasmine.createSpy('next()');
+            doneSpy = jasmine.createSpy('done()');
+            cryptoSpy = jasmine.createSpy('randomBytes()');
+            bcryptSpy = jasmine.createSpy('hash()');
+        });
+
+        it('should generate random bytes and convert to hex', function(done) {
+            userModule.giveActivationToken(60000, req, nextSpy);
+            process.nextTick(function() {
+                expect(cryptoSpy).toHaveBeenCalledWith([24]);
+                done();
+            });
+        });
+
+        it('should temporarily store the unhashed token in hex on the request', function(done) {
+            userModule.giveActivationToken(60000, req, nextSpy);
+            process.nextTick(function() {
+                expect(req.tempToken).toBe('6162636465666768696a6b6c6d6e6f707172737475767778'); // alphabet in hex
+                done();
+            });
+        });
+
+        it('should hash the hex token', function(done) {
+            userModule.giveActivationToken(60000, req, nextSpy);
+            process.nextTick(function() {
+                expect(bcryptSpy).toHaveBeenCalledWith(['6162636465666768696a6b6c6d6e6f707172737475767778', jasmine.any(String)]);
+                done();
+            });
+        });
+
+        it('should set the hashed token on the user document', function(done) {
+            userModule.giveActivationToken(60000, req, nextSpy);
+            process.nextTick(function() {
+                expect(req.body.activationToken.token).toBe('hashed-activation-token');
+                expect(req.body.activationToken.expires).toEqual(jasmine.any(Date));
+                done();
+            });
+        });
+
+        it('should call next', function(done) {
+            userModule.giveActivationToken(60000, req, nextSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                done();
+            });
+        });
+
+        it('should reject if something fails', function(done) {
+            q.npost.and.returnValue(q.reject('epic fail'));
+            userModule.giveActivationToken(60000, req, nextSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+                done();
+            });
+        });
+    });
+
+    describe('sendActivationEmail', function() {
+        var req, nextSpy;
+
+        beforeEach(function() {
+            req = {
+                body: {
+                    id: 'u-abcdefghijklmn'
+                },
+                tempToken: '6162636465666768696a6b6c6d6e6f707172737475767778'
+            };
+            spyOn(email, 'sendActivationEmail').and.returnValue(q());
+            nextSpy = jasmine.createSpy('next()');
+        });
+
+        it('should send an activation email', function(done) {
+            userModule.sendActivationEmail('sender', 'target', req, nextSpy);
+            process.nextTick(function() {
+                expect(email.sendActivationEmail).toHaveBeenCalled();
+                done();
+            });
+        });
+
+        it('should remove the temporary token from the request object', function(done) {
+            userModule.sendActivationEmail('sender', 'target', req, nextSpy);
+            process.nextTick(function() {
+                expect(req.tempToken).not.toBeDefined();
+                expect(req).toEqual({
+                    body: {
+                        id: 'u-abcdefghijklmn'
+                    }
+                });
+                done();
+            });
+        });
+
+        it('should call next', function(done) {
+            userModule.sendActivationEmail('sender', 'target', req, nextSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                done();
+            });
+        });
+
+        it('should reject if something fails', function(done) {
+            email.sendActivationEmail.and.returnValue(q.reject());
+            userModule.sendActivationEmail('sender', 'target', req, nextSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(mockLog.error).toHaveBeenCalled();
+                done();
             });
         });
     });
@@ -437,7 +703,7 @@ describe('userSvc (UT)', function() {
                 expect(next).toHaveBeenCalledWith();
             });
         });
-        
+
         describe('if the user has no policies', function() {
             beforeEach(function() {
                 next.calls.reset();
@@ -455,7 +721,7 @@ describe('userSvc (UT)', function() {
             });
         });
     });
-    
+
     describe('hashProp(prop, req, next, done)', function() {
         var prop, req, next, done;
         var success, failure;
@@ -570,11 +836,11 @@ describe('userSvc (UT)', function() {
             });
         });
     });
-    
+
     describe('validateRoles(svc, req, next, done)', function() {
         var roleColl, roles, svc;
         beforeEach(function() {
-            svc = userModule.setupSvc(mockDb);
+            svc = userModule.setupSvc(mockDb, mockConfig);
             roles = [
                 { id: 'r-1', name: 'role1' },
                 { id: 'r-2', name: 'role2' },
@@ -590,7 +856,7 @@ describe('userSvc (UT)', function() {
             mockDb.collection.and.returnValue(roleColl);
             req.body = { roles: ['role1', 'role2', 'role3'] };
         });
-        
+
         it('should call next if all roles on the request body exist', function(done) {
             userModule.validateRoles(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
@@ -606,7 +872,7 @@ describe('userSvc (UT)', function() {
                 done();
             });
         });
-        
+
         it('should skip if there are no roles on the request body', function(done) {
             delete req.body.roles;
             userModule.validateRoles(svc, req, nextSpy, doneSpy).catch(errorSpy);
@@ -618,7 +884,7 @@ describe('userSvc (UT)', function() {
                 done();
             });
         });
-        
+
         it('should call done with a 400 if not all roles are found', function(done) {
             req.body.roles.push('role4', 'role5');
             userModule.validateRoles(svc, req, nextSpy, doneSpy).catch(errorSpy);
@@ -633,7 +899,7 @@ describe('userSvc (UT)', function() {
                 done();
             });
         });
-        
+
         it('should reject if mongo fails', function(done) {
             roleColl.find.and.returnValue({ toArray: function(cb) { cb('I GOT A PROBLEM'); } });
             userModule.validateRoles(svc, req, nextSpy, doneSpy).catch(errorSpy);
@@ -651,7 +917,7 @@ describe('userSvc (UT)', function() {
     describe('validatePolicies(svc, req, next, done)', function() {
         var polColl, roles, svc;
         beforeEach(function() {
-            svc = userModule.setupSvc(mockDb);
+            svc = userModule.setupSvc(mockDb, mockConfig);
             roles = [
                 { id: 'p-1', name: 'pol1' },
                 { id: 'p-2', name: 'pol2' },
@@ -667,7 +933,7 @@ describe('userSvc (UT)', function() {
             mockDb.collection.and.returnValue(polColl);
             req.body = { policies: ['pol1', 'pol2', 'pol3'] };
         });
-        
+
         it('should call next if all policies on the request body exist', function(done) {
             userModule.validatePolicies(svc, req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
@@ -683,7 +949,7 @@ describe('userSvc (UT)', function() {
                 done();
             });
         });
-        
+
         it('should skip if there are no policies on the request body', function(done) {
             delete req.body.policies;
             userModule.validatePolicies(svc, req, nextSpy, doneSpy).catch(errorSpy);
@@ -695,7 +961,7 @@ describe('userSvc (UT)', function() {
                 done();
             });
         });
-        
+
         it('should call done with a 400 if not all policies are found', function(done) {
             req.body.policies.push('pol4', 'pol5');
             userModule.validatePolicies(svc, req, nextSpy, doneSpy).catch(errorSpy);
@@ -710,7 +976,7 @@ describe('userSvc (UT)', function() {
                 done();
             });
         });
-        
+
         it('should reject if mongo fails', function(done) {
             polColl.find.and.returnValue({ toArray: function(cb) { cb('I GOT A PROBLEM'); } });
             userModule.validatePolicies(svc, req, nextSpy, doneSpy).catch(errorSpy);
@@ -1128,6 +1394,103 @@ describe('userSvc (UT)', function() {
                 done
             );
             expect(result).toBe(validateUniquePropDeferred.promise);
+        });
+    });
+
+    describe('signupUser', function() {
+        var customMethodDeferred;
+        var svc, req;
+        var result;
+
+        beforeEach(function() {
+            customMethodDeferred = q.defer();
+            svc = {
+                customMethod: jasmine.createSpy('svc.customMethod()').and.returnValue(customMethodDeferred.promise),
+                model: {
+                    validate: jasmine.createSpy('svc.model.validate()').and.returnValue({
+                        isValid: true
+                    })
+                },
+                _coll: 'users',
+                transformMongoDoc: jasmine.createSpy('svc.transformMongoDoc()').and.callFake(function(value) {
+                    return value;
+                }),
+                formatOutput: jasmine.createSpy('svc.formatOutput()').and.callFake(function(value) {
+                    return value;
+                })
+            };
+            req = {
+                body: {
+                    foo: 'bar'
+                }
+            };
+            result = userModule.signupUser(svc, req);
+        });
+
+        it('should validate the model', function() {
+            expect(svc.model.validate).toHaveBeenCalledWith('create', { foo: 'bar' }, {}, {});
+        });
+
+        describe('when the model is valid', function() {
+            beforeEach(function() {
+                svc.model.validate.and.returnValue({
+                    isValid: true,
+                    reason: null
+                });
+            });
+
+            it('should call and return svc.customMethod()', function() {
+                expect(svc.customMethod).toHaveBeenCalledWith(req, 'signupUser', jasmine.any(Function));
+                expect(result).toBe(customMethodDeferred.promise);
+            });
+
+            describe('the callback passed to svc.customMethod()', function() {
+                var callback;
+                var success, failure;
+
+                beforeEach(function(done) {
+                    callback = svc.customMethod.calls.mostRecent().args[2];
+                    success = jasmine.createSpy('success()');
+                    failure = jasmine.createSpy('failure()');
+
+                    spyOn(mongoUtils, 'createObject').and.callFake(function(collection, document) {
+                        return q(document);
+                    });
+
+                    callback().then(success, failure).finally(done);
+                });
+
+                it('should create an object in the mongo collection', function() {
+                    expect(mongoUtils.createObject).toHaveBeenCalledWith('users', { foo: 'bar' });
+                });
+
+                it('should transform the mongo doc', function() {
+                    expect(svc.transformMongoDoc).toHaveBeenCalledWith(req.body);
+                });
+
+                it('should fulfill with a 201', function() {
+                    expect(success).toHaveBeenCalledWith({ code: 201, body: { foo: 'bar' } });
+                    expect(failure).not.toHaveBeenCalled();
+                });
+            });
+        });
+
+        describe('when the model is not valid', function() {
+            beforeEach(function() {
+                svc.model.validate.and.returnValue({
+                    isValid: false,
+                    reason: 'error message'
+                });
+            });
+
+            it('should resolve with a 400', function(done) {
+                userModule.signupUser(svc, req).then(function(res) {
+                    expect(res.code).toBe(400);
+                    expect(res.body).toBe('error message');
+                }).catch(function(error) {
+                    expect(error).not.toBeDefined();
+                }).finally(done);
+            });
         });
     });
 

@@ -5,8 +5,9 @@ describe('enums', function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         enums = require('../../lib/enums');
     });
-    
+
     it('should define constants correctly', function() {
+        expect(enums.Status.New).toBe('new');
         expect(enums.Status.Active).toBe('active');
         expect(enums.Status.Inactive).toBe('inactive');
         expect(enums.Status.Pending).toBe('pending');
@@ -17,7 +18,7 @@ describe('enums', function() {
         expect(enums.Scope.Org).toBe('org');
         expect(enums.Scope.All).toBe('all');
     });
-    
+
     it('should be frozen', function() {
         enums.Access.Public = 'foo';
         expect(enums.Access.Public).toBe('public');
@@ -29,7 +30,7 @@ describe('enums', function() {
         enums.Foo = { blah: 'bloop' };
         expect(enums.Foo).not.toBeDefined();
     });
-    
+
     describe('Scope._getVal', function() {
         it('should successfully translate strings to values', function() {
             expect(enums.Scope._getVal('own')).toBe(1);
@@ -41,7 +42,7 @@ describe('enums', function() {
             expect(enums.Scope._getVal(null)).toBe(0);
         });
     });
-    
+
     describe('Scope.compare', function() {
         it('should correctly compare scope strings', function() {
             expect(enums.Scope.compare('own', 'all')).toBe(-2);
