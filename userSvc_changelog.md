@@ -1,5 +1,7 @@
 # User Service Changelog
 
+* [FEATURE]: Add new user signup endpoint: [#483](https://github.com/cinema6/cwrx/issues/483)
+
 ### 2.0.0: Mon Sep 28 10:33:32 EDT 2015
 * [FIX]: Validate pagination params: [#512](https://github.com/cinema6/cwrx/issues/512)
 * [FEATURE]: Add handling for `fields` param: [#454](https://github.com/cinema6/cwrx/issues/454)
@@ -78,7 +80,7 @@
 * [FIX]: Setup default config object on new users: [#224](https://github.com/cinema6/cwrx/pull/224)
 * [FEATURE]: Allow admins to query for all users: [#219](https://github.com/cinema6/cwrx/pull/219)
 * [FEATURE]: Email notifications for account updates: [#209](https://github.com/cinema6/cwrx/pull/209)
-* Extra deployment steps: 
+* Extra deployment steps:
     * Deploy new userSvc cookbook to staging/production envs
     * Verify that staging/production IAM roles have proper access to SES
 
