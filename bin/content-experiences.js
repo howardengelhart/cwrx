@@ -561,11 +561,6 @@
         }
         obj.data = obj.data || {};
 
-        if (obj.data.adConfig && !expModule.checkScope(user, obj, 'experiences', 'editAdConfig')){
-            log.info('[%1] User %2 not authorized to set adConfig of new exp',req.uuid,user.id);
-            return q({ code: 403, body: 'Not authorized to set adConfig' });
-        }
-
         var versionId = uuid.hashText(JSON.stringify(obj.data)).substr(0, 8);
         obj.data = [ { user: user.email, userId: user.id, date: now,
                        data: obj.data, versionId: versionId } ];
@@ -668,18 +663,6 @@
                 return q({
                     code: 403,
                     body: 'Not authorized to edit this experience'
-                });
-            }
-
-            var origAdConfig = orig.data && orig.data[0] && orig.data[0].data.adConfig || null;
-
-            if (updates.data && updates.data.adConfig &&
-                !objUtils.compareObjects(updates.data.adConfig, origAdConfig) &&
-                !expModule.checkScope(user, orig, 'experiences', 'editAdConfig')) {
-                log.info('[%1] User %2 not authorized to edit adConfig of %3',req.uuid,user.id,id);
-                return q({
-                    code: 403,
-                    body: 'Not authorized to edit adConfig of this experience'
                 });
             }
 

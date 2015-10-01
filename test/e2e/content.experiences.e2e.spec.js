@@ -37,21 +37,6 @@ describe('content experience endpoints (E2E):', function() {
                 }
             },
             {
-                id: 'ad-e2e-user',
-                status: 'active',
-                email : 'admanager',
-                password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
-                org: 'e2e-org',
-                applications: ['e2e-app1'],
-                permissions: {
-                    experiences: {
-                        create: 'own',
-                        edit: 'all',
-                        editAdConfig: 'org'
-                    }
-                }
-            },
-            {
                 id: 'admin-e2e-user',
                 status: 'active',
                 email : 'admine2euser',
@@ -808,31 +793,6 @@ describe('content experience endpoints (E2E):', function() {
             });
         });
 
-        it('should only allow the adConfig to be set by users with permission', function(done) {
-            mockExp.data.adConfig = {ads: 'good'};
-            var altJar = request.jar();
-            var loginOpts = {
-                url: config.authUrl + '/auth/login',
-                json: { email: 'admanager', password: 'password' },
-                jar: altJar
-            };
-            return requestUtils.qRequest('post', loginOpts).then(function(resp) {
-                return q.all([cookieJar, altJar].map(function(jar) {
-                    options.jar = jar;
-                    return requestUtils.qRequest('post', options);
-                }));
-            }).then(function(results) {
-                expect(results[0].response.statusCode).toBe(403);
-                expect(results[0].body).toBe('Not authorized to set adConfig');
-                expect(results[1].response.statusCode).toBe(201);
-                expect(results[1].body.data).toEqual({foo: 'bar', adConfig: {ads: 'good'}});
-                done();
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-                done();
-            });
-        });
-
         it('should throw a 401 error if the user is not authenticated', function(done) {
             delete options.jar;
             requestUtils.qRequest('post', options)
@@ -1038,67 +998,6 @@ describe('content experience endpoints (E2E):', function() {
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
-        });
-
-        it('should not let users edit experiences\' adConfig if they lack permission', function(done) {
-            var options = {
-                url: config.contentUrl + '/content/experience/e2e-put1',
-                jar: cookieJar,
-                json: { data: { adConfig: { ads: 'bad' } } }
-            };
-            requestUtils.qRequest('put', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(403);
-                expect(resp.body).toBe('Not authorized to edit adConfig of this experience');
-                done();
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-                done();
-            });
-        });
-
-        it('should allow the edit if the adConfig is unchanged', function(done) {
-            var options = {
-                url: config.contentUrl + '/content/experience/e2e-put1',
-                jar: cookieJar,
-                json: { data: { foo: 'baz', adConfig: { ads: 'good' } } }
-            };
-            requestUtils.qRequest('put', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.data).toEqual({ foo: 'baz', adConfig: { ads: 'good' } });
-                done();
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-                done();
-            });
-        });
-
-        it('should let users edit owned experiences\' adConfig if they have permission', function(done) {
-            var altJar = request.jar();
-            var loginOpts = {
-                url: config.authUrl + '/auth/login',
-                json: { email: 'admanager', password: 'password' },
-                jar: altJar
-            };
-            return requestUtils.qRequest('post', loginOpts).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                return q.all(['e2e-put1', 'e2e-put2'].map(function(id) {
-                    var options = {
-                        url: config.contentUrl + '/content/experience/' + id,
-                        jar: altJar,
-                        json: { data: { foo: 'baz', adConfig: { ads: 'bad' } } }
-                    };
-                    return requestUtils.qRequest('put', options);
-                }));
-            }).then(function(results) {
-                expect(results[0].response.statusCode).toBe(200);
-                expect(results[0].body.data).toEqual({ foo: 'baz', adConfig: { ads: 'bad' } });
-                expect(results[1].response.statusCode).toBe(403);
-                expect(results[1].body).toBe('Not authorized to edit adConfig of this experience');
-                done();
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-                done();
-            });
         });
 
         it('should throw a 401 error if the user is not authenticated', function(done) {

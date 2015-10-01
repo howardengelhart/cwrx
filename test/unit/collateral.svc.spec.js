@@ -985,7 +985,7 @@ describe('collateral (UT):', function() {
                 close: jasmine.createSpy('page.close')
             };
             spyOn(uuid, 'createUuid').and.returnValue('fakeUuid');
-            spyOn(phantom, 'create').and.callFake(function(opts, cb) { cb(phantObj); });
+            spyOn(phantom, 'create').and.callFake(function(flag, opts, cb) { cb(phantObj); });
             spyOn(fs, 'writeFile').and.callFake(function(fpath, data, cb) { cb(); });
             spyOn(fs, 'remove').and.callFake(function(fpath, cb) { cb(); });
             spyOn(collateral, 'chooseTemplateNum').and.callThrough();
@@ -998,7 +998,8 @@ describe('collateral (UT):', function() {
             collateral.generate(req, imgSpec, 'fakeTempl', 'fakeHash', s3, config).then(function(key) {
                 expect(key).toBe('/path/on/s3');
                 expect(fs.writeFile).toHaveBeenCalledWith('/tmp/fakeUuid-compiled.html','compiledHtml',anyFunc);
-                expect(phantom.create).toHaveBeenCalledWith({onExit:anyFunc,onStderr:anyFunc},anyFunc);
+                expect(phantom.create).toHaveBeenCalledWith('--ssl-protocol=tlsv1',
+                    { onExit: anyFunc,onStderr: anyFunc }, anyFunc);
                 expect(phantObj.createPage).toHaveBeenCalledWith(anyFunc);
                 expect(page.set).toHaveBeenCalledWith('viewportSize',{height:600,width:600},anyFunc);
                 expect(page.open).toHaveBeenCalledWith('/tmp/fakeUuid-compiled.html', anyFunc);
@@ -1071,7 +1072,7 @@ describe('collateral (UT):', function() {
         
         it('should fail if phantom quits prematurely', function(done) {
             var handlers;
-            phantom.create.and.callFake(function(opts, cb) {
+            phantom.create.and.callFake(function(flag, opts, cb) {
                 handlers = opts;
                 cb(phantObj);
             });
@@ -1090,7 +1091,7 @@ describe('collateral (UT):', function() {
         
         it('should just log a warning if phantom logs error messages', function(done) {
             var handlers;
-            phantom.create.and.callFake(function(opts, cb) {
+            phantom.create.and.callFake(function(flag, opts, cb) {
                 handlers = opts;
                 cb(phantObj);
             });
@@ -1344,34 +1345,6 @@ describe('collateral (UT):', function() {
                 expect(collateral.generateSplash)
                     .toHaveBeenCalledWith(req, {height: 600, width: 600, ratio: 'foo'}, s3, config);
                 expect(req.body.thumbs).toEqual(['http://image.png']);
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should switch https urls to http', function(done) {
-            req.body.thumbs = ['https://1.png', 'http://2.png', 'https://3.png'];
-            collateral.createSplashes(req, s3, config).then(function(resp) {
-                expect(resp).toEqual({ code: 201, body: [
-                    { code: 201, name: 'splash', ratio: 'foo', path: '/path/on/s3' }
-                ]});
-                expect(collateral.generateSplash)
-                    .toHaveBeenCalledWith(req, {height: 600, width: 600, ratio: 'foo'}, s3, config);
-                expect(req.body.thumbs).toEqual(['http://1.png', 'http://2.png', 'http://3.png']);
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should not switch protocols for yahoo urls', function(done) {
-            req.body.thumbs = ['https://s.yimg.com/foo.png', 'https://img.com/foo.png'];
-            collateral.createSplashes(req, s3, config).then(function(resp) {
-                expect(resp).toEqual({ code: 201, body: [
-                    { code: 201, name: 'splash', ratio: 'foo', path: '/path/on/s3' }
-                ]});
-                expect(collateral.generateSplash)
-                    .toHaveBeenCalledWith(req, {height: 600, width: 600, ratio: 'foo'}, s3, config);
-                expect(req.body.thumbs).toEqual(['https://s.yimg.com/foo.png', 'http://img.com/foo.png']);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);

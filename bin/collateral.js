@@ -595,7 +595,10 @@
                 log.warn('[%1] Phantom had an error: %2', req.uuid, data);
             }
 
-            return q.nfapply(phantWrap, [phantom, 'create', [{onExit:onExit, onStderr:onErr}]]);
+            return q.nfapply(phantWrap, [phantom, 'create', [
+                '--ssl-protocol=tlsv1', // phantom defaults to SSLv3, which is insecure
+                { onExit: onExit, onStderr: onErr }
+            ]]);
         })
         .then(function(phantObj) { // Create a page object
             ph = phantObj;
@@ -776,13 +779,10 @@
                  
         // default urls to http so phantom will handle properly
         req.body.thumbs = req.body.thumbs.map(function(thumb) {
-            if (thumb.match(/yimg\.com/)) { // except yahoo, since their images only work in https
-                return thumb;
-            }
             if (thumb.match(/^\/\/.*/)) {
                 return 'http:' + thumb;
             }
-            return thumb.replace(/^https/, 'http');
+            return thumb;
         });
         
         return q.allSettled(req.body.imageSpecs.map(function(imgSpec) {

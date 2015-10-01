@@ -1,5 +1,9 @@
 # Collateral Service Changelog
 
+### 2.0.3: Wed Sep 30 12:39:01 EDT 2015
+* [FIX]: Solve issue with some https images not rendering properly in phantom: [#517](https://github.com/cinema6/cwrx/pull/517)
+* Extra deployment steps: None
+
 ### 2.0.2: Wed Sep 16 17:09:59 EDT 2015
 * [FIX]: Specifying "data:" URIs for re-upload will cause 400s not 500s: [#472](https://github.com/cinema6/cwrx/issues/472)
 * [FIX]: Auth middleware will handle users with roles + policies: [#475](https://github.com/cinema6/cwrx/pull/475)

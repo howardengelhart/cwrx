@@ -584,36 +584,6 @@ describe('content (UT)', function() {
             }).done(done);
         });
 
-        it('should prevent ordinary users from setting the adConfig', function(done) {
-            req.body.data.adConfig = {ads: 'good'};
-            expModule.createExperience(req, experiences).then(function(resp) {
-                expect(resp).toBeDefined();
-                expect(resp.code).toBe(403);
-                expect(resp.body).toBe('Not authorized to set adConfig');
-                expect(expModule.checkScope).toHaveBeenCalledWith(req.user, req.body, 'experiences', 'editAdConfig');
-                expect(experiences.insert).not.toHaveBeenCalled();
-                expect(expModule.formatOutput).not.toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-
-        it('should let users set the adConfig if they have permission to do so', function(done) {
-            expModule.checkScope.and.returnValue(true);
-            req.body.data.adConfig = {ads: 'good'};
-            expModule.createExperience(req, experiences).then(function(resp) {
-                expect(resp).toBeDefined();
-                expect(resp.code).toBe(201);
-                expect(resp.body.id).toBe('e-1234');
-                expect(resp.body.data).toEqual({foo: 'bar', adConfig: {ads: 'good'}});
-                expect(expModule.checkScope).toHaveBeenCalledWith(req.user, req.body, 'experiences', 'editAdConfig');
-                expect(experiences.insert).toHaveBeenCalled();
-                expect(experiences.insert.calls.all()[0].args[0].data[0].data).toEqual({foo:'bar',adConfig:{ads:'good'}});
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-
         it('should fail with a 400 if the request body contains illegal fields', function(done) {
             expModule.createValidator.validate.and.returnValue(false);
             expModule.createExperience(req, experiences).then(function(resp) {
@@ -742,60 +712,6 @@ describe('content (UT)', function() {
                 expect(experiences.findOne).toHaveBeenCalled();
                 expect(experiences.findAndModify).not.toHaveBeenCalled();
                 expect(expModule.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'edit');
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-
-        it('should prevent ordinary users from editing the adConfig', function(done) {
-            expModule.checkScope.and.callFake(function(user, orig, obj, verb) {
-                if (verb === 'editAdConfig') return false;
-                else return true;
-            });
-            req.body.data.adConfig = { ads: 'good' };
-            expModule.updateExperience(req, experiences).then(function(resp) {
-                expect(resp.code).toBe(403);
-                expect(resp.body).toBe('Not authorized to edit adConfig of this experience');
-                expect(experiences.findOne).toHaveBeenCalled();
-                expect(experiences.findAndModify).not.toHaveBeenCalled();
-                expect(expModule.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'editAdConfig');
-                expect(objUtils.compareObjects).toHaveBeenCalledWith({ ads: 'good' }, null);
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-
-        it('should allow the edit if the adConfig is unchanged', function(done) {
-            expModule.checkScope.and.callFake(function(user, orig, obj, verb) {
-                if (verb === 'editAdConfig') return false;
-                else return true;
-            });
-            req.body.data.adConfig = { ads: 'good' };
-            oldExp.data[0].data.adConfig = { ads: 'good' };
-            expModule.updateExperience(req, experiences).then(function(resp) {
-                expect(resp.code).toBe(200);
-                expect(resp.body).toEqual({id:'e-1234',data:{foo:'baz',adConfig:{ads:'good'}},versionId:'fakeVers'});
-                expect(experiences.findAndModify).toHaveBeenCalled();
-                var updates = experiences.findAndModify.calls.all()[0].args[2];
-                expect(updates.$set.data[0].data.adConfig).toEqual({ ads: 'good' });
-                expect(objUtils.compareObjects).toHaveBeenCalledWith({ads: 'good'}, {ads: 'good'});
-                expect(expModule.checkScope).not.toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'editAdConfig');
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-
-        it('should let users edit the adConfig if they have permission to do so', function(done) {
-            expModule.checkScope.and.returnValue(true);
-            req.body.data.adConfig = { ads: 'bad' };
-            expModule.updateExperience(req, experiences).then(function(resp) {
-                expect(resp.code).toBe(200);
-                expect(resp.body).toEqual({id:'e-1234',data:{foo:'baz',adConfig:{ads:'bad'}},versionId:'fakeVers'});
-                expect(experiences.findOne).toHaveBeenCalled();
-                expect(experiences.findAndModify).toHaveBeenCalled();
-                var updates = experiences.findAndModify.calls.all()[0].args[2];
-                expect(updates.$set.data[0].data.adConfig).toEqual({ ads: 'bad' });
-                expect(expModule.checkScope).toHaveBeenCalledWith(req.user, oldExp, 'experiences', 'editAdConfig');
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
