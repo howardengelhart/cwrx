@@ -2,6 +2,7 @@
     'use strict';
 
     var q               = require('q'),
+        util            = require('util'),
         express         = require('express'),
         requestUtils    = require('../lib/requestUtils'),
         uuid            = require('../lib/uuid'),
@@ -11,7 +12,6 @@
         objUtils        = require('../lib/objUtils'),
         CrudSvc         = require('../lib/crudSvc'),
         logger          = require('../lib/logger'),
-        Status          = require('../lib/enums').Status,
         
         campModule = { config: {} };
         
@@ -55,11 +55,9 @@
     };
          
     campModule.campSchema = {
-        status: { // TODO: this will probs need to be way more nuanced...
-            __allowed: false,
-            __type: 'string',
-            __default: Status.Draft,
-            __acceptableValues: []
+        status: {
+            __allowed: true,
+            __type: 'string'
         },
         application: {
             __allowed: true,
@@ -81,7 +79,7 @@
             __allowed: false,
             __type: 'number'
         },
-        pricing: { //TODO: confirm naming of fields (cost, model)
+        pricing: {
             budget: {
                 __allowed: true,
                 __required: true,
@@ -91,7 +89,10 @@
             },
             dailyLimit: {
                 __allowed: true,
-                __type: 'number'
+                __type: 'number',
+                __percentMin: 0.015,    // used internally, not in Model.validate()
+                __percentMax: 1,        // used internally, not in Model.validate()
+                __percentDefault: 0.03  // used internally, not in Model.validate() 
             },
             model: {
                 __allowed: false,
@@ -103,11 +104,51 @@
                 __type: 'number'
             }
         },
+        pricingHistory: {
+            __allowed: false,
+            __type: 'objectArray',
+            __locked: true
+        },
         categories: {
             __allowed: true,
             __type: 'stringArray'
         },
-        geoTargeting: { //TODO: will have to reconsider defaults based on Adtech
+        demographics: {
+            gender: {
+                __allowed: true,
+                __type: 'string',
+                __acceptableValues: ['male', 'female']
+            },
+            age: {
+                __allowed: true,
+                __type: 'object',
+                min: {
+                    __allowed: true,
+                    __type: 'number',
+                    __min: 0
+                },
+                max: {
+                    __allowed: true,
+                    __type: 'number',
+                    __min: 0
+                }
+            },
+            income: {
+                __allowed: true,
+                __type: 'object',
+                min: {
+                    __allowed: true,
+                    __type: 'number',
+                    __min: 0
+                },
+                max: {
+                    __allowed: true,
+                    __type: 'number',
+                    __min: 0
+                }
+            }
+        },
+        geoTargeting: {
             __allowed: true,
             __type: 'objectArray',
             __entries: {
@@ -158,9 +199,6 @@
         
         var getAccountIds = campaignUtils.getAccountIds.bind(campaignUtils, svc._db);
         
-        /*TODO: see if selfie frontend can do name uniqueness check, since name should probs just be
-         * unique for account, not system-wide */
-        
         svc.use('read', campModule.formatTextQuery);
 
         svc.use('create', campModule.defaultAccountIds);
@@ -188,8 +226,6 @@
         svc.use('edit', campModule.createTargetCamps);
         svc.use('edit', campModule.handlePricingHistory);
 
-        svc.use('delete', campaignUtils.statusCheck.bind(campaignUtils, //TODO: reconsider?
-            [Status.Draft, Status.Expired, Status.Canceled]));
         svc.use('delete', campModule.deleteContent);
         svc.use('delete', campModule.deleteAdtechCamps);
 
@@ -377,39 +413,39 @@
         return 0.1 + ((cats && cats.length > 0) ? 0.2 : 0) + ((geo && geo.length > 0) ? 0.3 : 0);
     };
     
-    campModule.validatePricing = function(req, next, done) { //TODO: comment, test
+    campModule.validatePricing = function(svc, req, next, done) { //TODO: comment, test
         var log = logger.getLog(),
             id = req.body.id || (req.origObj && req.origObj.id),
-            cards = req.body.cards || (req.origObj && req.origObj.cards),
-            reels = req.body.miniReels || (req.origObj && req.origObj.miniReels),
             origPricing = req.origObj && req.origObj.pricing;
 
-        //TODO: double check/explain order of things here
         if (!req.body.pricing) {
             return next();
         }
+
+        // always recompute cost
+        req.body.pricing.cost = campModule.computeCost(req);
         
-        //TODO: come back to this
-        if ((cards && cards.length > 1) || (reels && reels.length > 0)) {
-            log.warn('[%1] Campaign %2 has %3 cards and %4 miniReels, pricing will be weird',
-                     req.uuid, id, cards.length, reels.length);
-        }
-        
-        if (!req.body.pricing.cost) {
-            req.body.pricing.cost = campModule.computeCost(req);
-        }
-        
+        // copy over any missing props from original pricing
         objUtils.extend(req.body.pricing, origPricing);
         
-        var limitPercent = req.body.pricing.dailyLimit / req.body.pricing.budget;
+        // validate dailyLimit:
+        var actingSchema = svc.model.personalizeSchema(req.user),
+            limitMin = actingSchema.pricing.dailyLimit.__percentMin,
+            limitMax = actingSchema.pricing.dailyLimit.__percentMax,
+            limitDefault = actingSchema.pricing.dailyLimit.__percentDefault;
         
-        //TODO: note that this means limits on dailyLimit are not configurable per-user
-        if (limitPercent < 0.015 || limitPercent > 1) {
-            log.info('[%1] User %2 cannot set dailyLimit of %3 to %4% of budget',
-                     req.uuid, req.user.id, id, limitPercent);
+        // default dailyLimit if undefined
+        req.body.pricing.dailyLimit = req.body.dailyLimit || limitDefault;
+
+        // check if dailyLimit is within __percentMin and __percentMax of budget
+        var ratio = (req.body.pricing.dailyLimit / req.body.pricing.budget) || 0;
+        
+        if (ratio < limitMin || ratio > limitMax) {
+            log.info('[%1] User %2 cannot set dailyLimit of %3 to %4% of budget: bounds are %5, %6',
+                     req.uuid, req.user.id, id, ratio, limitMin, limitMax);
             return done({
                 code: 400,
-                body: 'dailyLimit must be between 1.5% and 100% of budget'
+                body: 'dailyLimit must be between ' + limitMin + ' and ' + limitMax + ' of budget'
             });
         }
         
@@ -435,6 +471,29 @@
                     delete map[expId][plId];
                 }
             });
+        });
+    };
+    
+    /* Send a DELETE request to the content service. type should be "card" or "experience"
+     * Logs + swallows 4xx failures, but rejects 5xx failures. */
+    campModule.sendDeleteRequest = function(req, id, type) {
+        var log = logger.getLog();
+        
+        return requestUtils.qRequest('delete', {
+            url: req.protocol + '://' + campModule.contentHost + '/api/content/' + type + '/' + id,
+            headers: { cookie: req.headers.cookie }
+        })
+        .then(function(resp) {
+            if (resp.response.statusCode !== 204) {
+                log.warn('[%1] Could not delete %2 %3. Received (%4, %5)',
+                         req.uuid, type, id, resp.response.statusCode, resp.body);
+            } else {
+                log.info('[%1] Succesfully deleted %2 %3', req.uuid, type, id);
+            }
+        })
+        .catch(function(error) {
+            log.error('[%1] Error deleting %2 %3: %4', req.uuid, type, id, util.inspect(error));
+            return q.reject(new Error('Failed sending delete request to content service'));
         });
     };
 
@@ -480,11 +539,9 @@
             
             return q.all(
                 toDelete.miniReels.map(function(id) {
-                    return requestUtils.proxyC6Request(req, 'delete', campModule.config.apiHost,
-                                                       '/api/content/experience/' + id);
+                    return campModule.sendDeleteRequest(req, id, 'experience');
                 }).concat(toDelete.cards.map(function(id) {
-                    return requestUtils.proxyC6Request(req, 'delete', campModule.config.apiHost,
-                                                       '/api/content/card/' + id);
+                    return campModule.sendDeleteRequest(req, id, 'card');
                 }))
             );
         }).then(function() {
@@ -802,12 +859,10 @@
             
         return q.all(
             (req.origObj.cards || []).map(function(card) {
-                return requestUtils.proxyC6Request(req, 'delete', campModule.config.apiHost,
-                                                   '/api/content/experience/' + card.id);
+                return campModule.sendDeleteRequest(req, card.id, 'card');
             })
             .concat((req.origObj.miniReels || []).map(function(exp) {
-                return requestUtils.proxyC6Request(req, 'delete', campModule.config.apiHost,
-                                                   '/api/content/card/' + exp.id);
+                return campModule.sendDeleteRequest(req, exp.id, 'experience');
             }))
         )
         .then(function() {

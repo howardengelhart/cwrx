@@ -43,7 +43,7 @@
                 end: 366*24*60*60*1000  // new campaigns default to ending now + this (ms)
             }
         },
-        apiHost: 'localhost',       // Hostname of the content service to proxy delete requests to
+        contentHost: 'localhost',   // Hostname of the content service to proxy delete requests to
         minireelGroups: {
             advertiserId: null,     // C6 advertiser id; must be overriden in a config file
             customerId: null        // C6 customer id; must be overriden in a config file
