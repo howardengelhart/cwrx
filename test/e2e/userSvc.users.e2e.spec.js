@@ -1435,6 +1435,7 @@ describe('userSvc users (E2E):', function() {
                     email: 'c6e2etester@gmail.com',
                     roles: [],
                     policies: [],
+                    external: true,
                     config: {}
                 });
             }).catch(function(error) {

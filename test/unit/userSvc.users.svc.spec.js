@@ -398,6 +398,10 @@ describe('userSvc (UT)', function() {
             expect(req.body.policies).toEqual(['newUserPol1', 'newUserPol2']);
         });
 
+        it('should set external on the new object to true', function() {
+            expect(req.body.external).toBe(true);
+        });
+
         it('should call next', function() {
             expect(next).toHaveBeenCalled();
         });

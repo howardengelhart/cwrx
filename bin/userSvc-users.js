@@ -152,6 +152,7 @@
         req.body.status = Status.New;
         req.body.roles = roles;
         req.body.policies = policies;
+        req.body.external = true;
 
         next();
     };
