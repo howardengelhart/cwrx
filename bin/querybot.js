@@ -83,13 +83,34 @@ lib.pgInit = function(state) {
     return state;
 };
 
+lib.pgQuery = function(statement,params){
+    var deferred = q.defer();
+
+    pg.connect(function(err, client, done) {
+        if (err) {
+            return deferred.reject(err);
+        }
+
+        client.query(statement,[params],function(err,result){
+            done();
+            if (err) {
+                deferred.reject(err);
+            } else {
+                deferred.resolve(result);
+            }
+        });
+    });
+
+    return deferred.promise;
+};
+
 lib.campaignIdsFromRequest = function(req){
     var ids = {};
     
     if (req.params.id) {
         ids[req.params.id] = 1;
     }
-    
+    else
     if (req.query.id) {
         req.query.id.split(',').forEach(function(id){
             ids[id] = 1;
@@ -100,41 +121,50 @@ lib.campaignIdsFromRequest = function(req){
     return req;
 };
 
-lib.queryCampaignSummarySQL = function(req) {
-    var deferred = q.defer(), idCount = req.campaignIds.length, statement;
+lib.queryCampaignSummary = function(req) {
+    var idCount = req.campaignIds.length, statement;
     
     if (idCount < 1) {
-        throw new Error('At least one campaignId is required!');
+        throw new Error('At least one campaignId is required.');
     }
 
     statement =
-        'SELECT campaign_id,impressions,views,clicks,total_spend ' +
-        'FROM fct.v_cpv_campaign_activity_crosstab WHERE campaign_id in ($1)';
+        'SELECT campaign_id as "campaignId" ,impressions::int4,views::int4,clicks::int4, ' +
+        'total_spend as "totalSpend" ' +
+        'FROM fct.v_cpv_campaign_activity_crosstab WHERE campaign_id = ANY($1::text[])';
 
-    pg.connect(function(err, client, done) {
-        if (err) {
-            return deferred.reject(err);
-        }
-
-        client.query(statement,req.campaignIds,function(err,result){
-            done();
-            if (err) {
-                deferred.reject(err);
-            } else {
-                req.campaignSummaryResults = result;
-                deferred.resolve(req);
-            }
+    return lib.pgQuery(statement,req.campaignIds)
+        .then(function(result){
+            req.campaignSummaryResults = result.rows;
+            return req;
         });
-    });
+};
 
-    return deferred.promise;
+lib.queryCampaignDaily = function(req) {
+    var idCount = req.campaignIds.length, statement;
+    
+    if (idCount < 1) {
+        throw new Error('At least one campaignId is required.');
+    }
+
+    statement =
+        'SELECT rec_date as "recDate", campaign_id as "campaignId", ' +
+        'impressions::int4,views::int4,clicks::int4, total_spend as "totalSpend" ' +
+        'FROM fct.v_cpv_campaign_activity_crosstab_daily WHERE campaign_id = ANY($1::text[])';
+
+    return lib.pgQuery(statement,req.campaignIds)
+        .then(function(result){
+            req.campaignDailyResults = result.rows;
+            return req;
+        });
 };
 
 lib.getCampaignAnalytics = function(req){
-//    var log = logger.getLog();
-
     lib.campaignIdsFromRequest(req);
-    return lib.queryCampaignSummarySQL(req);
+    return lib.queryCampaignSummary(req)
+        .then(function(req){
+            req.campaignAnalytics = req.campaignSummaryResults;
+        });
 };
 
 lib.main = function(state) {
@@ -228,15 +258,26 @@ lib.main = function(state) {
     });
     
     var authAnalCamp = authUtils.middlewarify({campaigns: 'read'});
-    app.get('/api/analytics/campaigns/:id', sessions, authAnalCamp, function(req, res) {
-        lib.getCampaignAnalytics(req);
-        res.send(200,'OK');
+    app.get('/api/analytics/campaigns/:id', sessions, authAnalCamp, function(req, res, next) {
+        lib.getCampaignAnalytics(req)
+        .then(function(){
+            if (req.campaignAnalytics.length === 0) {
+                res.send(404);
+            } else {
+                res.send(200,req.campaignAnalytics);
+            }
+            next();
+        })
+        .catch(function(err){
+            res.send(500,err.message);
+            next();
+        });
     });
     
     app.get('/api/analytics/campaigns/', sessions, authAnalCamp, function(req, res, next) {
         lib.getCampaignAnalytics(req)
         .then(function(){
-            res.send(200,'OK');
+            res.send(200,req.campaignAnalytics);
             next();
         })
         .catch(function(err){

@@ -1,6 +1,7 @@
 var flush = true;
 fdescribe('querybot (UT)', function() {
-    var mockLog, logger, q, pg, nextSpy, doneSpy, errorSpy, req, mockState, dbpass, mockLookup;
+    var mockLog, logger, q, pg, nextSpy, doneSpy, errorSpy, req, mockState, dbpass,
+        mockLookup, mockDefer, mockClient, mockDone, mockPromise;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -9,6 +10,33 @@ fdescribe('querybot (UT)', function() {
         lib             = require('../../bin/querybot');
         logger          = require('../../lib/logger');
         dbpass          = require('../../lib/dbpass');
+
+
+        mockClient = {
+            query : jasmine.createSpy('client.query')
+        };
+
+        mockDone = jasmine.createSpy('pg.connect.done');
+
+        spyOn(pg,'connect').and.callFake(function(cb){
+            cb(null,mockClient,mockDone);   
+        });
+
+        mockDefer = {
+            promise : {},
+            resolve : jasmine.createSpy('resolve'),
+            reject  : jasmine.createSpy('reject')
+        };
+
+        mockPromise = {
+            'then'  : jasmine.createSpy('promise.then'),
+            'catch' : jasmine.createSpy('promise.catch')
+        };
+
+        mockPromise.then.and.returnValue(mockPromise);
+        mockPromise.catch.and.returnValue(mockPromise);
+
+        spyOn(q,'defer').and.returnValue(mockDefer);
 
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -128,18 +156,17 @@ fdescribe('querybot (UT)', function() {
             expect(req.campaignIds).toEqual(['ABC','DEF']);
         });
 
-        it('can pull ids from both request params and query',function(){
+        it('ignores query param ids if main id param is set',function(){
             req.params.id = 'ABC'; 
             req.query.id = 'DEF,GHI'; 
             lib.campaignIdsFromRequest(req);
-            expect(req.campaignIds).toEqual(['ABC','DEF','GHI']);
+            expect(req.campaignIds).toEqual(['ABC']);
         });
 
         it('squashes duplicate ids',function(){
-            req.params.id = 'ABC'; 
-            req.query.id = 'DEF,ABC,GHI'; 
+            req.query.id = 'DEF,ABC,GHI,ABC'; 
             lib.campaignIdsFromRequest(req);
-            expect(req.campaignIds).toEqual(['ABC','DEF','GHI']);
+            expect(req.campaignIds).toEqual(['DEF','ABC','GHI']);
         });
 
         it('will be an empty array if there are no ids',function(){
@@ -147,41 +174,71 @@ fdescribe('querybot (UT)', function() {
             expect(req.campaignIds).toEqual([]);
         });
     });
-/*
-    describe('formatCampaignSummarySQL',function(){
+
+    describe('pgQuery',function(){
+        it('will reject if the connect rejects',function(){
+            var err = new Error('Failed to Connect!');
+            pg.connect.and.callFake(function(cb){
+                cb(err,mockClient,mockDone);   
+            });
+            lib.pgQuery('abc','param1');
+            expect(mockDefer.reject).toHaveBeenCalledWith(err);
+            expect(mockClient.query).not.toHaveBeenCalled();
+        });
+
+        it('will reject if the client query errs',function(){
+            var err = new Error('Failed to Query!');
+            mockClient.query.and.callFake(function(statement,args,cb){
+                cb(err,null); 
+            });
+            lib.pgQuery('abc','param1');
+            expect(mockClient.query).toHaveBeenCalled();
+            expect(mockDefer.reject).toHaveBeenCalledWith(err);
+        });
+
+        it('will return results if query does not error',function(){
+            var results = { rows : [] };
+            mockClient.query.and.callFake(function(statement,args,cb){
+                cb(null,results); 
+            });
+            lib.pgQuery(req);
+            expect(mockClient.query).toHaveBeenCalled();
+            expect(mockDefer.resolve).toHaveBeenCalledWith(results);
+        });
+    });
+
+    describe('queryCampaignSummary',function(){
         var req;
         beforeEach(function(){
             req = { 
-                campaignIds : []
+                campaignIds : ['id1','id2']
             };
+            spyOn(lib,'pgQuery').and.returnValue(mockPromise);
         });
 
         it('will throw an exception if there are no campaignIds',function(){
+            req.campaignIds = [];
             expect(function(){
-                lib.formatCampaignSummarySQL(req)
-            }).toThrow(new Error('At least one campaignId is required!'));
-        });
-
-        it('will format a sql statement with one id',function(){
-            req.campaignIds.push('ABC');
-            lib.formatCampaignSummarySQL(req);
-            expect(req.sqlCampaignSummary).toEqual(
-                'SELECT campaign_id,impressions,views,clicks,total_spend ' +
-                'FROM fct.v_cpv_campaign_activity_crosstab WHERE campaign_id = \'ABC\''
-            );
+                lib.queryCampaignSummary(req);
+            }).toThrow(new Error('At least one campaignId is required.'));
         });
         
-        it('will format a sql statement with a list of ids',function(){
-            req.campaignIds.push('ABC','DEF','GHI');
-            lib.formatCampaignSummarySQL(req);
-            expect(req.sqlCampaignSummary).toEqual(
-                'SELECT campaign_id,impressions,views,clicks,total_spend ' +
-                'FROM fct.v_cpv_campaign_activity_crosstab WHERE campaign_id IN (' +
-                '\'ABC\',\'DEF\',\'GHI\')'
-            );
+        it('will pass campaignIds as parameters',function(){
+            req.campaignIds = ['abc','def'];
+            lib.queryCampaignSummary(req);
+            expect(lib.pgQuery.calls.mostRecent().args[1]).toBe(req.campaignIds);
         });
 
+        it('will put query results on req',function(){
+            var results = { rows : [] };
+            req.campaignIds = ['abc','def'];
+            mockPromise.then.and.callFake(function(cb){
+                cb(results);        
+            });
+            lib.queryCampaignSummary(req);
+            expect(req.campaignSummaryResults).toBe(results.rows);
+        });
     });
-*/
+
 
 });
