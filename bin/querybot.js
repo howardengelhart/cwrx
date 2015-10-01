@@ -55,7 +55,23 @@ state.defaultConfig = {
     cache: {
         timeouts: {},
         servers: null
+    },
+    campaignCacheTTL : 120 * 1000,
+    requestMaxAge : 300
+};
+
+lib.campaignCacheGet = function(key) {
+    if (state.config.campaignCacheTTL > 0) {
+        return state.cache.get(key);
     }
+    return q();
+};
+
+lib.campaignCacheSet = function(key,val) {
+    if (state.config.campaignCacheTTL > 0) {
+        return state.cache.set(key,val,state.config.campaignCacheTTL);
+    }
+    return q();
 };
 
 lib.pgInit = function(state) {
@@ -91,7 +107,7 @@ lib.pgQuery = function(statement,params){
             return deferred.reject(err);
         }
 
-        client.query(statement,[params],function(err,result){
+        client.query(statement,params,function(err,result){
             done();
             if (err) {
                 deferred.reject(err);
@@ -117,12 +133,45 @@ lib.campaignIdsFromRequest = function(req){
         });
     }
 
-    req.campaignIds = Object.keys(ids);
-    return req;
+    return  Object.keys(ids);
 };
 
-lib.queryCampaignSummary = function(req) {
-    var idCount = req.campaignIds.length, statement;
+lib.getCampaignDataFromCache = function(campaignIds,keySuffix){
+    var log = logger.getLog(), retval;
+    return q.all(campaignIds.map(function(id){
+        return lib.campaignCacheGet(id + keySuffix);
+    }))
+    .then(function(results){
+        results.forEach(function(res){
+            if ((res) && (res.campaignId)) {
+                if (retval === undefined) {
+                    retval = {};
+                }
+                log.trace('Found campaign[%1] in cache.',res.campaignId);
+                retval[res.campaignId] = res;
+            }
+        });
+        return retval;
+    });
+};
+
+lib.setCampaignDataInCache = function(data,keySuffix){
+    var log = logger.getLog();
+    return q.all(Object.keys(data).map(function(id){
+        log.trace('Store campaign[%1] in cache.',id);
+        return lib.campaignCacheSet(id + keySuffix, data[id]);
+    }))
+    .then(function(){
+        return data;
+    })
+    .catch(function(e){
+        log.warn(e.message);
+        return data;
+    });
+};
+
+lib.queryCampaignSummary = function(campaignIds) {
+    var idCount = campaignIds.length, statement;
     
     if (idCount < 1) {
         throw new Error('At least one campaignId is required.');
@@ -133,15 +182,21 @@ lib.queryCampaignSummary = function(req) {
         'total_spend as "totalSpend" ' +
         'FROM fct.v_cpv_campaign_activity_crosstab WHERE campaign_id = ANY($1::text[])';
 
-    return lib.pgQuery(statement,req.campaignIds)
+    return lib.pgQuery(statement,[campaignIds])
         .then(function(result){
-            req.campaignSummaryResults = result.rows;
-            return req;
+            var res;
+            result.rows.forEach(function(row){
+                if (res === undefined) {
+                    res = {};
+                }
+                res[row.campaignId] = row;
+            });
+            return res;
         });
 };
 
-lib.queryCampaignDaily = function(req) {
-    var idCount = req.campaignIds.length, statement;
+lib.queryCampaignDaily = function(campaignIds) {
+    var idCount = campaignIds.length, statement;
     
     if (idCount < 1) {
         throw new Error('At least one campaignId is required.');
@@ -152,19 +207,85 @@ lib.queryCampaignDaily = function(req) {
         'impressions::int4,views::int4,clicks::int4, total_spend as "totalSpend" ' +
         'FROM fct.v_cpv_campaign_activity_crosstab_daily WHERE campaign_id = ANY($1::text[])';
 
-    return lib.pgQuery(statement,req.campaignIds)
+    return lib.pgQuery(statement,[campaignIds])
         .then(function(result){
-            req.campaignDailyResults = result.rows;
-            return req;
+            var res;
+            result.rows.forEach(function(row){
+                if (res === undefined) {
+                    res = {};
+                }
+                if (!res[row.campaignId]){
+                    res[row.campaignId] = [];
+                }
+                res[row.campaignId].push(row);
+            });
         });
 };
 
-lib.getCampaignAnalytics = function(req){
-    lib.campaignIdsFromRequest(req);
-    return lib.queryCampaignSummary(req)
-        .then(function(req){
-            req.campaignAnalytics = req.campaignSummaryResults;
+lib.getCampaignSummaryAnalytics = function(req){
+
+    function getDataFromCache(j){
+        if (j.campaignIds.length < 1) {
+            return q.reject(new Error('At least one campaignId is required.'));
+        }
+        return lib.getCampaignDataFromCache(j.campaignIds,j.keySuffix)
+        .then(function(res){
+            j.cacheResults = res;
+            if (res) {
+                j.campaignIds = j.campaignIds.filter(function(id){
+                    return (res[id] === undefined);
+                });
+            }
+            return j;
         });
+    }
+
+    function getDataFromDb(j){
+        if (!j.campaignIds || !(j.campaignIds.length)){
+            return j;
+        }
+        return lib.queryCampaignSummary(j.campaignIds)
+            .then(function(res){
+                j.queryResults = res;
+                if (!res) {
+                    return j;
+                }
+                return lib.setCampaignDataInCache(res,j.keySuffix)
+                    .then(function(){
+                        return j;
+                    });
+            });
+    }
+
+    function fmt(id,result){
+        delete result.campaignId;
+        return {
+            campaignId  : id,
+            summary     : result
+        };
+    }
+
+    function compileResults(j){
+        j.request.campaignSummaryAnalytics = Array.prototype.concat(
+            Object.keys(j.cacheResults || {}).map(function(id){
+                return fmt(id,j.cacheResults[id]);
+            }),
+            Object.keys(j.queryResults || {}).map(function(id){
+                return fmt(id,j.queryResults[id]);
+            })
+        );
+        return j;
+    }
+    
+    return getDataFromCache({
+        request      : req,
+        keySuffix    : ':summary',
+        cacheResults : null,
+        queryResults : null,
+        campaignIds  : lib.campaignIdsFromRequest(req)
+    })
+    .then(getDataFromDb)
+    .then(compileResults);
 };
 
 lib.main = function(state) {
@@ -221,7 +342,7 @@ lib.main = function(state) {
     app.use(function(req, res, next) {
         res.header('Access-Control-Allow-Headers',
                    'Origin, X-Requested-With, Content-Type, Accept');
-        res.header('cache-control', 'max-age=0');
+        res.header('cache-control', 'max-age=' + state.config.requestMaxAge);
 
         if (req.method.toLowerCase() === 'options') {
             res.send(200);
@@ -259,25 +380,26 @@ lib.main = function(state) {
     
     var authAnalCamp = authUtils.middlewarify({campaigns: 'read'});
     app.get('/api/analytics/campaigns/:id', sessions, authAnalCamp, function(req, res, next) {
-        lib.getCampaignAnalytics(req)
+        lib.getCampaignSummaryAnalytics(req)
         .then(function(){
-            if (req.campaignAnalytics.length === 0) {
+            if (req.campaignSummaryAnalytics.length === 0) {
                 res.send(404);
             } else {
-                res.send(200,req.campaignAnalytics);
+                res.send(200,req.campaignSummaryAnalytics);
             }
             next();
         })
         .catch(function(err){
-            res.send(500,err.message);
+            log.error('[%1] - 500 Error: [%2]',req.uuid,err.stack);
+            res.send(500);
             next();
         });
     });
     
     app.get('/api/analytics/campaigns/', sessions, authAnalCamp, function(req, res, next) {
-        lib.getCampaignAnalytics(req)
+        lib.getCampaignSummaryAnalytics(req)
         .then(function(){
-            res.send(200,req.campaignAnalytics);
+            res.send(200,req.campaignSummaryAnalytics);
             next();
         })
         .catch(function(err){
@@ -315,6 +437,8 @@ if (!__ut__){
     .then(service.cluster)
     .then(service.initMongo)
     .then(service.initSessionStore)
+    .then(service.initPubSubChannels)
+    .then(service.initCache)
     .then(lib.pgInit)
     .then(lib.main)
     .catch(function(err) {
@@ -330,5 +454,6 @@ if (!__ut__){
         log.info('ready to serve');
     });
 } else {
+    lib._state = state;
     module.exports = lib;
 }

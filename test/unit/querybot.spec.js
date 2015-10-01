@@ -1,7 +1,7 @@
 var flush = true;
 fdescribe('querybot (UT)', function() {
     var mockLog, logger, q, pg, nextSpy, doneSpy, errorSpy, req, mockState, dbpass,
-        mockLookup, mockDefer, mockClient, mockDone, mockPromise;
+        mockLookup, mockDefer, mockClient, mockDone, mockPromise, mockCache;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -66,6 +66,46 @@ fdescribe('querybot (UT)', function() {
                 }
             }
         }
+
+        mockCache = {
+            set : jasmine.createSpy('cache.set'),
+            get : jasmine.createSpy('cache.get')
+        };
+
+        mockCache.set.and.returnValue(mockPromise);
+        mockCache.get.and.returnValue(mockPromise);
+
+    });
+
+    describe('cache',function(){
+        beforeEach(function(){
+            lib._state.cache = mockCache;
+            lib._state.config = {};
+        });
+
+        it('get uses the memcache if the ttl is > 0',function(){
+            lib._state.config.campaignCacheTTL = 100;
+            lib.campaignCacheGet('key');
+            expect(mockCache.get).toHaveBeenCalled();
+        });
+
+        it('get skips the memcache if the ttl is = 0',function(){
+            lib._state.config.campaignCacheTTL = 0;
+            lib.campaignCacheGet('key');
+            expect(mockCache.get).not.toHaveBeenCalled();
+        });
+
+        it('set uses the memcache if the ttl is > 0',function(){
+            lib._state.config.campaignCacheTTL = 100;
+            lib.campaignCacheSet('key',{});
+            expect(mockCache.set).toHaveBeenCalled();
+        });
+
+        it('set skips the memcache if the ttl is = 0',function(){
+            lib._state.config.campaignCacheTTL = 0;
+            lib.campaignCacheSet('key',{});
+            expect(mockCache.set).not.toHaveBeenCalled();
+        });
 
     });
 
@@ -146,32 +186,27 @@ fdescribe('querybot (UT)', function() {
 
         it('pulls campaignIds from the request params',function(){
             req.params.id = 'ABC'; 
-            lib.campaignIdsFromRequest(req);
-            expect(req.campaignIds).toEqual(['ABC']);
+            expect(lib.campaignIdsFromRequest(req)).toEqual(['ABC']);
         });
         
         it('pulls campaignIds from the request params',function(){
             req.query.id = 'ABC,DEF'; 
-            lib.campaignIdsFromRequest(req);
-            expect(req.campaignIds).toEqual(['ABC','DEF']);
+            expect(lib.campaignIdsFromRequest(req)).toEqual(['ABC','DEF']);
         });
 
         it('ignores query param ids if main id param is set',function(){
             req.params.id = 'ABC'; 
             req.query.id = 'DEF,GHI'; 
-            lib.campaignIdsFromRequest(req);
-            expect(req.campaignIds).toEqual(['ABC']);
+            expect(lib.campaignIdsFromRequest(req)).toEqual(['ABC']);
         });
 
         it('squashes duplicate ids',function(){
             req.query.id = 'DEF,ABC,GHI,ABC'; 
-            lib.campaignIdsFromRequest(req);
-            expect(req.campaignIds).toEqual(['DEF','ABC','GHI']);
+            expect(lib.campaignIdsFromRequest(req)).toEqual(['DEF','ABC','GHI']);
         });
 
         it('will be an empty array if there are no ids',function(){
-            lib.campaignIdsFromRequest(req);
-            expect(req.campaignIds).toEqual([]);
+            expect(lib.campaignIdsFromRequest(req)).toEqual([]);
         });
     });
 
@@ -207,6 +242,93 @@ fdescribe('querybot (UT)', function() {
         });
     });
 
+    describe('getCampaignDataFromCache',function(){
+        var fakeCache;
+        beforeEach(function(){
+            fakeCache = {
+                'abc:summary' : { campaignId : 'abc' },
+                'def:summary' : { campaignId : 'def' },
+                'ghi:summary' : { campaignId : 'ghi' }
+            };
+            spyOn(lib,'campaignCacheGet').and.callFake(function(id){
+                return q(fakeCache[id]);
+            });
+        });
+
+        it('returns data that it finds',function(done){
+            var res;
+            lib.getCampaignDataFromCache(['abc','123','def','ghi'],':summary')
+            .then(function(r){ res = r; }, done.fail)
+            .finally(function(){
+                expect(res).toEqual({
+                    'abc' : { campaignId : 'abc' },
+                    'def' : { campaignId : 'def' },
+                    'ghi' : { campaignId : 'ghi' }
+                });
+                done();
+            });
+        });
+
+        it('rejects when there is an error',function(done){
+            var res, err = new Error('An error'), e;
+            lib.campaignCacheGet.and.callFake(function(id){
+                return q.reject(err);
+            });
+            lib.getCampaignDataFromCache(['abc','123','def','ghi'],':summary')
+            .then(done.fail,function(err){
+                e = err; 
+            })
+            .finally(function(){
+                expect(e).toBe(err);
+                done();
+            });
+        });
+    });
+
+    describe('setCampaignDataInCache',function(){
+        var fakeData;
+        beforeEach(function(){
+            fakeData = {
+                'abc' : { campaignId : 'abc' },
+                'def' : { campaignId : 'def' },
+                'ghi' : { campaignId : 'ghi' }
+            };
+            spyOn(lib,'campaignCacheSet').and.callFake(function(id,data){
+                return q(true);
+            });
+        });
+
+        it('caches the data',function(done){
+            var result;
+            lib.setCampaignDataInCache(fakeData,':summary')
+            .then(function(r) { result = r; },done.fail)
+            .finally(function(){
+                expect(lib.campaignCacheSet.calls.count()).toEqual(3);
+                expect(lib.campaignCacheSet.calls.allArgs()[0])
+                    .toEqual( ['abc:summary', { campaignId: 'abc'}] );
+                expect(lib.campaignCacheSet.calls.allArgs()[1])
+                    .toEqual( ['def:summary', { campaignId: 'def'}] );
+                expect(lib.campaignCacheSet.calls.allArgs()[2])
+                    .toEqual( ['ghi:summary', { campaignId: 'ghi'}] );
+                expect(result).toBe(fakeData);
+                done();
+            });
+        });
+        
+        it('does NOT reject when there is an error',function(done){
+            var result;
+            lib.campaignCacheSet.and.callFake(function(id){
+                return q.reject(new Error('An error'));
+            });
+            lib.setCampaignDataInCache(fakeData,':summary')
+            .then(function(r) { result = r; },done.fail)
+            .finally(function(){
+                expect(result).toBe(fakeData);
+                done();
+            });
+        });
+    });
+
     describe('queryCampaignSummary',function(){
         var req;
         beforeEach(function(){
@@ -217,28 +339,134 @@ fdescribe('querybot (UT)', function() {
         });
 
         it('will throw an exception if there are no campaignIds',function(){
-            req.campaignIds = [];
             expect(function(){
-                lib.queryCampaignSummary(req);
+                lib.queryCampaignSummary([]);
             }).toThrow(new Error('At least one campaignId is required.'));
         });
         
         it('will pass campaignIds as parameters',function(){
-            req.campaignIds = ['abc','def'];
-            lib.queryCampaignSummary(req);
-            expect(lib.pgQuery.calls.mostRecent().args[1]).toBe(req.campaignIds);
-        });
-
-        it('will put query results on req',function(){
-            var results = { rows : [] };
-            req.campaignIds = ['abc','def'];
-            mockPromise.then.and.callFake(function(cb){
-                cb(results);        
-            });
-            lib.queryCampaignSummary(req);
-            expect(req.campaignSummaryResults).toBe(results.rows);
+            lib.queryCampaignSummary(['abc','def']);
+            expect(lib.pgQuery.calls.mostRecent().args[1]).toEqual([['abc','def']]);
         });
     });
 
+    describe('queryCampaignDaily',function(){
+        var req;
+        beforeEach(function(){
+            req = { 
+                campaignIds : ['id1','id2']
+            };
+            spyOn(lib,'pgQuery').and.returnValue(mockPromise);
+        });
 
+        it('will throw an exception if there are no campaignIds',function(){
+            expect(function(){
+                lib.queryCampaignDaily([]);
+            }).toThrow(new Error('At least one campaignId is required.'));
+        });
+        
+        it('will pass campaignIds as parameters',function(){
+            lib.queryCampaignDaily(['abc','def']);
+            expect(lib.pgQuery.calls.mostRecent().args[1]).toEqual([['abc','def']]);
+        });
+    });
+
+    describe('getCampaignSummaryAnalytics',function(){
+        var req, fakeCacheData, fakeQueryData, fakeIds;
+        beforeEach(function(){
+            req = {},
+            fakeIds = [ 'abc', 'def', 'ghi' ];
+            fakeCacheData = {
+                'abc' : { campaignId : 'abc' },
+                'def' : { campaignId : 'def' },
+                'ghi' : { campaignId : 'ghi' }
+            };
+            fakeQueryData = {
+                'abc' : { campaignId : 'abc' },
+                'def' : { campaignId : 'def' },
+                'ghi' : { campaignId : 'ghi' }
+            };
+            spyOn(lib,'getCampaignDataFromCache').and.returnValue(q(fakeCacheData));
+            spyOn(lib,'queryCampaignSummary').and.returnValue(q(fakeQueryData));
+            spyOn(lib,'setCampaignDataInCache').and.callFake(function(data,key){
+                return q(data);   
+            });
+            spyOn(lib,'campaignIdsFromRequest').and.returnValue(['abc','def','ghi']);
+        });
+
+        it('will reject if there are no ids',function(done){
+            var err;
+            lib.campaignIdsFromRequest.and.returnValue([]);
+            lib.getCampaignSummaryAnalytics(req)
+            .then(done.fail, function(e){ err = e; })
+            .finally(function(){
+                expect(err).toEqual(new Error('At least one campaignId is required.'));
+                done();
+            });
+        });
+
+        it('can get all data from the cache',function(done){
+            lib.getCampaignSummaryAnalytics(req)
+            .catch(done.fail)
+            .finally(function(){
+                expect(lib.getCampaignDataFromCache).toHaveBeenCalledWith(
+                    ['abc','def','ghi'],':summary'
+                );
+                expect(lib.queryCampaignSummary).not.toHaveBeenCalled();
+                expect(lib.setCampaignDataInCache).not.toHaveBeenCalled();
+                expect(req.campaignSummaryAnalytics).toEqual([
+                    { campaignId : 'abc' , summary : {}},
+                    { campaignId : 'def' , summary : {}},
+                    { campaignId : 'ghi' , summary : {}}
+                ]);
+                done();
+            });
+        });
+
+        it('can get all data from the db',function(done){
+            lib.getCampaignDataFromCache.and.returnValue(q(undefined));
+            lib.getCampaignSummaryAnalytics(req)
+            .catch(done.fail)
+            .finally(function(){
+                expect(lib.getCampaignDataFromCache).toHaveBeenCalledWith(
+                    ['abc','def','ghi'],':summary'
+                );
+                expect(lib.queryCampaignSummary).toHaveBeenCalledWith( ['abc','def','ghi']);
+                expect(lib.setCampaignDataInCache).toHaveBeenCalledWith(
+                    fakeQueryData, ':summary'     
+                );
+                expect(req.campaignSummaryAnalytics).toEqual([
+                    { campaignId : 'abc' , summary : {}},
+                    { campaignId : 'def' , summary : {}},
+                    { campaignId : 'ghi' , summary : {}}
+                ]);
+                done();
+            });
+        });
+
+        it('can get some data from cache and some from query',function(done){
+            delete fakeCacheData.abc;
+            delete fakeCacheData.ghi;
+            delete fakeQueryData.def;
+            lib.getCampaignDataFromCache.and.returnValue(q(fakeCacheData));
+            lib.queryCampaignSummary.and.returnValue(q(fakeQueryData));
+            lib.getCampaignSummaryAnalytics(req)
+            .catch(done.fail)
+            .finally(function(){
+                expect(lib.getCampaignDataFromCache).toHaveBeenCalledWith(
+                    ['abc','def','ghi'],':summary'
+                );
+                expect(lib.queryCampaignSummary).toHaveBeenCalledWith( ['abc','ghi']);
+                expect(lib.setCampaignDataInCache).toHaveBeenCalledWith(
+                    fakeQueryData, ':summary'     
+                );
+                expect(req.campaignSummaryAnalytics).toEqual([
+                    { campaignId : 'def' , summary : {}},
+                    { campaignId : 'abc' , summary : {}},
+                    { campaignId : 'ghi' , summary : {}}
+                ]);
+                done();
+            });
+        });
+    });
 });

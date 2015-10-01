@@ -118,7 +118,7 @@ Vagrant.configure("2") do |config|
         if svc == 'querybot'
             chef.json[svc][:config] = {
                 "log" => {
-                    "logLevel" => "info",
+                    "logLevel" => "trace",
                     "logDir"   => "/opt/sixxy/logs",
                     "logName"  => "querybot.log",
                     "media"    => [ { "type" => "file" } ]
@@ -139,6 +139,25 @@ Vagrant.configure("2") do |config|
                         "database"  => "campfire_cwrx",
                         "host"      => "localhost",
                         "user"      => "sixxy"
+                    }
+                },
+                "cache" => {
+                    "servers" => [],
+                    "timeouts" => {
+                        "read" => 500,
+                        "write" => 2000,
+                        "stats" => 2000
+                    }
+                },
+                "pubsub" => {
+                    "cacheCfg" => {
+                        "port" => 21211,
+                        "isPublisher" => false,
+                        "opts" => {
+                            "reconnect" => true,
+                            "reconnectDelay" => 5000,
+                            "pingDelay" => 5000
+                        }
                     }
                 }
             }
