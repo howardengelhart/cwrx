@@ -8,6 +8,7 @@ var q               = require('q'),
     bodyParser      = require('body-parser'),
     sessionLib      = require('express-session'),
     pg              = require('pg.js'),
+    requestUtils    = require('../lib/requestUtils'),
     dbpass          = require('../lib/dbpass'),
     logger          = require('../lib/logger'),
     uuid            = require('../lib/uuid'),
@@ -56,6 +57,7 @@ state.defaultConfig = {
         timeouts: {},
         servers: null
     },
+    campaignHost: 'localhost',   // Hostname of the content service to proxy delete requests to
     campaignCacheTTL : 120 * 1000,
     requestMaxAge : 300
 };
@@ -121,8 +123,8 @@ lib.pgQuery = function(statement,params){
 };
 
 lib.campaignIdsFromRequest = function(req){
-    var ids = {};
-    
+    var log = logger.getLog(), ids = {},
+        urlBase = req.protocol + '://' + state.config.campaignHost + '/api/campaigns/';
     if (req.params.id) {
         ids[req.params.id] = 1;
     }
@@ -133,7 +135,28 @@ lib.campaignIdsFromRequest = function(req){
         });
     }
 
-    return  Object.keys(ids);
+    ids = Object.keys(ids);
+    if( ids.length === 0) {
+        return q(ids);
+    }
+
+    log.trace('campaign check: %1',urlBase + ids[0]);
+    return requestUtils.qRequest('get', {
+        url: urlBase + ids[0],
+        headers: { cookie: req.headers.cookie },
+        qs : {
+            fields : 'id,status'
+        }
+    })
+    .then(function(resp){
+        log.info('STATUS CODE: %1',resp.response.statusCode);
+        if (resp.response.statusCode === 200) {
+            log.trace('campaign found: %1',resp.body.id);
+        } else {
+            log.trace('campaign check resp: %1',resp.body);
+        }
+        return ids;
+    });
 };
 
 lib.getCampaignDataFromCache = function(campaignIds,keySuffix){
@@ -224,6 +247,19 @@ lib.queryCampaignDaily = function(campaignIds) {
 
 lib.getCampaignSummaryAnalytics = function(req){
 
+    function prepare(r){
+        return lib.campaignIdsFromRequest(r)
+            .then(function(ids){
+                return {
+                    request      : r,
+                    keySuffix    : ':summary',
+                    cacheResults : null,
+                    queryResults : null,
+                    campaignIds  : ids
+                };
+            });
+    }
+
     function getDataFromCache(j){
         if (j.campaignIds.length < 1) {
             return q.reject(new Error('At least one campaignId is required.'));
@@ -277,13 +313,8 @@ lib.getCampaignSummaryAnalytics = function(req){
         return j;
     }
     
-    return getDataFromCache({
-        request      : req,
-        keySuffix    : ':summary',
-        cacheResults : null,
-        queryResults : null,
-        campaignIds  : lib.campaignIdsFromRequest(req)
-    })
+    return prepare(req)
+    .then(getDataFromCache)
     .then(getDataFromDb)
     .then(compileResults);
 };

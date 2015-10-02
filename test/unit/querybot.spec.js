@@ -1,7 +1,7 @@
 var flush = true;
 fdescribe('querybot (UT)', function() {
     var mockLog, logger, q, pg, nextSpy, doneSpy, errorSpy, req, mockState, dbpass,
-        mockLookup, mockDefer, mockClient, mockDone, mockPromise, mockCache;
+        mockLookup, mockDefer, mockClient, mockDone, mockPromise, mockCache, requestUtils;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -10,6 +10,7 @@ fdescribe('querybot (UT)', function() {
         lib             = require('../../bin/querybot');
         logger          = require('../../lib/logger');
         dbpass          = require('../../lib/dbpass');
+        requestUtils    = require('../../lib/requestUtils');
 
 
         mockClient = {
@@ -175,38 +176,92 @@ fdescribe('querybot (UT)', function() {
     });
 
     describe('campaignIdsFromRequest',function(){
-        var req;
+        var req, mockResponse, result, queryUrl, setResult;
         beforeEach(function(){
             req = {
                 uuid : '123',
                 params : {},
-                query  : {}
+                query  : {},
+                headers : { cookie : 'abc' },
+                protocol : 'https'
             };
+
+            lib._state.config.campaignHost = 'local';
+
+            mockResponse = {
+                response : {
+                    headers : {}
+                },
+                body : {}
+            };
+
+            setResult = function(r) { result = r; return result; }
+
+            result = null;
+
+            queryUrl = null;
+            
+            spyOn(requestUtils,'qRequest').and.callFake(function(method,opts){
+                queryUrl = opts.url;
+                mockResponse.body = ['abc'];
+                return q(mockResponse);
+            });
+            
         });
 
-        it('pulls campaignIds from the request params',function(){
+        it('pulls campaignIds from the request params',function(done){
             req.params.id = 'ABC'; 
-            expect(lib.campaignIdsFromRequest(req)).toEqual(['ABC']);
+            lib.campaignIdsFromRequest(req)
+            .then(setResult)
+            .then(function(){
+                expect(queryUrl).toEqual('https://local/api/campaigns/ABC');
+                expect(result).toEqual(['ABC']);
+            })
+            .then(done,done.fail);
         });
         
-        it('pulls campaignIds from the request params',function(){
+        it('pulls campaignIds from the query params',function(done){
             req.query.id = 'ABC,DEF'; 
-            expect(lib.campaignIdsFromRequest(req)).toEqual(['ABC','DEF']);
+            lib.campaignIdsFromRequest(req)
+            .then(setResult)
+            .then(function(){
+                expect(queryUrl).toEqual('https://local/api/campaigns/ABC');
+                expect(result).toEqual(['ABC','DEF']);
+            })
+            .then(done,done.fail);
         });
 
-        it('ignores query param ids if main id param is set',function(){
+        it('ignores query param ids if main id param is set',function(done){
             req.params.id = 'ABC'; 
             req.query.id = 'DEF,GHI'; 
-            expect(lib.campaignIdsFromRequest(req)).toEqual(['ABC']);
+            lib.campaignIdsFromRequest(req)
+            .then(setResult)
+            .then(function(){
+                expect(queryUrl).toEqual('https://local/api/campaigns/ABC');
+                expect(result).toEqual(['ABC']);
+            })
+            .then(done,done.fail);
         });
 
-        it('squashes duplicate ids',function(){
+        it('squashes duplicate ids',function(done){
             req.query.id = 'DEF,ABC,GHI,ABC'; 
-            expect(lib.campaignIdsFromRequest(req)).toEqual(['DEF','ABC','GHI']);
+            lib.campaignIdsFromRequest(req)
+            .then(setResult)
+            .then(function(){
+                expect(queryUrl).toEqual('https://local/api/campaigns/DEF');
+                expect(result).toEqual(['DEF','ABC','GHI']);
+            })
+            .then(done,done.fail);
         });
 
-        it('will be an empty array if there are no ids',function(){
-            expect(lib.campaignIdsFromRequest(req)).toEqual([]);
+        it('will be an empty array if there are no ids',function(done){
+            lib.campaignIdsFromRequest(req)
+            .then(setResult)
+            .then(function(){
+                expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                expect(result).toEqual([]);
+            })
+            .then(done,done.fail);
         });
     });
 
@@ -391,12 +446,12 @@ fdescribe('querybot (UT)', function() {
             spyOn(lib,'setCampaignDataInCache').and.callFake(function(data,key){
                 return q(data);   
             });
-            spyOn(lib,'campaignIdsFromRequest').and.returnValue(['abc','def','ghi']);
+            spyOn(lib,'campaignIdsFromRequest').and.returnValue(q(['abc','def','ghi']));
         });
 
         it('will reject if there are no ids',function(done){
             var err;
-            lib.campaignIdsFromRequest.and.returnValue([]);
+            lib.campaignIdsFromRequest.and.returnValue(q([]));
             lib.getCampaignSummaryAnalytics(req)
             .then(done.fail, function(e){ err = e; })
             .finally(function(){

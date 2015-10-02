@@ -1,5 +1,5 @@
 var server = 'https://33.33.33.10',
-    username = 'testuser',
+    username = 'querybot',
     password = 'password',
     authUrl   = server + '/api/auth/login',
     queryUrl  = server + '/api/analytics/campaigns',
