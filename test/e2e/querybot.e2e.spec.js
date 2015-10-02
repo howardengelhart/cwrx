@@ -1,5 +1,14 @@
 var q               = require('q'),
-    testUtils       = require('./testUtils');
+    request         = require('request'),
+    requestUtils    = require('../../lib/requestUtils'),
+    testUtils       = require('./testUtils'),
+    host            = process.env.host || 'localhost',
+    config = {
+        querybotUrl : 'http://' + (host === 'localhost' ? host + ':4100' : host) +
+            '/api/analytics/campaigns',
+        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) +
+            '/api/auth'
+    };
 
 function pgQuery(conn,statement) {
     var pg = require('pg.js'),
@@ -26,11 +35,8 @@ function pgQuery(conn,statement) {
 }
 
 describe('querybot (E2E)', function(){
-    var pgdata_crosstab,
-        pgdata_crosstab_daily,
-        mockUser,
-        mockCamps,
-        pgconn;
+    var pgdata_crosstab, pgdata_crosstab_daily, mockUser, mockCamps, pgconn,
+        cookieJar, options;
 
     beforeEach(function(done){
         // TODO:  Work out what connection config should be!
@@ -106,9 +112,176 @@ describe('querybot (E2E)', function(){
         pgTruncate().then(pgInsert).then(mongoInsert).then(done,done.fail);
     });
 
-    it('lives',function(){
-        expect(1).toEqual(1); 
+    beforeEach(function(done){
+        if (cookieJar && cookieJar.cookies) {
+            return done();
+        }
+        cookieJar = request.jar();
+
+        requestUtils.qRequest('post', {
+            url: config.authUrl + '/login',
+            jar: cookieJar,
+            json: {
+                email: 'querybot',
+                password: 'password'
+            }
+        })
+        .then(done,done.fail);
     });
 
+    beforeEach(function(){
+        options = {
+            url : config.querybotUrl,
+            jar : cookieJar
+        };
+    });
+
+    describe('GET /api/analytics/campaigns/:id', function() {
+        it('requires authentication',function(done){
+            delete options.jar;
+            options.url += '/cam-5bebbf1c34a3d7';
+            requestUtils.qRequest('get', options)
+            .then(function(resp) {
+                expect(resp.response.statusCode).toEqual(401);
+                expect(resp.response.body).toEqual('Unauthorized');
+            })
+            .then(done,done.fail);
+
+        });
+
+        it('returns a 500 error if there is no campaignID',function(done){
+            requestUtils.qRequest('get', options)
+            .then(function(resp) {
+                expect(resp.response.statusCode).toEqual(500);
+                expect(resp.response.body).toEqual('At least one campaignId is required.');
+            })
+            .then(done,done.fail);
+        });
+
+        it('returns a 404 if the campaignId is not found',function(done){
+            options.url += '/howard';
+            requestUtils.qRequest('get', options)
+            .then(function(resp) {
+                expect(resp.response.statusCode).toEqual(404);
+                expect(resp.response.body).toEqual('Not Found');
+            })
+            .then(done,done.fail);
+        });
+
+        it('returns single document if the campaigns GET is singular form',function(done){
+            options.url += '/cam-5bebbf1c34a3d7';
+            requestUtils.qRequest('get', options)
+            .then(function(resp) {
+                expect(resp.response.statusCode).toEqual(200);
+                expect(resp.body).toEqual({
+                    campaignId : 'cam-5bebbf1c34a3d7',
+                    summary : {
+                        impressions: 100000,
+                        views: 1000,
+                        clicks: 100,
+                        totalSpend : '11.2200'
+                    }
+                });
+            })
+            .then(done,done.fail);
+        });
+        
+    });
+    
+    describe('GET /api/analytics/campaigns/?id=:id', function() {
+        it('requires authentication',function(done){
+            delete options.jar;
+            options.url += '/?id=cam-5bebbf1c34a3d7';
+            requestUtils.qRequest('get', options)
+            .then(function(resp) {
+                expect(resp.response.statusCode).toEqual(401);
+                expect(resp.response.body).toEqual('Unauthorized');
+            })
+            .then(done,done.fail);
+        });
+
+        it('returns a 404 if the campaignId is not found',function(done){
+            options.url += '/?id=howard,cool';
+            requestUtils.qRequest('get', options)
+            .then(function(resp) {
+                expect(resp.response.statusCode).toEqual(200);
+                expect(resp.body).toEqual([]);
+            })
+            .then(done,done.fail);
+        });
+
+        it('returns single document array if the campaigns GET is plural form',function(done){
+            options.url += '/?id=cam-5bebbf1c34a3d7';
+            requestUtils.qRequest('get', options)
+            .then(function(resp) {
+                expect(resp.response.statusCode).toEqual(200);
+                expect(resp.body).toContain(jasmine.objectContaining({
+                    campaignId : 'cam-5bebbf1c34a3d7',
+                    summary : {
+                        impressions: 100000,
+                        views: 1000,
+                        clicks: 100,
+                        totalSpend : '11.2200'
+                    }
+                }));
+            })
+            .then(done,done.fail);
+        });
+        
+        it('returns document array if the campaigns GET is plural form',function(done){
+            options.url += '/?id=cam-5bebbf1c34a3d7,cam-237505b42ee19f';
+            requestUtils.qRequest('get', options)
+            .then(function(resp) {
+                expect(resp.response.statusCode).toEqual(200);
+                expect(resp.body).toContain(jasmine.objectContaining({
+                    campaignId : 'cam-5bebbf1c34a3d7',
+                    summary : {
+                        impressions: 100000,
+                        views: 1000,
+                        clicks: 100,
+                        totalSpend : '11.2200'
+                    }
+                }));
+                expect(resp.body).toContain(jasmine.objectContaining({
+                    campaignId : 'cam-237505b42ee19f',
+                    summary : {
+                        impressions: 500000,
+                        views: 2000,
+                        clicks: 150,
+                        totalSpend : '12.2500'
+                    }
+                }));
+            })
+            .then(done,done.fail);
+        });
+
+        it('returns document array with found items, omits unfound ',function(done){
+            options.url += '/?id=cam-5bebbf1c34a3d7,cam-237505b42ee19f,cheerio';
+            requestUtils.qRequest('get', options)
+            .then(function(resp) {
+                expect(resp.response.statusCode).toEqual(200);
+                expect(resp.body.length).toEqual(2);
+                expect(resp.body).toContain(jasmine.objectContaining({
+                    campaignId : 'cam-5bebbf1c34a3d7',
+                    summary : {
+                        impressions: 100000,
+                        views: 1000,
+                        clicks: 100,
+                        totalSpend : '11.2200'
+                    }
+                }));
+                expect(resp.body).toContain(jasmine.objectContaining({
+                    campaignId : 'cam-237505b42ee19f',
+                    summary : {
+                        impressions: 500000,
+                        views: 2000,
+                        clicks: 150,
+                        totalSpend : '12.2500'
+                    }
+                }));
+            })
+            .then(done,done.fail);
+        });
+    });
 });
 

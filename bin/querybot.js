@@ -98,21 +98,29 @@ lib.pgInit = function(state) {
         pg.defaults.database,pg.defaults.user
     );
 
+    pg.on('error',function(e){
+        var log = logger.getLog();
+        log.error('pg-error: %1', e.message);
+    });
+
     return state;
 };
 
 lib.pgQuery = function(statement,params){
-    var deferred = q.defer();
+    var deferred = q.defer(), log = logger.getLog();
 
     pg.connect(function(err, client, done) {
         if (err) {
-            return deferred.reject(err);
+            log.error('pg.connect error: %1',err.message);
+            return deferred.reject(new Error('Internal Error'));
         }
 
         client.query(statement,params,function(err,result){
             done();
             if (err) {
-                deferred.reject(err);
+                log.error('pg.client.query error: %1, %2, %3',
+                    err.message, statement, params);
+                deferred.reject(new Error('Internal Error'));
             } else {
                 deferred.resolve(result);
             }
@@ -137,7 +145,7 @@ lib.campaignIdsFromRequest = function(req){
 
     ids = Object.keys(ids);
     if( ids.length === 0) {
-        return q(ids);
+        return q.reject(new Error('At least one campaignId is required.'));
     }
 
     log.trace('campaign check: %1',urlBase + ids[0]);
@@ -193,31 +201,6 @@ lib.setCampaignDataInCache = function(data,keySuffix){
     });
 };
 
-lib.queryCampaignSummary = function(campaignIds) {
-    var idCount = campaignIds.length, statement;
-    
-    if (idCount < 1) {
-        throw new Error('At least one campaignId is required.');
-    }
-
-    statement =
-        'SELECT campaign_id as "campaignId" ,impressions::int4,views::int4,clicks::int4, ' +
-        'total_spend as "totalSpend" ' +
-        'FROM fct.v_cpv_campaign_activity_crosstab WHERE campaign_id = ANY($1::text[])';
-
-    return lib.pgQuery(statement,[campaignIds])
-        .then(function(result){
-            var res;
-            result.rows.forEach(function(row){
-                if (res === undefined) {
-                    res = {};
-                }
-                res[row.campaignId] = row;
-            });
-            return res;
-        });
-};
-
 lib.queryCampaignDaily = function(campaignIds) {
     var idCount = campaignIds.length, statement;
     
@@ -227,7 +210,7 @@ lib.queryCampaignDaily = function(campaignIds) {
 
     statement =
         'SELECT rec_date as "recDate", campaign_id as "campaignId", ' +
-        'impressions::int4,views::int4,clicks::int4, total_spend as "totalSpend" ' +
+        'impressions,views,clicks, total_spend as "totalSpend" ' +
         'FROM fct.v_cpv_campaign_activity_crosstab_daily WHERE campaign_id = ANY($1::text[])';
 
     return lib.pgQuery(statement,[campaignIds])
@@ -242,6 +225,31 @@ lib.queryCampaignDaily = function(campaignIds) {
                 }
                 res[row.campaignId].push(row);
             });
+        });
+};
+
+lib.queryCampaignSummary = function(campaignIds) {
+    var idCount = campaignIds.length, statement;
+    
+    if (idCount < 1) {
+        throw new Error('At least one campaignId is required.');
+    }
+
+    statement =
+        'SELECT campaign_id as "campaignId" ,impressions,views,clicks, ' +
+        'total_spend as "totalSpend" ' +
+        'FROM fct.v_cpv_campaign_activity_crosstab WHERE campaign_id = ANY($1::text[])';
+
+    return lib.pgQuery(statement,[campaignIds])
+        .then(function(result){
+            var res;
+            result.rows.forEach(function(row){
+                if (res === undefined) {
+                    res = {};
+                }
+                res[row.campaignId] = row;
+            });
+            return res;
         });
 };
 
@@ -261,8 +269,8 @@ lib.getCampaignSummaryAnalytics = function(req){
     }
 
     function getDataFromCache(j){
-        if (j.campaignIds.length < 1) {
-            return q.reject(new Error('At least one campaignId is required.'));
+        if (!j.campaignIds || !(j.campaignIds.length)){
+            return j;
         }
         return lib.getCampaignDataFromCache(j.campaignIds,j.keySuffix)
         .then(function(res){
@@ -310,7 +318,7 @@ lib.getCampaignSummaryAnalytics = function(req){
                 return fmt(id,j.queryResults[id]);
             })
         );
-        return j;
+        return j.request;
     }
     
     return prepare(req)
@@ -416,7 +424,7 @@ lib.main = function(state) {
             if (req.campaignSummaryAnalytics.length === 0) {
                 res.send(404);
             } else {
-                res.send(200,req.campaignSummaryAnalytics);
+                res.send(200,req.campaignSummaryAnalytics[0]);
             }
             next();
         })

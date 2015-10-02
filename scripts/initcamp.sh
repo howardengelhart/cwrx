@@ -46,9 +46,9 @@ psql -c "GRANT USAGE ON SCHEMA fct TO viewer;"
 read -r -d '' v_cpv_campaign_activity_crosstab <<- EOM
 CREATE TABLE fct.v_cpv_campaign_activity_crosstab(
     campaign_id character varying(20),
-    impressions bigint,
-    views bigint,
-    clicks bigint,
+    impressions integer,
+    views integer,
+    clicks integer,
     total_spend numeric(16,4)
 ) WITH ( OIDS=FALSE );
 EOM
@@ -57,9 +57,9 @@ read -r -d '' v_cpv_campaign_activity_crosstab_daily <<- EOM
 CREATE TABLE fct.v_cpv_campaign_activity_crosstab_daily(
     rec_date date,
     campaign_id character varying(20),
-    impressions bigint,
-    views bigint,
-    clicks bigint,
+    impressions integer,
+    views integer,
+    clicks integer,
     total_spend numeric(16,4)
 ) WITH ( OIDS=FALSE );
 EOM

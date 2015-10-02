@@ -55,7 +55,7 @@ function authenticate() {
 function getData() {
     
     var opts = {
-        url: queryUrl + '/?id=cam-5bebbf1c34a3d7,cam-bfc62ac554280e',
+        url: queryUrl + '/?id=cam-5bebbf1c34a3d7,cam-bfc62ac554280e,x',
         //url: queryUrl + '/cam-5bebbf1c34a3d7',
         rejectUnauthorized : false,
         headers: {
