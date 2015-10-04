@@ -40,32 +40,55 @@ createdb 'campfire_cwrx'
 
 export PGDATABASE='campfire_cwrx'
 
-psql -c "CREATE SCHEMA fct;"
-psql -c "GRANT USAGE ON SCHEMA fct TO viewer;"
+psql -c "CREATE SCHEMA rpt;"
+psql -c "GRANT USAGE ON SCHEMA rpt TO viewer;"
 
-read -r -d '' v_cpv_campaign_activity_crosstab <<- EOM
-CREATE TABLE fct.v_cpv_campaign_activity_crosstab(
+read -r -d '' campaign_crosstab_live <<- EOM
+CREATE TABLE rpt.campaign_crosstab_live
+(
     campaign_id character varying(20),
     impressions integer,
+    plays integer,
     views integer,
-    clicks integer,
-    total_spend numeric(16,4)
-) WITH ( OIDS=FALSE );
+    total_spend numeric(16,4),
+    q1 integer,
+    q2 integer,
+    q3 integer,
+    q4 integer,
+    link_action integer,
+    link_facebook integer,
+    link_twitter integer,
+    link_website integer,
+    link_youtube integer,
+    CONSTRAINT uc_campaign_crosstab_live UNIQUE (campaign_id)
+) WITH ( OIDS=FALSE);
 EOM
 
-read -r -d '' v_cpv_campaign_activity_crosstab_daily <<- EOM
-CREATE TABLE fct.v_cpv_campaign_activity_crosstab_daily(
+psql -c "${campaign_crosstab_live}"
+psql -c "GRANT SELECT ON TABLE rpt.campaign_crosstab_live TO viewer;"
+
+
+read -r -d '' campaign_daily_crosstab_live <<- EOM
+CREATE TABLE rpt.campaign_daily_crosstab_live
+(
     rec_date date,
     campaign_id character varying(20),
     impressions integer,
+    plays integer,
     views integer,
-    clicks integer,
-    total_spend numeric(16,4)
-) WITH ( OIDS=FALSE );
+    total_spend numeric(16,4),
+    q1 integer,
+    q2 integer,
+    q3 integer,
+    q4 integer,
+    link_action integer,
+    link_facebook integer,
+    link_twitter integer,
+    link_website integer,
+    link_youtube integer,
+    CONSTRAINT uc_campaign_daily_crosstab_live UNIQUE (rec_date, campaign_id)
+) WITH ( OIDS=FALSE);
 EOM
 
-psql -c "${v_cpv_campaign_activity_crosstab}"
-psql -c "GRANT SELECT ON TABLE fct.v_cpv_campaign_activity_crosstab TO viewer;"
-
-psql -c "${v_cpv_campaign_activity_crosstab_daily}"
-psql -c "GRANT SELECT ON TABLE fct.v_cpv_campaign_activity_crosstab_daily TO viewer;"
+psql -c "${campaign_daily_crosstab_live}"
+psql -c "GRANT SELECT ON TABLE rpt.campaign_daily_crosstab_live TO viewer;"

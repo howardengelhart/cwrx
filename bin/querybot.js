@@ -211,7 +211,7 @@ lib.queryCampaignDaily = function(campaignIds) {
     statement =
         'SELECT rec_date as "recDate", campaign_id as "campaignId", ' +
         'impressions,views,clicks, total_spend as "totalSpend" ' +
-        'FROM fct.v_cpv_campaign_activity_crosstab_daily WHERE campaign_id = ANY($1::text[])';
+        'FROM rpt.campaign_crosstab_daily_live WHERE campaign_id = ANY($1::text[])';
 
     return lib.pgQuery(statement,[campaignIds])
         .then(function(result){
@@ -236,9 +236,10 @@ lib.queryCampaignSummary = function(campaignIds) {
     }
 
     statement =
-        'SELECT campaign_id as "campaignId" ,impressions,views,clicks, ' +
+        'SELECT campaign_id as "campaignId" ,plays as impressions,views, ' +
+        '(link_action + link_facebook + link_twitter + link_website + link_youtube) as clicks, ' +
         'total_spend as "totalSpend" ' +
-        'FROM fct.v_cpv_campaign_activity_crosstab WHERE campaign_id = ANY($1::text[])';
+        'FROM rpt.campaign_crosstab_live WHERE campaign_id = ANY($1::text[])';
 
     return lib.pgQuery(statement,[campaignIds])
         .then(function(result){

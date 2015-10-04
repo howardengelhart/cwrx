@@ -48,21 +48,20 @@ describe('querybot (E2E)', function(){
         };
        
         pgdata_crosstab = [
-            'INSERT INTO fct.v_cpv_campaign_activity_crosstab VALUES',
-            '(\'cam-5bebbf1c34a3d7\',100000,1000,100,11.22),',
-            '(\'cam-237505b42ee19f\',500000,2000,150,12.25),',
-            '(\'cam-278b8150021c68\',300000,1200,500,13.13),',
-            '(\'cam-bfc62ac554280e\',400000,1500,200,10.98),',
-            '(\'cam-1ca2ee2c0ded77\',800000,2500,100,11.11),',
-            '(\'cam-cde12a51a07e4c\',600000,300,50,4.40),',
-            '(\'cam-27e8c3aceb3369\',800000,200,99,3.45),',
-            '(\'cam-74b0b3b1f823d7\',500000,12000,1000,55.55);'
+            'INSERT INTO rpt.campaign_crosstab_live VALUES',
+            '(\'cam-5bebbf1c34a3d7\',120000,100000,1000,11.22,670,350,130,0,0,29,11,7,0),',
+            '(\'cam-237505b42ee19f\',550000,500000,2000,12.25,500,300,100,0,110,10,10,10,10),',
+            '(\'cam-278b8150021c68\',390000,300000,1200,13.13,500,300,100,0,100,90,80,70,60),',
+            '(\'cam-bfc62ac554280e\',425000,400000,1500,10.98,500,300,100,0,100,90,80,70,60),',
+            '(\'cam-1ca2ee2c0ded77\',824000,800000,2500,11.11,500,300,100,0,100,90,80,70,60);'
         ];
         
         pgdata_crosstab_daily = [
-            'INSERT INTO fct.v_cpv_campaign_activity_crosstab_daily VALUES',
-            '(\'2015-09-29\',\'cam-5bebbf1c34a3d7\',100000,1000,100,11.22),',
-            '(\'2015-09-29\',\'cam-74b0b3b1f823d7\',500000,12000,1000,55.55);'
+            'INSERT INTO rpt.campaign_daily_crosstab_live VALUES',
+            '(\'2015-09-28\',\'cam-5bebbf1c34a3d7\',120000,50000,500,7.22,300,100,100,0,0,10,5,2,0),',
+            '(\'2015-09-29\',\'cam-5bebbf1c34a3d7\',120000,20000,300,2.00,200,100,0,0,0,10,2,1,0),',
+            '(\'2015-09-30\',\'cam-5bebbf1c34a3d7\',120000,20000,100,1.00,90,80,0,0,0,8,2,2,0),',
+            '(\'2015-10-01\',\'cam-5bebbf1c34a3d7\',120000,10000,100,1.00,80,70,30,0,0,1,2,2,0);'
         ];
         
         mockUser = {
@@ -88,10 +87,10 @@ describe('querybot (E2E)', function(){
         ];
 
         function pgTruncate(){
-            return pgQuery(pgconn,'TRUNCATE TABLE fct.v_cpv_campaign_activity_crosstab')
+            return pgQuery(pgconn,'TRUNCATE TABLE rpt.campaign_crosstab_live')
                 .then(function(){
                     return pgQuery(pgconn,
-                        'TRUNCATE TABLE fct.v_cpv_campaign_activity_crosstab_daily');
+                        'TRUNCATE TABLE rpt.campaign_daily_crosstab_live');
                 });
         }
 
@@ -178,7 +177,7 @@ describe('querybot (E2E)', function(){
                     summary : {
                         impressions: 100000,
                         views: 1000,
-                        clicks: 100,
+                        clicks: 47,
                         totalSpend : '11.2200'
                     }
                 });
@@ -220,7 +219,7 @@ describe('querybot (E2E)', function(){
                     summary : {
                         impressions: 100000,
                         views: 1000,
-                        clicks: 100,
+                        clicks: 47,
                         totalSpend : '11.2200'
                     }
                 }));
@@ -238,7 +237,7 @@ describe('querybot (E2E)', function(){
                     summary : {
                         impressions: 100000,
                         views: 1000,
-                        clicks: 100,
+                        clicks: 47,
                         totalSpend : '11.2200'
                     }
                 }));
@@ -266,7 +265,7 @@ describe('querybot (E2E)', function(){
                     summary : {
                         impressions: 100000,
                         views: 1000,
-                        clicks: 100,
+                        clicks: 47,
                         totalSpend : '11.2200'
                     }
                 }));
