@@ -15,6 +15,8 @@ describe('player service', function() {
     var clonePromise;
     var AdLoader;
     var expressUtils;
+    var AWS;
+    var CloudWatch;
 
     var requestDeferreds;
     var fnCaches;
@@ -44,6 +46,8 @@ describe('player service', function() {
         resolveURL = require('url').resolve;
         extend = require('../../lib/objUtils').extend;
         clonePromise = require('../../lib/promise').clone;
+        AWS = require('aws-sdk');
+        CloudWatch = AWS.CloudWatch;
 
         playerHTML = require('fs').readFileSync(require.resolve('./helpers/player.html')).toString();
         playerCSS = require('fs').readFileSync(require.resolve('./helpers/lightbox.css')).toString();
@@ -245,6 +249,8 @@ describe('player service', function() {
                         spyOn(service, 'daemonize').and.callFake(whenIndentity);
                         spyOn(service, 'cluster').and.callFake(whenIndentity);
 
+                        spyOn(AWS.config, 'update').and.callThrough();
+
                         expressRoutes = {
                             get: {}
                         };
@@ -319,6 +325,12 @@ describe('player service', function() {
                                         timeout: 3000
                                     }
                                 },
+                                cloudwatch: {
+                                    namespace: 'C6/Player',
+                                    region: 'us-east-1',
+                                    sendInterval: (5 * 60 * 1000),
+                                    dimensions: [{ Name: 'Environment', Value: 'Development' }]
+                                },
                                 defaults: {
                                     origin: 'http://www.cinema6.com/',
                                     mobileType: 'mobile'
@@ -336,6 +348,10 @@ describe('player service', function() {
                         expect(service.prepareServer).toHaveBeenCalledWith(service.configure.calls.mostRecent().args[0]);
                         expect(service.daemonize).toHaveBeenCalledWith(service.prepareServer.calls.mostRecent().args[0]);
                         expect(service.cluster).toHaveBeenCalledWith(service.daemonize.calls.mostRecent().args[0]);
+                    });
+
+                    it('should set the AWS region', function() {
+                        expect(AWS.config.update).toHaveBeenCalledWith({ region: service.daemonize.calls.mostRecent().args[0].config.cloudwatch.region });
                     });
 
                     it('should create an express app', function() {
@@ -686,6 +702,12 @@ describe('player service', function() {
                         maxSockets: 250,
                         timeout: 3000
                     }
+                },
+                cloudwatch: {
+                    namespace: 'C6/Player',
+                    region: 'us-east-1',
+                    sendInterval: 5 * 60 * 1000,
+                    dimensions: [{ Name: 'Environment', Value: 'Development' }]
                 },
                 defaults: {
                     origin: 'http://www.cinema6.com/',

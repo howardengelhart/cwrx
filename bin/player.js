@@ -21,6 +21,7 @@ var extend = require('../lib/objUtils').extend;
 var clonePromise = require('../lib/promise').clone;
 var AdLoader = require('../lib/adLoader');
 var parseQuery = require('../lib/expressUtils').parseQuery;
+var AWS = require('aws-sdk');
 var push = Array.prototype.push;
 
 var staticCache = new FunctionCache({
@@ -267,6 +268,12 @@ Player.startService = function startService() {
                     timeout: 3000
                 }
             },
+            cloudwatch: {
+                namespace: 'C6/Player',
+                region: 'us-east-1',
+                sendInterval: (5 * 60 * 1000), // 5 mins
+                dimensions: [{ Name: 'Environment', Value: 'Development' }]
+            },
             defaults: {
                 origin: 'http://www.cinema6.com/',
                 mobileType: 'mobile'
@@ -389,6 +396,8 @@ Player.startService = function startService() {
                 log.info('Cluster master, not a worker');
                 return state;
             }
+
+            AWS.config.update({ region: state.config.cloudwatch.region });
 
             return route(state);
         });
