@@ -1469,6 +1469,16 @@ describe('userSvc users (E2E):', function() {
             }).done(done);
         });
 
+        it('should 400 if the activation email cannot send because of a malformed email', function(done) {
+            options.json.email = 'malformed email';
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Invalid email address');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
         it('should return a 409 error if a user with that email exists', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);

@@ -524,7 +524,7 @@ describe('userSvc (UT)', function() {
     });
 
     describe('sendActivationEmail', function() {
-        var req, nextSpy;
+        var req, nextSpy, doneSPy;
 
         beforeEach(function() {
             req = {
@@ -535,10 +535,11 @@ describe('userSvc (UT)', function() {
             };
             spyOn(email, 'sendActivationEmail').and.returnValue(q());
             nextSpy = jasmine.createSpy('next()');
+            doneSpy = jasmine.createSpy('done()');
         });
 
         it('should send an activation email', function(done) {
-            userModule.sendActivationEmail('sender', 'target', req, nextSpy);
+            userModule.sendActivationEmail('sender', 'target', req, nextSpy, doneSpy);
             process.nextTick(function() {
                 expect(email.sendActivationEmail).toHaveBeenCalled();
                 done();
@@ -546,7 +547,7 @@ describe('userSvc (UT)', function() {
         });
 
         it('should remove the temporary token from the request object', function(done) {
-            userModule.sendActivationEmail('sender', 'target', req, nextSpy);
+            userModule.sendActivationEmail('sender', 'target', req, nextSpy, doneSpy);
             process.nextTick(function() {
                 expect(req.tempToken).not.toBeDefined();
                 expect(req).toEqual({
@@ -559,16 +560,30 @@ describe('userSvc (UT)', function() {
         });
 
         it('should call next', function(done) {
-            userModule.sendActivationEmail('sender', 'target', req, nextSpy);
+            userModule.sendActivationEmail('sender', 'target', req, nextSpy, doneSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                done();
+            });
+        });
+
+        it('should call done if failed due to a malformed email', function(done) {
+            email.sendActivationEmail.and.returnValue(q.reject({name: 'InvalidParameterValue'}));
+            userModule.sendActivationEmail('sender', 'target', req, nextSpy, doneSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({
+                    code: 400,
+                    body: 'Invalid email address'
+                });
                 done();
             });
         });
 
         it('should reject if something fails', function(done) {
-            email.sendActivationEmail.and.returnValue(q.reject());
-            userModule.sendActivationEmail('sender', 'target', req, nextSpy);
+            email.sendActivationEmail.and.returnValue(q.reject({}));
+            userModule.sendActivationEmail('sender', 'target', req, nextSpy, doneSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();

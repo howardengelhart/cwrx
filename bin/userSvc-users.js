@@ -277,7 +277,7 @@
         });
     };
 
-    userModule.sendActivationEmail = function(sender, target, req, next) {
+    userModule.sendActivationEmail = function(sender, target, req, next, done) {
         var token = req.tempToken,
             id = req.body.id,
             reqEmail = req.body.email,
@@ -290,8 +290,13 @@
                 return next();
             })
             .catch(function(error) {
-                log.error('[%1] Error sending msg to %2: %3',req.uuid,reqEmail,error);
-                return q.reject(error);
+                if(error.name === 'InvalidParameterValue') {
+                    log.info('[%1] Problem sending msg to %2: %3', req.uuid, reqEmail, error);
+                    return done({code: 400, body: 'Invalid email address'});
+                } else {
+                    log.error('[%1] Error sending msg to %2: %3', req.uuid, reqEmail, error);
+                    return q.reject(error);
+                }
             });
     };
 
