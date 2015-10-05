@@ -1,8 +1,41 @@
 describe('expressUtils', function() {
     var parseQuery;
+    var cloudwatchMetrics;
+
+    var EventEmitter;
+    var extend;
+    var logger;
+
+    var CloudWatchReporter;
+    var MockCloudWatchReporter;
+    var reporter;
+
+    var log;
 
     beforeEach(function() {
+        EventEmitter = require('events').EventEmitter;
+        extend = require('../../lib/objUtils').extend;
+        logger = require('../../lib/logger');
+
+        spyOn(logger, 'getLog').and.returnValue(log = {
+            trace: jasmine.createSpy('log.trace()'),
+            info: jasmine.createSpy('log.info()'),
+            warn: jasmine.createSpy('log.warn()'),
+            error: jasmine.createSpy('log.error()')
+        });
+
+        delete require.cache[require.resolve('../../lib/cloudWatchReporter')];
+        CloudWatchReporter = require('../../lib/cloudWatchReporter');
+        MockCloudWatchReporter = require.cache[require.resolve('../../lib/cloudWatchReporter')].exports = jasmine.createSpy('CloudWatchReporter()').and.callFake(function(namespace, data) {
+            reporter = new CloudWatchReporter(namespace, data);
+            spyOn(reporter, 'autoflush');
+
+            return reporter;
+        });
+
+        delete require.cache[require.resolve('../../lib/expressUtils')];
         parseQuery = require('../../lib/expressUtils').parseQuery;
+        cloudwatchMetrics = require('../../lib/expressUtils').cloudwatchMetrics;
     });
 
     describe('parseQuery(config)', function() {
@@ -135,6 +168,94 @@ describe('expressUtils', function() {
                     expect(request.query.names).toBe('howard,josh, evan,   scott, true, false,22.4,44,1986,0');
                     expect(request.query.hey).toBe(true);
                     expect(next).toHaveBeenCalled();
+                });
+            });
+        });
+    });
+
+    describe('cloudwatchMetrics(namespace, autoflush, data)', function() {
+        it('should exist', function() {
+            expect(cloudwatchMetrics).toEqual(jasmine.any(Function));
+        });
+
+        describe('when called', function() {
+            var namespace, autoflush, data;
+            var middleware;
+
+            beforeEach(function() {
+                namespace = 'C6/Player';
+                autoflush = 1800000;
+                options = {
+                    MetricName: 'ReqTime'
+                };
+
+                middleware = cloudwatchMetrics(namespace, autoflush, options);
+            });
+
+            it('should return a middleware function', function() {
+                expect(middleware).toEqual(jasmine.any(Function));
+            });
+
+            it('should create a CloudWatchReporter', function() {
+                expect(MockCloudWatchReporter).toHaveBeenCalledWith(namespace, {
+                    MetricName: options.MetricName,
+                    Unit: 'Milliseconds'
+                });
+            });
+
+            it('should autoflush the CloudWatchReporter', function() {
+                expect(reporter.autoflush).toHaveBeenCalledWith(autoflush);
+            });
+
+            describe('(the middleware)', function() {
+                var req, res, next;
+                var headers;
+
+                beforeEach(function() {
+                    req = extend(new EventEmitter(), {});
+                    res = extend(new EventEmitter(), {});
+                    next = jasmine.createSpy('next()');
+
+                    jasmine.clock().install();
+                    jasmine.clock().mockDate();
+
+                    middleware(req, res, next);
+                });
+
+                afterEach(function() {
+                    jasmine.clock().uninstall();
+                });
+
+                it('should call next()', function() {
+                    expect(next).toHaveBeenCalled();
+                });
+
+                describe('when the response is sent', function() {
+                    beforeEach(function() {
+                        spyOn(reporter, 'push').and.callThrough();
+                        jasmine.clock().tick(250);
+
+                        res.emit('finish');
+                    });
+
+                    it('should push the value into the CloudWatchReporter', function() {
+                        expect(reporter.push).toHaveBeenCalledWith(250);
+                    });
+                });
+            });
+
+            describe('with missing options', function() {
+                beforeEach(function() {
+                    MockCloudWatchReporter.calls.reset();
+                    middleware = cloudwatchMetrics(namespace);
+                });
+
+                it('should use sensible defaults', function() {
+                    expect(MockCloudWatchReporter).toHaveBeenCalledWith(namespace, {
+                        MetricName: 'RequestTime',
+                        Unit: 'Milliseconds'
+                    });
+                    expect(reporter.autoflush).toHaveBeenCalledWith(300000);
                 });
             });
         });
