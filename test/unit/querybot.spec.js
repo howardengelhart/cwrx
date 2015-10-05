@@ -176,7 +176,7 @@ fdescribe('querybot (UT)', function() {
     });
 
     describe('campaignIdsFromRequest',function(){
-        var req, mockResponse, result, queryUrl, setResult;
+        var req, mockResponse, result, queryOpts, setResult ;
         beforeEach(function(){
             req = {
                 uuid : '123',
@@ -186,11 +186,14 @@ fdescribe('querybot (UT)', function() {
                 protocol : 'https'
             };
 
-            lib._state.config.campaignHost = 'local';
+            lib._state.config.api = {
+                root : campaignHost = 'https://local'
+            };
 
             mockResponse = {
                 response : {
-                    headers : {}
+                    headers : {},
+                    statusCode : 200
                 },
                 body : {}
             };
@@ -199,22 +202,23 @@ fdescribe('querybot (UT)', function() {
 
             result = null;
 
-            queryUrl = null;
-            
+            queryOpts = null;
+           
             spyOn(requestUtils,'qRequest').and.callFake(function(method,opts){
-                queryUrl = opts.url;
-                mockResponse.body = ['abc'];
+                queryOpts = opts;
                 return q(mockResponse);
             });
             
         });
 
         it('pulls campaignIds from the request params',function(done){
+            mockResponse.body = [{ id : 'ABC' }];
             req.params.id = 'ABC'; 
             lib.campaignIdsFromRequest(req)
             .then(setResult)
             .then(function(){
-                expect(queryUrl).toEqual('https://local/api/campaigns/ABC');
+                expect(queryOpts.qs.ids).toEqual('ABC');
+                expect(queryOpts.url).toEqual('https://local/api/campaigns/');
                 expect(result).toEqual(['ABC']);
             })
             .then(done,done.fail);
@@ -222,22 +226,26 @@ fdescribe('querybot (UT)', function() {
         
         it('pulls campaignIds from the query params',function(done){
             req.query.id = 'ABC,DEF'; 
+            mockResponse.body = [{ id : 'ABC' },{ id : 'DEF' }];
             lib.campaignIdsFromRequest(req)
             .then(setResult)
             .then(function(){
-                expect(queryUrl).toEqual('https://local/api/campaigns/ABC');
+                expect(queryOpts.qs.ids).toEqual('ABC,DEF');
+                expect(queryOpts.url).toEqual('https://local/api/campaigns/');
                 expect(result).toEqual(['ABC','DEF']);
             })
             .then(done,done.fail);
         });
 
         it('ignores query param ids if main id param is set',function(done){
+            mockResponse.body = [{ id : 'ABC' }];
             req.params.id = 'ABC'; 
             req.query.id = 'DEF,GHI'; 
             lib.campaignIdsFromRequest(req)
             .then(setResult)
             .then(function(){
-                expect(queryUrl).toEqual('https://local/api/campaigns/ABC');
+                expect(queryOpts.qs.ids).toEqual('ABC');
+                expect(queryOpts.url).toEqual('https://local/api/campaigns/');
                 expect(result).toEqual(['ABC']);
             })
             .then(done,done.fail);
@@ -245,11 +253,43 @@ fdescribe('querybot (UT)', function() {
 
         it('squashes duplicate ids',function(done){
             req.query.id = 'DEF,ABC,GHI,ABC'; 
+            mockResponse.body = [{ id : 'DEF' },{ id : 'ABC' },{ id : 'GHI' }];
             lib.campaignIdsFromRequest(req)
             .then(setResult)
             .then(function(){
-                expect(queryUrl).toEqual('https://local/api/campaigns/DEF');
+                expect(queryOpts.qs.ids).toEqual('DEF,ABC,GHI');
+                expect(queryOpts.url).toEqual('https://local/api/campaigns/');
                 expect(result).toEqual(['DEF','ABC','GHI']);
+            })
+            .then(done,done.fail);
+        });
+
+        it('return empty array if campaign service returns nothing',function(done){
+            req.query.id = 'DEF,ABC,GHI'; 
+            mockResponse.body = [];
+            lib.campaignIdsFromRequest(req)
+            .then(setResult)
+            .then(function(){
+                expect(queryOpts.qs.ids).toEqual('DEF,ABC,GHI');
+                expect(queryOpts.url).toEqual('https://local/api/campaigns/');
+                expect(result).toEqual([]);
+            })
+            .then(done,done.fail);
+        });
+
+        it('return empty array if campaign service returns error',function(done){
+            req.query.id = 'DEF,ABC,GHI'; 
+            mockResponse.response.statusCode = 401;
+            mockResponse.body = 'Unauthorized.';
+            lib.campaignIdsFromRequest(req)
+            .then(setResult)
+            .then(function(){
+                expect(queryOpts.qs.ids).toEqual('DEF,ABC,GHI');
+                expect(queryOpts.url).toEqual('https://local/api/campaigns/');
+                expect(mockLog.error).toHaveBeenCalledWith(
+                    'Campaign Check Failed with: %1 : %2', 401, 'Unauthorized.'
+                );
+                expect(result).toEqual([]);
             })
             .then(done,done.fail);
         });

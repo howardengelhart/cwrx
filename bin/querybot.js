@@ -4,6 +4,7 @@ var __ut__      = (global.jasmine !== undefined) ? true : false;
 
 var q               = require('q'),
     path            = require('path'),
+    url             = require('url'),
     express         = require('express'),
     bodyParser      = require('body-parser'),
     sessionLib      = require('express-session'),
@@ -57,7 +58,9 @@ state.defaultConfig = {
         timeouts: {},
         servers: null
     },
-    campaignHost: 'localhost',   // Hostname of the content service to proxy delete requests to
+    api : {
+        root: 'http://localhost/'
+    },
     campaignCacheTTL : 120 * 1000,
     requestMaxAge : 300
 };
@@ -131,8 +134,8 @@ lib.pgQuery = function(statement,params){
 };
 
 lib.campaignIdsFromRequest = function(req){
-    var log = logger.getLog(), ids = {},
-        urlBase = req.protocol + '://' + state.config.campaignHost + '/api/campaigns/';
+    var log = logger.getLog(), ids = {}, idList = '',
+        urlBase = url.resolve(state.config.api.root , '/api/campaigns/');
     if (req.params.id) {
         ids[req.params.id] = 1;
     }
@@ -148,22 +151,29 @@ lib.campaignIdsFromRequest = function(req){
         return q.reject(new Error('At least one campaignId is required.'));
     }
 
-    log.trace('campaign check: %1',urlBase + ids[0]);
+    idList = ids.join(',');
+    log.trace('campaign check: %1, ids=%2',urlBase , idList);
     return requestUtils.qRequest('get', {
-        url: urlBase + ids[0],
+        url: urlBase,
         headers: { cookie: req.headers.cookie },
         qs : {
-            fields : 'id,status'
+            ids    : idList,
+            fields : 'id'
         }
     })
     .then(function(resp){
         log.info('STATUS CODE: %1',resp.response.statusCode);
+        var result = [];
         if (resp.response.statusCode === 200) {
             log.trace('campaign found: %1',resp.body.id);
+            result = resp.body.map(function(item){
+                return  item.id;
+            });
         } else {
-            log.trace('campaign check resp: %1',resp.body);
+            log.error('Campaign Check Failed with: %1 : %2',
+                resp.response.statusCode,resp.body);
         }
-        return ids;
+        return result;
     });
 };
 
@@ -443,6 +453,7 @@ lib.main = function(state) {
             next();
         })
         .catch(function(err){
+            log.error('[%1] - 500 Error: [%2]',req.uuid,err.stack);
             res.send(500,err.message);
             next();
         });
