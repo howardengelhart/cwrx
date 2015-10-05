@@ -449,73 +449,87 @@ describe('userSvc (UT)', function() {
     });
 
     describe('giveActivationToken', function() {
-        var req, nextSpy, cryptoSpy, bcryptSpy;
+        var req, nextSpy;
 
         beforeEach(function() {
             req = {
                 body: { }
             };
-            spyOn(q, 'npost').and.callFake(function(object, methodName, args) {
-                switch(object) {
-                case crypto:
-                    cryptoSpy(args);
-                    return q(new Buffer('abcdefghijklmnopqrstuvwx', 'utf-8'));
-                case bcrypt:
-                    bcryptSpy(args);
-                    return q('hashed-activation-token');
-                }
+            spyOn(crypto, 'randomBytes').and.callFake(function(num, cb) {
+                cb(null, new Buffer('abcdefghijklmnopqrstuvwxyz'.substring(0, num)));
             });
+            spyOn(bcrypt, 'hash').and.callFake(function(data, salt, cb) {
+                cb(null, 'hashed-activation-token');
+            });
+            spyOn(bcrypt, 'genSaltSync').and.returnValue('salt');
             nextSpy = jasmine.createSpy('next()');
             doneSpy = jasmine.createSpy('done()');
-            cryptoSpy = jasmine.createSpy('randomBytes()');
-            bcryptSpy = jasmine.createSpy('hash()');
         });
 
         it('should generate random bytes and convert to hex', function(done) {
-            userModule.giveActivationToken(60000, req, nextSpy);
-            process.nextTick(function() {
-                expect(cryptoSpy).toHaveBeenCalledWith([24]);
-                done();
-            });
+            userModule.giveActivationToken(60000, req, nextSpy)
+            .then(function() {
+                expect(crypto.randomBytes).toHaveBeenCalledWith(24, jasmine.any(Function));
+            })
+            .catch(function(error) {
+                expect(error).not.toBeDefined();
+            })
+            .done(done);
         });
 
         it('should temporarily store the unhashed token in hex on the request', function(done) {
-            userModule.giveActivationToken(60000, req, nextSpy);
-            process.nextTick(function() {
-                expect(req.tempToken).toBe('6162636465666768696a6b6c6d6e6f707172737475767778'); // alphabet in hex
-                done();
-            });
+            userModule.giveActivationToken(60000, req, nextSpy)
+            .then(function() {
+                expect(req.tempToken).toBe('6162636465666768696a6b6c6d6e6f707172737475767778');
+            })
+            .catch(function(error) {
+                expect(error).not.toBeDefined();
+            })
+            .done(done);
         });
 
         it('should hash the hex token', function(done) {
-            userModule.giveActivationToken(60000, req, nextSpy);
-            process.nextTick(function() {
-                expect(bcryptSpy).toHaveBeenCalledWith(['6162636465666768696a6b6c6d6e6f707172737475767778', jasmine.any(String)]);
-                done();
-            });
+            userModule.giveActivationToken(60000, req, nextSpy)
+            .then(function() {
+                expect(bcrypt.genSaltSync).toHaveBeenCalled();
+                expect(bcrypt.hash).toHaveBeenCalledWith('6162636465666768696a6b6c6d6e6f707172737475767778', 'salt', jasmine.any(Function));
+            })
+            .catch(function(error) {
+                expect(error).not.toBeDefined();
+            })
+            .done(done);
         });
 
         it('should set the hashed token on the user document', function(done) {
-            userModule.giveActivationToken(60000, req, nextSpy);
-            process.nextTick(function() {
+            userModule.giveActivationToken(60000, req, nextSpy)
+            .then(function() {
                 expect(req.body.activationToken.token).toBe('hashed-activation-token');
                 expect(req.body.activationToken.expires).toEqual(jasmine.any(Date));
-                done();
-            });
+            })
+            .catch(function(error) {
+                expect(error).not.toBeDefined();
+            })
+            .done(done);
         });
 
         it('should call next', function(done) {
-            userModule.giveActivationToken(60000, req, nextSpy);
-            process.nextTick(function() {
+            userModule.giveActivationToken(60000, req, nextSpy)
+            .then(function() {
                 expect(nextSpy).toHaveBeenCalled();
-                done();
-            });
+            })
+            .catch(function(error) {
+                expect(error).not.toBeDefined();
+            })
+            .done(done);
         });
 
         it('should reject if something fails', function(done) {
-            q.npost.and.returnValue(q.reject('epic fail'));
-            userModule.giveActivationToken(60000, req, nextSpy);
-            process.nextTick(function() {
+            var errorSpy = jasmine.createSpy('errorSpy()');
+            crypto.randomBytes.and.returnValue(q.reject('epic fail'));
+            userModule.giveActivationToken(60000, req, nextSpy)
+            .catch(errorSpy)
+            .done(function() {
+                expect(errorSpy).toHaveBeenCalled();
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
                 done();
@@ -529,7 +543,8 @@ describe('userSvc (UT)', function() {
         beforeEach(function() {
             req = {
                 body: {
-                    id: 'u-abcdefghijklmn'
+                    id: 'u-abcdefghijklmn',
+                    email: 'email@email.com'
                 },
                 tempToken: '6162636465666768696a6b6c6d6e6f707172737475767778'
             };
@@ -539,52 +554,68 @@ describe('userSvc (UT)', function() {
         });
 
         it('should send an activation email', function(done) {
-            userModule.sendActivationEmail('sender', 'target', req, nextSpy, doneSpy);
-            process.nextTick(function() {
-                expect(email.sendActivationEmail).toHaveBeenCalled();
-                done();
-            });
+            userModule.sendActivationEmail('sender', 'target', req, nextSpy, doneSpy)
+            .then(function() {
+                expect(email.sendActivationEmail).toHaveBeenCalledWith('sender', 'email@email.com', 'target?id=u-abcdefghijklmn&token=6162636465666768696a6b6c6d6e6f707172737475767778');
+            })
+            .catch(function(error) {
+                expect(error).not.toBeDefined();
+            })
+            .done(done);
         });
 
         it('should remove the temporary token from the request object', function(done) {
-            userModule.sendActivationEmail('sender', 'target', req, nextSpy, doneSpy);
-            process.nextTick(function() {
+            userModule.sendActivationEmail('sender', 'target', req, nextSpy, doneSpy)
+            .then(function() {
                 expect(req.tempToken).not.toBeDefined();
                 expect(req).toEqual({
                     body: {
-                        id: 'u-abcdefghijklmn'
+                        id: 'u-abcdefghijklmn',
+                        email: 'email@email.com'
                     }
                 });
-                done();
-            });
+            })
+            .catch(function(error) {
+                expect(error).not.toBeDefined();
+            })
+            .done(done);
         });
 
         it('should call next', function(done) {
-            userModule.sendActivationEmail('sender', 'target', req, nextSpy, doneSpy);
-            process.nextTick(function() {
+            userModule.sendActivationEmail('sender', 'target', req, nextSpy, doneSpy)
+            .then(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
-                done();
-            });
+            })
+            .catch(function(error) {
+                expect(error).not.toBeDefined();
+            })
+            .done(done);
         });
 
         it('should call done if failed due to a malformed email', function(done) {
             email.sendActivationEmail.and.returnValue(q.reject({name: 'InvalidParameterValue'}));
-            userModule.sendActivationEmail('sender', 'target', req, nextSpy, doneSpy);
-            process.nextTick(function() {
+            userModule.sendActivationEmail('sender', 'target', req, nextSpy, doneSpy)
+            .then(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({
                     code: 400,
                     body: 'Invalid email address'
                 });
-                done();
-            });
+            })
+            .catch(function(error) {
+                expect(error).not.toBeDefined();
+            })
+            .done(done);
         });
 
         it('should reject if something fails', function(done) {
+            var errorSpy = jasmine.createSpy('errorSpy()');
             email.sendActivationEmail.and.returnValue(q.reject({}));
-            userModule.sendActivationEmail('sender', 'target', req, nextSpy, doneSpy);
-            process.nextTick(function() {
+            userModule.sendActivationEmail('sender', 'target', req, nextSpy, doneSpy)
+            .catch(errorSpy)
+            .done(function() {
+                expect(errorSpy).toHaveBeenCalled();
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(mockLog.error).toHaveBeenCalled();
                 done();
