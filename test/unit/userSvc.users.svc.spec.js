@@ -51,8 +51,11 @@ describe('userSvc (UT)', function() {
             },
             activationTokenTTL: 60000,
             activationTarget: 'https://www.selfie.cinema6.com/activate',
-            newUserRoles: ['newUserRole1'],
-            newUserPolicies: ['newUserPol1']
+            newUserPermissions: {
+                roles: ['newUserRole1'],
+                policies: ['newUserPol1'],
+                tempPolicy: 'tempPolicy'
+            }
         };
     });
 

@@ -73,8 +73,11 @@
         },
         activationTokenTTL: 1*60*60*1000, // 60 minutes; unit here is milliseconds
         activationTarget: 'https://www.selfie.cinema6.com/activate',
-        newUserRoles: [],
-        newUserPolicies: []
+        newUserPermissions: {
+            roles: [],
+            policies: [],
+            tempPolicy: 'newUserTempPolicy'
+        }
     };
 
     var main = function(state) {

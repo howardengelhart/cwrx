@@ -101,7 +101,7 @@
         var sendActivationEmail = userModule.sendActivationEmail.bind(userModule,
             config.ses.sender, config.activationTarget);
         var setupSignupUser = userModule.setupSignupUser.bind(userModule, userSvc,
-            config.newUserRoles, config.newUserPolicies);
+            config.newUserPermissions.roles, config.newUserPermissions.policies);
         var validatePassword = userModule.validatePassword;
 
         // override some default CrudSvc methods with custom versions for users
