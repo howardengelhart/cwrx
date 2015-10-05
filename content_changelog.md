@@ -1,5 +1,7 @@
 # Content Service Changelog
 
+* [FIX]: Setting `ids` or `categories` experience filter params to `''` returns no experiences: [#524](https://github.com/cinema6/cwrx/issues/524)
+
 ### 2.1.0: Tue Sep 29 13:35:21 EDT 2015
 * [FIX]: Validate pagination params: [#512](https://github.com/cinema6/cwrx/issues/512)
 * [FEATURE]: Add handling for `fields` param: [#454](https://github.com/cinema6/cwrx/issues/454)

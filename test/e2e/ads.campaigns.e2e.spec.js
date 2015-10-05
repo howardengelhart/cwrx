@@ -332,7 +332,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-
+        
         it('should get campaigns by name', function(done) {
             options.qs.name = 'camp 3';
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -358,8 +358,34 @@ describe('ads campaigns endpoints (E2E):', function() {
             }).done(done);
         });
         
-        it('should get campaigns by status', function(done) {
-            options.qs.status = 'active';
+        it('should get campaigns by list of ids', function(done) {
+            options.qs.ids = 'e2e-getquery1,e2e-getquery5';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0].id).toBe('e2e-getquery1');
+                expect(resp.body[1].id).toBe('e2e-getquery5');
+                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        ['ids', 'statuses'].forEach(function(param) {
+            it('should get no campaigns if the ' + param + ' param is empty', function(done) {
+                options.qs[param] = '';
+                requestUtils.qRequest('get', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body).toEqual([]);
+                    expect(resp.response.headers['content-range']).toBe('items 0-0/0');
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+        });
+        
+        it('should get campaigns by statuses', function(done) {
+            options.qs.statuses = 'active';
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(3);
@@ -367,7 +393,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body[1].id).toBe('e2e-getquery3');
                 expect(resp.body[2].id).toBe('e2e-getquery5');
                 expect(resp.response.headers['content-range']).toBe('items 1-3/3');
-                options.qs.status = 'active,inactive';
+                options.qs.statuses = 'active,inactive';
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.body.length).toBe(4);
@@ -378,7 +404,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
         
         it('should not allow querying for campaigns that are deleted', function(done) {
-            options.qs.status = 'inactive,deleted';
+            options.qs.statuses = 'inactive,deleted';
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body.length).toBe(1);
