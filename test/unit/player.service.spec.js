@@ -16,7 +16,7 @@ describe('player service', function() {
     var AdLoader;
     var expressUtils;
     var AWS;
-    var CloudWatch;
+    var CloudWatchReporter;
 
     var requestDeferreds;
     var fnCaches;
@@ -27,6 +27,7 @@ describe('player service', function() {
     var playerJS;
     var log;
     var adLoader;
+    var reporter;
 
     var setTimeout;
 
@@ -47,7 +48,6 @@ describe('player service', function() {
         extend = require('../../lib/objUtils').extend;
         clonePromise = require('../../lib/promise').clone;
         AWS = require('aws-sdk');
-        CloudWatch = AWS.CloudWatch;
 
         playerHTML = require('fs').readFileSync(require.resolve('./helpers/player.html')).toString();
         playerCSS = require('fs').readFileSync(require.resolve('./helpers/lightbox.css')).toString();
@@ -65,6 +65,15 @@ describe('player service', function() {
             deferred.request = req;
 
             return req;
+        });
+
+        delete require.cache[require.resolve('../../lib/cloudWatchReporter')];
+        CloudWatchReporter = require('../../lib/cloudWatchReporter');
+        require.cache[require.resolve('../../lib/cloudWatchReporter')].exports = jasmine.createSpy('CloudWatchReporter()').and.callFake(function(namespace, data) {
+            reporter = new CloudWatchReporter(namespace, data);
+            spyOn(reporter, 'autoflush');
+
+            return reporter;
         });
 
         delete require.cache[require.resolve('../../lib/expressUtils')];
@@ -739,6 +748,19 @@ describe('player service', function() {
                     });
                 });
 
+                describe('adLoadTimeReporter', function() {
+                    it('should be a CloudWatchReporter instance', function() {
+                        expect(player.adLoadTimeReporter).toEqual(jasmine.any(CloudWatchReporter));
+                        expect(player.adLoadTimeReporter.namespace).toBe(config.cloudwatch.namespace);
+                        expect(player.adLoadTimeReporter.metricData).toEqual({
+                            MetricName: 'AdLoadTime',
+                            Unit: 'Milliseconds',
+                            Dimensions: config.cloudwatch.dimensions
+                        });
+                        expect(player.adLoadTimeReporter.autoflush).toHaveBeenCalledWith(config.cloudwatch.sendInterval);
+                    });
+                });
+
                 describe('adLoader', function() {
                     it('should be an AdLoader', function() {
                         expect(player.adLoader).toEqual(jasmine.any(AdLoader));
@@ -840,6 +862,8 @@ describe('player service', function() {
                         var loadAdsDeferred;
 
                         beforeEach(function(done) {
+                            jasmine.clock().mockDate();
+
                             loadAdsDeferred = q.defer();
                             spyOn(player.adLoader, 'loadAds').and.returnValue(loadAdsDeferred.promise);
 
@@ -853,6 +877,9 @@ describe('player service', function() {
 
                         describe('if loading the ads', function() {
                             beforeEach(function() {
+                                jasmine.clock().tick(650);
+
+                                spyOn(player.adLoadTimeReporter, 'push').and.callThrough();
                                 spyOn(MockAdLoader, 'removePlaceholders').and.callThrough();
                                 spyOn(MockAdLoader, 'removeSponsoredCards').and.callThrough();
                                 spyOn(MockAdLoader, 'addTrackingPixels').and.callThrough();
@@ -862,6 +889,10 @@ describe('player service', function() {
                                 beforeEach(function(done) {
                                     loadAdsDeferred.fulfill(experience);
                                     process.nextTick(done);
+                                });
+
+                                it('should send metrics to CloudWatch', function() {
+                                    expect(player.adLoadTimeReporter.push).toHaveBeenCalledWith(650);
                                 });
 
                                 it('should not removePlaceholders() or removeSponsoredCards()', function() {
