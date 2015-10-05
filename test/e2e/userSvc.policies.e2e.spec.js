@@ -10,7 +10,7 @@ var q               = require('q'),
 
 describe('userSvc policies endpoints (E2E):', function() {
     var cookieJar, mockRequester, polAdminPol;
-        
+
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
 
@@ -81,7 +81,7 @@ describe('userSvc policies endpoints (E2E):', function() {
             done();
         });
     });
-    
+
     describe('GET /api/account/policies/:id', function() {
         beforeEach(function(done) {
             var mockPols = [
@@ -90,7 +90,7 @@ describe('userSvc policies endpoints (E2E):', function() {
             ];
             testUtils.resetCollection('policies', mockPols.concat([polAdminPol])).done(done);
         });
-        
+
         it('should get a policy by id', function(done) {
             var options = {url: config.polsUrl + '/p-e2e-get1', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -101,7 +101,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should write an entry to the audit collection', function(done) {
             var options = {url: config.polsUrl + '/p-e2e-get1', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -161,7 +161,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 401 if the user is not authenticated', function(done) {
             var options = { url: config.polsUrl + '/p-e2e-get1' };
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -358,7 +358,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should write an entry to the audit collection', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
@@ -377,7 +377,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 409 if a policy exists with the same name', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
@@ -390,7 +390,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 400 for an invalid name', function(done) {
             mockPol.name = 'a test policy';
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -400,7 +400,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 400 if no name is provided', function(done) {
             delete mockPol.name;
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -410,7 +410,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should trim out invalid permissions verbs and scopes', function(done) {
             mockPol.permissions.cards = { read: 'all', eat: 'all', edit: 'some' };
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -420,7 +420,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 400 if some of the applications do not exist', function(done) {
             mockPol.applications.push('e-app4');
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -430,7 +430,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 400 if the user cannot pass some of the applications', function(done) {
             mockPol.applications.push('e-app3');
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -440,7 +440,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should trim off forbidden fields', function(done) {
             options.json.permissions.users = { read: 'all' };
             options.json.fieldValidation.orgs = { name: { __allowed: false } };
@@ -518,7 +518,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                 done();
             });
         });
-        
+
         it('should successfully update a policy', function(done) {
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -563,7 +563,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should trim off any forbidden fields', function(done) {
             options.json = mockPolicies[0];
             options.json.name = 'someNewName';
@@ -612,7 +612,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 400 if some of the applications do not exist', function(done) {
             options.json.applications = ['e-app4'];
             requestUtils.qRequest('put', options).then(function(resp) {
@@ -622,7 +622,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 400 if the user cannot pass some of the applications', function(done) {
             options.json.applications = ['e-app3'];
             requestUtils.qRequest('put', options).then(function(resp) {
@@ -632,7 +632,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should not edit a policy that has been deleted', function(done) {
             options.url = config.polsUrl + '/p-e2e-deleted';
             requestUtils.qRequest('put', options).then(function(resp) {
@@ -642,7 +642,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should not create a policy if it does not exist', function(done) {
             options.url = config.polsUrl + '/e2e-putfake';
             requestUtils.qRequest('put', options).then(function(resp) {
@@ -693,7 +693,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                 done();
             });
         });
-        
+
 
         it('should delete a policy', function(done) {
             requestUtils.qRequest('delete', options).then(function(resp) {
@@ -728,7 +728,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should still return a 204 if the policy has been deleted', function(done) {
             options.url = config.polsUrl + '/p-e2e-del4';
             requestUtils.qRequest('delete', options).then(function(resp) {
@@ -738,7 +738,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should still return a 204 if the policy does not exist', function(done) {
             options.url = config.polsUrl + '/SLDKFJWEO';
             requestUtils.qRequest('delete', options).then(function(resp) {
@@ -748,7 +748,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 400 if the policy is in use', function(done) {
             options.url = config.polsUrl + '/p-e2e-del2';
             requestUtils.qRequest('delete', options).then(function(resp) {

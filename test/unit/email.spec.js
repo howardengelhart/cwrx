@@ -1,7 +1,7 @@
 var flush = true;
 describe('email', function() {
     var path, email, q, handlebars, nodemailer, sesTransport, htmlToText;
-    
+
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         path            = require('path');
@@ -17,7 +17,7 @@ describe('email', function() {
         beforeEach(function() {
             spyOn(email, 'compileAndSend').and.returnValue(q('success'));
         });
-        
+
         it('should correctly call compileAndSend', function(done) {
             email.notifyPwdChange('send', 'recip').then(function(resp) {
                 expect(resp).toBe('success');
@@ -27,13 +27,39 @@ describe('email', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should pass along errors from compileAndSend', function(done) {
             email.compileAndSend.and.returnValue(q.reject('I GOT A PROBLEM'));
             email.notifyPwdChange('send', 'recip').then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('I GOT A PROBLEM');
+                expect(email.compileAndSend).toHaveBeenCalled();
+            }).done(done);
+        });
+    });
+
+    describe('sendActivationEmail', function() {
+        beforeEach(function() {
+            spyOn(email, 'compileAndSend').and.returnValue(q('success'));
+        });
+
+        it('should correctly call compileAndSend', function(done) {
+            email.sendActivationEmail('send', 'recip', 'link').then(function(resp) {
+                expect(resp).toBe('success');
+                expect(email.compileAndSend).toHaveBeenCalledWith('send','recip',
+                    'Your account is almost activated!','activationEmail.html',{contact:'send', link: 'link'});
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should pass along errors from compileAndSend', function(done) {
+            email.compileAndSend.and.returnValue(q.reject('I GOT 99 PROBLEMS AND THIS IS ONE'));
+            email.sendActivationEmail('send', 'recip', 'link').then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT 99 PROBLEMS AND THIS IS ONE');
                 expect(email.compileAndSend).toHaveBeenCalled();
             }).done(done);
         });
@@ -74,7 +100,7 @@ describe('email', function() {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should fail if reading the template fails', function(done) {
             fs.readFile.and.callFake(function(path, opts, cb) { cb('I GOT A PROBLEM'); });
             email.compileAndSend('sender','recip','subj','templ',{foo:'bar'}).then(function(resp) {
@@ -89,7 +115,7 @@ describe('email', function() {
                 expect(fakeTransport.sendMail).not.toHaveBeenCalled();
             }).done(done);
         });
-        
+
         it('should fail if sending the email fails', function(done) {
             fakeTransport.sendMail.and.callFake(function(opts, cb) { cb('I GOT A PROBLEM'); });
             email.compileAndSend('sender','recip','subj','templ',{foo:'bar'}).then(function(resp) {
@@ -106,4 +132,3 @@ describe('email', function() {
         });
     });
 });
-
