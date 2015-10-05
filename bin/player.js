@@ -22,6 +22,7 @@ var clonePromise = require('../lib/promise').clone;
 var AdLoader = require('../lib/adLoader');
 var parseQuery = require('../lib/expressUtils').parseQuery;
 var AWS = require('aws-sdk');
+var CloudWatchReporter = require('../lib/cloudWatchReporter');
 var push = Array.prototype.push;
 
 var staticCache = new FunctionCache({
@@ -53,6 +54,7 @@ ServiceError.prototype.toString = function toString() {
 };
 
 function Player(config) {
+    var log = logger.getLog();
     var contentCache = new FunctionCache({
         freshTTL: config.api.experience.cacheTTLs.fresh,
         maxTTL: config.api.experience.cacheTTLs.max,
@@ -69,6 +71,16 @@ function Player(config) {
         maxSockets: config.adtech.request.maxSockets,
         timeout: config.adtech.request.timeout
     });
+    this.adLoadTimeReporter = new CloudWatchReporter(config.cloudwatch.namespace, {
+        MetricName: 'AdLoadTime',
+        Unit: 'Milliseconds',
+        Dimensions: config.cloudwatch.dimensions
+    });
+    this.adLoadTimeReporter.on('flush', function(data) {
+        log.info('Sending AdLoadTime metrics to CloudWatch: %1', inspect(data));
+    });
+
+    this.adLoadTimeReporter.autoflush(config.cloudwatch.sendInterval);
 
     // Memoize Player.prototype.__getPlayer__() method.
     this.__getPlayer__ = staticCache.add(this.__getPlayer__.bind(this), -1);
@@ -409,6 +421,7 @@ Player.prototype.get = function get(/*options*/) {
     var log = logger.getLog();
     var config = this.config;
     var adLoader = this.adLoader;
+    var adLoadTimeReporter = this.adLoadTimeReporter;
     var type = options.type;
     var experience = options.experience;
     var params = filterObject(options, function(value, key) {
@@ -443,12 +456,19 @@ Player.prototype.get = function get(/*options*/) {
     return q.all([
         this.__getPlayer__(type, uuid),
         this.__getExperience__(experience, params, origin, uuid).then(function loadAds(experience) {
+            var start = Date.now();
+
             if (preview || !AdLoader.hasAds(experience)) {
                 log.trace('[%1] Skipping ad calls.', uuid);
                 return addTrackingPixels(AdLoader.removePlaceholders(experience));
             }
 
             return adLoader.loadAds(experience, categories, campaign, uuid)
+                .tap(function sendMetrics() {
+                    var end = Date.now();
+
+                    adLoadTimeReporter.push(end - start);
+                })
                 .catch(function trimCards(reason) {
                     log.warn('[%1] Unexpected failure loading ads: %2', uuid, inspect(reason));
 
