@@ -60,6 +60,10 @@
             __entries: {
                 __acceptableValues: []
             }
+        },
+        activationToken: {
+            __allowed: false,
+            __locked: true
         }
     };
 

@@ -294,7 +294,7 @@ describe('userSvc (UT)', function() {
         });
 
         // locked, forbidden fields
-        ['permissions', 'fieldValidation', 'entitlements', 'applications'].forEach(function(field) {
+        ['permissions', 'fieldValidation', 'entitlements', 'applications', 'activationToken'].forEach(function(field) {
             describe('when handling ' + field, function() {
                 it('should trim the field if set', function() {
                     newObj[field] = { foo: 'bar' };
