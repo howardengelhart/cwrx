@@ -95,7 +95,7 @@ describe('userSvc (UT)', function() {
             var bind = Function.prototype.bind;
             boundFns = [];
             [CrudSvc.prototype.preventGetAll, CrudSvc.prototype.validateUniqueProp, userModule.checkExistingWithNewEmail,
-             userModule.hashProp, userModule.validateRoles, userModule.validatePolicies, userModule.setupNewObj,
+             userModule.hashProp, userModule.validateRoles, userModule.validatePolicies, userModule.setupSignupUser,
              userModule.filterProps, userModule.giveActivationToken, userModule.sendActivationEmail].forEach(function(fn) {
                 spyOn(fn, 'bind').and.callFake(function() {
                     var boundFn = bind.apply(fn, arguments);
@@ -185,9 +185,9 @@ describe('userSvc (UT)', function() {
             expect(result.userPermQuery).toBe(userModule.userPermQuery);
         });
 
-        it('should setupNewObj when signing up a user', function() {
-            expect(userModule.setupNewObj.bind).toHaveBeenCalledWith(userModule, 'u', ['newUserRole1'], ['newUserPol1']);
-            expect(result._middleware.signupUser).toContain(getBoundFn(userModule.setupNewObj, [userModule, 'u', ['newUserRole1'], ['newUserPol1']]));
+        it('should setupSignupUser when signing up a user', function() {
+            expect(userModule.setupSignupUser.bind).toHaveBeenCalledWith(userModule, result, ['newUserRole1'], ['newUserPol1']);
+            expect(result._middleware.signupUser).toContain(getBoundFn(userModule.setupSignupUser, [userModule, result, ['newUserRole1'], ['newUserPol1']]));
         });
 
         it('should filter props when signing up a user', function() {
@@ -357,19 +357,20 @@ describe('userSvc (UT)', function() {
         });
     });
 
-    describe('setupNewObj', function() {
-        var req, next, done;
+    describe('setupSignupUser', function() {
+        var svc, req, next, done;
 
         beforeEach(function() {
             spyOn(uuid, 'createUuid').and.returnValue('abcdefghijklmnopqrstuvwxyz');
             var newUserRoles = ['newUserRole1', 'newUserRole2'];
             var newUserPols = ['newUserPol1', 'newUserPol2'];
+            svc = userModule.setupSvc(mockDb, mockConfig);
             req = {
                 body: { }
             };
             next = jasmine.createSpy('next()');
             done = jasmine.createSpy('done()');
-            userModule.setupNewObj('u', newUserRoles, newUserPols, req, next, done);
+            userModule.setupSignupUser(svc, newUserRoles, newUserPols, req, next, done);
         });
 
         it('should give the object an id', function() {

@@ -13,7 +13,6 @@
         CrudSvc         = require('../lib/crudSvc.js'),
         email           = require('../lib/email'),
         enums           = require('../lib/enums'),
-        uuid            = require('../lib/uuid'),
         Status          = enums.Status,
         Scope           = enums.Scope,
 
@@ -101,7 +100,7 @@
             config.activationTokenTTL);
         var sendActivationEmail = userModule.sendActivationEmail.bind(userModule,
             config.ses.sender, config.activationTarget);
-        var setupNewObj = userModule.setupNewObj.bind(userModule, userSvc._prefix,
+        var setupSignupUser = userModule.setupSignupUser.bind(userModule, userSvc,
             config.newUserRoles, config.newUserPolicies);
         var validatePassword = userModule.validatePassword;
 
@@ -131,7 +130,7 @@
 
         userSvc.use('forceLogout', authorizeForceLogout);
 
-        userSvc.use('signupUser', setupNewObj);
+        userSvc.use('signupUser', setupSignupUser);
         userSvc.use('signupUser', filterProps);
         userSvc.use('signupUser', validatePassword);
         userSvc.use('signupUser', hashPassword);
@@ -143,18 +142,15 @@
         return userSvc;
     };
 
-    userModule.setupNewObj = function setupNewObj(prefix, roles, policies, req, next) {
-        var now = new Date();
+    userModule.setupSignupUser = function setupSignupUser(svc, roles, policies, req, next, done) {
+        svc.setupObj(req, function() {
+            req.body.status = Status.New;
+            req.body.roles = roles;
+            req.body.policies = policies;
+            req.body.external = true;
 
-        req.body.id = prefix + '-' + uuid.createUuid().substr(0,14);
-        req.body.created = now;
-        req.body.lastUpdated = now;
-        req.body.status = Status.New;
-        req.body.roles = roles;
-        req.body.policies = policies;
-        req.body.external = true;
-
-        next();
+            next();
+        }, done);
     };
 
     // Filters properties off the body of the provided request
