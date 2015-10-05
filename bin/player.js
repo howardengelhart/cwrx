@@ -12,15 +12,28 @@ var express = require('express');
 var logger = require('../lib/logger');
 var uuid = require('../lib/uuid');
 var inherits = require('util').inherits;
+var inspect = require('util').inspect;
 var BrowserInfo = require('../lib/browserInfo');
 var resolvePath = require('path').resolve;
 var inspect = require('util').inspect;
+var filterObject = require('../lib/objUtils').filter;
+var extend = require('../lib/objUtils').extend;
 
 var staticCache = new FunctionCache({
     freshTTL: Infinity,
     maxTTL: Infinity,
     gcInterval: Infinity
 });
+
+function stripURL(url) {
+    var parsed = parseURL(url);
+
+    return formatURL({
+        protocol: parsed.protocol,
+        host: parsed.host,
+        pathname: parsed.pathname
+    });
+}
 
 function ServiceError(message, status) {
     Error.call(this, message);
@@ -35,10 +48,17 @@ ServiceError.prototype.toString = function toString() {
 };
 
 function Player(config) {
+    var contentCache = new FunctionCache({
+        freshTTL: config.cacheTTLs.content.fresh,
+        maxTTL: config.cacheTTLs.content.max
+    });
+
     this.config = config;
 
     // Memoize Player.prototype.__getPlayer__() method.
     this.__getPlayer__ = staticCache.add(this.__getPlayer__.bind(this), -1);
+    // Memoize Player.prototype.__getExperience__() method.
+    this.__getExperience__ = contentCache.add(this.__getExperience__.bind(this), -1);
 }
 
 /***************************************************************************************************
@@ -51,6 +71,50 @@ Player.__rebaseCSS__ = function __rebaseCSS__(css, base) {
     });
 };
 
+Player.__addResource__ = function __addResource__($document, src, type, contents) {
+    var $head = $document('head');
+    var text = (typeof contents === 'string') ? contents : JSON.stringify(contents);
+
+    var $script = $document('<script></script>');
+    $script.attr({ type: type, 'data-src': src });
+    $script.text(text);
+
+    $head.append($script);
+
+    return $document;
+};
+
+Player.prototype.__getExperience__ = function __getExperience__(id, params, origin, uuid) {
+    var log = logger.getLog();
+    var config = this.config;
+    var contentLocation = resolveURL(config.envRoot, config.contentLocation);
+    var url = resolveURL(contentLocation, id || '');
+
+    if (!id) {
+        return q.reject(new ServiceError('experience must be specified', 400));
+    }
+
+    log.trace(
+        '[%1] Fetching experience from "%2" with params (%3) as "%4."',
+        uuid, url, inspect(params), origin
+    );
+
+    return q(request.get(url, {
+        qs: params,
+        headers: { origin: origin },
+        json: true
+    })).catch(function convertError(reason) {
+        var message = reason.message;
+        var statusCode = reason.statusCode;
+
+        if (statusCode >= 500) {
+            log.error('[%1] Error fetching experience: [%2] {%3}.', uuid, statusCode, message);
+        }
+
+        throw new ServiceError(message, statusCode);
+    });
+};
+
 /**
  * Given a player "mode," this method will fetch the player's HTML file, replace any ${mode} macros
  * with the give mode and fetch an inline any HTML or CSS resources referenced in the file, and
@@ -58,7 +122,8 @@ Player.__rebaseCSS__ = function __rebaseCSS__(css, base) {
  */
 Player.prototype.__getPlayer__ = function __getPlayer__(mode, uuid) {
     var log = logger.getLog();
-    var playerLocation = this.config.playerLocation;
+    var config = this.config;
+    var playerLocation = resolveURL(config.envRoot, config.playerLocation);
     var rebaseCSS = Player.__rebaseCSS__;
 
     var sameHostAsPlayer = (function() {
@@ -133,7 +198,7 @@ Player.prototype.__getPlayer__ = function __getPlayer__(mode, uuid) {
 
         log.trace('[%1] Successfully inlined JS and CSS.', uuid);
 
-        return $;
+        return $.html();
     }).catch(function logRejection(reason) {
         log.error('[%1] Error getting %2 player template: %3.', uuid, mode, inspect(reason));
         throw reason;
@@ -144,6 +209,8 @@ Player.prototype.__getPlayer__ = function __getPlayer__(mode, uuid) {
  * @public methods * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  **************************************************************************************************/
 
+module.exports = Player;
+
 Player.startService = function startService() {
     var Player = this;
     var state = {
@@ -151,14 +218,29 @@ Player.startService = function startService() {
             appName: 'player',
             appDir: __dirname,
             pidDir: resolvePath(__dirname, '../pids'),
-            playerLocation: 'https://portal.cinema6.com/apps/mini-reel-player/index.html',
+            envRoot: 'https://portal.cinema6.com/',
+            playerLocation: 'apps/mini-reel-player/index.html',
+            contentLocation: 'api/public/content/experience/',
+            contentParams: [
+                'campaign', 'branding', 'placementId',
+                'container', 'wildCardPlacement',
+                'pageUrl', 'hostApp', 'network'
+            ],
+            defaultOrigin: 'http://www.cinema6.com/',
+            mobileType: 'mobile',
+            playerVersion: 'v0.25.0-0-g8b946d4',
             validTypes: [
                 'full-np', 'full', 'solo-ads', 'solo',
                 'light',
                 'lightbox-playlist', 'lightbox',
                 'mobile',  'swipe'
             ],
-            mobileType: 'mobile'
+            cacheTTLs: {
+                content: {
+                    fresh: 1,
+                    max: 5
+                }
+            }
         }
     };
 
@@ -206,9 +288,12 @@ Player.startService = function startService() {
         });
 
         app.get('/api/public/players/:type', function playerRoute(req, res) {
+            var config = state.config;
             var type = req.params.type;
             var uuid = req.uuid;
-            var mobileType = req.query.mobileType || state.config.mobileType;
+            var query = req.query;
+            var mobileType = query.mobileType || config.mobileType;
+            var origin = req.get('origin') || req.get('referer');
             var agent = req.get('user-agent');
 
             if (new BrowserInfo(agent).isMobile && type !== mobileType) {
@@ -216,10 +301,11 @@ Player.startService = function startService() {
                 return q(res.redirect(303, mobileType + formatURL({ query: req.query })));
             }
 
-            return player.get({
+            return player.get(extend({
                 type: type,
-                uuid: uuid
-            }).then(function sendResponse(html) {
+                uuid: uuid,
+                origin: origin
+            }, query)).then(function sendResponse(html) {
                 log.info('[%1] {GET %2} Response Length: %3.', uuid, req.url, html.length);
                 return res.send(200, html);
             }).catch(function handleRejection(reason) {
@@ -271,9 +357,30 @@ Player.startService = function startService() {
 
 Player.prototype.get = function get(options) {
     var log = logger.getLog();
+    var config = this.config;
+    var type = options.type;
+    var experience = options.experience;
+    var params = filterObject(options, function(value, key) {
+        return config.contentParams.indexOf(key) > -1;
+    });
+    var origin = stripURL(options.origin || config.defaultOrigin);
+    var uuid = options.uuid;
 
-    return this.__getPlayer__(options.type, options.uuid).then(function stringify($document) {
-        log.trace('[%1] Stringifying document.', options.uuid);
+    log.trace('[%1] Getting player with options (%2.)', uuid, inspect(options));
+
+    return q.all([
+        this.__getPlayer__(type, uuid),
+        this.__getExperience__(experience, params, origin, uuid)
+    ]).spread(function inlineResources(html, experience) {
+        var $document = cheerio.load(html);
+
+        log.trace(
+            '[%1] Inlining experience (%2) to %3 player HTML.',
+            uuid, experience.id, type
+        );
+        return Player.__addResource__($document, 'experience', 'application/json', experience);
+    }).then(function stringify($document) {
+        log.trace('[%1] Stringifying document.', uuid);
         return $document.html();
     });
 };
