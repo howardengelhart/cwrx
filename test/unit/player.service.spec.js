@@ -79,6 +79,7 @@ describe('player service', function() {
         delete require.cache[require.resolve('../../lib/expressUtils')];
         expressUtils = require('../../lib/expressUtils');
         spyOn(expressUtils, 'parseQuery').and.callThrough();
+        spyOn(expressUtils, 'cloudwatchMetrics').and.callThrough();
 
         delete require.cache[require.resolve('../../lib/adLoader')];
         AdLoader = require('../../lib/adLoader');
@@ -373,6 +374,14 @@ describe('player service', function() {
                         });
                     });
 
+                    it('should create some middleware for reporting request times to CloudWatch', function() {
+                        var config = service.daemonize.calls.mostRecent().args[0].config;
+
+                        expect(expressUtils.cloudwatchMetrics).toHaveBeenCalledWith(config.cloudwatch.namespace, config.cloudwatch.sendInterval, jasmine.objectContaining({
+                            Dimensions: config.cloudwatch.dimensions
+                        }));
+                    });
+
                     it('should create a Player instance', function() {
                         expect(MockPlayer).toHaveBeenCalledWith(service.daemonize.calls.mostRecent().args[0].config);
                     });
@@ -407,7 +416,7 @@ describe('player service', function() {
 
                     describe('route: GET /api/public/players/:type', function() {
                         it('should exist', function() {
-                            expect(expressApp.get).toHaveBeenCalledWith('/api/public/players/:type', expressUtils.parseQuery.calls.mostRecent().returnValue, jasmine.any(Function));
+                            expect(expressApp.get).toHaveBeenCalledWith('/api/public/players/:type', expressUtils.parseQuery.calls.mostRecent().returnValue, expressUtils.cloudwatchMetrics.calls.mostRecent().returnValue, jasmine.any(Function));
                         });
 
                         describe('when invoked', function() {
@@ -420,7 +429,7 @@ describe('player service', function() {
                             beforeEach(function(done) {
                                 state = service.daemonize.calls.mostRecent().args[0];
 
-                                middleware = expressRoutes.get['/api/public/players/:type'][0][1];
+                                middleware = expressRoutes.get['/api/public/players/:type'][0][expressRoutes.get['/api/public/players/:type'][0].length - 1];
                                 headers = {
                                     'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.99 Safari/537.36',
                                     'origin': 'https://github.com/cinema6/cwrx/pull/504/files'
