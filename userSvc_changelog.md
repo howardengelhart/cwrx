@@ -1,6 +1,8 @@
 # User Service Changelog
 
 * [FEATURE]: Add new user signup endpoint: [#483](https://github.com/cinema6/cwrx/issues/483)
+* Extra deployment steps:
+    * Deploy new userSvc cookbook to staging/production envs
 
 ### 2.0.0: Mon Sep 28 10:33:32 EDT 2015
 * [FIX]: Validate pagination params: [#512](https://github.com/cinema6/cwrx/issues/512)
