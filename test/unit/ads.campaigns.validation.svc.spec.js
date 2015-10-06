@@ -254,22 +254,24 @@ describe('campaign validation', function() {
         });
     });
     
-    describe('when handling categories', function() {
-        it('should fail if the field is not an array of strings', function() {
-            newObj.categories = 123;
-            expect(svc.model.validate('create', newObj, origObj, requester))
-                .toEqual({ isValid: false, reason: 'categories must be in format: stringArray' });
-
-            newObj.categories = ['foo', 'bar', 123];
-            expect(svc.model.validate('create', newObj, origObj, requester))
-                .toEqual({ isValid: false, reason: 'categories must be in format: stringArray' });
+    describe('when handling contentCategories,', function() {
+        beforeEach(function() {
+            newObj.contentCategories = {};
         });
-        
-        it('should allow the field to be set', function() {
-            newObj.categories = ['foo', 'bar'];
-            expect(svc.model.validate('create', newObj, origObj, requester))
-                .toEqual({ isValid: true, reason: undefined });
-            expect(newObj.categories).toEqual(['foo', 'bar']);
+
+        describe('subfield primary,', function() {
+            it('should fail if the field is not a string', function() {
+                newObj.contentCategories.primary = 123;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'contentCategories.primary must be in format: string' });
+            });
+            
+            it('should allow the field to be set', function() {
+                newObj.contentCategories.primary = 'foo';
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.contentCategories.primary).toEqual('foo');
+            });
         });
     });
     

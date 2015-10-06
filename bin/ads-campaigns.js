@@ -2,6 +2,7 @@
     'use strict';
 
     var q               = require('q'),
+        urlUtils        = require('url'),
         util            = require('util'),
         express         = require('express'),
         requestUtils    = require('../lib/requestUtils'),
@@ -109,12 +110,11 @@
             __type: 'objectArray',
             __locked: true
         },
-        categories: { //TODO: remove???
-            __allowed: true,
-            __type: 'stringArray'
-        },
-        contentCategories: { //TODO: not testing yet, confirm this...
-            
+        contentCategories: {
+            primary: {
+                __allowed: true,
+                __type: 'string'
+            }
         },
         targeting: {
             __allowed: true,
@@ -173,7 +173,7 @@
 
     campModule.setupSvc = function(db, config) {
         campModule.config.campaigns = config.campaigns;
-        campModule.config.apiHost = config.apiHost;
+        campModule.config.contentHost = config.contentHost;
     
         var campColl = db.collection('campaigns'),
             svc = new CrudSvc(campColl, 'cam', { statusHistory: true }, campModule.campSchema);
@@ -188,6 +188,8 @@
         svc.use('create', campModule.validateDates);
         svc.use('create', campModule.ensureUniqueIds);
         svc.use('create', campModule.ensureUniqueNames);
+        svc.use('create', campModule.defaultReportingId);
+        svc.use('create', campModule.validatePricing);
         svc.use('create', campModule.createSponsoredCamps);
         svc.use('create', campModule.createTargetCamps);
         svc.use('create', campModule.handlePricingHistory);
@@ -245,7 +247,8 @@
         return next();
     };
 
-    campModule.defaultAccountIds = function(req, next, done) { //TODO: comment, test
+    // Set advertiserId and customerId on the body to the user's advert + cust ids, if not defined
+    campModule.defaultAccountIds = function(req, next, done) {
         var log = logger.getLog();
 
         if ((req.body.advertiserId && req.body.customerId) ||
@@ -373,7 +376,8 @@
         return q(next());
     };
 
-    campModule.defaultReportingId = function(req, next/*, done*/) { //TODO: comment, test
+    // Set the reportingId for each card without one to the campaign's name
+    campModule.defaultReportingId = function(req, next/*, done*/) {
         if (!req.body.cards) {
             return next();
         }
@@ -387,37 +391,43 @@
         return next();
     };
 
-    campModule.computeCost = function(req) { //TODO: comment, test
-        var cats = req.body.categories || (req.origObj && req.origObj.categories),
-            geo = req.body.geoTargeting || (req.origObj && req.origObj.geoTargeting);
-            
+    // Compute cost for the campaign, based on targeting added
+    campModule.computeCost = function(/*req*/) {
         //TODO: replace this with actual values/logic!
-        return 0.1 + ((cats && cats.length > 0) ? 0.2 : 0) + ((geo && geo.length > 0) ? 0.3 : 0);
+        return 0.1;
     };
     
-    campModule.validatePricing = function(svc, req, next, done) { //TODO: comment, test
+    // Extra validation for pricing, including dailyLimit checking + cost computing
+    campModule.validatePricing = function(svc, req, next, done) {
         var log = logger.getLog(),
             id = req.body.id || (req.origObj && req.origObj.id),
-            origPricing = req.origObj && req.origObj.pricing;
+            origPricing = req.origObj && req.origObj.pricing,
+            actingSchema = svc.model.personalizeSchema(req.user);
 
         if (!req.body.pricing) {
             return next();
         }
 
-        // always recompute cost
-        req.body.pricing.cost = campModule.computeCost(req);
+        // if user can set own cost, take the value from body, origObj, or computeCost
+        if (actingSchema.pricing.cost.__allowed === true) {
+            req.body.pricing.cost = req.body.pricing.cost || origPricing && origPricing.cost ||
+                                    campModule.computeCost(req);
+        }
+        else { // otherwise recompute the cost each time
+            req.body.pricing.cost = campModule.computeCost(req);
+        }
         
         // copy over any missing props from original pricing
         objUtils.extend(req.body.pricing, origPricing);
         
         // validate dailyLimit:
-        var actingSchema = svc.model.personalizeSchema(req.user),
-            limitMin = actingSchema.pricing.dailyLimit.__percentMin,
+        var limitMin = actingSchema.pricing.dailyLimit.__percentMin,
             limitMax = actingSchema.pricing.dailyLimit.__percentMax,
             limitDefault = actingSchema.pricing.dailyLimit.__percentDefault;
         
         // default dailyLimit if undefined
-        req.body.pricing.dailyLimit = req.body.dailyLimit || limitDefault;
+        req.body.pricing.dailyLimit = req.body.pricing.dailyLimit ||
+                                      ( limitDefault * req.body.pricing.budget );
 
         // check if dailyLimit is within __percentMin and __percentMax of budget
         var ratio = (req.body.pricing.dailyLimit / req.body.pricing.budget) || 0;
@@ -459,10 +469,15 @@
     /* Send a DELETE request to the content service. type should be "card" or "experience"
      * Logs + swallows 4xx failures, but rejects 5xx failures. */
     campModule.sendDeleteRequest = function(req, id, type) {
-        var log = logger.getLog();
+        var log = logger.getLog(),
+            url = urlUtils.format({
+                protocol: req.protocol,
+                host: campModule.config.contentHost,
+                pathname: '/api/content/' + type + '/' + id
+            });
         
         return requestUtils.qRequest('delete', {
-            url: req.protocol + '://' + campModule.contentHost + '/api/content/' + type + '/' + id,
+            url: url,
             headers: { cookie: req.headers.cookie }
         })
         .then(function(resp) {

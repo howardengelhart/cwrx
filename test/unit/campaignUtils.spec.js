@@ -197,8 +197,8 @@ describe('campaignUtils', function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy.calls.count()).toBe(2);
-                // expect(errorSpy.calls.all()[0].args).toEqual([new Error('Mongo failure')]);
-                // expect(errorSpy.calls.all()[1].args).toEqual([new Error('Mongo failure')]);
+                expect(errorSpy.calls.all()[0].args).toEqual([new Error('Mongo failure')]);
+                expect(errorSpy.calls.all()[1].args).toEqual([new Error('Mongo failure')]);
                 expect(mockLog.error.calls.count()).toBe(2);
                 done();
             });
