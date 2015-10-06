@@ -118,7 +118,7 @@ Vagrant.configure("2") do |config|
         if svc == 'querybot'
             chef.json[svc][:config] = {
                 "log" => {
-                    "logLevel" => "trace",
+                    "logLevel" => "info",
                     "logDir"   => "/opt/sixxy/logs",
                     "logName"  => "querybot.log",
                     "media"    => [ { "type" => "file" } ]

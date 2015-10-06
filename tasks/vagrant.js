@@ -82,7 +82,7 @@ module.exports = function(grunt) {
     function vagrantUp(cmd,service,done){
         var vagrant, services = [ service ], myEnv = {};
 
-        if ((service) && (cmd === 'up')) {
+        if ((service) /*&& (cmd === 'up')*/) {
             if (serviceDepends[service]){
                 services = Array.prototype.concat([service],serviceDepends[service].split(','));
             }

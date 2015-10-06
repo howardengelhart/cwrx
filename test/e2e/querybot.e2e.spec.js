@@ -1,5 +1,6 @@
 var q               = require('q'),
     request         = require('request'),
+    isArray         = require('util').isArray,
     requestUtils    = require('../../lib/requestUtils'),
     testUtils       = require('./testUtils'),
     host            = process.env.host || 'localhost',
@@ -80,8 +81,8 @@ describe('querybot (E2E)', function(){
                 user: 'e2e-user', org: 'e2e-org' },
             { id: 'cam-237505b42ee19f', name: 'camp 2', status: 'active',
                 user: 'e2e-user', org: 'e2e-org' },
-            { id: 'e2e-getid2', name: 'camp 3', status: 'deleted',
-                user: 'e2e-user', org: 'e2e-org' },
+            { id: 'cam-278b8150021c68', name: 'camp 3', status: 'active',
+                user: 'not-e2e-user', org: 'not-e2e-org' },
             { id: 'e2e-getid3', name: 'camp 4', status: 'active',
                 user: 'not-e2e-user', org: 'not-e2e-org' }
         ];
@@ -158,7 +159,7 @@ describe('querybot (E2E)', function(){
         });
 
         it('returns a 404 if the campaignId is not found',function(done){
-            options.url += '/howard';
+            options.url += '/cam-278b8150021c68';
             requestUtils.qRequest('get', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toEqual(404);
@@ -199,8 +200,8 @@ describe('querybot (E2E)', function(){
             .then(done,done.fail);
         });
 
-        it('returns a 404 if the campaignId is not found',function(done){
-            options.url += '/?id=howard,cool';
+        it('returns a 200 with empty array if the campaignId is not found',function(done){
+            options.url += '/?id=cam-278b8150021c68';
             requestUtils.qRequest('get', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toEqual(200);
@@ -214,7 +215,7 @@ describe('querybot (E2E)', function(){
             requestUtils.qRequest('get', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toEqual(200);
-                expect(resp.body).toContain(jasmine.objectContaining({
+                expect(resp.body).toEqual([{
                     campaignId : 'cam-5bebbf1c34a3d7',
                     summary : {
                         impressions: 100000,
@@ -222,7 +223,7 @@ describe('querybot (E2E)', function(){
                         clicks: 47,
                         totalSpend : '11.2200'
                     }
-                }));
+                }]);
             })
             .then(done,done.fail);
         });
@@ -232,6 +233,7 @@ describe('querybot (E2E)', function(){
             requestUtils.qRequest('get', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toEqual(200);
+                expect(isArray(resp.body)).toEqual(true);
                 expect(resp.body).toContain(jasmine.objectContaining({
                     campaignId : 'cam-5bebbf1c34a3d7',
                     summary : {
@@ -255,7 +257,7 @@ describe('querybot (E2E)', function(){
         });
 
         it('returns document array with found items, omits unfound ',function(done){
-            options.url += '/?id=cam-5bebbf1c34a3d7,cam-237505b42ee19f,cheerio';
+            options.url += '/?id=cam-5bebbf1c34a3d7,cam-237505b42ee19f,cam-278b8150021c68';
             requestUtils.qRequest('get', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toEqual(200);
