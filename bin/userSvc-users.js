@@ -4,6 +4,7 @@
     var inspect         = require('util').inspect,
         q               = require('q'),
         bcrypt          = require('bcrypt'),
+        crypto          = require('crypto'),
         express         = require('express'),
         logger          = require('../lib/logger'),
         mongoUtils      = require('../lib/mongoUtils'),
@@ -16,7 +17,7 @@
         Scope           = enums.Scope,
 
         userModule  = {};
-        
+
     userModule.userSchema = {
         email: {
             __allowed: true,
@@ -59,6 +60,10 @@
             __entries: {
                 __acceptableValues: []
             }
+        },
+        activationToken: {
+            __allowed: false,
+            __locked: true
         }
     };
 
@@ -75,12 +80,12 @@
         }, object);
     }
 
-    userModule.setupSvc = function setupSvc(db) {
+    userModule.setupSvc = function setupSvc(db, config) {
         var opts = { userProp: false },
             userSvc = new CrudSvc(db.collection('users'), 'u', opts, userModule.userSchema);
-        
+
         userSvc._db = db;
-        
+
         var preventGetAll = userSvc.preventGetAll.bind(userSvc);
         var hashPassword = userModule.hashProp.bind(userModule, 'password');
         var hashNewPassword = userModule.hashProp.bind(userModule, 'newPassword');
@@ -93,22 +98,31 @@
             userModule, userSvc
         );
         var authorizeForceLogout = userModule.authorizeForceLogout;
+        var filterProps = userModule.filterProps.bind(userModule,
+            ['org', 'customer', 'advertiser', 'roles', 'policies']);
+        var giveActivationToken = userModule.giveActivationToken.bind(userModule,
+            config.activationTokenTTL);
+        var sendActivationEmail = userModule.sendActivationEmail.bind(userModule,
+            config.ses.sender, config.activationTarget);
+        var setupSignupUser = userModule.setupSignupUser.bind(userModule, userSvc,
+            config.newUserPermissions.roles, config.newUserPermissions.policies);
+        var validatePassword = userModule.validatePassword;
 
         // override some default CrudSvc methods with custom versions for users
         userSvc.transformMongoDoc = mongoUtils.safeUser;
         userSvc.checkScope = userModule.checkScope;
         userSvc.userPermQuery = userModule.userPermQuery;
-        
+
         userSvc.use('read', preventGetAll);
 
-        userSvc.use('create', userModule.validatePassword);
+        userSvc.use('create', validatePassword);
         userSvc.use('create', hashPassword);
         userSvc.use('create', setupUser);
         userSvc.use('create', validateUniqueEmail);
         userSvc.use('create', validateRoles);
         userSvc.use('create', validatePolicies);
 
-        userSvc.use('edit', userModule.validatePassword);
+        userSvc.use('edit', validatePassword);
         userSvc.use('edit', validateRoles);
         userSvc.use('edit', validatePolicies);
 
@@ -120,7 +134,37 @@
 
         userSvc.use('forceLogout', authorizeForceLogout);
 
+        userSvc.use('signupUser', setupSignupUser);
+        userSvc.use('signupUser', filterProps);
+        userSvc.use('signupUser', validatePassword);
+        userSvc.use('signupUser', hashPassword);
+        userSvc.use('signupUser', setupUser);
+        userSvc.use('signupUser', validateUniqueEmail);
+        userSvc.use('signupUser', giveActivationToken);
+        userSvc.use('signupUser', sendActivationEmail);
+
         return userSvc;
+    };
+
+    userModule.setupSignupUser = function setupSignupUser(svc, roles, policies, req, next, done) {
+        svc.setupObj(req, function() {
+            req.body.status = Status.New;
+            req.body.roles = roles;
+            req.body.policies = policies;
+            req.body.external = true;
+
+            next();
+        }, done);
+    };
+
+    // Filters properties off the body of the provided request
+    userModule.filterProps = function filterProps(props, req, next) {
+        props.forEach(function(prop) {
+            if(req.body[prop]) {
+                delete req.body[prop];
+            }
+        });
+        next();
     };
 
     // Check whether the requester can operate on the target user according to their scope
@@ -159,7 +203,7 @@
      * trimmed off the origObj, so replicate that validation logic here. */
     userModule.validatePassword = function(req, next, done) {
         var log = logger.getLog();
-        
+
         if (!req.origObj) {
             if (!req.body.password) {
                 log.info('[%1] No password provided when creating new user', req.uuid);
@@ -168,7 +212,7 @@
         } else {
             delete req.body.password;
         }
-        
+
         return next();
     };
 
@@ -180,7 +224,11 @@
         var user = req.user;
 
         if (!value || typeof value !== 'string') {
-            log.info('[%1] User %2 did not provide a valid %3', req.uuid, user.id, prop);
+            if (user) {
+                log.info('[%1] User %2 did not provide a valid %3', req.uuid, user.id, prop);
+            } else {
+                log.info('[%1] User did not provide a valid %2', req.uuid, prop);
+            }
             return q(done({ code: 400, body: prop + ' is missing/not valid.' }));
         }
 
@@ -200,36 +248,86 @@
             roles: [],
             policies: []
         });
-        
+
         newUser.email = newUser.email.toLowerCase();
 
         return next();
     };
-    
+
+    // Give the user an activation token.
+    // This is used as middleware when signing up a new user.
+    userModule.giveActivationToken = function giveActivationToken(tokenTTL, req, next) {
+        var newUser = req.body,
+            now = new Date(),
+            log = logger.getLog();
+
+        return q.npost(crypto, 'randomBytes', [24])
+        .then(function(buff) {
+            var token = buff.toString('hex');
+            req.tempToken = token; // will be removed in the sendActivationEmail middleware
+            return q.npost(bcrypt, 'hash', [token, bcrypt.genSaltSync()]);
+        })
+        .then(function(hashed) {
+            newUser.activationToken = {
+                token: hashed,
+                expires: new Date(now.valueOf() + tokenTTL)
+            };
+            return next();
+        })
+        .catch(function(error) {
+            log.error('[%1] Error generating reset token for %2: %3',
+                req.uuid, req.body.email, error);
+            return q.reject(error);
+        });
+    };
+
+    userModule.sendActivationEmail = function(sender, target, req, next, done) {
+        var token = req.tempToken,
+            id = req.body.id,
+            reqEmail = req.body.email,
+            link = target + '?id=' + id + '&token=' + token,
+            log = logger.getLog();
+
+        return email.sendActivationEmail(sender, reqEmail, link)
+            .then(function() {
+                delete req.tempToken;
+                return next();
+            })
+            .catch(function(error) {
+                if(error.name === 'InvalidParameterValue') {
+                    log.info('[%1] Problem sending msg to %2: %3', req.uuid, reqEmail, error);
+                    return done({code: 400, body: 'Invalid email address'});
+                } else {
+                    log.error('[%1] Error sending msg to %2: %3', req.uuid, reqEmail, error);
+                    return q.reject(error);
+                }
+            });
+    };
+
     // Check that all of the user's roles exist
     userModule.validateRoles = function(svc, req, next, done) {
         var log = logger.getLog();
-        
+
         if (!req.body.roles || req.body.roles.length === 0) {
             return q(next());
         }
-        
+
         var cursor = svc._db.collection('roles').find(
             { name: { $in: req.body.roles }, status: { $ne: Status.Deleted } },
             { fields: { name: 1 } }
         );
-        
+
         return q.npost(cursor, 'toArray').then(function(fetched) {
             if (fetched.length === req.body.roles.length) {
                 return next();
             }
-            
+
             var missing = req.body.roles.filter(function(reqRole) {
                 return fetched.every(function(role) { return role.name !== reqRole; });
             });
-            
+
             var msg = 'These roles were not found: [' + missing.join(',') + ']';
-            
+
             log.info('[%1] Not saving user: %2', req.uuid, msg);
             return done({ code: 400, body: msg });
         })
@@ -242,27 +340,27 @@
     // Check that all of the user's policies exist
     userModule.validatePolicies = function(svc, req, next, done) {
         var log = logger.getLog();
-        
+
         if (!req.body.policies || req.body.policies.length === 0) {
             return q(next());
         }
-        
+
         var cursor = svc._db.collection('policies').find(
             { name: { $in: req.body.policies }, status: { $ne: Status.Deleted } },
             { fields: { name: 1 } }
         );
-        
+
         return q.npost(cursor, 'toArray').then(function(fetched) {
             if (fetched.length === req.body.policies.length) {
                 return next();
             }
-            
+
             var missing = req.body.policies.filter(function(reqPol) {
                 return fetched.every(function(pol) { return pol.name !== reqPol; });
             });
-            
+
             var msg = 'These policies were not found: [' + missing.join(',') + ']';
-            
+
             log.info('[%1] Not saving user: %2', req.uuid, msg);
             return done({ code: 400, body: msg });
         })
@@ -436,13 +534,27 @@
                 });
         });
     };
-    
-    
+
+    userModule.signupUser = function signupUser(svc, req) {
+        var validity = svc.model.validate('create', req.body, {}, {});
+        if(validity.isValid) {
+            return svc.customMethod(req, 'signupUser', function signup() {
+                return mongoUtils.createObject(svc._coll, req.body)
+                .then(svc.transformMongoDoc)
+                .then(function(obj) {
+                    return { code: 201, body: svc.formatOutput(obj) };
+                });
+            });
+        } else {
+            return q({ code: 400, body: validity.reason});
+        }
+    };
+
     userModule.setupEndpoints = function(app, svc, sessions, audit, sessionStore, config) {
         var router      = express.Router(),
             mountPath   = '/api/account/users?'; // prefix to all endpoints declared here
-        
-        
+
+
         var credsChecker = authUtils.userPassChecker();
         router.post('/email', credsChecker, audit, function(req, res) {
             userModule.changeEmail(svc, req, config.ses.sender).then(function(resp) {
@@ -466,6 +578,17 @@
             });
         });
 
+        router.post('/signup', function(req, res) {
+            userModule.signupUser(svc, req).then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error signing up user',
+                    detail: error
+                });
+            });
+        });
+
         var authGetUser = authUtils.middlewarify({users: 'read'});
         router.get('/:id', sessions, authGetUser, audit, function(req,res) {
             svc.getObjs({ id: req.params.id }, req, false)
@@ -474,7 +597,7 @@
                     resp.body.id === undefined) {
                     return res.send(resp.code, resp.body);
                 }
-                
+
                 return authUtils.decorateUser(resp.body).then(function(user) {
                     res.send(resp.code, user);
                 });
@@ -497,7 +620,7 @@
             if (req.query.policy) {
                 query.policies = String(req.query.policy);
             }
-            if (req.query.ids) {
+            if ('ids' in req.query) {
                 query.id = String(req.query.ids).split(',');
             }
 
@@ -566,9 +689,9 @@
                 });
             });
         });
-        
+
         app.use(mountPath, router);
     };
-    
+
     module.exports = userModule;
 }());

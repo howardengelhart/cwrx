@@ -1,5 +1,10 @@
 # Ads Service Changelog
 
+### 1.6.0: Mon Oct  5 18:34:10 EDT 2015
+* [FEATURE]: Add ability to query campaigns by list of ids: [#520](https://github.com/cinema6/cwrx/issues/520)
+* [FIX]: Setting `ids` or `statuses` campaign filter params to `''` returns no campaigns: [#524](https://github.com/cinema6/cwrx/issues/524)
+* Extra deployment steps: None
+
 ### 1.5.0: Tue Sep 29 13:35:21 EDT 2015
 * [FIX]: Validate pagination params: [#512](https://github.com/cinema6/cwrx/issues/512)
 * [FEATURE]: Add handling for `fields` param: [#454](https://github.com/cinema6/cwrx/issues/454)

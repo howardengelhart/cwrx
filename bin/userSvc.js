@@ -70,6 +70,13 @@
                 'sites',
                 'users'
             ]
+        },
+        activationTokenTTL: 1*60*60*1000, // 60 minutes; unit here is milliseconds
+        activationTarget: 'https://www.selfie.cinema6.com/activate',
+        newUserPermissions: {
+            roles: [],
+            policies: [],
+            tempPolicy: 'newUserTempPolicy'
         }
     };
 
@@ -83,13 +90,13 @@
         log.info('Running as cluster worker, proceed with setting up web server.');
 
         var app          = express(),
-            userSvc      = userModule.setupSvc(state.dbs.c6Db),
+            userSvc      = userModule.setupSvc(state.dbs.c6Db, state.config),
             roleSvc      = roleModule.setupSvc(state.dbs.c6Db),
             polSvc       = polModule.setupSvc(state.dbs.c6Db, state.config),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._db = state.dbs.c6Db;
-        
+
         // Nodemailer will automatically get SES creds, but need to set region here
         aws.config.region = state.config.ses.region;
 
@@ -177,7 +184,7 @@
         app.get('/api/account/user/version',function(req, res) {
             res.send(200, state.config.appVersion);
         });
-        
+
         userModule.setupEndpoints(app, userSvc, sessWrap, audit, state.sessionStore, state.config);
         roleModule.setupEndpoints(app, roleSvc, sessWrap, audit);
         polModule.setupEndpoints(app, polSvc, sessWrap, audit);

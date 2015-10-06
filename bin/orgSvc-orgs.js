@@ -259,8 +259,8 @@
 
         router.get('/', sessions, authGetOrg, audit, function(req, res) {
             var query = {};
-            if (req.query.ids) {
-                query.id = req.query.ids.split(',');
+            if ('ids' in req.query) {
+                query.id = String(req.query.ids).split(',');
             }
             if (req.query.braintreeCustomer) {
                 query.braintreeCustomer = String(req.query.braintreeCustomer);

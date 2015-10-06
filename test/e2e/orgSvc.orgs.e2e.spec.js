@@ -278,6 +278,17 @@ describe('orgSvc orgs (E2E):', function() {
             }).done(done);
         });
         
+        it('should get no orgs if the ids param is empty', function(done) {
+            options.qs.ids = '';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([]);
+                expect(resp.response.headers['content-range']).toBe('items 0-0/0');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
         it('should be able to sort and paginate the results', function(done) {
             options.qs.sort = 'name,1';
             options.qs.limit = 1;

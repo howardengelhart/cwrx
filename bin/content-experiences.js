@@ -795,11 +795,11 @@
         // private get experience by query
         router.get('/', sessions, authGetExp, audit, function(req, res) {
             var query = {};
-            if (req.query.ids) {
-                query.id = req.query.ids.split(',');
+            if ('ids' in req.query) {
+                query.id = String(req.query.ids).split(',');
             }
-            if (req.query.categories) {
-                query.categories = req.query.categories.split(',');
+            if ('categories' in req.query) {
+                query.categories = String(req.query.categories).split(',');
             }
             if (req.query.sponsored) {
                 query.sponsored = req.query.sponsored === 'true' ? true : false;

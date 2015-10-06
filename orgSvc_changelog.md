@@ -1,5 +1,7 @@
 # Org Service Changelog
 
+* [FIX]: Setting `ids` org filter param to `''` returns no orgs: [#524](https://github.com/cinema6/cwrx/issues/524)
+
 ### 1.4.0: Mon Sep 28 10:33:32 EDT 2015
 * [FIX]: Validate pagination params: [#512](https://github.com/cinema6/cwrx/issues/512)
 * [FEATURE]: Add handling for `fields` param: [#454](https://github.com/cinema6/cwrx/issues/454)

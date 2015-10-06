@@ -10,6 +10,8 @@ describe('player service', function() {
     var express;
     var formatURL;
     var logger;
+    var resolveURL;
+    var extend;
 
     var requestDeferreds;
     var fnCaches;
@@ -34,6 +36,8 @@ describe('player service', function() {
         express = require('express');
         formatURL = require('url').format;
         logger = require('../../lib/logger');
+        resolveURL = require('url').resolve;
+        extend = require('../../lib/objUtils').extend;
 
         playerHTML = require('fs').readFileSync(require.resolve('./helpers/player.html')).toString();
         playerCSS = require('fs').readFileSync(require.resolve('./helpers/lightbox.css')).toString();
@@ -103,23 +107,86 @@ describe('player service', function() {
                     var base;
 
                     beforeEach(function() {
-                        base = 'https://portal.cineam6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css';
+                        base = 'https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css';
                         result = Player.__rebaseCSS__(playerCSS, base);
                     });
 
                     it('should replace URLs with no quotes', function() {
-                        expect(result).toContain('.player__playIcon{height:45%;width:100%;background:url(https://portal.cineam6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/img/play-icon.svg) 56% 50%/contain no-repeat}');
+                        expect(result).toContain('.player__playIcon{height:45%;width:100%;background:url(https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/img/play-icon.svg) 56% 50%/contain no-repeat}');
                     });
 
                     it('should replace URLs with single quotes', function() {
-                        expect(result).toContain('.recap__imgBox{width:8em;height:5em;background:url(https://portal.cineam6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/img/default_square.jpg) 50% 50%/cover no-repeat;float:left;margin:0 1em 0 3em}');
+                        expect(result).toContain('.recap__imgBox{width:8em;height:5em;background:url(https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/img/default_square.jpg) 50% 50%/cover no-repeat;float:left;margin:0 1em 0 3em}');
                     });
 
                     it('should replace URLs with double quotes', function() {
-                        expect(result).toContain('.instag____profileDesc__logo{background:url(https://portal.cineam6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/img/social-card-sprites.png) -1em -1em/19em no-repeat;width:5em;height:1.5em;margin:1em 0 0;display:block}');
+                        expect(result).toContain('.instag____profileDesc__logo{background:url(https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/img/social-card-sprites.png) -1em -1em/19em no-repeat;width:5em;height:1.5em;margin:1em 0 0;display:block}');
                     });
                 });
 
+                describe('__addResource__($document, src, type, contents)', function() {
+                    var data;
+                    var $orig;
+                    var $document, src, type, contents;
+                    var result;
+
+                    beforeEach(function() {
+                        data = { hello: 'world' };
+
+                        $orig = cheerio.load(playerHTML);
+                        $document = cheerio.load(playerHTML);
+                        src = 'http://portal.cinema6.com/api/public/content/experience/e-92160a770b81d5';
+                        type = 'application/json';
+                    });
+
+                    describe('if contents is a String', function() {
+                        beforeEach(function() {
+                            contents = JSON.stringify(data);
+
+                            result = Player.__addResource__($document, src, type, contents);
+                        });
+
+                        it('should return the $document', function() {
+                            expect(result).toBe($document);
+                        });
+
+                        it('should add a node to the $document', function() {
+                            expect($document('*').length).toBe($orig('*').length + 1);
+                        });
+
+                        it('should create a <script> for the resource', function() {
+                            var $script = $document('head > script[data-src="' + src + '"]');
+
+                            expect($script.length).toBe(1);
+                            expect($script.text()).toBe(contents);
+                            expect($script.attr('type')).toBe(type);
+                        });
+                    });
+
+                    describe('if contents is an Object', function() {
+                        beforeEach(function() {
+                            contents = data;
+
+                            result = Player.__addResource__($document, src, type, contents);
+                        });
+
+                        it('should return the $document', function() {
+                            expect(result).toBe($document);
+                        });
+
+                        it('should add a node to the $document', function() {
+                            expect($document('*').length).toBe($orig('*').length + 1);
+                        });
+
+                        it('should create a <script> for the resource', function() {
+                            var $script = $document('head > script[data-src="' + src + '"]');
+
+                            expect($script.length).toBe(1);
+                            expect($script.text()).toBe(JSON.stringify(contents));
+                            expect($script.attr('type')).toBe(type);
+                        });
+                    });
+                });
             });
         });
 
@@ -194,14 +261,30 @@ describe('player service', function() {
                                 pidDir: require('path').resolve(__dirname, '../../pids'),
                                 appName: 'player',
                                 appDir: require('path').dirname(require.resolve('../../bin/player')),
-                                playerLocation: 'https://portal.cinema6.com/apps/mini-reel-player/index.html',
+                                envRoot: 'https://portal.cinema6.com/',
+                                playerLocation: 'apps/mini-reel-player/index.html',
+                                contentLocation: 'api/public/content/experience/',
+                                contentParams: [
+                                    'campaign', 'branding', 'placementId',
+                                    'container', 'wildCardPlacement',
+                                    'pageUrl', 'hostApp', 'network'
+                                ],
+                                defaultOrigin: 'http://www.cinema6.com/',
+                                mobileType: 'mobile',
+                                playerVersion: 'v0.25.0-0-g8b946d4',
                                 validTypes: [
                                     'full-np', 'full', 'solo-ads', 'solo',
                                     'light',
                                     'lightbox-playlist', 'lightbox',
                                     'mobile',  'swipe'
                                 ],
-                                mobileType: 'mobile'
+                                cacheTTLs: {
+                                    content: {
+                                        fresh: 1,
+                                        max: 5
+                                    }
+                                }
+
                             }
                         }));
                         expect(service.parseCmdLine).toHaveBeenCalledWith(service.start.calls.mostRecent().args[0]);
@@ -256,25 +339,26 @@ describe('player service', function() {
                             var state;
                             var middleware;
                             var request, response;
+                            var headers;
                             var getDeferred;
 
                             beforeEach(function(done) {
                                 state = service.daemonize.calls.mostRecent().args[0];
 
                                 middleware = expressRoutes.get['/api/public/players/:type'][0];
+                                headers = {
+                                    'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.99 Safari/537.36',
+                                    'origin': 'https://github.com/cinema6/cwrx/pull/504/files'
+                                };
                                 request = {
                                     params: { type: 'lightbox' },
                                     query: {
-                                        foo: 'bar'
+                                        foo: 'bar',
+                                        bleh: 'hey'
                                     },
                                     uuid: '8w94yr4389',
                                     get: function(header) {
-                                        switch (header.toLowerCase()) {
-                                        case 'user-agent':
-                                            return 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.99 Safari/537.36';
-                                        default:
-                                            return undefined;
-                                        }
+                                        return headers[header.toLowerCase()];
                                     }
                                 };
                                 response = {
@@ -294,10 +378,11 @@ describe('player service', function() {
                             });
 
                             it('should get() the player', function() {
-                                expect(player.get).toHaveBeenCalledWith({
+                                expect(player.get).toHaveBeenCalledWith(extend({
                                     type: request.params.type,
-                                    uuid: request.uuid
-                                });
+                                    uuid: request.uuid,
+                                    origin: request.get('origin')
+                                }, request.query));
                             });
 
                             describe('and the get() succeeds', function() {
@@ -394,6 +479,26 @@ describe('player service', function() {
                                         it('should use the status', function() {
                                             expect(response.send).toHaveBeenCalledWith(404, error.message);
                                         });
+                                    });
+                                });
+                            });
+
+                            describe('if the request has no origin', function() {
+                                beforeEach(function() {
+                                    player.get.calls.reset();
+                                    player.get.and.returnValue(q(playerHTML));
+                                    delete headers.origin;
+                                });
+
+                                describe('but has a referer', function() {
+                                    beforeEach(function(done) {
+                                        headers.referer = 'https://nodejs.org/api/modules.html#modules_module_filename';
+
+                                        middleware(request, response).finally(done);
+                                    });
+
+                                    it('should set the referer as the origin', function() {
+                                        expect(player.get).toHaveBeenCalledWith(jasmine.objectContaining({ origin: request.get('referer') }));
                                     });
                                 });
                             });
@@ -499,11 +604,32 @@ describe('player service', function() {
 
         beforeEach(function() {
             config = {
+                envRoot: 'https://portal.cinema6.com/',
+                playerLocation: 'apps/mini-reel-player/index.html',
+                contentLocation: 'api/public/content/experience/',
                 playerVersion: 'v0.25.0-0-g8b946d4',
-                playerLocation: 'https://portal.cineam6.com/apps/mini-reel-player/index.html',
-                validTypes: ['full-np', 'full', 'light', 'lightbox-playlist', 'lightbox', 'mobile', 'solo-ads', 'solo', 'swipe']
+                validTypes: ['full-np', 'full', 'light', 'lightbox-playlist', 'lightbox', 'mobile', 'solo-ads', 'solo', 'swipe'],
+                contentParams: [
+                    'campaign', 'branding', 'placementId',
+                    'container', 'wildCardPlacement',
+                    'pageUrl', 'hostApp', 'network'
+                ],
+                defaultOrigin: 'http://www.cinema6.com/',
+                cacheTTLs: {
+                    content: {
+                        fresh: 1,
+                        max: 5
+                    }
+                }
             };
             player = new Player(config);
+        });
+
+        it('should create a FunctionCache for experiences', function() {
+            expect(MockFunctionCache).toHaveBeenCalledWith({
+                freshTTL: config.cacheTTLs.content.fresh,
+                maxTTL: config.cacheTTLs.content.max
+            });
         });
 
         describe('@public', function() {
@@ -519,7 +645,7 @@ describe('player service', function() {
                 describe('get(options)', function() {
                     var success, failure;
                     var options;
-                    var $document;
+                    var $document, experience;
 
                     beforeEach(function(done) {
                         success = jasmine.createSpy('success()');
@@ -527,11 +653,32 @@ describe('player service', function() {
 
                         options = {
                             type: 'lightbox',
-                            uuid: 'efh7384ry43785t'
+                            uuid: 'efh7384ry43785t',
+                            experience: 'e-92160a770b81d5',
+                            campaign: 'cam-c3de383f7e37ce',
+                            branding: 'cinema6',
+                            network: 'mopub',
+                            origin: 'http://cinema6.com/solo?id=e-92160a770b81d5&cb=fu92yr483r76472&foo=wer89437r83947r#foofurief',
+                            placementId: '1673285684',
+                            container: 'mopub',
+                            wildCardPlacement: '238974285',
+                            pageUrl: 'http://www.foo.com/bar',
+                            hostApp: 'My Talking Tom',
+                            mobileMode: 'swipe',
+                            preview: true
                         };
 
-                        $document = cheerio.load(playerHTML);
-                        spyOn(player, '__getPlayer__').and.returnValue(q($document));
+                        var load = cheerio.load;
+                        spyOn(cheerio, 'load').and.callFake(function() {
+                            return ($document = load.apply(cheerio, arguments));
+                        });
+
+                        experience = { id: 'e-92160a770b81d5', data: { deck: [] } };
+                        spyOn(player, '__getExperience__').and.returnValue(q(experience));
+
+                        spyOn(player, '__getPlayer__').and.returnValue(q(playerHTML));
+
+                        spyOn(Player, '__addResource__').and.callThrough();
 
                         player.get(options).then(success, failure).finally(done);
                     });
@@ -540,8 +687,38 @@ describe('player service', function() {
                         expect(player.__getPlayer__).toHaveBeenCalledWith(options.type, options.uuid);
                     });
 
+                    it('should get the experience', function() {
+                        expect(player.__getExperience__).toHaveBeenCalledWith(options.experience, {
+                            campaign: 'cam-c3de383f7e37ce',
+                            branding: 'cinema6',
+                            network: 'mopub',
+                            placementId: '1673285684',
+                            container: 'mopub',
+                            wildCardPlacement: '238974285',
+                            pageUrl: 'http://www.foo.com/bar',
+                            hostApp: 'My Talking Tom'
+                        }, 'http://cinema6.com/solo', options.uuid);
+                    });
+
+                    it('should add the experience as a resource', function() {
+                        expect(Player.__addResource__).toHaveBeenCalledWith($document, 'experience', 'application/json', experience);
+                    });
+
                     it('should resolve to the player as a string of HTML', function() {
                         expect(success).toHaveBeenCalledWith($document.html());
+                    });
+
+                    describe('if called without an origin', function() {
+                        beforeEach(function(done) {
+                            player.__getExperience__.calls.reset();
+                            options.origin = undefined;
+
+                            player.get(options).finally(done);
+                        });
+
+                        it('should use the default origin', function() {
+                            expect(player.__getExperience__).toHaveBeenCalledWith(jasmine.any(String), jasmine.any(Object), config.defaultOrigin, jasmine.any(String));
+                        });
                     });
                 });
             });
@@ -549,6 +726,147 @@ describe('player service', function() {
 
         describe('@private', function() {
             describe('methods:', function() {
+                describe('__getExperience__(id, params, origin, uuid)', function() {
+                    var id, params, origin, uuid;
+                    var result;
+                    var success, failure;
+                    var contentURL;
+
+                    beforeEach(function(done) {
+                        id = 'e-92160a770b81d5';
+                        params = {
+                            campaign: 'cam-c3de383f7e37ce',
+                            branding: 'elitedaily',
+                            placementId: '1673285684',
+                            container: 'mopub',
+                            wildCardPlacement: '238974285',
+                            pageUrl: 'http://www.foo.com/bar',
+                            hostApp: 'My Talking Tom',
+                            network: 'mopub',
+                            id: id,
+                            mobileMode: 'swipe',
+                            preview: true
+                        };
+                        origin = 'http://cinema6.com/solo';
+                        uuid = 'fuweyhrf84yr3';
+
+                        contentURL = 'https://portal.cinema6.com/api/public/content/experience/e-92160a770b81d5';
+
+                        success = jasmine.createSpy('success()');
+                        failure = jasmine.createSpy('failure()');
+
+                        result = player.__getExperience__(id, params, origin);
+                        result.then(success, failure);
+                        q().then(done);
+                    });
+
+                    it('should cache the function', function() {
+                        expect(fnCaches[1].add.calls.all().map(function(call) { return call.returnValue; })).toContain(player.__getExperience__);
+                        fnCaches[1].add.calls.all().forEach(function(call) {
+                            if (call.returnValue === player.__getExperience__) {
+                                expect(call.args).toEqual([jasmine.any(Function), -1]);
+                            }
+                        });
+                    });
+
+                    it('should return a Promise', function() {
+                        expect(result).toEqual(jasmine.any(Promise));
+                    });
+
+                    it('should make a request to the content service', function() {
+                        expect(request.get).toHaveBeenCalledWith(contentURL, {
+                            qs: params,
+                            headers: { origin: origin },
+                            json: true
+                        });
+                    });
+
+                    describe('when the request succeeds', function() {
+                        var experience;
+
+                        beforeEach(function(done) {
+                            experience = { id: 'e-92160a770b81d5' };
+
+                            requestDeferreds[request.get.calls.mostRecent().args[0]].resolve(experience);
+                            result.finally(done);
+                        });
+
+                        it('should fulfill with the experience', function() {
+                            expect(success).toHaveBeenCalledWith(experience);
+                        });
+                    });
+
+                    describe('when the request fails', function() {
+                        describe('with a 4xx status', function() {
+                            beforeEach(function(done) {
+                                requestDeferreds[request.get.calls.mostRecent().args[0]].reject({
+                                    statusCode: 404,
+                                    message: '404 - experience not found'
+                                });
+
+                                result.finally(done);
+                            });
+
+                            it('should not log an error', function() {
+                                expect(log.error).not.toHaveBeenCalled();
+                            });
+
+                            it('should return a ServiceError', function() {
+                                var error = failure.calls.mostRecent().args[0];
+
+                                expect(error.constructor.name).toBe('ServiceError');
+                                expect(error.message).toBe('404 - experience not found');
+                                expect(error.status).toBe(404);
+                            });
+                        });
+
+                        describe('with a 5xx status', function() {
+                            beforeEach(function(done) {
+                                requestDeferreds[request.get.calls.mostRecent().args[0]].reject({
+                                    statusCode: 500,
+                                    message: 'Internal error'
+                                });
+
+                                result.finally(done);
+                            });
+
+                            it('should log an error', function() {
+                                expect(log.error).toHaveBeenCalled();
+                            });
+
+                            it('should return a ServiceError', function() {
+                                var error = failure.calls.mostRecent().args[0];
+
+                                expect(error.constructor.name).toBe('ServiceError');
+                                expect(error.message).toBe('Internal error');
+                                expect(error.status).toBe(500);
+                            });
+                        });
+                    });
+
+                    describe('if called with no id', function() {
+                        beforeEach(function(done) {
+                            failure.calls.reset();
+                            success.calls.reset();
+                            request.get.calls.reset();
+
+                            player.__getExperience__(undefined, params, origin).then(success, failure).finally(done);
+                        });
+
+                        it('should reject the promise', function() {
+                            var error = failure.calls.mostRecent().args[0];
+
+                            expect(error.constructor.name).toBe('ServiceError');
+                            expect(error.status).toBe(400);
+                            expect(error.message).toBe('experience must be specified');
+                        });
+
+                        it('should not get anything', function() {
+                            expect(request.get).not.toHaveBeenCalled();
+                        });
+                    });
+                });
+
                 describe('__getPlayer__(mode)', function() {
                     var success, failure;
                     var mode;
@@ -577,7 +895,7 @@ describe('player service', function() {
                     });
 
                     it('should make a request for the player', function() {
-                        expect(request.get).toHaveBeenCalledWith(config.playerLocation, { gzip: true });
+                        expect(request.get).toHaveBeenCalledWith(resolveURL(config.envRoot, config.playerLocation), { gzip: true });
                     });
 
                     describe('when the player fails to be fetched', function() {
@@ -585,7 +903,7 @@ describe('player service', function() {
 
                         beforeEach(function(done) {
                             reason = new Error('Could not download stuff.');
-                            requestDeferreds[config.playerLocation].reject(reason);
+                            requestDeferreds[resolveURL(config.envRoot, config.playerLocation)].reject(reason);
 
                             result.finally(done);
                         });
@@ -603,19 +921,19 @@ describe('player service', function() {
                         beforeEach(function(done) {
                             q().then(function() {
                                 request.get.calls.reset();
-                                requestDeferreds[config.playerLocation].resolve(playerHTML);
+                                requestDeferreds[resolveURL(config.envRoot, config.playerLocation)].resolve(playerHTML);
                             }).then(function() {
-                                return requestDeferreds[config.playerLocation].promise;
+                                return requestDeferreds[resolveURL(config.envRoot, config.playerLocation)].promise;
                             }).then(function() {
                                 return new q.Promise(function(resolve) {
                                     setTimeout(resolve, 0);
                                 });
-                            }).then(done, done);
+                            }).done(done);
                         });
 
                         it('should make requests for the local CSS/JS files', function() {
-                            expect(request.get).toHaveBeenCalledWith('https://portal.cineam6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css', { gzip: true });
-                            expect(request.get).toHaveBeenCalledWith('https://portal.cineam6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js', { gzip: true });
+                            expect(request.get).toHaveBeenCalledWith('https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css', { gzip: true });
+                            expect(request.get).toHaveBeenCalledWith('https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js', { gzip: true });
                             expect(request.get.calls.count()).toBe(2);
                         });
 
@@ -624,7 +942,7 @@ describe('player service', function() {
 
                             beforeEach(function(done) {
                                 reason = new Error('Could not download stuff.');
-                                requestDeferreds['https://portal.cineam6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js'].reject(reason);
+                                requestDeferreds['https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js'].reject(reason);
 
                                 result.finally(done);
                             });
@@ -640,26 +958,26 @@ describe('player service', function() {
 
                         describe('and the sub-resources are fetched', function() {
                             beforeEach(function(done) {
-                                requestDeferreds['https://portal.cineam6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'].resolve(playerCSS);
-                                requestDeferreds['https://portal.cineam6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js'].resolve(playerJS);
+                                requestDeferreds['https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'].resolve(playerCSS);
+                                requestDeferreds['https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js'].resolve(playerJS);
 
                                 result.then(function() {}).then(done, done);
                             });
 
                             it('should fulfill with a cheerio document where the external resources are replaced with inline ones', function() {
                                 var $orig = cheerio.load(playerHTML);
-                                var $result = success.calls.mostRecent().args[0];
+                                var $result = cheerio.load(success.calls.mostRecent().args[0]);
 
-                                expect(success).toHaveBeenCalledWith(jasmine.any(Function));
+                                expect(success).toHaveBeenCalledWith(jasmine.any(String));
                                 expect($result('*').length).toBe($orig('*').length);
                                 expect($result('script[src="${mode}.js"]').length).toBe(0);
                                 expect($result('script[src="lightbox.js"]').length).toBe(0);
                                 expect($result('link[href="css/${mode}.css"]').length).toBe(0);
                                 expect($result('link[href="css/lightbox.css"]').length).toBe(0);
 
-                                expect($result('script[data-src="https://portal.cineam6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js"]').text()).toBe(playerJS);
-                                expect($result('style[data-href="https://portal.cineam6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css"]').text()).toBe(Player.__rebaseCSS__(playerCSS, 'https://portal.cineam6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'));
-                                expect($result('base').attr('href')).toBe('https://portal.cineam6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/');
+                                expect($result('script[data-src="https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js"]').text()).toBe(playerJS);
+                                expect($result('style[data-href="https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css"]').text()).toBe(Player.__rebaseCSS__(playerCSS, 'https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'));
+                                expect($result('base').attr('href')).toBe('https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/');
                             });
                         });
                     });
