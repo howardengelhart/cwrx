@@ -210,7 +210,7 @@ describe('Model', function() {
         it('should be able to check that an array passes a max entry threshold', function() {
             expect(Model.checkLimits({ __length: 3 }, ['max', 'knut', 'charlie'], 'doggieFriends')).toEqual({ isValid: true });
             expect(Model.checkLimits({ __length: 3 }, ['max', 'knut', 'charlie', 'woofles'], 'doggieFriends'))
-                .toEqual({ isValid: false, reason: 'doggieFriends must have less than max entries: 3' });
+                .toEqual({ isValid: false, reason: 'doggieFriends must have at most 3 entries' });
         });
         
         it('should be able to check that a value is in a set of acceptable values', function() {
@@ -296,8 +296,16 @@ describe('Model', function() {
             it('should revert to the existing value if present on newObj and origObj', function() {
                 origObj.name = 'puffles';
                 newObj.name = 'scruffles';
+                model.schema.name.__default = 'fido';
                 expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({ name: 'puffles' });
+            });
+            
+            it('should revert to a default value if defined and no value is on origObj', function() {
+                newObj.name = 'scruffles';
+                model.schema.name.__default = 'fido';
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
+                expect(newObj).toEqual({ name: 'fido' });
             });
             
             it('should pass if the field is not set on newObj', function() {
@@ -471,7 +479,7 @@ describe('Model', function() {
             it('should be able to check that there are less than a max # of entries', function() {
                 newObj.doggieFriends = ['knut', 'scruffles', 'charlie', 'puffles'];
                 expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: false,
-                    reason: 'doggieFriends must have less than max entries: 3' });
+                    reason: 'doggieFriends must have at most 3 entries' });
             });
             
             it('should be able to validate every entry using the __entries property', function() {

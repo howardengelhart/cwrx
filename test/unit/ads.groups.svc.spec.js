@@ -62,8 +62,7 @@ describe('ads-groups (UT)', function() {
             expect(svc._orgProp).toBe(false);
             expect(svc._allowPublic).toBe(false);
             expect(svc._coll).toEqual({collectionName: 'minireelGroups'});
-            expect(svc._advertColl).toEqual({collectionName: 'advertisers'});
-            expect(svc._custColl).toEqual({collectionName: 'customers'});
+            expect(svc._db).toBe(mockDb);
             
             expect(svc.createValidator._required).toContain('name');
             expect(svc.createValidator._forbidden).toContain('adtechId');
@@ -179,9 +178,9 @@ describe('ads-groups (UT)', function() {
         beforeEach(function() {
             req.body = { advertiserId: 123, customerId: 321 };
             req.origObj = { advertiserId: 234, customerId: 432 };
-            svc = { _advertColl: 'fakeAdvertColl', _custColl: 'fakeCustColl' };
+            svc = { _db: 'fakeDb' };
             spyOn(campaignUtils, 'getAccountIds')
-                .and.callFake(function(advertColl, custColl, req, next, done) { return q(next()); });
+                .and.callFake(function(db, req, next, done) { return q(next()); });
         });
         
         it('should take the advertiserId and customerId from the body', function(done) {
@@ -191,7 +190,7 @@ describe('ads-groups (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body).toEqual({ advertiserId: 123, customerId: 321 });
-                expect(campaignUtils.getAccountIds).toHaveBeenCalledWith('fakeAdvertColl', 'fakeCustColl', req, nextSpy, doneSpy);
+                expect(campaignUtils.getAccountIds).toHaveBeenCalledWith('fakeDb', req, nextSpy, doneSpy);
                 done();
             });
         });

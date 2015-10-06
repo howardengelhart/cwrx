@@ -55,7 +55,7 @@
     };
          
     campModule.campSchema = {
-        status: {
+        status: { // will be changed in later releases
             __allowed: true,
             __type: 'string'
         },
@@ -90,9 +90,9 @@
             dailyLimit: {
                 __allowed: true,
                 __type: 'number',
-                __percentMin: 0.015,    // used internally, not in Model.validate()
-                __percentMax: 1,        // used internally, not in Model.validate()
-                __percentDefault: 0.03  // used internally, not in Model.validate() 
+                __percentMin: 0.015,    // used internally, not in model.validate()
+                __percentMax: 1,        // used internally, not in model.validate()
+                __percentDefault: 0.03  // used internally, not in model.validate() 
             },
             model: {
                 __allowed: false,
@@ -109,62 +109,44 @@
             __type: 'objectArray',
             __locked: true
         },
-        categories: {
+        categories: { //TODO: remove???
             __allowed: true,
             __type: 'stringArray'
         },
-        demographics: {
-            gender: {
-                __allowed: true,
-                __type: 'string',
-                __acceptableValues: ['male', 'female']
-            },
-            age: {
-                __allowed: true,
-                __type: 'object',
-                min: {
-                    __allowed: true,
-                    __type: 'number',
-                    __min: 0
-                },
-                max: {
-                    __allowed: true,
-                    __type: 'number',
-                    __min: 0
-                }
-            },
-            income: {
-                __allowed: true,
-                __type: 'object',
-                min: {
-                    __allowed: true,
-                    __type: 'number',
-                    __min: 0
-                },
-                max: {
-                    __allowed: true,
-                    __type: 'number',
-                    __min: 0
-                }
-            }
+        contentCategories: { //TODO: not testing yet, confirm this...
+            
         },
-        geoTargeting: {
+        targeting: {
             __allowed: true,
-            __type: 'objectArray',
-            __entries: {
-                state: {
+            geo: {
+                __allowed: true,
+                states: {
                     __allowed: true,
-                    __type: 'string'
+                    __type: 'stringArray'
                 },
-                country: {
-                    __allowed: false,
-                    __type: 'string',
-                    __default: 'USA'
-                },
-                dma: {
+                dmas: {
                     __allowed: true,
-                    __type: 'string'
+                    __type: 'stringArray'
                 }
+            },
+            demographics: {
+                __allowed: true,
+                gender: {
+                    __allowed: true,
+                    __type: 'stringArray'
+                },
+                age: {
+                    __allowed: true,
+                    __type: 'stringArray'
+                },
+                income: {
+                    __allowed: true,
+                    __type: 'stringArray'
+                }
+            },
+            interests: {
+                __allowed: true,
+                __type: 'stringArray'
             }
         },
         staticCardMap: {
@@ -175,7 +157,7 @@
             __allowed: true,
             __unchangeable: true,
             __type: 'objectArray',
-            __length: 1, // TODO: maybe this limit should only go on selfie policy?
+            __length: 1,
             __entries: sponsoredCampSchema
         },
         miniReels: {
