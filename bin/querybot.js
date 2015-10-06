@@ -162,10 +162,10 @@ lib.campaignIdsFromRequest = function(req){
         }
     })
     .then(function(resp){
-        log.info('STATUS CODE: %1',resp.response.statusCode);
+        log.trace('STATUS CODE: %1',resp.response.statusCode);
         var result = [];
         if (resp.response.statusCode === 200) {
-            log.trace('campaign found: %1',resp.body.id);
+            log.trace('campaign found: %1',resp.response.body);
             result = resp.body.map(function(item){
                 return  item.id;
             });
