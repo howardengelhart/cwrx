@@ -374,6 +374,17 @@ describe('userSvc users (E2E):', function() {
             }).done(done);
         });
 
+        it('should get no users if the ids param is empty', function(done) {
+            options.qs.ids = '';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toEqual([]);
+                expect(resp.response.headers['content-range']).toBe('items 0-0/0');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
         it('should get users by policy', function(done) {
             options.qs.policy = 'pol2';
             requestUtils.qRequest('get', options).then(function(resp) {

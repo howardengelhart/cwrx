@@ -1,5 +1,6 @@
 # User Service Changelog
 
+* [FIX]: Setting `ids` user filter param to `''` returns no users: [#524](https://github.com/cinema6/cwrx/issues/524)
 * [FEATURE]: Add new user signup endpoint: [#483](https://github.com/cinema6/cwrx/issues/483)
 * Extra deployment steps:
     * Deploy new userSvc cookbook to staging/production envs

@@ -486,6 +486,24 @@ describe('content experience endpoints (E2E):', function() {
             }).done(done);
         });
         
+        ['ids', 'categories'].forEach(function(param) {
+            it('should get no experiences if the ' + param + ' param is empty', function(done) {
+                var options = {
+                    url: config.contentUrl + '/content/experiences',
+                    qs: { sort: 'id,1' },
+                    jar: cookieJar
+                };
+                options.qs[param] = '';
+                requestUtils.qRequest('get', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body).toEqual([]);
+                    expect(resp.response.headers['content-range']).toBe('items 0-0/0');
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+        });
+        
         it('should get sponsored experiences', function(done) {
             var options = {
                 url: config.contentUrl + '/content/experiences?sponsored=true&sort=id,1',

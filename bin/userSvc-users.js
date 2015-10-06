@@ -620,7 +620,7 @@
             if (req.query.policy) {
                 query.policies = String(req.query.policy);
             }
-            if (req.query.ids) {
+            if ('ids' in req.query) {
                 query.id = String(req.query.ids).split(',');
             }
 

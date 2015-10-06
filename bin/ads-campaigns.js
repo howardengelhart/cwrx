@@ -684,8 +684,11 @@
                     query[field] = String(req.query[field]);
                 }
             });
-            if (req.query.status) {
-                query.status = String(req.query.status).split(',');
+            if ('statuses' in req.query) {
+                query.status = String(req.query.statuses).split(',');
+            }
+            if ('ids' in req.query) {
+                query.id = String(req.query.ids).split(',');
             }
 
             var promise = svc.getObjs(query, req, true);
