@@ -18,6 +18,10 @@ var resolvePath = require('path').resolve;
 var inspect = require('util').inspect;
 var filterObject = require('../lib/objUtils').filter;
 var extend = require('../lib/objUtils').extend;
+var clonePromise = require('../lib/promise').clone;
+var AdLoader = require('../lib/adLoader');
+var parseQuery = require('../lib/expressUtils').parseQuery;
+var push = Array.prototype.push;
 
 var staticCache = new FunctionCache({
     freshTTL: Infinity,
@@ -49,11 +53,21 @@ ServiceError.prototype.toString = function toString() {
 
 function Player(config) {
     var contentCache = new FunctionCache({
-        freshTTL: config.cacheTTLs.content.fresh,
-        maxTTL: config.cacheTTLs.content.max
+        freshTTL: config.api.experience.cacheTTLs.fresh,
+        maxTTL: config.api.experience.cacheTTLs.max,
+        extractor: clonePromise
     });
 
     this.config = config;
+    this.adLoader = new AdLoader({
+        envRoot: config.api.root,
+        cardEndpoint: config.api.card.endpoint,
+        cardCacheTTLs: config.api.card.cacheTTLs,
+        server: config.adtech.server,
+        network: config.adtech.network,
+        maxSockets: config.adtech.request.maxSockets,
+        timeout: config.adtech.request.timeout
+    });
 
     // Memoize Player.prototype.__getPlayer__() method.
     this.__getPlayer__ = staticCache.add(this.__getPlayer__.bind(this), -1);
@@ -87,7 +101,7 @@ Player.__addResource__ = function __addResource__($document, src, type, contents
 Player.prototype.__getExperience__ = function __getExperience__(id, params, origin, uuid) {
     var log = logger.getLog();
     var config = this.config;
-    var contentLocation = resolveURL(config.envRoot, config.contentLocation);
+    var contentLocation = resolveURL(config.api.root, config.api.experience.endpoint);
     var url = resolveURL(contentLocation, id || '');
 
     if (!id) {
@@ -103,7 +117,9 @@ Player.prototype.__getExperience__ = function __getExperience__(id, params, orig
         qs: params,
         headers: { origin: origin },
         json: true
-    })).catch(function convertError(reason) {
+    })).then(function decorate(experience) {
+        return extend(experience, { $params: params });
+    }).catch(function convertError(reason) {
         var message = reason.message;
         var statusCode = reason.statusCode;
 
@@ -123,7 +139,7 @@ Player.prototype.__getExperience__ = function __getExperience__(id, params, orig
 Player.prototype.__getPlayer__ = function __getPlayer__(mode, uuid) {
     var log = logger.getLog();
     var config = this.config;
-    var playerLocation = resolveURL(config.envRoot, config.playerLocation);
+    var playerLocation = resolveURL(config.api.root, config.api.player.endpoint);
     var rebaseCSS = Player.__rebaseCSS__;
 
     var sameHostAsPlayer = (function() {
@@ -218,29 +234,49 @@ Player.startService = function startService() {
             appName: 'player',
             appDir: __dirname,
             pidDir: resolvePath(__dirname, '../pids'),
-            envRoot: 'https://portal.cinema6.com/',
-            playerLocation: 'apps/mini-reel-player/index.html',
-            contentLocation: 'api/public/content/experience/',
-            contentParams: [
-                'campaign', 'branding', 'placementId',
-                'container', 'wildCardPlacement',
-                'pageUrl', 'hostApp', 'network'
-            ],
-            defaultOrigin: 'http://www.cinema6.com/',
-            mobileType: 'mobile',
-            playerVersion: 'v0.25.0-0-g8b946d4',
+            api: {
+                root: 'https://staging.cinema6.com/',
+                player: {
+                    endpoint: 'apps/mini-reel-player/index.html'
+                },
+                experience: {
+                    endpoint: 'api/public/content/experience/',
+                    validParams: [
+                        'campaign', 'branding', 'placementId',
+                        'container', 'wildCardPlacement',
+                        'pageUrl', 'hostApp', 'network'
+                    ],
+                    cacheTTLs: {
+                        fresh: 1,
+                        max: 5
+                    }
+                },
+                card: {
+                    endpoint: 'api/public/content/card/',
+                    cacheTTLs: {
+                        fresh: 1,
+                        max: 5
+                    }
+                }
+            },
+            adtech: {
+                server: 'adserver.adtechus.com',
+                network: '5491.1',
+                request: {
+                    maxSockets: 250,
+                    timeout: 3000
+                }
+            },
+            defaults: {
+                origin: 'http://www.cinema6.com/',
+                mobileType: 'mobile'
+            },
             validTypes: [
                 'full-np', 'full', 'solo-ads', 'solo',
                 'light',
                 'lightbox-playlist', 'lightbox',
                 'mobile',  'swipe'
-            ],
-            cacheTTLs: {
-                content: {
-                    fresh: 1,
-                    max: 5
-                }
-            }
+            ]
         }
     };
 
@@ -249,6 +285,9 @@ Player.startService = function startService() {
         var started = new Date();
         var app = express();
         var player = new Player(state.config);
+        var parsePlayerQuery = parseQuery({
+            arrays: ['categories', 'playUrls', 'countUrls', 'launchUrls']
+        });
 
         app.use(function(req, res, next) {
             res.header(
@@ -287,12 +326,12 @@ Player.startService = function startService() {
             res.send(200, state.config.appVersion);
         });
 
-        app.get('/api/public/players/:type', function playerRoute(req, res) {
+        app.get('/api/public/players/:type', parsePlayerQuery, function route(req, res) {
             var config = state.config;
             var type = req.params.type;
             var uuid = req.uuid;
             var query = req.query;
-            var mobileType = query.mobileType || config.mobileType;
+            var mobileType = query.mobileType || config.defaults.mobileType;
             var origin = req.get('origin') || req.get('referer');
             var agent = req.get('user-agent');
 
@@ -355,29 +394,66 @@ Player.startService = function startService() {
         });
 };
 
-Player.prototype.get = function get(options) {
+Player.prototype.get = function get(/*options*/) {
+    var options = extend(arguments[0], this.config.defaults);
+
     var log = logger.getLog();
     var config = this.config;
+    var adLoader = this.adLoader;
     var type = options.type;
     var experience = options.experience;
     var params = filterObject(options, function(value, key) {
-        return config.contentParams.indexOf(key) > -1;
+        return config.api.experience.validParams.indexOf(key) > -1;
     });
-    var origin = stripURL(options.origin || config.defaultOrigin);
+    var origin = stripURL(options.origin);
     var uuid = options.uuid;
+    var categories = options.categories;
+    var campaign = options.campaign;
+    var preview = options.preview;
+    var playUrls = options.playUrls;
+    var countUrls = options.countUrls;
+    var launchUrls = options.launchUrls;
 
     log.trace('[%1] Getting player with options (%2.)', uuid, inspect(options));
 
+    function addTrackingPixels(experience) {
+        var campaign = experience.data.campaign;
+
+        push.apply(campaign.launchUrls || (campaign.launchUrls = []), launchUrls);
+
+        AdLoader.getSponsoredCards(experience).forEach(function addPixels(card) {
+            AdLoader.addTrackingPixels({
+                playUrls: playUrls,
+                countUrls: countUrls
+            }, card);
+        });
+
+        return experience;
+    }
+
     return q.all([
         this.__getPlayer__(type, uuid),
-        this.__getExperience__(experience, params, origin, uuid)
+        this.__getExperience__(experience, params, origin, uuid).then(function loadAds(experience) {
+            if (preview || !AdLoader.hasAds(experience)) {
+                log.trace('[%1] Skipping ad calls.', uuid);
+                return addTrackingPixels(AdLoader.removePlaceholders(experience));
+            }
+
+            return adLoader.loadAds(experience, categories, campaign, uuid)
+                .catch(function trimCards(reason) {
+                    log.warn('[%1] Unexpected failure loading ads: %2', uuid, inspect(reason));
+
+                    AdLoader.removePlaceholders(experience);
+                    AdLoader.removeSponsoredCards(experience);
+                })
+                .thenResolve(experience)
+                .then(addTrackingPixels);
+        })
     ]).spread(function inlineResources(html, experience) {
         var $document = cheerio.load(html);
 
-        log.trace(
-            '[%1] Inlining experience (%2) to %3 player HTML.',
-            uuid, experience.id, type
-        );
+        log.trace('[%1] Inlining experience (%2) to %3 player HTML.', uuid, experience.id, type);
+
         return Player.__addResource__($document, 'experience', 'application/json', experience);
     }).then(function stringify($document) {
         log.trace('[%1] Stringifying document.', uuid);

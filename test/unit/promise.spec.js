@@ -1,10 +1,19 @@
 describe('promise',function(){
-    var flush = true, promise, q;
+    var flush = true, promise, q, clone;
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
-        promise = require('../../lib/promise');
-        q = require('q');
         jasmine.clock().install();
+
+        q = require('q');
+
+        delete require.cache[require.resolve('clone')];
+        var realClone = require('clone');
+        clone = require.cache[require.resolve('clone')].exports = jasmine.createSpy('clone()').and.callFake(function() {
+            return realClone.apply(this, arguments);
+        });
+
+        delete require.cache[require.resolve('../../lib/promise')];
+        promise = require('../../lib/promise');
     });
 
     afterEach(function(){
@@ -563,6 +572,98 @@ describe('promise',function(){
                             expect(fnResult).toBe(watchPromise);
                         });
                     });
+                });
+            });
+        });
+    });
+
+    describe('clone(promise)', function() {
+        var deferred;
+        var result;
+        var success, failure;
+
+        beforeEach(function() {
+            deferred = q.defer();
+
+            success = jasmine.createSpy('success()');
+            failure = jasmine.createSpy('failure()');
+
+            result = promise.clone(deferred.promise);
+            result.then(success, failure);
+        });
+
+        describe('when called with a non-promise', function() {
+            var value;
+
+            beforeEach(function(done) {
+                value = { promise: false, then: true };
+
+                promise.clone(value).then(success, failure).finally(done);
+            });
+
+            it('should return a promise that fulfills with a clone of the value', function() {
+                expect(clone).toHaveBeenCalledWith(value);
+                expect(success).toHaveBeenCalledWith(value);
+                expect(success.calls.mostRecent().args[0]).toBe(clone.calls.mostRecent().returnValue);
+            });
+        });
+
+        describe('when the provided promise is fulfilled', function() {
+            var value;
+
+            beforeEach(function(done) {
+                value = { foo: 'bar', person: { name: 'Josh' } };
+                deferred.fulfill(value);
+
+                result.finally(done);
+            });
+
+            it('should fulfill the promise with a clone of the fulfillment value', function() {
+                expect(clone).toHaveBeenCalledWith(value);
+                expect(success).toHaveBeenCalledWith(value);
+                expect(success.calls.mostRecent().args[0]).toBe(clone.calls.mostRecent().returnValue);
+            });
+
+            describe('with an Error', function() {
+                beforeEach(function(done) {
+                    success.calls.reset();
+                    value = new Error('This is strange!');
+
+                    promise.clone(q(value)).then(success).finally(done);
+                });
+
+                it('should fulfill with the error', function() {
+                    expect(success).toHaveBeenCalledWith(value);
+                });
+            });
+        });
+
+        describe('when the provided promise is rejected', function() {
+            var reason;
+
+            beforeEach(function(done) {
+                reason = { hey: 'I SUCK!' };
+                deferred.reject(reason);
+
+                result.finally(done);
+            });
+
+            it('should reject the promise with a clone of the rejection reason', function() {
+                expect(clone).toHaveBeenCalledWith(reason);
+                expect(failure).toHaveBeenCalledWith(reason);
+                expect(failure.calls.mostRecent().args[0]).toBe(clone.calls.mostRecent().returnValue);
+            });
+
+            describe('with an Error', function() {
+                beforeEach(function(done) {
+                    failure.calls.reset();
+                    reason = new Error('This sucks!');
+
+                    promise.clone(q.reject(reason)).catch(failure).finally(done);
+                });
+
+                it('should reject with the error', function() {
+                    expect(failure).toHaveBeenCalledWith(reason);
                 });
             });
         });

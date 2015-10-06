@@ -12,14 +12,19 @@ describe('player service', function() {
     var logger;
     var resolveURL;
     var extend;
+    var clonePromise;
+    var AdLoader;
+    var expressUtils;
 
     var requestDeferreds;
     var fnCaches;
     var MockFunctionCache;
+    var MockAdLoader;
     var playerHTML;
     var playerCSS;
     var playerJS;
     var log;
+    var adLoader;
 
     var setTimeout;
 
@@ -38,6 +43,7 @@ describe('player service', function() {
         logger = require('../../lib/logger');
         resolveURL = require('url').resolve;
         extend = require('../../lib/objUtils').extend;
+        clonePromise = require('../../lib/promise').clone;
 
         playerHTML = require('fs').readFileSync(require.resolve('./helpers/player.html')).toString();
         playerCSS = require('fs').readFileSync(require.resolve('./helpers/lightbox.css')).toString();
@@ -55,6 +61,23 @@ describe('player service', function() {
             deferred.request = req;
 
             return req;
+        });
+
+        delete require.cache[require.resolve('../../lib/expressUtils')];
+        expressUtils = require('../../lib/expressUtils');
+        spyOn(expressUtils, 'parseQuery').and.callThrough();
+
+        delete require.cache[require.resolve('../../lib/adLoader')];
+        AdLoader = require('../../lib/adLoader');
+        require.cache[require.resolve('../../lib/adLoader')].exports = jasmine.createSpy('AdLoader()').and.callFake(function(config) {
+            return (adLoader = new AdLoader(config));
+        });
+
+        MockAdLoader = require('../../lib/adLoader');
+        Object.keys(AdLoader).forEach(function(key) {
+            if (typeof AdLoader[key] === 'function') {
+                MockAdLoader[key] = AdLoader[key];
+            }
         });
 
         delete require.cache[require.resolve('../../lib/functionCache')];
@@ -107,20 +130,20 @@ describe('player service', function() {
                     var base;
 
                     beforeEach(function() {
-                        base = 'https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css';
+                        base = 'https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css';
                         result = Player.__rebaseCSS__(playerCSS, base);
                     });
 
                     it('should replace URLs with no quotes', function() {
-                        expect(result).toContain('.player__playIcon{height:45%;width:100%;background:url(https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/img/play-icon.svg) 56% 50%/contain no-repeat}');
+                        expect(result).toContain('.player__playIcon{height:45%;width:100%;background:url(https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/img/play-icon.svg) 56% 50%/contain no-repeat}');
                     });
 
                     it('should replace URLs with single quotes', function() {
-                        expect(result).toContain('.recap__imgBox{width:8em;height:5em;background:url(https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/img/default_square.jpg) 50% 50%/cover no-repeat;float:left;margin:0 1em 0 3em}');
+                        expect(result).toContain('.recap__imgBox{width:8em;height:5em;background:url(https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/img/default_square.jpg) 50% 50%/cover no-repeat;float:left;margin:0 1em 0 3em}');
                     });
 
                     it('should replace URLs with double quotes', function() {
-                        expect(result).toContain('.instag____profileDesc__logo{background:url(https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/img/social-card-sprites.png) -1em -1em/19em no-repeat;width:5em;height:1.5em;margin:1em 0 0;display:block}');
+                        expect(result).toContain('.instag____profileDesc__logo{background:url(https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/img/social-card-sprites.png) -1em -1em/19em no-repeat;width:5em;height:1.5em;margin:1em 0 0;display:block}');
                     });
                 });
 
@@ -135,7 +158,7 @@ describe('player service', function() {
 
                         $orig = cheerio.load(playerHTML);
                         $document = cheerio.load(playerHTML);
-                        src = 'http://portal.cinema6.com/api/public/content/experience/e-92160a770b81d5';
+                        src = 'http://staging.cinema6.com/api/public/content/experience/e-92160a770b81d5';
                         type = 'application/json';
                     });
 
@@ -230,7 +253,9 @@ describe('player service', function() {
 
                             spyOn(expressApp, 'listen');
                             spyOn(expressApp, 'use');
-                            spyOn(expressApp, 'get').and.callFake(function(route, middleware) {
+                            spyOn(expressApp, 'get').and.callFake(function(route/*, middleware*/) {
+                                var middleware = Array.prototype.slice.call(arguments, 1);
+
                                 (expressRoutes.get[route] || (expressRoutes.get[route] = [])).push(middleware);
                             });
 
@@ -261,30 +286,49 @@ describe('player service', function() {
                                 pidDir: require('path').resolve(__dirname, '../../pids'),
                                 appName: 'player',
                                 appDir: require('path').dirname(require.resolve('../../bin/player')),
-                                envRoot: 'https://portal.cinema6.com/',
-                                playerLocation: 'apps/mini-reel-player/index.html',
-                                contentLocation: 'api/public/content/experience/',
-                                contentParams: [
-                                    'campaign', 'branding', 'placementId',
-                                    'container', 'wildCardPlacement',
-                                    'pageUrl', 'hostApp', 'network'
-                                ],
-                                defaultOrigin: 'http://www.cinema6.com/',
-                                mobileType: 'mobile',
-                                playerVersion: 'v0.25.0-0-g8b946d4',
+                                api: {
+                                    root: 'https://staging.cinema6.com/',
+                                    player: {
+                                        endpoint: 'apps/mini-reel-player/index.html'
+                                    },
+                                    experience: {
+                                        endpoint: 'api/public/content/experience/',
+                                        validParams: [
+                                            'campaign', 'branding', 'placementId',
+                                            'container', 'wildCardPlacement',
+                                            'pageUrl', 'hostApp', 'network'
+                                        ],
+                                        cacheTTLs: {
+                                            fresh: 1,
+                                            max: 5
+                                        }
+                                    },
+                                    card: {
+                                        endpoint: 'api/public/content/card/',
+                                        cacheTTLs: {
+                                            fresh: 1,
+                                            max: 5
+                                        }
+                                    }
+                                },
+                                adtech: {
+                                    server: 'adserver.adtechus.com',
+                                    network: '5491.1',
+                                    request: {
+                                        maxSockets: 250,
+                                        timeout: 3000
+                                    }
+                                },
+                                defaults: {
+                                    origin: 'http://www.cinema6.com/',
+                                    mobileType: 'mobile'
+                                },
                                 validTypes: [
                                     'full-np', 'full', 'solo-ads', 'solo',
                                     'light',
                                     'lightbox-playlist', 'lightbox',
                                     'mobile',  'swipe'
-                                ],
-                                cacheTTLs: {
-                                    content: {
-                                        fresh: 1,
-                                        max: 5
-                                    }
-                                }
-
+                                ]
                             }
                         }));
                         expect(service.parseCmdLine).toHaveBeenCalledWith(service.start.calls.mostRecent().args[0]);
@@ -296,6 +340,12 @@ describe('player service', function() {
 
                     it('should create an express app', function() {
                         expect(mockExpress).toHaveBeenCalledWith();
+                    });
+
+                    it('should create some middleware for parsing query params', function() {
+                        expect(expressUtils.parseQuery).toHaveBeenCalledWith({
+                            arrays: ['categories', 'playUrls', 'countUrls', 'launchUrls']
+                        });
                     });
 
                     it('should create a Player instance', function() {
@@ -332,7 +382,7 @@ describe('player service', function() {
 
                     describe('route: GET /api/public/players/:type', function() {
                         it('should exist', function() {
-                            expect(expressApp.get).toHaveBeenCalledWith('/api/public/players/:type', jasmine.any(Function));
+                            expect(expressApp.get).toHaveBeenCalledWith('/api/public/players/:type', expressUtils.parseQuery.calls.mostRecent().returnValue, jasmine.any(Function));
                         });
 
                         describe('when invoked', function() {
@@ -345,7 +395,7 @@ describe('player service', function() {
                             beforeEach(function(done) {
                                 state = service.daemonize.calls.mostRecent().args[0];
 
-                                middleware = expressRoutes.get['/api/public/players/:type'][0];
+                                middleware = expressRoutes.get['/api/public/players/:type'][0][1];
                                 headers = {
                                     'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.99 Safari/537.36',
                                     'origin': 'https://github.com/cinema6/cwrx/pull/504/files'
@@ -559,7 +609,7 @@ describe('player service', function() {
                                     });
 
                                     it('should redirect the agent to the default mobileType', function() {
-                                        expect(response.redirect).toHaveBeenCalledWith(303, state.config.mobileType + formatURL({
+                                        expect(response.redirect).toHaveBeenCalledWith(303, state.config.defaults.mobileType + formatURL({
                                             query: request.query
                                         }));
                                     });
@@ -575,7 +625,7 @@ describe('player service', function() {
                                             player.get.calls.reset();
                                             response.send.calls.reset();
 
-                                            request.params.type = state.config.mobileType;
+                                            request.params.type = state.config.defaults.mobileType;
 
                                             middleware(request, response).finally(done);
                                         });
@@ -604,31 +654,58 @@ describe('player service', function() {
 
         beforeEach(function() {
             config = {
-                envRoot: 'https://portal.cinema6.com/',
-                playerLocation: 'apps/mini-reel-player/index.html',
-                contentLocation: 'api/public/content/experience/',
-                playerVersion: 'v0.25.0-0-g8b946d4',
-                validTypes: ['full-np', 'full', 'light', 'lightbox-playlist', 'lightbox', 'mobile', 'solo-ads', 'solo', 'swipe'],
-                contentParams: [
-                    'campaign', 'branding', 'placementId',
-                    'container', 'wildCardPlacement',
-                    'pageUrl', 'hostApp', 'network'
-                ],
-                defaultOrigin: 'http://www.cinema6.com/',
-                cacheTTLs: {
-                    content: {
-                        fresh: 1,
-                        max: 5
+                api: {
+                    root: 'https://staging.cinema6.com/',
+                    player: {
+                        endpoint: 'apps/mini-reel-player/index.html'
+                    },
+                    experience: {
+                        endpoint: 'api/public/content/experience/',
+                        validParams: [
+                            'campaign', 'branding', 'placementId',
+                            'container', 'wildCardPlacement',
+                            'pageUrl', 'hostApp', 'network'
+                        ],
+                        cacheTTLs: {
+                            fresh: 1,
+                            max: 5
+                        }
+                    },
+                    card: {
+                        endpoint: 'api/public/content/card/',
+                        cacheTTLs: {
+                            fresh: 1,
+                            max: 5
+                        }
                     }
-                }
+                },
+                adtech: {
+                    server: 'adserver.adtechus.com',
+                    network: '5491.1',
+                    request: {
+                        maxSockets: 250,
+                        timeout: 3000
+                    }
+                },
+                defaults: {
+                    origin: 'http://www.cinema6.com/',
+                    mobileType: 'mobile'
+                },
+                validTypes: [
+                    'full-np', 'full', 'solo-ads', 'solo',
+                    'light',
+                    'lightbox-playlist', 'lightbox',
+                    'mobile',  'swipe'
+                ]
             };
             player = new Player(config);
         });
 
         it('should create a FunctionCache for experiences', function() {
             expect(MockFunctionCache).toHaveBeenCalledWith({
-                freshTTL: config.cacheTTLs.content.fresh,
-                maxTTL: config.cacheTTLs.content.max
+                freshTTL: config.api.experience.cacheTTLs.fresh,
+                maxTTL: config.api.experience.cacheTTLs.max,
+                extractor: clonePromise
             });
         });
 
@@ -639,13 +716,33 @@ describe('player service', function() {
                         expect(player.config).toBe(config);
                     });
                 });
+
+                describe('adLoader', function() {
+                    it('should be an AdLoader', function() {
+                        expect(player.adLoader).toEqual(jasmine.any(AdLoader));
+                        expect(player.adLoader).toBe(adLoader);
+                    });
+
+                    it('should be instantiated with values from the config', function() {
+                        expect(MockAdLoader).toHaveBeenCalledWith({
+                            envRoot: config.api.root,
+                            cardEndpoint: config.api.card.endpoint,
+                            cardCacheTTLs: config.api.card.cacheTTLs,
+                            server: config.adtech.server,
+                            network: config.adtech.network,
+                            maxSockets: config.adtech.request.maxSockets,
+                            timeout: config.adtech.request.timeout
+                        });
+                    });
+                });
             });
 
             describe('methods:', function() {
                 describe('get(options)', function() {
                     var success, failure;
                     var options;
-                    var $document, experience;
+                    var $document, experience, sponsoredCards;
+                    var getExperienceDeferred;
 
                     beforeEach(function(done) {
                         success = jasmine.createSpy('success()');
@@ -665,7 +762,11 @@ describe('player service', function() {
                             pageUrl: 'http://www.foo.com/bar',
                             hostApp: 'My Talking Tom',
                             mobileMode: 'swipe',
-                            preview: true
+                            preview: false,
+                            categories: ['food', 'tech'],
+                            playUrls: ['play1.gif', 'play2.gif'],
+                            countUrls: ['count1.gif', 'count2.gif'],
+                            launchUrls: ['launch1.gif', 'launch2.gif']
                         };
 
                         var load = cheerio.load;
@@ -673,14 +774,27 @@ describe('player service', function() {
                             return ($document = load.apply(cheerio, arguments));
                         });
 
-                        experience = { id: 'e-92160a770b81d5', data: { deck: [] } };
-                        spyOn(player, '__getExperience__').and.returnValue(q(experience));
+                        getExperienceDeferred = q.defer();
+
+                        experience = {
+                            id: 'e-92160a770b81d5',
+                            data: {
+                                campaign: { launchUrls: ['launch.gif'] },
+                                deck: [null, 'cam-2955fce737e487', null, null, 'cam-1e05bbe2a3ef74', 'cam-8a2f40a0344018', null]
+                                    .map(function(campaignId, index) {
+                                        return { id: 'rc-' + index, type: 'youtube', campaignId: campaignId, data: {} };
+                                    })
+                            }
+                        };
+                        sponsoredCards = AdLoader.getSponsoredCards(experience);
+                        spyOn(player, '__getExperience__').and.returnValue(getExperienceDeferred.promise);
 
                         spyOn(player, '__getPlayer__').and.returnValue(q(playerHTML));
 
                         spyOn(Player, '__addResource__').and.callThrough();
 
-                        player.get(options).then(success, failure).finally(done);
+                        player.get(options).then(success, failure);
+                        q().then(done);
                     });
 
                     it('should get the player', function() {
@@ -700,24 +814,199 @@ describe('player service', function() {
                         }, 'http://cinema6.com/solo', options.uuid);
                     });
 
-                    it('should add the experience as a resource', function() {
-                        expect(Player.__addResource__).toHaveBeenCalledWith($document, 'experience', 'application/json', experience);
-                    });
+                    describe('when the experience is fetched', function() {
+                        var loadAdsDeferred;
 
-                    it('should resolve to the player as a string of HTML', function() {
-                        expect(success).toHaveBeenCalledWith($document.html());
+                        beforeEach(function(done) {
+                            loadAdsDeferred = q.defer();
+                            spyOn(player.adLoader, 'loadAds').and.returnValue(loadAdsDeferred.promise);
+
+                            getExperienceDeferred.fulfill(experience);
+                            getExperienceDeferred.promise.finally(done);
+                        });
+
+                        it('should load ads for the experience', function() {
+                            expect(player.adLoader.loadAds).toHaveBeenCalledWith(experience, options.categories, options.campaign, options.uuid);
+                        });
+
+                        describe('if loading the ads', function() {
+                            beforeEach(function() {
+                                spyOn(MockAdLoader, 'removePlaceholders').and.callThrough();
+                                spyOn(MockAdLoader, 'removeSponsoredCards').and.callThrough();
+                                spyOn(MockAdLoader, 'addTrackingPixels').and.callThrough();
+                            });
+
+                            describe('succeeds', function() {
+                                beforeEach(function(done) {
+                                    loadAdsDeferred.fulfill(experience);
+                                    process.nextTick(done);
+                                });
+
+                                it('should not removePlaceholders() or removeSponsoredCards()', function() {
+                                    expect(MockAdLoader.removePlaceholders).not.toHaveBeenCalled();
+                                    expect(MockAdLoader.removeSponsoredCards).not.toHaveBeenCalled();
+                                });
+
+                                it('should add the launchUrls to the experience', function() {
+                                    expect(experience.data.campaign.launchUrls).toEqual(['launch.gif'].concat(options.launchUrls));
+                                });
+
+                                it('should add the custom tracking pixels to each sponsored card', function() {
+                                    sponsoredCards.forEach(function(card) {
+                                        expect(MockAdLoader.addTrackingPixels).toHaveBeenCalledWith({
+                                            playUrls: options.playUrls,
+                                            countUrls: options.countUrls
+                                        }, card);
+                                    });
+                                    expect(MockAdLoader.addTrackingPixels.calls.count()).toBe(sponsoredCards.length);
+                                });
+
+                                it('should add the experience as a resource', function() {
+                                    expect(Player.__addResource__).toHaveBeenCalledWith($document, 'experience', 'application/json', experience);
+                                });
+
+                                it('should resolve to the player as a string of HTML', function() {
+                                    expect(success).toHaveBeenCalledWith($document.html());
+                                });
+                            });
+
+                            describe('fails', function() {
+                                beforeEach(function(done) {
+                                    loadAdsDeferred.reject(new Error('ADTECH id shitty. Who knew?'));
+                                    process.nextTick(done);
+                                });
+
+                                it('should removePlaceholders() and removeSponsoredCards()', function() {
+                                    expect(MockAdLoader.removePlaceholders).toHaveBeenCalledWith(experience);
+                                    expect(MockAdLoader.removeSponsoredCards).toHaveBeenCalledWith(experience);
+                                });
+
+                                it('should add the launchUrls to the experience', function() {
+                                    expect(experience.data.campaign.launchUrls).toEqual(['launch.gif'].concat(options.launchUrls));
+                                });
+
+                                it('should add the experience as a resource', function() {
+                                    expect(Player.__addResource__).toHaveBeenCalledWith($document, 'experience', 'application/json', experience);
+                                });
+
+                                it('should resolve to the player as a string of HTML', function() {
+                                    expect(success).toHaveBeenCalledWith($document.html());
+                                });
+                            });
+                        });
                     });
 
                     describe('if called without an origin', function() {
                         beforeEach(function(done) {
                             player.__getExperience__.calls.reset();
+                            getExperienceDeferred.fulfill(experience);
                             options.origin = undefined;
 
                             player.get(options).finally(done);
                         });
 
                         it('should use the default origin', function() {
-                            expect(player.__getExperience__).toHaveBeenCalledWith(jasmine.any(String), jasmine.any(Object), config.defaultOrigin, jasmine.any(String));
+                            expect(player.__getExperience__).toHaveBeenCalledWith(jasmine.any(String), jasmine.any(Object), config.defaults.origin, jasmine.any(String));
+                        });
+                    });
+
+                    describe('if the experience has no launchUrls', function() {
+                        beforeEach(function(done) {
+                            player.__getExperience__.and.returnValue(q(experience));
+                            spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
+                            delete experience.data.campaign.launchUrls;
+
+                            player.get(options).finally(done);
+                        });
+
+                        it('should copy the launchUrls', function() {
+                            expect(experience.data.campaign.launchUrls).toEqual(options.launchUrls);
+                        });
+                    });
+
+                    describe('if called with no launchUrls', function() {
+                        beforeEach(function(done) {
+                            player.__getExperience__.and.returnValue(q(experience));
+                            spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
+                            options.launchUrls = null;
+
+                            player.get(options).finally(done);
+                        });
+
+                        it('should leave the experience\'s launchUrls alone', function() {
+                            expect(experience.data.campaign.launchUrls).toEqual(['launch.gif']);
+                        });
+                    });
+
+                    describe('if called with preview: true', function() {
+                        beforeEach(function(done) {
+                            player.__getExperience__.and.returnValue(q(experience));
+                            spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
+                            player.__getExperience__.calls.reset();
+                            spyOn(MockAdLoader, 'removePlaceholders').and.callThrough();
+                            spyOn(MockAdLoader, 'removeSponsoredCards').and.callThrough();
+                            spyOn(MockAdLoader, 'addTrackingPixels').and.callThrough();
+                            options.preview = true;
+
+                            player.get(options).finally(done);
+                        });
+
+                        it('should not loadAds()', function() {
+                            expect(player.adLoader.loadAds).not.toHaveBeenCalled();
+                        });
+
+                        it('should add the launchUrls to the experience', function() {
+                            expect(experience.data.campaign.launchUrls).toEqual(['launch.gif'].concat(options.launchUrls));
+                        });
+
+                        it('should add the custom tracking pixels to each sponsored card', function() {
+                            sponsoredCards.forEach(function(card) {
+                                expect(MockAdLoader.addTrackingPixels).toHaveBeenCalledWith({
+                                    playUrls: options.playUrls,
+                                    countUrls: options.countUrls
+                                }, card);
+                            });
+                            expect(MockAdLoader.addTrackingPixels.calls.count()).toBe(sponsoredCards.length);
+                        });
+
+                        it('should removePlaceholders() from the experience', function() {
+                            expect(MockAdLoader.removePlaceholders).toHaveBeenCalledWith(experience);
+                        });
+
+                        it('should not removeSponsoredCards() from the experience', function() {
+                            expect(MockAdLoader.removeSponsoredCards).not.toHaveBeenCalled();
+                        });
+
+                        it('should add the experience as a resource', function() {
+                            expect(Player.__addResource__).toHaveBeenCalledWith($document, 'experience', 'application/json', experience);
+                        });
+                    });
+
+                    describe('if the experience has no ads', function() {
+                        beforeEach(function(done) {
+                            player.__getExperience__.and.returnValue(q(experience));
+                            spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
+                            player.__getExperience__.calls.reset();
+                            spyOn(MockAdLoader, 'removePlaceholders').and.callThrough();
+                            spyOn(MockAdLoader, 'removeSponsoredCards').and.callThrough();
+                            spyOn(MockAdLoader, 'addTrackingPixels').and.callThrough();
+                            experience.data.deck = experience.data.deck.map(function(card) {
+                                return !(card.type === 'wildcard' || typeof card.campaignId === 'string');
+                            });
+
+                            player.get(options).finally(done);
+                        });
+
+                        it('should not loadAds()', function() {
+                            expect(player.adLoader.loadAds).not.toHaveBeenCalled();
+                        });
+
+                        it('should add the launchUrls to the experience', function() {
+                            expect(experience.data.campaign.launchUrls).toEqual(['launch.gif'].concat(options.launchUrls));
+                        });
+
+                        it('should add the experience as a resource', function() {
+                            expect(Player.__addResource__).toHaveBeenCalledWith($document, 'experience', 'application/json', experience);
                         });
                     });
                 });
@@ -750,7 +1039,7 @@ describe('player service', function() {
                         origin = 'http://cinema6.com/solo';
                         uuid = 'fuweyhrf84yr3';
 
-                        contentURL = 'https://portal.cinema6.com/api/public/content/experience/e-92160a770b81d5';
+                        contentURL = 'https://staging.cinema6.com/api/public/content/experience/e-92160a770b81d5';
 
                         success = jasmine.createSpy('success()');
                         failure = jasmine.createSpy('failure()');
@@ -793,6 +1082,10 @@ describe('player service', function() {
 
                         it('should fulfill with the experience', function() {
                             expect(success).toHaveBeenCalledWith(experience);
+                        });
+
+                        it('should decorate the experience with params', function() {
+                            expect(experience.$params).toEqual(params);
                         });
                     });
 
@@ -895,7 +1188,7 @@ describe('player service', function() {
                     });
 
                     it('should make a request for the player', function() {
-                        expect(request.get).toHaveBeenCalledWith(resolveURL(config.envRoot, config.playerLocation), { gzip: true });
+                        expect(request.get).toHaveBeenCalledWith(resolveURL(config.api.root, config.api.player.endpoint), { gzip: true });
                     });
 
                     describe('when the player fails to be fetched', function() {
@@ -903,7 +1196,7 @@ describe('player service', function() {
 
                         beforeEach(function(done) {
                             reason = new Error('Could not download stuff.');
-                            requestDeferreds[resolveURL(config.envRoot, config.playerLocation)].reject(reason);
+                            requestDeferreds[resolveURL(config.api.root, config.api.player.endpoint)].reject(reason);
 
                             result.finally(done);
                         });
@@ -921,9 +1214,9 @@ describe('player service', function() {
                         beforeEach(function(done) {
                             q().then(function() {
                                 request.get.calls.reset();
-                                requestDeferreds[resolveURL(config.envRoot, config.playerLocation)].resolve(playerHTML);
+                                requestDeferreds[resolveURL(config.api.root, config.api.player.endpoint)].resolve(playerHTML);
                             }).then(function() {
-                                return requestDeferreds[resolveURL(config.envRoot, config.playerLocation)].promise;
+                                return requestDeferreds[resolveURL(config.api.root, config.api.player.endpoint)].promise;
                             }).then(function() {
                                 return new q.Promise(function(resolve) {
                                     setTimeout(resolve, 0);
@@ -932,8 +1225,8 @@ describe('player service', function() {
                         });
 
                         it('should make requests for the local CSS/JS files', function() {
-                            expect(request.get).toHaveBeenCalledWith('https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css', { gzip: true });
-                            expect(request.get).toHaveBeenCalledWith('https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js', { gzip: true });
+                            expect(request.get).toHaveBeenCalledWith('https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css', { gzip: true });
+                            expect(request.get).toHaveBeenCalledWith('https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js', { gzip: true });
                             expect(request.get.calls.count()).toBe(2);
                         });
 
@@ -942,7 +1235,7 @@ describe('player service', function() {
 
                             beforeEach(function(done) {
                                 reason = new Error('Could not download stuff.');
-                                requestDeferreds['https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js'].reject(reason);
+                                requestDeferreds['https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js'].reject(reason);
 
                                 result.finally(done);
                             });
@@ -958,8 +1251,8 @@ describe('player service', function() {
 
                         describe('and the sub-resources are fetched', function() {
                             beforeEach(function(done) {
-                                requestDeferreds['https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'].resolve(playerCSS);
-                                requestDeferreds['https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js'].resolve(playerJS);
+                                requestDeferreds['https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'].resolve(playerCSS);
+                                requestDeferreds['https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js'].resolve(playerJS);
 
                                 result.then(function() {}).then(done, done);
                             });
@@ -975,9 +1268,9 @@ describe('player service', function() {
                                 expect($result('link[href="css/${mode}.css"]').length).toBe(0);
                                 expect($result('link[href="css/lightbox.css"]').length).toBe(0);
 
-                                expect($result('script[data-src="https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js"]').text()).toBe(playerJS);
-                                expect($result('style[data-href="https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css"]').text()).toBe(Player.__rebaseCSS__(playerCSS, 'https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'));
-                                expect($result('base').attr('href')).toBe('https://portal.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/');
+                                expect($result('script[data-src="https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js"]').text()).toBe(playerJS);
+                                expect($result('style[data-href="https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css"]').text()).toBe(Player.__rebaseCSS__(playerCSS, 'https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'));
+                                expect($result('base').attr('href')).toBe('https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/');
                             });
                         });
                     });
