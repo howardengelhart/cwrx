@@ -173,7 +173,7 @@
 
     campModule.setupSvc = function(db, config) {
         campModule.config.campaigns = config.campaigns;
-        campModule.config.contentHost = config.contentHost;
+        campModule.config.api = config.api;
     
         var campColl = db.collection('campaigns'),
             svc = new CrudSvc(campColl, 'cam', { statusHistory: true }, campModule.campSchema);
@@ -470,11 +470,10 @@
      * Logs + swallows 4xx failures, but rejects 5xx failures. */
     campModule.sendDeleteRequest = function(req, id, type) {
         var log = logger.getLog(),
-            url = urlUtils.format({
-                protocol: req.protocol,
-                host: campModule.config.contentHost,
-                pathname: '/api/content/' + type + '/' + id
-            });
+            url = urlUtils.resolve(
+                campModule.config.api.root,
+                '/api/content/' + type + '/' + id
+            );
         
         return requestUtils.qRequest('delete', {
             url: url,

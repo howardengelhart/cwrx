@@ -43,7 +43,9 @@
                 end: 366*24*60*60*1000  // new campaigns default to ending now + this (ms)
             }
         },
-        contentHost: 'localhost',   // TODO: update format
+        api: {
+            root: 'http://localhost'   // for proxying requests //TODO cookbook
+        },
         minireelGroups: {
             advertiserId: null,     // C6 advertiser id; must be overriden in a config file
             customerId: null        // C6 customer id; must be overriden in a config file

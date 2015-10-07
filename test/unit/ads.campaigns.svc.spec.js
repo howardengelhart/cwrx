@@ -50,7 +50,7 @@ describe('ads-campaigns (UT)', function() {
             statusDelay: 1000, statusAttempts: 10, campaignTypeId: 454545,
             dateDelays: { start: 100, end: 200 }
         };
-        campModule.config.contentHost = 'test.com';
+        campModule.config.api = { root: 'https://test.com' };
 
         req = { uuid: '1234', _advertiserId: 987, _customerId: 876, params: {} };
         nextSpy = jasmine.createSpy('next');
@@ -61,7 +61,10 @@ describe('ads-campaigns (UT)', function() {
     describe('setupSvc', function() {
         var svc;
         beforeEach(function() {
-            var config = { contentHost: 'foo.com', campaigns: { statusDelay: 100, statusAttempts: 5 } };
+            var config = {
+                api: { root: 'https://foo.com' },
+                campaigns: { statusDelay: 100, statusAttempts: 5 }
+            };
             
             [campaignUtils.getAccountIds, campModule.formatOutput].forEach(function(fn) {
                 spyOn(fn, 'bind').and.returnValue(fn);
@@ -83,7 +86,7 @@ describe('ads-campaigns (UT)', function() {
         });
         
         it('should save some config variables locally', function() {
-            expect(campModule.config.contentHost).toBe('foo.com');
+            expect(campModule.config.api.root).toBe('https://foo.com');
             expect(campModule.config.campaigns).toEqual({statusDelay: 100, statusAttempts: 5});
         });
         
