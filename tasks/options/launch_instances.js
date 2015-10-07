@@ -29,6 +29,18 @@ module.exports = {
             }
         }
     },
+    querybot : {
+        startInstances : [ 'mongo-dev-1' ],
+        runInstances   : [ { name: 'test-querybot', params: 'apiServer' } ],
+        checkHttp : [
+            {
+                host    : 'test-querybot',
+                iface   : 'public',
+                path    : '/api/analytics/meta'
+            }
+        ],
+        checkSsh : [ { host : 'mongo-dev-1' } ]
+    },
     vote : {
         startInstances : [ 'mongo-dev-1' ],
         runInstances   : [ { name: 'test-vote', params: 'apiServer' } ],
