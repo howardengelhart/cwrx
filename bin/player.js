@@ -105,7 +105,7 @@ Player.__addResource__ = function __addResource__($document, src, type, contents
 
     var $script = $document('<script></script>');
     $script.attr({ type: type, 'data-src': src });
-    $script.text(text);
+    $script.text(text.replace(/<\//g, '<\\/'));
 
     $head.append($script);
 

@@ -168,7 +168,7 @@ describe('player service', function() {
                     var result;
 
                     beforeEach(function() {
-                        data = { hello: 'world' };
+                        data = { hello: 'world', foo: '<script></script><link></link>' };
 
                         $orig = cheerio.load(playerHTML);
                         $document = cheerio.load(playerHTML);
@@ -195,7 +195,7 @@ describe('player service', function() {
                             var $script = $document('head > script[data-src="' + src + '"]');
 
                             expect($script.length).toBe(1);
-                            expect($script.text()).toBe(contents);
+                            expect($script.text()).toBe(contents.replace(/<\//g, '<\\/'));
                             expect($script.attr('type')).toBe(type);
                         });
                     });
@@ -219,7 +219,7 @@ describe('player service', function() {
                             var $script = $document('head > script[data-src="' + src + '"]');
 
                             expect($script.length).toBe(1);
-                            expect($script.text()).toBe(JSON.stringify(contents));
+                            expect($script.text()).toBe(JSON.stringify(contents).replace(/<\//g, '<\\/'));
                             expect($script.attr('type')).toBe(type);
                         });
                     });
