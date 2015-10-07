@@ -15,6 +15,8 @@ describe('player service', function() {
     var clonePromise;
     var AdLoader;
     var expressUtils;
+    var AWS;
+    var CloudWatchReporter;
 
     var requestDeferreds;
     var fnCaches;
@@ -25,6 +27,7 @@ describe('player service', function() {
     var playerJS;
     var log;
     var adLoader;
+    var reporter;
 
     var setTimeout;
 
@@ -44,6 +47,7 @@ describe('player service', function() {
         resolveURL = require('url').resolve;
         extend = require('../../lib/objUtils').extend;
         clonePromise = require('../../lib/promise').clone;
+        AWS = require('aws-sdk');
 
         playerHTML = require('fs').readFileSync(require.resolve('./helpers/player.html')).toString();
         playerCSS = require('fs').readFileSync(require.resolve('./helpers/lightbox.css')).toString();
@@ -63,9 +67,19 @@ describe('player service', function() {
             return req;
         });
 
+        delete require.cache[require.resolve('../../lib/cloudWatchReporter')];
+        CloudWatchReporter = require('../../lib/cloudWatchReporter');
+        require.cache[require.resolve('../../lib/cloudWatchReporter')].exports = jasmine.createSpy('CloudWatchReporter()').and.callFake(function(namespace, data) {
+            reporter = new CloudWatchReporter(namespace, data);
+            spyOn(reporter, 'autoflush');
+
+            return reporter;
+        });
+
         delete require.cache[require.resolve('../../lib/expressUtils')];
         expressUtils = require('../../lib/expressUtils');
         spyOn(expressUtils, 'parseQuery').and.callThrough();
+        spyOn(expressUtils, 'cloudwatchMetrics').and.callThrough();
 
         delete require.cache[require.resolve('../../lib/adLoader')];
         AdLoader = require('../../lib/adLoader');
@@ -154,7 +168,7 @@ describe('player service', function() {
                     var result;
 
                     beforeEach(function() {
-                        data = { hello: 'world' };
+                        data = { hello: 'world', foo: '<script></script><link></link>' };
 
                         $orig = cheerio.load(playerHTML);
                         $document = cheerio.load(playerHTML);
@@ -181,7 +195,7 @@ describe('player service', function() {
                             var $script = $document('head > script[data-src="' + src + '"]');
 
                             expect($script.length).toBe(1);
-                            expect($script.text()).toBe(contents);
+                            expect($script.text()).toBe(contents.replace(/<\//g, '<\\/'));
                             expect($script.attr('type')).toBe(type);
                         });
                     });
@@ -205,7 +219,7 @@ describe('player service', function() {
                             var $script = $document('head > script[data-src="' + src + '"]');
 
                             expect($script.length).toBe(1);
-                            expect($script.text()).toBe(JSON.stringify(contents));
+                            expect($script.text()).toBe(JSON.stringify(contents).replace(/<\//g, '<\\/'));
                             expect($script.attr('type')).toBe(type);
                         });
                     });
@@ -244,6 +258,8 @@ describe('player service', function() {
                         spyOn(service, 'prepareServer').and.callFake(whenIndentity);
                         spyOn(service, 'daemonize').and.callFake(whenIndentity);
                         spyOn(service, 'cluster').and.callFake(whenIndentity);
+
+                        spyOn(AWS.config, 'update').and.callThrough();
 
                         expressRoutes = {
                             get: {}
@@ -319,6 +335,12 @@ describe('player service', function() {
                                         timeout: 3000
                                     }
                                 },
+                                cloudwatch: {
+                                    namespace: 'C6/Player',
+                                    region: 'us-east-1',
+                                    sendInterval: (5 * 60 * 1000),
+                                    dimensions: [{ Name: 'Environment', Value: 'Development' }]
+                                },
                                 defaults: {
                                     origin: 'http://www.cinema6.com/',
                                     mobileType: 'mobile'
@@ -338,6 +360,10 @@ describe('player service', function() {
                         expect(service.cluster).toHaveBeenCalledWith(service.daemonize.calls.mostRecent().args[0]);
                     });
 
+                    it('should set the AWS region', function() {
+                        expect(AWS.config.update).toHaveBeenCalledWith({ region: service.daemonize.calls.mostRecent().args[0].config.cloudwatch.region });
+                    });
+
                     it('should create an express app', function() {
                         expect(mockExpress).toHaveBeenCalledWith();
                     });
@@ -346,6 +372,14 @@ describe('player service', function() {
                         expect(expressUtils.parseQuery).toHaveBeenCalledWith({
                             arrays: ['categories', 'playUrls', 'countUrls', 'launchUrls']
                         });
+                    });
+
+                    it('should create some middleware for reporting request times to CloudWatch', function() {
+                        var config = service.daemonize.calls.mostRecent().args[0].config;
+
+                        expect(expressUtils.cloudwatchMetrics).toHaveBeenCalledWith(config.cloudwatch.namespace, config.cloudwatch.sendInterval, jasmine.objectContaining({
+                            Dimensions: config.cloudwatch.dimensions
+                        }));
                     });
 
                     it('should create a Player instance', function() {
@@ -382,7 +416,7 @@ describe('player service', function() {
 
                     describe('route: GET /api/public/players/:type', function() {
                         it('should exist', function() {
-                            expect(expressApp.get).toHaveBeenCalledWith('/api/public/players/:type', expressUtils.parseQuery.calls.mostRecent().returnValue, jasmine.any(Function));
+                            expect(expressApp.get).toHaveBeenCalledWith('/api/public/players/:type', expressUtils.parseQuery.calls.mostRecent().returnValue, expressUtils.cloudwatchMetrics.calls.mostRecent().returnValue, jasmine.any(Function));
                         });
 
                         describe('when invoked', function() {
@@ -395,7 +429,7 @@ describe('player service', function() {
                             beforeEach(function(done) {
                                 state = service.daemonize.calls.mostRecent().args[0];
 
-                                middleware = expressRoutes.get['/api/public/players/:type'][0][1];
+                                middleware = expressRoutes.get['/api/public/players/:type'][0][expressRoutes.get['/api/public/players/:type'][0].length - 1];
                                 headers = {
                                     'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.99 Safari/537.36',
                                     'origin': 'https://github.com/cinema6/cwrx/pull/504/files'
@@ -687,6 +721,12 @@ describe('player service', function() {
                         timeout: 3000
                     }
                 },
+                cloudwatch: {
+                    namespace: 'C6/Player',
+                    region: 'us-east-1',
+                    sendInterval: 5 * 60 * 1000,
+                    dimensions: [{ Name: 'Environment', Value: 'Development' }]
+                },
                 defaults: {
                     origin: 'http://www.cinema6.com/',
                     mobileType: 'mobile'
@@ -714,6 +754,19 @@ describe('player service', function() {
                 describe('config', function() {
                     it('should be the provided config object', function() {
                         expect(player.config).toBe(config);
+                    });
+                });
+
+                describe('adLoadTimeReporter', function() {
+                    it('should be a CloudWatchReporter instance', function() {
+                        expect(player.adLoadTimeReporter).toEqual(jasmine.any(CloudWatchReporter));
+                        expect(player.adLoadTimeReporter.namespace).toBe(config.cloudwatch.namespace);
+                        expect(player.adLoadTimeReporter.metricData).toEqual({
+                            MetricName: 'AdLoadTime',
+                            Unit: 'Milliseconds',
+                            Dimensions: config.cloudwatch.dimensions
+                        });
+                        expect(player.adLoadTimeReporter.autoflush).toHaveBeenCalledWith(config.cloudwatch.sendInterval);
                     });
                 });
 
@@ -818,6 +871,8 @@ describe('player service', function() {
                         var loadAdsDeferred;
 
                         beforeEach(function(done) {
+                            jasmine.clock().mockDate();
+
                             loadAdsDeferred = q.defer();
                             spyOn(player.adLoader, 'loadAds').and.returnValue(loadAdsDeferred.promise);
 
@@ -831,6 +886,9 @@ describe('player service', function() {
 
                         describe('if loading the ads', function() {
                             beforeEach(function() {
+                                jasmine.clock().tick(650);
+
+                                spyOn(player.adLoadTimeReporter, 'push').and.callThrough();
                                 spyOn(MockAdLoader, 'removePlaceholders').and.callThrough();
                                 spyOn(MockAdLoader, 'removeSponsoredCards').and.callThrough();
                                 spyOn(MockAdLoader, 'addTrackingPixels').and.callThrough();
@@ -840,6 +898,10 @@ describe('player service', function() {
                                 beforeEach(function(done) {
                                     loadAdsDeferred.fulfill(experience);
                                     process.nextTick(done);
+                                });
+
+                                it('should send metrics to CloudWatch', function() {
+                                    expect(player.adLoadTimeReporter.push).toHaveBeenCalledWith(650);
                                 });
 
                                 it('should not removePlaceholders() or removeSponsoredCards()', function() {
