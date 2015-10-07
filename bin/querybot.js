@@ -448,7 +448,12 @@ lib.main = function(state) {
         .catch(function(err){
             var status = err.status || 500,
                 message = (err.status) ? err.message : 'Internal Error';
-            log.error('[%1] - [%1] Error: [%2]',req.uuid,status,(err.message || message));
+            if (status < 500) {
+                log.info('[%1] - [%1] Error: [%2]',req.uuid,status,(err.message || message));
+            }
+            else {
+                log.error('[%1] - [%1] Error: [%2]',req.uuid,status,(err.message || message));
+            }
             res.send(status,message);
             next();
         });
@@ -465,7 +470,12 @@ lib.main = function(state) {
         .catch(function(err){
             var status = err.status || 500,
                 message = (err.status) ? err.message : 'Internal Error';
-            log.error('[%1] - [%1] Error: [%2]',req.uuid,status,(err.message || message));
+            if (status < 500) {
+                log.info('[%1] - [%1] Error: [%2]',req.uuid,status,(err.message || message));
+            }
+            else {
+                log.error('[%1] - [%1] Error: [%2]',req.uuid,status,(err.message || message));
+            }
             res.send(status,message);
             next();
         });
