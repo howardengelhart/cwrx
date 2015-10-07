@@ -449,10 +449,10 @@ lib.main = function(state) {
             var status = err.status || 500,
                 message = (err.status) ? err.message : 'Internal Error';
             if (status < 500) {
-                log.info('[%1] - [%1] Error: [%2]',req.uuid,status,(err.message || message));
+                log.info('[%1] - [%2] Error: [%3]',req.uuid,status,(err.message || message));
             }
             else {
-                log.error('[%1] - [%1] Error: [%2]',req.uuid,status,(err.message || message));
+                log.error('[%1] - [%2] Error: [%3]',req.uuid,status,(err.message || message));
             }
             res.send(status,message);
             next();
@@ -471,10 +471,10 @@ lib.main = function(state) {
             var status = err.status || 500,
                 message = (err.status) ? err.message : 'Internal Error';
             if (status < 500) {
-                log.info('[%1] - [%1] Error: [%2]',req.uuid,status,(err.message || message));
+                log.info('[%1] - [%2] Error: [%3]',req.uuid,status,(err.message || message));
             }
             else {
-                log.error('[%1] - [%1] Error: [%2]',req.uuid,status,(err.message || message));
+                log.error('[%1] - [%3] Error: [%3]',req.uuid,status,(err.message || message));
             }
             res.send(status,message);
             next();
