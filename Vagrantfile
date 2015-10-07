@@ -131,8 +131,7 @@ Vagrant.configure("2") do |config|
                     "mongo" => { "host" => "127.0.0.1", "port" => 27017 }
                 },
                 "mongo" => {
-                    "c6Db" => { "host" => "127.0.0.1", "port" => 27017 },
-                    "c6Journal" => { "host" => "127.0.0.1", "port" => 27017 }
+                    "c6Db" => { "host" => "127.0.0.1", "port" => 27017 }
                 },
                 "pg" => {
                     "defaults" => {

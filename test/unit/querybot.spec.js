@@ -225,7 +225,7 @@ describe('querybot (UT)', function() {
         });
         
         it('pulls campaignIds from the query params',function(done){
-            req.query.id = 'ABC,DEF'; 
+            req.query.ids = 'ABC,DEF'; 
             mockResponse.body = [{ id : 'ABC' },{ id : 'DEF' }];
             lib.campaignIdsFromRequest(req)
             .then(setResult)
@@ -240,7 +240,7 @@ describe('querybot (UT)', function() {
         it('ignores query param ids if main id param is set',function(done){
             mockResponse.body = [{ id : 'ABC' }];
             req.params.id = 'ABC'; 
-            req.query.id = 'DEF,GHI'; 
+            req.query.ids = 'DEF,GHI'; 
             lib.campaignIdsFromRequest(req)
             .then(setResult)
             .then(function(){
@@ -252,7 +252,7 @@ describe('querybot (UT)', function() {
         });
 
         it('squashes duplicate ids',function(done){
-            req.query.id = 'DEF,ABC,GHI,ABC'; 
+            req.query.ids = 'DEF,ABC,GHI,ABC'; 
             mockResponse.body = [{ id : 'DEF' },{ id : 'ABC' },{ id : 'GHI' }];
             lib.campaignIdsFromRequest(req)
             .then(setResult)
@@ -265,7 +265,7 @@ describe('querybot (UT)', function() {
         });
 
         it('return empty array if campaign service returns nothing',function(done){
-            req.query.id = 'DEF,ABC,GHI'; 
+            req.query.ids = 'DEF,ABC,GHI'; 
             mockResponse.body = [];
             lib.campaignIdsFromRequest(req)
             .then(setResult)
@@ -278,7 +278,7 @@ describe('querybot (UT)', function() {
         });
 
         it('return empty array if campaign service returns error',function(done){
-            req.query.id = 'DEF,ABC,GHI'; 
+            req.query.ids = 'DEF,ABC,GHI'; 
             mockResponse.response.statusCode = 401;
             mockResponse.body = 'Unauthorized.';
             lib.campaignIdsFromRequest(req)
@@ -287,7 +287,7 @@ describe('querybot (UT)', function() {
                 expect(queryOpts.qs.ids).toEqual('DEF,ABC,GHI');
                 expect(queryOpts.url).toEqual('https://local/api/campaigns/');
                 expect(mockLog.error).toHaveBeenCalledWith(
-                    'Campaign Check Failed with: %1 : %2', 401, 'Unauthorized.'
+                    '[%1] Campaign Check Failed with: %2 : %3', req.uuid, 401, 'Unauthorized.'
                 );
                 expect(result).toEqual([]);
             })
@@ -299,6 +299,7 @@ describe('querybot (UT)', function() {
             .then(done.fail,function(err){
                 expect(requestUtils.qRequest).not.toHaveBeenCalled();
                 expect(err).toEqual(new Error('At least one campaignId is required.'));
+                expect(err.status).toEqual(400);
                 done();
             });
         });
@@ -365,14 +366,23 @@ describe('querybot (UT)', function() {
             .then(done,done.fail);
         });
 
-        it('rejects when there is an error',function(done){
+        it('warns if there is an error, but proceeds',function(done){
             var err = new Error('An error');
             lib.campaignCacheGet.and.callFake(function(id){
-                return q.reject(err);
+                if (id === 'def:summary') {
+                    return q.reject(err);
+                } else {
+                    return q(fakeCache[id]);
+                }
             });
             lib.getCampaignDataFromCache(['abc','123','def','ghi'],':summary')
-            .then(done.fail,function(e){
-                expect(e).toBe(err);
+            .then(function(res){
+                expect(mockLog.warn).toHaveBeenCalledWith('Cache error: Key=%1, Error=%2',
+                    'def:summary','An error');
+                expect(res).toEqual({
+                    'abc' : { campaignId : 'abc' },
+                    'ghi' : { campaignId : 'ghi' }
+                });
             })
             .then(done,done.fail);
         });
@@ -427,12 +437,6 @@ describe('querybot (UT)', function() {
             spyOn(lib,'pgQuery').and.returnValue(mockPromise);
         });
 
-        it('will throw an exception if there are no campaignIds',function(){
-            expect(function(){
-                lib.queryCampaignSummary([]);
-            }).toThrow(new Error('At least one campaignId is required.'));
-        });
-        
         it('will pass campaignIds as parameters',function(){
             lib.queryCampaignSummary(['abc','def']);
             expect(lib.pgQuery.calls.mostRecent().args[1]).toEqual([['abc','def']]);
@@ -448,12 +452,6 @@ describe('querybot (UT)', function() {
             spyOn(lib,'pgQuery').and.returnValue(mockPromise);
         });
 
-        it('will throw an exception if there are no campaignIds',function(){
-            expect(function(){
-                lib.queryCampaignDaily([]);
-            }).toThrow(new Error('At least one campaignId is required.'));
-        });
-        
         it('will pass campaignIds as parameters',function(){
             lib.queryCampaignDaily(['abc','def']);
             expect(lib.pgQuery.calls.mostRecent().args[1]).toEqual([['abc','def']]);

@@ -9,6 +9,7 @@ var q               = require('q'),
     bodyParser      = require('body-parser'),
     sessionLib      = require('express-session'),
     pg              = require('pg.js'),
+    inherits        = require('util').inherits,
     requestUtils    = require('../lib/requestUtils'),
     dbpass          = require('../lib/dbpass'),
     logger          = require('../lib/logger'),
@@ -17,6 +18,18 @@ var q               = require('q'),
     service         = require('../lib/service'),
     state   = {},
     lib     = {};
+
+function ServiceError(message, status) {
+    Error.call(this, message);
+
+    this.message = message;
+    this.status = status;
+}
+inherits(ServiceError, Error);
+
+ServiceError.prototype.toString = function toString() {
+    return '[' + this.status + '] ' + this.message;
+};
 
 state.defaultConfig = {
     appName: 'querybot',
@@ -38,11 +51,6 @@ state.defaultConfig = {
     secretsPath: path.join(process.env.HOME,'.querybot.secrets.json'),
     mongo: {
         c6Db: {
-            host: null,
-            port: null,
-            retryConnect : true
-        },
-        c6Journal: {
             host: null,
             port: null,
             retryConnect : true
@@ -115,7 +123,7 @@ lib.pgQuery = function(statement,params){
     pg.connect(function(err, client, done) {
         if (err) {
             log.error('pg.connect error: %1',err.message);
-            return deferred.reject(new Error('Internal Error'));
+            return deferred.reject(new ServiceError('Internal Error',500));
         }
 
         client.query(statement,params,function(err,result){
@@ -123,7 +131,7 @@ lib.pgQuery = function(statement,params){
             if (err) {
                 log.error('pg.client.query error: %1, %2, %3',
                     err.message, statement, params);
-                deferred.reject(new Error('Internal Error'));
+                deferred.reject(new ServiceError('Internal Error',500));
             } else {
                 deferred.resolve(result);
             }
@@ -135,24 +143,24 @@ lib.pgQuery = function(statement,params){
 
 lib.campaignIdsFromRequest = function(req){
     var log = logger.getLog(), ids = {}, idList = '',
-        urlBase = url.resolve(state.config.api.root , '/api/campaigns/');
+        urlBase = url.resolve(state.config.api.root , '/api/campaigns/') ;
     if (req.params.id) {
         ids[req.params.id] = 1;
     }
     else
-    if (req.query.id) {
-        req.query.id.split(',').forEach(function(id){
+    if (req.query.ids) {
+        req.query.ids.split(',').forEach(function(id){
             ids[id] = 1;
         });
     }
 
     ids = Object.keys(ids);
     if( ids.length === 0) {
-        return q.reject(new Error('At least one campaignId is required.'));
+        return q.reject(new ServiceError('At least one campaignId is required.', 400));
     }
 
     idList = ids.join(',');
-    log.trace('campaign check: %1, ids=%2',urlBase , idList);
+    log.trace('[%1] campaign check: %2, ids=%3', req.uuid,urlBase , idList);
     return requestUtils.qRequest('get', {
         url: urlBase,
         headers: { cookie: req.headers.cookie },
@@ -162,16 +170,16 @@ lib.campaignIdsFromRequest = function(req){
         }
     })
     .then(function(resp){
-        log.trace('STATUS CODE: %1',resp.response.statusCode);
+        log.trace('[%1] STATUS CODE: %2',req.uuid,resp.response.statusCode);
         var result = [];
         if (resp.response.statusCode === 200) {
-            log.trace('campaign found: %1',resp.response.body);
+            log.trace('[%1] campaign found: %2',req.uuid,resp.response.body);
             result = resp.body.map(function(item){
                 return  item.id;
             });
         } else {
-            log.error('Campaign Check Failed with: %1 : %2',
-                resp.response.statusCode,resp.body);
+            log.error('[%1] Campaign Check Failed with: %2 : %3',
+                req.uuid,resp.response.statusCode,resp.body);
         }
         return result;
     });
@@ -180,7 +188,10 @@ lib.campaignIdsFromRequest = function(req){
 lib.getCampaignDataFromCache = function(campaignIds,keySuffix){
     var log = logger.getLog(), retval;
     return q.all(campaignIds.map(function(id){
-        return lib.campaignCacheGet(id + keySuffix);
+        return lib.campaignCacheGet(id + keySuffix).catch(function(e){
+            log.warn('Cache error: Key=%1, Error=%2', id + keySuffix, e.message);
+            return null;
+        });
     }))
     .then(function(results){
         results.forEach(function(res){
@@ -212,12 +223,8 @@ lib.setCampaignDataInCache = function(data,keySuffix){
 };
 
 lib.queryCampaignDaily = function(campaignIds) {
-    var idCount = campaignIds.length, statement;
+    var statement;
     
-    if (idCount < 1) {
-        throw new Error('At least one campaignId is required.');
-    }
-
     statement =
         'SELECT rec_date as "recDate", campaign_id as "campaignId", ' +
         'impressions,views,clicks, total_spend as "totalSpend" ' +
@@ -239,12 +246,8 @@ lib.queryCampaignDaily = function(campaignIds) {
 };
 
 lib.queryCampaignSummary = function(campaignIds) {
-    var idCount = campaignIds.length, statement;
+    var  statement;
     
-    if (idCount < 1) {
-        throw new Error('At least one campaignId is required.');
-    }
-
     statement =
         'SELECT campaign_id as "campaignId" ,plays as impressions,views, ' +
         '(link_action + link_facebook + link_twitter + link_website + link_youtube) as clicks, ' +
@@ -369,9 +372,9 @@ lib.main = function(state) {
     app.set('json spaces', 2);
     
     // Because we may recreate the session middleware, we need to wrap it in the route handlers
-//    function sessWrap(req, res, next) {
-//        sessions(req, res, next);
-//    }
+    function sessWrap(req, res, next) {
+        sessions(req, res, next);
+    }
 
     state.dbStatus.c6Db.on('reconnected', function() {
         authUtils._db = state.dbs.c6Db;
@@ -384,15 +387,10 @@ lib.main = function(state) {
         log.info('Recreated session store from restarted db');
     });
 
-    state.dbStatus.c6Journal.on('reconnected', function() {
-        log.info('Reset journal\'s collection from restarted db');
-    });
-
-
     app.use(function(req, res, next) {
         res.header('Access-Control-Allow-Headers',
                    'Origin, X-Requested-With, Content-Type, Accept');
-        res.header('cache-control', 'max-age=' + state.config.requestMaxAge);
+        res.header('cache-control', 'max-age=0');
 
         if (req.method.toLowerCase() === 'options') {
             res.send(200);
@@ -428,33 +426,47 @@ lib.main = function(state) {
         res.send(200, state.config.appVersion);
     });
     
+    app.use(function(req, res, next) {
+        res.header('cache-control', 'max-age=' + state.config.requestMaxAge);
+        next();
+    });
+
+    
     var authAnalCamp = authUtils.middlewarify({campaigns: 'read'});
-    app.get('/api/analytics/campaigns/:id', sessions, authAnalCamp, function(req, res, next) {
+    app.get('/api/analytics/campaigns/:id', sessWrap, authAnalCamp, function(req, res, next) {
         lib.getCampaignSummaryAnalytics(req)
         .then(function(){
             if (req.campaignSummaryAnalytics.length === 0) {
+                log.info('[%1] - campaign data not found', req.uuid);
                 res.send(404);
             } else {
+                log.info('[%1] - returning campaign data', req.uuid);
                 res.send(200,req.campaignSummaryAnalytics[0]);
             }
             next();
         })
         .catch(function(err){
-            log.error('[%1] - 500 Error: [%2]',req.uuid,err.stack);
-            res.send(500);
+            var status = err.status || 500,
+                message = (err.status) ? err.message : 'Internal Error';
+            log.error('[%1] - [%1] Error: [%2]',req.uuid,status,(err.message || message));
+            res.send(status,message);
             next();
         });
     });
     
-    app.get('/api/analytics/campaigns/', sessions, authAnalCamp, function(req, res, next) {
+    app.get('/api/analytics/campaigns/', sessWrap, authAnalCamp, function(req, res, next) {
         lib.getCampaignSummaryAnalytics(req)
         .then(function(){
+            log.info('[%1] - returning data for %2 campaigns',
+                req.uuid, req.campaignSummaryAnalytics.length);
             res.send(200,req.campaignSummaryAnalytics);
             next();
         })
         .catch(function(err){
-            log.error('[%1] - 500 Error: [%2]',req.uuid,err.stack);
-            res.send(500,err.message);
+            var status = err.status || 500,
+                message = (err.status) ? err.message : 'Internal Error';
+            log.error('[%1] - [%1] Error: [%2]',req.uuid,status,(err.message || message));
+            res.send(status,message);
             next();
         });
     });

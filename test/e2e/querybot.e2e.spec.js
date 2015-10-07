@@ -149,10 +149,10 @@ describe('querybot (E2E)', function(){
 
         });
 
-        it('returns a 500 error if there is no campaignID',function(done){
+        it('returns a 400 error if there is no campaignID',function(done){
             requestUtils.qRequest('get', options)
             .then(function(resp) {
-                expect(resp.response.statusCode).toEqual(500);
+                expect(resp.response.statusCode).toEqual(400);
                 expect(resp.response.body).toEqual('At least one campaignId is required.');
             })
             .then(done,done.fail);
@@ -188,10 +188,10 @@ describe('querybot (E2E)', function(){
         
     });
     
-    describe('GET /api/analytics/campaigns/?id=:id', function() {
+    describe('GET /api/analytics/campaigns/?ids=:id', function() {
         it('requires authentication',function(done){
             delete options.jar;
-            options.url += '/?id=cam-5bebbf1c34a3d7';
+            options.url += '/?ids=cam-5bebbf1c34a3d7';
             requestUtils.qRequest('get', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toEqual(401);
@@ -201,7 +201,7 @@ describe('querybot (E2E)', function(){
         });
 
         it('returns a 200 with empty array if the campaignId is not found',function(done){
-            options.url += '/?id=cam-278b8150021c68';
+            options.url += '/?ids=cam-278b8150021c68';
             requestUtils.qRequest('get', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toEqual(200);
@@ -211,7 +211,7 @@ describe('querybot (E2E)', function(){
         });
 
         it('returns single document array if the campaigns GET is plural form',function(done){
-            options.url += '/?id=cam-5bebbf1c34a3d7';
+            options.url += '/?ids=cam-5bebbf1c34a3d7';
             requestUtils.qRequest('get', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toEqual(200);
@@ -229,7 +229,7 @@ describe('querybot (E2E)', function(){
         });
         
         it('returns document array if the campaigns GET is plural form',function(done){
-            options.url += '/?id=cam-5bebbf1c34a3d7,cam-237505b42ee19f';
+            options.url += '/?ids=cam-5bebbf1c34a3d7,cam-237505b42ee19f';
             requestUtils.qRequest('get', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toEqual(200);
@@ -257,7 +257,7 @@ describe('querybot (E2E)', function(){
         });
 
         it('returns document array with found items, omits unfound ',function(done){
-            options.url += '/?id=cam-5bebbf1c34a3d7,cam-237505b42ee19f,cam-278b8150021c68';
+            options.url += '/?ids=cam-5bebbf1c34a3d7,cam-237505b42ee19f,cam-278b8150021c68';
             requestUtils.qRequest('get', options)
             .then(function(resp) {
                 expect(resp.response.statusCode).toEqual(200);
