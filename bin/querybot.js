@@ -474,7 +474,7 @@ lib.main = function(state) {
                 log.info('[%1] - [%2] Error: [%3]',req.uuid,status,(err.message || message));
             }
             else {
-                log.error('[%1] - [%3] Error: [%3]',req.uuid,status,(err.message || message));
+                log.error('[%1] - [%2] Error: [%3]',req.uuid,status,(err.message || message));
             }
             res.send(status,message);
             next();
