@@ -36,7 +36,7 @@ Vagrant.configure("2") do |config|
     chef.json = {
         :c6mongo => {
             :users => {
-                :ids => ["evan", "howard", "e2eTests", "content", "collateral", "auth", "userSvc", "orgSvc", "vote", "siteSvc", "search", "deepthought", "ads"]
+                :ids => ["evan", "howard", "e2eTests", "content", "collateral", "auth", "userSvc", "orgSvc", "vote", "siteSvc", "search", "deepthought", "ads", "querybot"]
             },
             "cappedColls" => [
                 {
@@ -79,7 +79,7 @@ Vagrant.configure("2") do |config|
         "recipe[maint]"
     ]
     
-    svcs = ['ads', 'collateral', 'content', 'monitor', 'orgSvc', 'search', 'userSvc', 'vote']
+    svcs = ['ads', 'collateral', 'content', 'monitor', 'orgSvc', 'search', 'userSvc', 'vote', 'querybot', 'c6postgres']
     
     if ENV['CWRX_APP'] == 'all'
         chosen = svcs
@@ -105,6 +105,61 @@ Vagrant.configure("2") do |config|
         }
         if svc == 'vote'
             chef.json[svc][:mongo][:voteDb] = { :host => "127.0.0.1" }
+        end
+        
+        if svc == 'c6postgres'
+            chef.json[svc][:pg_hba] = [
+                "local all all md5",
+                "host all all 127.0.0.1/8 md5",
+                "host all all 33.33.33.0/24 md5"
+            ]
+        end
+
+        if svc == 'querybot'
+            chef.json[svc][:config] = {
+                "log" => {
+                    "logLevel" => "info",
+                    "logDir"   => "/opt/sixxy/logs",
+                    "logName"  => "querybot.log",
+                    "media"    => [ { "type" => "file" } ]
+                },
+                "caches" => { "run" => "/opt/sixxy/run/" },
+                "sessions" => {
+                    "key"     => "c6Auth",
+                    "maxAge"  => 14,  # days
+                    "secure"  => false,
+                    "mongo" => { "host" => "127.0.0.1", "port" => 27017 }
+                },
+                "mongo" => {
+                    "c6Db" => { "host" => "127.0.0.1", "port" => 27017 }
+                },
+                "pg" => {
+                    "defaults" => {
+                        "database"  => "campfire_cwrx",
+                        "host"      => "localhost",
+                        "user"      => "sixxy"
+                    }
+                },
+                "cache" => {
+                    "servers" => [],
+                    "timeouts" => {
+                        "read" => 500,
+                        "write" => 2000,
+                        "stats" => 2000
+                    }
+                },
+                "pubsub" => {
+                    "cacheCfg" => {
+                        "port" => 21211,
+                        "isPublisher" => false,
+                        "opts" => {
+                            "reconnect" => true,
+                            "reconnectDelay" => 5000,
+                            "pingDelay" => 5000
+                        }
+                    }
+                }
+            }
         end
     end
   end

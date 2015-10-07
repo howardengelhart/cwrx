@@ -137,11 +137,23 @@ function restartServices(services){
 
 function copyFileToService(file,service){
     var target =  '/opt/sixxy/install/' + service + '/current' + file.replace('/vagrant',''),
-        stats = fs.statSync(target);
+        stats, overwriteMode;
     try {
+        
+        if (fs.existsSync(target)){
+            stats = fs.statSync(target); 
+            overwriteMode = true;
+        } else {
+            stats = fs.statSync('/opt/sixxy/'); 
+        }
+        
         fs.copySync(file,target);
-        fs.chmodSync(target,stats.mode);
         fs.chownSync(target,stats.uid,stats.gid);
+   
+        if (overwriteMode) {
+            fs.chmodSync(target,stats.mode);
+        }
+
     }catch(e){
         console.log('Failed to copy ', file, ' to ', target, ': ' + e.message);
         process.exit(1);
@@ -165,8 +177,23 @@ function handleFileChange(file,stat,watchData){
     restartServices(services);
 }
 
+function initWatches(watches) {
+    var services = getServices();
+    Object.keys(watches).forEach(function(watch){
+        watches[watch].files.forEach(function(file){
+            services.forEach(function(service){
+                copyFileToService(file,service);
+            });
+        });
+    });
+    restartServices(services);
+}
+
 config.dirs.forEach(function(d){
     setupWatch(d,watches,handleFileChange);
 });
 
+initWatches(watches);
+
 console.log('\n\nWaiting for things to change...');
+
