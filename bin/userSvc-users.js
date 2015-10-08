@@ -111,8 +111,10 @@
         var validatePassword = userModule.validatePassword;
         var checkTokenExists = userModule.checkPropsExist.bind(userModule, ['token']);
         var checkValidToken = userModule.checkValidToken.bind(userModule, userSvc._coll);
-        var giveCompanyProps = userModule.giveCompanyProps.bind(userModule, config.api, sixxyCookie);
-        var sendConfirmationEmail = userModule.sendConfirmationEmail.bind(userModule, config.ses.sender);
+        var giveCompanyProps = userModule.giveCompanyProps.bind(userModule, config.api,
+            sixxyCookie);
+        var sendConfirmationEmail = userModule.sendConfirmationEmail.bind(userModule,
+            config.ses.sender);
         var handleBrokenUser = userModule.handleBrokenUser.bind(userModule, userSvc._coll);
 
         // override some default CrudSvc methods with custom versions for users
@@ -180,7 +182,7 @@
                     log.info('[%1] User %2 was not found', req.uuid, id);
                     return done({ code: 404, body: 'User not found' });
                 }
-                if(result.status !==enums.Status.New || !result.activationToken) {
+                if(result.status !== enums.Status.New || !result.activationToken) {
                     log.info('[%1] User %2 cannot be activated', req.uuid, id);
                     return done({ code: 403, body: 'Confirmation failed' });
                 }
@@ -233,7 +235,8 @@
             }
             return next();
         }).catch(function(error) {
-            log.error('[%1] Error creating org, customer, or advertiser for user %2: %3', req.uuid, id, error);
+            log.error('[%1] Error creating org, customer, or advertiser for user %2: %3',
+                req.uuid, id, error);
             req.user.status = enums.Status.Error;
             return next();
         });
@@ -418,7 +421,7 @@
             });
     };
 
-    userModule.sendConfirmationEmail = function(sender, req, next, done) {
+    userModule.sendConfirmationEmail = function(sender, req, next) {
         var recipient = req.user.email;
         return email.notifyAccountActivation(sender, recipient).then(function() {
             return next();

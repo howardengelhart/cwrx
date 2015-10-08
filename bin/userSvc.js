@@ -104,7 +104,8 @@
         log.info('Running as cluster worker, proceed with setting up web server.');
 
         var app          = express(),
-            userSvc      = userModule.setupSvc(state.dbs.c6Db, state.config, state.secrets.sixxyCookie),
+            userSvc      = userModule.setupSvc(state.dbs.c6Db, state.config,
+                                               state.secrets.sixxyCookie),
             roleSvc      = roleModule.setupSvc(state.dbs.c6Db),
             polSvc       = polModule.setupSvc(state.dbs.c6Db, state.config),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
@@ -199,7 +200,8 @@
             res.send(200, state.config.appVersion);
         });
 
-        userModule.setupEndpoints(app, userSvc, sessWrap, audit, state.sessionStore, state.config, auditJournal);
+        userModule.setupEndpoints(app, userSvc, sessWrap, audit, state.sessionStore, state.config,
+                                  auditJournal);
         roleModule.setupEndpoints(app, roleSvc, sessWrap, audit);
         polModule.setupEndpoints(app, polSvc, sessWrap, audit);
 
