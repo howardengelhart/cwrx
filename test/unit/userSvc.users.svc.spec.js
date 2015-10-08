@@ -106,7 +106,7 @@ describe('userSvc (UT)', function() {
              userModule.hashProp, userModule.validateRoles, userModule.validatePolicies, userModule.setupSignupUser,
              userModule.filterProps, userModule.giveActivationToken, userModule.sendActivationEmail,
              userModule.checkPropsExist, userModule.checkValidToken, userModule.giveCompanyProps,
-             userModule.sendConfirmationEmail].forEach(function(fn) {
+             userModule.sendConfirmationEmail, userModule.handleBrokenUser].forEach(function(fn) {
                 spyOn(fn, 'bind').and.callFake(function() {
                     var boundFn = bind.apply(fn, arguments);
 
@@ -251,6 +251,11 @@ describe('userSvc (UT)', function() {
         it('should send confirmation email on user confirm', function() {
             expect(userModule.sendConfirmationEmail.bind).toHaveBeenCalledWith(userModule, 'support@cinema6.com');
             expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.sendConfirmationEmail, [userModule, 'support@cinema6.com']));
+        });
+
+        it('should handle a broken user', function() {
+            expect(userModule.handleBrokenUser.bind).toHaveBeenCalledWith(userModule, result._coll);
+            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.handleBrokenUser, [userModule, result._coll]));
         });
     });
 
@@ -649,7 +654,7 @@ describe('userSvc (UT)', function() {
         });
 
         describe('when at least one of the requests fail', function() {
-            beforeEach(function() {
+            beforeEach(function(done) {
                 requestUtils.qRequest.and.callFake(function(method, opts) {
                     var object = opts.url.match(/orgs|customers|advertisers/)[0];
                     var code = 201;
@@ -665,20 +670,74 @@ describe('userSvc (UT)', function() {
                         }
                     });
                 });
+                userModule.giveCompanyProps(api, sixxyCookie, req, nextSpy).done(done);
             });
 
-            it('should reject the promise', function(done) {
-                userModule.giveCompanyProps(api, sixxyCookie, req, nextSpy).then(function() {
-                    expect(nextSpy).not.toHaveBeenCalled();
-                }).catch(function(error) {
-                    expect(error).toBe('Error creating customer');
-                }).done(done);
-            });
-
-            it('should not set any company properties', function() {
-                expect(req.user.org).not.toBeDefined();
+            it('should not set properties that failed to be created', function() {
                 expect(req.user.customer).not.toBeDefined();
-                expect(req.user.advertiser).not.toBeDefined();
+            });
+
+            it('should set the status of the user on the request to error', function() {
+                expect(req.user.status).toBe('error');
+            });
+
+            it('should call next', function() {
+                expect(nextSpy).toHaveBeenCalled();
+            });
+        });
+    });
+
+    describe('handleBrokenUser()', function() {
+        var coll, req, nextSpy;
+
+        beforeEach(function() {
+            coll = {
+                findAndModify: jasmine.createSpy('findAndModify').and.callFake(function(query1, query2, updates, opts, cb) {
+                    cb(null, q());
+                })
+            };
+            req = {
+                user: {
+                    id: 'u-12345'
+                }
+            };
+            nextSpy = jasmine.createSpy('nextSpy()').and.returnValue(q());
+        });
+
+        describe('when the user is broken', function() {
+            var success, failure;
+            beforeEach(function(done) {
+                success = jasmine.createSpy('success()');
+                failure = jasmine.createSpy('failure()');
+                req.user.status = 'error';
+                userModule.handleBrokenUser(coll, req, nextSpy).then(success, failure).done(done);
+            });
+
+            it('should update the user with an error status', function() {
+                var updates = {
+                    $set: {
+                        lastUpdated: jasmine.any(Date),
+                        status: 'error'
+                    },
+                    $unset: { activationToken: 1 }
+                };
+                expect(coll.findAndModify).toHaveBeenCalledWith({id: 'u-12345'}, {id: 1}, updates, {w: 1, journal: true, new:true}, jasmine.any(Function));
+            });
+
+            it('should reject the promise', function() {
+                expect(success).not.toHaveBeenCalled();
+                expect(failure).toHaveBeenCalledWith('The user is in a broken state.');
+            });
+        });
+
+        describe('when the user is not broken', function() {
+            beforeEach(function(done) {
+                req.user.status = 'new';
+                userModule.handleBrokenUser(coll, req, nextSpy).done(done);
+            });
+
+            it('should call next', function() {
+                expect(nextSpy).toHaveBeenCalled();
             });
         });
     });
