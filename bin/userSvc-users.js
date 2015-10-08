@@ -177,20 +177,21 @@
         return q.npost(coll, 'findOne', [{ id: String(id) }])
             .then(function(result) {
                 if(!result) {
+                    log.info('[%1] User %2 was not found', req.uuid, id);
                     return done({ code: 404, body: 'User not found' });
                 }
-                if(!result.activationToken) {
-                    log.trace('no activation token');
+                if(result.status !==enums.Status.New || !result.activationToken) {
+                    log.info('[%1] User %2 cannot be activated', req.uuid, id);
                     return done({ code: 403, body: 'Confirmation failed' });
                 }
                 if(new Date(result.activationToken.expires) < new Date()) {
-                    log.trace('expired');
+                    log.info('[%1] User %2 has an expired activation token', req.uuid, id);
                     return done({ code: 403, body: 'Activation token has expired' });
                 }
                 return q.npost(bcrypt, 'compare', [String(token), result.activationToken.token])
                     .then(function(matching) {
                         if(!matching) {
-                            log.trace('confirm failed');
+                            log.info('[%1] User %2 provided an incorrect token', req.uuid, id);
                             return done({ code: 403, body: 'Confirmation failed' });
                         }
                         req.user = result;
@@ -232,6 +233,7 @@
             }
             return next();
         }).catch(function(error) {
+            log.error('[%1] Error creating org, customer, or advertiser for user %2: %3', req.uuid, id, error);
             req.user.status = enums.Status.Error;
             return next();
         });
@@ -239,7 +241,8 @@
 
     userModule.handleBrokenUser = function(coll, req, next) {
         if(req.user.status === enums.Status.Error) {
-            var id = req.user.id,
+            var log = logger.getLog(),
+                id = req.user.id,
                 opts = { w: 1, journal: true, new: true },
                 updates = {
                     $set: {
@@ -250,6 +253,7 @@
                 };
             return q.npost(coll, 'findAndModify', [{id: id}, {id: 1}, updates, opts])
                 .then(function() {
+                    log.warn('[%1] User %2 is in a broken state', req.uuid, id);
                     return q.reject('The user is in a broken state.');
                 });
         }
@@ -668,7 +672,6 @@
     };
 
     userModule.confirmUser = function(svc, req, journal, maxAge) {
-        var log = logger.getLog();
         return svc.customMethod(req, 'confirmUser', function confirm() {
             var id = req.user.id,
                 opts = { w: 1, journal: true, new: true },

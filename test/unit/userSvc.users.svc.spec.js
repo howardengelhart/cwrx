@@ -468,10 +468,24 @@ describe('userSvc (UT)', function() {
             });
         });
 
+        describe('when the user does not have a status of new', function() {
+            beforeEach(function(done) {
+                coll.findOne.and.callFake(function(query, cb) {
+                    cb(null, { status: 'active', activationToken: {} });
+                });
+                userModule.checkValidToken(coll, req, nextSpy, doneSpy).done(done);
+            });
+
+            it('should call done with a 403', function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({code: 403, body: 'Confirmation failed'});
+            });
+        });
+
         describe('when the user does not have an activation token', function() {
             beforeEach(function(done) {
                 coll.findOne.and.callFake(function(query, cb) {
-                    cb(null, { });
+                    cb(null, { status: 'new' });
                 });
                 userModule.checkValidToken(coll, req, nextSpy, doneSpy).done(done);
             });
@@ -486,6 +500,7 @@ describe('userSvc (UT)', function() {
             beforeEach(function(done) {
                 coll.findOne.and.callFake(function(query, cb) {
                     cb(null, {
+                        status: 'new',
                         activationToken: {
                             expires: String(new Date(0))
                         }
@@ -504,6 +519,7 @@ describe('userSvc (UT)', function() {
             beforeEach(function(done) {
                 coll.findOne.and.callFake(function(query, cb) {
                     cb(null, {
+                        status: 'new',
                         activationToken: {
                             expires: new Date(99999, 11, 25),
                             token: 'salty token'
@@ -532,6 +548,7 @@ describe('userSvc (UT)', function() {
 
             beforeEach(function(done) {
                 userDocument = {
+                    status: 'new',
                     activationToken: {
                         expires: new Date(99999, 11, 25),
                         token: 'salty token'
@@ -677,6 +694,10 @@ describe('userSvc (UT)', function() {
                 expect(req.user.customer).not.toBeDefined();
             });
 
+            it('should log an error', function() {
+                expect(mockLog.error).toHaveBeenCalled();
+            });
+
             it('should set the status of the user on the request to error', function() {
                 expect(req.user.status).toBe('error');
             });
@@ -724,9 +745,10 @@ describe('userSvc (UT)', function() {
                 expect(coll.findAndModify).toHaveBeenCalledWith({id: 'u-12345'}, {id: 1}, updates, {w: 1, journal: true, new:true}, jasmine.any(Function));
             });
 
-            it('should reject the promise', function() {
+            it('should reject the promise and log a warning', function() {
                 expect(success).not.toHaveBeenCalled();
                 expect(failure).toHaveBeenCalledWith('The user is in a broken state.');
+                expect(mockLog.warn).toHaveBeenCalled();
             });
         });
 
