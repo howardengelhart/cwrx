@@ -16,6 +16,9 @@ var request         = require('request'),
     testUtils = {
         _dbCache    : {},
         keyMap      : { // mapping of keywords used here to known ids
+            'cat-1'     : '3290253',
+            'cat-2'     : '3290252',
+            'cat-3'     : '3290257',
             sports      : '1002744',
             sport       : '1001864',
             food        : '1003562',

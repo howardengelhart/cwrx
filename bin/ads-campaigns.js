@@ -550,8 +550,8 @@
     // Middleware to edit sponsored campaigns. Can edit keywords, name, startDate, & endDate
     campModule.editSponsoredCamps = function(req, next/*, done*/) {
         var log = logger.getLog(),
-            cats = req.body.categories,
-            origCats = req.origObj.categories || [],
+            interests = req.body.targeting && req.body.targeting.interests,
+            origInterests = (req.origObj.targeting && req.origObj.targeting.interests) || [],
             id = req.params.id;
         
         return q.all(['miniReels', 'cards'].map(function(prop) {
@@ -559,20 +559,24 @@
             if (!req.origObj[prop]) {
                 return q();
             }
-
-            if (!cats || objUtils.compareObjects(cats.slice().sort(), origCats.slice().sort())) {
+            
+            if (!interests || objUtils.compareObjects(interests.slice().sort(),
+                                                      origInterests.slice().sort())) {
                 promise = q();
             } else {
-                var keywords = { level1: (prop === 'cards' ? [id] : undefined), level3: cats };
+                var keywords = { level1: (prop === 'cards' ? [id] : undefined), level3: interests };
                 promise = campaignUtils.makeKeywordLevels(keywords);
             }
             
             return promise.then(function(keys) {
                 
                 return q.all(req.origObj[prop].map(function(oldCamp) {
-                    var matching = campModule.findMatchingObj(oldCamp, req.body, prop);
+                    var matching = !!req.body[prop] ?
+                                   campModule.findMatchingObj(oldCamp, req.body, prop) :
+                                   oldCamp;
                     
-                    if (!matching) { // don't edit old camps that no longer exist in new version
+                    // don't edit old camps that no longer exist in new version
+                    if (!matching) {
                         return q();
                     }
                     
@@ -610,11 +614,13 @@
     campModule.createSponsoredCamps = function(req, next/*, done*/) {
         var log = logger.getLog(),
             id = req.body.id || (req.origObj && req.origObj.id),
-            cats = req.body.categories || (req.origObj && req.origObj.categories) || [];
+            interests = (req.body.targeting && req.body.targeting.interests) ||
+                        (req.origObj && req.origObj.targeting && req.origObj.targeting.interests) ||
+                        [];
             
         return q.all(['miniReels', 'cards'].map(function(prop) {
             var type = prop.replace(/s$/, ''),
-                keyLevels = { level1: (type === 'card' ? [id] : undefined), level3: cats };
+                keyLevels = { level1: (type === 'card' ? [id] : undefined), level3: interests };
                 
             if (!(req.body[prop] instanceof Array) || req.body[prop].length === 0) {
                 log.trace('[%1] No %2 to make campaigns for', req.uuid, prop);

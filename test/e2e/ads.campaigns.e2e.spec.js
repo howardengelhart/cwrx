@@ -592,7 +592,9 @@ describe('ads campaigns endpoints (E2E):', function() {
         beforeEach(function() {
             mockCamp = {
                 name: name,
-                categories: ['food', 'sports'],
+                targeting: {
+                    interests: ['cat-1', 'cat-2']
+                },
                 advertiserId: keptAdvert.id,
                 customerId: keptCust.id,
                 miniReels: [
@@ -627,7 +629,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                     { status: 'active', userId: 'admin-e2e-user', user: 'adminuser', date: jasmine.any(String) }
                 ]);
                 expect(resp.body.name).toBe(mockCamp.name);
-                expect(resp.body.categories).toEqual(['food', 'sports']);
+                expect(resp.body.targeting).toEqual({ interests: ['cat-1', 'cat-2'] });
                 expect(resp.body.miniReels).toEqual([
                     {
                         id: 'e2e-e-1', name: 'exp 1',
@@ -672,8 +674,8 @@ describe('ads campaigns endpoints (E2E):', function() {
             it('should have a sponsored campaign for each entry in cards', function(done) {
                 q.all(adminCreatedCamp.cards.map(function(card) {
                     return adtech.campaignAdmin.getCampaignByExtId(card.id).catch(adtechErr).then(function(camp) {
-                        // these keyword ids for the category names should never change, so we can hardcode
-                        checkCardCampaign(camp, adminCreatedCamp, card, [keywords.food, keywords.sports]);
+                        // these keyword ids for the category ids should never change, so we can hardcode
+                        checkCardCampaign(camp, adminCreatedCamp, card, [keywords['cat-1'], keywords['cat-2']]);
                         return testUtils.getCampaignBanners(camp.id);
                     }).then(function(banners) {
                         testUtils.compareBanners(banners, [card.id], 'card');
@@ -686,7 +688,7 @@ describe('ads campaigns endpoints (E2E):', function() {
             it('should have a sponsored campaign for each entry in miniReels', function(done) {
                 q.all(adminCreatedCamp.miniReels.map(function(exp) {
                     return adtech.campaignAdmin.getCampaignByExtId(exp.id).catch(adtechErr).then(function(camp) {
-                        checkMinireelCampaign(camp, adminCreatedCamp, exp, [keywords.sports, keywords.food]);
+                        checkMinireelCampaign(camp, adminCreatedCamp, exp, [keywords['cat-2'], keywords['cat-1']]);
                         return testUtils.getCampaignBanners(camp.id);
                     }).then(function(banners) {
                         testUtils.compareBanners(banners, [exp.id], 'miniReel');
@@ -710,13 +712,15 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
         
         it('should be able to create a campaign without sponsored or target sub-campaigns', function(done) {
-            options.json = { name: 'empty camp', categories: ['food', 'sports'],
+            options.json = { name: 'empty camp', targeting: { interests: ['cat-1', 'cat-2'] },
                              advertiserId: keptAdvert.id, customerId: keptCust.id };
             requestUtils.qRequest('post', options, null, { maxAttempts: 30 }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body._id).not.toBeDefined();
                 expect(resp.body.id).toBeDefined();
-                expect(resp.body.categories).toEqual(['food', 'sports']);
+                expect(resp.body.targeting).toEqual({
+                    interests: ['cat-1', 'cat-2']
+                });
                 expect(resp.body.miniReels).not.toBeDefined();
                 expect(resp.body.cards).not.toBeDefined();
                 expect(resp.body.miniReelGroups).not.toBeDefined();
@@ -901,6 +905,9 @@ describe('ads campaigns endpoints (E2E):', function() {
                 mockCamp = {
                     name: 'Always On Dollars',
                     cards: [{ id: 'e2e-rc-selfie1' }],
+                    targeting: {
+                        interests: ['cat-1', 'cat-2']
+                    }
                 };
                 options = {
                     url: config.adsUrl + '/campaign',
@@ -930,7 +937,10 @@ describe('ads campaigns endpoints (E2E):', function() {
                             id: 'e2e-rc-selfie1', name: 'card_e2e-rc-selfie1', reportingId: 'Always On Dollars',
                             startDate: jasmine.any(String), endDate: jasmine.any(String),
                             adtechId: jasmine.any(Number), bannerId: jasmine.any(Number), bannerNumber: jasmine.any(Number)
-                        }]
+                        }],
+                        targeting: {
+                            interests: ['cat-1', 'cat-2']
+                        }
                     });
                     expect(new Date(resp.body.created).toString()).not.toEqual('Invalid Date');
                     expect(resp.body.lastUpdated).toEqual(resp.body.created);
@@ -944,7 +954,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 it('should have a sponsored campaign for each entry in cards', function(done) {
                     q.all(selfieCreatedCamp.cards.map(function(card) {
                         return adtech.campaignAdmin.getCampaignByExtId(card.id).catch(adtechErr).then(function(camp) {
-                            checkCardCampaign(camp, selfieCreatedCamp, card, []);
+                            checkCardCampaign(camp, selfieCreatedCamp, card, [keywords['cat-1'], keywords['cat-2']]);
                             return testUtils.getCampaignBanners(camp.id);
                         }).then(function(banners) {
                             testUtils.compareBanners(banners, [card.id], 'card');
@@ -1008,7 +1018,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 }).done(done);
             });
             
-            it('should be able to create a campaign with targeting', function(done) {
+            it('should be able to create a campaign with other targeting options', function(done) {
                 options.json = {
                     name: 'withTargeting',
                     targeting: {
@@ -1021,7 +1031,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                             age: ['0-18', '18-24'],
                             income: ['1000-2000']
                         },
-                        interests: ['vidja games', 'muzak']
+                        interests: ['cat-1', 'cat-2']
                     }
                 };
                 requestUtils.qRequest('post', options, null, { maxAttempts: 30 }).then(function(resp) {
@@ -1038,7 +1048,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                             age: ['0-18', '18-24'],
                             income: ['1000-2000']
                         },
-                        interests: ['vidja games', 'muzak']
+                        interests: ['cat-1', 'cat-2']
                     });
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
@@ -1309,7 +1319,7 @@ describe('ads campaigns endpoints (E2E):', function() {
 
                 // check that e2e-rc-3 campaign created properly
                 expect(results[2].state).toBe('fulfilled');
-                checkCardCampaign(results[2].value, adminCreatedCamp, adminCreatedCamp.cards[1], [keywords.sports, keywords.food]);
+                checkCardCampaign(results[2].value, adminCreatedCamp, adminCreatedCamp.cards[1], [keywords['cat-2'], keywords['cat-1']]);
 
                 return testUtils.getCampaignBanners(results[2].value.id);
             }).then(function(banners) {
@@ -1363,7 +1373,7 @@ describe('ads campaigns endpoints (E2E):', function() {
 
                 // check that e-3 campaign created properly
                 expect(results[2].state).toBe('fulfilled');
-                checkMinireelCampaign(results[2].value, adminCreatedCamp, adminCreatedCamp.miniReels[1], [keywords.sports, keywords.food]);
+                checkMinireelCampaign(results[2].value, adminCreatedCamp, adminCreatedCamp.miniReels[1], [keywords['cat-2'], keywords['cat-1']]);
 
                 return testUtils.getCampaignBanners(results[2].value.id);
             }).then(function(banners) {
@@ -1377,27 +1387,33 @@ describe('ads campaigns endpoints (E2E):', function() {
             }).done(done);
         });
         
-        it('should edit sponsored campaigns\' keywords if the categories change', function(done) {
+        it('should edit sponsored campaigns\' keywords if the interests change', function(done) {
             options = {
                 url: config.adsUrl + '/campaign/' + adminCreatedCamp.id,
-                json: { cards: adminCreatedCamp.cards, miniReels: adminCreatedCamp.miniReels, categories: ['food', 'bacon'] },
+                json: {
+                    cards: adminCreatedCamp.cards,
+                    miniReels: adminCreatedCamp.miniReels,
+                    targeting: { interests: ['cat-1', 'cat-3'] }
+                },
                 jar: adminJar
             };
             
             requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.categories).toEqual(['food', 'bacon']);
+                expect(resp.body.targeting).toEqual({
+                    interests: ['cat-1', 'cat-3']
+                });
                 adminCreatedCamp = resp.body;
                 
                 return q.all(
                     adminCreatedCamp.cards.map(function(card) {
                         return adtech.campaignAdmin.getCampaignByExtId(card.id).then(function(camp) {
-                            checkCardCampaign(camp, adminCreatedCamp, card, [keywords.bacon, keywords.food]);
+                            checkCardCampaign(camp, adminCreatedCamp, card, [keywords['cat-3'], keywords['cat-1']]);
                             return q();
                         });
                     }).concat(adminCreatedCamp.miniReels.map(function(exp) {
                         return adtech.campaignAdmin.getCampaignByExtId(exp.id).then(function(camp) {
-                            checkMinireelCampaign(camp, adminCreatedCamp, exp, [keywords.bacon, keywords.food]);
+                            checkMinireelCampaign(camp, adminCreatedCamp, exp, [keywords['cat-3'], keywords['cat-1']]);
                             return q();
                         });
                     }))
@@ -1525,7 +1541,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 
                 return adtech.campaignAdmin.getCampaignByExtId('e2e-rc-1');
             }).then(function(camp) {
-                checkCardCampaign(camp, adminCreatedCamp, adminCreatedCamp.cards[0], [keywords.bacon, keywords.food]);
+                checkCardCampaign(camp, adminCreatedCamp, adminCreatedCamp.cards[0], [keywords['cat-3'], keywords['cat-1']]);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -1555,7 +1571,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 
                 return adtech.campaignAdmin.getCampaignByExtId('e2e-e-3');
             }).then(function(camp) {
-                checkMinireelCampaign(camp, adminCreatedCamp, adminCreatedCamp.miniReels[1], [keywords.bacon, keywords.food]);
+                checkMinireelCampaign(camp, adminCreatedCamp, adminCreatedCamp.miniReels[1], [keywords['cat-3'], keywords['cat-1']]);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -1675,9 +1691,6 @@ describe('ads campaigns endpoints (E2E):', function() {
                         dailyLimit: 200,
                         model: 'cpcctv',
                         cost: 0.0000001
-                    },
-                    targeting: {
-                        interests: ['rap music', 'dolla billz']
                     }
                 };
                 requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
@@ -1699,9 +1712,6 @@ describe('ads campaigns endpoints (E2E):', function() {
                         date: jasmine.any(String),
                         pricing: resp.body.pricing
                     }]);
-                    expect(resp.body.targeting).toEqual({
-                        interests: ['rap music', 'dolla billz']
-                    });
                     selfieCreatedCamp = resp.body;
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
@@ -1710,19 +1720,28 @@ describe('ads campaigns endpoints (E2E):', function() {
             
             it('should be able to edit targeting options', function(done) {
                 options.json.targeting = {
-                    interests: ['investments'],
-                    demographics: { age: ['0-18'] }
+                    demographics: { age: ['0-18'] },
+                    interests: ['cat-3']
                 };
                 requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.targeting).toEqual({
-                        interests: ['investments'],
+                        interests: ['cat-3'],
                         demographics: { age: ['0-18'] }
                     });
                     selfieCreatedCamp = resp.body;
+
+                    return q.all(
+                        selfieCreatedCamp.cards.map(function(card) {
+                            return adtech.campaignAdmin.getCampaignByExtId(card.id).then(function(camp) {
+                                checkCardCampaign(camp, selfieCreatedCamp, card, [keywords['cat-3']]);
+                                return q();
+                            });
+                        })
+                    );
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
+                }).done(function(results) { done(); });
             });
             
             it('should be able to edit pricing', function(done) {
