@@ -18,9 +18,11 @@ describe('userSvc (UT)', function() {
         CrudSvc         = require('../../lib/crudSvc.js');
         Model           = require('../../lib/model.js');
         mongoUtils      = require('../../lib/mongoUtils');
+        authUtils       = require('../../lib/authUtils.js');
         objUtils        = require('../../lib/objUtils');
         email           = require('../../lib/email');
         uuid            = require('../../lib/uuid');
+        requestUtils    = require('../../lib/requestUtils.js');
 
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -55,6 +57,9 @@ describe('userSvc (UT)', function() {
                 roles: ['newUserRole1'],
                 policies: ['newUserPol1'],
                 tempPolicy: 'tempPolicy'
+            },
+            api: {
+                root: 'http://localhost'
             }
         };
     });
@@ -99,7 +104,9 @@ describe('userSvc (UT)', function() {
             boundFns = [];
             [CrudSvc.prototype.preventGetAll, CrudSvc.prototype.validateUniqueProp, userModule.checkExistingWithNewEmail,
              userModule.hashProp, userModule.validateRoles, userModule.validatePolicies, userModule.setupSignupUser,
-             userModule.filterProps, userModule.giveActivationToken, userModule.sendActivationEmail].forEach(function(fn) {
+             userModule.filterProps, userModule.giveActivationToken, userModule.sendActivationEmail,
+             userModule.checkPropsExist, userModule.checkValidToken, userModule.giveCompanyProps,
+             userModule.sendConfirmationEmail].forEach(function(fn) {
                 spyOn(fn, 'bind').and.callFake(function() {
                     var boundFn = bind.apply(fn, arguments);
 
@@ -113,7 +120,7 @@ describe('userSvc (UT)', function() {
                 });
             });
 
-            result = userModule.setupSvc(mockDb, mockConfig);
+            result = userModule.setupSvc(mockDb, mockConfig, 'cookie');
         });
 
         it('should return a CrudSvc', function() {
@@ -224,6 +231,26 @@ describe('userSvc (UT)', function() {
         it('should send an activation email when signing up a user', function() {
             expect(userModule.sendActivationEmail.bind).toHaveBeenCalledWith(userModule, 'support@cinema6.com', 'https://www.selfie.cinema6.com/activate');
             expect(result._middleware.signupUser).toContain(getBoundFn(userModule.sendActivationEmail, [userModule, 'support@cinema6.com', 'https://www.selfie.cinema6.com/activate']));
+        });
+
+        it('should check existance of token on user confirm', function() {
+            expect(userModule.checkPropsExist.bind).toHaveBeenCalledWith(userModule, ['token']);
+            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.checkPropsExist, [userModule, ['token']]));
+        });
+
+        it('should check validity of token on user confirm', function() {
+            expect(userModule.checkValidToken.bind).toHaveBeenCalledWith(userModule, result._coll);
+            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.checkValidToken, [userModule, result._coll]));
+        });
+
+        it('should give company props on user confirm', function() {
+            expect(userModule.giveCompanyProps.bind).toHaveBeenCalledWith(userModule, mockConfig.api, 'cookie');
+            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.giveCompanyProps, [userModule, mockConfig.api, 'cookie']));
+        });
+
+        it('should send confirmation email on user confirm', function() {
+            expect(userModule.sendConfirmationEmail.bind).toHaveBeenCalledWith(userModule, 'support@cinema6.com');
+            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.sendConfirmationEmail, [userModule, 'support@cinema6.com']));
         });
     });
 
@@ -357,6 +384,320 @@ describe('userSvc (UT)', function() {
                         .toEqual({ isValid: false, reason: field + '[1] is UNACCEPTABLE! acceptable values are: [thing1,thing2,thing3]' });
                 });
             });
+        });
+    });
+
+    describe('checkPropsExist', function() {
+        var props, req, nextSpy, doneSpy;
+
+        beforeEach(function() {
+            props = [];
+            req = {
+                body: { }
+            };
+            nextSpy = jasmine.createSpy('next()').and.returnValue(q());
+            doneSpy = jasmine.createSpy('done()').and.returnValue(q());
+        });
+
+        describe('when all properties exist', function() {
+            beforeEach(function(done) {
+                props = ['a', 'b', 'c'];
+                req.body = {
+                    a: 'a',
+                    b: 'b',
+                    c: 'c'
+                };
+                userModule.checkPropsExist(props, req, nextSpy, doneSpy).done(done);
+            });
+
+            it('should call next', function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+            });
+        });
+
+        describe('when at least one property does not exist', function() {
+            beforeEach(function(done) {
+                props = ['a', 'b', 'c'];
+                req.body = {
+                    a: 'a'
+                };
+                userModule.checkPropsExist(props, req, nextSpy, doneSpy).done(done);
+            });
+
+            it('should call done with a 400', function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({code: 400, body: 'Must provide a b'});
+            });
+        });
+    });
+
+    describe('checkValidToken', function() {
+        var coll, req, nextSpy, doneSpy;
+
+        beforeEach(function() {
+            coll = {
+                findOne: jasmine.createSpy('findOne()')
+            };
+            req = {
+                params: { },
+                body: { }
+            };
+            nextSpy = jasmine.createSpy('next()').and.returnValue(q());
+            doneSpy = jasmine.createSpy('done()').and.returnValue(q());
+            spyOn(bcrypt, 'compare');
+        });
+
+        describe('when the user does not exist', function() {
+            beforeEach(function(done) {
+                coll.findOne.and.callFake(function(query, cb) {
+                    cb(null, null);
+                });
+                req.params.id = 'non-existent-user-id';
+                userModule.checkValidToken(coll, req, nextSpy, doneSpy).done(done);
+            });
+
+            it('should call done with a 404', function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({code: 404, body: 'User not found'});
+            });
+        });
+
+        describe('when the user does not have an activation token', function() {
+            beforeEach(function(done) {
+                coll.findOne.and.callFake(function(query, cb) {
+                    cb(null, { });
+                });
+                userModule.checkValidToken(coll, req, nextSpy, doneSpy).done(done);
+            });
+
+            it('should call done with a 403', function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({code: 403, body: 'Confirmation failed'});
+            });
+        });
+
+        describe('when the activation token on the user has expired', function() {
+            beforeEach(function(done) {
+                coll.findOne.and.callFake(function(query, cb) {
+                    cb(null, {
+                        activationToken: {
+                            expires: String(new Date(0))
+                        }
+                    });
+                });
+                userModule.checkValidToken(coll, req, nextSpy, doneSpy).done(done);
+            });
+
+            it('should call done with a 403', function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({code: 403, body: 'Activation token has expired'});
+            });
+        });
+
+        describe('when the provided token does not match the stored activation token', function() {
+            beforeEach(function(done) {
+                coll.findOne.and.callFake(function(query, cb) {
+                    cb(null, {
+                        activationToken: {
+                            expires: new Date(99999, 11, 25),
+                            token: 'salty token'
+                        }
+                    });
+                });
+                req.body.token = 'invalid token';
+                bcrypt.compare.and.callFake(function(val1, val2, cb) {
+                    return cb(null, false);
+                });
+                userModule.checkValidToken(coll, req, nextSpy, doneSpy).done(done);
+            });
+
+            it('should compare the tokens', function() {
+                expect(bcrypt.compare).toHaveBeenCalledWith('invalid token', 'salty token', jasmine.any(Function));
+            });
+
+            it('should call done with a 403', function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({code: 403, body: 'Confirmation failed'});
+            });
+        });
+
+        describe('when the provided token is valid and matches the stored activation token', function() {
+            var userDocument;
+
+            beforeEach(function(done) {
+                userDocument = {
+                    activationToken: {
+                        expires: new Date(99999, 11, 25),
+                        token: 'salty token'
+                    }
+                };
+
+                coll.findOne.and.callFake(function(query, cb) {
+                    cb(null, userDocument);
+                });
+                req.body.token = 'valid token';
+                bcrypt.compare.and.callFake(function(val1, val2, cb) {
+                    cb(null, true);
+                });
+                userModule.checkValidToken(coll, req, nextSpy, doneSpy).done(done);
+            });
+
+            it('should compare the tokens', function() {
+                expect(bcrypt.compare).toHaveBeenCalledWith('valid token', 'salty token', jasmine.any(Function));
+            });
+
+            it('should call next', function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+            });
+
+            it('should temporarily store the fetched user document on the request', function() {
+                expect(req.user).toEqual(userDocument);
+            });
+        });
+    });
+
+    describe('giveCompanyProps()', function() {
+        var api, sixxyCookie, req, nextSpy;
+
+        beforeEach(function() {
+            spyOn(requestUtils, 'qRequest');
+            api = {
+                root: 'http://localhost',
+                orgs: {
+                    endpoint: '/api/account/orgs'
+                },
+                customers: {
+                    endpoint: '/api/account/customers'
+                },
+                advertisers: {
+                    endpoint: '/api/account/advertisers'
+                }
+            };
+            sixxyCookie = 'cookie';
+            nextSpy = jasmine.createSpy('nextSpy()').and.returnValue(q());
+            req = {
+                user: {
+                    id: 'u-12345',
+                    company: 'some company'
+                }
+            };
+        });
+
+        describe('when requests succeed', function() {
+            beforeEach(function(done) {
+                requestUtils.qRequest.and.callFake(function(method, opts) {
+                    var object = opts.url.match(/orgs|customers|advertisers/)[0];
+                    return q({
+                        response: {
+                            statusCode: 201
+                        },
+                        body: {
+                            id: object + '-id-123'
+                        }
+                    });
+                });
+                userModule.giveCompanyProps(api, sixxyCookie, req, nextSpy).done(done);
+            });
+
+            it('should send a request to create an org', function() {
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
+                    url: 'http://localhost/api/account/orgs',
+                    json: {
+                        name: 'some company (u-12345)'
+                    },
+                    headers: {
+                        cookie: 'cookie'
+                    }
+                });
+            });
+
+            it('should send a request to create a customer', function() {
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
+                    url: 'http://localhost/api/account/customers',
+                    json: {
+                        name: 'some company (u-12345)'
+                    },
+                    headers: {
+                        cookie: 'cookie'
+                    }
+                });
+            });
+
+            it('should send a request to create an advertiser', function() {
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
+                    url: 'http://localhost/api/account/advertisers',
+                    json: {
+                        name: 'some company (u-12345)'
+                    },
+                    headers: {
+                        cookie: 'cookie'
+                    }
+                });
+            });
+
+            it('should set company properties on request', function() {
+                expect(req.user.org).toBe('orgs-id-123');
+                expect(req.user.customer).toBe('customers-id-123');
+                expect(req.user.advertiser).toBe('advertisers-id-123');
+            });
+
+            it('should call next', function() {
+                expect(nextSpy).toHaveBeenCalled();
+            });
+        });
+
+        describe('when at least one of the requests fail', function() {
+            beforeEach(function() {
+                requestUtils.qRequest.and.callFake(function(method, opts) {
+                    var object = opts.url.match(/orgs|customers|advertisers/)[0];
+                    var code = 201;
+                    if(object === 'customers') {
+                        code = 500;
+                    }
+                    return q({
+                        response: {
+                            statusCode: code
+                        },
+                        body: {
+                            id: object + '-id-123'
+                        }
+                    });
+                });
+            });
+
+            it('should reject the promise', function(done) {
+                userModule.giveCompanyProps(api, sixxyCookie, req, nextSpy).then(function() {
+                    expect(nextSpy).not.toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error).toBe('Error creating customer');
+                }).done(done);
+            });
+
+            it('should not set any company properties', function() {
+                expect(req.user.org).not.toBeDefined();
+                expect(req.user.customer).not.toBeDefined();
+                expect(req.user.advertiser).not.toBeDefined();
+            });
+        });
+    });
+
+    describe('sendConfirmationEmail', function() {
+        var nextSpy;
+
+        beforeEach(function(done) {
+            nextSpy = jasmine.createSpy('next()').and.returnValue(q());
+            spyOn(email, 'notifyAccountActivation').and.returnValue(q());
+            userModule.sendConfirmationEmail('sender', {user:{email:'some email'}}, nextSpy).done(done);
+        });
+
+        it('should notify account activation', function() {
+            expect(email.notifyAccountActivation).toHaveBeenCalledWith('sender', 'some email');
+        });
+
+        it('should call next', function() {
+            expect(nextSpy).toHaveBeenCalled();
         });
     });
 
@@ -1544,6 +1885,109 @@ describe('userSvc (UT)', function() {
                 }).catch(function(error) {
                     expect(error).not.toBeDefined();
                 }).finally(done);
+            });
+        });
+    });
+
+    describe('confirmUser', function() {
+        var customMethodDeferred;
+        var svc, req, journal, maxAge;
+        var result;
+
+        beforeEach(function() {
+            customMethodDeferred = q.defer();
+            svc = {
+                customMethod: jasmine.createSpy('svc.customMethod()').and.returnValue(customMethodDeferred.promise),
+                _coll: {
+                    findAndModify: jasmine.createSpy('findAndModify()').and.callFake(function(query1, query2, updates, opts, cb) {
+                        cb(null, [{id: 'u-12345'}])
+                    })
+                }
+            };
+            req = {
+                user: {
+                    id: 'u-12345',
+                    org: 'o-12345',
+                    customer: 'c-12345',
+                    advertiser: 'a-12345'
+                },
+                session: {
+                    regenerate: jasmine.createSpy('regenerate()').and.callFake(function(cb) {
+                        cb(null, q())
+                    }),
+                    cookie: { }
+                },
+                body: {
+                    foo: 'bar'
+                }
+            };
+            journal = {
+                writeAuditEntry: jasmine.createSpy('writeAuditEntry').and.returnValue(q())
+            };
+            maxAge = 'max age';
+            spyOn(authUtils, 'decorateUser').and.returnValue(q({id: 'u-12345'}));
+            spyOn(mongoUtils, 'safeUser').and.returnValue('safe user');
+            result = userModule.confirmUser(svc, req, journal, maxAge);
+        });
+
+        it('should call and return svc.customMethod()', function() {
+            expect(svc.customMethod).toHaveBeenCalledWith(req, 'confirmUser', jasmine.any(Function));
+            expect(result).toBe(customMethodDeferred.promise);
+        });
+
+        describe('the callback passed to svc.customMethod()', function() {
+            var callback;
+            var success, failure;
+
+            beforeEach(function(done) {
+                callback = svc.customMethod.calls.mostRecent().args[2];
+                success = jasmine.createSpy('success()');
+                failure = jasmine.createSpy('failure()');
+
+                callback().then(success, failure).finally(done);
+            });
+
+            it('should update the user in the db', function() {
+                var updates = {
+                    $set: {
+                        lastUpdated: jasmine.any(Date),
+                        status: 'active',
+                        org: 'o-12345',
+                        customer: 'c-12345',
+                        advertiser: 'a-12345'
+                    },
+                    $unset: {
+                        activationToken: 1
+                    }
+                };
+                expect(svc._coll.findAndModify).toHaveBeenCalledWith({id: 'u-12345'}, {id: 1}, updates, {w: 1, journal: true, new: true}, jasmine.any(Function));
+            });
+
+            it('should regenerate the session', function() {
+                expect(req.session.regenerate).toHaveBeenCalledWith(jasmine.any(Function));
+            });
+
+            it('should delete the user off of the request', function() {
+                expect(req.user).not.toBeDefined();
+            });
+
+            it('should decorate a safe user', function() {
+                expect(mongoUtils.safeUser).toHaveBeenCalledWith({id: 'u-12345'});
+                expect(authUtils.decorateUser).toHaveBeenCalledWith('safe user');
+            });
+
+            it('should write an audit entry', function() {
+                expect(journal.writeAuditEntry).toHaveBeenCalledWith(req, 'u-12345');
+            });
+
+            it('should set the session on the request', function() {
+                expect(req.session.user).toBe('u-12345');
+                expect(req.session.cookie.maxAge).toBe('max age');
+            });
+
+            it('should retun with a 200', function() {
+                expect(success).toHaveBeenCalledWith({code: 200, body: {id: 'u-12345'}});
+                expect(failure).not.toHaveBeenCalled();
             });
         });
     });

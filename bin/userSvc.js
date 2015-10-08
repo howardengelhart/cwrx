@@ -75,8 +75,22 @@
         activationTarget: 'https://www.selfie.cinema6.com/activate',
         newUserPermissions: {
             roles: [],
-            policies: [],
-            tempPolicy: 'newUserTempPolicy'
+            policies: []
+        },
+        api: {
+            root: 'https://staging.cinema6.com/',
+            orgs: {
+                endpoint: '/api/account/orgs'
+            },
+            customers: {
+                endpoint: '/api/account/customers'
+            },
+            advertisers: {
+                endpoint: '/api/account/advertisers'
+            },
+            auth: {
+                endpoint: '/api/auth'
+            }
         }
     };
 
@@ -90,7 +104,7 @@
         log.info('Running as cluster worker, proceed with setting up web server.');
 
         var app          = express(),
-            userSvc      = userModule.setupSvc(state.dbs.c6Db, state.config),
+            userSvc      = userModule.setupSvc(state.dbs.c6Db, state.config, state.secrets.sixxyCookie),
             roleSvc      = roleModule.setupSvc(state.dbs.c6Db),
             polSvc       = polModule.setupSvc(state.dbs.c6Db, state.config),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
@@ -185,7 +199,7 @@
             res.send(200, state.config.appVersion);
         });
 
-        userModule.setupEndpoints(app, userSvc, sessWrap, audit, state.sessionStore, state.config);
+        userModule.setupEndpoints(app, userSvc, sessWrap, audit, state.sessionStore, state.config, auditJournal);
         roleModule.setupEndpoints(app, roleSvc, sessWrap, audit);
         polModule.setupEndpoints(app, polSvc, sessWrap, audit);
 
@@ -219,6 +233,7 @@
         .then(service.cluster)
         .then(service.initMongo)
         .then(service.initSessionStore)
+        .then(service.loginServiceUser)
         .then(main)
         .catch(function(err) {
             var log = logger.getLog();
