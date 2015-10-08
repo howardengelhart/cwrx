@@ -36,7 +36,7 @@
         },
         campaigns: {
             statusDelay: 1000,      // How long to delay between polls for campaigns' statuses
-            statusAttempts: 30,     // How many times to try polling for campaigns' statuses
+            statusAttempts: 60,     // How many times to try polling for campaigns' statuses
             campaignTypeId: 26954,  // id for Open Campaign type; differs across networks
             dateDelays: {
                 start: 24*60*60*1000,   // new campaigns default to starting now + this (ms)
@@ -44,7 +44,7 @@
             }
         },
         api: {
-            root: 'http://localhost'   // for proxying requests //TODO cookbook
+            root: 'http://localhost'    // for proxying requests
         },
         minireelGroups: {
             advertiserId: null,     // C6 advertiser id; must be overriden in a config file

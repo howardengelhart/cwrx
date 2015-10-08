@@ -179,7 +179,8 @@
             svc = new CrudSvc(campColl, 'cam', { statusHistory: true }, campModule.campSchema);
         svc._db = db;
         
-        var getAccountIds = campaignUtils.getAccountIds.bind(campaignUtils, svc._db);
+        var getAccountIds = campaignUtils.getAccountIds.bind(campaignUtils, svc._db),
+            validatePricing = campModule.validatePricing.bind(campModule, svc);
         
         svc.use('read', campModule.formatTextQuery);
 
@@ -189,7 +190,7 @@
         svc.use('create', campModule.ensureUniqueIds);
         svc.use('create', campModule.ensureUniqueNames);
         svc.use('create', campModule.defaultReportingId);
-        svc.use('create', campModule.validatePricing);
+        svc.use('create', validatePricing);
         svc.use('create', campModule.createSponsoredCamps);
         svc.use('create', campModule.createTargetCamps);
         svc.use('create', campModule.handlePricingHistory);
@@ -201,7 +202,7 @@
         svc.use('edit', campModule.ensureUniqueIds);
         svc.use('edit', campModule.ensureUniqueNames);
         svc.use('edit', campModule.defaultReportingId);
-        svc.use('edit', campModule.validatePricing);
+        svc.use('edit', validatePricing);
         svc.use('edit', campModule.cleanSponsoredCamps);
         svc.use('edit', campModule.editSponsoredCamps);
         svc.use('edit', campModule.createSponsoredCamps);
@@ -292,7 +293,7 @@
             
             req.body[key].forEach(function(newObj) {
                 var existing = campModule.findMatchingObj(newObj, req.origObj, key);
-                    
+
                 objUtils.extend(newObj, existing);
             });
         });

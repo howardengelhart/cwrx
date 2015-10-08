@@ -174,7 +174,7 @@ describe('campaign validation', function() {
                 expect(resp.reason).toMatch(/pricing.budget must be less than the max: \d+/);
                 
                 newObj.pricing.budget = -1234;
-                var resp = svc.model.validate('edit', newObj, origObj, requester);
+                resp = svc.model.validate('edit', newObj, origObj, requester);
                 expect(resp.isValid).toBe(false);
                 expect(resp.reason).toMatch(/pricing.budget must be greater than the min: \d+/);
             });

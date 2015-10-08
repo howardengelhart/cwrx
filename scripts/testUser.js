@@ -167,6 +167,7 @@ mongoUtils.connect(program.dbHost, program.dbPort, 'c6Db', program.dbUser, progr
         
         setupUserSvcFieldVal(policy);
         setupOrgSvcFieldVal(policy);
+        setupCampaignSvcFieldVal(policy);
 
         return q.npost(db.collection('policies'), 'findAndModify', [{ id: 'p-testAdmin'}, {id: 1}, policy,
                                                                     { w: 1, journal: true, new: true, upsert: true }]);

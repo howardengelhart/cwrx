@@ -667,7 +667,6 @@
 
     
     // Create a single splash if needed using the imgSpec and req.body.thumbs
-    //  TODO: throttle # of concurrent splashes, maybe just throttle # of concurrent phantoms
     collateral.generateSplash = function(req, imgSpec, s3, config) {
         var log             = logger.getLog(),
             user            = req.user,

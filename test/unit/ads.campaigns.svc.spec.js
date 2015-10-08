@@ -66,7 +66,7 @@ describe('ads-campaigns (UT)', function() {
                 campaigns: { statusDelay: 100, statusAttempts: 5 }
             };
             
-            [campaignUtils.getAccountIds, campModule.formatOutput].forEach(function(fn) {
+            [campaignUtils.getAccountIds, campModule.formatOutput, campModule.validatePricing].forEach(function(fn) {
                 spyOn(fn, 'bind').and.returnValue(fn);
             });
             
@@ -134,6 +134,7 @@ describe('ads-campaigns (UT)', function() {
         });
         
         it('should do extra pricing validation on create + edit', function() {
+            expect(campModule.validatePricing.bind).toHaveBeenCalledWith(campModule, svc);
             expect(svc._middleware.create).toContain(campModule.validatePricing);
             expect(svc._middleware.edit).toContain(campModule.validatePricing);
         });

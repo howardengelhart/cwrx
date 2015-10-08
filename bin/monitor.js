@@ -206,7 +206,6 @@
         });
     };
 
-    //TODO: put in some logic to handle service restarting during ELB check). probs 4s delay
     app.handleGetStatus = function(state, req,res){
         var log = logger.getLog();
 
