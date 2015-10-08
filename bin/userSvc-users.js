@@ -3,6 +3,7 @@
 
     var inspect         = require('util').inspect,
         q               = require('q'),
+        url             = require('url'),
         bcrypt          = require('bcrypt'),
         crypto          = require('crypto'),
         express         = require('express'),
@@ -13,6 +14,7 @@
         CrudSvc         = require('../lib/crudSvc.js'),
         email           = require('../lib/email'),
         enums           = require('../lib/enums'),
+        requestUtils    = require('../lib/requestUtils.js'),
         Status          = enums.Status,
         Scope           = enums.Scope,
 
@@ -80,7 +82,7 @@
         }, object);
     }
 
-    userModule.setupSvc = function setupSvc(db, config) {
+    userModule.setupSvc = function setupSvc(db, config, sixxyCookie) {
         var opts = { userProp: false },
             userSvc = new CrudSvc(db.collection('users'), 'u', opts, userModule.userSchema);
 
@@ -107,6 +109,10 @@
         var setupSignupUser = userModule.setupSignupUser.bind(userModule, userSvc,
             config.newUserPermissions.roles, config.newUserPermissions.policies);
         var validatePassword = userModule.validatePassword;
+        var checkTokenExists = userModule.checkPropsExist.bind(userModule, ['token']);
+        var checkValidToken = userModule.checkValidToken.bind(userModule, userSvc._coll);
+        var giveCompanyProps = userModule.giveCompanyProps.bind(userModule, config.api, sixxyCookie);
+        var sendConfirmationEmail = userModule.sendConfirmationEmail.bind(userModule, config.ses.sender);
 
         // override some default CrudSvc methods with custom versions for users
         userSvc.transformMongoDoc = mongoUtils.safeUser;
@@ -143,7 +149,87 @@
         userSvc.use('signupUser', giveActivationToken);
         userSvc.use('signupUser', sendActivationEmail);
 
+        userSvc.use('confirmUser', checkTokenExists);
+        userSvc.use('confirmUser', checkValidToken);
+        userSvc.use('confirmUser', giveCompanyProps);
+        userSvc.use('confirmUser', sendConfirmationEmail);
+
         return userSvc;
+    };
+
+    userModule.checkPropsExist = function(props, req, next, done) {
+        var log = logger.getLog();
+        for(var i=0;i<props.length;i++) {
+            if(!req.body[props[i]]) {
+                log.info('[%1] User did not provide a %2', req.uuid, props[i]);
+                return done({ code: 400, body: 'Must provide a ' + props[i] });
+            }
+        }
+        return next();
+    };
+
+    userModule.checkValidToken = function(coll, req, next, done) {
+        var log = logger.getLog(),
+            id = req.params.id,
+            token = req.body.token;
+        return q.npost(coll, 'findOne', [{ id: String(id) }])
+            .then(function(result) {
+                if(!result) {
+                    return done({ code: 404, body: 'User not found' });
+                }
+                if(!result.activationToken) {
+                    log.trace('no activation token');
+                    return done({ code: 403, body: 'Confirmation failed' });
+                }
+                if(new Date(result.activationToken.expires) < new Date()) {
+                    log.trace('expired');
+                    return done({ code: 403, body: 'Activation token has expired' });
+                }
+                return q.npost(bcrypt, 'compare', [String(token), result.activationToken.token])
+                    .then(function(matching) {
+                        if(!matching) {
+                            log.trace('confirm failed');
+                            return done({ code: 403, body: 'Confirmation failed' });
+                        }
+                        req.user = result;
+                        return next();
+                    });
+            });
+    };
+
+    userModule.giveCompanyProps = function(api, sixxyCookie, req, next) {
+        var log = logger.getLog(),
+            company = req.user.company || null,
+            id = req.user.id;
+
+        var opts = ['orgs', 'customers', 'advertisers'].map(function(object, index) {
+            var defaultName = ['newOrg', 'newCustomer', 'newAdvertiser'][index];
+            var name = (company ? company : defaultName) + ' (' + id + ')';
+            return {
+                url: url.resolve(api.root, api[object].endpoint),
+                json: {
+                    name: name
+                },
+                headers: {
+                    cookie: sixxyCookie
+                }
+            };
+        });
+
+        return q.all(
+            opts.map(function(options) {
+                return requestUtils.qRequest('post', options);
+            })
+        ).then(function(resps) {
+            var props = ['org', 'customer', 'advertiser'];
+            for (var i=0;i<props.length;i++) {
+                if(resps[i].response.statusCode !== 201) {
+                    return q.reject('Error creating ' + props[i]);
+                }
+                req.user[props[i]] = resps[i].body.id;
+            }
+            return next();
+        });
     };
 
     userModule.setupSignupUser = function setupSignupUser(svc, roles, policies, req, next, done) {
@@ -302,6 +388,13 @@
                     return q.reject(error);
                 }
             });
+    };
+
+    userModule.sendConfirmationEmail = function(sender, req, next, done) {
+        var recipient = req.user.email;
+        return email.notifyAccountActivation(sender, recipient).then(function() {
+            return next();
+        });
     };
 
     // Check that all of the user's roles exist
@@ -550,7 +643,41 @@
         }
     };
 
-    userModule.setupEndpoints = function(app, svc, sessions, audit, sessionStore, config) {
+    userModule.confirmUser = function(svc, req, journal, maxAge) {
+        var log = logger.getLog();
+        return svc.customMethod(req, 'confirmUser', function confirm() {
+            var id = req.user.id,
+                opts = { w: 1, journal: true, new: true },
+                updates = {
+                    $set: {
+                        lastUpdated: new Date(),
+                        status: enums.Status.Active,
+                        org: req.user.org,
+                        customer: req.user.customer,
+                        advertiser: req.user.advertiser
+                    },
+                    $unset: { activationToken: 1 }
+                };
+            return q.npost(svc._coll, 'findAndModify', [{id: id}, {id: 1}, updates, opts])
+                .then(function(results) {
+                    var userAccount = results[0];
+                    delete req.user;
+                    return q.all([
+                        q.npost(req.session, 'regenerate'),
+                        authUtils.decorateUser(mongoUtils.safeUser(userAccount))
+                    ]);
+                })
+                .then(function(results) {
+                    var decorated = results[1];
+                    journal.writeAuditEntry(req, decorated.id);
+                    req.session.user = decorated.id;
+                    req.session.cookie.maxAge = maxAge;
+                    return { code: 200, body: decorated };
+                });
+        });
+    };
+
+    userModule.setupEndpoints = function(app, svc, sessions, audit, sessionStore, config, journal) {
         var router      = express.Router(),
             mountPath   = '/api/account/users?'; // prefix to all endpoints declared here
 
@@ -584,6 +711,17 @@
             }).catch(function(error) {
                 res.send(500, {
                     error: 'Error signing up user',
+                    detail: error
+                });
+            });
+        });
+
+        router.post('/confirm/:id', sessions, function(req, res) {
+            userModule.confirmUser(svc, req, journal, config.sessions.maxAge).then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error confirming user signup',
                     detail: error
                 });
             });

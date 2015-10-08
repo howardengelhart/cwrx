@@ -9,8 +9,8 @@ var q               = require('q'),
     };
 
 describe('userSvc roles endpoints (E2E):', function() {
-    var cookieJar, mockRequester, roleAdminPol;
-        
+    var cookieJar, mockRequester, roleAdminPol, sixxyUser;
+
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
 
@@ -43,17 +43,24 @@ describe('userSvc roles endpoints (E2E):', function() {
                 password: 'password'
             }
         };
-        q.all([
-            testUtils.resetCollection('users', mockRequester),
-            testUtils.resetCollection('policies', roleAdminPol),
-            testUtils.resetCollection('roles')
-        ]).then(function(resp) {
+        testUtils.mongoFind('users', {email: 'sixxy'}).then(function(results) {
+            if(results.length === 0) {
+                throw Error('Make sure the sixxy user exists in the users collection.');
+            }
+            sixxyUser = results[0];
+            return q.all([
+                testUtils.resetCollection('users', mockRequester),
+                testUtils.resetCollection('policies', roleAdminPol),
+                testUtils.resetCollection('roles')
+            ]);
+        })
+        .then(function(resp) {
             return requestUtils.qRequest('post', loginOpts);
         }).done(function(resp) {
             done();
         });
     });
-    
+
     describe('GET /api/account/roles/:id', function() {
         beforeEach(function(done) {
             var mockRoles = [
@@ -62,7 +69,7 @@ describe('userSvc roles endpoints (E2E):', function() {
             ];
             testUtils.resetCollection('roles', mockRoles).done(done);
         });
-        
+
         it('should get a role by id', function(done) {
             var options = {url: config.rolesUrl + '/r-e2e-get1', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -73,7 +80,7 @@ describe('userSvc roles endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should write an entry to the audit collection', function(done) {
             var options = {url: config.rolesUrl + '/r-e2e-get1', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -132,7 +139,7 @@ describe('userSvc roles endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 401 if the user is not authenticated', function(done) {
             var options = { url: config.rolesUrl + '/r-e2e-get1' };
             requestUtils.qRequest('get', options).then(function(resp) {
@@ -315,7 +322,7 @@ describe('userSvc roles endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should write an entry to the audit collection', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
@@ -334,7 +341,7 @@ describe('userSvc roles endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 409 if a role exists with the same name', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
@@ -347,7 +354,7 @@ describe('userSvc roles endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 400 for an invalid name', function(done) {
             mockRole.name = 'a test role';
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -357,7 +364,7 @@ describe('userSvc roles endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 400 if no name is provided', function(done) {
             delete mockRole.name;
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -367,7 +374,7 @@ describe('userSvc roles endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 400 if some of the policies do not exist', function(done) {
             mockRole.policies.push('someOtherPol');
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -377,7 +384,7 @@ describe('userSvc roles endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should trim off forbidden fields', function(done) {
             options.json = {
                 id: 'myId',
@@ -452,7 +459,7 @@ describe('userSvc roles endpoints (E2E):', function() {
                 done();
             });
         });
-        
+
         it('should successfully update a role', function(done) {
             requestUtils.qRequest('put', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
@@ -491,7 +498,7 @@ describe('userSvc roles endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should trim off any forbidden fields', function(done) {
             options.json = mockRoles[0];
             options.json.name = 'someNewName';
@@ -512,7 +519,7 @@ describe('userSvc roles endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 400 if some of the policies do not exist', function(done) {
             options.json.policies.push('someOtherPol');
             requestUtils.qRequest('put', options).then(function(resp) {
@@ -522,7 +529,7 @@ describe('userSvc roles endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should not edit a role that has been deleted', function(done) {
             options.url = config.rolesUrl + '/r-e2e-deleted';
             requestUtils.qRequest('put', options).then(function(resp) {
@@ -532,7 +539,7 @@ describe('userSvc roles endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should not create a role if it does not exist', function(done) {
             options.url = config.rolesUrl + '/e2e-putfake';
             requestUtils.qRequest('put', options).then(function(resp) {
@@ -578,7 +585,7 @@ describe('userSvc roles endpoints (E2E):', function() {
                 done();
             });
         });
-        
+
 
         it('should delete a role', function(done) {
             requestUtils.qRequest('delete', options).then(function(resp) {
@@ -613,7 +620,7 @@ describe('userSvc roles endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should still return a 204 if the role has been deleted', function(done) {
             options.url = config.rolesUrl + '/r-e2e-del3';
             requestUtils.qRequest('delete', options).then(function(resp) {
@@ -623,7 +630,7 @@ describe('userSvc roles endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should still return a 204 if the role does not exist', function(done) {
             options.url = config.rolesUrl + '/SLDKFJWEO';
             requestUtils.qRequest('delete', options).then(function(resp) {
@@ -633,7 +640,7 @@ describe('userSvc roles endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should return a 400 if the role is in use', function(done) {
             options.url = config.rolesUrl + '/r-e2e-del2';
             requestUtils.qRequest('delete', options).then(function(resp) {
@@ -653,6 +660,10 @@ describe('userSvc roles endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
+    });
+
+    afterAll(function(done) {
+        testUtils.resetCollection('users', sixxyUser).done(done);
     });
 });
 
