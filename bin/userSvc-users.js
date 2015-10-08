@@ -113,6 +113,7 @@
         var checkValidToken = userModule.checkValidToken.bind(userModule, userSvc._coll);
         var giveCompanyProps = userModule.giveCompanyProps.bind(userModule, config.api, sixxyCookie);
         var sendConfirmationEmail = userModule.sendConfirmationEmail.bind(userModule, config.ses.sender);
+        var handleBrokenUser = userModule.handleBrokenUser.bind(userModule, userSvc._coll);
 
         // override some default CrudSvc methods with custom versions for users
         userSvc.transformMongoDoc = mongoUtils.safeUser;
@@ -152,6 +153,7 @@
         userSvc.use('confirmUser', checkTokenExists);
         userSvc.use('confirmUser', checkValidToken);
         userSvc.use('confirmUser', giveCompanyProps);
+        userSvc.use('confirmUser', handleBrokenUser);
         userSvc.use('confirmUser', sendConfirmationEmail);
 
         return userSvc;
@@ -229,7 +231,29 @@
                 req.user[props[i]] = resps[i].body.id;
             }
             return next();
+        }).catch(function(error) {
+            req.user.status = enums.Status.Error;
+            return next();
         });
+    };
+
+    userModule.handleBrokenUser = function(coll, req, next) {
+        if(req.user.status === enums.Status.Error) {
+            var id = req.user.id,
+                opts = { w: 1, journal: true, new: true },
+                updates = {
+                    $set: {
+                        lastUpdated: new Date(),
+                        status: enums.Status.Error
+                    },
+                    $unset: { activationToken: 1 }
+                };
+            return q.npost(coll, 'findAndModify', [{id: id}, {id: 1}, updates, opts])
+                .then(function() {
+                    return q.reject('The user is in a broken state.');
+                });
+        }
+        return next();
     };
 
     userModule.setupSignupUser = function setupSignupUser(svc, roles, policies, req, next, done) {
