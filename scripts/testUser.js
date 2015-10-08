@@ -75,6 +75,48 @@ function setupOrgSvcFieldVal(policy) {
         }
     };
 }
+
+// setup permissive fieldValidation rules for campaigns
+function setupCampaignSvcFieldVal(policy) {
+    var sponsoredCampVal = {
+        name: {
+            __allowed: true
+        },
+        startDate: {
+            __allowed: true
+        },
+        endDate: {
+            __allowed: true
+        },
+        reportingId: {
+            __allowed: true
+        }
+    };
+
+    policy.fieldValidation.campaigns = {
+        advertiserId: {
+            __allowed: true
+        },
+        customerId: {
+            __allowed: true
+        },
+        staticCardMap: {
+            __allowed: true
+        },
+        cards: {
+            __length: 10,
+            __createOnly: false,
+            __entries: sponsoredCampVal
+        },
+        miniReels: {
+            __allowed: true,
+            __entries: sponsoredCampVal
+        },
+        miniReelGroups: {
+            __allowed: true
+        }
+    };
+}
     
 program
     .version('0.0.1')
@@ -125,6 +167,7 @@ mongoUtils.connect(program.dbHost, program.dbPort, 'c6Db', program.dbUser, progr
         
         setupUserSvcFieldVal(policy);
         setupOrgSvcFieldVal(policy);
+        setupCampaignSvcFieldVal(policy);
 
         return q.npost(db.collection('policies'), 'findAndModify', [{ id: 'p-testAdmin'}, {id: 1}, policy,
                                                                     { w: 1, journal: true, new: true, upsert: true }]);

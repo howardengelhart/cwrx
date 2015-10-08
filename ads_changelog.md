@@ -1,5 +1,9 @@
 # Ads Service Changelog
 
+* Validate campaigns using model: [#536](https://github.com/cinema6/cwrx/issues/536)
+* Extra deployment steps:
+    * Update campaign policies with appropriate `fieldValidation`
+
 ### 1.6.0: Mon Oct  5 18:34:10 EDT 2015
 * [FEATURE]: Add ability to query campaigns by list of ids: [#520](https://github.com/cinema6/cwrx/issues/520)
 * [FIX]: Setting `ids` or `statuses` campaign filter params to `''` returns no campaigns: [#524](https://github.com/cinema6/cwrx/issues/524)
