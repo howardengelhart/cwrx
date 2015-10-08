@@ -396,6 +396,25 @@ describe('FunctionCache()', function() {
                         });
                     });
 
+                    describe('if the gcInterval is Infinity', function() {
+                        beforeEach(function() {
+                            jasmine.clock().uninstall();
+                            spyOn(global, 'setInterval');
+                            cache = new FunctionCache({
+                                freshTTL: Infinity,
+                                maxTTL: Infinity,
+                                gcInterval: Infinity
+                            });
+
+                            cachedFn = cache.add(function() {});
+                            cachedFn();
+                        });
+
+                        it('should not set an interval', function() {
+                            expect(global.setInterval).not.toHaveBeenCalled();
+                        });
+                    });
+
                     describe('after the gcInterval is reached', function() {
                         beforeEach(function() {
                             cache.freshTTL = Infinity;
