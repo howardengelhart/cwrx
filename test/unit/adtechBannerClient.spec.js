@@ -109,8 +109,10 @@ describe('ADTECHBannerClient(config)', function() {
 
         beforeEach(function() {
             config = {
+                protocol: 'http:',
                 server: 'adserver5.adtechus.com',
                 network: '5473.87',
+                keepAlive: false,
                 maxSockets: 50,
                 timeout: 30000
             };
@@ -121,7 +123,8 @@ describe('ADTECHBannerClient(config)', function() {
         it('should create a new request instance', function() {
             expect(request.defaults).toHaveBeenCalledWith({
                 pool: { maxSockets: config.maxSockets },
-                timeout: config.timeout
+                timeout: config.timeout,
+                forever: config.keepAlive
             });
         });
 
@@ -132,22 +135,31 @@ describe('ADTECHBannerClient(config)', function() {
             });
 
             it('should use a default server, network, timeout and maxSockets', function() {
+                expect(client.protocol).toBe('https:');
                 expect(client.server).toBe('adserver.adtechus.com');
                 expect(client.network).toBe('5491.1');
                 expect(client.maxSockets).toBe(250);
                 expect(client.timeout).toBe(3000);
+                expect(client.keepAlive).toBe(true);
             });
 
             it('should configure the request instance with the defaults', function() {
                 expect(request.defaults).toHaveBeenCalledWith({
                     pool: { maxSockets: client.maxSockets },
-                    timeout: client.timeout
+                    timeout: client.timeout,
+                    forever: client.keepAlive
                 });
             });
         });
 
         describe('@public', function() {
             describe('properties:', function() {
+                describe('protocol', function() {
+                    it('should be the configured protocol', function() {
+                        expect(client.protocol).toBe(config.protocol);
+                    });
+                });
+
                 describe('server', function() {
                     it('should be the configured server', function() {
                         expect(client.server).toBe(config.server);
@@ -163,6 +175,12 @@ describe('ADTECHBannerClient(config)', function() {
                 describe('maxSockets', function() {
                     it('should be the configured maxSockets', function() {
                         expect(client.maxSockets).toBe(50);
+                    });
+                });
+
+                describe('keepAlive', function() {
+                    it('should be the configured keepAlive', function() {
+                        expect(client.keepAlive).toBe(config.keepAlive);
                     });
                 });
 
@@ -379,7 +397,7 @@ describe('ADTECHBannerClient(config)', function() {
                     });
 
                     it('should create an ADTECH URL', function() {
-                        expect(result).toBe('https://adserver5.adtechus.com/addyn/3.0/5473.87/34875349/0/-1/mode=json;plcids=34875349,34875349,34875349,34875349;Allowedsizes=2x2;kwlp1=cam-c95b0144fc7bf4;kwlp3=foo+bar+hello+world;nully=;foo=false;num=0;target=_blank;misc=' + Date.now() + ';cfp=1');
+                        expect(result).toBe('http://adserver5.adtechus.com/addyn/3.0/5473.87/34875349/0/-1/mode=json;plcids=34875349,34875349,34875349,34875349;Allowedsizes=2x2;kwlp1=cam-c95b0144fc7bf4;kwlp3=foo+bar+hello+world;nully=;foo=false;num=0;target=_blank;misc=' + Date.now() + ';cfp=1');
                     });
 
                     describe('if the type is "multiad"', function() {
@@ -390,7 +408,7 @@ describe('ADTECHBannerClient(config)', function() {
                         });
 
                         it('should force the placement to being 0', function() {
-                            expect(result).toContain('https://adserver5.adtechus.com/multiad/3.0/5473.87/0/0/-1/');
+                            expect(result).toContain('http://adserver5.adtechus.com/multiad/3.0/5473.87/0/0/-1/');
                         });
                     });
                 });
