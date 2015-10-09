@@ -3,6 +3,7 @@
 var q = require('q');
 var request = require('request-promise');
 var cheerio = require('cheerio');
+var HTMLDocument = require('../lib/htmlDocument');
 var resolveURL = require('url').resolve;
 var parseURL = require('url').parse;
 var formatURL = require('url').format;
@@ -29,7 +30,11 @@ var push = Array.prototype.push;
 var staticCache = new FunctionCache({
     freshTTL: Infinity,
     maxTTL: Infinity,
-    gcInterval: Infinity
+    gcInterval: Infinity,
+
+    extractor: function cloneDocument(promise) {
+        return promise.then(function(document) { return document.clone(); });
+    }
 });
 
 function stripURL(url) {
@@ -67,10 +72,12 @@ function Player(config) {
         envRoot: config.api.root,
         cardEndpoint: config.api.card.endpoint,
         cardCacheTTLs: config.api.card.cacheTTLs,
+        protocol: config.adtech.protocol,
         server: config.adtech.server,
         network: config.adtech.network,
         maxSockets: config.adtech.request.maxSockets,
-        timeout: config.adtech.request.timeout
+        timeout: config.adtech.request.timeout,
+        keepAlive: config.adtech.request.keepAlive
     });
     this.adLoadTimeReporter = new CloudWatchReporter(config.cloudwatch.namespace, {
         MetricName: 'AdLoadTime',
@@ -97,19 +104,6 @@ Player.__rebaseCSS__ = function __rebaseCSS__(css, base) {
     return css.replace(/url\(['"]?(.+?)['"]?\)/g, function(match, url) {
         return 'url(' + resolveURL(base, url) + ')';
     });
-};
-
-Player.__addResource__ = function __addResource__($document, src, type, contents) {
-    var $head = $document('head');
-    var text = (typeof contents === 'string') ? contents : JSON.stringify(contents);
-
-    var $script = $document('<script></script>');
-    $script.attr({ type: type, 'data-src': src });
-    $script.text(text.replace(/<\//g, '<\\/'));
-
-    $head.append($script);
-
-    return $document;
 };
 
 Player.prototype.__getExperience__ = function __getExperience__(id, params, origin, uuid) {
@@ -228,7 +222,7 @@ Player.prototype.__getPlayer__ = function __getPlayer__(mode, uuid) {
 
         log.trace('[%1] Successfully inlined JS and CSS.', uuid);
 
-        return $.html();
+        return new HTMLDocument($.html());
     }).catch(function logRejection(reason) {
         log.error('[%1] Error getting %2 player template: %3.', uuid, mode, inspect(reason));
         throw reason;
@@ -274,11 +268,13 @@ Player.startService = function startService() {
                 }
             },
             adtech: {
+                protocol: 'https:',
                 server: 'adserver.adtechus.com',
                 network: '5491.1',
                 request: {
                     maxSockets: 250,
-                    timeout: 3000
+                    timeout: 3000,
+                    keepAlive: true
                 }
             },
             cloudwatch: {
@@ -484,15 +480,12 @@ Player.prototype.get = function get(/*options*/) {
                 .thenResolve(experience)
                 .then(addTrackingPixels);
         })
-    ]).spread(function inlineResources(html, experience) {
-        var $document = cheerio.load(html);
-
+    ]).spread(function inlineResources(document, experience) {
         log.trace('[%1] Inlining experience (%2) to %3 player HTML.', uuid, experience.id, type);
+        document.addResource('experience', 'application/json', experience);
 
-        return Player.__addResource__($document, 'experience', 'application/json', experience);
-    }).then(function stringify($document) {
         log.trace('[%1] Stringifying document.', uuid);
-        return $document.html();
+        return document.toString();
     });
 };
 
