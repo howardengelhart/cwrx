@@ -295,11 +295,13 @@ describe('player service', function() {
                                     }
                                 },
                                 adtech: {
+                                    protocol: 'https:',
                                     server: 'adserver.adtechus.com',
                                     network: '5491.1',
                                     request: {
                                         maxSockets: 250,
-                                        timeout: 3000
+                                        timeout: 3000,
+                                        keepAlive: true
                                     }
                                 },
                                 cloudwatch: {
@@ -681,11 +683,13 @@ describe('player service', function() {
                     }
                 },
                 adtech: {
+                    protocol: 'https:',
                     server: 'adserver.adtechus.com',
                     network: '5491.1',
                     request: {
                         maxSockets: 250,
-                        timeout: 3000
+                        timeout: 3000,
+                        keepAlive: true
                     }
                 },
                 cloudwatch: {
@@ -748,10 +752,12 @@ describe('player service', function() {
                             envRoot: config.api.root,
                             cardEndpoint: config.api.card.endpoint,
                             cardCacheTTLs: config.api.card.cacheTTLs,
+                            protocol: config.adtech.protocol,
                             server: config.adtech.server,
                             network: config.adtech.network,
                             maxSockets: config.adtech.request.maxSockets,
-                            timeout: config.adtech.request.timeout
+                            timeout: config.adtech.request.timeout,
+                            keepAlive: config.adtech.request.keepAlive
                         });
                     });
                 });
