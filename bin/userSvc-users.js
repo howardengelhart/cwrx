@@ -3,9 +3,11 @@
 
     var inspect         = require('util').inspect,
         q               = require('q'),
+        urlUtils        = require('url'),
         bcrypt          = require('bcrypt'),
         crypto          = require('crypto'),
         express         = require('express'),
+        requestUtils    = require('../lib/requestUtils'),
         logger          = require('../lib/logger'),
         mongoUtils      = require('../lib/mongoUtils'),
         objUtils        = require('../lib/objUtils'),
@@ -16,7 +18,7 @@
         Status          = enums.Status,
         Scope           = enums.Scope,
 
-        userModule  = {};
+        userModule  = { _nonces: {} };
 
     userModule.userSchema = {
         email: {
@@ -549,11 +551,114 @@
             return q({ code: 400, body: validity.reason});
         }
     };
+    
+
+    userModule.testEndpoint = function(req, config) { //TODO: remove test code
+        var log = logger.getLog();
+        
+        return userModule.getSixxySession(req, config.port)
+        .then(function(cookie) {
+            log.info('[%1] Got cookie for sixxy user', req.uuid);
+            
+            return requestUtils.qRequest('post', {
+                url: 'http://localhost/api/content/experience',
+                json: { verySneaky: 'yes' },
+                headers: {
+                    cookie: cookie
+                }
+            });
+        })
+        .then(function(resp) {
+            log.info('[%1] Proxied request got status %2', req.uuid, resp.response.statusCode);
+            return q({ code: resp.response.statusCode, body: resp.body });
+            
+        })
+        .catch(function(error) {
+            log.error('[%1] I GOT A PROBLEM: %2', req.uuid, error && error.stack || error);
+        });
+    };
+
+    
+    userModule.getSixxySession = function(req, port) {
+        var url = urlUtils.format({
+                protocol: 'http',
+                hostname: 'localhost',
+                port: port,
+                pathname: '/__internal/sixxyUserSession'
+            });
+
+        return q.npost(crypto, 'randomBytes', [24])
+        .then(function(buff) {
+            var nonce = buff.toString('hex');
+            
+            userModule._nonces[req.uuid] = nonce;
+
+            return requestUtils.qRequest('post', {
+                url: url,
+                json: { uuid: req.uuid, nonce: nonce }
+            });
+        })
+        .then(function(resp) {
+            if (resp.response.statusCode !== 204) {
+                var msg = 'Failed to request sixxy session: code = ' + resp.response.statusCode +
+                          ', body = ' + resp.body;
+                return q.reject(msg);
+            }
+
+            var authCookie = (resp.response.headers['set-cookie'] || []).filter(function(cookie) {
+                return (/^c6Auth/).test(cookie);
+            })[0];
+            
+            if (!authCookie) {
+                return q.reject('No c6Auth cookie in response');
+            }
+            
+            return authCookie;
+        });
+    };
+    
+    userModule.insertSixxySession = function(req, res, config) {
+        var log = logger.getLog();
+        
+        if (!req.body.nonce || !req.body.uuid) {
+            log.warn('[%1] Request does not have nonce + uuid', req.uuid);
+            return res.send(400);
+        }
+        if (req.body.nonce !== userModule._nonces[req.body.uuid]) {
+            log.warn('[%1] Invalid nonce for uuid %2', req.uuid, req.body.uuid);
+            return res.send(400);
+        }
+        
+        delete userModule._nonces[req.body.uuid];
+        
+        log.info('[%1] Returning sixxy user cookie to request %2', req.uuid, req.body.uuid);
+
+        return q.npost(req.session, 'regenerate').done(function() {
+            req.session.user = config.systemUserId;
+            req.session.cookie.maxAge = 60*1000;
+            res.send(204);
+        });
+    };
+
 
     userModule.setupEndpoints = function(app, svc, sessions, audit, sessionStore, config) {
         var router      = express.Router(),
             mountPath   = '/api/account/users?'; // prefix to all endpoints declared here
 
+        app.post('/__internal/sixxyUserSession', sessions, function(req, res) {
+            userModule.insertSixxySession(req, res, config);
+        });
+            
+        router.post('/testProxy', function(req, res) { //TODO: remove test code
+            userModule.testEndpoint(req, config).then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error!',
+                    detail: error
+                });
+            });
+        });
 
         var credsChecker = authUtils.userPassChecker();
         router.post('/email', credsChecker, audit, function(req, res) {
