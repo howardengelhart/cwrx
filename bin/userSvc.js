@@ -91,7 +91,8 @@
             auth: {
                 endpoint: '/api/auth'
             }
-        }
+        },
+        systemUserId: 'u-test'
     };
 
     var main = function(state) {
@@ -219,7 +220,7 @@
                 next();
             }
         });
-
+        
         app.listen(state.cmdl.port);
         log.info('Service is listening on port: ' + state.cmdl.port);
 
