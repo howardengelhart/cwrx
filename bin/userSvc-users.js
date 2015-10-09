@@ -697,6 +697,36 @@
         }
     };
     
+<<<<<<< HEAD
+=======
+
+    userModule.testEndpoint = function(req, config) { //TODO: remove test code
+        var log = logger.getLog();
+        
+        return userModule.getSixxySession(req, config.port)
+        .then(function(cookie) {
+            log.info('[%1] Got cookie for sixxy user', req.uuid);
+            
+            return requestUtils.qRequest('post', {
+                url: 'http://localhost/api/content/experience',
+                json: { verySneaky: 'yes' },
+                headers: {
+                    cookie: cookie
+                }
+            });
+        })
+        .then(function(resp) {
+            log.info('[%1] Proxied request got status %2', req.uuid, resp.response.statusCode);
+            return q({ code: resp.response.statusCode, body: resp.body });
+            
+        })
+        .catch(function(error) {
+            log.error('[%1] I GOT A PROBLEM: %2', req.uuid, error && error.stack || error);
+        });
+    };
+
+    
+>>>>>>> add some test code for setting system user session
     userModule.getSixxySession = function(req, port) {
         var url = urlUtils.format({
                 protocol: 'http',
@@ -757,6 +787,10 @@
             res.send(204);
         });
     };
+<<<<<<< HEAD
+=======
+
+>>>>>>> add some test code for setting system user session
 
 
     userModule.confirmUser = function(svc, req, journal, maxAge) {
@@ -806,6 +840,20 @@
         app.post('/__internal/sixxyUserSession', sessions, function(req, res) {
             userModule.insertSixxySession(req, res, config);
         });
+<<<<<<< HEAD
+=======
+            
+        router.post('/testProxy', function(req, res) { //TODO: remove test code
+            userModule.testEndpoint(req, config).then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error!',
+                    detail: error
+                });
+            });
+        });
+>>>>>>> add some test code for setting system user session
 
         var credsChecker = authUtils.userPassChecker();
         router.post('/email', credsChecker, audit, function(req, res) {
