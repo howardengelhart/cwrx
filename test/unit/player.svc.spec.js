@@ -17,6 +17,7 @@ describe('player service', function() {
     var expressUtils;
     var AWS;
     var CloudWatchReporter;
+    var HTMLDocument;
 
     var requestDeferreds;
     var fnCaches;
@@ -48,6 +49,7 @@ describe('player service', function() {
         extend = require('../../lib/objUtils').extend;
         clonePromise = require('../../lib/promise').clone;
         AWS = require('aws-sdk');
+        HTMLDocument = require('../../lib/htmlDocument');
 
         playerHTML = require('fs').readFileSync(require.resolve('./helpers/player.html')).toString();
         playerCSS = require('fs').readFileSync(require.resolve('./helpers/lightbox.css')).toString();
@@ -136,6 +138,35 @@ describe('player service', function() {
         }));
     });
 
+    describe('the function used to clone Documents in the Static Cache', function() {
+        var cloneDocument;
+        var success, failure;
+        var promise, document;
+        var result;
+
+        beforeEach(function(done) {
+            cloneDocument = fnCaches[0].extractor;
+            success = jasmine.createSpy('success()');
+            failure = jasmine.createSpy('failure()');
+
+            document = new HTMLDocument(playerHTML);
+            promise = q(document);
+
+            spyOn(document, 'clone').and.callThrough();
+            result = cloneDocument(promise);
+
+            result.then(success, failure).finally(done);
+        });
+
+        it('should return a new Promise', function() {
+            expect(result).not.toBe(promise);
+        });
+
+        it('should fulfill with a clone of the HTMLDocument', function() {
+            expect(success.calls.mostRecent().args[0]).toBe(document.clone.calls.mostRecent().returnValue);
+        });
+    });
+
     describe('static:', function() {
         describe('@private', function() {
             describe('methods:', function() {
@@ -158,70 +189,6 @@ describe('player service', function() {
 
                     it('should replace URLs with double quotes', function() {
                         expect(result).toContain('.instag____profileDesc__logo{background:url(https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/img/social-card-sprites.png) -1em -1em/19em no-repeat;width:5em;height:1.5em;margin:1em 0 0;display:block}');
-                    });
-                });
-
-                describe('__addResource__($document, src, type, contents)', function() {
-                    var data;
-                    var $orig;
-                    var $document, src, type, contents;
-                    var result;
-
-                    beforeEach(function() {
-                        data = { hello: 'world', foo: '<script></script><link></link>' };
-
-                        $orig = cheerio.load(playerHTML);
-                        $document = cheerio.load(playerHTML);
-                        src = 'http://staging.cinema6.com/api/public/content/experience/e-92160a770b81d5';
-                        type = 'application/json';
-                    });
-
-                    describe('if contents is a String', function() {
-                        beforeEach(function() {
-                            contents = JSON.stringify(data);
-
-                            result = Player.__addResource__($document, src, type, contents);
-                        });
-
-                        it('should return the $document', function() {
-                            expect(result).toBe($document);
-                        });
-
-                        it('should add a node to the $document', function() {
-                            expect($document('*').length).toBe($orig('*').length + 1);
-                        });
-
-                        it('should create a <script> for the resource', function() {
-                            var $script = $document('head > script[data-src="' + src + '"]');
-
-                            expect($script.length).toBe(1);
-                            expect($script.text()).toBe(contents.replace(/<\//g, '<\\/'));
-                            expect($script.attr('type')).toBe(type);
-                        });
-                    });
-
-                    describe('if contents is an Object', function() {
-                        beforeEach(function() {
-                            contents = data;
-
-                            result = Player.__addResource__($document, src, type, contents);
-                        });
-
-                        it('should return the $document', function() {
-                            expect(result).toBe($document);
-                        });
-
-                        it('should add a node to the $document', function() {
-                            expect($document('*').length).toBe($orig('*').length + 1);
-                        });
-
-                        it('should create a <script> for the resource', function() {
-                            var $script = $document('head > script[data-src="' + src + '"]');
-
-                            expect($script.length).toBe(1);
-                            expect($script.text()).toBe(JSON.stringify(contents).replace(/<\//g, '<\\/'));
-                            expect($script.attr('type')).toBe(type);
-                        });
                     });
                 });
             });
@@ -794,7 +761,7 @@ describe('player service', function() {
                 describe('get(options)', function() {
                     var success, failure;
                     var options;
-                    var $document, experience, sponsoredCards;
+                    var document, experience, sponsoredCards;
                     var getExperienceDeferred;
 
                     beforeEach(function(done) {
@@ -822,10 +789,8 @@ describe('player service', function() {
                             launchUrls: ['launch1.gif', 'launch2.gif']
                         };
 
-                        var load = cheerio.load;
-                        spyOn(cheerio, 'load').and.callFake(function() {
-                            return ($document = load.apply(cheerio, arguments));
-                        });
+                        document = new HTMLDocument(playerHTML);
+                        spyOn(document, 'addResource').and.callThrough();
 
                         getExperienceDeferred = q.defer();
 
@@ -842,9 +807,7 @@ describe('player service', function() {
                         sponsoredCards = AdLoader.getSponsoredCards(experience);
                         spyOn(player, '__getExperience__').and.returnValue(getExperienceDeferred.promise);
 
-                        spyOn(player, '__getPlayer__').and.returnValue(q(playerHTML));
-
-                        spyOn(Player, '__addResource__').and.callThrough();
+                        spyOn(player, '__getPlayer__').and.returnValue(q(document));
 
                         player.get(options).then(success, failure);
                         q().then(done);
@@ -924,11 +887,11 @@ describe('player service', function() {
                                 });
 
                                 it('should add the experience as a resource', function() {
-                                    expect(Player.__addResource__).toHaveBeenCalledWith($document, 'experience', 'application/json', experience);
+                                    expect(document.addResource).toHaveBeenCalledWith('experience', 'application/json', experience);
                                 });
 
                                 it('should resolve to the player as a string of HTML', function() {
-                                    expect(success).toHaveBeenCalledWith($document.html());
+                                    expect(success).toHaveBeenCalledWith(document.toString());
                                 });
                             });
 
@@ -948,11 +911,11 @@ describe('player service', function() {
                                 });
 
                                 it('should add the experience as a resource', function() {
-                                    expect(Player.__addResource__).toHaveBeenCalledWith($document, 'experience', 'application/json', experience);
+                                    expect(document.addResource).toHaveBeenCalledWith('experience', 'application/json', experience);
                                 });
 
                                 it('should resolve to the player as a string of HTML', function() {
-                                    expect(success).toHaveBeenCalledWith($document.html());
+                                    expect(success).toHaveBeenCalledWith(document.toString());
                                 });
                             });
                         });
@@ -1040,7 +1003,7 @@ describe('player service', function() {
                         });
 
                         it('should add the experience as a resource', function() {
-                            expect(Player.__addResource__).toHaveBeenCalledWith($document, 'experience', 'application/json', experience);
+                            expect(document.addResource).toHaveBeenCalledWith('experience', 'application/json', experience);
                         });
                     });
 
@@ -1068,7 +1031,7 @@ describe('player service', function() {
                         });
 
                         it('should add the experience as a resource', function() {
-                            expect(Player.__addResource__).toHaveBeenCalledWith($document, 'experience', 'application/json', experience);
+                            expect(document.addResource).toHaveBeenCalledWith('experience', 'application/json', experience);
                         });
                     });
                 });
@@ -1319,11 +1282,12 @@ describe('player service', function() {
                                 result.then(function() {}).then(done, done);
                             });
 
-                            it('should fulfill with a cheerio document where the external resources are replaced with inline ones', function() {
+                            it('should fulfill with an HTMLDocument where the external resources are replaced with inline ones', function() {
                                 var $orig = cheerio.load(playerHTML);
-                                var $result = cheerio.load(success.calls.mostRecent().args[0]);
+                                var $result = cheerio.load(success.calls.mostRecent().args[0].toString());
 
-                                expect(success).toHaveBeenCalledWith(jasmine.any(String));
+                                expect(success).toHaveBeenCalledWith(jasmine.any(HTMLDocument));
+
                                 expect($result('*').length).toBe($orig('*').length);
                                 expect($result('script[src="${mode}.js"]').length).toBe(0);
                                 expect($result('script[src="lightbox.js"]').length).toBe(0);
@@ -1365,7 +1329,7 @@ describe('player service', function() {
                             types.forEach(function(type) {
                                 player.__getPlayer__(type, undefined).then(success, failure);
                             });
-                            q().then(done);
+                            q().then(function() {}).then(done);
                         });
 
                         it('should not make any requests', function() {
