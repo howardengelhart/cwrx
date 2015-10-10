@@ -1,5 +1,7 @@
 # Content Service Changelog
 
+* `name` is no longer required to be defined or unique for categories: [#523](https://github.com/cinema6/cwrx/issues/523)
+* validate other fields on categories using Model: [#523](https://github.com/cinema6/cwrx/issues/523)
 * [FIX]: Setting `ids` or `categories` experience filter params to `''` returns no experiences: [#524](https://github.com/cinema6/cwrx/issues/524)
 
 ### 2.1.0: Tue Sep 29 13:35:21 EDT 2015

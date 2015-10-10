@@ -138,7 +138,7 @@
 
         authUtils._db = state.dbs.c6Db;
         cardSvc = cardModule.setupCardSvc(collections.cards, caches, state.config);
-        catSvc = catModule.setupCatSvc(collections.categories);
+        catSvc = catModule.setupSvc(collections.categories);
 
         var sessionOpts = {
             key: state.config.sessions.key,
