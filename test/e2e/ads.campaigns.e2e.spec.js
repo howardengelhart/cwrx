@@ -906,7 +906,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                     name: 'Always On Dollars',
                     cards: [{ id: 'e2e-rc-selfie1' }],
                     targeting: {
-                        interests: ['cat-1', 'cat-2']
+                        interests: []
                     }
                 };
                 options = {
@@ -938,9 +938,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                             startDate: jasmine.any(String), endDate: jasmine.any(String),
                             adtechId: jasmine.any(Number), bannerId: jasmine.any(Number), bannerNumber: jasmine.any(Number)
                         }],
-                        targeting: {
-                            interests: ['cat-1', 'cat-2']
-                        }
+                        targeting: { interests: [] }
                     });
                     expect(new Date(resp.body.created).toString()).not.toEqual('Invalid Date');
                     expect(resp.body.lastUpdated).toEqual(resp.body.created);
@@ -954,7 +952,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 it('should have a sponsored campaign for each entry in cards', function(done) {
                     q.all(selfieCreatedCamp.cards.map(function(card) {
                         return adtech.campaignAdmin.getCampaignByExtId(card.id).catch(adtechErr).then(function(camp) {
-                            checkCardCampaign(camp, selfieCreatedCamp, card, [keywords['cat-1'], keywords['cat-2']]);
+                            checkCardCampaign(camp, selfieCreatedCamp, card, [keywords['*']]);
                             return testUtils.getCampaignBanners(camp.id);
                         }).then(function(banners) {
                             testUtils.compareBanners(banners, [card.id], 'card');
@@ -1422,6 +1420,38 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(function(results) { done(); });
         });
+        
+        it('should switch to using * as kwlp3 if no interests are set', function(done) {
+            options = {
+                url: config.adsUrl + '/campaign/' + adminCreatedCamp.id,
+                json: {
+                    targeting: { interests: [] }
+                },
+                jar: adminJar
+            };
+            
+            requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.targeting).toEqual({ interests: [] });
+                adminCreatedCamp = resp.body;
+                
+                return q.all(
+                    adminCreatedCamp.cards.map(function(card) {
+                        return adtech.campaignAdmin.getCampaignByExtId(card.id).then(function(camp) {
+                            checkCardCampaign(camp, adminCreatedCamp, card, [keywords['*']]);
+                            return q();
+                        });
+                    }).concat(adminCreatedCamp.miniReels.map(function(exp) {
+                        return adtech.campaignAdmin.getCampaignByExtId(exp.id).then(function(camp) {
+                            checkMinireelCampaign(camp, adminCreatedCamp, exp, [keywords['*']]);
+                            return q();
+                        });
+                    }))
+                );
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(function(results) { done(); });
+        });
 
         it('should be able to add+remove miniReelGroups', function(done) {
             var oldAdtechId = adminCreatedCamp.miniReelGroups[0].adtechId;
@@ -1541,7 +1571,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 
                 return adtech.campaignAdmin.getCampaignByExtId('e2e-rc-1');
             }).then(function(camp) {
-                checkCardCampaign(camp, adminCreatedCamp, adminCreatedCamp.cards[0], [keywords['cat-3'], keywords['cat-1']]);
+                checkCardCampaign(camp, adminCreatedCamp, adminCreatedCamp.cards[0], [keywords['*']]);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -1571,7 +1601,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 
                 return adtech.campaignAdmin.getCampaignByExtId('e2e-e-3');
             }).then(function(camp) {
-                checkMinireelCampaign(camp, adminCreatedCamp, adminCreatedCamp.miniReels[1], [keywords['cat-3'], keywords['cat-1']]);
+                checkMinireelCampaign(camp, adminCreatedCamp, adminCreatedCamp.miniReels[1], [keywords['*']]);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

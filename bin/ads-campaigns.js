@@ -564,7 +564,8 @@
                                                       origInterests.slice().sort())) {
                 promise = q();
             } else {
-                var keywords = { level1: (prop === 'cards' ? [id] : undefined), level3: interests };
+                var level3 = (interests.length === 0) ? ['*'] : interests,
+                    keywords = { level1: (prop === 'cards' ? [id] : undefined), level3: level3 };
                 promise = campaignUtils.makeKeywordLevels(keywords);
             }
             
@@ -620,7 +621,8 @@
             
         return q.all(['miniReels', 'cards'].map(function(prop) {
             var type = prop.replace(/s$/, ''),
-                keyLevels = { level1: (type === 'card' ? [id] : undefined), level3: interests };
+                level3 = (interests.length === 0) ? ['*'] : interests,
+                keyLevels = { level1: (type === 'card' ? [id] : undefined), level3: level3 };
                 
             if (!(req.body[prop] instanceof Array) || req.body[prop].length === 0) {
                 log.trace('[%1] No %2 to make campaigns for', req.uuid, prop);
