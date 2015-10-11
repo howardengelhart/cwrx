@@ -2,8 +2,9 @@
     'use strict';
 
     var q               = require('q'),
-        express         = require('express'),
+        urlUtils        = require('url'),
         util            = require('util'),
+        express         = require('express'),
         requestUtils    = require('../lib/requestUtils'),
         uuid            = require('../lib/uuid'),
         campaignUtils   = require('../lib/campaignUtils'),
@@ -13,53 +14,195 @@
         CrudSvc         = require('../lib/crudSvc'),
         logger          = require('../lib/logger'),
         
-        campModule = {};
+        campModule = { config: {} };
+        
+    var sponsoredCampSchema = { // for entries in cards + miniReels arrays
+        id: {
+            __allowed: true,
+            __required: true,
+            __type: 'string'
+        },
+        adtechId: {
+            __allowed: false,
+            __type: 'number',
+            __locked: true
+        },
+        bannerNumber: {
+            __allowed: false,
+            __type: 'number',
+            __locked: true
+        },
+        bannerId: {
+            __allowed: false,
+            __type: 'number',
+            __locked: true
+        },
+        name: {
+            __allowed: false,
+            __type: 'string'
+        },
+        startDate: {
+            __allowed: false,
+            __type: 'string' // stored as Date().toISOString()
+        },
+        endDate: {
+            __allowed: false,
+            __type: 'string' // stored as Date().toISOString()
+        },
+        reportingId: {
+            __allowed: false,
+            __type: 'string'
+        }
+    };
+         
+    campModule.campSchema = {
+        status: { // will be changed in later releases
+            __allowed: true,
+            __type: 'string'
+        },
+        application: {
+            __allowed: true,
+            __type: 'string',
+            __unchangeable: true,
+            __default: 'studio'
+        },
+        advertiserId: {
+            __allowed: false,
+            __unchangeable: true,
+            __type: 'string'
+        },
+        customerId: {
+            __allowed: false,
+            __unchangeable: true,
+            __type: 'string'
+        },
+        minViewTime: {
+            __allowed: false,
+            __type: 'number'
+        },
+        pricing: {
+            budget: {
+                __allowed: true,
+                __required: true,
+                __type: 'number',
+                __min: 50,
+                __max: 20000
+            },
+            dailyLimit: {
+                __allowed: true,
+                __type: 'number',
+                __percentMin: 0.015,    // used internally, not in model.validate()
+                __percentMax: 1,        // used internally, not in model.validate()
+                __percentDefault: 0.03  // used internally, not in model.validate() 
+            },
+            model: {
+                __allowed: false,
+                __type: 'string',
+                __default: 'cpv'
+            },
+            cost: {
+                __allowed: false,
+                __type: 'number'
+            }
+        },
+        pricingHistory: {
+            __allowed: false,
+            __type: 'objectArray',
+            __locked: true
+        },
+        contentCategories: {
+            primary: {
+                __allowed: true,
+                __type: 'string'
+            }
+        },
+        targeting: {
+            __allowed: true,
+            geo: {
+                __allowed: true,
+                states: {
+                    __allowed: true,
+                    __type: 'stringArray'
+                },
+                dmas: {
+                    __allowed: true,
+                    __type: 'stringArray'
+                }
+            },
+            demographics: {
+                __allowed: true,
+                gender: {
+                    __allowed: true,
+                    __type: 'stringArray'
+                },
+                age: {
+                    __allowed: true,
+                    __type: 'stringArray'
+                },
+                income: {
+                    __allowed: true,
+                    __type: 'stringArray'
+                }
+            },
+            interests: {
+                __allowed: true,
+                __type: 'stringArray'
+            }
+        },
+        staticCardMap: {
+            __allowed: false,
+            __type: 'object'
+        },
+        cards: {
+            __allowed: true,
+            __unchangeable: true,
+            __type: 'objectArray',
+            __length: 1,
+            __entries: sponsoredCampSchema
+        },
+        miniReels: {
+            __allowed: false,
+            __type: 'objectArray',
+            __entries: sponsoredCampSchema
+        },
+        miniReelGroups: { // effectively deprecated, so don't bother validating entries
+            __allowed: false,
+            __type: 'objectArray'
+        }
+    };
 
     campModule.setupSvc = function(db, config) {
-        campModule.campsCfg = config.campaigns;
-        campModule.contentHost = config.contentHost;
+        campModule.config.campaigns = config.campaigns;
+        campModule.config.api = config.api;
     
         var campColl = db.collection('campaigns'),
-            svc = new CrudSvc(campColl, 'cam', { statusHistory: true });
-        svc._advertColl = db.collection('advertisers');
-        svc._custColl = db.collection('customers');
+            svc = new CrudSvc(campColl, 'cam', { statusHistory: true }, campModule.campSchema);
+        svc._db = db;
         
-        svc.createValidator._required.push('advertiserId', 'customerId');
-        svc.createValidator._forbidden.push('pricingHistory');
-        svc.editValidator._forbidden.push('advertiserId', 'customerId',
-                                          'application', 'pricingHistory');
-
-        svc.createValidator._formats.cards = ['object'];
-        svc.editValidator._formats.cards = ['object'];
-        svc.createValidator._formats.miniReels = ['object'];
-        svc.editValidator._formats.miniReels = ['object'];
-        svc.createValidator._formats.miniReelGroups = ['object'];
-        svc.editValidator._formats.miniReelGroups = ['object'];
-        svc.createValidator._formats.categories = ['string'];
-        svc.editValidator._formats.categories = ['string'];
-        svc.createValidator._formats.staticCardMap = 'object';
-        svc.editValidator._formats.staticCardMap = 'object';
-        
-        var getAccountIds = campaignUtils.getAccountIds.bind(
-            campaignUtils,
-            svc._advertColl,
-            svc._custColl
-        );
+        var getAccountIds = campaignUtils.getAccountIds.bind(campaignUtils, svc._db),
+            validatePricing = campModule.validatePricing.bind(campModule, svc);
         
         svc.use('read', campModule.formatTextQuery);
+
+        svc.use('create', campModule.defaultAccountIds);
         svc.use('create', getAccountIds);
         svc.use('create', campModule.validateDates);
         svc.use('create', campModule.ensureUniqueIds);
         svc.use('create', campModule.ensureUniqueNames);
+        svc.use('create', campModule.defaultReportingId);
+        svc.use('create', validatePricing);
         svc.use('create', campModule.createSponsoredCamps);
         svc.use('create', campModule.createTargetCamps);
         svc.use('create', campModule.handlePricingHistory);
 
+        svc.use('edit', campModule.defaultAccountIds);
         svc.use('edit', getAccountIds);
         svc.use('edit', campModule.extendListObjects);
         svc.use('edit', campModule.validateDates);
         svc.use('edit', campModule.ensureUniqueIds);
         svc.use('edit', campModule.ensureUniqueNames);
+        svc.use('edit', campModule.defaultReportingId);
+        svc.use('edit', validatePricing);
         svc.use('edit', campModule.cleanSponsoredCamps);
         svc.use('edit', campModule.editSponsoredCamps);
         svc.use('edit', campModule.createSponsoredCamps);
@@ -74,6 +217,19 @@
         svc.formatOutput = campModule.formatOutput.bind(campModule, svc);
         
         return svc;
+    };
+    
+    // Extends CrudSvc.prototype.formatOutput, processing cards, miniReels, and miniReelGroups
+    campModule.formatOutput = function(svc, obj) {
+        (obj.miniReelGroups || []).forEach(function(group) {
+            if (!(group.miniReels instanceof Array)) {
+                return;
+            }
+
+            group.miniReels = group.miniReels.map(function(reelObj) { return reelObj.id; });
+        });
+        
+        return CrudSvc.prototype.formatOutput.call(svc, obj);
     };
     
     // Format a 'text search' query: current just turns it into a regex query on name field
@@ -91,6 +247,30 @@
 
         return next();
     };
+
+    // Set advertiserId and customerId on the body to the user's advert + cust ids, if not defined
+    campModule.defaultAccountIds = function(req, next, done) {
+        var log = logger.getLog();
+
+        if ((req.body.advertiserId && req.body.customerId) ||
+            (req.origObj && req.origObj.advertiserId && req.origObj.customerId)) {
+            return next();
+        }
+        
+        req.body.advertiserId = req.user.advertiser;
+        req.body.customerId = req.user.customer;
+        
+        if (!(req.body.advertiserId && req.body.customerId)) {
+            log.info('[%1] Advertiser + customer must be set on campaign or user', req.uuid);
+            return done({
+                code: 400,
+                body: 'Must provide advertiserId + customerId'
+            });
+        }
+        
+        return next();
+    };
+    
     
     // Attempts to find a sub-object in body[key] that matches target
     campModule.findMatchingObj = function(target, body, key) {
@@ -113,7 +293,7 @@
             
             req.body[key].forEach(function(newObj) {
                 var existing = campModule.findMatchingObj(newObj, req.origObj, key);
-                    
+
                 objUtils.extend(newObj, existing);
             });
         });
@@ -123,7 +303,7 @@
     // Calls campaignUtils.validateDates for every object in cards, miniReels, and miniReelGroups
     campModule.validateDates = function(req, next, done) {
         var keys = ['cards', 'miniReels', 'miniReelGroups'],
-            delays = campModule.campsCfg.dateDelays;
+            delays = campModule.config.campaigns.dateDelays;
             
         for (var i = 0; i < keys.length; i++) {
             if (!req.body[keys[i]]) {
@@ -196,43 +376,75 @@
         }
         return q(next());
     };
-    
-    // Extends CrudSvc.prototype.formatOutput, processing cards, miniReels, and miniReelGroups
-    campModule.formatOutput = function(svc, obj) {
-        (obj.miniReelGroups || []).forEach(function(group) {
-            if (!(group.miniReels instanceof Array)) {
-                return;
-            }
 
-            group.miniReels = group.miniReels.map(function(reelObj) { return reelObj.id; });
+    // Set the reportingId for each card without one to the campaign's name
+    campModule.defaultReportingId = function(req, next/*, done*/) {
+        if (!req.body.cards) {
+            return next();
+        }
+        
+        req.body.cards.forEach(function(card) {
+            if (!card.reportingId) {
+                card.reportingId = req.body.name || (req.origObj && req.origObj.name);
+            }
         });
         
-        return CrudSvc.prototype.formatOutput.call(svc, obj);
+        return next();
     };
 
-    /* Send a DELETE request to the content service. type should be "card" or "experience"
-     * Logs + swallows 4xx failures, but rejects 5xx failures. */
-    campModule.sendDeleteRequest = function(req, id, type) {
-        var log = logger.getLog();
-        
-        return requestUtils.qRequest('delete', {
-            url: req.protocol + '://' + campModule.contentHost + '/api/content/' + type + '/' + id,
-            headers: { cookie: req.headers.cookie }
-        })
-        .then(function(resp) {
-            if (resp.response.statusCode !== 204) {
-                log.warn('[%1] Could not delete %2 %3. Received (%4, %5)',
-                         req.uuid, type, id, resp.response.statusCode, resp.body);
-            } else {
-                log.info('[%1] Succesfully deleted %2 %3', req.uuid, type, id);
-            }
-        })
-        .catch(function(error) {
-            log.error('[%1] Error deleting %2 %3: %4', req.uuid, type, id, util.inspect(error));
-            return q.reject(new Error('Failed sending delete request to content service'));
-        });
+    // Compute cost for the campaign, based on targeting added
+    campModule.computeCost = function(/*req*/) {
+        //TODO: replace this with actual values/logic!
+        return 0.1;
     };
     
+    // Extra validation for pricing, including dailyLimit checking + cost computing
+    campModule.validatePricing = function(svc, req, next, done) {
+        var log = logger.getLog(),
+            id = req.body.id || (req.origObj && req.origObj.id),
+            origPricing = req.origObj && req.origObj.pricing,
+            actingSchema = svc.model.personalizeSchema(req.user);
+
+        if (!req.body.pricing) {
+            return next();
+        }
+
+        // if user can set own cost, take the value from body, origObj, or computeCost
+        if (actingSchema.pricing.cost.__allowed === true) {
+            req.body.pricing.cost = req.body.pricing.cost || origPricing && origPricing.cost ||
+                                    campModule.computeCost(req);
+        }
+        else { // otherwise recompute the cost each time
+            req.body.pricing.cost = campModule.computeCost(req);
+        }
+        
+        // copy over any missing props from original pricing
+        objUtils.extend(req.body.pricing, origPricing);
+        
+        // validate dailyLimit:
+        var limitMin = actingSchema.pricing.dailyLimit.__percentMin,
+            limitMax = actingSchema.pricing.dailyLimit.__percentMax,
+            limitDefault = actingSchema.pricing.dailyLimit.__percentDefault;
+        
+        // default dailyLimit if undefined
+        req.body.pricing.dailyLimit = req.body.pricing.dailyLimit ||
+                                      ( limitDefault * req.body.pricing.budget );
+
+        // check if dailyLimit is within __percentMin and __percentMax of budget
+        var ratio = (req.body.pricing.dailyLimit / req.body.pricing.budget) || 0;
+        
+        if (ratio < limitMin || ratio > limitMax) {
+            log.info('[%1] User %2 cannot set dailyLimit of %3 to %4% of budget: bounds are %5, %6',
+                     req.uuid, req.user.id, id, ratio, limitMin, limitMax);
+            return done({
+                code: 400,
+                body: 'dailyLimit must be between ' + limitMin + ' and ' + limitMax + ' of budget'
+            });
+        }
+        
+        return next();
+    };
+
     // Remove entries from the staticCardMap for deleted sponsored cards
     campModule.cleanStaticMap = function(req, toDelete) {
         var map = req.body.staticCardMap = req.body.staticCardMap ||
@@ -254,14 +466,41 @@
             });
         });
     };
+    
+    /* Send a DELETE request to the content service. type should be "card" or "experience"
+     * Logs + swallows 4xx failures, but rejects 5xx failures. */
+    campModule.sendDeleteRequest = function(req, id, type) {
+        var log = logger.getLog(),
+            url = urlUtils.resolve(
+                campModule.config.api.root,
+                '/api/content/' + type + '/' + id
+            );
+        
+        return requestUtils.qRequest('delete', {
+            url: url,
+            headers: { cookie: req.headers.cookie }
+        })
+        .then(function(resp) {
+            if (resp.response.statusCode !== 204) {
+                log.warn('[%1] Could not delete %2 %3. Received (%4, %5)',
+                         req.uuid, type, id, resp.response.statusCode, resp.body);
+            } else {
+                log.info('[%1] Succesfully deleted %2 %3', req.uuid, type, id);
+            }
+        })
+        .catch(function(error) {
+            log.error('[%1] Error deleting %2 %3: %4', req.uuid, type, id, util.inspect(error));
+            return q.reject(new Error('Failed sending delete request to content service'));
+        });
+    };
 
     /* Middleware to delete unused sponsored miniReels and cards. Deletes their campaigns from
      * Adtech, as well their objects in mongo through the content service */
     campModule.cleanSponsoredCamps = function(req, next/*, done*/) {
         var log = logger.getLog(),
             id = req.body.id || (req.origObj && req.origObj.id),
-            delay = campModule.campsCfg.statusDelay,
-            attempts = campModule.campsCfg.statusAttempts,
+            delay = campModule.config.campaigns.statusDelay,
+            attempts = campModule.config.campaigns.statusAttempts,
             toDelete = { adtechIds: [], miniReels: [], cards: [] };
         
         ['miniReels', 'cards'].forEach(function(prop) {
@@ -398,7 +637,7 @@
                         name            : obj.name + ' (' + id + ')',
                         startDate       : obj.startDate,
                         endDate         : obj.endDate,
-                        campaignTypeId  : campModule.campsCfg.campaignTypeId,
+                        campaignTypeId  : campModule.config.campaigns.campaignTypeId,
                         keywords        : keywords,
                         advertiserId    : req._advertiserId,
                         customerId      : req._customerId
@@ -425,8 +664,8 @@
     campModule.cleanTargetCamps = function(req, next/*, done*/) {
         var log = logger.getLog(),
             id = req.params.id,
-            delay = campModule.campsCfg.statusDelay,
-            attempts = campModule.campsCfg.statusAttempts,
+            delay = campModule.config.campaigns.statusDelay,
+            attempts = campModule.config.campaigns.statusAttempts,
             toDelete = [];
         
         if (!req.origObj.miniReelGroups || !req.body.miniReelGroups) {
@@ -560,7 +799,7 @@
                     name            : obj.name + ' (' + id + ')',
                     startDate       : obj.startDate,
                     endDate         : obj.endDate,
-                    campaignTypeId  : campModule.campsCfg.campaignTypeId,
+                    campaignTypeId  : campModule.config.campaigns.campaignTypeId,
                     keywords        : keywords,
                     advertiserId    : req._advertiserId,
                     customerId      : req._customerId
@@ -632,8 +871,8 @@
     // Middleware to delete all sponsored and target adtech campaigns for this C6 campaign
     campModule.deleteAdtechCamps = function(req, next/*, done*/) {
         var log = logger.getLog(),
-            delay = campModule.campsCfg.statusDelay,
-            attempts = campModule.campsCfg.statusAttempts,
+            delay = campModule.config.campaigns.statusDelay,
+            attempts = campModule.config.campaigns.statusAttempts,
             toDelete = [];
             
         log.trace('[%1] Deleting all sponsored + target campaigns for %2', req.uuid, req.params.id);

@@ -22,8 +22,7 @@
         var groupColl = db.collection('minireelGroups'),
             opts = { userProp: false, orgProp: false },
             svc = new CrudSvc(groupColl, 'g', opts);
-        svc._advertColl = db.collection('advertisers');
-        svc._custColl = db.collection('customers');
+        svc._db = db;
         
         svc.createValidator._required.push('name');
         svc.createValidator._forbidden.push('adtechId');
@@ -96,7 +95,7 @@
                             groupModule.groupsCfg[key];
         });
         
-        return campaignUtils.getAccountIds(svc._advertColl, svc._custColl, req, next, done);
+        return campaignUtils.getAccountIds(svc._db, req, next, done);
     };
 
     // Setup the group's campaign, calling makeKeywordLevels and createCampaign

@@ -36,14 +36,16 @@
         },
         campaigns: {
             statusDelay: 1000,      // How long to delay between polls for campaigns' statuses
-            statusAttempts: 10,     // How many times to try polling for campaigns' statuses
+            statusAttempts: 60,     // How many times to try polling for campaigns' statuses
             campaignTypeId: 26954,  // id for Open Campaign type; differs across networks
             dateDelays: {
                 start: 24*60*60*1000,   // new campaigns default to starting now + this (ms)
                 end: 366*24*60*60*1000  // new campaigns default to ending now + this (ms)
             }
         },
-        contentHost: 'localhost',   // Hostname of the content service to proxy delete requests to
+        api: {
+            root: 'http://localhost'    // for proxying requests
+        },
         minireelGroups: {
             advertiserId: null,     // C6 advertiser id; must be overriden in a config file
             customerId: null        // C6 customer id; must be overriden in a config file
