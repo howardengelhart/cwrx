@@ -109,7 +109,7 @@
         var setupSignupUser = userModule.setupSignupUser.bind(userModule, userSvc,
             config.newUserPermissions.roles, config.newUserPermissions.policies);
         var validatePassword = userModule.validatePassword;
-        var checkValidToken = userModule.checkValidToken.bind(userModule, userSvc._coll);
+        var checkValidToken = userModule.checkValidToken.bind(userModule, userSvc);
         var giveCompanyProps = userModule.giveCompanyProps.bind(userModule, config.api,
             sixxyCookie);
         var sendConfirmationEmail = userModule.sendConfirmationEmail.bind(userModule,
@@ -159,11 +159,11 @@
         return userSvc;
     };
 
-    userModule.checkValidToken = function(coll, req, next, done) {
+    userModule.checkValidToken = function(svc, req, next, done) {
         var log = logger.getLog(),
             id = req.params.id,
             token = req.body.token;
-        return q.npost(coll, 'findOne', [{ id: String(id) }])
+        return q.npost(svc._coll, 'findOne', [{ id: String(id) }])
             .then(function(result) {
                 if(!result) {
                     log.info('[%1] User %2 was not found', req.uuid, id);
@@ -663,7 +663,7 @@
 
     userModule.confirmUser = function(svc, req, journal, maxAge) {
         var log = logger.getLog();
-        if(!req.body.token) {
+        if(!req.body.token) { 
             log.info('[%1] User did not provide a token', req.uuid);
             return q({ code: 400, body: 'Must provide a token'});
         }

@@ -234,8 +234,8 @@ describe('userSvc (UT)', function() {
         });
 
         it('should check validity of token on user confirm', function() {
-            expect(userModule.checkValidToken.bind).toHaveBeenCalledWith(userModule, result._coll);
-            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.checkValidToken, [userModule, result._coll]));
+            expect(userModule.checkValidToken.bind).toHaveBeenCalledWith(userModule, result);
+            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.checkValidToken, [userModule, result]));
         });
 
         it('should give company props on user confirm', function() {
@@ -388,11 +388,13 @@ describe('userSvc (UT)', function() {
     });
 
     describe('checkValidToken', function() {
-        var coll, req, nextSpy, doneSpy;
+        var svc, req, nextSpy, doneSpy;
 
         beforeEach(function() {
-            coll = {
-                findOne: jasmine.createSpy('findOne()')
+            svc = {
+                _coll: {
+                    findOne: jasmine.createSpy('findOne()')
+                }
             };
             req = {
                 params: { },
@@ -405,11 +407,11 @@ describe('userSvc (UT)', function() {
 
         describe('when the user does not exist', function() {
             beforeEach(function(done) {
-                coll.findOne.and.callFake(function(query, cb) {
+                svc._coll.findOne.and.callFake(function(query, cb) {
                     cb(null, null);
                 });
                 req.params.id = 'non-existent-user-id';
-                userModule.checkValidToken(coll, req, nextSpy, doneSpy).done(done);
+                userModule.checkValidToken(svc, req, nextSpy, doneSpy).done(done);
             });
 
             it('should call done with a 404', function() {
@@ -420,10 +422,10 @@ describe('userSvc (UT)', function() {
 
         describe('when the user does not have a status of new', function() {
             beforeEach(function(done) {
-                coll.findOne.and.callFake(function(query, cb) {
+                svc._coll.findOne.and.callFake(function(query, cb) {
                     cb(null, { status: 'active', activationToken: {} });
                 });
-                userModule.checkValidToken(coll, req, nextSpy, doneSpy).done(done);
+                userModule.checkValidToken(svc, req, nextSpy, doneSpy).done(done);
             });
 
             it('should call done with a 403', function() {
@@ -434,10 +436,10 @@ describe('userSvc (UT)', function() {
 
         describe('when the user does not have an activation token', function() {
             beforeEach(function(done) {
-                coll.findOne.and.callFake(function(query, cb) {
+                svc._coll.findOne.and.callFake(function(query, cb) {
                     cb(null, { status: 'new' });
                 });
-                userModule.checkValidToken(coll, req, nextSpy, doneSpy).done(done);
+                userModule.checkValidToken(svc, req, nextSpy, doneSpy).done(done);
             });
 
             it('should call done with a 403', function() {
@@ -448,7 +450,7 @@ describe('userSvc (UT)', function() {
 
         describe('when the activation token on the user has expired', function() {
             beforeEach(function(done) {
-                coll.findOne.and.callFake(function(query, cb) {
+                svc._coll.findOne.and.callFake(function(query, cb) {
                     cb(null, {
                         status: 'new',
                         activationToken: {
@@ -456,7 +458,7 @@ describe('userSvc (UT)', function() {
                         }
                     });
                 });
-                userModule.checkValidToken(coll, req, nextSpy, doneSpy).done(done);
+                userModule.checkValidToken(svc, req, nextSpy, doneSpy).done(done);
             });
 
             it('should call done with a 403', function() {
@@ -467,7 +469,7 @@ describe('userSvc (UT)', function() {
 
         describe('when the provided token does not match the stored activation token', function() {
             beforeEach(function(done) {
-                coll.findOne.and.callFake(function(query, cb) {
+                svc._coll.findOne.and.callFake(function(query, cb) {
                     cb(null, {
                         status: 'new',
                         activationToken: {
@@ -480,7 +482,7 @@ describe('userSvc (UT)', function() {
                 bcrypt.compare.and.callFake(function(val1, val2, cb) {
                     return cb(null, false);
                 });
-                userModule.checkValidToken(coll, req, nextSpy, doneSpy).done(done);
+                userModule.checkValidToken(svc, req, nextSpy, doneSpy).done(done);
             });
 
             it('should compare the tokens', function() {
@@ -505,14 +507,14 @@ describe('userSvc (UT)', function() {
                     }
                 };
 
-                coll.findOne.and.callFake(function(query, cb) {
+                svc._coll.findOne.and.callFake(function(query, cb) {
                     cb(null, userDocument);
                 });
                 req.body.token = 'valid token';
                 bcrypt.compare.and.callFake(function(val1, val2, cb) {
                     cb(null, true);
                 });
-                userModule.checkValidToken(coll, req, nextSpy, doneSpy).done(done);
+                userModule.checkValidToken(svc, req, nextSpy, doneSpy).done(done);
             });
 
             it('should compare the tokens', function() {
