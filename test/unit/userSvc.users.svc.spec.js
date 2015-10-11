@@ -394,7 +394,10 @@ describe('userSvc (UT)', function() {
             svc = {
                 _coll: {
                     findOne: jasmine.createSpy('findOne()')
-                }
+                },
+                transformMongoDoc: jasmine.createSpy('transformMongoDoc(doc)').and.callFake(function(doc) {
+                    return doc;
+                })
             };
             req = {
                 params: { },
@@ -514,6 +517,7 @@ describe('userSvc (UT)', function() {
                 bcrypt.compare.and.callFake(function(val1, val2, cb) {
                     cb(null, true);
                 });
+                
                 userModule.checkValidToken(svc, req, nextSpy, doneSpy).done(done);
             });
 
@@ -526,7 +530,8 @@ describe('userSvc (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
             });
 
-            it('should temporarily store the fetched user document on the request', function() {
+            it('should temporarily store the safe fetched user document on the request', function() {
+                expect(svc.transformMongoDoc).toHaveBeenCalledWith(userDocument);
                 expect(req.user).toEqual(userDocument);
             });
         });
