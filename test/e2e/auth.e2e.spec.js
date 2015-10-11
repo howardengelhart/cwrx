@@ -192,7 +192,7 @@ describe('auth (E2E):', function() {
                 return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
-                expect(resp.response.body).toBe("Account not active");
+                expect(resp.response.body).toBe("Account not active or new");
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

@@ -87,9 +87,6 @@
             },
             advertisers: {
                 endpoint: '/api/account/advertisers'
-            },
-            auth: {
-                endpoint: '/api/auth'
             }
         },
         systemUserId: 'u-sixxy'
