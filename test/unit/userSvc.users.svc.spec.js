@@ -253,6 +253,16 @@ describe('userSvc (UT)', function() {
             expect(userModule.handleBrokenUser.bind).toHaveBeenCalledWith(userModule, result);
             expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.handleBrokenUser, [userModule, result]));
         });
+        
+        it('should give an activation token on resendActivation', function() {
+            expect(userModule.giveActivationToken.bind).toHaveBeenCalledWith(userModule, 60000);
+            expect(result._middleware.resendActivation).toContain(getBoundFn(userModule.giveActivationToken, [userModule, 60000]));
+        });
+        
+        it('should send an activation email on resendActivation', function() {
+            expect(userModule.sendActivationEmail.bind).toHaveBeenCalledWith(userModule, 'support@cinema6.com', 'https://www.selfie.cinema6.com/activate');
+            expect(result._middleware.resendActivation).toContain(getBoundFn(userModule.sendActivationEmail, [userModule, 'support@cinema6.com', 'https://www.selfie.cinema6.com/activate']));
+        });
     });
 
     describe('user validation', function() {
@@ -2173,6 +2183,116 @@ describe('userSvc (UT)', function() {
 
             it('should retun with a 200', function() {
                 expect(success).toHaveBeenCalledWith({code: 200, body: {id: 'u-12345'}});
+                expect(failure).not.toHaveBeenCalled();
+            });
+        });
+    });
+    
+    describe('resendActivation(svc, req)', function(done) {
+        var svc, req;
+        var mockUser, result;
+
+        beforeEach(function() {
+            mockUser = {
+                id: 'u-12345',
+                org: 'o-12345',
+                customer: 'c-12345',
+                advertiser: 'a-12345',
+                email: 'some email'
+            };
+            svc = {
+                customMethod: jasmine.createSpy('svc.customMethod()').and.returnValue(q()),
+                _coll: {
+                    findOne: jasmine.createSpy('findOne(query, cb)').and.callFake(function(query, cb) {
+                        return cb(null, mockUser);
+                    }),
+                    findAndModify: jasmine.createSpy('findAndModify()').and.callFake(function(query1, query2, updates, opts, cb) {
+                        return cb(null, { });
+                    })
+                }
+            };
+            req = {
+                body: { },
+                session: {
+                    user: 'u-12345'
+                }
+            };
+        });
+
+        it('should get the account of the user currently logged in', function(done) {
+            userModule.resendActivation(svc, req).done(function() {
+                expect(svc._coll.findOne).toHaveBeenCalledWith({id: 'u-12345'}, jasmine.any(Function));
+                done();
+            });
+        });
+
+        it('should return a 403 if the user does not have an activationToken', function(done) {
+            userModule.resendActivation(svc, req).done(function(result) {
+                expect(result).toEqual({code: 403, body: 'No activation token to resend'});
+                expect(mockLog.warn).toHaveBeenCalled();
+                done();
+            });
+        });
+
+        it('should call and return svc.customMethod()', function(done) {
+            mockUser.activationToken = { };
+            userModule.resendActivation(svc, req).done(function(result) {
+                var expectedReq = {
+                    body: {
+                        id: 'u-12345',
+                        email: 'some email'
+                    },
+                    session: {
+                        user: 'u-12345'
+                    }
+                };
+                expect(svc.customMethod).toHaveBeenCalledWith(expectedReq, 'resendActivation', jasmine.any(Function));
+                done();
+            });
+        });
+
+        describe('the callback passed to svc.customMethod()', function() {
+            var callback;
+            var success, failure;
+
+            beforeEach(function(done) {
+                mockUser.activationToken = {
+                    token: 'old token'
+                };
+                success = jasmine.createSpy('success()');
+                failure = jasmine.createSpy('failure()');
+                req.body.activationToken = {
+                    token: 'new token',
+                    expires: 'sometime'
+                };
+                svc.customMethod.and.callFake(function(req) {
+                    req.body.activationToken = {
+                        token: 'new token',
+                        expires: 'sometime'
+                    };
+                    return q();
+                });
+                userModule.resendActivation(svc, req).then(function() {
+                    callback = svc.customMethod.calls.mostRecent().args[2];
+                    return callback();
+                }).then(success, failure).done(done);
+            });
+            
+            it('should update the user with its new activation token', function() {
+                var expectedUpdates = {
+                    $set: {
+                        lastUpdated: jasmine.any(Date),
+                        activationToken: {
+                            token: 'new token',
+                            expires: 'sometime'
+                        }
+                    }
+                };
+                expect(svc._coll.findAndModify).toHaveBeenCalledWith({id: 'u-12345'}, {id: 1}, expectedUpdates, {w:1,journal:true,new:true}, jasmine.any(Function));
+            });
+            
+            it('should return with a 204', function() {
+                expect(success).toHaveBeenCalledWith({code:204,body:{}});
                 expect(failure).not.toHaveBeenCalled();
             });
         });

@@ -179,17 +179,40 @@ describe('auth (UT)', function() {
             }).done(done);
         });
 
-        it('should resolve with a 401 code if the user is inactive', function(done) {
+        it('should resolve with a 401 code if the user inactive and not new', function(done) {
             origUser.status = 'deleted';
             auth.login(req, users, 1000, auditJournal).then(function(resp) {
                 expect(resp.code).toBe(403);
-                expect(resp.body).toBe('Account not active');
+                expect(resp.body).toBe('Account not active or new');
                 expect(req.session.user).not.toBeDefined();
                 expect(req.session.regenerate).not.toHaveBeenCalled();
                 expect(users.findOne).toHaveBeenCalled();
                 expect(bcrypt.compare).toHaveBeenCalled();
                 expect(auditJournal.writeAuditEntry).not.toHaveBeenCalled();
                 expect(authUtils.decorateUser).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should be able to log in a new user ', function(done) {
+            origUser.status = Status.New;
+            auth.login(req, users, 1000, auditJournal).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toBeDefined();
+                expect(resp.body).toEqual({ id: 'u-123', decorated: true });
+                expect(req.session.user).toEqual('u-123');
+                expect(req.session.cookie.maxAge).toBe(1000);
+                expect(origUser.password).toBe('hashpass'); // shouldn't accidentally delete this
+                
+                expect(users.findOne).toHaveBeenCalled();
+                expect(users.findOne.calls.all()[0].args[0]).toEqual({'email': 'user'});
+                expect(bcrypt.compare).toHaveBeenCalledWith('pass', 'hashpass', anyFunc);
+                expect(req.session.regenerate).toHaveBeenCalled();
+                expect(mongoUtils.safeUser).toHaveBeenCalledWith(origUser);
+                expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
+                expect(auditJournal.writeAuditEntry).toHaveBeenCalledWith(req, 'u-123');
+                expect(authUtils.decorateUser).toHaveBeenCalledWith({ id: 'u-123', status: Status.New, email: 'user' });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);

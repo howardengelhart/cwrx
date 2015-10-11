@@ -157,6 +157,9 @@
         userSvc.use('confirmUser', handleBrokenUser);
         userSvc.use('confirmUser', sendConfirmationEmail);
 
+        userSvc.use('resendActivation', giveActivationToken);
+        userSvc.use('resendActivation', sendActivationEmail);
+
         return userSvc;
     };
 
@@ -770,6 +773,33 @@
         });
     };
 
+    userModule.resendActivation = function(svc, req) {
+        var log = logger.getLog(),
+            id = req.session.user;
+        return q.npost(svc._coll, 'findOne', [{id: id}])
+            .then(function(user) {
+                if(!user.activationToken) {
+                    log.warn('[%1] There is no activation token to resend on user %2', req.uuid, id);
+                    return { code: 403, body: 'No activation token to resend' };
+                }
+                req.body.id = id;
+                req.body.email = user.email;
+                return svc.customMethod(req, 'resendActivation', function() {
+                    var opts = { w: 1, journal: true, new: true },
+                        updates = {
+                            $set: {
+                                lastUpdated: new Date(),
+                                activationToken: req.body.activationToken
+                            }
+                        };
+                    return q.npost(svc._coll, 'findAndModify', [{id: id}, {id: 1}, updates, opts])
+                        .then(function() {
+                            return { code: 204, body: {} };
+                        });
+                });
+            });
+    };
+
     userModule.setupEndpoints = function(app, svc, sessions, audit, sessionStore, config, journal) {
         var router      = express.Router(),
             mountPath   = '/api/account/users?'; // prefix to all endpoints declared here
@@ -818,6 +848,18 @@
             }).catch(function(error) {
                 res.send(500, {
                     error: 'Error confirming user signup',
+                    detail: error
+                });
+            });
+        });
+
+        var authNewUser = authUtils.middlewarify({}, null, Status.New);
+        router.post('/resendActivation', sessions, authNewUser, function(req, res) {
+            userModule.resendActivation(svc, req).then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error resending activation link',
                     detail: error
                 });
             });
