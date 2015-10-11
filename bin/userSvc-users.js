@@ -183,7 +183,7 @@
                             log.info('[%1] User %2 provided an incorrect token', req.uuid, id);
                             return done({ code: 403, body: 'Confirmation failed' });
                         }
-                        req.user = result;
+                        req.user = svc.transformMongoDoc(result);
                         return next();
                     });
             });
