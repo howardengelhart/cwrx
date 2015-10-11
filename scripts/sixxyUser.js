@@ -35,9 +35,9 @@ mongoUtils.connect(program.dbHost, program.dbPort, 'c6Db', program.dbUser, progr
             password: hashPass,
             status: 'active',
             permissions: {
-                orgs: { create: 'all', read: 'deny', edit: 'deny', delete: 'deny' },
-                customers: { create: 'all', read: 'deny', edit: 'deny', delete: 'deny' },
-                advertisers: { create: 'all', read: 'deny', edit: 'deny', delete: 'deny'}
+                orgs: { create: 'all' },
+                customers: { create: 'all' },
+                advertisers: { create: 'all' }
             }
         };
 
