@@ -105,7 +105,7 @@ describe('userSvc (UT)', function() {
             [CrudSvc.prototype.preventGetAll, CrudSvc.prototype.validateUniqueProp, userModule.checkExistingWithNewEmail,
              userModule.hashProp, userModule.validateRoles, userModule.validatePolicies, userModule.setupSignupUser,
              userModule.filterProps, userModule.giveActivationToken, userModule.sendActivationEmail,
-             userModule.checkValidToken, userModule.giveCompanyProps, userModule.sendConfirmationEmail,
+             userModule.checkValidToken, userModule.createLinkedEntities, userModule.sendConfirmationEmail,
              userModule.handleBrokenUser].forEach(function(fn) {
                 spyOn(fn, 'bind').and.callFake(function() {
                     var boundFn = bind.apply(fn, arguments);
@@ -239,8 +239,8 @@ describe('userSvc (UT)', function() {
         });
 
         it('should give company props on user confirm', function() {
-            expect(userModule.giveCompanyProps.bind).toHaveBeenCalledWith(userModule, mockConfig.api, 'cookie');
-            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.giveCompanyProps, [userModule, mockConfig.api, 'cookie']));
+            expect(userModule.createLinkedEntities.bind).toHaveBeenCalledWith(userModule, mockConfig.api, 'cookie');
+            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.createLinkedEntities, [userModule, mockConfig.api, 'cookie']));
         });
 
         it('should send confirmation email on user confirm', function() {
@@ -537,7 +537,7 @@ describe('userSvc (UT)', function() {
         });
     });
 
-    describe('giveCompanyProps()', function() {
+    describe('createLinkedEntities()', function() {
         var api, sixxyCookie, req, nextSpy;
 
         beforeEach(function() {
@@ -577,7 +577,7 @@ describe('userSvc (UT)', function() {
                         }
                     });
                 });
-                userModule.giveCompanyProps(api, sixxyCookie, req, nextSpy).done(done);
+                userModule.createLinkedEntities(api, sixxyCookie, req, nextSpy).done(done);
             });
 
             it('should send a request to create an org', function() {
@@ -644,7 +644,7 @@ describe('userSvc (UT)', function() {
                         }
                     });
                 });
-                userModule.giveCompanyProps(api, sixxyCookie, req, nextSpy).done(done);
+                userModule.createLinkedEntities(api, sixxyCookie, req, nextSpy).done(done);
             });
 
             it('should not set properties that failed to be created', function() {

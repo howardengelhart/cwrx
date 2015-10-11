@@ -110,7 +110,7 @@
             config.newUserPermissions.roles, config.newUserPermissions.policies);
         var validatePassword = userModule.validatePassword;
         var checkValidToken = userModule.checkValidToken.bind(userModule, userSvc);
-        var giveCompanyProps = userModule.giveCompanyProps.bind(userModule, config.api,
+        var createLinkedEntities = userModule.createLinkedEntities.bind(userModule, config.api,
             sixxyCookie);
         var sendConfirmationEmail = userModule.sendConfirmationEmail.bind(userModule,
             config.ses.sender);
@@ -152,7 +152,7 @@
         userSvc.use('signupUser', sendActivationEmail);
 
         userSvc.use('confirmUser', checkValidToken);
-        userSvc.use('confirmUser', giveCompanyProps);
+        userSvc.use('confirmUser', createLinkedEntities);
         userSvc.use('confirmUser', handleBrokenUser);
         userSvc.use('confirmUser', sendConfirmationEmail);
 
@@ -189,7 +189,7 @@
             });
     };
 
-    userModule.giveCompanyProps = function(api, sixxyCookie, req, next) {
+    userModule.createLinkedEntities = function(api, sixxyCookie, req, next) {
         var log = logger.getLog(),
             company = req.user.company || null,
             id = req.user.id;
