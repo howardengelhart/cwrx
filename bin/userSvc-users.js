@@ -208,23 +208,24 @@
             };
         });
 
-        return q.all(
+        return q.allSettled(
             opts.map(function(options) {
                 return requestUtils.qRequest('post', options);
             })
-        ).then(function(resps) {
+        ).then(function(results) {
             var props = ['org', 'customer', 'advertiser'];
             for (var i=0;i<props.length;i++) {
-                if(resps[i].response.statusCode !== 201) {
-                    return q.reject('Error creating ' + props[i]);
+                var state = results[i].state;
+                var resp = results[i].value;
+                if(state === 'fulfilled' && resp.response.statusCode === 201) {
+                    req.user[props[i]] = resp.body.id;
+                    log.info('[%1] Created %2 %3 for user %4', req.uuid, props[i], resp.body.id,
+                        id);
+                } else {
+                    req.user.status = enums.Status.Error;
+                    log.error('[%1] Error creating %2 for user %3', req.uuid, props[i], id);
                 }
-                req.user[props[i]] = resps[i].body.id;
             }
-            return next();
-        }).catch(function(error) {
-            log.error('[%1] Error creating org, customer, or advertiser for user %2: %3',
-                req.uuid, id, error);
-            req.user.status = enums.Status.Error;
             return next();
         });
     };
@@ -663,7 +664,7 @@
 
     userModule.confirmUser = function(svc, req, journal, maxAge) {
         var log = logger.getLog();
-        if(!req.body.token) { 
+        if(!req.body.token) {
             log.info('[%1] User did not provide a token', req.uuid);
             return q({ code: 400, body: 'Must provide a token'});
         }
