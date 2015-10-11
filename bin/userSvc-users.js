@@ -695,6 +695,8 @@
                     journal.writeAuditEntry(req, decorated.id);
                     req.session.user = decorated.id;
                     req.session.cookie.maxAge = maxAge;
+                    log.info('[%1] User %2 has been successfully confirmed', req.uuid,
+                        decorated.id);
                     return { code: 200, body: decorated };
                 });
         });
