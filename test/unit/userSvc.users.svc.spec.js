@@ -105,8 +105,8 @@ describe('userSvc (UT)', function() {
             [CrudSvc.prototype.preventGetAll, CrudSvc.prototype.validateUniqueProp, userModule.checkExistingWithNewEmail,
              userModule.hashProp, userModule.validateRoles, userModule.validatePolicies, userModule.setupSignupUser,
              userModule.filterProps, userModule.giveActivationToken, userModule.sendActivationEmail,
-             userModule.checkPropsExist, userModule.checkValidToken, userModule.giveCompanyProps,
-             userModule.sendConfirmationEmail, userModule.handleBrokenUser].forEach(function(fn) {
+             userModule.checkValidToken, userModule.giveCompanyProps, userModule.sendConfirmationEmail,
+             userModule.handleBrokenUser].forEach(function(fn) {
                 spyOn(fn, 'bind').and.callFake(function() {
                     var boundFn = bind.apply(fn, arguments);
 
@@ -231,11 +231,6 @@ describe('userSvc (UT)', function() {
         it('should send an activation email when signing up a user', function() {
             expect(userModule.sendActivationEmail.bind).toHaveBeenCalledWith(userModule, 'support@cinema6.com', 'https://www.selfie.cinema6.com/activate');
             expect(result._middleware.signupUser).toContain(getBoundFn(userModule.sendActivationEmail, [userModule, 'support@cinema6.com', 'https://www.selfie.cinema6.com/activate']));
-        });
-
-        it('should check existance of token on user confirm', function() {
-            expect(userModule.checkPropsExist.bind).toHaveBeenCalledWith(userModule, ['token']);
-            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.checkPropsExist, [userModule, ['token']]));
         });
 
         it('should check validity of token on user confirm', function() {
@@ -388,51 +383,6 @@ describe('userSvc (UT)', function() {
                     expect(svc.model.validate('create', newObj, origObj, requester))
                         .toEqual({ isValid: false, reason: field + '[1] is UNACCEPTABLE! acceptable values are: [thing1,thing2,thing3]' });
                 });
-            });
-        });
-    });
-
-    describe('checkPropsExist', function() {
-        var props, req, nextSpy, doneSpy;
-
-        beforeEach(function() {
-            props = [];
-            req = {
-                body: { }
-            };
-            nextSpy = jasmine.createSpy('next()').and.returnValue(q());
-            doneSpy = jasmine.createSpy('done()').and.returnValue(q());
-        });
-
-        describe('when all properties exist', function() {
-            beforeEach(function(done) {
-                props = ['a', 'b', 'c'];
-                req.body = {
-                    a: 'a',
-                    b: 'b',
-                    c: 'c'
-                };
-                userModule.checkPropsExist(props, req, nextSpy, doneSpy).done(done);
-            });
-
-            it('should call next', function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-            });
-        });
-
-        describe('when at least one property does not exist', function() {
-            beforeEach(function(done) {
-                props = ['a', 'b', 'c'];
-                req.body = {
-                    a: 'a'
-                };
-                userModule.checkPropsExist(props, req, nextSpy, doneSpy).done(done);
-            });
-
-            it('should call done with a 400', function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({code: 400, body: 'Must provide a b'});
             });
         });
     });
@@ -1999,7 +1949,8 @@ describe('userSvc (UT)', function() {
                     cookie: { }
                 },
                 body: {
-                    foo: 'bar'
+                    foo: 'bar',
+                    token: 'some token'
                 }
             };
             journal = {
@@ -2009,6 +1960,14 @@ describe('userSvc (UT)', function() {
             spyOn(authUtils, 'decorateUser').and.returnValue(q({id: 'u-12345'}));
             spyOn(mongoUtils, 'safeUser').and.returnValue('safe user');
             result = userModule.confirmUser(svc, req, journal, maxAge);
+        });
+
+        it('should return a 400 if a token is not present on the body of the request', function(done) {
+            delete req.body.token;
+            userModule.confirmUser(svc, req, journal, maxAge).done(function(result) {
+                expect(result).toEqual({code:400,body:'Must provide a token'});
+                done();
+            });
         });
 
         it('should call and return svc.customMethod()', function() {
