@@ -109,7 +109,6 @@
         var setupSignupUser = userModule.setupSignupUser.bind(userModule, userSvc,
             config.newUserPermissions.roles, config.newUserPermissions.policies);
         var validatePassword = userModule.validatePassword;
-        var checkTokenExists = userModule.checkPropsExist.bind(userModule, ['token']);
         var checkValidToken = userModule.checkValidToken.bind(userModule, userSvc._coll);
         var giveCompanyProps = userModule.giveCompanyProps.bind(userModule, config.api,
             sixxyCookie);
@@ -152,24 +151,12 @@
         userSvc.use('signupUser', giveActivationToken);
         userSvc.use('signupUser', sendActivationEmail);
 
-        userSvc.use('confirmUser', checkTokenExists);
         userSvc.use('confirmUser', checkValidToken);
         userSvc.use('confirmUser', giveCompanyProps);
         userSvc.use('confirmUser', handleBrokenUser);
         userSvc.use('confirmUser', sendConfirmationEmail);
 
         return userSvc;
-    };
-
-    userModule.checkPropsExist = function(props, req, next, done) {
-        var log = logger.getLog();
-        for(var i=0;i<props.length;i++) {
-            if(!req.body[props[i]]) {
-                log.info('[%1] User did not provide a %2', req.uuid, props[i]);
-                return done({ code: 400, body: 'Must provide a ' + props[i] });
-            }
-        }
-        return next();
     };
 
     userModule.checkValidToken = function(coll, req, next, done) {
@@ -675,6 +662,11 @@
     };
 
     userModule.confirmUser = function(svc, req, journal, maxAge) {
+        var log = logger.getLog();
+        if(!req.body.token) {
+            log.info('[%1] User did not provide a token', req.uuid);
+            return q({ code: 400, body: 'Must provide a token'});
+        }
         return svc.customMethod(req, 'confirmUser', function confirm() {
             var id = req.user.id,
                 opts = { w: 1, journal: true, new: true },
