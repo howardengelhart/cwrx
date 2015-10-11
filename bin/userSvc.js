@@ -78,7 +78,7 @@
             policies: []
         },
         api: {
-            root: 'https://staging.cinema6.com/',
+            root: 'http://localhost/',
             orgs: {
                 endpoint: '/api/account/orgs'
             },
