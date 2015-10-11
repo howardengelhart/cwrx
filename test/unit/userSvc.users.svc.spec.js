@@ -1942,7 +1942,8 @@ describe('userSvc (UT)', function() {
                     findAndModify: jasmine.createSpy('findAndModify()').and.callFake(function(query1, query2, updates, opts, cb) {
                         cb(null, [{id: 'u-12345'}])
                     })
-                }
+                },
+                transformMongoDoc: jasmine.createSpy('transformMongoDoc(doc)').and.returnValue('transformed user')
             };
             req = {
                 user: {
@@ -1967,7 +1968,6 @@ describe('userSvc (UT)', function() {
             };
             maxAge = 'max age';
             spyOn(authUtils, 'decorateUser').and.returnValue(q({id: 'u-12345'}));
-            spyOn(mongoUtils, 'safeUser').and.returnValue('safe user');
             result = userModule.confirmUser(svc, req, journal, maxAge);
         });
 
@@ -2020,9 +2020,9 @@ describe('userSvc (UT)', function() {
                 expect(req.user).not.toBeDefined();
             });
 
-            it('should decorate a safe user', function() {
-                expect(mongoUtils.safeUser).toHaveBeenCalledWith({id: 'u-12345'});
-                expect(authUtils.decorateUser).toHaveBeenCalledWith('safe user');
+            it('should decorate a transformed mongo doc', function() {
+                expect(svc.transformMongoDoc).toHaveBeenCalledWith({id: 'u-12345'});
+                expect(authUtils.decorateUser).toHaveBeenCalledWith('transformed user');
             });
 
             it('should write an audit entry', function() {
