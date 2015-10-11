@@ -687,7 +687,7 @@
                     delete req.user;
                     return q.all([
                         q.npost(req.session, 'regenerate'),
-                        authUtils.decorateUser(mongoUtils.safeUser(userAccount))
+                        authUtils.decorateUser(svc.transformMongoDoc(userAccount))
                     ]);
                 })
                 .then(function(results) {
