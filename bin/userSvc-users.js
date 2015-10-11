@@ -114,7 +114,7 @@
             sixxyCookie);
         var sendConfirmationEmail = userModule.sendConfirmationEmail.bind(userModule,
             config.ses.sender);
-        var handleBrokenUser = userModule.handleBrokenUser.bind(userModule, userSvc._coll);
+        var handleBrokenUser = userModule.handleBrokenUser.bind(userModule, userSvc);
 
         // override some default CrudSvc methods with custom versions for users
         userSvc.transformMongoDoc = mongoUtils.safeUser;
@@ -230,7 +230,7 @@
         });
     };
 
-    userModule.handleBrokenUser = function(coll, req, next) {
+    userModule.handleBrokenUser = function(svc, req, next) {
         if(req.user.status === enums.Status.Error) {
             var log = logger.getLog(),
                 id = req.user.id,
@@ -242,7 +242,7 @@
                     },
                     $unset: { activationToken: 1 }
                 };
-            return q.npost(coll, 'findAndModify', [{id: id}, {id: 1}, updates, opts])
+            return q.npost(svc._coll, 'findAndModify', [{id: id}, {id: 1}, updates, opts])
                 .then(function() {
                     log.warn('[%1] User %2 is in a broken state', req.uuid, id);
                     return q.reject('The user is in a broken state.');

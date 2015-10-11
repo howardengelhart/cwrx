@@ -249,8 +249,8 @@ describe('userSvc (UT)', function() {
         });
 
         it('should handle a broken user', function() {
-            expect(userModule.handleBrokenUser.bind).toHaveBeenCalledWith(userModule, result._coll);
-            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.handleBrokenUser, [userModule, result._coll]));
+            expect(userModule.handleBrokenUser.bind).toHaveBeenCalledWith(userModule, result);
+            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.handleBrokenUser, [userModule, result]));
         });
     });
 
@@ -666,13 +666,15 @@ describe('userSvc (UT)', function() {
     });
 
     describe('handleBrokenUser()', function() {
-        var coll, req, nextSpy;
+        var svc, req, nextSpy;
 
         beforeEach(function() {
-            coll = {
-                findAndModify: jasmine.createSpy('findAndModify').and.callFake(function(query1, query2, updates, opts, cb) {
-                    cb(null, q());
-                })
+            svc = {
+                _coll: {
+                    findAndModify: jasmine.createSpy('findAndModify').and.callFake(function(query1, query2, updates, opts, cb) {
+                        cb(null, q());
+                    })
+                }
             };
             req = {
                 user: {
@@ -688,7 +690,7 @@ describe('userSvc (UT)', function() {
                 success = jasmine.createSpy('success()');
                 failure = jasmine.createSpy('failure()');
                 req.user.status = 'error';
-                userModule.handleBrokenUser(coll, req, nextSpy).then(success, failure).done(done);
+                userModule.handleBrokenUser(svc, req, nextSpy).then(success, failure).done(done);
             });
 
             it('should update the user with an error status', function() {
@@ -699,7 +701,7 @@ describe('userSvc (UT)', function() {
                     },
                     $unset: { activationToken: 1 }
                 };
-                expect(coll.findAndModify).toHaveBeenCalledWith({id: 'u-12345'}, {id: 1}, updates, {w: 1, journal: true, new:true}, jasmine.any(Function));
+                expect(svc._coll.findAndModify).toHaveBeenCalledWith({id: 'u-12345'}, {id: 1}, updates, {w: 1, journal: true, new:true}, jasmine.any(Function));
             });
 
             it('should reject the promise and log a warning', function() {
@@ -712,7 +714,7 @@ describe('userSvc (UT)', function() {
         describe('when the user is not broken', function() {
             beforeEach(function(done) {
                 req.user.status = 'new';
-                userModule.handleBrokenUser(coll, req, nextSpy).done(done);
+                userModule.handleBrokenUser(svc, req, nextSpy).done(done);
             });
 
             it('should call next', function() {
