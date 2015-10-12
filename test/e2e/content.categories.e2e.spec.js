@@ -16,11 +16,44 @@ describe('content category endpoints (E2E):', function() {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 5000;
 
         mockCats = [
-            { id: 'e2e-id1', name: 'snuffles', status: 'active' },
-            { id: 'e2e-id2', name: 'fluffles', status: 'inactive' },
-            { id: 'e2e-id3', name: 'puffles', status: 'pending' },
-            { id: 'e2e-id4', name: 'soterios_johnson', status: 'active' },
-            { id: 'e2e-id5', name: 'dog', status: 'deleted' }
+            {
+                id: 'e2e-id1',
+                name: 'snuffles',
+                type: 'interest',
+                source: 'IABTier1',
+                externalId: 'IAB10',
+                status: 'active'
+            },
+            {
+                id: 'e2e-id2',
+                name: 'fluffles',
+                type: 'interest',
+                source: 'IABTier2',
+                externalId: 'IAB11',
+                status: 'inactive'
+            },
+            {
+                id: 'e2e-id3',
+                name: 'puffles',
+                type: 'content',
+                source: 'IABTier1',
+                externalId: 'IAB12',
+                status: 'pending'
+            },
+            {
+                id: 'e2e-id4',
+                name: 'meowser',
+                type: 'content',
+                source: 'Cinema6',
+                status: 'active'
+            },
+            {
+                id: 'e2e-id5',
+                name: 'dog',
+                type: 'interest',
+                source: 'IABTier1',
+                status: 'deleted'
+            }
         ];
     
         if (e2eUserJar && e2eUserJar.cookies && adminJar && adminJar.cookies && somePermsJar && somePermsJar.cookies) {
@@ -91,11 +124,14 @@ describe('content category endpoints (E2E):', function() {
             var options = {url: config.contentUrl + '/content/category/e2e-id1', jar: e2eUserJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body._id).not.toBeDefined();
-                expect(resp.body.id).toBe('e2e-id1');
-                expect(resp.body.name).toBe('snuffles');
-                expect(resp.body.user).not.toBeDefined();
-                expect(resp.body.org).not.toBeDefined();
+                expect(resp.body).toEqual({
+                    id: 'e2e-id1',
+                    name: 'snuffles',
+                    type: 'interest',
+                    source: 'IABTier1',
+                    externalId: 'IAB10',
+                    status: 'active'
+                });
                 expect(resp.response.headers['content-range']).not.toBeDefined();
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -190,7 +226,7 @@ describe('content category endpoints (E2E):', function() {
             }).done(done);
         });
 
-        it('should throw a 401 error if the user is not authenticated', function(done) {
+        it('should return a 401 error if the user is not authenticated', function(done) {
             var options = { url: config.contentUrl + '/content/category/e2e-id1' };
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
@@ -220,7 +256,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.body[0]._id).not.toBeDefined();
                 expect(resp.body[0].name).toBe('snuffles');
                 expect(resp.body[1]._id).not.toBeDefined();
-                expect(resp.body[1].name).toBe('soterios_johnson');
+                expect(resp.body[1].name).toBe('meowser');
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -253,7 +289,7 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toEqual([
                     { id: 'e2e-id1', name: 'snuffles' },
-                    { id: 'e2e-id4', name: 'soterios_johnson' }
+                    { id: 'e2e-id4', name: 'meowser' }
                 ]);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -284,8 +320,52 @@ describe('content category endpoints (E2E):', function() {
                 expect(resp.body[0].name).toBe('snuffles');
                 expect(resp.body[1].name).toBe('fluffles');
                 expect(resp.body[2].name).toBe('puffles');
-                expect(resp.body[3].name).toBe('soterios_johnson');
+                expect(resp.body[3].name).toBe('meowser');
                 expect(resp.response.headers['content-range']).toBe('items 1-4/4');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should be able to get categories by type', function(done) {
+            options.jar = adminJar;
+            options.qs.type = 'interest';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body instanceof Array).toBeTruthy('body is array');
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0].name).toBe('snuffles');
+                expect(resp.body[1].name).toBe('fluffles');
+                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should be able to get categories by source', function(done) {
+            options.jar = adminJar;
+            options.qs.source = 'IABTier1';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body instanceof Array).toBeTruthy('body is array');
+                expect(resp.body.length).toBe(2);
+                expect(resp.body[0].name).toBe('snuffles');
+                expect(resp.body[1].name).toBe('puffles');
+                expect(resp.response.headers['content-range']).toBe('items 1-2/2');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should be able to get categories by externalId', function(done) {
+            options.jar = adminJar;
+            options.qs.externalId = 'IAB12';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body instanceof Array).toBeTruthy('body is array');
+                expect(resp.body.length).toBe(1);
+                expect(resp.body[0].name).toBe('puffles');
+                expect(resp.response.headers['content-range']).toBe('items 1-1/1');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -325,19 +405,17 @@ describe('content category endpoints (E2E):', function() {
             options.jar = adminJar;
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body instanceof Array).toBeTruthy('body is array');
                 expect(resp.body.length).toBe(2);
                 expect(resp.body[0].name).toBe('fluffles');
-                expect(resp.body[1].name).toBe('puffles');
+                expect(resp.body[1].name).toBe('meowser');
                 expect(resp.response.headers['content-range']).toBe('items 1-2/4');
                 options.qs.skip = 2;
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body instanceof Array).toBeTruthy('body is array');
                 expect(resp.body.length).toBe(2);
-                expect(resp.body[0].name).toBe('snuffles');
-                expect(resp.body[1].name).toBe('soterios_johnson');
+                expect(resp.body[0].name).toBe('puffles');
+                expect(resp.body[1].name).toBe('snuffles');
                 expect(resp.response.headers['content-range']).toBe('items 3-4/4');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -358,7 +436,7 @@ describe('content category endpoints (E2E):', function() {
             }).done(done);
         });
         
-        it('should throw a 401 error if the user is not authenticated', function(done) {
+        it('should return a 401 error if the user is not authenticated', function(done) {
             delete options.jar;
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
@@ -370,10 +448,16 @@ describe('content category endpoints (E2E):', function() {
         });
     });
 
-    describe('POST /api/content/category', function() {
+    describe('POST /api/content/categories', function() {
         var mockCat, options;
         beforeEach(function(done) {
-            mockCat = { name: 'snuffles', label: 'Snuffles The Cat' };
+            mockCat = {
+                name: 'snuffles',
+                type: 'content',
+                label: 'Snuffles The Cat',
+                source: 'IABTier2',
+                externalId: 'IAB30'
+            };
             options = {
                 url: config.contentUrl + '/content/category',
                 jar: adminJar,
@@ -385,17 +469,19 @@ describe('content category endpoints (E2E):', function() {
         it('should be able to create a category', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
-                expect(resp.body).toBeDefined();
-                expect(resp.body._id).not.toBeDefined();
-                expect(resp.body.id).toBeDefined();
-                expect(resp.body.name).toBe('snuffles');
-                expect(resp.body.label).toBe('Snuffles The Cat');
-                expect(resp.body.user).not.toBeDefined();
-                expect(resp.body.org).not.toBeDefined();
-                expect(resp.body.created).toBeDefined();
+                expect(resp.body).toEqual({
+                    id: jasmine.any(String),
+                    status: 'active',
+                    created: jasmine.any(String),
+                    lastUpdated: jasmine.any(String),
+                    name: 'snuffles',
+                    type: 'content',
+                    label: 'Snuffles The Cat',
+                    source: 'IABTier2',
+                    externalId: 'IAB30'
+                });
                 expect(new Date(resp.body.created).toString()).not.toEqual('Invalid Date');
                 expect(resp.body.lastUpdated).toEqual(resp.body.created);
-                expect(resp.body.status).toBe('active');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).finally(done);
@@ -431,43 +517,6 @@ describe('content category endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
-        it('should not allow creating a category with no name', function(done) {
-            delete mockCat.name;
-            requestUtils.qRequest('post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('Invalid request body');
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should not allow creating a category with an invalid name', function(done) {
-            q.all(['fat cat', '12c@t', '@#)$(*$', 'ca\t'].map(function(name) {
-                mockCat.name = name;
-                return requestUtils.qRequest('post', options);
-            })).then(function(results) {
-                results.forEach(function(resp) {
-                    expect(resp.response.statusCode).toBe(400);
-                    expect(resp.body).toBe('Invalid name');
-                });
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should not allow creating a category with a duplicate name', function(done) {
-            requestUtils.qRequest('post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(201);
-                expect(resp.body.name).toBe('snuffles');
-                return requestUtils.qRequest('post', options);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(409);
-                expect(resp.body).toBe('An object with that name already exists');
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
 
         it('should not allow non-admins to create categories', function(done) {
             q.all([e2eUserJar, somePermsJar].map(function(jar) {
@@ -483,7 +532,7 @@ describe('content category endpoints (E2E):', function() {
             }).done(done);
         });
 
-        it('should throw a 401 error if the user is not authenticated', function(done) {
+        it('should return a 401 error if the user is not authenticated', function(done) {
             delete options.jar;
             requestUtils.qRequest('post', options)
             .then(function(resp) {
@@ -571,16 +620,6 @@ describe('content category endpoints (E2E):', function() {
             }).done(done);
         });
         
-        it('should not allow changes to a category\'s name', function(done) {
-            options.json = { name: 'bunny' };
-            requestUtils.qRequest('put', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('Invalid request body');
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-        
         it('should not allow non-admins to edit categories', function(done) {
             q.all([e2eUserJar, somePermsJar].map(function(jar) {
                 options.jar = jar;
@@ -595,7 +634,7 @@ describe('content category endpoints (E2E):', function() {
             }).done(done);
         });
 
-        it('should throw a 401 error if the user is not authenticated', function(done) {
+        it('should return a 401 error if the user is not authenticated', function(done) {
             var options = {
                 url: config.contentUrl + '/content/category/e2e-put1',
                 json: { tag: 'newTag' }
@@ -688,7 +727,7 @@ describe('content category endpoints (E2E):', function() {
             }).done(done);
         });
 
-        it('should throw a 401 error if the user is not authenticated', function(done) {
+        it('should return a 401 error if the user is not authenticated', function(done) {
             requestUtils.qRequest('delete', {url: config.contentUrl + '/content/category/e2e-id1'})
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);

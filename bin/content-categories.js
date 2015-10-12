@@ -9,20 +9,35 @@
         Scope           = enums.Scope,
 
         catModule = {};
+        
+    catModule.catSchema = {
+        name: {
+            __allowed: true,
+            __type: 'string'
+        },
+        type: {
+            __allowed: true,
+            __type: 'string'
+        },
+        source: {
+            __allowed: true,
+            __type: 'string'
+        },
+        externalId: {
+            __allowed: true,
+            __type: 'string'
+        }
+    };
 
-    catModule.setupCatSvc = function(catColl) {
+    catModule.setupSvc = function(catColl) {
         var opts = {
             userProp: false,
             orgProp: false,
             allowPublic: true
         };
-        var catSvc = new CrudSvc(catColl, 'cat', opts);
+        var catSvc = new CrudSvc(catColl, 'cat', opts, catModule.catSchema);
             
-        catSvc.createValidator._required.push('name');
-        catSvc.editValidator._forbidden.push('name');
-        
         catSvc.use('create', catModule.adminCreateCheck);
-        catSvc.use('create', catSvc.validateUniqueProp.bind(catSvc, 'name', /^\w+$/));
         
         return catSvc;
     };
@@ -59,9 +74,11 @@
 
         router.get('/', sessions, authGetCat, audit, function(req, res) {
             var query = {};
-            if (req.query.name) {
-                query.name = String(req.query.name);
-            }
+            ['name', 'type', 'source', 'externalId'].forEach(function(prop) {
+                if (req.query[prop]) {
+                    query[prop] = String(req.query[prop]);
+                }
+            });
 
             var promise = catSvc.getObjs(query, req, true);
             promise.finally(function() {

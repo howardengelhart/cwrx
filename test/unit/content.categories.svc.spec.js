@@ -1,6 +1,6 @@
 var flush = true;
 describe('content-categories (UT)', function() {
-    var catModule, mockLog, CrudSvc, logger, enums, Scope, q;
+    var catModule, mockLog, CrudSvc, Model, logger, enums, Scope, q;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -8,6 +8,7 @@ describe('content-categories (UT)', function() {
         logger          = require('../../lib/logger');
         catModule       = require('../../bin/content-categories');
         CrudSvc         = require('../../lib/crudSvc');
+        Model           = require('../../lib/model');
         enums           = require('../../lib/enums');
         Scope           = enums.Scope;
 
@@ -23,26 +24,53 @@ describe('content-categories (UT)', function() {
         spyOn(logger, 'getLog').and.returnValue(mockLog);
     });
 
-    describe('setupCatSvc', function() {
-        it('should setup the category service', function() {
-            spyOn(CrudSvc.prototype.validateUniqueProp, 'bind').and.returnValue(CrudSvc.prototype.validateUniqueProp);
-            var mockColl = { collectionName: 'categories' },
-                catSvc = catModule.setupCatSvc(mockColl);
+    describe('setupSvc', function() {
+        var svc;
+        beforeEach(function() {
+            svc = catModule.setupSvc({ collectionName: 'categories' });
+        });
 
-            expect(CrudSvc.prototype.validateUniqueProp.bind).toHaveBeenCalledWith(catSvc, 'name', /^\w+$/);
+        it('should return a CrudSvc', function() {
+            expect(svc).toEqual(jasmine.any(CrudSvc));
+            expect(svc._coll).toEqual({ collectionName: 'categories' });
+            expect(svc.objName).toBe('categories');
+            expect(svc._prefix).toBe('cat');
+            expect(svc._userProp).toBe(false);
+            expect(svc._orgProp).toBe(false);
+            expect(svc._allowPublic).toBe(true);
+            expect(svc.model).toEqual(jasmine.any(Model));
+            expect(svc.model.schema).toBe(catModule.catSchema);
+        });
+        
+        it('should check that the user has admin permissions on create', function() {
+            expect(svc._middleware.create).toContain(catModule.adminCreateCheck);
+        });
+    });
+    
+    describe('category validation', function() {
+        var svc, newObj, origObj, requester;
+        beforeEach(function() {
+            svc = catModule.setupSvc({ collectionName: 'categories' });
+            newObj = {};
+            origObj = {};
+            requester = { fieldValidation: { categories: {} } };
+        });
 
-            expect(catSvc instanceof CrudSvc).toBe(true);
-            expect(catSvc._prefix).toBe('cat');
-            expect(catSvc.objName).toBe('categories');
-            expect(catSvc._userProp).toBe(false);
-            expect(catSvc._orgProp).toBe(false);
-            expect(catSvc._allowPublic).toBe(true);
-            expect(catSvc._coll).toBe(mockColl);
-            expect(catSvc.createValidator._required).toContain('name');
-            expect(catSvc.editValidator._forbidden).toContain('name');
-
-            expect(catSvc._middleware.create).toEqual([jasmine.any(Function), jasmine.any(Function),
-                catModule.adminCreateCheck, CrudSvc.prototype.validateUniqueProp]);
+        ['name', 'type', 'source', 'externalId'].forEach(function(field) {
+            describe('when handling ' + field, function() {
+                it('should fail if the field is not a string', function() {
+                    newObj[field] = 123;
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: false, reason: field + ' must be in format: string' });
+                });
+                
+                it('should allow the field to be set', function() {
+                    newObj[field] = 'foo';
+                    expect(svc.model.validate('create', newObj, origObj, requester))
+                        .toEqual({ isValid: true, reason: undefined });
+                    expect(newObj[field]).toEqual('foo');
+                });
+            });
         });
     });
     
