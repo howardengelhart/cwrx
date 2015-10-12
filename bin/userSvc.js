@@ -92,7 +92,7 @@
                 endpoint: '/api/auth'
             }
         },
-        systemUserId: 'u-test'
+        systemUserId: 'u-sixxy'
     };
 
     var main = function(state) {
@@ -105,8 +105,7 @@
         log.info('Running as cluster worker, proceed with setting up web server.');
 
         var app          = express(),
-            userSvc      = userModule.setupSvc(state.dbs.c6Db, state.config,
-                                               state.secrets.sixxyCookie),
+            userSvc      = userModule.setupSvc(state.dbs.c6Db, state.config),
             roleSvc      = roleModule.setupSvc(state.dbs.c6Db),
             polSvc       = polModule.setupSvc(state.dbs.c6Db, state.config),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
@@ -236,7 +235,6 @@
         .then(service.cluster)
         .then(service.initMongo)
         .then(service.initSessionStore)
-        .then(service.loginServiceUser)
         .then(main)
         .catch(function(err) {
             var log = logger.getLog();

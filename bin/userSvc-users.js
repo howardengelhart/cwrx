@@ -16,7 +16,6 @@
         CrudSvc         = require('../lib/crudSvc.js'),
         email           = require('../lib/email'),
         enums           = require('../lib/enums'),
-        requestUtils    = require('../lib/requestUtils.js'),
         Status          = enums.Status,
         Scope           = enums.Scope,
 
@@ -84,7 +83,7 @@
         }, object);
     }
 
-    userModule.setupSvc = function setupSvc(db, config, sixxyCookie) {
+    userModule.setupSvc = function setupSvc(db, config) {
         var opts = { userProp: false },
             userSvc = new CrudSvc(db.collection('users'), 'u', opts, userModule.userSchema);
 
@@ -113,7 +112,7 @@
         var validatePassword = userModule.validatePassword;
         var checkValidToken = userModule.checkValidToken.bind(userModule, userSvc);
         var createLinkedEntities = userModule.createLinkedEntities.bind(userModule, config.api,
-            sixxyCookie);
+            config.port);
         var sendConfirmationEmail = userModule.sendConfirmationEmail.bind(userModule,
             config.ses.sender);
         var handleBrokenUser = userModule.handleBrokenUser.bind(userModule, userSvc);
@@ -191,45 +190,50 @@
             });
     };
 
-    userModule.createLinkedEntities = function(api, sixxyCookie, req, next) {
+    userModule.createLinkedEntities = function(api, port, req, next) {
         var log = logger.getLog(),
             company = req.user.company || null,
             id = req.user.id;
 
-        var opts = ['orgs', 'customers', 'advertisers'].map(function(object, index) {
-            var defaultName = ['newOrg', 'newCustomer', 'newAdvertiser'][index];
-            var name = (company ? company : defaultName) + ' (' + id + ')';
-            return {
-                url: url.resolve(api.root, api[object].endpoint),
-                json: {
-                    name: name
-                },
-                headers: {
-                    cookie: sixxyCookie
-                }
-            };
-        });
 
-        return q.allSettled(
-            opts.map(function(options) {
-                return requestUtils.qRequest('post', options);
+        return userModule.getSixxySession(req, port)
+            .then(function(cookie) {
+                log.info('[%1] Got cookie for sixxy user', req.uuid);
+                var opts = ['orgs', 'customers', 'advertisers'].map(function(object, index) {
+                    var defaultName = ['newOrg', 'newCustomer', 'newAdvertiser'][index];
+                    var name = (company ? company : defaultName) + ' (' + id + ')';
+                    return {
+                        url: url.resolve(api.root, api[object].endpoint),
+                        json: {
+                            name: name
+                        },
+                        headers: {
+                            cookie: cookie
+                        }
+                    };
+                });
+                return q.allSettled(
+                    opts.map(function(options) {
+                        return requestUtils.qRequest('post', options);
+                    })
+                );
             })
-        ).then(function(results) {
-            var props = ['org', 'customer', 'advertiser'];
-            for (var i=0;i<props.length;i++) {
-                var state = results[i].state;
-                var resp = results[i].value;
-                if(state === 'fulfilled' && resp.response.statusCode === 201) {
-                    req.user[props[i]] = resp.body.id;
-                    log.info('[%1] Created %2 %3 for user %4', req.uuid, props[i], resp.body.id,
-                        id);
-                } else {
-                    req.user.status = enums.Status.Error;
-                    log.error('[%1] Error creating %2 for user %3', req.uuid, props[i], id);
+            .then(function(results) {
+                var props = ['org', 'customer', 'advertiser'];
+                for (var i=0;i<props.length;i++) {
+                    var state = results[i].state;
+                    var resp = results[i].value;
+                    if(state === 'fulfilled' && resp.response.statusCode === 201) {
+                        req.user[props[i]] = resp.body.id;
+                        log.info('[%1] Created %2 %3 for user %4', req.uuid, props[i], resp.body.id,
+                            id);
+                    } else {
+                        req.user.status = enums.Status.Error;
+                        log.error('[%1] Error creating %2 for user %3', req.uuid, props[i], id);
+                    }
                 }
-            }
-            return next();
-        });
+                return next();
+            });
     };
 
     userModule.handleBrokenUser = function(svc, req, next) {
@@ -663,33 +667,6 @@
             return q({ code: 400, body: validity.reason});
         }
     };
-    
-
-    userModule.testEndpoint = function(req, config) { //TODO: remove test code
-        var log = logger.getLog();
-        
-        return userModule.getSixxySession(req, config.port)
-        .then(function(cookie) {
-            log.info('[%1] Got cookie for sixxy user', req.uuid);
-            
-            return requestUtils.qRequest('post', {
-                url: 'http://localhost/api/content/experience',
-                json: { verySneaky: 'yes' },
-                headers: {
-                    cookie: cookie
-                }
-            });
-        })
-        .then(function(resp) {
-            log.info('[%1] Proxied request got status %2', req.uuid, resp.response.statusCode);
-            return q({ code: resp.response.statusCode, body: resp.body });
-            
-        })
-        .catch(function(error) {
-            log.error('[%1] I GOT A PROBLEM: %2', req.uuid, error && error.stack || error);
-        });
-    };
-
     
     userModule.getSixxySession = function(req, port) {
         var url = urlUtils.format({
