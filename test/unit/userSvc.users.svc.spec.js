@@ -1934,6 +1934,138 @@ describe('userSvc (UT)', function() {
         });
     });
 
+    describe('getSixxySession(req, port)', function() {
+        var req, port, mockResponse;
+        
+        beforeEach(function() {
+            spyOn(crypto, 'randomBytes').and.callFake(function(num, cb) {
+                cb(null, new Buffer('abcdefghijklmnopqrstuvwxyz'.substring(0, num)));
+            });
+            mockResponse = {
+                response: {
+                    statusCode: 204,
+                    headers: {
+                        'set-cookie': [
+                            'c6Auth cookie'
+                        ]
+                    }
+                }
+            };
+            spyOn(requestUtils, 'qRequest').and.returnValue(mockResponse);
+            req = {
+                uuid: 'uuid'
+            };
+            port = 3500;
+        });
+        
+        it('should set a random nonce string for the request', function(done) {
+            userModule.getSixxySession(req, port).then(function() {
+                expect(crypto.randomBytes).toHaveBeenCalledWith(24, jasmine.any(Function));
+                expect(userModule._nonces.uuid).toBe('6162636465666768696a6b6c6d6e6f707172737475767778');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should send a request to get the sixxy user session', function(done) {
+            userModule.getSixxySession(req, port).then(function() {
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
+                    url: 'http://localhost:3500/__internal/sixxyUserSession',
+                    json: {uuid:'uuid',nonce:'6162636465666768696a6b6c6d6e6f707172737475767778'}
+                });
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should reject if the statusCode of the response is not a 204', function(done) {
+            mockResponse.response.statusCode = 400;
+            userModule.getSixxySession(req, port).then(function(result) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('Failed to request sixxy session: code = 400, body = undefined');
+            }).done(done);
+        });
+        
+        it('should reject if there is no c6Auth cookie', function(done) {
+            mockResponse.response.headers['set-cookie'] = [];
+            userModule.getSixxySession(req, port).then(function(result) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('No c6Auth cookie in response');
+            }).done(done);
+        });
+        
+        it('should return the c6Auth cookie', function(done) {
+            userModule.getSixxySession(req, port).then(function(result) {
+                expect(result).toBe('c6Auth cookie');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+    });
+    
+    describe('insertSixxySession(req, res, config)', function() {
+        var req, res, config;
+        
+        beforeEach(function() {
+            req = {
+                body: {
+                    
+                },
+                session: {
+                    regenerate: jasmine.createSpy('regenerate()').and.callFake(function(cb) {
+                        cb(null, null);
+                    }),
+                    cookie: { }
+                }
+            };
+            res = {
+                send: jasmine.createSpy('send()')
+            };
+            config = {
+                systemUserId: 'u-sixxy'
+            };
+        });
+        
+        it('should 400 if there is no nonce on the body of the request', function() {
+            req.body.uuid = 'uuid';
+            userModule.insertSixxySession(req, res, config);
+            expect(res.send).toHaveBeenCalledWith(400);
+            expect(mockLog.warn).toHaveBeenCalled();
+        });
+        
+        it('should 400 if there is no uuid on the body of the request', function() {
+            req.body.nonce = 'nonce';
+            userModule.insertSixxySession(req, res, config);
+            expect(res.send).toHaveBeenCalledWith(400);
+            expect(mockLog.warn).toHaveBeenCalled();
+        });
+        
+        it('should 400 if the provided nonce does not match', function() {
+            req.body.nonce = 'nonce';
+            req.body.uuid = 'uuid';
+            userModule._nonces.uuid = 'random bytes';
+            userModule.insertSixxySession(req, res, config);
+            expect(res.send).toHaveBeenCalledWith(400);
+            expect(mockLog.warn).toHaveBeenCalled();
+        });
+        
+        it('should regenerate the session and login the sixxy user', function(done) {
+            req.body.nonce = 'nonce';
+            req.body.uuid = 'uuid';
+            userModule._nonces.uuid = 'nonce';
+            userModule.insertSixxySession(req, res, config);
+            process.nextTick(function() {
+                expect(req.session.regenerate).toHaveBeenCalled();
+                expect(req.session.user).toBe('u-sixxy');
+                expect(req.session.cookie.maxAge).toBe(60000);
+                expect(res.send).toHaveBeenCalledWith(204);
+                done();
+            });
+        });
+    });
+
     describe('confirmUser', function() {
         var customMethodDeferred;
         var svc, req, journal, maxAge;

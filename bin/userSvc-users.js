@@ -777,17 +777,6 @@
         app.post('/__internal/sixxyUserSession', sessions, function(req, res) {
             userModule.insertSixxySession(req, res, config);
         });
-            
-        router.post('/testProxy', function(req, res) { //TODO: remove test code
-            userModule.testEndpoint(req, config).then(function(resp) {
-                res.send(resp.code, resp.body);
-            }).catch(function(error) {
-                res.send(500, {
-                    error: 'Error!',
-                    detail: error
-                });
-            });
-        });
 
         var credsChecker = authUtils.userPassChecker();
         router.post('/email', credsChecker, audit, function(req, res) {
