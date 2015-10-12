@@ -1,5 +1,6 @@
 # User Service Changelog
 
+* [FEATURE]: Add new user confirmation endpoint: [#484](https://github.com/cinema6/cwrx/issues/484)
 * [FIX]: Setting `ids` user filter param to `''` returns no users: [#524](https://github.com/cinema6/cwrx/issues/524)
 * [FEATURE]: Add new user signup endpoint: [#483](https://github.com/cinema6/cwrx/issues/483)
 * Extra deployment steps:

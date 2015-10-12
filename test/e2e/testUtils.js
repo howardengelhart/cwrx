@@ -81,12 +81,27 @@ testUtils.mongoFind = function(collection, query, sort, limit, skip, userCfg) {
 };
 
 testUtils.resetCollection = function(collection,data,userCfg){
-    var db, coll;
-    return testUtils._getDb(userCfg)
+    var db, coll, sixxyUser;
+    
+    return q()
+        .then(function() {
+            if(collection === 'users') {
+                return testUtils.mongoFind(collection, {id: 'u-sixxy'})
+                    .then(function(results) {
+                        if(results.length === 0) {
+                            return q.reject('Make sure the sixxy user exists in the users collection.');
+                        }
+                        sixxyUser = results[0];
+                    });
+            }
+        })
+        .then(function() {
+            return testUtils._getDb(userCfg);
+        })
         .then(function(database){
             db      = database;
             coll    = db.collection(collection);
-            return q.npost(db, 'collectionNames', [collection])
+            return q.npost(db, 'collectionNames', [collection]);
         })
         .then(function(names){
             if (names.length === 0 ) {
@@ -96,12 +111,22 @@ testUtils.resetCollection = function(collection,data,userCfg){
         })
         .then(function(){
             if (!data) {
+                data = [];
+            }
+            if(!Array.isArray(data)) {
+                data = [data];
+            }
+            if(sixxyUser) {
+                data.push(sixxyUser);
+            }
+            if(data.length === 0) {
                 return q();
             }
 
             return q.npost(coll,'insert',[data, { w: 1, journal: true }]);
         }).catch(function(error) {
             console.log('\nFailed resetting ' + collection + ' with data ' + JSON.stringify(data, null, 4));
+            console.log(error);
             return q.reject(error);
         }).thenResolve();
 };

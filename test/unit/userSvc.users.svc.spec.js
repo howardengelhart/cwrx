@@ -18,9 +18,11 @@ describe('userSvc (UT)', function() {
         CrudSvc         = require('../../lib/crudSvc.js');
         Model           = require('../../lib/model.js');
         mongoUtils      = require('../../lib/mongoUtils');
+        authUtils       = require('../../lib/authUtils.js');
         objUtils        = require('../../lib/objUtils');
         email           = require('../../lib/email');
         uuid            = require('../../lib/uuid');
+        requestUtils    = require('../../lib/requestUtils.js');
 
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -49,12 +51,16 @@ describe('userSvc (UT)', function() {
                 region: 'us-east-1',
                 sender: 'support@cinema6.com'
             },
+            port: 3500,
             activationTokenTTL: 60000,
             activationTarget: 'https://www.selfie.cinema6.com/activate',
             newUserPermissions: {
                 roles: ['newUserRole1'],
                 policies: ['newUserPol1'],
                 tempPolicy: 'tempPolicy'
+            },
+            api: {
+                root: 'http://localhost'
             }
         };
     });
@@ -99,7 +105,9 @@ describe('userSvc (UT)', function() {
             boundFns = [];
             [CrudSvc.prototype.preventGetAll, CrudSvc.prototype.validateUniqueProp, userModule.checkExistingWithNewEmail,
              userModule.hashProp, userModule.validateRoles, userModule.validatePolicies, userModule.setupSignupUser,
-             userModule.filterProps, userModule.giveActivationToken, userModule.sendActivationEmail].forEach(function(fn) {
+             userModule.filterProps, userModule.giveActivationToken, userModule.sendActivationEmail,
+             userModule.checkValidToken, userModule.createLinkedEntities, userModule.sendConfirmationEmail,
+             userModule.handleBrokenUser].forEach(function(fn) {
                 spyOn(fn, 'bind').and.callFake(function() {
                     var boundFn = bind.apply(fn, arguments);
 
@@ -113,7 +121,7 @@ describe('userSvc (UT)', function() {
                 });
             });
 
-            result = userModule.setupSvc(mockDb, mockConfig);
+            result = userModule.setupSvc(mockDb, mockConfig, 'cookie');
         });
 
         it('should return a CrudSvc', function() {
@@ -224,6 +232,36 @@ describe('userSvc (UT)', function() {
         it('should send an activation email when signing up a user', function() {
             expect(userModule.sendActivationEmail.bind).toHaveBeenCalledWith(userModule, 'support@cinema6.com', 'https://www.selfie.cinema6.com/activate');
             expect(result._middleware.signupUser).toContain(getBoundFn(userModule.sendActivationEmail, [userModule, 'support@cinema6.com', 'https://www.selfie.cinema6.com/activate']));
+        });
+
+        it('should check validity of token on user confirm', function() {
+            expect(userModule.checkValidToken.bind).toHaveBeenCalledWith(userModule, result);
+            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.checkValidToken, [userModule, result]));
+        });
+
+        it('should give linked entities on user confirm', function() {
+            expect(userModule.createLinkedEntities.bind).toHaveBeenCalledWith(userModule, mockConfig.api, 3500);
+            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.createLinkedEntities, [userModule, mockConfig.api, 3500]));
+        });
+
+        it('should send confirmation email on user confirm', function() {
+            expect(userModule.sendConfirmationEmail.bind).toHaveBeenCalledWith(userModule, 'support@cinema6.com');
+            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.sendConfirmationEmail, [userModule, 'support@cinema6.com']));
+        });
+
+        it('should handle a broken user', function() {
+            expect(userModule.handleBrokenUser.bind).toHaveBeenCalledWith(userModule, result);
+            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.handleBrokenUser, [userModule, result]));
+        });
+        
+        it('should give an activation token on resendActivation', function() {
+            expect(userModule.giveActivationToken.bind).toHaveBeenCalledWith(userModule, 60000);
+            expect(result._middleware.resendActivation).toContain(getBoundFn(userModule.giveActivationToken, [userModule, 60000]));
+        });
+        
+        it('should send an activation email on resendActivation', function() {
+            expect(userModule.sendActivationEmail.bind).toHaveBeenCalledWith(userModule, 'support@cinema6.com', 'https://www.selfie.cinema6.com/activate');
+            expect(result._middleware.resendActivation).toContain(getBoundFn(userModule.sendActivationEmail, [userModule, 'support@cinema6.com', 'https://www.selfie.cinema6.com/activate']));
         });
     });
 
@@ -357,6 +395,364 @@ describe('userSvc (UT)', function() {
                         .toEqual({ isValid: false, reason: field + '[1] is UNACCEPTABLE! acceptable values are: [thing1,thing2,thing3]' });
                 });
             });
+        });
+    });
+
+    describe('checkValidToken', function() {
+        var svc, req, nextSpy, doneSpy;
+
+        beforeEach(function() {
+            svc = {
+                _coll: {
+                    findOne: jasmine.createSpy('findOne()')
+                },
+                transformMongoDoc: jasmine.createSpy('transformMongoDoc(doc)').and.callFake(function(doc) {
+                    return doc;
+                })
+            };
+            req = {
+                params: { },
+                body: { }
+            };
+            nextSpy = jasmine.createSpy('next()').and.returnValue(q());
+            doneSpy = jasmine.createSpy('done()').and.returnValue(q());
+            spyOn(bcrypt, 'compare');
+        });
+
+        describe('when the user does not exist', function() {
+            beforeEach(function(done) {
+                svc._coll.findOne.and.callFake(function(query, cb) {
+                    cb(null, null);
+                });
+                req.params.id = 'non-existent-user-id';
+                userModule.checkValidToken(svc, req, nextSpy, doneSpy).done(done);
+            });
+
+            it('should call done with a 404', function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({code: 404, body: 'User not found'});
+            });
+        });
+
+        describe('when the user does not have a status of new', function() {
+            beforeEach(function(done) {
+                svc._coll.findOne.and.callFake(function(query, cb) {
+                    cb(null, { status: 'active', activationToken: {} });
+                });
+                userModule.checkValidToken(svc, req, nextSpy, doneSpy).done(done);
+            });
+
+            it('should call done with a 403', function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({code: 403, body: 'Confirmation failed'});
+            });
+        });
+
+        describe('when the user does not have an activation token', function() {
+            beforeEach(function(done) {
+                svc._coll.findOne.and.callFake(function(query, cb) {
+                    cb(null, { status: 'new' });
+                });
+                userModule.checkValidToken(svc, req, nextSpy, doneSpy).done(done);
+            });
+
+            it('should call done with a 403', function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({code: 403, body: 'Confirmation failed'});
+            });
+        });
+
+        describe('when the activation token on the user has expired', function() {
+            beforeEach(function(done) {
+                svc._coll.findOne.and.callFake(function(query, cb) {
+                    cb(null, {
+                        status: 'new',
+                        activationToken: {
+                            expires: String(new Date(0))
+                        }
+                    });
+                });
+                userModule.checkValidToken(svc, req, nextSpy, doneSpy).done(done);
+            });
+
+            it('should call done with a 403', function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({code: 403, body: 'Activation token has expired'});
+            });
+        });
+
+        describe('when the provided token does not match the stored activation token', function() {
+            beforeEach(function(done) {
+                svc._coll.findOne.and.callFake(function(query, cb) {
+                    cb(null, {
+                        status: 'new',
+                        activationToken: {
+                            expires: new Date(99999, 11, 25),
+                            token: 'salty token'
+                        }
+                    });
+                });
+                req.body.token = 'invalid token';
+                bcrypt.compare.and.callFake(function(val1, val2, cb) {
+                    return cb(null, false);
+                });
+                userModule.checkValidToken(svc, req, nextSpy, doneSpy).done(done);
+            });
+
+            it('should compare the tokens', function() {
+                expect(bcrypt.compare).toHaveBeenCalledWith('invalid token', 'salty token', jasmine.any(Function));
+            });
+
+            it('should call done with a 403', function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({code: 403, body: 'Confirmation failed'});
+            });
+        });
+
+        describe('when the provided token is valid and matches the stored activation token', function() {
+            var userDocument;
+
+            beforeEach(function(done) {
+                userDocument = {
+                    status: 'new',
+                    activationToken: {
+                        expires: new Date(99999, 11, 25),
+                        token: 'salty token'
+                    }
+                };
+
+                svc._coll.findOne.and.callFake(function(query, cb) {
+                    cb(null, userDocument);
+                });
+                req.body.token = 'valid token';
+                bcrypt.compare.and.callFake(function(val1, val2, cb) {
+                    cb(null, true);
+                });
+                
+                userModule.checkValidToken(svc, req, nextSpy, doneSpy).done(done);
+            });
+
+            it('should compare the tokens', function() {
+                expect(bcrypt.compare).toHaveBeenCalledWith('valid token', 'salty token', jasmine.any(Function));
+            });
+
+            it('should call next', function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+            });
+
+            it('should temporarily store the safe fetched user document on the request', function() {
+                expect(svc.transformMongoDoc).toHaveBeenCalledWith(userDocument);
+                expect(req.user).toEqual(userDocument);
+            });
+        });
+    });
+
+    describe('createLinkedEntities()', function() {
+        var api, req, nextSpy;
+
+        beforeEach(function() {
+            spyOn(requestUtils, 'qRequest');
+            spyOn(userModule, 'getSixxySession').and.returnValue(q('sixxy cookie'));
+            api = {
+                root: 'http://localhost',
+                orgs: {
+                    endpoint: '/api/account/orgs'
+                },
+                customers: {
+                    endpoint: '/api/account/customers'
+                },
+                advertisers: {
+                    endpoint: '/api/account/advertisers'
+                }
+            };
+            nextSpy = jasmine.createSpy('nextSpy()').and.returnValue(q());
+            req = {
+                user: {
+                    id: 'u-12345',
+                    company: 'some company'
+                }
+            };
+        });
+
+        describe('when requests succeed', function() {
+            beforeEach(function(done) {
+                requestUtils.qRequest.and.callFake(function(method, opts) {
+                    var object = opts.url.match(/orgs|customers|advertisers/)[0];
+                    return q({
+                        response: {
+                            statusCode: 201
+                        },
+                        body: {
+                            id: object + '-id-123'
+                        }
+                    });
+                });
+                userModule.createLinkedEntities(api, 3500, req, nextSpy).done(done);
+            });
+
+            it('should get the sixxy user session', function() {
+                expect(userModule.getSixxySession).toHaveBeenCalledWith(req, 3500);
+            });
+
+            it('should send a request to create an org', function() {
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
+                    url: 'http://localhost/api/account/orgs',
+                    json: {
+                        name: 'some company (u-12345)'
+                    },
+                    headers: {
+                        cookie: 'sixxy cookie'
+                    }
+                });
+            });
+
+            it('should send a request to create a customer', function() {
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
+                    url: 'http://localhost/api/account/customers',
+                    json: {
+                        name: 'some company (u-12345)'
+                    },
+                    headers: {
+                        cookie: 'sixxy cookie'
+                    }
+                });
+            });
+
+            it('should send a request to create an advertiser', function() {
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
+                    url: 'http://localhost/api/account/advertisers',
+                    json: {
+                        name: 'some company (u-12345)'
+                    },
+                    headers: {
+                        cookie: 'sixxy cookie'
+                    }
+                });
+            });
+
+            it('should set company properties on request', function() {
+                expect(req.user.org).toBe('orgs-id-123');
+                expect(req.user.customer).toBe('customers-id-123');
+                expect(req.user.advertiser).toBe('advertisers-id-123');
+            });
+
+            it('should call next', function() {
+                expect(nextSpy).toHaveBeenCalled();
+            });
+        });
+
+        describe('when at least one of the requests fail', function() {
+            beforeEach(function(done) {
+                requestUtils.qRequest.and.callFake(function(method, opts) {
+                    var object = opts.url.match(/orgs|customers|advertisers/)[0];
+                    var code = 201;
+                    if(object === 'customers') {
+                        code = 500;
+                    }
+                    return q({
+                        response: {
+                            statusCode: code
+                        },
+                        body: {
+                            id: object + '-id-123'
+                        }
+                    });
+                });
+                userModule.createLinkedEntities(api, 3500, req, nextSpy).done(done);
+            });
+
+            it('should not set properties that failed to be created', function() {
+                expect(req.user.customer).not.toBeDefined();
+            });
+
+            it('should log an error', function() {
+                expect(mockLog.error).toHaveBeenCalled();
+            });
+
+            it('should set the status of the user on the request to error', function() {
+                expect(req.user.status).toBe('error');
+            });
+
+            it('should call next', function() {
+                expect(nextSpy).toHaveBeenCalled();
+            });
+        });
+    });
+
+    describe('handleBrokenUser()', function() {
+        var svc, req, nextSpy;
+
+        beforeEach(function() {
+            svc = {
+                _coll: {
+                    findAndModify: jasmine.createSpy('findAndModify').and.callFake(function(query1, query2, updates, opts, cb) {
+                        cb(null, q());
+                    })
+                }
+            };
+            req = {
+                user: {
+                    id: 'u-12345'
+                }
+            };
+            nextSpy = jasmine.createSpy('nextSpy()').and.returnValue(q());
+        });
+
+        describe('when the user is broken', function() {
+            var success, failure;
+            beforeEach(function(done) {
+                success = jasmine.createSpy('success()');
+                failure = jasmine.createSpy('failure()');
+                req.user.status = 'error';
+                userModule.handleBrokenUser(svc, req, nextSpy).then(success, failure).done(done);
+            });
+
+            it('should update the user with an error status', function() {
+                var updates = {
+                    $set: {
+                        lastUpdated: jasmine.any(Date),
+                        status: 'error'
+                    },
+                    $unset: { activationToken: 1 }
+                };
+                expect(svc._coll.findAndModify).toHaveBeenCalledWith({id: 'u-12345'}, {id: 1}, updates, {w: 1, journal: true, new:true}, jasmine.any(Function));
+            });
+
+            it('should reject the promise and log a warning', function() {
+                expect(success).not.toHaveBeenCalled();
+                expect(failure).toHaveBeenCalledWith('The user is in a broken state.');
+                expect(mockLog.warn).toHaveBeenCalled();
+            });
+        });
+
+        describe('when the user is not broken', function() {
+            beforeEach(function(done) {
+                req.user.status = 'new';
+                userModule.handleBrokenUser(svc, req, nextSpy).done(done);
+            });
+
+            it('should call next', function() {
+                expect(nextSpy).toHaveBeenCalled();
+            });
+        });
+    });
+
+    describe('sendConfirmationEmail', function() {
+        var nextSpy;
+
+        beforeEach(function(done) {
+            nextSpy = jasmine.createSpy('next()').and.returnValue(q());
+            spyOn(email, 'notifyAccountActivation').and.returnValue(q());
+            userModule.sendConfirmationEmail('sender', {user:{email:'some email'}}, nextSpy).done(done);
+        });
+
+        it('should notify account activation', function() {
+            expect(email.notifyAccountActivation).toHaveBeenCalledWith('sender', 'some email');
+        });
+
+        it('should call next', function() {
+            expect(nextSpy).toHaveBeenCalled();
         });
     });
 
@@ -1544,6 +1940,360 @@ describe('userSvc (UT)', function() {
                 }).catch(function(error) {
                     expect(error).not.toBeDefined();
                 }).finally(done);
+            });
+        });
+    });
+
+    describe('getSixxySession(req, port)', function() {
+        var req, port, mockResponse;
+        
+        beforeEach(function() {
+            spyOn(crypto, 'randomBytes').and.callFake(function(num, cb) {
+                cb(null, new Buffer('abcdefghijklmnopqrstuvwxyz'.substring(0, num)));
+            });
+            mockResponse = {
+                response: {
+                    statusCode: 204,
+                    headers: {
+                        'set-cookie': [
+                            'c6Auth cookie'
+                        ]
+                    }
+                }
+            };
+            spyOn(requestUtils, 'qRequest').and.returnValue(mockResponse);
+            req = {
+                uuid: 'uuid'
+            };
+            port = 3500;
+        });
+        
+        it('should set a random nonce string for the request', function(done) {
+            userModule.getSixxySession(req, port).then(function() {
+                expect(crypto.randomBytes).toHaveBeenCalledWith(24, jasmine.any(Function));
+                expect(userModule._nonces.uuid).toBe('6162636465666768696a6b6c6d6e6f707172737475767778');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should send a request to get the sixxy user session', function(done) {
+            userModule.getSixxySession(req, port).then(function() {
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
+                    url: 'http://localhost:3500/__internal/sixxyUserSession',
+                    json: {uuid:'uuid',nonce:'6162636465666768696a6b6c6d6e6f707172737475767778'}
+                });
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should reject if the statusCode of the response is not a 204', function(done) {
+            mockResponse.response.statusCode = 400;
+            userModule.getSixxySession(req, port).then(function(result) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('Failed to request sixxy session: code = 400, body = undefined');
+            }).done(done);
+        });
+        
+        it('should reject if there is no c6Auth cookie', function(done) {
+            mockResponse.response.headers['set-cookie'] = [];
+            userModule.getSixxySession(req, port).then(function(result) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('No c6Auth cookie in response');
+            }).done(done);
+        });
+        
+        it('should return the c6Auth cookie', function(done) {
+            userModule.getSixxySession(req, port).then(function(result) {
+                expect(result).toBe('c6Auth cookie');
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
+        });
+    });
+    
+    describe('insertSixxySession(req, res, config)', function() {
+        var req, res, config;
+        
+        beforeEach(function() {
+            req = {
+                body: {
+                    
+                },
+                session: {
+                    regenerate: jasmine.createSpy('regenerate()').and.callFake(function(cb) {
+                        cb(null, null);
+                    }),
+                    cookie: { }
+                }
+            };
+            res = {
+                send: jasmine.createSpy('send()')
+            };
+            config = {
+                systemUserId: 'u-sixxy'
+            };
+        });
+        
+        it('should 400 if there is no nonce on the body of the request', function() {
+            req.body.uuid = 'uuid';
+            userModule.insertSixxySession(req, res, config);
+            expect(res.send).toHaveBeenCalledWith(400);
+            expect(mockLog.warn).toHaveBeenCalled();
+        });
+        
+        it('should 400 if there is no uuid on the body of the request', function() {
+            req.body.nonce = 'nonce';
+            userModule.insertSixxySession(req, res, config);
+            expect(res.send).toHaveBeenCalledWith(400);
+            expect(mockLog.warn).toHaveBeenCalled();
+        });
+        
+        it('should 400 if the provided nonce does not match', function() {
+            req.body.nonce = 'nonce';
+            req.body.uuid = 'uuid';
+            userModule._nonces.uuid = 'random bytes';
+            userModule.insertSixxySession(req, res, config);
+            expect(res.send).toHaveBeenCalledWith(400);
+            expect(mockLog.warn).toHaveBeenCalled();
+        });
+        
+        it('should regenerate the session and login the sixxy user', function(done) {
+            req.body.nonce = 'nonce';
+            req.body.uuid = 'uuid';
+            userModule._nonces.uuid = 'nonce';
+            userModule.insertSixxySession(req, res, config);
+            process.nextTick(function() {
+                expect(req.session.regenerate).toHaveBeenCalled();
+                expect(req.session.user).toBe('u-sixxy');
+                expect(req.session.cookie.maxAge).toBe(60000);
+                expect(res.send).toHaveBeenCalledWith(204);
+                done();
+            });
+        });
+    });
+
+    describe('confirmUser', function() {
+        var customMethodDeferred;
+        var svc, req, journal, maxAge;
+        var result;
+
+        beforeEach(function() {
+            customMethodDeferred = q.defer();
+            svc = {
+                customMethod: jasmine.createSpy('svc.customMethod()').and.returnValue(customMethodDeferred.promise),
+                _coll: {
+                    findAndModify: jasmine.createSpy('findAndModify()').and.callFake(function(query1, query2, updates, opts, cb) {
+                        cb(null, [{id: 'u-12345'}])
+                    })
+                },
+                transformMongoDoc: jasmine.createSpy('transformMongoDoc(doc)').and.returnValue('transformed user')
+            };
+            req = {
+                user: {
+                    id: 'u-12345',
+                    org: 'o-12345',
+                    customer: 'c-12345',
+                    advertiser: 'a-12345'
+                },
+                session: {
+                    regenerate: jasmine.createSpy('regenerate()').and.callFake(function(cb) {
+                        cb(null, q())
+                    }),
+                    cookie: { }
+                },
+                body: {
+                    foo: 'bar',
+                    token: 'some token'
+                }
+            };
+            journal = {
+                writeAuditEntry: jasmine.createSpy('writeAuditEntry').and.returnValue(q())
+            };
+            maxAge = 'max age';
+            spyOn(authUtils, 'decorateUser').and.returnValue(q({id: 'u-12345'}));
+            result = userModule.confirmUser(svc, req, journal, maxAge);
+        });
+
+        it('should return a 400 if a token is not present on the body of the request', function(done) {
+            delete req.body.token;
+            userModule.confirmUser(svc, req, journal, maxAge).done(function(result) {
+                expect(result).toEqual({code:400,body:'Must provide a token'});
+                done();
+            });
+        });
+
+        it('should call and return svc.customMethod()', function() {
+            expect(svc.customMethod).toHaveBeenCalledWith(req, 'confirmUser', jasmine.any(Function));
+            expect(result).toBe(customMethodDeferred.promise);
+        });
+
+        describe('the callback passed to svc.customMethod()', function() {
+            var callback;
+            var success, failure;
+
+            beforeEach(function(done) {
+                callback = svc.customMethod.calls.mostRecent().args[2];
+                success = jasmine.createSpy('success()');
+                failure = jasmine.createSpy('failure()');
+
+                callback().then(success, failure).finally(done);
+            });
+
+            it('should update the user in the db', function() {
+                var updates = {
+                    $set: {
+                        lastUpdated: jasmine.any(Date),
+                        status: 'active',
+                        org: 'o-12345',
+                        customer: 'c-12345',
+                        advertiser: 'a-12345'
+                    },
+                    $unset: {
+                        activationToken: 1
+                    }
+                };
+                expect(svc._coll.findAndModify).toHaveBeenCalledWith({id: 'u-12345'}, {id: 1}, updates, {w: 1, journal: true, new: true}, jasmine.any(Function));
+            });
+
+            it('should regenerate the session', function() {
+                expect(req.session.regenerate).toHaveBeenCalledWith(jasmine.any(Function));
+            });
+
+            it('should delete the user off of the request', function() {
+                expect(req.user).not.toBeDefined();
+            });
+
+            it('should decorate a transformed mongo doc', function() {
+                expect(svc.transformMongoDoc).toHaveBeenCalledWith({id: 'u-12345'});
+                expect(authUtils.decorateUser).toHaveBeenCalledWith('transformed user');
+            });
+
+            it('should write an audit entry', function() {
+                expect(journal.writeAuditEntry).toHaveBeenCalledWith(req, 'u-12345');
+            });
+
+            it('should set the session on the request', function() {
+                expect(req.session.user).toBe('u-12345');
+                expect(req.session.cookie.maxAge).toBe('max age');
+            });
+
+            it('should retun with a 200', function() {
+                expect(success).toHaveBeenCalledWith({code: 200, body: {id: 'u-12345'}});
+                expect(failure).not.toHaveBeenCalled();
+            });
+        });
+    });
+    
+    describe('resendActivation(svc, req)', function(done) {
+        var svc, req;
+        var mockUser, result;
+
+        beforeEach(function() {
+            mockUser = {
+                id: 'u-12345',
+                org: 'o-12345',
+                customer: 'c-12345',
+                advertiser: 'a-12345',
+                email: 'some email'
+            };
+            svc = {
+                customMethod: jasmine.createSpy('svc.customMethod()').and.returnValue(q()),
+                _coll: {
+                    findOne: jasmine.createSpy('findOne(query, cb)').and.callFake(function(query, cb) {
+                        return cb(null, mockUser);
+                    }),
+                    findAndModify: jasmine.createSpy('findAndModify()').and.callFake(function(query1, query2, updates, opts, cb) {
+                        return cb(null, { });
+                    })
+                }
+            };
+            req = {
+                body: { },
+                session: {
+                    user: 'u-12345'
+                }
+            };
+        });
+
+        it('should get the account of the user currently logged in', function(done) {
+            userModule.resendActivation(svc, req).done(function() {
+                expect(svc._coll.findOne).toHaveBeenCalledWith({id: 'u-12345'}, jasmine.any(Function));
+                done();
+            });
+        });
+
+        it('should return a 403 if the user does not have an activationToken', function(done) {
+            userModule.resendActivation(svc, req).done(function(result) {
+                expect(result).toEqual({code: 403, body: 'No activation token to resend'});
+                expect(mockLog.warn).toHaveBeenCalled();
+                done();
+            });
+        });
+
+        it('should call and return svc.customMethod()', function(done) {
+            mockUser.activationToken = { };
+            userModule.resendActivation(svc, req).done(function(result) {
+                var expectedReq = {
+                    body: {
+                        id: 'u-12345',
+                        email: 'some email'
+                    },
+                    session: {
+                        user: 'u-12345'
+                    }
+                };
+                expect(svc.customMethod).toHaveBeenCalledWith(expectedReq, 'resendActivation', jasmine.any(Function));
+                done();
+            });
+        });
+
+        describe('the callback passed to svc.customMethod()', function() {
+            var callback;
+            var success, failure;
+
+            beforeEach(function(done) {
+                mockUser.activationToken = {
+                    token: 'old token'
+                };
+                success = jasmine.createSpy('success()');
+                failure = jasmine.createSpy('failure()');
+                req.body.activationToken = {
+                    token: 'new token',
+                    expires: 'sometime'
+                };
+                svc.customMethod.and.callFake(function(req) {
+                    req.body.activationToken = {
+                        token: 'new token',
+                        expires: 'sometime'
+                    };
+                    return q();
+                });
+                userModule.resendActivation(svc, req).then(function() {
+                    callback = svc.customMethod.calls.mostRecent().args[2];
+                    return callback();
+                }).then(success, failure).done(done);
+            });
+            
+            it('should update the user with its new activation token', function() {
+                var expectedUpdates = {
+                    $set: {
+                        lastUpdated: jasmine.any(Date),
+                        activationToken: {
+                            token: 'new token',
+                            expires: 'sometime'
+                        }
+                    }
+                };
+                expect(svc._coll.findAndModify).toHaveBeenCalledWith({id: 'u-12345'}, {id: 1}, expectedUpdates, {w:1,journal:true,new:true}, jasmine.any(Function));
+            });
+            
+            it('should return with a 204', function() {
+                expect(success).toHaveBeenCalledWith({code:204,body:{}});
+                expect(failure).not.toHaveBeenCalled();
             });
         });
     });

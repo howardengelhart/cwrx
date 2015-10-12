@@ -75,9 +75,24 @@
         activationTarget: 'https://www.selfie.cinema6.com/activate',
         newUserPermissions: {
             roles: [],
-            policies: [],
-            tempPolicy: 'newUserTempPolicy'
-        }
+            policies: []
+        },
+        api: {
+            root: 'http://localhost/',
+            orgs: {
+                endpoint: '/api/account/orgs'
+            },
+            customers: {
+                endpoint: '/api/account/customers'
+            },
+            advertisers: {
+                endpoint: '/api/account/advertisers'
+            },
+            auth: {
+                endpoint: '/api/auth'
+            }
+        },
+        systemUserId: 'u-sixxy'
     };
 
     var main = function(state) {
@@ -185,7 +200,8 @@
             res.send(200, state.config.appVersion);
         });
 
-        userModule.setupEndpoints(app, userSvc, sessWrap, audit, state.sessionStore, state.config);
+        userModule.setupEndpoints(app, userSvc, sessWrap, audit, state.sessionStore, state.config,
+                                  auditJournal);
         roleModule.setupEndpoints(app, roleSvc, sessWrap, audit);
         polModule.setupEndpoints(app, polSvc, sessWrap, audit);
 
@@ -203,7 +219,7 @@
                 next();
             }
         });
-
+        
         app.listen(state.cmdl.port);
         log.info('Service is listening on port: ' + state.cmdl.port);
 
