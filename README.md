@@ -118,6 +118,8 @@ In order to run a service locally, you'll need to setup a few things:
  | maint        | 4000 |
  | monitor      | 5000 |
  | orgSvc       | 3700 |
+ | player       | 6100 |
+ | querybot     | 4100 |
  | search       | 3800 |
  | userSvc      | 3500 |
  | vote         | 3400 |
@@ -139,6 +141,7 @@ In order to run a service locally, you'll need to setup a few things:
   | maint      | none                   |
   | monitor    | maint                  |
   | orgSvc     | auth, monitor          |
+  | querybot   | auth, monitor          |
   | search     | auth                   |
   | userSvc    | auth                   |
   | vote       | auth, maint            |
