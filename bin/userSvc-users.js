@@ -881,7 +881,7 @@
             });
         });
 
-        var authNewUser = authUtils.middlewarify({}, null, Status.New);
+        var authNewUser = authUtils.middlewarify({}, null, [Status.New]);
         router.post('/resendActivation', sessions, authNewUser, function(req, res) {
             userModule.resendActivation(svc, req).then(function(resp) {
                 res.send(resp.code, resp.body);
