@@ -9,7 +9,7 @@ var q               = require('q'),
     };
 
 describe('userSvc roles endpoints (E2E):', function() {
-    var cookieJar, mockRequester, roleAdminPol, sixxyUser;
+    var cookieJar, mockRequester, roleAdminPol;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
@@ -43,18 +43,11 @@ describe('userSvc roles endpoints (E2E):', function() {
                 password: 'password'
             }
         };
-        testUtils.mongoFind('users', {email: 'sixxy'}).then(function(results) {
-            if(results.length === 0) {
-                throw Error('Make sure the sixxy user exists in the users collection.');
-            }
-            sixxyUser = results[0];
-            return q.all([
-                testUtils.resetCollection('users', mockRequester),
-                testUtils.resetCollection('policies', roleAdminPol),
-                testUtils.resetCollection('roles')
-            ]);
-        })
-        .then(function(resp) {
+        q.all([
+            testUtils.resetCollection('users', mockRequester),
+            testUtils.resetCollection('policies', roleAdminPol),
+            testUtils.resetCollection('roles')
+        ]).then(function(resp) {
             return requestUtils.qRequest('post', loginOpts);
         }).done(function(resp) {
             done();
@@ -660,10 +653,6 @@ describe('userSvc roles endpoints (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-    });
-
-    afterAll(function(done) {
-        testUtils.resetCollection('users', sixxyUser).done(done);
     });
 });
 

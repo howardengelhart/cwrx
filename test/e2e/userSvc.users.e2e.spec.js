@@ -10,7 +10,7 @@ var q               = require('q'),
     };
 
 describe('userSvc users (E2E):', function() {
-    var cookieJar, adminJar, mockRequester, mockAdmin, mockServiceUser, testPolicies, mailman, urlRegex, sixxyUser;
+    var cookieJar, adminJar, mockRequester, mockAdmin, mockServiceUser, testPolicies, mailman, urlRegex;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
@@ -106,16 +106,10 @@ describe('userSvc users (E2E):', function() {
                 password: 'password'
             }
         };
-        testUtils.mongoFind('users', {email: 'sixxy'}).then(function(results) {
-            if(results.length === 0) {
-                throw Error('Make sure the sixxy user exists in the users collection.');
-            }
-            sixxyUser = results[0];
-            return q.all([
-                testUtils.resetCollection('users', [sixxyUser, mockRequester, mockAdmin]),
-                testUtils.resetCollection('policies', testPolicies)
-            ]);
-        }).then(function(resp) {
+        q.all([
+            testUtils.resetCollection('users', [mockRequester, mockAdmin]),
+            testUtils.resetCollection('policies', testPolicies)
+        ]).then(function(resp) {
             return q.all([
                 requestUtils.qRequest('post', loginOpts),
                 requestUtils.qRequest('post', adminLoginOpts)
@@ -129,9 +123,7 @@ describe('userSvc users (E2E):', function() {
             } else {
                 return q();
             }
-        }).done(function(resp) {
-            done();
-        });
+        }).done(done);
     });
 
     afterEach(function() {
@@ -147,7 +139,7 @@ describe('userSvc users (E2E):', function() {
                 { id: 'u-e2e-get3', status: 'deleted', org: 'o-1234', email: 'user3', password: 'pass3' }
             ];
             options = { url: config.usersUrl + '/u-e2e-get1', jar: cookieJar };
-            testUtils.resetCollection('users', mockUsers.concat([sixxyUser, mockRequester, mockAdmin])).done(function(resp) {
+            testUtils.resetCollection('users', mockUsers.concat([mockRequester, mockAdmin])).done(function(resp) {
                 done();
             });
         });
@@ -308,7 +300,7 @@ describe('userSvc users (E2E):', function() {
                 { id: 'u-e2e-get5', status: 'deleted', password: 'pass6', org: 'o-1234', roles: ['role1', 'role2'], policies: ['pol1', 'pol2'] },
             ];
             options = { url: config.usersUrl + '/', qs: { sort: 'id,1' }, jar: cookieJar };
-            testUtils.resetCollection('users', mockUsers.concat([sixxyUser, mockRequester, mockAdmin])).done(done);
+            testUtils.resetCollection('users', mockUsers.concat([mockRequester, mockAdmin])).done(done);
         });
 
         it('should get users by org', function(done) {
@@ -532,7 +524,7 @@ describe('userSvc users (E2E):', function() {
             ];
             options = { url: config.usersUrl + '/', json: mockUser, jar: cookieJar };
             q.all([
-                testUtils.resetCollection('users', [sixxyUser, mockRequester, mockAdmin]),
+                testUtils.resetCollection('users', [mockRequester, mockAdmin]),
                 testUtils.resetCollection('roles', mockRoles),
                 testUtils.resetCollection('policies', mockPols.concat(testPolicies))
             ]).done(function() {
@@ -742,7 +734,7 @@ describe('userSvc users (E2E):', function() {
                 jar: cookieJar
             };
             q.all([
-                testUtils.resetCollection('users', mockUsers.concat([sixxyUser, mockRequester, mockAdmin])),
+                testUtils.resetCollection('users', mockUsers.concat([mockRequester, mockAdmin])),
                 testUtils.resetCollection('roles', mockRoles),
                 testUtils.resetCollection('policies', mockPols.concat(testPolicies))
             ]).done(function() {
@@ -909,7 +901,7 @@ describe('userSvc users (E2E):', function() {
                 { id: 'u-e2e-del2', status: 'active', email: 'defg', org: 'o-7890' },
                 { id: 'u-e2e-del3', status: 'deleted', email: 'hijk', org: 'o-1234' },
             ];
-            testUtils.resetCollection('users', mockUsers.concat([sixxyUser, mockRequester, mockAdmin])).done(done);
+            testUtils.resetCollection('users', mockUsers.concat([mockRequester, mockAdmin])).done(done);
         });
 
         it('should successfully mark a user as deleted', function(done) {
@@ -1025,7 +1017,7 @@ describe('userSvc users (E2E):', function() {
             };
             reqBody = { email: 'c6e2etester@gmail.com', password: 'password', newEmail: 'mynewemail' };
             options = { url: config.usersUrl + '/email', json: reqBody };
-            testUtils.resetCollection('users', [sixxyUser, mockRequester, mockAdmin, mockUser]).done(done);
+            testUtils.resetCollection('users', [mockRequester, mockAdmin, mockUser]).done(done);
         });
 
         it('should fail if email, password, or newEmail are not provided', function(done) {
@@ -1189,7 +1181,7 @@ describe('userSvc users (E2E):', function() {
             };
             reqBody = { email: 'c6e2etester@gmail.com', password: 'password', newPassword: 'foobar' };
             options = { url: config.usersUrl + '/password', json: reqBody };
-            testUtils.resetCollection('users', [sixxyUser, mockRequester, mockAdmin, user]).done(done);
+            testUtils.resetCollection('users', [mockRequester, mockAdmin, user]).done(done);
         });
 
         it('should fail if email, password, or newPassword are not provided', function(done) {
@@ -1433,7 +1425,7 @@ describe('userSvc users (E2E):', function() {
             ];
             options = { url: config.usersUrl + '/signup', json: mockUser };
             q.all([
-                testUtils.resetCollection('users', [sixxyUser, mockRequester, mockAdmin]),
+                testUtils.resetCollection('users', [mockRequester, mockAdmin]),
                 testUtils.resetCollection('roles', mockRoles),
                 testUtils.resetCollection('policies', mockPols.concat(testPolicies))
             ]).done(function() {
@@ -1584,7 +1576,7 @@ describe('userSvc users (E2E):', function() {
                 company: 'company'
             };
             q.all([
-                testUtils.resetCollection('users', [sixxyUser, mockNewUser]),
+                testUtils.resetCollection('users', [mockNewUser]),
                 testUtils.resetCollection('orgs', [{name:'someOrg'}])
             ]).done(done);
         });
@@ -1611,7 +1603,7 @@ describe('userSvc users (E2E):', function() {
 
         it('should 403 if the activation token has expired', function(done) {
             mockNewUser.activationToken.expires = new Date(0, 11, 25);
-            testUtils.resetCollection('users', [sixxyUser, mockNewUser]).then(function() {
+            testUtils.resetCollection('users', [mockNewUser]).then(function() {
                 var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
                 return requestUtils.qRequest('post', options);
             }).then(function(resp) {
