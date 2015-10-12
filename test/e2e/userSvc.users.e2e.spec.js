@@ -6,7 +6,9 @@ var q               = require('q'),
     host            = process.env.host || 'localhost',
     config = {
         usersUrl    : 'http://' + (host === 'localhost' ? host + ':3500' : host) + '/api/account/users',
-        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
+        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth',
+        orgsUrl     : 'http://' + (host === 'localhost' ? host + ':3700' : host) + '/api/account/orgs',
+        adsUrl      : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api'
     };
 
 describe('userSvc users (E2E):', function() {
@@ -70,7 +72,10 @@ describe('userSvc users (E2E):', function() {
                 status: 'active',
                 priority: 1,
                 permissions: {
-                    users: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
+                    users: { read: 'all', create: 'all', edit: 'all', delete: 'all' },
+                    orgs: { delete: 'all' },
+                    customers: { delete: 'all' },
+                    advertisers: { delete: 'all' }
                 },
                 fieldValidation: {
                     users: {
@@ -1625,11 +1630,32 @@ describe('userSvc users (E2E):', function() {
         });
 
         describe('when given a valid activation token', function() {
+            var user;
+
+            afterEach(function(done) {
+                var urls = [
+                    config.orgsUrl + '/' + user.org,
+                    config.adsUrl + '/account/customer/' + user.customer,
+                    config.adsUrl + '/account/advertiser/' + user.advertiser
+                ];
+                testUtils.resetCollection('users', mockAdmin).then(function() {
+                    return q.allSettled(urls.map(function(url) {
+                        return requestUtils.qRequest('delete', { url: url, jar: adminJar });
+                    }));
+                }).then(function(results) {
+                    results.forEach(function(result) {
+                        if(result.state !== 'fulfilled' || result.value.response.statusCode !== 204) {
+                            console.log('Error deleting object: ' + JSON.stringify(result.value.body));
+                        }
+                    });
+                }).done(done);
+            });
 
             it('should create an org for the user', function(done) {
                 var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
                 requestUtils.qRequest('post', options)
                 .then(function(resp) {
+                    user = resp.body;
                     var orgId = resp.body.org;
                     expect(orgId).toEqual(jasmine.any(String));
                     return testUtils.mongoFind('orgs', {id: orgId});
@@ -1648,6 +1674,7 @@ describe('userSvc users (E2E):', function() {
                 var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
                 requestUtils.qRequest('post', options)
                 .then(function(resp) {
+                    user = resp.body;
                     var customerId = resp.body.customer;
                     expect(customerId).toEqual(jasmine.any(String));
                     return testUtils.mongoFind('customers', {id: customerId});
@@ -1666,6 +1693,7 @@ describe('userSvc users (E2E):', function() {
                 var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
                 requestUtils.qRequest('post', options)
                 .then(function(resp) {
+                    user = resp.body;
                     var advertiserId = resp.body.advertiser;
                     expect(advertiserId).toEqual(jasmine.any(String));
                     return testUtils.mongoFind('advertisers', {id: advertiserId});
@@ -1684,6 +1712,7 @@ describe('userSvc users (E2E):', function() {
                 var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
                 requestUtils.qRequest('post', options)
                 .then(function(resp) {
+                    user = resp.body;
                     expect(resp.response.headers['set-cookie'].length).toBe(1);
                     expect(resp.response.headers['set-cookie'][0].match(/^c6Auth=.+/)).toBeTruthy('cookie match');
                 })
@@ -1697,6 +1726,7 @@ describe('userSvc users (E2E):', function() {
                 var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
                 requestUtils.qRequest('post', options)
                 .then(function(resp) {
+                    user = resp.body;
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body).toEqual({
                         id: 'u-12345',
@@ -1719,6 +1749,9 @@ describe('userSvc users (E2E):', function() {
             it('should send a confirmation email to the user', function(done) {
                 var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
                 requestUtils.qRequest('post', options)
+                .then(function(resp) {
+                    user = resp.body;
+                })
                 .catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                     done();
