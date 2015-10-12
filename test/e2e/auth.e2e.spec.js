@@ -1,5 +1,6 @@
 var q               = require('q'),
     testUtils       = require('./testUtils'),
+    request         = require('request'),
     requestUtils    = require('../../lib/requestUtils'),
     enums           = require('../../lib/enums'),
     Status          = enums.Status,
@@ -760,6 +761,39 @@ describe('auth (E2E):', function() {
                     expect(error).not.toBeDefined();
                 }).done(done);
             });
+        });
+        
+        it('should delete a user\'s other active login sessions', function(done) {
+            var userSessionJar = request.jar();
+            var loginOpts = {
+                url: config.authUrl + '/login',
+                json: { email: 'c6e2etester@gmail.com', password: 'password' },
+                jar: userSessionJar
+            };
+            var statusOpts = {
+                url: config.authUrl + '/status',
+                jar: userSessionJar
+            };
+            testUtils.resetCollection('users', mockUser).then(function() {
+                return requestUtils.qRequest('post', loginOpts);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return requestUtils.qRequest('get', statusOpts);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return requestUtils.qRequest('post', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                return requestUtils.qRequest('get', statusOpts);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(401);
+                statusOpts.jar = true;
+                return requestUtils.qRequest('get', statusOpts);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+            }).catch(function(error) {
+                expect(error).not.toBeDefined();
+            }).done(done);
         });
     });  // end describe /api/auth/password/reset
     

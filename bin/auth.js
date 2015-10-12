@@ -220,7 +220,7 @@
         });
     };
     
-    auth.resetPassword = function(req, users, emailSender, cookieMaxAge, auditJournal) {
+    auth.resetPassword = function(req, users, emailSender, cookieMaxAge, auditJournal, sessions) {
         var log = logger.getLog(),
             id = req.body && req.body.id,
             token = req.body && req.body.token,
@@ -258,6 +258,8 @@
             }
             return q.npost(bcrypt, 'compare', [token, account.resetToken.token])
             .then(function(matching) {
+                var updatedAccount;
+                
                 if (!matching) {
                     log.info('[%1] Request token does not match reset token in db', req.uuid);
                     return q({code: 403, body: 'Invalid request token'});
@@ -273,6 +275,7 @@
                     return q.npost(users, 'findAndModify', [{id: id}, {id: 1}, updates, opts]);
                 })
                 .then(function(results) {
+                    updatedAccount = results[0];
                     log.info('[%1] User %2 successfully reset their password', req.uuid, id);
                     
                     email.notifyPwdChange(emailSender, account.email)
@@ -281,10 +284,14 @@
                     }).catch(function(error) {
                         log.error('[%1] Error sending msg to %2: %3',req.uuid,account.email,error);
                     });
-                    
-                    return q.npost(req.session, 'regenerate').thenResolve(results[0]);
+                    return q.npost(sessions, 'remove',
+                        [{ 'session.user': id }, { w: 1, journal: true }]);
                 })
-                .then(function(updatedAccount) {
+                .then(function(count) {
+                    log.info('[%1] Successfully deleted %2 session docs', req.uuid, count);
+                    return q.npost(req.session, 'regenerate');
+                })
+                .then(function() {
                     return authUtils.decorateUser(mongoUtils.safeUser(updatedAccount));
                 }).then(function(decorated) {
                     req.session.user = decorated.id;
@@ -425,7 +432,7 @@
         
         app.post('/api/auth/password/reset', sessionsWrapper, function(req, res) {
             auth.resetPassword(req, users, state.config.ses.sender, state.config.sessions.maxAge,
-                               auditJournal)
+                               auditJournal, state.sessionStore.db.collection('sessions'))
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
