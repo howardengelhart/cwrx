@@ -11,9 +11,10 @@ program
     .option('--dbPort [PORT]', 'Port of mongo instance', parseInt, 27017)
     .option('--dbUser [DBUSER]', 'Name of mongo user to use', 'e2eTests')
     .option('--dbPass [DBPASS]', 'Password of mongo user to use', 'password')
-    .option('-i, --id [ID]', 'New user\'s id property', 'u-test')
     .option('-o, --org [ORG]', 'Id of test user\'s org', 'o-test')
     .parse(process.argv);
+
+program.id = 'u-sixxy';
 
 var db, userColl;
 

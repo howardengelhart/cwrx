@@ -51,6 +51,7 @@ describe('userSvc (UT)', function() {
                 region: 'us-east-1',
                 sender: 'support@cinema6.com'
             },
+            port: 3500,
             activationTokenTTL: 60000,
             activationTarget: 'https://www.selfie.cinema6.com/activate',
             newUserPermissions: {
@@ -238,9 +239,9 @@ describe('userSvc (UT)', function() {
             expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.checkValidToken, [userModule, result]));
         });
 
-        it('should give company props on user confirm', function() {
-            expect(userModule.createLinkedEntities.bind).toHaveBeenCalledWith(userModule, mockConfig.api, 'cookie');
-            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.createLinkedEntities, [userModule, mockConfig.api, 'cookie']));
+        it('should give linked entities on user confirm', function() {
+            expect(userModule.createLinkedEntities.bind).toHaveBeenCalledWith(userModule, mockConfig.api, 3500);
+            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.createLinkedEntities, [userModule, mockConfig.api, 3500]));
         });
 
         it('should send confirmation email on user confirm', function() {
@@ -538,10 +539,11 @@ describe('userSvc (UT)', function() {
     });
 
     describe('createLinkedEntities()', function() {
-        var api, sixxyCookie, req, nextSpy;
+        var api, req, nextSpy;
 
         beforeEach(function() {
             spyOn(requestUtils, 'qRequest');
+            spyOn(userModule, 'getSixxySession').and.returnValue(q('sixxy cookie'));
             api = {
                 root: 'http://localhost',
                 orgs: {
@@ -554,7 +556,6 @@ describe('userSvc (UT)', function() {
                     endpoint: '/api/account/advertisers'
                 }
             };
-            sixxyCookie = 'cookie';
             nextSpy = jasmine.createSpy('nextSpy()').and.returnValue(q());
             req = {
                 user: {
@@ -577,7 +578,11 @@ describe('userSvc (UT)', function() {
                         }
                     });
                 });
-                userModule.createLinkedEntities(api, sixxyCookie, req, nextSpy).done(done);
+                userModule.createLinkedEntities(api, 3500, req, nextSpy).done(done);
+            });
+
+            it('should get the sixxy user session', function() {
+                expect(userModule.getSixxySession).toHaveBeenCalledWith(req, 3500);
             });
 
             it('should send a request to create an org', function() {
@@ -587,7 +592,7 @@ describe('userSvc (UT)', function() {
                         name: 'some company (u-12345)'
                     },
                     headers: {
-                        cookie: 'cookie'
+                        cookie: 'sixxy cookie'
                     }
                 });
             });
@@ -599,7 +604,7 @@ describe('userSvc (UT)', function() {
                         name: 'some company (u-12345)'
                     },
                     headers: {
-                        cookie: 'cookie'
+                        cookie: 'sixxy cookie'
                     }
                 });
             });
@@ -611,7 +616,7 @@ describe('userSvc (UT)', function() {
                         name: 'some company (u-12345)'
                     },
                     headers: {
-                        cookie: 'cookie'
+                        cookie: 'sixxy cookie'
                     }
                 });
             });
@@ -644,7 +649,7 @@ describe('userSvc (UT)', function() {
                         }
                     });
                 });
-                userModule.createLinkedEntities(api, sixxyCookie, req, nextSpy).done(done);
+                userModule.createLinkedEntities(api, 3500, req, nextSpy).done(done);
             });
 
             it('should not set properties that failed to be created', function() {
