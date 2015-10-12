@@ -807,7 +807,8 @@
         return q.npost(svc._coll, 'findOne', [{id: id}])
             .then(function(user) {
                 if(!user.activationToken) {
-                    log.warn('[%1] There is no activation token to resend on user %2', req.uuid, id);
+                    log.warn('[%1] There is no activation token to resend on user %2', req.uuid,
+                        id);
                     return { code: 403, body: 'No activation token to resend' };
                 }
                 req.body.id = id;
