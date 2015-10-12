@@ -188,7 +188,6 @@ describe('search (E2E):', function() {
                     expect(item.site).toBe('aol');
                     expect(item.siteLink).toMatch('on.aol.com');
                     expect(item.link).toMatch('on.aol.com');
-                    expect(item.duration).not.toBeDefined();
                     expect(item.description).toBeDefined();
                 });
             }).catch(function(error) {
