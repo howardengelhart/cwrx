@@ -404,7 +404,7 @@
             });
         });
 
-        var authGetUser = authUtils.middlewarify({}),
+        var authGetUser = authUtils.middlewarify({}, null, [Status.Active, Status.New]),
             audit = auditJournal.middleware.bind(auditJournal);
 
         app.get('/api/auth/status', sessionsWrapper, authGetUser, audit, function(req, res) {

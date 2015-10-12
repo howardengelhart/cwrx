@@ -753,31 +753,38 @@ describe('authUtils', function() {
             }).done(done);
         });
         
-        describe('when passed a user status to check against', function() {
-            var requiredStatus;
+        describe('when passed user statuses to check against', function() {
+            var requiredStatuses;
             
             beforeEach(function() {
-                requiredStatus = Status.New;
-                mockUser.status = requiredStatus;
+                requiredStatuses = [Status.New, Status.Active];
             });
             
-            it('should return a user when the user does have such a status', function(done) {
-                authUtils.authUser('u-1234', perms, requiredStatus).then(function(result) {
-                    delete mockUser.password;
-                    expect(result.user).toEqual(mockUser);
-                    expect(authUtils.getUser).toHaveBeenCalledWith('u-1234');
-                    expect(authUtils._compare).toHaveBeenCalledWith(perms, mockUser.permissions);
-                    expect(mongoUtils.safeUser).toHaveBeenCalled();
-                    expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
+            it('should return a user when the user has one of the required statuses', function(done) {
+                var checkSuccess = function() {
+                    return authUtils.authUser('u-1234', perms, requiredStatuses).then(function(result) {
+                        delete mockUser.password;
+                        expect(result.user).toEqual(mockUser);
+                        expect(authUtils.getUser).toHaveBeenCalledWith('u-1234');
+                        expect(authUtils._compare).toHaveBeenCalledWith(perms, mockUser.permissions);
+                        expect(mongoUtils.safeUser).toHaveBeenCalled();
+                        expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
+                    });
+                };
+                
+                mockUser.status = 'active';
+                checkSuccess().then(function() {
+                    mockUser.status = 'new';
+                    return checkSuccess();
                 }).catch(function(error) {
-                    expect(error.toString()).not.toBeDefined();
+                    expect(error).not.toBeDefined();
                 }).done(done);
             });
 
-            it('should return a fail message when the user does not have such a status', function(done) {
-                mockUser.status = 'active';
-                authUtils.authUser('u-1234', perms, requiredStatus).then(function(result) {
-                    expect(result).toBe('User is not new');
+            it('should return a fail message when the user does not have any of the required statuses', function(done) {
+                mockUser.status = 'deleted';
+                authUtils.authUser('u-1234', perms, requiredStatuses).then(function(result) {
+                    expect(result).toBe('User is not new, or active');
                     expect(result.user).not.toBeDefined();
                     expect(authUtils.getUser).toHaveBeenCalledWith('u-1234');
                     expect(authUtils._compare).not.toHaveBeenCalled();
@@ -883,22 +890,22 @@ describe('authUtils', function() {
                 });
             });
             
-            describe('when passed a status param', function() {
-                var status;
+            describe('when passed a userStatuses param', function() {
+                var statuses;
 
                 beforeEach(function() {
-                    status = 'some status';
+                    statuses = ['active', 'new'];
                 });
                 
                 it('should fail with a 403 if the user is not that status', function(done) {
                     authUtils.authUser.and.returnValue(q('HE DON\'T BELONG HERE'));
-                    var midWare = authUtils.middlewarify(perms, null, status);
+                    var midWare = authUtils.middlewarify(perms, null, statuses);
                     midWare(req, res, next);
                     process.nextTick(function() {
                         expect(res.send).toHaveBeenCalledWith(403, 'Forbidden');
                         expect(next).not.toHaveBeenCalled();
                         expect(mockLog.error).not.toHaveBeenCalled();
-                        expect(authUtils.authUser).toHaveBeenCalledWith(req.session.user, perms, status);
+                        expect(authUtils.authUser).toHaveBeenCalledWith(req.session.user, perms, statuses);
                         expect(req.user).not.toBeDefined();
                         done();
                     });
