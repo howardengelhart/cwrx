@@ -170,7 +170,7 @@
                     log.info('[%1] User %2 was not found', req.uuid, id);
                     return done({ code: 404, body: 'User not found' });
                 }
-                if(result.status !== enums.Status.New || !result.activationToken) {
+                if(result.status !== Status.New || !result.activationToken) {
                     log.info('[%1] User %2 cannot be activated', req.uuid, id);
                     return done({ code: 403, body: 'Confirmation failed' });
                 }
@@ -228,7 +228,7 @@
                         log.info('[%1] Created %2 %3 for user %4', req.uuid, props[i], resp.body.id,
                             id);
                     } else {
-                        req.user.status = enums.Status.Error;
+                        req.user.status = Status.Error;
                         log.error('[%1] Error creating %2 for user %3', req.uuid, props[i], id);
                     }
                 }
@@ -237,14 +237,14 @@
     };
 
     userModule.handleBrokenUser = function(svc, req, next) {
-        if(req.user.status === enums.Status.Error) {
+        if(req.user.status === Status.Error) {
             var log = logger.getLog(),
                 id = req.user.id,
                 opts = { w: 1, journal: true, new: true },
                 updates = {
                     $set: {
                         lastUpdated: new Date(),
-                        status: enums.Status.Error
+                        status: Status.Error
                     },
                     $unset: { activationToken: 1 }
                 };
@@ -742,7 +742,7 @@
                 updates = {
                     $set: {
                         lastUpdated: new Date(),
-                        status: enums.Status.Active,
+                        status: Status.Active,
                         org: req.user.org,
                         customer: req.user.customer,
                         advertiser: req.user.advertiser
