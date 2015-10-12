@@ -1735,6 +1735,29 @@ describe('userSvc users (E2E):', function() {
         });
     });
 
+    // This test will ONLY run on localhost
+    describe('POST /__internal/sixxyUserSession', function() {
+        var runTest, opts;
+        
+        beforeEach(function() {
+            runTest = (host === 'localhost');
+            opts = {url: 'http://localhost:3500/__internal/sixxyUserSession', json: {uuid: 'uuid', nonce: 'invalid nonce'}};
+        });
+        
+        it('should not work when called directly', function(done) {
+            if(runTest) {
+                requestUtils.qRequest('post', opts).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(400);
+                    expect(resp.response.headers.c6Auth).not.toBeDefined();
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefiened();
+                }).done(done);
+            } else {
+                done();
+            }
+        });
+    });
+
     // THIS SHOULD ALWAYS GO AT THE END OF ALL TESTS
     describe('mailman cleanup', function() {
         it('stops the mailman', function() {
