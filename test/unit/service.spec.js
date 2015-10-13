@@ -1,25 +1,26 @@
 var flush = true;
 describe('service (UT)',function(){
-    
+
     var vote, state, mockLog, processProperties, resolveSpy, rejectSpy, events,
         path, q, cluster, fs, logger, daemon, mongoUtils, cacheLib, pubsub, service;
-    
+
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
-        
+
         jasmine.clock().install();
-        
-        path        = require('path');
-        q           = require('q');
-        cluster     = require('cluster');
-        fs          = require('fs-extra');
-        events      = require('events');
-        logger      = require('../../lib/logger');
-        daemon      = require('../../lib/daemon');
-        mongoUtils  = require('../../lib/mongoUtils');
-        cacheLib    = require('../../lib/cacheLib');
-        pubsub      = require('../../lib/pubsub');
-        service     = require('../../lib/service');
+
+        path         = require('path');
+        q            = require('q');
+        cluster      = require('cluster');
+        fs           = require('fs-extra');
+        events       = require('events');
+        logger       = require('../../lib/logger');
+        daemon       = require('../../lib/daemon');
+        mongoUtils   = require('../../lib/mongoUtils');
+        requestUtils = require('../../lib/requestUtils.js');
+        cacheLib     = require('../../lib/cacheLib');
+        pubsub       = require('../../lib/pubsub');
+        service      = require('../../lib/service');
 
         state       = { cmdl : {}, defaultConfig : {}, config : {}  };
         mockLog     = {
@@ -42,7 +43,7 @@ describe('service (UT)',function(){
 
         process.env  = {};
         process.argv = [];
-        
+
         resolveSpy = jasmine.createSpy('resolve()');
         rejectSpy = jasmine.createSpy('reject()');
 
@@ -151,7 +152,7 @@ describe('service (UT)',function(){
                     expect(state.cmdl.server).toBeTruthy('cmdl.server');
                 }).done(done);
         });
-        
+
         it('sets server,daemon to true if kids > 0',function(done){
             process.argv = ['node','test','--kids=3'];
             q.fcall(service.parseCmdLine,state)
@@ -164,9 +165,9 @@ describe('service (UT)',function(){
                     expect(state.cmdl.server).toBeTruthy('cmdl.server');
                 }).done(done);
         });
-        
+
     });
-    
+
     describe('configure',function(){
         it('uses defaults if no config is passed',function(done){
             process.argv[1] = 'somefile.js';
@@ -203,7 +204,7 @@ describe('service (UT)',function(){
                     expect(state.config.daemon).toEqual(true);
                 }).done(done);
         });
-        
+
         it('sets uid if uid commandline arg is set',function(done){
             state.cmdl = { uid : 'test' };
             q.fcall(service.configure,state)
@@ -214,7 +215,7 @@ describe('service (UT)',function(){
                     expect(process.setuid).toHaveBeenCalledWith('test');
                 }).done(done);
         });
-        
+
         it('sets gid if gid commandline arg is set',function(done){
             state.cmdl = { gid : 'test' };
             q.fcall(service.configure,state)
@@ -225,7 +226,7 @@ describe('service (UT)',function(){
                     expect(process.setgid).toHaveBeenCalledWith('test');
                 }).done(done);
         });
-        
+
 
         it('creates cache dirs if caches are configured',function(done){
             state.defaultConfig = {
@@ -268,13 +269,13 @@ describe('service (UT)',function(){
                     expect(state.config.pidPath).toEqual('/opt/sixxy/run/somefile.pid');
                 }).done(done);
         });
-        
+
         it('loads a secrets file if a path to one is given', function(done) {
             state.defaultConfig = {
                 secretsPath: '/opt/sixxy/ut.secrets.json'
             };
             spyOn(fs, 'readJsonSync').and.returnValue('sosecret');
-            
+
             q.fcall(service.configure, state)
                 .then(resolveSpy, rejectSpy)
                 .finally(function() {
@@ -337,7 +338,7 @@ describe('service (UT)',function(){
                     expect(process.on.calls.allArgs()[3][0]).toEqual('SIGTERM');
                 }).done(done);
         });
-        
+
     });
 
     describe('signals',function(){
@@ -365,7 +366,7 @@ describe('service (UT)',function(){
             });
         });
     });
-    
+
 
     describe('daemonize',function(){
         it('does nothing if daemonize not in command line',function(done){
@@ -452,7 +453,7 @@ describe('service (UT)',function(){
                 }).done(done);
         });
     });
-    
+
     describe('initMongo', function() {
         var db1, db2;
         beforeEach(function(){
@@ -479,7 +480,7 @@ describe('service (UT)',function(){
                 expect(state.dbs).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('will fail if missing mongo config info', function(done) {
             delete state.config.mongo;
             service.initMongo(state).then(resolveSpy, rejectSpy)
@@ -489,7 +490,7 @@ describe('service (UT)',function(){
                 expect(mongoUtils.connect).not.toHaveBeenCalled();
             }).done(done);
         });
-        
+
         it('will fail if missing mongo auth credentials', function(done) {
             delete state.secrets.mongoCredentials;
             service.initMongo(state).then(resolveSpy, rejectSpy)
@@ -499,7 +500,7 @@ describe('service (UT)',function(){
                 expect(mongoUtils.connect).not.toHaveBeenCalled();
             }).done(done);
         });
-        
+
         it('will connect and auth to the databases', function(done) {
             service.initMongo(state).then(resolveSpy, rejectSpy)
             .finally(function() {
@@ -517,7 +518,7 @@ describe('service (UT)',function(){
                 expect(state.sessionsDb).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('will reject with an error if connecting to mongo fails', function(done) {
             mongoUtils.connect.and.callFake(function(host, port, db, user, pass, hosts, replSet) {
                 if (db === 'db1') {
@@ -554,7 +555,7 @@ describe('service (UT)',function(){
                 expect(rejectSpy).not.toHaveBeenCalled();
             }).done(done);
         });
-        
+
         it('will not auto reconnect if authentication fails', function(done) {
             delete state.config.mongo.db2;
             state.config.mongo.db1.retryConnect = true;
@@ -574,7 +575,7 @@ describe('service (UT)',function(){
                 expect(rejectSpy).toHaveBeenCalledWith({name: 'MongoError', errmsg: 'auth fails'});
             }).done(done);
         });
-        
+
         it('should create a db that responds to close events', function(done) {
             delete state.config.mongo.db2;
             service.initMongo(state).then(resolveSpy, rejectSpy)
@@ -629,7 +630,7 @@ describe('service (UT)',function(){
             fakeDb = new events.EventEmitter();
             spyOn(mongoUtils, 'connect').and.returnValue(q(fakeDb));
         });
-        
+
         it('should skip if the process is the cluster master', function(done) {
             state.clusterMaster = true;
             service.initSessionStore(state).then(resolveSpy, rejectSpy)
@@ -640,7 +641,7 @@ describe('service (UT)',function(){
                 expect(state.sessionStore).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should initialize the MongoStore and call the callback', function(done) {
             service.initSessionStore(state).then(resolveSpy, rejectSpy)
             .finally(function() {
@@ -653,7 +654,7 @@ describe('service (UT)',function(){
                 expect(state.sessionStore).toBeDefined();
             }).done(done);
         });
-        
+
         it('should reject if given incomplete params', function(done) {
             delete state.config.sessions;
             resolveSpy.and.returnValue();
@@ -698,7 +699,7 @@ describe('service (UT)',function(){
                 expect(rejectSpy).not.toHaveBeenCalled();
             }).done(done);
         });
-        
+
         it('will not auto reconnect if authentication fails', function(done) {
             state.config.sessions.mongo.retryConnect = true;
             mongoUtils.connect.and.callFake(function(){
@@ -776,7 +777,7 @@ describe('service (UT)',function(){
                 expect(pubsub.Subscriber.calls.all()[2].args).toEqual(['test3', { port: undefined, path: '/tmp/test3', host: undefined }, undefined]);
             }).done(done);
         });
-        
+
         it('should initialize a client as a Publisher if isPublisher is true', function(done) {
             state.config.pubsub.test2.isPublisher = true;
             service.initPubSubChannels(state).then(resolveSpy, rejectSpy)
@@ -819,7 +820,7 @@ describe('service (UT)',function(){
             spyOn(cacheLib.Cache.prototype, '_initClient');
             spyOn(cacheLib.Cache.prototype, 'updateServers').and.returnValue(q());
         });
-        
+
         it('should initialize a cache instance based on config', function(done) {
             service.initCache(state).then(resolveSpy, rejectSpy)
             .finally(function() {
@@ -830,7 +831,7 @@ describe('service (UT)',function(){
                 expect(state.cache._initClient).toHaveBeenCalledWith(['localhost:123', 'localhost:456']);
             }).done(done);
         });
-        
+
         it('should be able to initialize the client with no initial servers', function(done) {
             delete state.config.cache.servers;
             service.initCache(state).then(resolveSpy, rejectSpy)
@@ -843,7 +844,7 @@ describe('service (UT)',function(){
                 expect(state.cache.cacheReady).toBe(false);
             }).done(done);
         });
-        
+
         it('should skip if config.cache is undefined', function(done) {
             delete state.config.cache;
             service.initCache(state).then(resolveSpy, rejectSpy)
@@ -870,7 +871,7 @@ describe('service (UT)',function(){
                     expect(state.cache.updateServers).toHaveBeenCalledWith(['h1:11']);
                 }).done(done);
             });
-            
+
             it('should use the cfgChannel\'s last message to initialize the cache client', function(done) {
                 state.subscribers.cacheCfg.lastMsg = { servers: ['h2:22'] };
                 service.initCache(state).then(resolveSpy, rejectSpy)
@@ -883,7 +884,7 @@ describe('service (UT)',function(){
             });
         });
     });
-    
+
     describe('ensureIndices', function() {
         var collections;
         beforeEach(function() {
@@ -907,7 +908,7 @@ describe('service (UT)',function(){
                 };
             });
         });
-        
+
         it('should skip if the process is the cluster master', function(done) {
             state.clusterMaster = true;
             service.ensureIndices(state).then(function(result) {
@@ -920,7 +921,7 @@ describe('service (UT)',function(){
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should skip if there\'s no mongo config', function(done) {
             delete state.config.mongo;
             service.ensureIndices(state).then(function(result) {
@@ -933,7 +934,7 @@ describe('service (UT)',function(){
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
-        
+
         it('should call ensureIndex for each field in requiredIndices', function(done) {
             service.ensureIndices(state).then(function(result) {
                 expect(result).toBe(state);
@@ -963,7 +964,7 @@ describe('service (UT)',function(){
                 expect(collections.coll1.ensureIndex).toHaveBeenCalled();
             }).done(done);
         });
-        
+
         it('should fail if even one ensureIndex call fails', function(done) {
             state.dbs.db1.collection.and.callFake(function(collName) {
                 collections[collName] = {

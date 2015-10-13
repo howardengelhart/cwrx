@@ -46,6 +46,7 @@ $ grunt e2e_tests:<prefix> --testHost=<host> --dbHost=<dbHost> --cacheHost=<cach
 - `dbHost` is the host where mongo should be running. Defaults to `33.33.33.100`.
 - `cacheHost` is the host where memcached should be running. Defaults to `localhost`. Not always needed.
 
+The userSvc requires the existance of a system user *sixxy*. The e2e tests will fail if this user does not exist. In order to create it you can run the included *sixxyUser.js* script.
 
 In order to run the services locally, you have a few options:
 
@@ -143,7 +144,7 @@ In order to run a service locally, you'll need to setup a few things:
   | orgSvc     | auth, monitor          |
   | querybot   | auth, monitor          |
   | search     | auth                   |
-  | userSvc    | auth                   |
+  | userSvc    | auth, orgSvc, ads      |
   | vote       | auth, maint            |
 
 - Secrets file. The path will generally be `~/.<svcName>.secrets.json` and the content should look like this:
@@ -164,4 +165,3 @@ In order to run a service locally, you'll need to setup a few things:
   ```bash
   $> git describe --tags --long > bin/service-name.version
   ```
-

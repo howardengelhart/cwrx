@@ -3,9 +3,12 @@
 
     var inspect         = require('util').inspect,
         q               = require('q'),
+        url             = require('url'),
+        urlUtils        = require('url'),
         bcrypt          = require('bcrypt'),
         crypto          = require('crypto'),
         express         = require('express'),
+        requestUtils    = require('../lib/requestUtils'),
         logger          = require('../lib/logger'),
         mongoUtils      = require('../lib/mongoUtils'),
         objUtils        = require('../lib/objUtils'),
@@ -16,7 +19,7 @@
         Status          = enums.Status,
         Scope           = enums.Scope,
 
-        userModule  = {};
+        userModule  = { _nonces: {} };
 
     userModule.userSchema = {
         email: {
@@ -107,6 +110,12 @@
         var setupSignupUser = userModule.setupSignupUser.bind(userModule, userSvc,
             config.newUserPermissions.roles, config.newUserPermissions.policies);
         var validatePassword = userModule.validatePassword;
+        var checkValidToken = userModule.checkValidToken.bind(userModule, userSvc);
+        var createLinkedEntities = userModule.createLinkedEntities.bind(userModule, config.api,
+            config.port);
+        var sendConfirmationEmail = userModule.sendConfirmationEmail.bind(userModule,
+            config.ses.sender);
+        var handleBrokenUser = userModule.handleBrokenUser.bind(userModule, userSvc);
 
         // override some default CrudSvc methods with custom versions for users
         userSvc.transformMongoDoc = mongoUtils.safeUser;
@@ -143,7 +152,138 @@
         userSvc.use('signupUser', giveActivationToken);
         userSvc.use('signupUser', sendActivationEmail);
 
+        userSvc.use('confirmUser', checkValidToken);
+        userSvc.use('confirmUser', createLinkedEntities);
+        userSvc.use('confirmUser', handleBrokenUser);
+        userSvc.use('confirmUser', sendConfirmationEmail);
+
         return userSvc;
+    };
+
+    userModule.checkValidToken = function(svc, req, next, done) {
+        var log = logger.getLog(),
+            id = req.params.id,
+            token = req.body.token;
+        return q.npost(svc._coll, 'findOne', [{ id: String(id) }])
+            .then(function(result) {
+                if(!result) {
+                    log.info('[%1] User %2 was not found', req.uuid, id);
+                    return done({ code: 404, body: 'User not found' });
+                }
+                if(result.status !== Status.New || !result.activationToken) {
+                    log.info('[%1] User %2 cannot be activated', req.uuid, id);
+                    return done({ code: 403, body: 'Confirmation failed' });
+                }
+                if(new Date(result.activationToken.expires) < new Date()) {
+                    log.info('[%1] User %2 has an expired activation token', req.uuid, id);
+                    return done({ code: 403, body: 'Activation token has expired' });
+                }
+                return q.npost(bcrypt, 'compare', [String(token), result.activationToken.token])
+                    .then(function(matching) {
+                        if(!matching) {
+                            log.info('[%1] User %2 provided an incorrect token', req.uuid, id);
+                            return done({ code: 403, body: 'Confirmation failed' });
+                        }
+                        req.user = svc.transformMongoDoc(result);
+                        return next();
+                    });
+            });
+    };
+
+    userModule.createLinkedEntities = function(api, port, req, next) {
+        var log = logger.getLog(),
+            company = req.user.company || null,
+            id = req.user.id,
+            sixxyCookie = null;
+
+        function createCustomer(advertiserId) {
+            var name = (company ? company : 'newCustomer') + ' (' + id + ')';
+            var options = { url: url.resolve(api.root, api.customers.endpoint),
+                json: { name: name, advertisers: [advertiserId] },
+                headers: { cookie: sixxyCookie } };
+            return requestUtils.qRequest('post', options).then(function(resp) {
+                if(resp.response.statusCode === 201) {
+                    req.user.customer = resp.body.id;
+                    log.info('[%1] Created customer %3 for user %4', req.uuid, resp.body.id, id);
+                } else {
+                    return q.reject(resp.response.statusCode + ', ' + resp.body);
+                }
+            }).catch(function(error) {
+                req.user.status = Status.Error;
+                log.error('[%1] Error creating customer for user %2: %3', req.uuid, id, error);
+            });
+        }
+
+        return userModule.getSixxySession(req, port)
+            .then(function(cookie) {
+                sixxyCookie = cookie;
+                log.info('[%1] Got cookie for sixxy user', req.uuid);
+
+                var orgName = (company ? company : 'newOrg') + ' (' + id + ')';
+                var adName = (company ? company : 'newAdvertiser') + ' (' + id + ')';
+
+                var orgOpts = { url: url.resolve(api.root, api.orgs.endpoint),
+                    json: { name: orgName }, headers: { cookie: sixxyCookie } };
+                var adOpts = { url: url.resolve(api.root, api.advertisers.endpoint),
+                    json: { name: adName }, headers: { cookie: sixxyCookie } };
+
+                var createOrg = requestUtils.qRequest('post', orgOpts);
+                var createAdvertiser = requestUtils.qRequest('post', adOpts);
+
+                return q.allSettled([createOrg, createAdvertiser]);
+            })
+            .spread(function(orgResult, adResult) {
+                // Handle orgResult
+                var orgState = orgResult.state;
+                var orgResp = orgResult.value;
+                if(orgState === 'fulfilled' && orgResp.response.statusCode === 201) {
+                    req.user.org = orgResp.body.id;
+                    log.info('[%1] Created org %2 for user %3', req.uuid, orgResp.body.id, id);
+                } else {
+                    req.user.status = Status.Error;
+                    var orgErr = (orgState === 'rejected') ? orgResult.reason :
+                        orgResp.response.statusCode + ', ' + orgResp.body;
+                    log.error('[%1] Error creating org for user %2: %3', req.uuid, id, orgErr);
+                }
+                // Handle adResult
+                var adState = adResult.state;
+                var adResp = adResult.value;
+                if(adState === 'fulfilled' && adResp.response.statusCode === 201) {
+                    var advertiserId = adResp.body.id;
+                    req.user.advertiser = advertiserId;
+                    log.info('[%1] Created advertiser %2 for user %3', req.uuid, adResp.body.id,
+                        id);
+                    return createCustomer(advertiserId).finally(next);
+                } else {
+                    req.user.status = Status.Error;
+                    var adErr = (adState === 'rejected') ? adResult.reason :
+                        adResp.response.statusCode + ', ' + adResp.body;
+                    log.error('[%1] Error creating advertiser for user %2: %3', req.uuid, id,
+                        adErr);
+                }
+                return next();
+            });
+    };
+
+    userModule.handleBrokenUser = function(svc, req, next) {
+        if(req.user.status === Status.Error) {
+            var log = logger.getLog(),
+                id = req.user.id,
+                opts = { w: 1, journal: true, new: true },
+                updates = {
+                    $set: {
+                        lastUpdated: new Date(),
+                        status: Status.Error
+                    },
+                    $unset: { activationToken: 1 }
+                };
+            return q.npost(svc._coll, 'findAndModify', [{id: id}, {id: 1}, updates, opts])
+                .then(function() {
+                    log.warn('[%1] User %2 is in a broken state', req.uuid, id);
+                    return q.reject('The user is in a broken state.');
+                });
+        }
+        return next();
     };
 
     userModule.setupSignupUser = function setupSignupUser(svc, roles, policies, req, next, done) {
@@ -302,6 +442,13 @@
                     return q.reject(error);
                 }
             });
+    };
+
+    userModule.sendConfirmationEmail = function(sender, req, next) {
+        var recipient = req.user.email;
+        return email.notifyAccountActivation(sender, recipient).then(function() {
+            return next();
+        });
     };
 
     // Check that all of the user's roles exist
@@ -549,11 +696,116 @@
             return q({ code: 400, body: validity.reason});
         }
     };
+    
+    userModule.getSixxySession = function(req, port) {
+        var url = urlUtils.format({
+                protocol: 'http',
+                hostname: 'localhost',
+                port: port,
+                pathname: '/__internal/sixxyUserSession'
+            });
 
-    userModule.setupEndpoints = function(app, svc, sessions, audit, sessionStore, config) {
+        return q.npost(crypto, 'randomBytes', [24])
+        .then(function(buff) {
+            var nonce = buff.toString('hex');
+            
+            userModule._nonces[req.uuid] = nonce;
+
+            return requestUtils.qRequest('post', {
+                url: url,
+                json: { uuid: req.uuid, nonce: nonce }
+            });
+        })
+        .then(function(resp) {
+            if (resp.response.statusCode !== 204) {
+                var msg = 'Failed to request sixxy session: code = ' + resp.response.statusCode +
+                          ', body = ' + resp.body;
+                return q.reject(msg);
+            }
+
+            var authCookie = (resp.response.headers['set-cookie'] || []).filter(function(cookie) {
+                return (/^c6Auth/).test(cookie);
+            })[0];
+            
+            if (!authCookie) {
+                return q.reject('No c6Auth cookie in response');
+            }
+            
+            return authCookie;
+        });
+    };
+    
+    userModule.insertSixxySession = function(req, res, config) {
+        var log = logger.getLog();
+        
+        if (!req.body.nonce || !req.body.uuid) {
+            log.warn('[%1] Request does not have nonce + uuid', req.uuid);
+            return res.send(400);
+        }
+        if (req.body.nonce !== userModule._nonces[req.body.uuid]) {
+            log.warn('[%1] Invalid nonce for uuid %2', req.uuid, req.body.uuid);
+            return res.send(400);
+        }
+        
+        delete userModule._nonces[req.body.uuid];
+        
+        log.info('[%1] Returning sixxy user cookie to request %2', req.uuid, req.body.uuid);
+
+        return q.npost(req.session, 'regenerate').done(function() {
+            req.session.user = config.systemUserId;
+            req.session.cookie.maxAge = 60*1000;
+            res.send(204);
+        });
+    };
+
+
+    userModule.confirmUser = function(svc, req, journal, maxAge) {
+        var log = logger.getLog();
+        if(!req.body.token) {
+            log.info('[%1] User did not provide a token', req.uuid);
+            return q({ code: 400, body: 'Must provide a token'});
+        }
+        return svc.customMethod(req, 'confirmUser', function confirm() {
+            var id = req.user.id,
+                opts = { w: 1, journal: true, new: true },
+                updates = {
+                    $set: {
+                        lastUpdated: new Date(),
+                        status: Status.Active,
+                        org: req.user.org,
+                        customer: req.user.customer,
+                        advertiser: req.user.advertiser
+                    },
+                    $unset: { activationToken: 1 }
+                };
+            return q.npost(svc._coll, 'findAndModify', [{id: id}, {id: 1}, updates, opts])
+                .then(function(results) {
+                    var userAccount = results[0];
+                    delete req.user;
+                    return q.all([
+                        q.npost(req.session, 'regenerate'),
+                        authUtils.decorateUser(svc.transformMongoDoc(userAccount))
+                    ]);
+                })
+                .then(function(results) {
+                    var decorated = results[1];
+                    journal.writeAuditEntry(req, decorated.id);
+                    req.session.user = decorated.id;
+                    req.session.cookie.maxAge = maxAge;
+                    log.info('[%1] User %2 has been successfully confirmed', req.uuid,
+                        decorated.id);
+                    return { code: 200, body: decorated };
+                });
+        });
+    };
+
+    userModule.setupEndpoints = function(app, svc, sessions, audit, sessionStore, config, journal) {
         var router      = express.Router(),
             mountPath   = '/api/account/users?'; // prefix to all endpoints declared here
 
+        app.post('/__internal/sixxyUserSession', sessions, function(req, res) {
+            userModule.insertSixxySession(req, res, config);
+        });
 
         var credsChecker = authUtils.userPassChecker();
         router.post('/email', credsChecker, audit, function(req, res) {
@@ -584,6 +836,17 @@
             }).catch(function(error) {
                 res.send(500, {
                     error: 'Error signing up user',
+                    detail: error
+                });
+            });
+        });
+
+        router.post('/confirm/:id', sessions, function(req, res) {
+            userModule.confirmUser(svc, req, journal, config.sessions.maxAge).then(function(resp) {
+                res.send(resp.code, resp.body);
+            }).catch(function(error) {
+                res.send(500, {
+                    error: 'Error confirming user signup',
                     detail: error
                 });
             });

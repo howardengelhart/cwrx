@@ -6,11 +6,13 @@ var q               = require('q'),
     host            = process.env.host || 'localhost',
     config = {
         usersUrl    : 'http://' + (host === 'localhost' ? host + ':3500' : host) + '/api/account/users',
-        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
+        authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth',
+        orgsUrl     : 'http://' + (host === 'localhost' ? host + ':3700' : host) + '/api/account/orgs',
+        adsUrl      : 'http://' + (host === 'localhost' ? host + ':3900' : host) + '/api'
     };
 
 describe('userSvc users (E2E):', function() {
-    var cookieJar, adminJar, mockRequester, mockAdmin, testPolicies, mailman, urlRegex;
+    var cookieJar, adminJar, mockRequester, mockAdmin, mockServiceUser, testPolicies, mailman, urlRegex;
 
     beforeEach(function(done) {
         jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
@@ -70,7 +72,10 @@ describe('userSvc users (E2E):', function() {
                 status: 'active',
                 priority: 1,
                 permissions: {
-                    users: { read: 'all', create: 'all', edit: 'all', delete: 'all' }
+                    users: { read: 'all', create: 'all', edit: 'all', delete: 'all' },
+                    orgs: { delete: 'all' },
+                    customers: { read: 'all', delete: 'all' },
+                    advertisers: { delete: 'all' }
                 },
                 fieldValidation: {
                     users: {
@@ -123,9 +128,7 @@ describe('userSvc users (E2E):', function() {
             } else {
                 return q();
             }
-        }).done(function(resp) {
-            done();
-        });
+        }).done(done);
     });
 
     afterEach(function() {
@@ -445,7 +448,7 @@ describe('userSvc users (E2E):', function() {
             options.jar = adminJar;
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                expect(resp.body.length).toBe(6);
+                expect(resp.body.length).toBe(7);
                 expect(resp.body[0].id).toBe('e2e-admin-user');
                 expect(resp.body[0].password).not.toBeDefined();
                 expect(resp.body[1].id).toBe('e2e-user');
@@ -458,7 +461,7 @@ describe('userSvc users (E2E):', function() {
                 expect(resp.body[4].password).not.toBeDefined();
                 expect(resp.body[5].id).toBe('u-e2e-get4');
                 expect(resp.body[5].password).not.toBeDefined();
-                expect(resp.response.headers['content-range']).toBe('items 1-6/6');
+                expect(resp.response.headers['content-range']).toBe('items 1-7/7');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -1561,6 +1564,238 @@ describe('userSvc users (E2E):', function() {
         });
     });
 
+    describe('POST /api/account/users/confirm/:id', function() {
+        var mockNewUser;
+
+        beforeEach(function(done) {
+            mockNewUser = {
+                id: 'u-12345',
+                email: 'c6e2etester@gmail.com',
+                password: 'password',
+                activationToken: {
+                    token: '$2a$10$Az4jCmrU0teH1pPj8zgWSOgZszAM0O9qbvtqOWCCVfujBx2gGlOFC', // hash of "valid-token"
+                    expires: new Date(99999, 11, 25)
+                },
+                lastUpdated: new Date(0, 11, 25),
+                status: 'new',
+                company: 'company'
+            };
+            q.all([
+                testUtils.resetCollection('users', [mockNewUser, mockAdmin]),
+                testUtils.resetCollection('orgs', [{name:'someOrg'}])
+            ]).done(done);
+        });
+
+        it('should 400 if a token is not provided on the request body', function(done) {
+            var options = { url: config.usersUrl + '/confirm/u-12345' };
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Must provide a token');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should 404 if no user exists with the id specified in the url', function(done) {
+            var options = { url: config.usersUrl + '/confirm/u-non-existant', json: { token: 'valid-token' } };
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(404);
+                expect(resp.body).toBe('User not found');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should 403 if the activation token has expired', function(done) {
+            mockNewUser.activationToken.expires = new Date(0, 11, 25);
+            testUtils.resetCollection('users', [mockNewUser]).then(function() {
+                var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
+                return requestUtils.qRequest('post', options);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(403);
+                expect(resp.body).toBe('Activation token has expired');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should 403 if the provided activation token is invalid', function(done) {
+            var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'invalid-token' } };
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(403);
+                expect(resp.body).toBe('Confirmation failed');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        describe('when given a valid activation token', function() {
+            var user;
+
+            afterEach(function(done) {
+                var urls = [
+                    config.orgsUrl + '/' + user.org,
+                    config.adsUrl + '/account/customer/' + user.customer,
+                    config.adsUrl + '/account/advertiser/' + user.advertiser
+                ];
+                testUtils.resetCollection('users', mockAdmin).then(function() {
+                    return q.allSettled(urls.map(function(url) {
+                        return requestUtils.qRequest('delete', { url: url, jar: adminJar });
+                    }));
+                }).then(function(results) {
+                    results.forEach(function(result) {
+                        if(result.state !== 'fulfilled' || result.value.response.statusCode !== 204) {
+                            console.log('Error deleting object: ' + JSON.stringify(result.value.body));
+                        }
+                    });
+                }).done(done);
+            });
+
+            it('should create an org for the user', function(done) {
+                var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
+                requestUtils.qRequest('post', options)
+                .then(function(resp) {
+                    user = resp.body;
+                    var orgId = resp.body.org;
+                    expect(orgId).toEqual(jasmine.any(String));
+                    return testUtils.mongoFind('orgs', {id: orgId});
+                })
+                .then(function(results) {
+                    var org = results[0];
+                    expect(org.name).toBe('company (u-12345)');
+                })
+                .catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                })
+                .done(done);
+            });
+
+            it('should create a customer for the user (linked to the advertiser)', function(done) {
+                var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
+                var advertiserId = null;
+                requestUtils.qRequest('post', options)
+                .then(function(resp) {
+                    user = resp.body;
+                    var customerId = resp.body.customer;
+                    advertiserId = resp.body.advertiser;
+                    expect(customerId).toEqual(jasmine.any(String));
+                    expect(advertiserId).toBeDefined();
+                    var options = {url: config.adsUrl + '/account/customer/' + customerId, jar: adminJar};
+                    return requestUtils.qRequest('get', options);
+                })
+                .then(function(resp) {
+                    var customer = resp.body;
+                    expect(customer.name).toBe('company (u-12345)');
+                    expect(customer.advertisers).toContain(advertiserId);
+                })
+                .catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                })
+                .done(done);
+            });
+
+            it('should create an advertiser for the user', function(done) {
+                var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
+                requestUtils.qRequest('post', options)
+                .then(function(resp) {
+                    user = resp.body;
+                    var advertiserId = resp.body.advertiser;
+                    expect(advertiserId).toEqual(jasmine.any(String));
+                    return testUtils.mongoFind('advertisers', {id: advertiserId});
+                })
+                .then(function(results) {
+                    var advertiser = results[0];
+                    expect(advertiser.name).toBe('company (u-12345)');
+                })
+                .catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                })
+                .done(done);
+            });
+
+            it('should login the new user', function(done) {
+                var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
+                requestUtils.qRequest('post', options)
+                .then(function(resp) {
+                    user = resp.body;
+                    expect(resp.response.headers['set-cookie'].length).toBe(1);
+                    expect(resp.response.headers['set-cookie'][0].match(/^c6Auth=.+/)).toBeTruthy('cookie match');
+                })
+                .catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                })
+                .done(done);
+            });
+
+            it('should 200 and return the saved object as the body of the response ', function(done) {
+                var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
+                requestUtils.qRequest('post', options)
+                .then(function(resp) {
+                    user = resp.body;
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body).toEqual({
+                        id: 'u-12345',
+                        email: 'c6e2etester@gmail.com',
+                        lastUpdated: jasmine.any(String),
+                        status: 'active',
+                        company: 'company',
+                        org: jasmine.any(String),
+                        customer: jasmine.any(String),
+                        advertiser: jasmine.any(String)
+                    });
+                    expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(new Date(0, 11, 25));
+                })
+                .catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                })
+                .done(done);
+            });
+
+            it('should send a confirmation email to the user', function(done) {
+                var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
+                requestUtils.qRequest('post', options)
+                .then(function(resp) {
+                    user = resp.body;
+                })
+                .catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                    done();
+                });
+
+                mailman.once('message', function(msg) {
+                    expect(msg.from[0].address).toBe('support@cinema6.com');
+                    expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
+                    expect(msg.subject).toBe('Your account has been activated!');
+                    expect(new Date() - msg.date).toBeLessThan(30000); // message should be recent
+                    done();
+                });
+            });
+        });
+    });
+
+    // This test will ONLY run on localhost
+    describe('POST /__internal/sixxyUserSession', function() {
+        var runTest, opts;
+        
+        beforeEach(function() {
+            runTest = (host === 'localhost');
+            opts = {url: 'http://localhost:3500/__internal/sixxyUserSession', json: {uuid: 'uuid', nonce: 'invalid nonce'}};
+        });
+        
+        it('should not work when called directly', function(done) {
+            if(runTest) {
+                requestUtils.qRequest('post', opts).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(400);
+                    expect(resp.response.headers.c6Auth).not.toBeDefined();
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefiened();
+                }).done(done);
+            } else {
+                done();
+            }
+        });
+    });
+
     // THIS SHOULD ALWAYS GO AT THE END OF ALL TESTS
     describe('mailman cleanup', function() {
         it('stops the mailman', function() {
@@ -1569,7 +1804,7 @@ describe('userSvc users (E2E):', function() {
     });
 });
 
-describe('test cleanup', function() {
+afterAll(function() {
     it('should close db connections', function(done) {
         testUtils.closeDbs().done(done);
     });
