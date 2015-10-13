@@ -131,9 +131,8 @@ describe('userSvc users (E2E):', function() {
         }).done(done);
     });
 
-    afterEach(function(done) {
+    afterEach(function() {
         mailman.removeAllListeners('message');
-        mailman.start().done(done);
     });
 
     describe('GET /api/account/users/:id', function() {
@@ -1918,14 +1917,8 @@ describe('userSvc users (E2E):', function() {
         });
     });
 
-    // THIS SHOULD ALWAYS GO AT THE END OF ALL TESTS
-    describe('mailman cleanup', function() {
-        it('stops the mailman', function() {
-            mailman.stop();
-        });
+    afterAll(function(done) {
+        mailman.stop();
+        testUtils.closeDbs().done(done);
     });
-});
-
-afterAll(function(done) {
-    testUtils.closeDbs().done(done);
 });
