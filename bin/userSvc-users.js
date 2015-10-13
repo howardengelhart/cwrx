@@ -797,6 +797,10 @@
                     log.info('[%1] User %2 has been successfully confirmed', req.uuid,
                         decorated.id);
                     return { code: 200, body: decorated };
+                })
+                .catch(function(error) {
+                    log.error('[%1] Error updating user %2: %3', req.uuid, id, error);
+                    return q.reject(error);
                 });
         });
     };
@@ -814,16 +818,13 @@
                 req.body.id = id;
                 req.body.email = user.email;
                 return svc.customMethod(req, 'resendActivation', function() {
-                    var opts = { w: 1, journal: true, new: true },
-                        updates = {
-                            $set: {
-                                lastUpdated: new Date(),
-                                activationToken: req.body.activationToken
-                            }
-                        };
-                    return q.npost(svc._coll, 'findAndModify', [{id: id}, {id: 1}, updates, opts])
+                    var updates = {
+                        lastUpdated: new Date(),
+                        activationToken: req.body.activationToken
+                    };
+                    return mongoUtils.editObject(svc._coll, updates, id)
                         .then(function() {
-                            return { code: 204, body: {} };
+                            return { code: 204 };
                         });
                 });
             });

@@ -2245,6 +2245,19 @@ describe('userSvc (UT)', function() {
             expect(svc.customMethod).toHaveBeenCalledWith(req, 'confirmUser', jasmine.any(Function));
             expect(result).toBe(customMethodDeferred.promise);
         });
+        
+        it('should log an error if updating the user fails', function(done) {
+            svc._coll.findAndModify.and.callFake(function(query1, query2, updates, opts, cb) {
+                cb('error', null);
+            });
+            var callback = svc.customMethod.calls.mostRecent().args[2];
+            callback().then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('error');
+                expect(mockLog.error).toHaveBeenCalled();
+            }).done(done);
+        });
 
         describe('the callback passed to svc.customMethod()', function() {
             var callback;
@@ -2308,6 +2321,7 @@ describe('userSvc (UT)', function() {
         var mockUser, result;
 
         beforeEach(function() {
+            spyOn(mongoUtils, 'editObject').and.returnValue(q());
             mockUser = {
                 id: 'u-12345',
                 org: 'o-12345',
@@ -2320,9 +2334,6 @@ describe('userSvc (UT)', function() {
                 _coll: {
                     findOne: jasmine.createSpy('findOne(query, cb)').and.callFake(function(query, cb) {
                         return cb(null, mockUser);
-                    }),
-                    findAndModify: jasmine.createSpy('findAndModify()').and.callFake(function(query1, query2, updates, opts, cb) {
-                        return cb(null, { });
                     })
                 }
             };
@@ -2395,19 +2406,17 @@ describe('userSvc (UT)', function() {
             
             it('should update the user with its new activation token', function() {
                 var expectedUpdates = {
-                    $set: {
-                        lastUpdated: jasmine.any(Date),
-                        activationToken: {
-                            token: 'new token',
-                            expires: 'sometime'
-                        }
+                    lastUpdated: jasmine.any(Date),
+                    activationToken: {
+                        token: 'new token',
+                        expires: 'sometime'
                     }
                 };
-                expect(svc._coll.findAndModify).toHaveBeenCalledWith({id: 'u-12345'}, {id: 1}, expectedUpdates, {w:1,journal:true,new:true}, jasmine.any(Function));
+                expect(mongoUtils.editObject).toHaveBeenCalledWith(svc._coll, expectedUpdates, 'u-12345');
             });
             
             it('should return with a 204', function() {
-                expect(success).toHaveBeenCalledWith({code:204,body:{}});
+                expect(success).toHaveBeenCalledWith({code:204});
                 expect(failure).not.toHaveBeenCalled();
             });
         });
