@@ -601,7 +601,8 @@ describe('userSvc (UT)', function() {
                 expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
                     url: 'http://localhost/api/account/customers',
                     json: {
-                        name: 'some company (u-12345)'
+                        name: 'some company (u-12345)',
+                        advertisers: ['advertisers-id-123']
                     },
                     headers: {
                         cookie: 'sixxy cookie'
@@ -632,14 +633,11 @@ describe('userSvc (UT)', function() {
             });
         });
 
-        describe('when at least one of the requests fail', function() {
-            beforeEach(function(done) {
+        describe('when requests fail', function() {
+            function failRequestsFor(entityName) {
                 requestUtils.qRequest.and.callFake(function(method, opts) {
                     var object = opts.url.match(/orgs|customers|advertisers/)[0];
-                    var code = 201;
-                    if(object === 'customers') {
-                        code = 500;
-                    }
+                    var code = (object === entityName) ? 500 : 201;
                     return q({
                         response: {
                             statusCode: code
@@ -649,23 +647,108 @@ describe('userSvc (UT)', function() {
                         }
                     });
                 });
-                userModule.createLinkedEntities(api, 3500, req, nextSpy).done(done);
-            });
+            }
+            
+            describe('when an org fails to be created', function() {
+                beforeEach(function(done) {
+                    failRequestsFor('orgs');
+                    userModule.createLinkedEntities(api, 3500, req, nextSpy).done(done);
+                });
 
-            it('should not set properties that failed to be created', function() {
-                expect(req.user.customer).not.toBeDefined();
-            });
+                it('should still create other entities', function() {
+                    var args = requestUtils.qRequest.calls.allArgs();
+                    var endpoints = args.map(function(params) {
+                        return params[1].url.match(/orgs|customers|advertisers/)[0];
+                    });
+                    expect(endpoints).toContain('customers');
+                    expect(endpoints).toContain('advertisers');
+                    expect(req.user.customer).toBeDefined();
+                    expect(req.user.advertiser).toBeDefined();
+                });
 
-            it('should log an error', function() {
-                expect(mockLog.error).toHaveBeenCalled();
-            });
+                it('should not set an org on the user', function() {
+                    expect(req.user.org).not.toBeDefined();
+                });
 
-            it('should set the status of the user on the request to error', function() {
-                expect(req.user.status).toBe('error');
-            });
+                it('should log an error', function() {
+                    expect(mockLog.error).toHaveBeenCalled();
+                });
 
-            it('should call next', function() {
-                expect(nextSpy).toHaveBeenCalled();
+                it('should set the status of the user on the request to error', function() {
+                    expect(req.user.status).toBe('error');
+                });
+
+                it('should call next', function() {
+                    expect(nextSpy).toHaveBeenCalled();
+                });
+            });
+            
+            describe('when an advertiser fails to be created', function() {
+                beforeEach(function(done) {
+                    failRequestsFor('advertisers');
+                    userModule.createLinkedEntities(api, 3500, req, nextSpy).done(done);
+                });
+
+                it('should still create an org', function() {
+                    var args = requestUtils.qRequest.calls.allArgs();
+                    var endpoints = args.map(function(params) {
+                        return params[1].url.match(/orgs|customers|advertisers/)[0];
+                    });
+                    expect(endpoints).toContain('orgs');
+                    expect(endpoints).not.toContain('customers');
+                    expect(req.user.org).toBeDefined();
+                    expect(req.user.customer).not.toBeDefined();
+                });
+
+                it('should not set an advertiser on the user', function() {
+                    expect(req.user.advertiser).not.toBeDefined();
+                });
+
+                it('should log an error', function() {
+                    expect(mockLog.error).toHaveBeenCalled();
+                });
+
+                it('should set the status of the user on the request to error', function() {
+                    expect(req.user.status).toBe('error');
+                });
+
+                it('should call next', function() {
+                    expect(nextSpy).toHaveBeenCalled();
+                });
+            });
+            
+            describe('when a customer fails to be created', function() {
+                beforeEach(function(done) {
+                    failRequestsFor('customers');
+                    userModule.createLinkedEntities(api, 3500, req, nextSpy).done(done);
+                });
+
+                it('should still create other entities', function() {
+                    var args = requestUtils.qRequest.calls.allArgs();
+                    var endpoints = args.map(function(params) {
+                        return params[1].url.match(/orgs|customers|advertisers/)[0];
+                    });
+                    expect(endpoints).toContain('orgs');
+                    expect(endpoints).toContain('advertisers');
+                    expect(req.user.org).toBeDefined();
+                    expect(req.user.advertiser).toBeDefined();
+                });
+
+                it('should not set a customer on the user', function() {
+                    expect(req.user.customer).not.toBeDefined();
+                });
+
+                it('should log an error', function() {
+                    expect(mockLog.error).toHaveBeenCalled();
+                });
+
+                it('should set the status of the user on the request to error', function() {
+                    expect(req.user.status).toBe('error');
+                });
+
+                it('should call next', function() {
+                    expect(nextSpy).toHaveBeenCalled();
+                });
             });
         });
     });

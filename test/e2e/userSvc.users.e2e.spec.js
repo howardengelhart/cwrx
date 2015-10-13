@@ -74,7 +74,7 @@ describe('userSvc users (E2E):', function() {
                 permissions: {
                     users: { read: 'all', create: 'all', edit: 'all', delete: 'all' },
                     orgs: { delete: 'all' },
-                    customers: { delete: 'all' },
+                    customers: { read: 'all', delete: 'all' },
                     advertisers: { delete: 'all' }
                 },
                 fieldValidation: {
@@ -1581,7 +1581,7 @@ describe('userSvc users (E2E):', function() {
                 company: 'company'
             };
             q.all([
-                testUtils.resetCollection('users', [mockNewUser]),
+                testUtils.resetCollection('users', [mockNewUser, mockAdmin]),
                 testUtils.resetCollection('orgs', [{name:'someOrg'}])
             ]).done(done);
         });
@@ -1670,18 +1670,23 @@ describe('userSvc users (E2E):', function() {
                 .done(done);
             });
 
-            it('should create a customer for the user', function(done) {
+            it('should create a customer for the user (linked to the advertiser)', function(done) {
                 var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
+                var advertiserId = null;
                 requestUtils.qRequest('post', options)
                 .then(function(resp) {
                     user = resp.body;
                     var customerId = resp.body.customer;
+                    advertiserId = resp.body.advertiser;
                     expect(customerId).toEqual(jasmine.any(String));
-                    return testUtils.mongoFind('customers', {id: customerId});
+                    expect(advertiserId).toBeDefined();
+                    var options = {url: config.adsUrl + '/account/customer/' + customerId, jar: adminJar};
+                    return requestUtils.qRequest('get', options);
                 })
-                .then(function(results) {
-                    var customer = results[0];
+                .then(function(resp) {
+                    var customer = resp.body;
                     expect(customer.name).toBe('company (u-12345)');
+                    expect(customer.advertisers).toContain(advertiserId);
                 })
                 .catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();

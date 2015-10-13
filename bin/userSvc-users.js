@@ -193,44 +193,68 @@
     userModule.createLinkedEntities = function(api, port, req, next) {
         var log = logger.getLog(),
             company = req.user.company || null,
-            id = req.user.id;
+            id = req.user.id,
+            sixxyCookie = null;
 
+        function createCustomer(advertiserId) {
+            var name = (company ? company : 'newCustomer') + ' (' + id + ')';
+            var options = { url: url.resolve(api.root, api.customers.endpoint),
+                json: { name: name, advertisers: [advertiserId] },
+                headers: { cookie: sixxyCookie } };
+            return requestUtils.qRequest('post', options).then(function(resp) {
+                if(resp.response.statusCode === 201) {
+                    req.user.customer = resp.body.id;
+                    log.info('[%1] Created customer %3 for user %4', req.uuid, resp.body.id, id);
+                } else {
+                    return q.reject(resp.body);
+                }
+            }).catch(function() {
+                req.user.status = Status.Error;
+                log.error('[%1] Error creating customer for user %3', req.uuid, id);
+            });
+        }
 
         return userModule.getSixxySession(req, port)
             .then(function(cookie) {
+                sixxyCookie = cookie;
                 log.info('[%1] Got cookie for sixxy user', req.uuid);
-                var opts = ['orgs', 'customers', 'advertisers'].map(function(object, index) {
-                    var defaultName = ['newOrg', 'newCustomer', 'newAdvertiser'][index];
-                    var name = (company ? company : defaultName) + ' (' + id + ')';
-                    return {
-                        url: url.resolve(api.root, api[object].endpoint),
-                        json: {
-                            name: name
-                        },
-                        headers: {
-                            cookie: cookie
-                        }
-                    };
-                });
-                return q.allSettled(
-                    opts.map(function(options) {
-                        return requestUtils.qRequest('post', options);
-                    })
-                );
+
+                var orgName = (company ? company : 'newOrg') + ' (' + id + ')';
+                var adName = (company ? company : 'newAdvertiser') + ' (' + id + ')';
+
+                var orgOpts = { url: url.resolve(api.root, api.orgs.endpoint),
+                    json: { name: orgName }, headers: { cookie: sixxyCookie } };
+                var adOpts = { url: url.resolve(api.root, api.advertisers.endpoint),
+                    json: { name: adName }, headers: { cookie: sixxyCookie } };
+
+                var createOrg = requestUtils.qRequest('post', orgOpts);
+                var createAdvertiser = requestUtils.qRequest('post', adOpts);
+
+                return q.allSettled([createOrg, createAdvertiser]);
             })
-            .then(function(results) {
-                var props = ['org', 'customer', 'advertiser'];
-                for (var i=0;i<props.length;i++) {
-                    var state = results[i].state;
-                    var resp = results[i].value;
-                    if(state === 'fulfilled' && resp.response.statusCode === 201) {
-                        req.user[props[i]] = resp.body.id;
-                        log.info('[%1] Created %2 %3 for user %4', req.uuid, props[i], resp.body.id,
-                            id);
-                    } else {
-                        req.user.status = Status.Error;
-                        log.error('[%1] Error creating %2 for user %3', req.uuid, props[i], id);
-                    }
+            .spread(function(orgResult, adResult) {
+                // Handle orgResult
+                var orgState = orgResult.state;
+                var orgResp = orgResult.value;
+                if(orgState === 'fulfilled' && orgResp.response.statusCode === 201) {
+                    req.user.org = orgResp.body.id;
+                    log.info('[%1] Created org %3 for user %4', req.uuid, orgResp.body.id, id);
+                } else {
+                    req.user.status = Status.Error;
+                    log.error('[%1] Error creating org for user %3', req.uuid, id);
+                }
+                // Handle adResult
+                var adState = adResult.state;
+                var adResp = adResult.value;
+                if(adState === 'fulfilled' && adResp.response.statusCode === 201) {
+                    var advertiserId = adResp.body.id;
+                    req.user.advertiser = advertiserId;
+                    log.info('[%1] Created advertiser %3 for user %4', req.uuid, adResp.body.id,
+                        id);
+                    return createCustomer(advertiserId).finally(next);
+                } else {
+                    req.user.status = Status.Error;
+                    log.error('[%1] Error creating advertiser for user %3', req.uuid, id);
                 }
                 return next();
             });
