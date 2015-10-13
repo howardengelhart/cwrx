@@ -206,11 +206,11 @@
                     req.user.customer = resp.body.id;
                     log.info('[%1] Created customer %3 for user %4', req.uuid, resp.body.id, id);
                 } else {
-                    return q.reject(resp.body);
+                    return q.reject(resp.response.statusCode + ', ' + resp.body);
                 }
-            }).catch(function() {
+            }).catch(function(error) {
                 req.user.status = Status.Error;
-                log.error('[%1] Error creating customer for user %3', req.uuid, id);
+                log.error('[%1] Error creating customer for user %2: %3', req.uuid, id, error);
             });
         }
 
@@ -238,10 +238,12 @@
                 var orgResp = orgResult.value;
                 if(orgState === 'fulfilled' && orgResp.response.statusCode === 201) {
                     req.user.org = orgResp.body.id;
-                    log.info('[%1] Created org %3 for user %4', req.uuid, orgResp.body.id, id);
+                    log.info('[%1] Created org %2 for user %3', req.uuid, orgResp.body.id, id);
                 } else {
                     req.user.status = Status.Error;
-                    log.error('[%1] Error creating org for user %3', req.uuid, id);
+                    var orgErr = (orgState === 'rejected') ? orgResult.reason :
+                        orgResp.response.statusCode + ', ' + orgResp.body;
+                    log.error('[%1] Error creating org for user %2: %3', req.uuid, id, orgErr);
                 }
                 // Handle adResult
                 var adState = adResult.state;
@@ -249,12 +251,15 @@
                 if(adState === 'fulfilled' && adResp.response.statusCode === 201) {
                     var advertiserId = adResp.body.id;
                     req.user.advertiser = advertiserId;
-                    log.info('[%1] Created advertiser %3 for user %4', req.uuid, adResp.body.id,
+                    log.info('[%1] Created advertiser %2 for user %3', req.uuid, adResp.body.id,
                         id);
                     return createCustomer(advertiserId).finally(next);
                 } else {
                     req.user.status = Status.Error;
-                    log.error('[%1] Error creating advertiser for user %3', req.uuid, id);
+                    var adErr = (adState === 'rejected') ? adResult.reason :
+                        adResp.response.statusCode + ', ' + adResp.body;
+                    log.error('[%1] Error creating advertiser for user %2: %3', req.uuid, id,
+                        adErr);
                 }
                 return next();
             });

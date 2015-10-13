@@ -634,20 +634,40 @@ describe('userSvc (UT)', function() {
         });
 
         describe('when requests fail', function() {
-            function failRequestsFor(entityName) {
+            function failRequestsFor(entityName, reject) {
                 requestUtils.qRequest.and.callFake(function(method, opts) {
                     var object = opts.url.match(/orgs|customers|advertisers/)[0];
                     var code = (object === entityName) ? 500 : 201;
+                    var body = (code === 201) ? { id: object + '-id-123' } : 'error body';
+                    if(reject) {
+                        return q.reject('rejected');
+                    }
                     return q({
                         response: {
                             statusCode: code
                         },
-                        body: {
-                            id: object + '-id-123'
-                        }
+                        body: body
                     });
                 });
             }
+            
+            describe('when the promise to make the request gets rejected', function() {
+                ['orgs', 'customers', 'advertisers'].forEach(function(entity) {
+                    describe(entity, function() {
+                        beforeEach(function(done) {
+                            failRequestsFor(entity, true)
+                            userModule.createLinkedEntities(api, 3500, req, nextSpy).done(done);
+                        });
+                        
+                        it('should log an error with the rejection reason', function() {
+                            var args = mockLog.error.calls.mostRecent().args;
+                            var errorMessage = args[args.length - 1];
+                            expect(mockLog.error).toHaveBeenCalled();
+                            expect(errorMessage).toContain('rejected');
+                        });
+                    });
+                });
+            });
             
             describe('when an org fails to be created', function() {
                 beforeEach(function(done) {
@@ -671,7 +691,11 @@ describe('userSvc (UT)', function() {
                 });
 
                 it('should log an error', function() {
+                    var args = mockLog.error.calls.mostRecent().args;
+                    var errorMessage = args[args.length - 1];
                     expect(mockLog.error).toHaveBeenCalled();
+                    expect(errorMessage).toContain('500');
+                    expect(errorMessage).toContain('error body');
                 });
 
                 it('should set the status of the user on the request to error', function() {
@@ -705,7 +729,11 @@ describe('userSvc (UT)', function() {
                 });
 
                 it('should log an error', function() {
+                    var args = mockLog.error.calls.mostRecent().args;
+                    var errorMessage = args[args.length - 1];
                     expect(mockLog.error).toHaveBeenCalled();
+                    expect(errorMessage).toContain('500');
+                    expect(errorMessage).toContain('error body');
                 });
 
                 it('should set the status of the user on the request to error', function() {
@@ -739,7 +767,11 @@ describe('userSvc (UT)', function() {
                 });
 
                 it('should log an error', function() {
+                    var args = mockLog.error.calls.mostRecent().args;
+                    var errorMessage = args[args.length - 1];
                     expect(mockLog.error).toHaveBeenCalled();
+                    expect(errorMessage).toContain('500');
+                    expect(errorMessage).toContain('error body');
                 });
 
                 it('should set the status of the user on the request to error', function() {
