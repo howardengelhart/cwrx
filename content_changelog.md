@@ -1,5 +1,6 @@
 # Content Service Changelog
 
+* [FIX]: Stop logging cookie header: [#539](https://github.com/cinema6/cwrx/issues/539)
 * `name` is no longer required to be defined or unique for categories: [#523](https://github.com/cinema6/cwrx/issues/523)
 * validate other fields on categories using Model: [#523](https://github.com/cinema6/cwrx/issues/523)
 * [FIX]: Setting `ids` or `categories` experience filter params to `''` returns no experiences: [#524](https://github.com/cinema6/cwrx/issues/524)

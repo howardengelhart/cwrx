@@ -3,23 +3,23 @@
     'use strict';
     var __ut__      = (global.jasmine !== undefined) ? true : false;
 
-    var path        = require('path'),
-        q           = require('q'),
-        bcrypt      = require('bcrypt'),
-        crypto      = require('crypto'),
-        aws         = require('aws-sdk'),
-        express     = require('express'),
-        bodyParser  = require('body-parser'),
-        sessionLib  = require('express-session'),
-        logger      = require('../lib/logger'),
-        uuid        = require('../lib/uuid'),
-        mongoUtils  = require('../lib/mongoUtils'),
-        journal     = require('../lib/journal'),
-        authUtils   = require('../lib/authUtils'),
-        service     = require('../lib/service'),
-        email       = require('../lib/email'),
-        enums       = require('../lib/enums'),
-        Status      = enums.Status,
+    var path            = require('path'),
+        q               = require('q'),
+        bcrypt          = require('bcrypt'),
+        crypto          = require('crypto'),
+        aws             = require('aws-sdk'),
+        express         = require('express'),
+        bodyParser      = require('body-parser'),
+        sessionLib      = require('express-session'),
+        expressUtils    = require('../lib/expressUtils'),
+        logger          = require('../lib/logger'),
+        mongoUtils      = require('../lib/mongoUtils'),
+        journal         = require('../lib/journal'),
+        authUtils       = require('../lib/authUtils'),
+        service         = require('../lib/service'),
+        email           = require('../lib/email'),
+        enums           = require('../lib/enums'),
+        Status          = enums.Status,
 
         state   = {},
         auth    = {}; // for exporting functions to unit tests
@@ -363,30 +363,7 @@
         });
 
 
-        app.use(function(req, res, next) {
-            res.header('Access-Control-Allow-Headers',
-                       'Origin, X-Requested-With, Content-Type, Accept');
-            res.header('cache-control', 'max-age=0');
-
-            if (req.method.toLowerCase() === 'options') {
-                res.send(200);
-            } else {
-                next();
-            }
-        });
-
-        app.use(function(req, res, next) {
-            req.uuid = uuid.createUuid().substr(0,10);
-            if (    !req.headers['user-agent'] ||
-                    !req.headers['user-agent'].match(/^ELB-HealthChecker/)) {
-                log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
-                    req.method, req.url, req.httpVersion);
-            } else {
-                log.trace('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
-                    req.method, req.url, req.httpVersion);
-            }
-            next();
-        });
+        app.use(expressUtils.basicMiddleware());
 
         app.use(bodyParser.json());
 

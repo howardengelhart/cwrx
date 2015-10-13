@@ -11,7 +11,6 @@ var FunctionCache = require('../lib/functionCache');
 var service = require('../lib/service');
 var express = require('express');
 var logger = require('../lib/logger');
-var uuid = require('../lib/uuid');
 var inherits = require('util').inherits;
 var inspect = require('util').inspect;
 var BrowserInfo = require('../lib/browserInfo');
@@ -25,6 +24,11 @@ var parseQuery = require('../lib/expressUtils').parseQuery;
 var AWS = require('aws-sdk');
 var CloudWatchReporter = require('../lib/cloudWatchReporter');
 var cloudwatchMetrics = require('../lib/expressUtils').cloudwatchMetrics;
+var setUuid = require('../lib/expressUtils').setUuid;
+var setBasicHeaders = require('../lib/expressUtils').setBasicHeaders;
+var handleOptions = require('../lib/expressUtils').handleOptions;
+var logRequest = require('../lib/expressUtils').logRequest;
+
 var push = Array.prototype.push;
 
 var staticCache = new FunctionCache({
@@ -312,31 +316,11 @@ Player.startService = function startService() {
             state.config.cloudwatch.sendInterval,
             { Dimensions: state.config.cloudwatch.dimensions }
         );
-
-        app.use(function(req, res, next) {
-            res.header(
-                'Access-Control-Allow-Origin', '*'
-            );
-            res.header(
-                'Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept'
-            );
-            res.header(
-                'Cache-Control', 'max-age=0'
-            );
-
-            if (req.method.toLowerCase() === 'options') { res.send(200); } else { next(); }
-        });
-
-        app.use(function(req, res, next) {
-            req.uuid = uuid.createUuid().substr(0,10);
-
-            log.trace(
-                'REQ: [%1] %2 %3 %4 %5',
-                req.uuid, JSON.stringify(req.headers), req.method, req.url, req.httpVersion
-            );
-
-            next();
-        });
+        
+        app.use(setUuid());
+        app.use(setBasicHeaders());
+        app.use(handleOptions());
+        app.use(logRequest('trace'));
 
         app.get('/api/players/meta', function(req, res) {
             res.send(200, {

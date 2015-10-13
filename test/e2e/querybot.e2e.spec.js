@@ -45,7 +45,7 @@ describe('querybot (E2E)', function(){
             user    : 'cwrx',
             password: 'password',
             database: 'campfire_cwrx',
-            host    : JSON.parse(process.env.mongo).host
+            host    : process.env.mongo ? JSON.parse(process.env.mongo).host : '33.33.33.100'
         };
        
         pgdata_crosstab = [

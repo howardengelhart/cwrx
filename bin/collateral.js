@@ -3,28 +3,29 @@
     'use strict';
     var __ut__      = (global.jasmine !== undefined) ? true : false;
 
-    var path        = require('path'),
-        util        = require('util'),
-        q           = require('q'),
-        aws         = require('aws-sdk'),
-        fs          = require('fs-extra'),
-        phantom     = require('phantom'),
-        glob        = require('glob'),
-        handlebars  = require('handlebars'),
-        request     = require('request-promise'),
-        express     = require('express'),
-        bodyParser  = require('body-parser'),
-        multer      = require('multer'),
-        sessionLib  = require('express-session'),
-        logger      = require('../lib/logger'),
-        uuid        = require('../lib/uuid'),
-        authUtils   = require('../lib/authUtils'),
-        journal     = require('../lib/journal'),
-        service     = require('../lib/service'),
-        JobManager  = require('../lib/jobManager'),
-        s3util      = require('../lib/s3util'),
-        PromiseTimer= require('../lib/promise').Timer,
-        parseURL    = require('url').parse,
+    var path            = require('path'),
+        util            = require('util'),
+        q               = require('q'),
+        aws             = require('aws-sdk'),
+        fs              = require('fs-extra'),
+        phantom         = require('phantom'),
+        glob            = require('glob'),
+        handlebars      = require('handlebars'),
+        request         = require('request-promise'),
+        express         = require('express'),
+        bodyParser      = require('body-parser'),
+        multer          = require('multer'),
+        sessionLib      = require('express-session'),
+        expressUtils    = require('../lib/expressUtils'),
+        logger          = require('../lib/logger'),
+        uuid            = require('../lib/uuid'),
+        authUtils       = require('../lib/authUtils'),
+        journal         = require('../lib/journal'),
+        service         = require('../lib/service'),
+        JobManager      = require('../lib/jobManager'),
+        s3util          = require('../lib/s3util'),
+        PromiseTimer    = require('../lib/promise').Timer,
+        parseURL        = require('url').parse,
 
         state      = {},
         collateral = {}; // for exporting functions to unit tests
@@ -917,29 +918,7 @@
         });
 
 
-        app.use(function(req, res, next) {
-            res.header('Access-Control-Allow-Headers',
-                       'Origin, X-Requested-With, Content-Type, Accept');
-            res.header('cache-control', 'max-age=0');
-
-            if (req.method.toLowerCase() === 'options') {
-                res.send(200);
-            } else {
-                next();
-            }
-        });
-
-        app.use(function(req, res, next) {
-            req.uuid = uuid.createUuid().substr(0,10);
-            if (!req.headers['user-agent'] || !req.headers['user-agent'].match(/^ELB-Health/)) {
-                log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
-                    req.method, req.url, req.httpVersion);
-            } else {
-                log.trace('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
-                    req.method, req.url, req.httpVersion);
-            }
-            next();
-        });
+        app.use(expressUtils.basicMiddleware());
 
         app.use(bodyParser.json());
         
