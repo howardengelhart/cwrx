@@ -126,7 +126,10 @@ Player.prototype.__getExperience__ = function __getExperience__(id, params, orig
         headers: { origin: origin },
         json: true
     })).then(function decorate(experience) {
-        return extend(experience, { $params: params });
+        return extend(experience, {
+            data: { adServer: { server: config.adtech.server, network: config.adtech.network } },
+            $params: params
+        });
     }).catch(function convertError(reason) {
         var message = reason.message;
         var statusCode = reason.statusCode;

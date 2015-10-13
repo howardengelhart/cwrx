@@ -1118,6 +1118,11 @@ describe('player service', function() {
                         it('should decorate the experience with params', function() {
                             expect(experience.$params).toEqual(params);
                         });
+
+                        it('should decorate the experience with an adServer config', function() {
+                            expect(experience.data.adServer.server).toBe(config.adtech.server);
+                            expect(experience.data.adServer.network).toBe(config.adtech.network);
+                        });
                     });
 
                     describe('when the request fails', function() {
