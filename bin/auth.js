@@ -92,10 +92,10 @@
                     return deferred.resolve({code: 401, body: 'Invalid email or password'});
                 }
                 
-                if (account.status !== Status.Active) {
+                if (account.status !== Status.Active && account.status !== Status.New) {
                     log.info('[%1] Failed login for user %2: account status is %3',
                              req.uuid, req.body.email, account.status);
-                    return deferred.resolve({code: 403, body: 'Account not active'});
+                    return deferred.resolve({code: 403, body: 'Account not active or new'});
                 }
 
                 log.info('[%1] Successful login for user %2', req.uuid, req.body.email);
@@ -411,7 +411,7 @@
             });
         });
 
-        var authGetUser = authUtils.middlewarify({}),
+        var authGetUser = authUtils.middlewarify({}, null, [Status.Active, Status.New]),
             audit = auditJournal.middleware.bind(auditJournal);
 
         app.get('/api/auth/status', sessionsWrapper, authGetUser, audit, function(req, res) {

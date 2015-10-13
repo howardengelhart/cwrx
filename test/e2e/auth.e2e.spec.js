@@ -192,7 +192,7 @@ describe('auth (E2E):', function() {
                 return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
-                expect(resp.response.body).toBe("Account not active");
+                expect(resp.response.body).toBe("Account not active or new");
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -314,6 +314,40 @@ describe('auth (E2E):', function() {
                 }
             };
             requestUtils.qRequest('post', loginOpts).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.response.headers['set-cookie'].length).toBe(1);
+                var getUserOpts = {
+                    url: config.authUrl + '/status',
+                    jar: true
+                };
+                return requestUtils.qRequest('get', getUserOpts);
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBeDefined();
+                expect(resp.body._id).not.toBeDefined();
+                expect(resp.body.id).toBeDefined();
+                expect(resp.body.email).toBe('c6e2etester@gmail.com');
+                expect(resp.body.permissions).toEqual({ users: { read: 'all' } });
+                done();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+                done();
+            });
+        });
+        
+        it('should be able to get a user with a status of new', function(done) {
+            var loginOpts = {
+                url: config.authUrl + '/login',
+                jar: true,
+                json: {
+                    email: 'c6e2etester@gmail.com',
+                    password: 'password'
+                }
+            };
+            mockUser.status = Status.New;
+            testUtils.resetCollection('users', mockUser).then(function() {
+                return requestUtils.qRequest('post', loginOpts);
+            }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.response.headers['set-cookie'].length).toBe(1);
                 var getUserOpts = {

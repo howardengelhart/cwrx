@@ -708,7 +708,7 @@ describe('authUtils', function() {
         });
         
         it('should return a user if found and the permissions match', function(done) {
-            authUtils.authUser('u-1234', perms, 'fakeColl').then(function(result) {
+            authUtils.authUser('u-1234', perms).then(function(result) {
                 delete mockUser.password;
                 expect(result.user).toEqual(mockUser);
                 expect(authUtils.getUser).toHaveBeenCalledWith('u-1234');
@@ -730,7 +730,7 @@ describe('authUtils', function() {
             }).done(done);
         });
         
-        it('should return a fail message if the user is not active', function(done) {
+        it('should return a fail message if the user is not active (by default)', function(done) {
             mockUser.status = 'inactive';
             authUtils.authUser('u-1234', perms).then(function(result) {
                 expect(result).toBe('User is not active');
@@ -751,6 +751,47 @@ describe('authUtils', function() {
                 expect(authUtils.getUser).toHaveBeenCalled();
                 expect(authUtils._compare).not.toHaveBeenCalled();
             }).done(done);
+        });
+        
+        describe('when passed user statuses to check against', function() {
+            var requiredStatuses;
+            
+            beforeEach(function() {
+                requiredStatuses = [Status.New, Status.Active];
+            });
+            
+            it('should return a user when the user has one of the required statuses', function(done) {
+                var checkSuccess = function() {
+                    return authUtils.authUser('u-1234', perms, requiredStatuses).then(function(result) {
+                        delete mockUser.password;
+                        expect(result.user).toEqual(mockUser);
+                        expect(authUtils.getUser).toHaveBeenCalledWith('u-1234');
+                        expect(authUtils._compare).toHaveBeenCalledWith(perms, mockUser.permissions);
+                        expect(mongoUtils.safeUser).toHaveBeenCalled();
+                        expect(mongoUtils.unescapeKeys).toHaveBeenCalled();
+                    });
+                };
+                
+                mockUser.status = 'active';
+                checkSuccess().then(function() {
+                    mockUser.status = 'new';
+                    return checkSuccess();
+                }).catch(function(error) {
+                    expect(error).not.toBeDefined();
+                }).done(done);
+            });
+
+            it('should return a fail message when the user does not have any of the required statuses', function(done) {
+                mockUser.status = 'deleted';
+                authUtils.authUser('u-1234', perms, requiredStatuses).then(function(result) {
+                    expect(result).toBe('User is not new, or active');
+                    expect(result.user).not.toBeDefined();
+                    expect(authUtils.getUser).toHaveBeenCalledWith('u-1234');
+                    expect(authUtils._compare).not.toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });    
         });
     });
     
@@ -789,7 +830,7 @@ describe('authUtils', function() {
                     expect(req.user).toEqual({id: 'u-123'});
                     expect(req.uuid).toBe('1234');
                     expect(uuid.createUuid).not.toHaveBeenCalled();
-                    expect(authUtils.authUser).toHaveBeenCalledWith('u-123', 'fakePerms');
+                    expect(authUtils.authUser).toHaveBeenCalledWith('u-123', 'fakePerms', undefined);
                     done();
                 });
             });
@@ -846,6 +887,28 @@ describe('authUtils', function() {
                     expect(authUtils.authUser).toHaveBeenCalled();
                     expect(req.user).not.toBeDefined();
                     done();
+                });
+            });
+            
+            describe('when passed a userStatuses param', function() {
+                var statuses;
+
+                beforeEach(function() {
+                    statuses = ['active', 'new'];
+                });
+                
+                it('should fail with a 403 if the user is not that status', function(done) {
+                    authUtils.authUser.and.returnValue(q('HE DON\'T BELONG HERE'));
+                    var midWare = authUtils.middlewarify(perms, null, statuses);
+                    midWare(req, res, next);
+                    process.nextTick(function() {
+                        expect(res.send).toHaveBeenCalledWith(403, 'Forbidden');
+                        expect(next).not.toHaveBeenCalled();
+                        expect(mockLog.error).not.toHaveBeenCalled();
+                        expect(authUtils.authUser).toHaveBeenCalledWith(req.session.user, perms, statuses);
+                        expect(req.user).not.toBeDefined();
+                        done();
+                    });
                 });
             });
         });
