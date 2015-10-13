@@ -1075,6 +1075,17 @@ describe('userSvc (UT)', function() {
             .done(done);
         });
 
+        it('should handle targets with existing query params', function(done) {
+            userModule.sendActivationEmail('sender', 'https://staging.cinema6.com/#/activate?selfie=selfie', req, nextSpy, doneSpy)
+            .then(function() {
+                expect(email.sendActivationEmail).toHaveBeenCalledWith('sender', 'email@email.com', 'https://staging.cinema6.com/#/activate?selfie=selfie&id=u-abcdefghijklmn&token=6162636465666768696a6b6c6d6e6f707172737475767778');
+            })
+            .catch(function(error) {
+                expect(error).not.toBeDefined();
+            })
+            .done(done);
+        });
+
         it('should remove the temporary token from the request object', function(done) {
             userModule.sendActivationEmail('sender', 'target', req, nextSpy, doneSpy)
             .then(function() {

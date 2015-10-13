@@ -428,8 +428,10 @@
         var token = req.tempToken,
             id = req.body.id,
             reqEmail = req.body.email,
-            link = target + '?id=' + id + '&token=' + token,
             log = logger.getLog();
+
+        var link = target + ((target.indexOf('?') === -1) ? '?' : '&') +
+            'id=' + id + '&token=' + token;
 
         return email.sendActivationEmail(sender, reqEmail, link)
             .then(function() {
