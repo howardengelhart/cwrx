@@ -1,5 +1,8 @@
 # Auth Service Changelog
 
+* [FEATURE]: Delete other user sessions on successful password reset: [#486](https://github.com/cinema6/cwrx/issues/486)
+* Extra deployment steps: None
+
 ### 1.4.2: Mon Sep 28 10:33:32 EDT 2015
 * [FIX]: Auth middleware will handle users with roles + policies: [#475](https://github.com/cinema6/cwrx/pull/475)
 * Extra deployment steps: None
