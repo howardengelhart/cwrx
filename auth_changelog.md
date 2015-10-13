@@ -1,5 +1,6 @@
 # Auth Service Changelog
 
+* Allow users with a status of new to login
 * [FEATURE]: Delete other user sessions on successful password reset: [#486](https://github.com/cinema6/cwrx/issues/486)
 * Extra deployment steps: None
 
