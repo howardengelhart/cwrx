@@ -486,6 +486,21 @@ describe('auth (UT)', function() {
             }).done(done);
         });
         
+        it('should handle target urls with query parameters', function(done) {
+            targets.selfie = 'https://staging.cinema6.com/#/?selfie=barf';
+            req.body.target = 'selfie';
+            auth.forgotPassword(req, users, 10000, 'test@c6.com', targets, auditJournal).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toBe('Successfully generated reset token');
+                expect(users.findOne).toHaveBeenCalledWith({email: 'user@c6.com'}, anyFunc);
+                expect(users.update.calls.all()[0].args[0]).toEqual({ email: 'user@c6.com' });
+                expect(auth.mailResetToken).toHaveBeenCalledWith('test@c6.com', 'user@c6.com',
+                    'https://staging.cinema6.com/#/?selfie=barf&id=u-1&token=48454c4c4f');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
         it('should fail with a 404 if the user does not exist', function(done) {
             users.findOne.and.callFake(function(query, cb) { cb(null, null); });
             auth.forgotPassword(req, users, 10000, 'test@c6.com', targets, auditJournal).then(function(resp) {
