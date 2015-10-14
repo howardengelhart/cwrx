@@ -214,7 +214,7 @@ Player.prototype.__getPlayer__ = function __getPlayer__(mode, uuid) {
         scripts.forEach(function(script) {
             var $inlineScript = $('<script></script>');
             $inlineScript.attr('data-src', script.url);
-            $inlineScript.text(script.text);
+            $inlineScript.text(script.text.replace(/<\//g, '<\\/'));
 
             script.$node.replaceWith($inlineScript);
         });
