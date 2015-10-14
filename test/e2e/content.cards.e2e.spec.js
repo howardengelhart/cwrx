@@ -144,6 +144,8 @@ describe('content card endpoints (E2E):', function() {
                         };
                         if (obj.prop === 'playUrls') {
                             expectedQuery.pd = '{playDelay}';
+                        } else if (obj.prop === 'loadUrls') {
+                            expectedQuery.ld = '{loadDelay}';
                         }
                         expect(parsed.query).toEqual(expectedQuery);
                     });

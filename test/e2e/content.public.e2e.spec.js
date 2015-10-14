@@ -70,7 +70,8 @@ describe('content public experience endpoints (E2E):', function() {
                         hostApp     : 'Mapsaurus',
                         network     : 'pocketmath',
                         cb          : '{cachebreaker}',
-                        event       : 'launch'
+                        event       : 'launch',
+                        ld          : '{launchDelay}'
                     });
 
                     expect(new Date(resp.body.lastStatusChange)).not.toEqual('Invalid Date');
@@ -533,6 +534,8 @@ describe('content public experience endpoints (E2E):', function() {
                             };
                             if (obj.prop === 'playUrls') {
                                 expectedQuery.pd = '{playDelay}';
+                            } else if (obj.prop === 'loadUrls') {
+                                expectedQuery.ld = '{loadDelay}';
                             }
                             expect(parsed.query).toEqual(expectedQuery);
                         });
