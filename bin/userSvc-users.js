@@ -759,6 +759,7 @@
         return q.npost(req.session, 'regenerate').done(function() {
             req.session.user = config.systemUserId;
             req.session.cookie.maxAge = 60*1000;
+            req.session.cookie.secure = false; // allow cookies over HTTP; ok for internal
             res.send(204);
         });
     };

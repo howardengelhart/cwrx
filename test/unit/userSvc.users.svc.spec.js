@@ -2196,6 +2196,7 @@ describe('userSvc (UT)', function() {
                 expect(req.session.regenerate).toHaveBeenCalled();
                 expect(req.session.user).toBe('u-sixxy');
                 expect(req.session.cookie.maxAge).toBe(60000);
+                expect(req.session.cookie.secure).toBe(false);
                 expect(res.send).toHaveBeenCalledWith(204);
                 done();
             });
