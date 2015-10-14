@@ -443,7 +443,8 @@ describe('content (UT)', function() {
                 hostApp: 'Mapsaurus',
                 network: 'pocketmath',
                 cb: '{cachebreaker}',
-                event: 'launch'
+                event: 'launch',
+                ld: '{launchDelay}'
             });
         });
         
