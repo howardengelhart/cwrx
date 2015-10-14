@@ -206,7 +206,10 @@
             })
             .then(function() {
                 log.info('[%1] Saved reset token for %2 to database', req.uuid, reqEmail);
-                var url = target + '?id=' + account.id + '&token=' + token;
+
+                var url = target + ((target.indexOf('?') === -1) ? '?' : '&') +
+                          'id=' + account.id + '&token=' + token;
+
                 return auth.mailResetToken(emailSender, reqEmail, url);
             })
             .then(function() {
