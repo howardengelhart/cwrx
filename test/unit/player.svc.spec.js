@@ -1305,7 +1305,7 @@ describe('player service', function() {
                                 expect($result('link[href="css/${mode}.css"]').length).toBe(0);
                                 expect($result('link[href="css/lightbox.css"]').length).toBe(0);
 
-                                expect($result('script[data-src="https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js"]').text()).toBe(playerJS);
+                                expect($result('script[data-src="https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js"]').text()).toBe(playerJS.replace(/<\//g, '<\\/'));
                                 expect($result('style[data-href="https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css"]').text()).toBe(Player.__rebaseCSS__(playerCSS, 'https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'));
                                 expect($result('base').attr('href')).toBe('https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/');
                             });
