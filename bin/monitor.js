@@ -11,9 +11,9 @@
         aws             = require('aws-sdk'),
         express         = require('express'),
         bodyParser      = require('body-parser'),
+        expressUtils    = require('../lib/expressUtils'),
         requestUtils    = require('../lib/requestUtils'),
         service         = require('../lib/service'),
-        uuid            = require('../lib/uuid'),
         logger          = require('../lib/logger'),
         __ut__          = (global.jasmine !== undefined) ? true : false,
         app             = {},
@@ -428,19 +428,7 @@
 
         webServer.set('json spaces', 2);
 
-        webServer.use(function(req, res, next) {
-            res.header('Access-Control-Allow-Headers',
-                       'Origin, X-Requested-With, Content-Type, Accept');
-            res.header('cache-control', 'max-age=0');
-            next();
-        });
-
-        webServer.use(function(req, res, next) {
-            req.uuid = uuid.createUuid().substr(0,10);
-            log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
-                req.method,req.url,req.httpVersion);
-            next();
-        });
+        webServer.use(expressUtils.basicMiddleware());
 
         webServer.use(bodyParser.json());
 

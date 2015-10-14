@@ -1,6 +1,7 @@
 # User Service Changelog
 
 ### 2.1.0: Tue Oct 13 14:35:41 EDT 2015
+* [FIX]: Stop logging cookie header: [#539](https://github.com/cinema6/cwrx/issues/539)
 * [FEATURE]: Add resend activation endpoint: [#508](https://github.com/cinema6/cwrx/issues/508)
 * [FEATURE]: Add new user confirmation endpoint: [#484](https://github.com/cinema6/cwrx/issues/484)
 * [FIX]: Setting `ids` user filter param to `''` returns no users: [#524](https://github.com/cinema6/cwrx/issues/524)

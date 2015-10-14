@@ -1,28 +1,35 @@
 describe('expressUtils', function() {
     var parseQuery;
     var cloudwatchMetrics;
+    var expressUtils;
 
     var EventEmitter;
     var extend;
     var logger;
+    var uuid;
 
     var CloudWatchReporter;
     var MockCloudWatchReporter;
     var reporter;
 
-    var log;
+    var mockLog;
 
     beforeEach(function() {
         EventEmitter = require('events').EventEmitter;
         extend = require('../../lib/objUtils').extend;
         logger = require('../../lib/logger');
+        uuid = require('../../lib/uuid');
 
-        spyOn(logger, 'getLog').and.returnValue(log = {
-            trace: jasmine.createSpy('log.trace()'),
-            info: jasmine.createSpy('log.info()'),
-            warn: jasmine.createSpy('log.warn()'),
-            error: jasmine.createSpy('log.error()')
-        });
+        mockLog = {
+            trace : jasmine.createSpy('log.trace()'),
+            error : jasmine.createSpy('log.error()'),
+            warn  : jasmine.createSpy('log.warn()'),
+            info  : jasmine.createSpy('log.info()'),
+            fatal : jasmine.createSpy('log.fatal()'),
+            log   : jasmine.createSpy('log.log()')
+        };
+        spyOn(logger, 'createLog').and.returnValue(mockLog);
+        spyOn(logger, 'getLog').and.returnValue(mockLog)
 
         delete require.cache[require.resolve('../../lib/cloudWatchReporter')];
         CloudWatchReporter = require('../../lib/cloudWatchReporter');
@@ -36,6 +43,7 @@ describe('expressUtils', function() {
         delete require.cache[require.resolve('../../lib/expressUtils')];
         parseQuery = require('../../lib/expressUtils').parseQuery;
         cloudwatchMetrics = require('../../lib/expressUtils').cloudwatchMetrics;
+        expressUtils = require('../../lib/expressUtils');
     });
 
     describe('parseQuery(config)', function() {
@@ -257,6 +265,214 @@ describe('expressUtils', function() {
                     });
                     expect(reporter.autoflush).toHaveBeenCalledWith(300000);
                 });
+            });
+        });
+    });
+    
+    describe('setUuid', function() {
+        it('should return a function', function() {
+            expect(expressUtils.setUuid()).toEqual(jasmine.any(Function));
+        });
+        
+        describe('returns a function that', function() {
+            var midware, req, res, next;
+            beforeEach(function() {
+                midware = expressUtils.setUuid();
+                req = {};
+                res = { send: jasmine.createSpy('res.send()') };
+                next = jasmine.createSpy('next()');
+                spyOn(uuid, 'createUuid').and.returnValue('abcdefghijklmnopqrstuvwxyz');
+            });
+
+            it('should set req.uuid', function() {
+                midware(req, res, next);
+                expect(req.uuid).toEqual('abcdefghij');
+                expect(next).toHaveBeenCalled();
+                expect(res.send).not.toHaveBeenCalled();
+            });
+        });
+    });
+
+    describe('setBasicHeaders', function() {
+        it('should return a function', function() {
+            expect(expressUtils.setBasicHeaders()).toEqual(jasmine.any(Function));
+        });
+
+        describe('returns a function that', function() {
+            var midware, req, res, next;
+            beforeEach(function() {
+                midware = expressUtils.setBasicHeaders();
+                req = {};
+                res = {
+                    send: jasmine.createSpy('res.send()'),
+                    header: jasmine.createSpy('res.header()')
+                };
+                next = jasmine.createSpy('next()');
+            });
+
+            it('should set some headers on the response', function() {
+                midware(req, res, next);
+                expect(next).toHaveBeenCalled();
+                expect(res.send).not.toHaveBeenCalled();
+                expect(res.header.calls.count()).toBe(2);
+                expect(res.header).toHaveBeenCalledWith('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+                expect(res.header).toHaveBeenCalledWith('cache-control', 'max-age=0');
+            });
+        });
+    });
+
+    describe('handleOptions', function() {
+        it('should return a function', function() {
+            expect(expressUtils.handleOptions()).toEqual(jasmine.any(Function));
+        });
+
+        describe('returns a function that', function() {
+            var midware, req, res, next;
+            beforeEach(function() {
+                midware = expressUtils.handleOptions();
+                req = { method: 'OPTIONS' };
+                res = { send: jasmine.createSpy('res.send()') };
+                next = jasmine.createSpy('next()');
+            });
+
+            it('should calls res.send() early if the request method is OPTIONS', function() {
+                midware(req, res, next);
+                expect(next).not.toHaveBeenCalled();
+                expect(res.send).toHaveBeenCalledWith(200);
+            });
+            
+            it('should call next normally if the request method is not OPTIONS', function() {
+                req.method = 'GET';
+                midware(req, res, next);
+                expect(next).toHaveBeenCalled();
+                expect(res.send).not.toHaveBeenCalled();
+            });
+        });
+    });
+
+    describe('logRequest', function() {
+        it('should return a function', function() {
+            expect(expressUtils.logRequest()).toEqual(jasmine.any(Function));
+        });
+
+        describe('returns a function that', function() {
+            var midware, req, res, next;
+            beforeEach(function() {
+                midware = expressUtils.logRequest();
+                req = {
+                    method: 'GET',
+                    uuid: '1234',
+                    url: '/api/content/meta',
+                    httpVersion: '1.1',
+                    headers: {
+                        foo: 'bar',
+                        blah: 'bloop',
+                        accept: 'me, please'
+                    }
+                };
+                res = { send: jasmine.createSpy('res.send()') };
+                next = jasmine.createSpy('next()');
+            });
+
+            it('should log basic info about a request', function() {
+                midware(req, res, next);
+                expect(next).toHaveBeenCalled();
+                expect(res.send).not.toHaveBeenCalled();
+                expect(mockLog.info).toHaveBeenCalledWith(
+                    'REQ: [%1] %2 %3 %4 %5',
+                    '1234',
+                    '{"foo":"bar","blah":"bloop","accept":"me, please"}',
+                    'GET',
+                    '/api/content/meta',
+                    '1.1'
+                );
+            });
+            
+            it('should not log the cookie header if defined', function() {
+                req.headers.cookie = 'thisissosecret';
+                midware(req, res, next);
+                expect(next).toHaveBeenCalled();
+                expect(res.send).not.toHaveBeenCalled();
+                expect(mockLog.info).toHaveBeenCalledWith(
+                    'REQ: [%1] %2 %3 %4 %5',
+                    '1234',
+                    '{"foo":"bar","blah":"bloop","accept":"me, please"}',
+                    'GET',
+                    '/api/content/meta',
+                    '1.1'
+                );
+            });
+            
+            it('should log at a different log level if configured to', function() {
+                midware = expressUtils.logRequest('trace');
+                midware(req, res, next);
+                expect(next).toHaveBeenCalled();
+                expect(res.send).not.toHaveBeenCalled();
+                expect(mockLog.trace).toHaveBeenCalledWith(
+                    'REQ: [%1] %2 %3 %4 %5',
+                    '1234',
+                    '{"foo":"bar","blah":"bloop","accept":"me, please"}',
+                    'GET',
+                    '/api/content/meta',
+                    '1.1'
+                );
+                expect(mockLog.info).not.toHaveBeenCalled();
+            });
+        });
+    });
+
+    describe('basicMiddleware', function() {
+        it('should return a function', function() {
+            expect(expressUtils.basicMiddleware()).toEqual(jasmine.any(Function));
+        });
+
+        describe('returns a function that', function() {
+            var midware, req, res, next;
+            beforeEach(function() {
+                req = {
+                    method: 'GET',
+                    url: '/api/content/meta',
+                    httpVersion: '1.1',
+                    headers: {
+                        foo: 'bar',
+                        blah: 'bloop',
+                        accept: 'me, please'
+                    }
+                };
+                res = {
+                    send: jasmine.createSpy('res.send()'),
+                    header: jasmine.createSpy('res.header()')
+                };
+                next = jasmine.createSpy('next()');
+                spyOn(uuid, 'createUuid').and.returnValue('abcdefghijklmnopqrstuvwxyz')
+                spyOn(expressUtils, 'setUuid').and.callThrough();
+                spyOn(expressUtils, 'setBasicHeaders').and.callThrough();
+                spyOn(expressUtils, 'handleOptions').and.callThrough();
+                spyOn(expressUtils, 'logRequest').and.callThrough();
+
+                midware = expressUtils.basicMiddleware();
+            });
+            
+            it('should call the middleware returned by setUuid, setBasicHeaders, handleOptions, and logRequests', function() {
+                midware(req, res, next);
+                expect(next).toHaveBeenCalled();
+                expect(res.send).not.toHaveBeenCalled();
+                expect(req.uuid).toBe('abcdefghij');
+                expect(res.header.calls.count()).toBe(2);
+                expect(res.header).toHaveBeenCalledWith('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+                expect(res.header).toHaveBeenCalledWith('cache-control', 'max-age=0');
+                expect(mockLog.info).toHaveBeenCalledWith(
+                    'REQ: [%1] %2 %3 %4 %5',
+                    'abcdefghij',
+                    '{"foo":"bar","blah":"bloop","accept":"me, please"}',
+                    'GET',
+                    '/api/content/meta',
+                    '1.1'
+                );
+                expect(expressUtils.setUuid).toHaveBeenCalled();
+                expect(expressUtils.setBasicHeaders).toHaveBeenCalled();
+                expect(expressUtils.handleOptions).toHaveBeenCalled();
+                expect(expressUtils.logRequest).toHaveBeenCalled();
             });
         });
     });

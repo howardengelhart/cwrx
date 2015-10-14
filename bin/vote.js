@@ -8,6 +8,7 @@
         express         = require('express'),
         bodyParser      = require('body-parser'),
         sessionLib      = require('express-session'),
+        expressUtils    = require('../lib/expressUtils'),
         service         = require('../lib/service'),
         uuid            = require('../lib/uuid'),
         promise         = require('../lib/promise'),
@@ -603,35 +604,21 @@
         });
 
 
+        webServer.use(expressUtils.basicMiddleware());
+
         webServer.use(function(req, res, next) {
             res.header('Access-Control-Allow-Origin', '*');
-            res.header('Access-Control-Allow-Headers',
-                       'Origin, X-Requested-With, Content-Type, Accept');
-            res.header('cache-control', state.config.cacheControl.default);
-
-            if (req.method.toLowerCase() === 'options') {
-                res.send(200);
-            } else {
-                next();
-            }
-        });
-
-        webServer.use(function(req, res, next) {
-            req.uuid = uuid.createUuid().substr(0,10);
-            if (!req.headers['user-agent'] ||
-                    !req.headers['user-agent'].match(/^ELB-HealthChecker/)) {
-                log.info('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
-                    req.method,req.url,req.httpVersion);
-            } else {
-                log.trace('REQ: [%1] %2 %3 %4 %5', req.uuid, JSON.stringify(req.headers),
-                    req.method,req.url,req.httpVersion);
-            }
             next();
         });
+        
+        function setCacheControl(req, res, next) {
+            res.header('cache-control', state.config.cacheControl.default);
+            next();
+        }
 
         webServer.use(bodyParser.json());
         
-        webServer.post('/api/public/vote', function(req, res){
+        webServer.post('/api/public/vote', setCacheControl, function(req, res){
             if ((!req.body.election) || (!req.body.ballotItem) || (req.body.vote === undefined)) {
                 res.send(400, 'Invalid request.\n');
                 return;
@@ -641,7 +628,7 @@
             res.send(200);
         });
 
-        webServer.post('/api/vote', function(req, res){
+        webServer.post('/api/vote', setCacheControl, function(req, res){
             if ((!req.body.election) || (!req.body.ballotItem) || (req.body.vote === undefined)) {
                 res.send(400, 'Invalid request.\n');
                 return;
@@ -651,7 +638,7 @@
             res.send(200);
         });
 
-        webServer.get('/api/public/election/:electionId', function(req, res){
+        webServer.get('/api/public/election/:electionId', setCacheControl, function(req, res){
             if (!req.params || !req.params.electionId ) {
                 res.send(400, 'You must provide the electionId in the request url.\n');
                 return;

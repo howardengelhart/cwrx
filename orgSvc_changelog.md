@@ -1,5 +1,6 @@
 # Org Service Changelog
 
+* [FIX]: Stop logging cookie header: [#539](https://github.com/cinema6/cwrx/issues/539)
 * [FIX]: Setting `ids` org filter param to `''` returns no orgs: [#524](https://github.com/cinema6/cwrx/issues/524)
 
 ### 1.4.0: Mon Sep 28 10:33:32 EDT 2015
