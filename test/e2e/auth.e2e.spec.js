@@ -4,7 +4,7 @@ var q               = require('q'),
     requestUtils    = require('../../lib/requestUtils'),
     enums           = require('../../lib/enums'),
     Status          = enums.Status,
-    host            = process.env['host'] || 'localhost',
+    host            = process.env.host || 'localhost',
     config = {
         authUrl     : 'http://' + (host === 'localhost' ? host + ':3200' : host) + '/api/auth'
     };
@@ -18,11 +18,11 @@ describe('auth (E2E):', function() {
         urlRegex = /https:\/\/.*cinema6.com.*id=u-1.*token=[0-9a-f]{48}/;
 
         mockUser = {
-            id : "u-1",
+            id : 'u-1',
             status: Status.Active,
             created : now,
-            email : "c6e2etester@gmail.com",
-            password : "$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq", // hash of 'password'
+            email : 'c6e2etester@gmail.com',
+            password : '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq', // hash of 'password'
             policies: ['testPol']
         };
         mockPol = {
@@ -35,22 +35,23 @@ describe('auth (E2E):', function() {
             }
         };
         
-        testUtils.resetCollection('policies', mockPol).then(function() {
-            if (!mailman || mailman.state !== 'authenticated') {
-                mailman = new testUtils.Mailman();
-                return mailman.start().then(function() {
-                    mailman.on('error', function(error) { throw new Error(error); });
-                });
-            } else {
-                return q();
-            }
-        }).done(function() {
-            done();
-        });
+        testUtils.resetCollection('policies', mockPol).done(done);
+    });
+    
+    beforeEach(function(done) {
+        if (mailman && mailman.state === 'authenticated') {
+            return done();
+        }
+        
+        mailman = new testUtils.Mailman();
+        return mailman.start().then(function() {
+            mailman.on('error', function(error) { throw new Error(error); });
+        }).done(done);
     });
     
     afterEach(function() {
-        mailman.removeAllListeners('message');
+        mailman.removeAllListeners();
+        mailman.on('error', function(error) { throw new Error(error); });
     });
     
     describe('/api/auth/login', function() {
@@ -70,13 +71,13 @@ describe('auth (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
                 expect(resp.body._id).not.toBeDefined();
-                expect(resp.body.id).toBe("u-1");
-                expect(resp.body.email).toBe("c6e2etester@gmail.com");
+                expect(resp.body.id).toBe('u-1');
+                expect(resp.body.email).toBe('c6e2etester@gmail.com');
                 expect(resp.body.password).not.toBeDefined();
                 expect(new Date(resp.body.created)).toEqual(now);
                 expect(resp.body.permissions).toEqual({ users: { read: 'all' } });
                 expect(resp.response.headers['set-cookie'].length).toBe(1);
-                expect(resp.response.headers['set-cookie'][0].match(/^c6Auth=.+/)).toBeTruthy('cookie match');
+                expect(resp.response.headers['set-cookie'][0]).toMatch(/^c6Auth=.+/);
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -117,11 +118,11 @@ describe('auth (E2E):', function() {
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body._id).not.toBeDefined();
-                expect(resp.body.email).toBe("c6e2etester@gmail.com");
+                expect(resp.body.email).toBe('c6e2etester@gmail.com');
                 expect(resp.body.password).not.toBeDefined();
                 expect(resp.body.permissions).toEqual({ users: { read: 'all' } });
                 expect(resp.response.headers['set-cookie'].length).toBe(1);
-                expect(resp.response.headers['set-cookie'][0].match(/^c6Auth=.+/)).toBeTruthy('cookie match');
+                expect(resp.response.headers['set-cookie'][0]).toMatch(/^c6Auth=.+/);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -137,7 +138,7 @@ describe('auth (E2E):', function() {
             };
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
-                expect(resp.response.body).toBe("Invalid email or password");
+                expect(resp.response.body).toBe('Invalid email or password');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -155,7 +156,7 @@ describe('auth (E2E):', function() {
             };
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
-                expect(resp.response.body).toBe("Invalid email or password");
+                expect(resp.response.body).toBe('Invalid email or password');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -192,7 +193,7 @@ describe('auth (E2E):', function() {
                 return requestUtils.qRequest('post', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
-                expect(resp.response.body).toBe("Account not active or new");
+                expect(resp.response.body).toBe('Account not active or new');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -378,7 +379,7 @@ describe('auth (E2E):', function() {
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                return q.delay(3000)
+                return q.delay(3000);
             }).then(function() {
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
             }).then(function(results) {
@@ -429,7 +430,7 @@ describe('auth (E2E):', function() {
         it('should fail with a 401 if the user is not logged in', function(done) {
             requestUtils.qRequest('get', {url: config.authUrl + '/status'}).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
-                expect(resp.body).toBe("Unauthorized");
+                expect(resp.body).toBe('Unauthorized');
                 done();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -439,17 +440,18 @@ describe('auth (E2E):', function() {
     });
     
     describe('/api/auth/password/forgot', function() {
-        var options;
+        var options, msgSubject;
         beforeEach(function(done) {
             options = {
                 url: config.authUrl + '/password/forgot',
                 json: { email: 'c6e2etester@gmail.com', target: 'portal' }
             };
+            msgSubject = 'Reset your Cinema6 Password';
             testUtils.resetCollection('users', mockUser).done(done);
         });
 
         it('should fail with a 400 if the request is incomplete', function(done) {
-            mailman.once('message', function(msg) {
+            mailman.once(msgSubject, function(msg) {
                 expect(msg).not.toBeDefined();
             });
             var bodies = [{email: 'c6e2etester@gmail.com'}, {target: 'portal'}];
@@ -468,7 +470,7 @@ describe('auth (E2E):', function() {
         
         it('should prevent mongo query selector injection attacks', function(done) {
             options.json.email = { $gt: '' };
-            mailman.once('message', function(msg) {
+            mailman.once(msgSubject, function(msg) {
                 expect(msg).not.toBeDefined();
             });
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -481,7 +483,7 @@ describe('auth (E2E):', function() {
         
         it('should fail with a 400 for an invalid target', function(done) {
             options.json.target = 'someFakeTarget';
-            mailman.once('message', function(msg) {
+            mailman.once(msgSubject, function(msg) {
                 expect(msg).not.toBeDefined();
             });
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -494,7 +496,7 @@ describe('auth (E2E):', function() {
         
         it('should fail with a 404 if the user does not exist', function(done) {
             options.json.email = 'somefakeemail';
-            mailman.once('message', function(msg) {
+            mailman.once(msgSubject, function(msg) {
                 expect(msg).not.toBeDefined();
             });
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -513,12 +515,11 @@ describe('auth (E2E):', function() {
                 expect(error).not.toBeDefined();
                 done();
             });
-            mailman.once('message', function(msg) {
+            mailman.once(msgSubject, function(msg) {
                 expect(msg.from[0].address).toBe('support@cinema6.com');
                 expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
-                expect(msg.subject).toBe('Reset your Cinema6 Password');
-                expect(msg.text.match(urlRegex)).toBeTruthy();
-                expect(msg.html.match(urlRegex)).toBeTruthy();
+                expect(msg.text).toMatch(urlRegex);
+                expect(msg.html).toMatch(urlRegex);
                 expect(new Date() - msg.date).toBeLessThan(30000); // message should be recent
                 done();
             });
@@ -553,9 +554,8 @@ describe('auth (E2E):', function() {
                 expect(error).not.toBeDefined();
                 done();
             });
-            mailman.once('message', function(msg) {
+            mailman.once(msgSubject, function(msg) {
                 expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
-                expect(msg.subject).toBe('Reset your Cinema6 Password');
                 expect(new Date() - msg.date).toBeLessThan(30000); // message should be recent
                 done();
             });
@@ -563,13 +563,14 @@ describe('auth (E2E):', function() {
     });
     
     describe('/api/auth/password/reset', function() {
-        var options;
+        var options, msgSubject;
         beforeEach(function() {
             options = {
                 url: config.authUrl + '/password/reset',
                 json: { id: 'u-1', token: 'fakeToken', newPassword: 'newPass', },
                 jar: true
             };
+            msgSubject = 'Your account password has been changed';
             mockUser.resetToken = {
                 expires: new Date(new Date().valueOf() + 40000),
                 token: '$2a$10$wP7fqLDue/lWc4eNQS9qCe0JNQGNzUTVQsUUEUi2SWHof3Xtf/PP2' // hash of fakeToken
@@ -577,7 +578,7 @@ describe('auth (E2E):', function() {
         });
         
         it('should fail with a 400 if the request is incomplete', function(done) {
-            mailman.once('message', function(msg) {
+            mailman.once(msgSubject, function(msg) {
                 expect(msg).not.toBeDefined();
             });
             var bodies = [
@@ -599,7 +600,7 @@ describe('auth (E2E):', function() {
         });
         
         it('should prevent mongo query selector injection attacks', function(done) {
-            mailman.once('message', function(msg) {
+            mailman.once(msgSubject, function(msg) {
                 expect(msg).not.toBeDefined();
             });
             options.json.id = { $gt: '' };
@@ -631,16 +632,15 @@ describe('auth (E2E):', function() {
                     applications: []
                 });
                 expect(resp.response.headers['set-cookie'].length).toBe(1);
-                expect(resp.response.headers['set-cookie'][0].match(/^c6Auth=.+/)).toBeTruthy('cookie match');
+                expect(resp.response.headers['set-cookie'][0]).toMatch(/^c6Auth=.+/);
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
                 done();
             });
 
-            mailman.once('message', function(msg) {
+            mailman.once(msgSubject, function(msg) {
                 expect(msg.from[0].address).toBe('support@cinema6.com');
                 expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
-                expect(msg.subject).toBe('Your account password has been changed');
                 expect(msg.text).toBeDefined();
                 expect(msg.html).toBeDefined();
                 expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
@@ -682,7 +682,7 @@ describe('auth (E2E):', function() {
         });
         
         it('should fail with a 404 if the user is not found', function(done) {
-            mailman.once('message', function(msg) {
+            mailman.once(msgSubject, function(msg) {
                 expect(msg).not.toBeDefined();
             });
             options.json.id = 'u-fake';
@@ -695,7 +695,7 @@ describe('auth (E2E):', function() {
         });
         
         it('should fail with a 403 if the user has no reset token', function(done) {
-            mailman.once('message', function(msg) {
+            mailman.once(msgSubject, function(msg) {
                 expect(msg).not.toBeDefined();
             });
             delete mockUser.resetToken;
@@ -710,7 +710,7 @@ describe('auth (E2E):', function() {
         });
         
         it('should fail with a 403 if the reset token has expired', function(done) {
-            mailman.once('message', function(msg) {
+            mailman.once(msgSubject, function(msg) {
                 expect(msg).not.toBeDefined();
             });
             mockUser.resetToken.expires = new Date(new Date().valueOf() - 10000);
@@ -725,7 +725,7 @@ describe('auth (E2E):', function() {
         });
         
         it('should fail with a 403 if the reset token is invalid', function(done) {
-            mailman.once('message', function(msg) {
+            mailman.once(msgSubject, function(msg) {
                 expect(msg).not.toBeDefined();
             });
             options.json.token = 'theWrongToken';
@@ -746,13 +746,12 @@ describe('auth (E2E):', function() {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
                 expect(resp.response.headers['set-cookie'].length).toBe(1);
-                expect(resp.response.headers['set-cookie'][0].match(/^c6Auth=.+/)).toBeTruthy('cookie match');
+                expect(resp.response.headers['set-cookie'][0]).toMatch(/^c6Auth=.+/);
             }).catch(function(error) {
                 expect(error).not.toBeDefined();
             });
 
-            mailman.once('message', function(msg) {
-                expect(msg.subject).toBe('Your account password has been changed');
+            mailman.once(msgSubject, function(msg) {
                 expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
                 requestUtils.qRequest('post', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(403);
@@ -779,8 +778,7 @@ describe('auth (E2E):', function() {
                 done();
             });
 
-            mailman.once('message', function(msg) {
-                expect(msg.subject).toBe('Reset your Cinema6 Password');
+            mailman.once('Reset your Cinema6 Password', function(msg) {
                 var token = (msg.text.match(/[0-9a-f]{48}/) || [])[0];
                 expect(token).toBeDefined();
                 expect(new Date() - msg.date).toBeLessThan(30000); // message should be recent
@@ -790,7 +788,7 @@ describe('auth (E2E):', function() {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body).toBeDefined();
                     expect(resp.response.headers['set-cookie'].length).toBe(1);
-                    expect(resp.response.headers['set-cookie'][0].match(/^c6Auth=.+/)).toBeTruthy('cookie match');
+                    expect(resp.response.headers['set-cookie'][0]).toMatch(/^c6Auth=.+/);
                 }).catch(function(error) {
                     expect(error).not.toBeDefined();
                 }).done(done);
@@ -829,18 +827,10 @@ describe('auth (E2E):', function() {
                 expect(error).not.toBeDefined();
             }).done(done);
         });
-    });  // end describe /api/auth/password/reset
-    
-    // THIS SHOULD ALWAYS GO AT THE END OF ALL TESTS
-    describe('mailman cleanup', function() {
-        it('stops the mailman', function() {
-            mailman.stop();
-        });
     });
-});  // end describe auth (E2E)
-
-describe('test cleanup', function() {
-    it('should close db connections', function(done) {
+        
+    afterAll(function(done) {
+        mailman.stop();
         testUtils.closeDbs().done(done);
     });
 });

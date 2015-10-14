@@ -231,17 +231,21 @@ testUtils.removeS3File = function(bucket, key) {
 };
 
 
-/* Creates an agent that listens for new messages sent to a user from a given sender. The user defaults
- * to c6e2eTester@gmail.com and the sender defaults to support@cinema6.com, these can be overriden through
- * the constructor's optional parameters. Once created, call the (async) start() method. After this,
- * 'message' events are emitted when an email is received from the sender; the data sent with these
- * events is a JSON representation of an email. */
-testUtils.Mailman = function(imapOpts, sender) {
+/* Creates an agent that listens for emails for a given account (defaults to c6e2eTester@gmail.com).
+ * Once created, call the (async) start() method. This should be done once at the beginning of your tests.
+ * After this, every time the inbox receives an email, an events will be emitted with the email's subject;
+ * these events will include a JSON representation of the email as the data.
+ * 
+ * To ensure that your test code receives the right email for the right request, you should attach a listener
+ * for the expected subject in each test that you expect to result in an email, and wait to call done()
+ * until the listener receives the event. */
+testUtils.Mailman = function(imapOpts) {
     var self = this;
     self._imapOpts = imapOpts || { user: 'c6e2eTester@gmail.com', password: 'bananas4bananas',
                                    host: 'imap.gmail.com', port: 993, tls: true };
-    self.sender = sender || 'support@cinema6.com';
     self._lastSeqId = -1; // sequence id of the latest message retrieved
+    
+    self._fetchJob = null; // queue fetch jobs to handle possible concurrency issues
     
     Object.defineProperty(self, 'state', {
         get: function() {
@@ -271,9 +275,13 @@ testUtils.Mailman.prototype.start = function() {
     
     self._conn.once('ready', function() {
         q.npost(self._conn, 'openBox', ['INBOX', true]).then(function(box) {
-            self._conn.on('mail', function(numMessages) {
-                self.getLatestEmail().then(function(msgObj) {
-                    self.emit('message', msgObj);
+            self._lastSeqId = box.messages.total;
+
+            self._conn.on('mail', function() {
+                self.getLatestEmails().then(function(messages) {
+                    messages.forEach(function(msg) {
+                        self.emit(msg.subject, msg);
+                    });
                 }).catch(function(error) {
                     self.emit('error', error);
                 });
@@ -289,46 +297,48 @@ testUtils.Mailman.prototype.start = function() {
     return deferred.promise;
 };
 
-/* This is used internally when the connection receives a new mail event to fetch the message.
- * However, it can be called manually if needed. If oldEmailOk is not true, this will reject if the
- * message that's fetched has been seen by the checker before (its seqId === self._lastSeqId) */
-testUtils.Mailman.prototype.getLatestEmail = function(oldEmailOk) {
+/* This is used internally when the connection receives a new 'mail' event to fetch new messages.
+ * However, it can be called manually if needed. This will fetch any emails after the internal lastSeqId,
+ * and return a JSON representation of the messages found. It will also update lastSeqId appropriately. */
+testUtils.Mailman.prototype.getLatestEmails = function() {
     if (this.state !== 'authenticated') {
         return q.reject('You must call this.start() first');
     }
     
-    var parser = new mailparser.MailParser(), // will parse the raw message into a JSON object
-        deferred = q.defer(),
-        self = this;
-        
-    parser.on('end', deferred.resolve); // on end event, parser calls with object representing message
+    var self = this,
+        msgPromises = [],
+        deferred = q.defer();        
     
-    q.npost(self._conn.seq, 'search', [[['FROM', self.sender]]])
-    .then(function(results) { // results is an array of message sequence numbers
-        if (results.length === 0) return q.reject('No messages from ' + self.sender + ' found');
-
-        var seqId = Math.max.apply(null, results); // gets the latest matching message
-        
-        // If we've already returned this message, reject (unless client ok with old emails)
-        if (seqId <= self._lastSeqId && !oldEmailOk) {
-            return deferred.reject('Checked for new email but got nothing new from ' + self.sender);
-        }
-        
-        var fetch = self._conn.seq.fetch(seqId, {bodies:''}).on('error', deferred.reject);
-        
-        fetch.once('message', function(msg, seqno) {
-            msg.on('body', function(stream, info) {
-                stream.pipe(parser);
-            });
+    var fetch = self._conn.seq.fetch((self._lastSeqId + 1) + ':*', { bodies: '' });
+    
+    fetch.on('error', deferred.reject);
+    
+    fetch.on('message', function(msg, seqId) {
+        var msgDeferred = q.defer(),
+            parser = new mailparser.MailParser();
             
-            msg.on('end', function() {
-                self._lastSeqId = seqId;
-                parser.end();
-            });
-        });
-    })
-    .catch(deferred.reject);
-
+        parser.on('end', msgDeferred.resolve);
+            
+        msgPromises.push(msgDeferred.promise);
+        
+        msg.on('body', function(stream, info) {
+            stream.pipe(parser);
+        })
+        .on('end', function() {
+            self._lastSeqId = Math.max(self._lastSeqId, seqId);
+            parser.end();
+        })
+        .on('error', deferred.reject);
+    });
+    
+    fetch.on('end', function() {
+        q.all(msgPromises)
+        .then(function(messages) {
+            deferred.resolve(messages);
+        })
+        .catch(deferred.reject);
+    });
+    
     return deferred.promise;
 };
 
