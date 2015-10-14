@@ -24,6 +24,7 @@ Vagrant.configure("2") do |config|
   config.omnibus.chef_version = :latest
   config.berkshelf.enabled = true
 
+  config.ssh.insert_key = false
 
   # This Vagrantfile will by default start up the maint + auth services. You can provide a CSV list
   # of service names in the CWRX_APP env variable, or 'all' to start all services.
