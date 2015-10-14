@@ -51,6 +51,8 @@
                                                           
         if (event === 'play') {
             url += '&pd={playDelay}';
+        } else if (event === 'load') {
+            url += '&ld={loadDelay}';
         }
         
         return url;

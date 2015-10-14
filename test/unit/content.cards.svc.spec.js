@@ -78,7 +78,7 @@ describe('content-cards (UT)', function() {
         });
         
         it('should build a tracking pixel url', function() {
-            var url = cardModule.formatUrl(card, req, 'load'),
+            var url = cardModule.formatUrl(card, req, 'completedView'),
                 parsed = urlUtils.parse(url, true, true);
                 
             expect(parsed.protocol).toBe(null);
@@ -93,7 +93,7 @@ describe('content-cards (UT)', function() {
                 hostApp: 'Mapsaurus',
                 network: 'pocketmath',
                 cb: '{cachebreaker}',
-                event: 'load'
+                event: 'completedView'
             });
         });
         
@@ -115,7 +115,7 @@ describe('content-cards (UT)', function() {
         it('should leave some params blank if they are not provided', function() {
             req.route.path = '/api/public/content/card/:id';
             req.query = {};
-            var url = cardModule.formatUrl(card, req, 'load'),
+            var url = cardModule.formatUrl(card, req, 'completedView'),
                 parsed = urlUtils.parse(url, true, true);
 
             expect(parsed.protocol).toBe(null);
@@ -130,7 +130,7 @@ describe('content-cards (UT)', function() {
                 hostApp: '',
                 network: '',
                 cb: '{cachebreaker}',
-                event: 'load'
+                event: 'completedView'
             });
         });
         
@@ -149,6 +149,24 @@ describe('content-cards (UT)', function() {
                 cb: '{cachebreaker}',
                 pd: '{playDelay}',
                 event: 'play'
+            });
+        });
+
+        it('should add a loadDelay param if the event is load', function() {
+            var url = cardModule.formatUrl(card, req, 'load'),
+                parsed = urlUtils.parse(url, true, true);
+                
+            expect(parsed.query).toEqual({
+                campaign: 'cam-1',
+                card: 'rc-1',
+                experience: 'e-1',
+                container: 'embed',
+                host: 'cinema6.com',
+                hostApp: 'Mapsaurus',
+                network: 'pocketmath',
+                cb: '{cachebreaker}',
+                ld: '{loadDelay}',
+                event: 'load'
             });
         });
     });
