@@ -225,7 +225,9 @@ Player.prototype.__getPlayer__ = function __getPlayer__(mode, uuid) {
 
         log.trace('[%1] Successfully inlined JS and CSS.', uuid);
 
-        return new HTMLDocument($.html());
+        return new HTMLDocument($.html(), {
+            gzip: { static: config.gzip.levels.static, resource: config.gzip.levels.resource }
+        });
     }).catch(function logRejection(reason) {
         log.error('[%1] Error getting %2 player template: %3.', uuid, mode, inspect(reason));
         throw reason;
@@ -285,6 +287,13 @@ Player.startService = function startService() {
                 region: 'us-east-1',
                 sendInterval: (5 * 60 * 1000), // 5 mins
                 dimensions: [{ Name: 'Environment', Value: 'Development' }]
+            },
+            gzip: {
+                enabled: true,
+                levels: {
+                    static: 9,
+                    resource: 1
+                }
             },
             defaults: {
                 origin: 'http://www.cinema6.com/',
@@ -358,16 +367,24 @@ Player.startService = function startService() {
             var mobileType = query.mobileType || config.defaults.mobileType;
             var origin = req.get('origin') || req.get('referer');
             var agent = req.get('user-agent');
+            var gzip = config.gzip.enabled && (/\bgzip\b/).test(req.get('accept-encoding'));
 
             if (new BrowserInfo(agent).isMobile && type !== mobileType) {
                 log.trace('[%1] Redirecting agent to mobile player: %2.', uuid, mobileType);
                 return q(res.redirect(303, mobileType + formatURL({ query: req.query })));
             }
 
+            res.header('Content-Type', 'text/html; charset=utf-8');
+
+            if (gzip) {
+                res.header('Content-Encoding', 'gzip');
+            }
+
             return player.get(extend({
                 type: type,
                 uuid: uuid,
-                origin: origin
+                origin: origin,
+                gzip: gzip
             }, query)).then(function sendResponse(html) {
                 log.info('[%1] {GET %2} Response Length: %3.', uuid, req.url, html.length);
                 return res.send(200, html);
@@ -440,6 +457,7 @@ Player.prototype.get = function get(/*options*/) {
     var playUrls = options.playUrls;
     var countUrls = options.countUrls;
     var launchUrls = options.launchUrls;
+    var gzip = config.gzip.enabled && options.gzip;
 
     log.trace('[%1] Getting player with options (%2.)', uuid, inspect(options));
 
@@ -487,8 +505,13 @@ Player.prototype.get = function get(/*options*/) {
         log.trace('[%1] Inlining experience (%2) to %3 player HTML.', uuid, experience.id, type);
         document.addResource('experience', 'application/json', experience);
 
-        log.trace('[%1] Stringifying document.', uuid);
-        return document.toString();
+        if (gzip) {
+            log.trace('[%1] GZIPping document.', uuid);
+            return document.gzip();
+        } else {
+            log.trace('[%1] Stringifying document.', uuid);
+            return document.toString();
+        }
     });
 };
 

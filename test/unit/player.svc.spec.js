@@ -23,6 +23,7 @@ describe('player service', function() {
     var fnCaches;
     var MockFunctionCache;
     var MockAdLoader;
+    var MockHTMLDocument;
     var playerHTML;
     var playerCSS;
     var playerJS;
@@ -49,7 +50,6 @@ describe('player service', function() {
         extend = require('../../lib/objUtils').extend;
         clonePromise = require('../../lib/promise').clone;
         AWS = require('aws-sdk');
-        HTMLDocument = require('../../lib/htmlDocument');
 
         playerHTML = require('fs').readFileSync(require.resolve('./helpers/player.html')).toString();
         playerCSS = require('fs').readFileSync(require.resolve('./helpers/lightbox.css')).toString();
@@ -67,6 +67,12 @@ describe('player service', function() {
             deferred.request = req;
 
             return req;
+        });
+
+        delete require.cache[require.resolve('../../lib/htmlDocument')];
+        HTMLDocument = require('../../lib/htmlDocument');
+        MockHTMLDocument = require.cache[require.resolve('../../lib/htmlDocument')].exports = jasmine.createSpy('HTMLDocument()').and.callFake(function(html, options) {
+            return new HTMLDocument(html, options);
         });
 
         delete require.cache[require.resolve('../../lib/cloudWatchReporter')];
@@ -310,6 +316,13 @@ describe('player service', function() {
                                     sendInterval: (5 * 60 * 1000),
                                     dimensions: [{ Name: 'Environment', Value: 'Development' }]
                                 },
+                                gzip: {
+                                    enabled: true,
+                                    levels: {
+                                        static: 9,
+                                        resource: 1
+                                    }
+                                },
                                 defaults: {
                                     origin: 'http://www.cinema6.com/',
                                     mobileType: 'mobile'
@@ -401,7 +414,8 @@ describe('player service', function() {
                                 middleware = expressRoutes.get['/api/public/players/:type'][0][expressRoutes.get['/api/public/players/:type'][0].length - 1];
                                 headers = {
                                     'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.99 Safari/537.36',
-                                    'origin': 'https://github.com/cinema6/cwrx/pull/504/files'
+                                    'origin': 'https://github.com/cinema6/cwrx/pull/504/files',
+                                    'accept-encoding': 'deflate, sdch'
                                 };
                                 request = {
                                     params: { type: 'lightbox' },
@@ -416,7 +430,8 @@ describe('player service', function() {
                                 };
                                 response = {
                                     send: jasmine.createSpy('response.send()'),
-                                    redirect: jasmine.createSpy('response.redirect()')
+                                    redirect: jasmine.createSpy('response.redirect()'),
+                                    header: jasmine.createSpy('response.header()')
                                 };
 
                                 getDeferred = q.defer();
@@ -434,8 +449,17 @@ describe('player service', function() {
                                 expect(player.get).toHaveBeenCalledWith(extend({
                                     type: request.params.type,
                                     uuid: request.uuid,
-                                    origin: request.get('origin')
+                                    origin: request.get('origin'),
+                                    gzip: false
                                 }, request.query));
+                            });
+
+                            it('should set the "Content-Type" header', function() {
+                                expect(response.header).toHaveBeenCalledWith('Content-Type', 'text/html; charset=utf-8');
+                            });
+
+                            it('should not set the "Content-Encoding" header', function() {
+                                expect(response.header).not.toHaveBeenCalledWith('Content-Encoding', 'gzip');
                             });
 
                             describe('and the get() succeeds', function() {
@@ -532,6 +556,39 @@ describe('player service', function() {
                                         it('should use the status', function() {
                                             expect(response.send).toHaveBeenCalledWith(404, error.message);
                                         });
+                                    });
+                                });
+                            });
+
+                            describe('if the "Accept-Encoding" header includes "gzip"', function() {
+                                beforeEach(function(done) {
+                                    player.get.and.returnValue(q(playerHTML));
+                                    player.get.calls.reset();
+                                    headers['accept-encoding'] = 'gzip, deflate, sdch';
+
+                                    middleware(request, response).finally(done);
+                                });
+
+                                it('should turn on gzipping', function() {
+                                    expect(player.get).toHaveBeenCalledWith(jasmine.objectContaining({ gzip: true }));
+                                });
+
+                                it('should set the "Content-Encoding" header', function() {
+                                    expect(response.header).toHaveBeenCalledWith('Content-Encoding', 'gzip');
+                                });
+
+                                describe('but gzipping is disabled', function() {
+                                    beforeEach(function(done) {
+                                        player.get.calls.reset();
+                                        response.header.calls.reset();
+
+                                        state.config.gzip.enabled = false;
+                                        middleware(request, response).finally(done);
+                                    });
+
+                                    it('should not gzip', function() {
+                                        expect(player.get).toHaveBeenCalledWith(jasmine.objectContaining({ gzip: false }));
+                                        expect(response.header).not.toHaveBeenCalledWith('Content-Encoding', 'gzip');
                                     });
                                 });
                             });
@@ -698,6 +755,13 @@ describe('player service', function() {
                     sendInterval: 5 * 60 * 1000,
                     dimensions: [{ Name: 'Environment', Value: 'Development' }]
                 },
+                gzip: {
+                    enabled: true,
+                    levels: {
+                        static: 9,
+                        resource: 1
+                    }
+                },
                 defaults: {
                     origin: 'http://www.cinema6.com/',
                     mobileType: 'mobile'
@@ -792,7 +856,8 @@ describe('player service', function() {
                             categories: ['food', 'tech'],
                             playUrls: ['play1.gif', 'play2.gif'],
                             countUrls: ['count1.gif', 'count2.gif'],
-                            launchUrls: ['launch1.gif', 'launch2.gif']
+                            launchUrls: ['launch1.gif', 'launch2.gif'],
+                            gzip: false
                         };
 
                         document = new HTMLDocument(playerHTML);
@@ -1010,6 +1075,45 @@ describe('player service', function() {
 
                         it('should add the experience as a resource', function() {
                             expect(document.addResource).toHaveBeenCalledWith('experience', 'application/json', experience);
+                        });
+                    });
+
+                    describe('if called with gzip: true', function() {
+                        var gzipped;
+
+                        beforeEach(function(done) {
+                            gzipped = new Buffer('du92he832ye783ey3782');
+                            success.calls.reset();
+                            failure.calls.reset();
+                            player.__getExperience__.and.returnValue(q(experience));
+                            spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
+                            spyOn(document, 'gzip').and.returnValue(q(gzipped));
+
+                            options.gzip = true;
+
+                            player.get(options).then(success, failure).finally(done);
+                        });
+
+                        it('should fulfill with the gzipped Buffer', function() {
+                            expect(document.gzip).toHaveBeenCalled();
+                            expect(success).toHaveBeenCalledWith(gzipped);
+                        });
+
+                        describe('but gzipping is disabled', function() {
+                            beforeEach(function(done) {
+                                success.calls.reset();
+                                failure.calls.reset();
+                                document.gzip.calls.reset();
+
+                                player.config.gzip.enabled = false;
+
+                                player.get(options).then(success, failure).finally(done);
+                            });
+
+                            it('should fulfill with a String', function() {
+                                expect(document.gzip).not.toHaveBeenCalled();
+                                expect(success).toHaveBeenCalledWith(document.toString());
+                            });
                         });
                     });
 
@@ -1297,6 +1401,7 @@ describe('player service', function() {
                                 var $orig = cheerio.load(playerHTML);
                                 var $result = cheerio.load(success.calls.mostRecent().args[0].toString());
 
+                                expect(MockHTMLDocument).toHaveBeenCalledWith(jasmine.any(String), { gzip: { static: config.gzip.levels.static, resource: config.gzip.levels.resource } });
                                 expect(success).toHaveBeenCalledWith(jasmine.any(HTMLDocument));
 
                                 expect($result('*').length).toBe($orig('*').length);
