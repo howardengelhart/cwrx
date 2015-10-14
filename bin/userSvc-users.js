@@ -102,7 +102,7 @@
         );
         var authorizeForceLogout = userModule.authorizeForceLogout;
         var filterProps = userModule.filterProps.bind(userModule,
-            ['org', 'customer', 'advertiser', 'roles', 'policies']);
+            ['org', 'customer', 'advertiser']);
         var giveActivationToken = userModule.giveActivationToken.bind(userModule,
             config.activationTokenTTL);
         var sendActivationEmail = userModule.sendActivationEmail.bind(userModule,

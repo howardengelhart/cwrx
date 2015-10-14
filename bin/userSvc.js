@@ -74,8 +74,8 @@
         activationTokenTTL: 1*60*60*1000, // 60 minutes; unit here is milliseconds
         activationTarget: 'https://www.selfie.cinema6.com/activate',
         newUserPermissions: {
-            roles: [],
-            policies: []
+            roles: ['newUserRole'],
+            policies: ['newUserPolicy']
         },
         api: {
             root: 'http://localhost/',

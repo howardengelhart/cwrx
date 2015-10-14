@@ -202,8 +202,8 @@ describe('userSvc (UT)', function() {
         });
 
         it('should filter props when signing up a user', function() {
-            expect(userModule.filterProps.bind).toHaveBeenCalledWith(userModule, ['org', 'customer', 'advertiser', 'roles', 'policies']);
-            expect(result._middleware.signupUser).toContain(getBoundFn(userModule.filterProps, [userModule, ['org', 'customer', 'advertiser', 'roles', 'policies']]));
+            expect(userModule.filterProps.bind).toHaveBeenCalledWith(userModule, ['org', 'customer', 'advertiser']);
+            expect(result._middleware.signupUser).toContain(getBoundFn(userModule.filterProps, [userModule, ['org', 'customer', 'advertiser']]));
         });
 
         it('should validate the password when signing up a user', function() {
