@@ -1455,12 +1455,14 @@ describe('userSvc users (E2E):', function() {
             mockRoles = [
                 { id: 'r-1', name: 'role1', status: 'active' },
                 { id: 'r-2', name: 'role2', status: 'active' },
-                { id: 'r-3', name: 'role3', status: 'active' }
+                { id: 'r-3', name: 'role3', status: 'active' },
+                { id: 'r-4', name: 'newUserRole', status: 'active'}
             ];
             mockPols = [
                 { id: 'p-1', name: 'pol1', status: 'active', priority: 1 },
                 { id: 'p-2', name: 'pol2', status: 'active', priority: 1 },
-                { id: 'p-3', name: 'pol3', status: 'active', priority: 1 }
+                { id: 'p-3', name: 'pol3', status: 'active', priority: 1 },
+                { id: 'p-4', name: 'newUserPolicy', status: 'active', priority: 1}
             ];
             options = { url: config.usersUrl + '/signup', json: mockUser };
             q.all([
@@ -1490,8 +1492,8 @@ describe('userSvc users (E2E):', function() {
                     created: jasmine.any(String),
                     lastUpdated: jasmine.any(String),
                     email: 'c6e2etester@gmail.com',
-                    roles: [],
-                    policies: [],
+                    roles: ['newUserRole'],
+                    policies: ['newUserPolicy'],
                     external: true,
                     config: {}
                 });
@@ -1624,7 +1626,7 @@ describe('userSvc users (E2E):', function() {
     });
 
     describe('POST /api/account/users/confirm/:id', function() {
-        var mockNewUser, msgSubject;
+        var mockNewUser, msgSubject, user;
 
         beforeEach(function(done) {
             mockNewUser = {
@@ -1640,10 +1642,42 @@ describe('userSvc users (E2E):', function() {
                 company: 'company'
             };
             msgSubject = 'Your account has been activated!';
+
+            mockRoles = [
+                { id: 'r-4', name: 'newUserRole', status: 'active'}
+            ];
+            mockPols = [
+                { id: 'p-4', name: 'newUserPolicy', status: 'active', priority: 1}
+            ];
             q.all([
                 testUtils.resetCollection('users', [mockNewUser, mockAdmin]),
-                testUtils.resetCollection('orgs', [{name:'someOrg'}])
+                testUtils.resetCollection('orgs', [{name:'someOrg'}]),
+                testUtils.resetCollection('roles', mockRoles),
+                testUtils.resetCollection('policies', mockPols.concat(testPolicies))
             ]).done(done);
+        });
+
+        afterEach(function(done) {
+            if(user) {
+                var urls = [
+                    config.orgsUrl + '/' + user.org,
+                    config.adsUrl + '/account/customer/' + user.customer,
+                    config.adsUrl + '/account/advertiser/' + user.advertiser
+                ];
+                testUtils.resetCollection('users', mockAdmin).then(function() {
+                    return q.allSettled(urls.map(function(url) {
+                        return requestUtils.qRequest('delete', { url: url, jar: adminJar });
+                    }));
+                }).then(function(results) {
+                    results.forEach(function(result) {
+                        if(result.state !== 'fulfilled' || result.value.response.statusCode !== 204) {
+                            console.log('Error deleting object: ' + JSON.stringify(result.value.body));
+                        }
+                    });
+                }).done(done);
+            } else {
+                done();
+            }
         });
 
         it('should 400 if a token is not provided on the request body', function(done) {
@@ -1706,26 +1740,6 @@ describe('userSvc users (E2E):', function() {
         });
 
         describe('when given a valid activation token', function() {
-            var user;
-
-            afterEach(function(done) {
-                var urls = [
-                    config.orgsUrl + '/' + user.org,
-                    config.adsUrl + '/account/customer/' + user.customer,
-                    config.adsUrl + '/account/advertiser/' + user.advertiser
-                ];
-                testUtils.resetCollection('users', mockAdmin).then(function() {
-                    return q.allSettled(urls.map(function(url) {
-                        return requestUtils.qRequest('delete', { url: url, jar: adminJar });
-                    }));
-                }).then(function(results) {
-                    results.forEach(function(result) {
-                        if(result.state !== 'fulfilled' || result.value.response.statusCode !== 204) {
-                            console.log('Error deleting object: ' + JSON.stringify(result.value.body));
-                        }
-                    });
-                }).done(done);
-            });
 
             it('should 200 and return the saved object as the body of the response ', function(done) {
                 mailman.once(msgSubject, function(msg) {
@@ -1852,7 +1866,7 @@ describe('userSvc users (E2E):', function() {
         });
         
         it('should work properly with /api/account/users/signup', function(done) {
-            var userId, confirmResp;
+            var userId;
 
             mailman.once('Your account is almost activated!', function(msg) {
                 var match = msg.html.match(/href="http.+id=.+token=[a-f\d]+(?=">)/);
@@ -1863,20 +1877,21 @@ describe('userSvc users (E2E):', function() {
                     var confirmOptions = { url: config.usersUrl + '/confirm/' + userId, json: { token: token } };
                     requestUtils.qRequest('post', confirmOptions)
                         .then(function(resp) {
-                            confirmResp = resp;
-                            expect(confirmResp.response.statusCode).toBe(200);
+                            user = resp;
+                            expect(resp.response.statusCode).toBe(200);
+
+                            mailman.once(msgSubject, function(msg) {
+                                expect(resp.body.id).toBe(userId);
+                                expect(resp.body.status).toBe('active');
+                                done();
+                            });
+
                         })
                         .catch(function(error) {
                             expect(util.inspect(error)).not.toBeDefined();
                             done();
                         });
                 }
-            });
-
-            mailman.once(msgSubject, function(msg) {
-                expect(confirmResp.body.id).toBe(userId);
-                expect(confirmResp.body.status).toBe('active');
-                done();
             });
 
             testUtils.resetCollection('users')
