@@ -1,5 +1,7 @@
 # User Service Changelog
 
+* [FIX]: Fix for an issue that prevented newly signed up users from receiving roles and policies: [#564](https://github.com/cinema6/cwrx/pull/564)
+
 ### 2.1.0: Tue Oct 13 14:35:41 EDT 2015
 * [FIX]: Stop logging cookie header: [#539](https://github.com/cinema6/cwrx/issues/539)
 * [FEATURE]: Add resend activation endpoint: [#508](https://github.com/cinema6/cwrx/issues/508)
