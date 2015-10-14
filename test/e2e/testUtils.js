@@ -89,9 +89,10 @@ testUtils.resetCollection = function(collection,data,userCfg){
                 return testUtils.mongoFind(collection, {id: 'u-sixxy'})
                     .then(function(results) {
                         if(results.length === 0) {
-                            return q.reject('Make sure the sixxy user exists in the users collection.');
+                            console.log('There is no sixxy user. Some e2e tests will fail. Create it by running the included sixxyUser.js script.');
+                        } else {
+                            sixxyUser = results[0];
                         }
-                        sixxyUser = results[0];
                     });
             }
         })

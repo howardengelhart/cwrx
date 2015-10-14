@@ -62,6 +62,28 @@ module.exports = function(grunt) {
         }
 
         grunt.log.writeln('Running e2e tests' + (svc ? ' for ' + svc : '') + ':');
-        grunt.task.run('jasmine:e2e');
+        var sixxyDependentSvcs = ['userSvc'];
+        var done = this.async();
+        if(sixxyDependentSvcs.indexOf(svc) !== -1) {
+            grunt.log.writeln('Ensuring the existance of the sixxy system user');
+            var args = ['./scripts/sixxyUser.js'];
+            var dbHost = grunt.option('dbHost');
+            if(dbHost) {
+                args.concat(['--dbHost', dbHost]);
+            }
+            grunt.util.spawn({
+                cmd: 'node',
+                args: args,
+                opts: {
+                    stdio: 'inherit'
+                }
+            }, function(error, result, code) {
+                grunt.task.run('jasmine:e2e');
+                done(true);
+            });
+        } else {
+            grunt.task.run('jasmine:e2e');
+            done(true);
+        }
     });
 };
