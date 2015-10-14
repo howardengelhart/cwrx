@@ -119,20 +119,23 @@ describe('userSvc users (E2E):', function() {
                 requestUtils.qRequest('post', loginOpts),
                 requestUtils.qRequest('post', adminLoginOpts)
             ]);
-        }).then(function() {
-            if (!mailman || mailman.state !== 'authenticated') {
-                mailman = new testUtils.Mailman();
-                return mailman.start().then(function() {
-                    mailman.on('error', function(error) { throw new Error(error); });
-                });
-            } else {
-                return q();
-            }
+        }).done(function() { done(); });
+    });
+    
+    beforeEach(function(done) {
+        if (mailman && mailman.state === 'authenticated') {
+            return done();
+        }
+        
+        mailman = new testUtils.Mailman();
+        return mailman.start().then(function() {
+            mailman.on('error', function(error) { throw new Error(error); });
         }).done(done);
     });
 
     afterEach(function() {
-        mailman.removeAllListeners('message');
+        mailman.removeAllListeners();
+        mailman.on('error', function(error) { throw new Error(error); });
     });
 
     describe('GET /api/account/users/:id', function() {
@@ -1012,8 +1015,9 @@ describe('userSvc users (E2E):', function() {
     });
 
     describe('POST /api/account/users/email', function() {
-        var mockUser, reqBody, options;
+        var mockUser, reqBody, options, msgSubject;
         beforeEach(function(done) {
+            msgSubject = 'Your Account Email Address Has Changed';
             mockUser = {
                 id: 'u-1',
                 email: 'c6e2etester@gmail.com',
@@ -1026,6 +1030,9 @@ describe('userSvc users (E2E):', function() {
         });
 
         it('should fail if email, password, or newEmail are not provided', function(done) {
+            mailman.once(msgSubject, function(msg) {
+                expect(msg).not.toBeDefined();
+            });
             reqBody = { password: 'password', newEmail: 'mynewemail' };
             options.json = reqBody;
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -1049,6 +1056,9 @@ describe('userSvc users (E2E):', function() {
         });
 
         it('should fail if the user\'s email is invalid', function(done) {
+            mailman.once(msgSubject, function(msg) {
+                expect(msg).not.toBeDefined();
+            });
             reqBody.email = 'mynewemail';
             options.json = reqBody;
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -1060,6 +1070,9 @@ describe('userSvc users (E2E):', function() {
         });
 
         it('should fail if the user\'s password is invalid', function(done) {
+            mailman.once(msgSubject, function(msg) {
+                expect(msg).not.toBeDefined();
+            });
             reqBody.password = 'thisisnotapassword';
             options.json = reqBody;
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -1071,6 +1084,9 @@ describe('userSvc users (E2E):', function() {
         });
 
         it('should prevent mongo query selector injection attacks', function(done) {
+            mailman.once(msgSubject, function(msg) {
+                expect(msg).not.toBeDefined();
+            });
             reqBody.email = { $gt: '' };
             options.json = reqBody;
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -1082,6 +1098,9 @@ describe('userSvc users (E2E):', function() {
         });
 
         it('should fail if a user with that email already exists', function(done) {
+            mailman.once(msgSubject, function(msg) {
+                expect(msg).not.toBeDefined();
+            });
             options.json.newEmail = 'usersvce2euser';
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(409);
@@ -1092,91 +1111,90 @@ describe('userSvc users (E2E):', function() {
         });
 
         it('should change the user\'s email successfully', function(done) {
-            var mailman = new testUtils.Mailman();
-            mailman.start().then(function() {
-                mailman.once('message', function(msg) {
-                    expect(msg.from[0].address).toBe('support@cinema6.com');
-                    expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
-                    expect(msg.subject).toBe('Your Account Email Address Has Changed');
-                    expect(msg.text.match(/mynewemail/)).toBeTruthy();
-                    expect(msg.html.match(/mynewemail/)).toBeTruthy();
-                    expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
-                    mailman.stop();
-                    done();
-                });
-                return requestUtils.qRequest('post', options);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe('Successfully changed email');
+            mailman.once(msgSubject, function(msg) {
+                expect(msg.from[0].address).toBe('support@cinema6.com');
+                expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
+                expect(msg.text).toMatch(/mynewemail/);
+                expect(msg.html).toMatch(/mynewemail/);
+                expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
+                
                 var optionsA = {url:config.authUrl + '/login', json:{email:'c6e2etester@gmail.com',password:'password'}};
                 var optionsB = {url:config.authUrl + '/login', json:{email:'mynewemail',password:'password'}};
-                return q.all([requestUtils.qRequest('post', optionsA), requestUtils.qRequest('post', optionsB)]);
-            }).then(function(resps) {
-                expect(resps[0].response.statusCode).toBe(401);
-                expect(resps[0].body).toBe('Invalid email or password');
-                expect(resps[1].response.statusCode).toBe(200);
-                expect(resps[1].body).toBeDefined();
+                return q.all([requestUtils.qRequest('post', optionsA), requestUtils.qRequest('post', optionsB)])
+                .then(function(resps) {
+                    expect(resps[0].response.statusCode).toBe(401);
+                    expect(resps[0].body).toBe('Invalid email or password');
+                    expect(resps[1].response.statusCode).toBe(200);
+                    expect(resps[1].body).toBeDefined();
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBe('Successfully changed email');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
-                mailman.stop();
                 done();
             });
         });
 
         it('should write an entry to the audit collection', function(done) {
+            mailman.once(msgSubject, function(msg) {
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'})
+                .then(function(results) {
+                    expect(results[0].user).toBe('u-1');
+                    expect(results[0].created).toEqual(jasmine.any(Date));
+                    expect(results[0].host).toEqual(jasmine.any(String));
+                    expect(results[0].pid).toEqual(jasmine.any(Number));
+                    expect(results[0].uuid).toEqual(jasmine.any(String));
+                    expect(results[0].sessionID).toBe(null);
+                    expect(results[0].service).toBe('userSvc');
+                    expect(results[0].version).toEqual(jasmine.any(String));
+                    expect(results[0].data).toEqual({route: 'POST /api/account/users/email',
+                                                     params: {}, query: {} });
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
-            }).then(function(results) {
-                expect(results[0].user).toBe('u-1');
-                expect(results[0].created).toEqual(jasmine.any(Date));
-                expect(results[0].host).toEqual(jasmine.any(String));
-                expect(results[0].pid).toEqual(jasmine.any(Number));
-                expect(results[0].uuid).toEqual(jasmine.any(String));
-                expect(results[0].sessionID).toBe(null);
-                expect(results[0].service).toBe('userSvc');
-                expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'POST /api/account/users/email',
-                                                 params: {}, query: {} });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
+                done();
+            });
         });
 
         it('should lowercase the new and old emails in the request', function(done) {
-            options.json.email = 'c6E2ETester@gmail.com';
-            options.json.newEmail = 'MyNewEmail';
-            var mailman = new testUtils.Mailman();
-            mailman.start().then(function() {
-                mailman.once('message', function(msg) {
-                    expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
-                    expect(msg.subject).toBe('Your Account Email Address Has Changed');
-                    expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
-                    mailman.stop();
-                    done();
-                });
-                return requestUtils.qRequest('post', options);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBe('Successfully changed email');
+            mailman.once(msgSubject, function(msg) {
                 var optionsA = {url:config.authUrl + '/login', json:{email:'c6e2etester@gmail.com',password:'password'}};
                 var optionsB = {url:config.authUrl + '/login', json:{email:'mynewemail',password:'password'}};
-                return q.all([requestUtils.qRequest('post', optionsA), requestUtils.qRequest('post', optionsB)]);
-            }).then(function(resps) {
-                expect(resps[0].response.statusCode).toBe(401);
-                expect(resps[0].body).toBe('Invalid email or password');
-                expect(resps[1].response.statusCode).toBe(200);
-                expect(resps[1].body).toBeDefined();
+                return q.all([requestUtils.qRequest('post', optionsA), requestUtils.qRequest('post', optionsB)])
+                .then(function(resps) {
+                    expect(resps[0].response.statusCode).toBe(401);
+                    expect(resps[0].body).toBe('Invalid email or password');
+                    expect(resps[1].response.statusCode).toBe(200);
+                    expect(resps[1].body).toBeDefined();
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+
+            options.json.email = 'c6E2ETester@gmail.com';
+            options.json.newEmail = 'MyNewEmail';
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).toBe('Successfully changed email');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
-                mailman.stop();
                 done();
             });
         });
     });
 
     describe('POST /api/account/users/password', function() {
-        var user, reqBody, options;
+        var user, reqBody, options, msgSubject;
         beforeEach(function(done) {
             user = {
                 id: 'u-1',
@@ -1184,12 +1202,16 @@ describe('userSvc users (E2E):', function() {
                 status: 'active',
                 password: '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq'
             };
+            msgSubject = 'Your account password has been changed';
             reqBody = { email: 'c6e2etester@gmail.com', password: 'password', newPassword: 'foobar' };
             options = { url: config.usersUrl + '/password', json: reqBody };
             testUtils.resetCollection('users', [mockRequester, mockAdmin, user]).done(done);
         });
 
         it('should fail if email, password, or newPassword are not provided', function(done) {
+            mailman.once(msgSubject, function(msg) {
+                expect(msg).not.toBeDefined();
+            });
             reqBody = { password: 'password', newPassword: 'foobar' };
             options.json = reqBody;
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -1213,6 +1235,9 @@ describe('userSvc users (E2E):', function() {
         });
 
         it('should fail if the email is invalid', function(done) {
+            mailman.once(msgSubject, function(msg) {
+                expect(msg).not.toBeDefined();
+            });
             reqBody.email = 'mynewemail';
             options.json = reqBody;
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -1224,6 +1249,9 @@ describe('userSvc users (E2E):', function() {
         });
 
         it('should fail if the current password is invalid', function(done) {
+            mailman.once(msgSubject, function(msg) {
+                expect(msg).not.toBeDefined();
+            });
             reqBody.password = 'thisisnotapassword';
             options.json = reqBody;
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -1235,6 +1263,9 @@ describe('userSvc users (E2E):', function() {
         });
 
         it('should prevent mongo query selector injection attacks', function(done) {
+            mailman.once(msgSubject, function(msg) {
+                expect(msg).not.toBeDefined();
+            });
             reqBody.email = { $gt: '' };
             options.json = reqBody;
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -1246,76 +1277,78 @@ describe('userSvc users (E2E):', function() {
         });
 
         it('should change the user\'s password successfully', function(done) {
-            var mailman = new testUtils.Mailman();
-            mailman.start().then(function() {
-                mailman.once('message', function(msg) {
-                    expect(msg.from[0].address).toBe('support@cinema6.com');
-                    expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
-                    expect(msg.subject).toBe('Your account password has been changed');
-                    expect(msg.text).toBeDefined();
-                    expect(msg.html).toBeDefined();
-                    expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
-                    mailman.stop();
-                    done();
-                });
-                return requestUtils.qRequest('post', options);
-            }).then(function(resp) {
+            mailman.once(msgSubject, function(msg) {
+                expect(msg.from[0].address).toBe('support@cinema6.com');
+                expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
+                expect(msg.text).toBeDefined();
+                expect(msg.html).toBeDefined();
+                expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
+
+                var loginOpts = {url:config.authUrl + '/login', json:{email:'c6e2etester@gmail.com',password:'foobar'}};
+                return requestUtils.qRequest('post', loginOpts).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body).toBeDefined();
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBe('Successfully changed password');
-                var loginOpts = {url:config.authUrl + '/login', json:{email:'c6e2etester@gmail.com',password:'foobar'}};
-                return requestUtils.qRequest('post', loginOpts);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBeDefined();
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
-                mailman.stop();
                 done();
             });
         });
 
         it('should write an entry to the audit collection', function(done) {
+            mailman.once(msgSubject, function(msg) {
+                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'})
+                .then(function(results) {
+                    expect(results[0].user).toBe('u-1');
+                    expect(results[0].created).toEqual(jasmine.any(Date));
+                    expect(results[0].host).toEqual(jasmine.any(String));
+                    expect(results[0].pid).toEqual(jasmine.any(Number));
+                    expect(results[0].uuid).toEqual(jasmine.any(String));
+                    expect(results[0].sessionID).toBe(null);
+                    expect(results[0].service).toBe('userSvc');
+                    expect(results[0].version).toEqual(jasmine.any(String));
+                    expect(results[0].data).toEqual({route: 'POST /api/account/users/password',
+                                                     params: {}, query: {} });
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
-            }).then(function(results) {
-                expect(results[0].user).toBe('u-1');
-                expect(results[0].created).toEqual(jasmine.any(Date));
-                expect(results[0].host).toEqual(jasmine.any(String));
-                expect(results[0].pid).toEqual(jasmine.any(Number));
-                expect(results[0].uuid).toEqual(jasmine.any(String));
-                expect(results[0].sessionID).toBe(null);
-                expect(results[0].service).toBe('userSvc');
-                expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'POST /api/account/users/password',
-                                                 params: {}, query: {} });
+                expect(resp.body).toBe('Successfully changed password');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
+                done();
+            });
         });
 
         it('should lowercase the request email', function(done) {
+            mailman.once(msgSubject, function(msg) {
+                expect(msg.from[0].address).toBe('support@cinema6.com');
+                expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
+
+                var loginOpts = {url:config.authUrl + '/login', json:{email:'c6e2etester@gmail.com',password:'foobar'}};
+                return requestUtils.qRequest('post', loginOpts).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body).toBeDefined();
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+
             options.json.email = 'c6E2ETester@gmail.com';
-            var mailman = new testUtils.Mailman();
-            mailman.start().then(function() {
-                mailman.once('message', function(msg) {
-                    expect(msg.from[0].address).toBe('support@cinema6.com');
-                    expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
-                    mailman.stop();
-                    done();
-                });
-                return requestUtils.qRequest('post', options);
-            }).then(function(resp) {
+            requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBe('Successfully changed password');
-                var loginOpts = {url:config.authUrl + '/login', json:{email:'c6E2etester@gmail.com',password:'foobar'}};
-                return requestUtils.qRequest('post', loginOpts);
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toBeDefined();
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
-                mailman.stop();
                 done();
             });
         });
@@ -1410,8 +1443,9 @@ describe('userSvc users (E2E):', function() {
     });
 
     describe('POST /api/account/users/signup', function() {
-        var mockUser, mockRoles, mockPols, options;
+        var mockUser, mockRoles, mockPols, options, msgSubject;
         beforeEach(function(done) {
+            msgSubject = 'Your account is almost activated!';
             mockUser = {
                 email: 'c6e2etester@gmail.com',
                 password: 'password',
@@ -1439,6 +1473,15 @@ describe('userSvc users (E2E):', function() {
         });
 
         it('should create a new user account', function(done) {
+            mailman.once(msgSubject, function(msg) {
+                expect(msg.from[0].address).toBe('support@cinema6.com');
+                expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
+                expect(msg.text).toMatch(urlRegex);
+                expect(msg.html).toMatch(urlRegex);
+                expect(new Date() - msg.date).toBeLessThan(30000); // message should be recent
+                done();
+            });
+        
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toEqual({
@@ -1454,24 +1497,32 @@ describe('userSvc users (E2E):', function() {
                 });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
+                done();
+            });
         });
 
         it('should lowercase the new email', function(done) {
+            mailman.once(msgSubject, function(msg) {
+                expect(msg.from[0].address).toBe('support@cinema6.com');
+                expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
+                done();
+            });        
+        
             options.json.email = 'c6E2ETester@gmail.com';
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body.email).toBe('c6e2etester@gmail.com');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
+                done();
+            });
         });
 
         it('should return a 400 error if the body is missing the email or password', function(done) {
-            delete options.json.email;
-            mailman.once('message', function(msg) {
+            mailman.once(msgSubject, function(msg) {
                 expect(msg).not.toBeDefined();
             });
+            delete options.json.email;
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Missing required field: email');
@@ -1487,10 +1538,10 @@ describe('userSvc users (E2E):', function() {
         });
 
         it('should 400 if the activation email cannot send because of a malformed email', function(done) {
-            options.json.email = 'malformed email';
-            mailman.once('message', function(msg) {
+            mailman.once(msgSubject, function(msg) {
                 expect(msg).not.toBeDefined();
             });
+            options.json.email = 'malformed email';
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
                 expect(resp.body).toBe('Invalid email address');
@@ -1500,6 +1551,20 @@ describe('userSvc users (E2E):', function() {
         });
 
         it('should return a 409 error if a user with that email exists', function(done) {
+            mailman.once(msgSubject, function(msg) {
+                // first req should succeed + send email, but second should not
+                mailman.once(msgSubject, function(msg) {
+                    expect(msg).not.toBeDefined();
+                });
+
+                requestUtils.qRequest('post', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(409);
+                    expect(resp.body).toBe('An object with that email already exists');
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+        
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 expect(resp.body).toBeDefined();
@@ -1513,6 +1578,10 @@ describe('userSvc users (E2E):', function() {
         });
 
         it('should trim off forbidden fields', function(done) {
+            mailman.once(msgSubject, function(msg) {
+                done();
+            });
+
             mockUser.org = 'o-4567';
             mockUser.customer = 'some customer';
             mockUser.advertiser = 'some advertiser';
@@ -1531,10 +1600,15 @@ describe('userSvc users (E2E):', function() {
                 expect(resp.body.entitlements).not.toBeDefined();
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
+                done();
+            });
         });
 
         it('should save an activation token', function(done) {
+            mailman.once(msgSubject, function(msg) {
+                done();
+            });
+
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(201);
                 return testUtils.mongoFind('users', { id: resp.body.id });
@@ -1544,34 +1618,13 @@ describe('userSvc users (E2E):', function() {
                 expect(user.activationToken.expires).toEqual(jasmine.any(Date));
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-
-        it('should send an activation email', function(done) {
-            var id;
-            requestUtils.qRequest('post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(201);
-                id = resp.body.id;
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
                 done();
-            });
-            mailman.once('message', function(msg) {
-                testUtils.mongoFind('users', { id: id }).then(function(results) {
-                    var user = results[0];
-                    expect(msg.from[0].address).toBe('support@cinema6.com');
-                    expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
-                    expect(msg.subject).toBe('Your account is almost activated!');
-                    expect(msg.text.match(urlRegex)).toBeTruthy();
-                    expect(msg.html.match(urlRegex)).toBeTruthy();
-                    expect(new Date() - msg.date).toBeLessThan(30000); // message should be recent
-                }).done(done);
             });
         });
     });
 
     describe('POST /api/account/users/confirm/:id', function() {
-        var mockNewUser;
+        var mockNewUser, msgSubject;
 
         beforeEach(function(done) {
             mockNewUser = {
@@ -1586,6 +1639,7 @@ describe('userSvc users (E2E):', function() {
                 status: 'new',
                 company: 'company'
             };
+            msgSubject = 'Your account has been activated!';
             q.all([
                 testUtils.resetCollection('users', [mockNewUser, mockAdmin]),
                 testUtils.resetCollection('orgs', [{name:'someOrg'}])
@@ -1593,6 +1647,10 @@ describe('userSvc users (E2E):', function() {
         });
 
         it('should 400 if a token is not provided on the request body', function(done) {
+            mailman.once(msgSubject, function(msg) {
+                expect(msg).not.toBeDefined();
+            });
+
             var options = { url: config.usersUrl + '/confirm/u-12345' };
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
@@ -1603,6 +1661,10 @@ describe('userSvc users (E2E):', function() {
         });
 
         it('should 404 if no user exists with the id specified in the url', function(done) {
+            mailman.once(msgSubject, function(msg) {
+                expect(msg).not.toBeDefined();
+            });
+
             var options = { url: config.usersUrl + '/confirm/u-non-existant', json: { token: 'valid-token' } };
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
@@ -1613,6 +1675,10 @@ describe('userSvc users (E2E):', function() {
         });
 
         it('should 403 if the activation token has expired', function(done) {
+            mailman.once(msgSubject, function(msg) {
+                expect(msg).not.toBeDefined();
+            });
+
             mockNewUser.activationToken.expires = new Date(0, 11, 25);
             testUtils.resetCollection('users', mockNewUser).then(function() {
                 var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
@@ -1626,6 +1692,10 @@ describe('userSvc users (E2E):', function() {
         });
 
         it('should 403 if the provided activation token is invalid', function(done) {
+            mailman.once(msgSubject, function(msg) {
+                expect(msg).not.toBeDefined();
+            });
+
             var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'invalid-token' } };
             requestUtils.qRequest('post', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
@@ -1657,83 +1727,14 @@ describe('userSvc users (E2E):', function() {
                 }).done(done);
             });
 
-            it('should create an org for the user', function(done) {
-                var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
-                requestUtils.qRequest('post', options)
-                .then(function(resp) {
-                    user = resp.body;
-                    var orgId = resp.body.org;
-                    expect(orgId).toEqual(jasmine.any(String));
-                    return testUtils.mongoFind('orgs', {id: orgId});
-                })
-                .then(function(results) {
-                    var org = results[0];
-                    expect(org.name).toBe('company (u-12345)');
-                })
-                .catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                })
-                .done(done);
-            });
-
-            it('should create a customer for the user (linked to the advertiser)', function(done) {
-                var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
-                var advertiserId = null;
-                requestUtils.qRequest('post', options)
-                .then(function(resp) {
-                    user = resp.body;
-                    var customerId = resp.body.customer;
-                    advertiserId = resp.body.advertiser;
-                    expect(customerId).toEqual(jasmine.any(String));
-                    expect(advertiserId).toBeDefined();
-                    var options = {url: config.adsUrl + '/account/customer/' + customerId, jar: adminJar};
-                    return requestUtils.qRequest('get', options);
-                })
-                .then(function(resp) {
-                    var customer = resp.body;
-                    expect(customer.name).toBe('company (u-12345)');
-                    expect(customer.advertisers).toContain(advertiserId);
-                })
-                .catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                })
-                .done(done);
-            });
-
-            it('should create an advertiser for the user', function(done) {
-                var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
-                requestUtils.qRequest('post', options)
-                .then(function(resp) {
-                    user = resp.body;
-                    var advertiserId = resp.body.advertiser;
-                    expect(advertiserId).toEqual(jasmine.any(String));
-                    return testUtils.mongoFind('advertisers', {id: advertiserId});
-                })
-                .then(function(results) {
-                    var advertiser = results[0];
-                    expect(advertiser.name).toBe('company (u-12345)');
-                })
-                .catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                })
-                .done(done);
-            });
-
-            it('should login the new user', function(done) {
-                var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
-                requestUtils.qRequest('post', options)
-                .then(function(resp) {
-                    user = resp.body;
-                    expect(resp.response.headers['set-cookie'].length).toBe(1);
-                    expect(resp.response.headers['set-cookie'][0].match(/^c6Auth=.+/)).toBeTruthy('cookie match');
-                })
-                .catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                })
-                .done(done);
-            });
-
             it('should 200 and return the saved object as the body of the response ', function(done) {
+                mailman.once(msgSubject, function(msg) {
+                    expect(msg.from[0].address).toBe('support@cinema6.com');
+                    expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
+                    expect(new Date() - msg.date).toBeLessThan(30000); // message should be recent
+                    done();
+                });
+
                 var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
                 requestUtils.qRequest('post', options)
                 .then(function(resp) {
@@ -1753,22 +1754,95 @@ describe('userSvc users (E2E):', function() {
                 })
                 .catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
-                })
-                .done(done);
+                    done();
+                });
             });
 
-            it('should send a confirmation email to the user', function(done) {
+            it('should create an org for the user', function(done) {
+                mailman.once(msgSubject, function(msg) {
+                    done();
+                });
+
                 var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
                 requestUtils.qRequest('post', options)
                 .then(function(resp) {
                     user = resp.body;
-                    mailman.once('message', function(msg) {
-                        expect(msg.from[0].address).toBe('support@cinema6.com');
-                        expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
-                        expect(msg.subject).toBe('Your account has been activated!');
-                        expect(new Date() - msg.date).toBeLessThan(30000); // message should be recent
-                        done();
-                    });
+                    var orgId = resp.body.org;
+                    expect(orgId).toEqual(jasmine.any(String));
+                    return testUtils.mongoFind('orgs', {id: orgId});
+                })
+                .then(function(results) {
+                    var org = results[0];
+                    expect(org.name).toBe('company (u-12345)');
+                })
+                .catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                    done();
+                });
+            });
+
+            it('should create a customer for the user (linked to the advertiser)', function(done) {
+                mailman.once(msgSubject, function(msg) {
+                    done();
+                });
+
+                var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
+                var advertiserId = null;
+                requestUtils.qRequest('post', options)
+                .then(function(resp) {
+                    user = resp.body;
+                    var customerId = resp.body.customer;
+                    advertiserId = resp.body.advertiser;
+                    expect(customerId).toEqual(jasmine.any(String));
+                    expect(advertiserId).toBeDefined();
+                    var options = {url: config.adsUrl + '/account/customer/' + customerId, jar: adminJar};
+                    return requestUtils.qRequest('get', options);
+                })
+                .then(function(resp) {
+                    var customer = resp.body;
+                    expect(customer.name).toBe('company (u-12345)');
+                    expect(customer.advertisers).toContain(advertiserId);
+                })
+                .catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                    done();
+                });
+            });
+
+            it('should create an advertiser for the user', function(done) {
+                mailman.once(msgSubject, function(msg) {
+                    done();
+                });
+
+                var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
+                requestUtils.qRequest('post', options)
+                .then(function(resp) {
+                    user = resp.body;
+                    var advertiserId = resp.body.advertiser;
+                    expect(advertiserId).toEqual(jasmine.any(String));
+                    return testUtils.mongoFind('advertisers', {id: advertiserId});
+                })
+                .then(function(results) {
+                    var advertiser = results[0];
+                    expect(advertiser.name).toBe('company (u-12345)');
+                })
+                .catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                    done();
+                });
+            });
+
+            it('should login the new user', function(done) {
+                mailman.once(msgSubject, function(msg) {
+                    done();
+                });
+
+                var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
+                requestUtils.qRequest('post', options)
+                .then(function(resp) {
+                    user = resp.body;
+                    expect(resp.response.headers['set-cookie'].length).toBe(1);
+                    expect(resp.response.headers['set-cookie'][0]).toMatch(/^c6Auth=.+/);
                 })
                 .catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
@@ -1779,9 +1853,10 @@ describe('userSvc users (E2E):', function() {
     });
 
     describe('POST /api/accounts/users/resendActivation', function() {
-        var loginOpts, resendOpts, newUserCookieJar, newUser;
+        var loginOpts, resendOpts, newUserCookieJar, newUser, msgSubject;
         
         beforeEach(function(done) {
+            msgSubject = 'Your account is almost activated!';
             newUserCookieJar = request.jar();
             loginOpts = { url: config.authUrl + '/login', json: { email: 'c6e2etester@gmail.com', password: 'password' }, jar: newUserCookieJar };
             resendOpts = { url: config.usersUrl + '/resendActivation', jar: newUserCookieJar };
@@ -1803,7 +1878,7 @@ describe('userSvc users (E2E):', function() {
         
         it('should 401 if the user is not authenticated', function(done) {
             delete resendOpts.jar;
-            mailman.once('message', function(msg) {
+            mailman.once(msgSubject, function(msg) {
                 expect(msg).not.toBeDefined();
             });
             requestUtils.qRequest('post', resendOpts)
@@ -1818,7 +1893,7 @@ describe('userSvc users (E2E):', function() {
         
         it('should 403 if the user status is not new', function(done) {
             resendOpts.jar = cookieJar;
-            mailman.once('message', function(msg) {
+            mailman.once(msgSubject, function(msg) {
                 expect(msg).not.toBeDefined();
             });
             return requestUtils.qRequest('post', resendOpts)
@@ -1833,7 +1908,7 @@ describe('userSvc users (E2E):', function() {
         
         it('should 403 if the user does not have an existing activation token', function(done) {
             delete newUser.activationToken;
-            mailman.once('message', function(msg) {
+            mailman.once(msgSubject, function(msg) {
                 expect(msg).not.toBeDefined();
             });
             testUtils.resetCollection('users', newUser)
@@ -1850,6 +1925,15 @@ describe('userSvc users (E2E):', function() {
         });
         
         it('should generate a new activation token and save it on the user', function(done) {
+            mailman.once(msgSubject, function(msg) {
+                expect(msg.from[0].address).toBe('support@cinema6.com');
+                expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
+                expect(msg.text).toMatch(urlRegex);
+                expect(msg.html).toMatch(urlRegex);
+                expect(new Date() - msg.date).toBeLessThan(30000); // message should be recent
+                done();
+            });
+
             requestUtils.qRequest('post', resendOpts)
                 .then(function(resp) {
                     expect(resp.response.statusCode).toBe(204);
@@ -1861,31 +1945,6 @@ describe('userSvc users (E2E):', function() {
                     expect(user.activationToken.token).toEqual(jasmine.any(String));
                     expect(user.activationToken.expires).toEqual(jasmine.any(Date));
                     expect(user.activationToken.token).not.toBe('token');
-                })
-                .catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                    done();
-                });
-            mailman.once('message', function(msg) {
-                expect(msg).toBeDefined();
-                done();
-            });
-        });
-        
-        it('should send an activation email', function(done) {
-            mailman.once('message', function(msg) {
-                expect(msg.from[0].address).toBe('support@cinema6.com');
-                expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
-                expect(msg.subject).toBe('Your account is almost activated!');
-                expect(msg.text.match(urlRegex)).toBeTruthy();
-                expect(msg.html.match(urlRegex)).toBeTruthy();
-                expect(new Date() - msg.date).toBeLessThan(30000); // message should be recent
-                done();
-            });
-            requestUtils.qRequest('post', resendOpts)
-                .then(function(resp) {
-                    expect(resp.response.statusCode).toBe(204);
-                    expect(resp.body).toBe('');
                 })
                 .catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
