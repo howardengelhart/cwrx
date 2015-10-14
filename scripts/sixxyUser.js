@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 var q           = require('q'),
     program     = require('commander'),
-    mongoUtils  = require('../lib/mongoUtils'),
+    mongoUtils  = require('../lib/mongoUtils');
 
-    hashPass = '$2a$10$XomlyDak6mGSgrC/g1L7FO.4kMRkj4UturtKSzy6mFeL8QWOBmIWq'; // hash of password
 
 program
     .version('0.0.1')
@@ -32,8 +31,6 @@ mongoUtils.connect(program.dbHost, program.dbPort, 'c6Db', program.dbUser, progr
             org: 'o-test',
             created: new Date(),
             lastUpdated: new Date(),
-            email: 'sixxy',
-            password: hashPass,
             status: 'active',
             permissions: {
                 orgs: { create: 'all' },
