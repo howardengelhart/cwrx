@@ -1,11 +1,12 @@
 # Content Service Changelog
 
+* support querying cards by `ids`: [#558](https://github.com/cinema6/cwrx/issues/558)
 * [FIX]: Stop logging cookie header: [#539](https://github.com/cinema6/cwrx/issues/539)
 * `name` is no longer required to be defined or unique for categories: [#523](https://github.com/cinema6/cwrx/issues/523)
 * validate other fields on categories using Model: [#523](https://github.com/cinema6/cwrx/issues/523)
 * [FIX]: Setting `ids` or `categories` experience filter params to `''` returns no experiences: [#524](https://github.com/cinema6/cwrx/issues/524)
-* [FEATURE]: Support sending MiniReel launch/card load timings to
-  campfire
+* [FEATURE]: Support sending MiniReel launch/card load timings to campfire: [#555](https://github.com/cinema6/cwrx/pull/555)
+* Extra deployment steps: None
 
 ### 2.1.0: Tue Sep 29 13:35:21 EDT 2015
 * [FIX]: Validate pagination params: [#512](https://github.com/cinema6/cwrx/issues/512)

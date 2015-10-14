@@ -209,6 +209,9 @@
                     query[field] = String(req.query[field]);
                 }
             });
+            if ('ids' in req.query) {
+                query.id = String(req.query.ids).split(',');
+            }
 
             var promise = cardSvc.getObjs(query, req, true);
             promise.finally(function() {
