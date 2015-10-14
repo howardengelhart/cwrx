@@ -1,5 +1,9 @@
 # Auth Service Changelog
 
+### 1.4.4: Wed Oct 14 18:47:35 EDT 2015
+* [FIX]: Properly handle forgot password targets with query strings: [#562](https://github.com/cinema6/cwrx/pull/562)
+* Extra deployment steps: None
+
 ### 1.4.3: Tue Oct 13 14:35:41 EDT 2015
 * [FIX]: Stop logging cookie header: [#539](https://github.com/cinema6/cwrx/issues/539)
 * Allow users with a status of new to login
