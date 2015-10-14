@@ -1,10 +1,11 @@
 describe('promise',function(){
-    var flush = true, promise, q, clone;
+    var flush = true, promise, q, clone, Readable;
     beforeEach(function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         jasmine.clock().install();
 
         q = require('q');
+        Readable = require('stream').Readable;
 
         delete require.cache[require.resolve('clone')];
         var realClone = require('clone');
@@ -668,6 +669,94 @@ describe('promise',function(){
             });
         });
     });
-});
-        
 
+    describe('fromStream(stream)', function() {
+        var StupidStream;
+
+        var success, failure;
+        var stream;
+        var buffers, expected;
+        var result;
+
+        beforeEach(function(done) {
+            StupidStream = function StupidStream(buffers, opts) {
+                Readable.call(this, opts);
+                this.buffers = buffers.slice();
+            };
+            require('util').inherits(StupidStream, Readable);
+            StupidStream.prototype._read = function _read() {
+                var data = this.buffers.shift() || null;
+                process.nextTick(function() {
+                    this.push(data);
+                }.bind(this));
+            };
+
+            success = jasmine.createSpy('success()');
+            failure = jasmine.createSpy('failure()');
+
+            buffers = [new Buffer('Hello'), new Buffer('World'), new Buffer('Foo'), new Buffer('Bar')];
+            expected = Buffer.concat(buffers);
+            stream = new StupidStream(buffers);
+
+            result = promise.fromStream(stream);
+            result.then(success, failure).finally(done);
+        });
+
+        it('should fulfill with a concated buffer', function() {
+            expect(success).toHaveBeenCalledWith(jasmine.any(Buffer));
+            expect(success.calls.mostRecent().args[0].toString()).toBe(expected.toString());
+        });
+
+        describe('if there is an error reading data', function() {
+            var EvilStream;
+            var error;
+
+            beforeEach(function(done) {
+                error = new Error('I am evil.');
+
+                EvilStream = function EvilStream(buffers, max, opts) {
+                    StupidStream.call(this, buffers, opts);
+
+                    this.max = max;
+                    this.amountRead = 0;
+                };
+                require('util').inherits(EvilStream, StupidStream);
+
+                EvilStream.prototype._read = function _read() {
+                    if (++this.amountRead > this.max) {
+                        return this.emit('error', error);
+                    }
+
+                    return StupidStream.prototype._read.call(this);
+                };
+
+                success.calls.reset();
+                failure.calls.reset();
+
+                stream = new EvilStream(buffers, 2);
+
+                promise.fromStream(stream).then(success, failure).finally(done);
+            });
+
+            it('should reject with the Error', function() {
+                expect(failure).toHaveBeenCalledWith(error);
+            });
+        });
+
+        describe('if the stream is in Object mode', function() {
+            beforeEach(function(done) {
+                buffers = [new Buffer('Hello'), { foo: 'bar' }, new Buffer('World')];
+                stream = new StupidStream(buffers, { objectMode: true });
+
+                success.calls.reset();
+                failure.calls.reset();
+
+                promise.fromStream(stream).then(success, failure).finally(done);
+            });
+
+            it('should fulfill with an Array of each chunk', function() {
+                expect(success).toHaveBeenCalledWith(buffers);
+            });
+        });
+    });
+});
