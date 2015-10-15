@@ -1,5 +1,6 @@
 # Ads Service Changelog
 
+### 2.0.0: Thu Oct 15 13:24:56 EDT 2015
 * [FIX]: Stop logging cookie header: [#539](https://github.com/cinema6/cwrx/issues/539)
 * Validate campaigns using model: [#536](https://github.com/cinema6/cwrx/issues/536)
 * Set Adtech keywords using `targeting.interests` instead of `categories`: [#492](https://github.com/cinema6/cwrx/issues/492)

@@ -1,6 +1,8 @@
 # Vote Service Changelog
 
+### 1.4.3: Thu Oct 15 13:24:56 EDT 2015
 * [FIX]: Stop logging cookie header: [#539](https://github.com/cinema6/cwrx/issues/539)
+* Extra deployment steps: None
 
 ### 1.4.2: Mon Sep 28 10:33:32 EDT 2015
 * [FIX]: Auth middleware will handle users with roles + policies: [#475](https://github.com/cinema6/cwrx/pull/475)
