@@ -29,7 +29,7 @@ describe('HTMLDocument(html)', function() {
                 beforeEach(function() {
                     src = 'http://staging.cinema6.com/api/public/content/experience/e-92160a770b81d5';
                     type = 'application/json';
-                    contents = JSON.stringify({ hello: 'world', foo: '<script></script><link></link>' });
+                    contents = JSON.stringify({ hello: 'world', foo: '<script></script><link></link><script></script>' });
 
                     result = document.addResource(src, type, contents);
                     $ = cheerio.load(document.toString());
@@ -45,7 +45,7 @@ describe('HTMLDocument(html)', function() {
                     expect($script.length).toBe(1);
                     expect($script.attr('type')).toBe(type);
                     expect($script.attr('data-src')).toBe(src);
-                    expect($script.text()).toBe(contents.replace(/<\//g, '<\\/'));
+                    expect($script.text()).toBe(contents.replace(/<\/script>/g, '<\\/script>'));
                 });
 
                 describe('if called again', function() {
@@ -63,7 +63,7 @@ describe('HTMLDocument(html)', function() {
                         expect($script.length).toBe(1);
                         expect($script.attr('type')).toBe(type);
                         expect($script.attr('data-src')).toBe(src);
-                        expect($script.text()).toBe(JSON.stringify(contents).replace(/<\//g, '<\\/'));
+                        expect($script.text()).toBe(JSON.stringify(contents).replace(/<\/script>/g, '<\\/script>'));
                         expect($script.prev()[0].tagName).toBe('script');
                     });
                 });
