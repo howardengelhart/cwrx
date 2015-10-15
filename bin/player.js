@@ -110,6 +110,15 @@ Player.__rebaseCSS__ = function __rebaseCSS__(css, base) {
     });
 };
 
+Player.__rebaseJS__ = function __rebaseJS__(js, base) {
+    // https://regex101.com/r/mG4oU4/2
+    var SOURCE_MAP_REGEX = (/(\/\/|\/\*)(#\s*sourceMappingURL\s*=\s*)([^\*\s]+)(.*)/g);
+
+    return js.replace(SOURCE_MAP_REGEX, function(_, opener, directive, url, closer) {
+        return opener + directive + resolveURL(base, url) + closer;
+    });
+};
+
 Player.prototype.__getExperience__ = function __getExperience__(id, params, origin, uuid) {
     var log = logger.getLog();
     var config = this.config;
@@ -156,6 +165,7 @@ Player.prototype.__getPlayer__ = function __getPlayer__(mode, uuid) {
     var config = this.config;
     var playerLocation = resolveURL(config.api.root, config.api.player.endpoint);
     var rebaseCSS = Player.__rebaseCSS__;
+    var rebaseJS = Player.__rebaseJS__;
 
     var sameHostAsPlayer = (function() {
         var playerHost = parseURL(playerLocation).host;
@@ -213,15 +223,21 @@ Player.prototype.__getPlayer__ = function __getPlayer__(mode, uuid) {
     }).spread(function createDocument($, base, scripts, stylesheets) {
         scripts.forEach(function(script) {
             var $inlineScript = $('<script></script>');
-            $inlineScript.attr('data-src', script.url);
-            $inlineScript.text(script.text.replace(/<\//g, '<\\/'));
+            var url = script.url;
+            var text = script.text;
+
+            $inlineScript.attr('data-src', url);
+            $inlineScript.text(rebaseJS(text, url).replace(/<\/script>/g, '<\\/script>'));
 
             script.$node.replaceWith($inlineScript);
         });
         stylesheets.forEach(function(stylesheet) {
             var $inlineStyles = $('<style></style>');
-            $inlineStyles.attr('data-href', stylesheet.url);
-            $inlineStyles.text(rebaseCSS(stylesheet.text, stylesheet.url));
+            var url = stylesheet.url;
+            var text = stylesheet.text;
+
+            $inlineStyles.attr('data-href', url);
+            $inlineStyles.text(rebaseCSS(text, url));
 
             stylesheet.$node.replaceWith($inlineStyles);
         });
