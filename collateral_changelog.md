@@ -1,6 +1,8 @@
 # Collateral Service Changelog
 
+### 2.0.4: Thu Oct 15 13:24:56 EDT 2015
 * [FIX]: Stop logging cookie header: [#539](https://github.com/cinema6/cwrx/issues/539)
+* Extra deployment steps: None
 
 ### 2.0.3: Wed Sep 30 12:39:01 EDT 2015
 * [FIX]: Solve issue with some https images not rendering properly in phantom: [#517](https://github.com/cinema6/cwrx/pull/517)
