@@ -1877,7 +1877,7 @@ describe('userSvc users (E2E):', function() {
                     var confirmOptions = { url: config.usersUrl + '/confirm/' + userId, json: { token: token } };
                     requestUtils.qRequest('post', confirmOptions)
                         .then(function(resp) {
-                            user = resp;
+                            user = resp.body;
                             expect(resp.response.statusCode).toBe(200);
 
                             mailman.once(msgSubject, function(msg) {

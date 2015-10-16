@@ -68,7 +68,6 @@ module.exports = function(grunt) {
             grunt.log.writeln('Ensuring the existance of the sixxy system user');
             var args = ['./scripts/sixxyUser.js'];
             var dbHost = grunt.option('dbHost');
-            console.log('dbHost = ' + dbHost); //TODO
             if(dbHost) {
                 args = args.concat(['--dbHost', dbHost]);
             }
