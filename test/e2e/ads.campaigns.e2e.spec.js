@@ -602,8 +602,8 @@ describe('ads campaigns endpoints (E2E):', function() {
                     {id: 'e2e-e-2', startDate: start.toISOString(), endDate: end.toISOString() }
                 ],
                 cards: [
-                    {id: 'e2e-rc-1', startDate: start.toISOString() },
-                    {id: 'e2e-rc-2', name: 'card 2', reportingId: 'card 2 reportId' }
+                    { id: 'e2e-rc-1', startDate: start.toISOString(), name: null, reportingId: null },
+                    { id: 'e2e-rc-2', name: 'card 2', reportingId: 'card 2 reportId' }
                 ],
                 miniReelGroups: [{cards: ['e2e-rc-1'], miniReels: ['e2e-e-1', 'e2e-e-2']}],
                 staticCardMap: {

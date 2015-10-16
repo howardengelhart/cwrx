@@ -94,6 +94,9 @@ function setupCampaignSvcFieldVal(policy) {
     };
 
     policy.fieldValidation.campaigns = {
+		application: {
+			__allowed: true
+		},
         advertiserId: {
             __allowed: true
         },
@@ -103,9 +106,25 @@ function setupCampaignSvcFieldVal(policy) {
         staticCardMap: {
             __allowed: true
         },
+		pricing: {
+			budget: {
+				__min: 0,
+				__max: 9999999999
+			},
+			dailyLimit: {
+				__percentMin: 0,
+				__percentMax: 1
+			},
+			model: {
+				__allowed: true
+			},
+			cost: {
+				__allowed: true
+			}
+		},
         cards: {
-            __length: 10,
-            __createOnly: false,
+            __length: 100,
+            __unchangeable: false,
             __entries: sponsoredCampVal
         },
         miniReels: {

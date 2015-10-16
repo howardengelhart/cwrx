@@ -389,6 +389,12 @@ describe('Model', function() {
                 expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({});
             });
+            
+            it('should pass if the value is set to null on newObj', function() {
+                newObj.doggieFriends = null;
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
+                expect(newObj).toEqual({});
+            });
         });
         
         describe('if a field has limit props specified', function() {
