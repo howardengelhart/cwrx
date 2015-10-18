@@ -2451,10 +2451,15 @@ describe('userSvc (UT)', function() {
             };
             req = {
                 user: { id: 'u-19fa31cb1a8e0f' },
-                params: { id: 'u-fbe05a74517c06' }
+                params: { id: 'u-fbe05a74517c06' },
+                session: {
+                    user: 'u-19fa31cb1a8e0f'
+                }
             };
             sessions = {
-                remove: jasmine.createSpy('sessions.remove()')
+                remove: jasmine.createSpy('sessions.remove()').and.callFake(function(arg1, arg2, cb) {
+                    cb(null, 1);
+                })
             };
 
             result = userModule.forceLogoutUser(svc, req, sessions);
@@ -2469,21 +2474,21 @@ describe('userSvc (UT)', function() {
             var callback;
             var success, failure;
 
-            beforeEach(function(done) {
+            beforeEach(function() {
                 callback = svc.customMethod.calls.mostRecent().args[2];
                 success = jasmine.createSpy('success()');
                 failure = jasmine.createSpy('failure()');
-
-                callback().then(success, failure);
-                q().then(done);
             });
 
-            it('should remove the user\'s sessions', function() {
-                expect(sessions.remove).toHaveBeenCalledWith(
-                    { 'session.user': req.params.id },
-                    { w: 1, journal: true },
-                    jasmine.any(Function)
-                );
+            it('should remove the user\'s sessions', function(done) {
+                callback().done(function() {
+                    expect(sessions.remove).toHaveBeenCalledWith(
+                        { 'session.user': req.params.id },
+                        { w: 1, journal: true },
+                        jasmine.any(Function)
+                    );
+                    done();
+                });
             });
 
             describe('if the remove fails', function() {
@@ -2491,11 +2496,11 @@ describe('userSvc (UT)', function() {
                 var error;
 
                 beforeEach(function(done) {
-                    removeCallback = sessions.remove.calls.mostRecent().args[2];
                     error = new Error('I suck.');
-
-                    removeCallback(error);
-                    q().then(function() {}).then(function() {}).then(done);
+                    sessions.remove.and.callFake(function(arg1, arg2, cb) {
+                        cb(error, null);
+                    });
+                    callback().then(success, failure).done(done);
                 });
 
                 it('should log an error', function() {
@@ -2511,10 +2516,7 @@ describe('userSvc (UT)', function() {
                 var removeCallback;
 
                 beforeEach(function(done) {
-                    removeCallback = sessions.remove.calls.mostRecent().args[2];
-
-                    removeCallback(null);
-                    q().then(function() {}).then(function() {}).then(done);
+                    callback().then(success, failure).done(done);
                 });
 
                 it('should not log an error', function() {
@@ -2523,6 +2525,25 @@ describe('userSvc (UT)', function() {
 
                 it('should fulfill the promise', function() {
                     expect(success).toHaveBeenCalledWith({ code: 204 });
+                });
+            });
+            
+            describe('when logging own oneself', function() {
+                beforeEach(function(done) {
+                    req.params.id = 'u-19fa31cb1a8e0f';
+                    callback().then(success, failure).done(done);
+                });
+                
+                it('should not log an error', function() {
+                    expect(mockLog.log).not.toHaveBeenCalled();
+                });
+                
+                it('should fulfill the promise', function() {
+                    expect(success).toHaveBeenCalledWith({ code: 204 });
+                });
+                
+                it('should delete the session object off of the request', function() {
+                    expect(req.session).not.toBeDefined();
                 });
             });
         });

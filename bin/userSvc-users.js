@@ -673,7 +673,11 @@
             return q.npost(sessions, 'remove', [{ 'session.user': id }, { w: 1, journal: true }])
                 .then(function succeed(count) {
                     log.info('[%1] Successfully deleted %2 session docs', req.uuid, count);
-
+                    if(id === req.session.user) {
+                        log.info('[%1] Admin %2 is deleting their own login sessions.',
+                            req.uuid, id);
+                        delete req.session;
+                    }
                     return { code: 204 };
                 })
                 .catch(function fail(reason) {
