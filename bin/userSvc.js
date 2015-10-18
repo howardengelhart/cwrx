@@ -32,7 +32,7 @@
         },
         sessions: {
             key: 'c6Auth',
-            maxAge: 14*24*60*60*1000,   // 14 days; unit here is milliseconds
+            maxAge: 30*60*1000,         // 30 minutes; unit here is milliseconds
             minAge: 60*1000,            // TTL for cookies for unauthenticated users
             secure: false,              // true == HTTPS-only; set to true for staging/production
             mongo: {
