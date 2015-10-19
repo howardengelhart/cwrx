@@ -665,6 +665,22 @@ describe('ads-campaigns (UT)', function() {
             });
         });
         
+        it('should skip handling dailyLimit if no budget is set yet', function(done) {
+            req.body.pricing = {};
+            req.origObj = { pricing: { model: 'cpm' } };
+
+            campModule.validatePricing(svc, req, nextSpy, doneSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(req.body.pricing).toEqual({
+                    model: 'cpm',
+                    cost: 0.1
+                });
+                done();
+            });
+        });
+        
         it('should return a 400 if the user\'s dailyLimit is too high or too low', function(done) {
             q.all([1, 10000000].map(function(limit) {
                 var reqCopy = JSON.parse(JSON.stringify(req));

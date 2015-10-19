@@ -783,21 +783,6 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
-        
-        it('should return a 400 if pricing is set but not budget is provided', function(done) {
-            options.json = {
-                advertiserId: keptAdvert.id,
-                customerId: keptCust.id,
-                pricing: { dailyLimit: 200  }
-            };
-            requestUtils.qRequest('post', options, null, { maxAttempts: 30 })
-            .then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('Missing required field: pricing.budget');
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
 
         it('should return a 400 if the body is incomplete', function(done) {
             q.all([{advertiserId: 'fake'}, {customerId: 'fake'}].map(function(body) {
