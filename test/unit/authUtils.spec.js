@@ -815,10 +815,32 @@ describe('authUtils', function() {
                         path: '/:id'
                     },
                     session: {
-                        user: 'u-123'
+                        user: 'u-123',
+                        save: jasmine.createSpy('save()').and.callFake(function(cb) {
+                            cb(null);
+                        })
                     }
                 };
                 spyOn(authUtils, 'authUser').and.returnValue(q({ user: { id: 'u-123' } }));
+            });
+        
+            it('should resave the session for authorized users', function(done) {
+                var midWare = authUtils.middlewarify(perms);
+                midWare(req, res, next);
+                process.nextTick(function() {
+                    expect(req.session.save).toHaveBeenCalled();
+                    done();
+                });
+            });
+            
+            it('should not resave the session for unauthorized users', function(done) {
+                authUtils.authUser.and.returnValue(q('HE DON\'T BELONG HERE'));
+                var midWare = authUtils.middlewarify(perms);
+                midWare(req, res, next);
+                process.nextTick(function() {
+                    expect(req.session.save).not.toHaveBeenCalled();
+                    done();
+                });
             });
         
             it('should correctly wrap authUser', function(done) {
