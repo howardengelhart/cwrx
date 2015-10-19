@@ -1,6 +1,7 @@
 # User Service Changelog
 
-* Expire login sessions after 30 minutes [#487](https://github.com/cinema6/cwrx/issues/487)
+* Allow `null` to be set for validated fields: [#573](https://github.com/cinema6/cwrx/pull/573)
+* Expire login sessions after 30 minutes: [#487](https://github.com/cinema6/cwrx/issues/487)
 * Extra deployment steps:
     * Deploy new userSvc cookbook to staging/production envs
 
