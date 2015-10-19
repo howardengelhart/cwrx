@@ -94,6 +94,9 @@ function setupCampaignSvcFieldVal(policy) {
     };
 
     policy.fieldValidation.campaigns = {
+        application: {
+            __allowed: true
+        },
         advertiserId: {
             __allowed: true
         },
@@ -103,9 +106,25 @@ function setupCampaignSvcFieldVal(policy) {
         staticCardMap: {
             __allowed: true
         },
+        pricing: {
+            budget: {
+                __min: 0,
+                __max: 9999999999
+            },
+            dailyLimit: {
+                __percentMin: 0,
+                __percentMax: 1
+            },
+            model: {
+                __allowed: true
+            },
+            cost: {
+                __allowed: true
+            }
+        },
         cards: {
-            __length: 10,
-            __createOnly: false,
+            __length: 100,
+            __unchangeable: false,
             __entries: sponsoredCampVal
         },
         miniReels: {
@@ -182,7 +201,17 @@ mongoUtils.connect(program.dbHost, program.dbPort, 'c6Db', program.dbUser, progr
             email: program.email,
             password: hashPass,
             status: 'active',
-            policies: ['testFullAdmin']
+            policies: ['testFullAdmin'],
+            config: {
+                minireelinator : {
+                    minireelDefaults : {
+                        splash : {
+                            ratio : '6-5',
+                            theme : 'img-only'
+                        }
+                    }
+                }
+            }
         };
         
         return q.npost(userColl, 'findAndModify', [{ id: program.id}, {id: 1}, mongoUtils.escapeKeys(newUser),
@@ -192,10 +221,13 @@ mongoUtils.connect(program.dbHost, program.dbPort, 'c6Db', program.dbUser, progr
         console.log('Successfully created/updated user', program.id);
     });
 })
-.catch(function(error) {
-    console.log('Got an error: ');
-    console.log(error);
-})
-.finally(function() {
+.then(function() {
     db && db.close();
+    process.exit(0);
+})
+.catch(function(error) {
+    console.error('Got an error: ');
+    console.error(error);
+    db && db.close();
+    process.exit(1);
 });

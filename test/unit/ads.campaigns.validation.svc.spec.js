@@ -153,20 +153,6 @@ describe('campaign validation', function() {
                 expect(newObj.pricing.budget).toEqual(1000);
             });
 
-            it('should fail if the field is not defined', function() {
-                delete newObj.pricing.budget;
-                expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: false, reason: 'Missing required field: pricing.budget' });
-            });
-            
-            it('should pass if the field was defined on the original object', function() {
-                delete newObj.pricing.budget;
-                origObj.pricing = { budget: 500 };
-                expect(svc.model.validate('edit', newObj, origObj, requester))
-                    .toEqual({ isValid: true, reason: undefined });
-                expect(newObj.pricing.budget).toEqual(500);
-            });
-
             it('should fail if the field does not fit the bounds', function() {
                 newObj.pricing.budget = 1000000000000000000000000000000000000000;
                 var resp = svc.model.validate('edit', newObj, origObj, requester);

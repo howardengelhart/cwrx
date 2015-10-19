@@ -83,7 +83,6 @@
         pricing: {
             budget: {
                 __allowed: true,
-                __required: true,
                 __type: 'number',
                 __min: 50,
                 __max: 20000
@@ -420,6 +419,11 @@
         
         // copy over any missing props from original pricing
         objUtils.extend(req.body.pricing, origPricing);
+        
+        // don't validate dailyLimit if no budget set
+        if (req.body.pricing.budget === undefined || req.body.pricing.budget === null) {
+            return next();
+        }
         
         // validate dailyLimit:
         var limitMin = actingSchema.pricing.dailyLimit.__percentMin,

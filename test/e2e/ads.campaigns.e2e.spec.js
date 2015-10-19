@@ -602,8 +602,8 @@ describe('ads campaigns endpoints (E2E):', function() {
                     {id: 'e2e-e-2', startDate: start.toISOString(), endDate: end.toISOString() }
                 ],
                 cards: [
-                    {id: 'e2e-rc-1', startDate: start.toISOString() },
-                    {id: 'e2e-rc-2', name: 'card 2', reportingId: 'card 2 reportId' }
+                    { id: 'e2e-rc-1', startDate: start.toISOString(), name: null, reportingId: null },
+                    { id: 'e2e-rc-2', name: 'card 2', reportingId: 'card 2 reportId' }
                 ],
                 miniReelGroups: [{cards: ['e2e-rc-1'], miniReels: ['e2e-e-1', 'e2e-e-2']}],
                 staticCardMap: {
@@ -779,21 +779,6 @@ describe('ads campaigns endpoints (E2E):', function() {
                         cost: 0.1234
                     }
                 }]);
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should return a 400 if pricing is set but not budget is provided', function(done) {
-            options.json = {
-                advertiserId: keptAdvert.id,
-                customerId: keptCust.id,
-                pricing: { dailyLimit: 200  }
-            };
-            requestUtils.qRequest('post', options, null, { maxAttempts: 30 })
-            .then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('Missing required field: pricing.budget');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
