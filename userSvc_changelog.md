@@ -1,5 +1,9 @@
 # User Service Changelog
 
+* Expire login sessions after 30 minutes [#487](https://github.com/cinema6/cwrx/issues/487)
+* Extra deployment steps:
+    * Deploy new userSvc cookbook to staging/production envs
+
 ### 2.1.1: Wed Oct 14 18:47:35 EDT 2015
 * [FIX]: Fix for an issue that prevented cookie being returned for internal endpoint in staging: [#566](https://github.com/cinema6/cwrx/pull/566)
 * [FIX]: Fix for an issue that prevented newly signed up users from receiving roles and policies: [#564](https://github.com/cinema6/cwrx/pull/564)
