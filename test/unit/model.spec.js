@@ -323,6 +323,12 @@ describe('Model', function() {
                 expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({});
             });
+            
+            it('should trim the field off if set to null on newObj', function() {
+                newObj.name = null;
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
+                expect(newObj).toEqual({});
+            });
         });
         
         describe('if a field can only be set once', function() {
@@ -348,6 +354,13 @@ describe('Model', function() {
             it('should pass if the field is not set on newObj', function() {
                 expect(model.validate('edit', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({});
+            });
+
+            it('should trim the field off if set to null on newObj', function() {
+                newObj.name = null;
+                origObj.name = 'scruffles';
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
+                expect(newObj).toEqual({ name: 'scruffles' });
             });
         });
         
