@@ -1,5 +1,7 @@
 # Org Service Changelog
 
+* Allow `null` to be set for validated fields: [#573](https://github.com/cinema6/cwrx/pull/573)
+
 ### 1.4.1: Thu Oct 15 13:24:56 EDT 2015
 * [FIX]: Stop logging cookie header: [#539](https://github.com/cinema6/cwrx/issues/539)
 * [FIX]: Setting `ids` org filter param to `''` returns no orgs: [#524](https://github.com/cinema6/cwrx/issues/524)

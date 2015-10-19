@@ -264,6 +264,17 @@ describe('Model', function() {
                     reason: 'Missing required field: name' });
             });
             
+            it('should fail if the field is null on newObj and/or origObj', function() {
+                newObj.name = null;
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: false,
+                    reason: 'Missing required field: name' });
+
+                newObj.name = null;
+                origObj.name = null;
+                expect(model.validate('edit', newObj, origObj, requester)).toEqual({ isValid: false,
+                    reason: 'Missing required field: name' });
+            });
+            
             it('should pass if the field is present on the newObj', function() {
                 newObj.name = 'scruffles';
                 expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
@@ -393,7 +404,7 @@ describe('Model', function() {
             it('should pass if the value is set to null on newObj', function() {
                 newObj.doggieFriends = null;
                 expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
-                expect(newObj).toEqual({});
+                expect(newObj).toEqual({ doggieFriends: null });
             });
         });
         
@@ -419,6 +430,12 @@ describe('Model', function() {
             it('should pass if the value is not set on newObj', function() {
                 expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
                 expect(newObj).toEqual({});
+            });
+
+            it('should pass if the value is set to null on newObj', function() {
+                newObj.paws = null;
+                expect(model.validate('create', newObj, origObj, requester)).toEqual({ isValid: true, reason: undefined });
+                expect(newObj).toEqual({ paws: null });
             });
         });
         

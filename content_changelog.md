@@ -1,6 +1,8 @@
 # Content Service Changelog
 
-### 2.2.0: Wed Oct 14 18:47:35 EDT 2015
+* Allow `null` to be set for validated fields: [#573](https://github.com/cinema6/cwrx/pull/573)
+
+### 2.2.0: Wed Oct 14 18:47:35 EDT 20151
 * support querying cards by `ids`: [#558](https://github.com/cinema6/cwrx/issues/558)
 * [FIX]: Stop logging cookie header: [#539](https://github.com/cinema6/cwrx/issues/539)
 * `name` is no longer required to be defined or unique for categories: [#523](https://github.com/cinema6/cwrx/issues/523)
