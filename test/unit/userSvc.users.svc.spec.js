@@ -1,7 +1,7 @@
 var flush = true;
 describe('userSvc (UT)', function() {
     var userModule, q, bcrypt, mockLog, uuid, logger, CrudSvc, Model, mongoUtils, email,
-        objUtils, req, userSvc, mockDb, nextSpy, doneSpy, errorSpy;
+        objUtils, req, userSvc, mockDb, nextSpy, doneSpy, errorSpy, mockCache;
 
     var enums = require('../../lib/enums'),
         Status = enums.Status,
@@ -22,6 +22,7 @@ describe('userSvc (UT)', function() {
         objUtils        = require('../../lib/objUtils');
         email           = require('../../lib/email');
         uuid            = require('../../lib/uuid');
+        CacheMutex      = require('../../lib/cacheMutex.js');
         requestUtils    = require('../../lib/requestUtils.js');
 
         mockLog = {
@@ -121,7 +122,11 @@ describe('userSvc (UT)', function() {
                 });
             });
 
-            result = userModule.setupSvc(mockDb, mockConfig, 'cookie');
+            mockCache = {
+                
+            };
+
+            result = userModule.setupSvc(mockDb, mockConfig, mockCache);
         });
 
         it('should return a CrudSvc', function() {
@@ -240,8 +245,8 @@ describe('userSvc (UT)', function() {
         });
 
         it('should give linked entities on user confirm', function() {
-            expect(userModule.createLinkedEntities.bind).toHaveBeenCalledWith(userModule, mockConfig.api, 3500);
-            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.createLinkedEntities, [userModule, mockConfig.api, 3500]));
+            expect(userModule.createLinkedEntities.bind).toHaveBeenCalledWith(userModule, mockConfig.api, 3500, mockCache);
+            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.createLinkedEntities, [userModule, mockConfig.api, 3500, mockCache]));
         });
 
         it('should send confirmation email on user confirm', function() {
@@ -549,7 +554,7 @@ describe('userSvc (UT)', function() {
     });
 
     describe('createLinkedEntities()', function() {
-        var api, req, nextSpy;
+        var api, req, nextSpy, doneSpy;
 
         beforeEach(function() {
             spyOn(requestUtils, 'qRequest');
@@ -566,7 +571,10 @@ describe('userSvc (UT)', function() {
                     endpoint: '/api/account/advertisers'
                 }
             };
+            spyOn(CacheMutex.prototype, 'acquire').and.returnValue(q(false));
+            spyOn(CacheMutex.prototype, 'release').and.returnValue(q());
             nextSpy = jasmine.createSpy('nextSpy()').and.returnValue(q());
+            doneSpy = jasmine.createSpy('doneSpy()').and.returnValue(q());
             req = {
                 user: {
                     id: 'u-12345',
@@ -576,7 +584,7 @@ describe('userSvc (UT)', function() {
         });
 
         describe('when requests succeed', function() {
-            beforeEach(function(done) {
+            beforeEach(function() {
                 requestUtils.qRequest.and.callFake(function(method, opts) {
                     var object = opts.url.match(/orgs|customers|advertisers/)[0];
                     return q({
@@ -588,58 +596,99 @@ describe('userSvc (UT)', function() {
                         }
                     });
                 });
-                userModule.createLinkedEntities(api, 3500, req, nextSpy).done(done);
             });
 
-            it('should get the sixxy user session', function() {
-                expect(userModule.getSixxySession).toHaveBeenCalledWith(req, 3500);
-            });
+            describe('the cache mutex', function() {
+                beforeEach(function(done) {
+                    spyOn(CacheMutex.prototype, '_init');
+                    userModule.createLinkedEntities(api, 3500, mockCache, req, nextSpy, doneSpy).done(done);
+                });
+                
+                it('should be created', function() {
+                    expect(CacheMutex.prototype._init).toHaveBeenCalledWith(mockCache, 'confirmUser:u-12345', 60000);
+                });
 
-            it('should send a request to create an org', function() {
-                expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
-                    url: 'http://localhost/api/account/orgs',
-                    json: {
-                        name: 'some company (u-12345)'
-                    },
-                    headers: {
-                        cookie: 'sixxy cookie'
-                    }
+                it('should attempt to aquire the mutex lock', function() {
+                    expect(CacheMutex.prototype.acquire).toHaveBeenCalled();
                 });
             });
 
-            it('should send a request to create a customer', function() {
-                expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
-                    url: 'http://localhost/api/account/customers',
-                    json: {
-                        name: 'some company (u-12345)',
-                        advertisers: ['advertisers-id-123']
-                    },
-                    headers: {
-                        cookie: 'sixxy cookie'
-                    }
+            describe('when the mutex lock is able to be acquired', function() {
+                beforeEach(function(done) {
+                    CacheMutex.prototype.acquire.and.returnValue(q(false));
+                    userModule.createLinkedEntities(api, 3500, mockCache, req, nextSpy, doneSpy).done(done);
+                });
+                
+                it('should get the sixxy user session', function() {
+                    expect(userModule.getSixxySession).toHaveBeenCalledWith(req, 3500);
+                });
+
+                it('should send a request to create an org', function() {
+                    expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
+                        url: 'http://localhost/api/account/orgs',
+                        json: {
+                            name: 'some company (u-12345)'
+                        },
+                        headers: {
+                            cookie: 'sixxy cookie'
+                        }
+                    });
+                });
+
+                it('should send a request to create a customer', function() {
+                    expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
+                        url: 'http://localhost/api/account/customers',
+                        json: {
+                            name: 'some company (u-12345)',
+                            advertisers: ['advertisers-id-123']
+                        },
+                        headers: {
+                            cookie: 'sixxy cookie'
+                        }
+                    });
+                });
+
+                it('should send a request to create an advertiser', function() {
+                    expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
+                        url: 'http://localhost/api/account/advertisers',
+                        json: {
+                            name: 'some company (u-12345)'
+                        },
+                        headers: {
+                            cookie: 'sixxy cookie'
+                        }
+                    });
+                });
+
+                it('should set company properties on request', function() {
+                    expect(req.user.org).toBe('orgs-id-123');
+                    expect(req.user.customer).toBe('customers-id-123');
+                    expect(req.user.advertiser).toBe('advertisers-id-123');
+                });
+
+                it('should release the mutex lock', function() {
+                    expect(CacheMutex.prototype.release).toHaveBeenCalled();
+                });
+
+                it('should call next', function() {
+                    expect(nextSpy).toHaveBeenCalled();
                 });
             });
 
-            it('should send a request to create an advertiser', function() {
-                expect(requestUtils.qRequest).toHaveBeenCalledWith('post', {
-                    url: 'http://localhost/api/account/advertisers',
-                    json: {
-                        name: 'some company (u-12345)'
-                    },
-                    headers: {
-                        cookie: 'sixxy cookie'
-                    }
+            describe('when the mutex lock is unable to be required', function() {
+                beforeEach(function(done) {
+                    CacheMutex.prototype.acquire.and.returnValue(q(true));
+                    userModule.createLinkedEntities(api, 3500, mockCache, req, nextSpy, doneSpy).done(done);
                 });
-            });
+                
+                it('should not release the mutex lock', function() {
+                    expect(CacheMutex.prototype.release).not.toHaveBeenCalled();
+                });
 
-            it('should set company properties on request', function() {
-                expect(req.user.org).toBe('orgs-id-123');
-                expect(req.user.customer).toBe('customers-id-123');
-                expect(req.user.advertiser).toBe('advertisers-id-123');
-            });
-
-            it('should call next', function() {
-                expect(nextSpy).toHaveBeenCalled();
+                it('should call done', function() {
+                    expect(nextSpy).not.toHaveBeenCalled();
+                    expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Another operation is already in progress' });
+                });
             });
         });
 
@@ -666,7 +715,7 @@ describe('userSvc (UT)', function() {
                     describe(entity, function() {
                         beforeEach(function(done) {
                             failRequestsFor(entity, true)
-                            userModule.createLinkedEntities(api, 3500, req, nextSpy).done(done);
+                            userModule.createLinkedEntities(api, 3500, mockCache, req, nextSpy).done(done);
                         });
                         
                         it('should log an error with the rejection reason', function() {
@@ -675,6 +724,19 @@ describe('userSvc (UT)', function() {
                             expect(mockLog.error).toHaveBeenCalled();
                             expect(errorMessage).toContain('rejected');
                         });
+                        
+                        it('should release the mutex', function() {
+                            expect(CacheMutex.prototype.release).toHaveBeenCalled();
+                        });
+                        
+                        it('should set the user to have a status of Error', function() {
+                            expect(req.user.status).toBe('error');
+                        });
+                        
+                        it('should call next', function() {
+                            expect(nextSpy).toHaveBeenCalled();
+                            expect(doneSpy).not.toHaveBeenCalled();
+                        });
                     });
                 });
             });
@@ -682,7 +744,7 @@ describe('userSvc (UT)', function() {
             describe('when an org fails to be created', function() {
                 beforeEach(function(done) {
                     failRequestsFor('orgs');
-                    userModule.createLinkedEntities(api, 3500, req, nextSpy).done(done);
+                    userModule.createLinkedEntities(api, 3500, mockCache, req, nextSpy).done(done);
                 });
 
                 it('should still create other entities', function() {
@@ -714,13 +776,18 @@ describe('userSvc (UT)', function() {
 
                 it('should call next', function() {
                     expect(nextSpy).toHaveBeenCalled();
+                    expect(doneSpy).not.toHaveBeenCalled();
+                });
+                
+                it('should release the mutex', function() {
+                    expect(CacheMutex.prototype.release).toHaveBeenCalled();
                 });
             });
             
             describe('when an advertiser fails to be created', function() {
                 beforeEach(function(done) {
                     failRequestsFor('advertisers');
-                    userModule.createLinkedEntities(api, 3500, req, nextSpy).done(done);
+                    userModule.createLinkedEntities(api, 3500, mockCache, req, nextSpy).done(done);
                 });
 
                 it('should still create an org', function() {
@@ -752,13 +819,18 @@ describe('userSvc (UT)', function() {
 
                 it('should call next', function() {
                     expect(nextSpy).toHaveBeenCalled();
+                    expect(doneSpy).not.toHaveBeenCalled();
+                });
+                
+                it('should release the mutex', function() {
+                    expect(CacheMutex.prototype.release).toHaveBeenCalled();
                 });
             });
             
             describe('when a customer fails to be created', function() {
                 beforeEach(function(done) {
                     failRequestsFor('customers');
-                    userModule.createLinkedEntities(api, 3500, req, nextSpy).done(done);
+                    userModule.createLinkedEntities(api, 3500, mockCache, req, nextSpy).done(done);
                 });
 
                 it('should still create other entities', function() {
@@ -790,6 +862,11 @@ describe('userSvc (UT)', function() {
 
                 it('should call next', function() {
                     expect(nextSpy).toHaveBeenCalled();
+                    expect(doneSpy).not.toHaveBeenCalled();
+                });
+                
+                it('should release the mutex', function() {
+                    expect(CacheMutex.prototype.release).toHaveBeenCalled();
                 });
             });
         });

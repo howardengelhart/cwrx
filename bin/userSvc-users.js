@@ -16,6 +16,7 @@
         CrudSvc         = require('../lib/crudSvc.js'),
         email           = require('../lib/email'),
         enums           = require('../lib/enums'),
+        CacheMutex      = require('../lib/cacheMutex.js'),
         Status          = enums.Status,
         Scope           = enums.Scope,
 
@@ -83,7 +84,7 @@
         }, object);
     }
 
-    userModule.setupSvc = function setupSvc(db, config) {
+    userModule.setupSvc = function setupSvc(db, config, cache) {
         var opts = { userProp: false },
             userSvc = new CrudSvc(db.collection('users'), 'u', opts, userModule.userSchema);
 
@@ -112,7 +113,7 @@
         var validatePassword = userModule.validatePassword;
         var checkValidToken = userModule.checkValidToken.bind(userModule, userSvc);
         var createLinkedEntities = userModule.createLinkedEntities.bind(userModule, config.api,
-            config.port);
+            config.port, cache);
         var sendConfirmationEmail = userModule.sendConfirmationEmail.bind(userModule,
             config.ses.sender);
         var handleBrokenUser = userModule.handleBrokenUser.bind(userModule, userSvc);
@@ -193,11 +194,12 @@
             });
     };
 
-    userModule.createLinkedEntities = function(api, port, req, next) {
+    userModule.createLinkedEntities = function(api, port, cache, req, next, done) {
         var log = logger.getLog(),
             company = req.user.company || null,
             id = req.user.id,
-            sixxyCookie = null;
+            sixxyCookie = null,
+            mutex = new CacheMutex(cache, 'confirmUser:' + id, 60 * 1000);
 
         function createCustomer(advertiserId) {
             var name = (company ? company : 'newCustomer') + ' (' + id + ')';
@@ -217,54 +219,73 @@
             });
         }
 
-        return userModule.getSixxySession(req, port)
-            .then(function(cookie) {
-                sixxyCookie = cookie;
-                log.info('[%1] Got cookie for sixxy user', req.uuid);
-
-                var orgName = (company ? company : 'newOrg') + ' (' + id + ')';
-                var adName = (company ? company : 'newAdvertiser') + ' (' + id + ')';
-
-                var orgOpts = { url: url.resolve(api.root, api.orgs.endpoint),
-                    json: { name: orgName }, headers: { cookie: sixxyCookie } };
-                var adOpts = { url: url.resolve(api.root, api.advertisers.endpoint),
-                    json: { name: adName }, headers: { cookie: sixxyCookie } };
-
-                var createOrg = requestUtils.qRequest('post', orgOpts);
-                var createAdvertiser = requestUtils.qRequest('post', adOpts);
-
-                return q.allSettled([createOrg, createAdvertiser]);
-            })
-            .spread(function(orgResult, adResult) {
-                // Handle orgResult
-                var orgState = orgResult.state;
-                var orgResp = orgResult.value;
-                if(orgState === 'fulfilled' && orgResp.response.statusCode === 201) {
-                    req.user.org = orgResp.body.id;
-                    log.info('[%1] Created org %2 for user %3', req.uuid, orgResp.body.id, id);
-                } else {
-                    req.user.status = Status.Error;
-                    var orgErr = (orgState === 'rejected') ? orgResult.reason :
-                        orgResp.response.statusCode + ', ' + orgResp.body;
-                    log.error('[%1] Error creating org for user %2: %3', req.uuid, id, orgErr);
+        return mutex.acquire()
+            .then(function(locked) {
+                if(locked) {
+                    log.info('[%1] Another confirm operation is already in progress for user %3',
+                        req.uuid, id);
+                    return done({ code: 400, body: 'Another operation is already in progress'});
                 }
-                // Handle adResult
-                var adState = adResult.state;
-                var adResp = adResult.value;
-                if(adState === 'fulfilled' && adResp.response.statusCode === 201) {
-                    var advertiserId = adResp.body.id;
-                    req.user.advertiser = advertiserId;
-                    log.info('[%1] Created advertiser %2 for user %3', req.uuid, adResp.body.id,
-                        id);
-                    return createCustomer(advertiserId).finally(next);
-                } else {
-                    req.user.status = Status.Error;
-                    var adErr = (adState === 'rejected') ? adResult.reason :
-                        adResp.response.statusCode + ', ' + adResp.body;
-                    log.error('[%1] Error creating advertiser for user %2: %3', req.uuid, id,
-                        adErr);
-                }
-                return next();
+                return userModule.getSixxySession(req, port)
+                    .then(function(cookie) {
+                        sixxyCookie = cookie;
+                        log.info('[%1] Got cookie for sixxy user', req.uuid);
+
+                        var orgName = (company ? company : 'newOrg') + ' (' + id + ')';
+                        var adName = (company ? company : 'newAdvertiser') + ' (' + id + ')';
+
+                        var orgOpts = { url: url.resolve(api.root, api.orgs.endpoint),
+                            json: { name: orgName }, headers: { cookie: sixxyCookie } };
+                        var adOpts = { url: url.resolve(api.root, api.advertisers.endpoint),
+                            json: { name: adName }, headers: { cookie: sixxyCookie } };
+
+                        var createOrg = requestUtils.qRequest('post', orgOpts);
+                        var createAdvertiser = requestUtils.qRequest('post', adOpts);
+
+                        return q.allSettled([createOrg, createAdvertiser]);
+                    })
+                    .catch(function(error) {
+                        mutex.release();
+                        return q.reject(error);
+                    })
+                    .spread(function(orgResult, adResult) {
+                        // Handle orgResult
+                        var orgState = orgResult.state;
+                        var orgResp = orgResult.value;
+                        if(orgState === 'fulfilled' && orgResp.response.statusCode === 201) {
+                            req.user.org = orgResp.body.id;
+                            log.info('[%1] Created org %2 for user %3',
+                                req.uuid, orgResp.body.id, id);
+                        } else {
+                            req.user.status = Status.Error;
+                            var orgErr = (orgState === 'rejected') ? orgResult.reason :
+                                orgResp.response.statusCode + ', ' + orgResp.body;
+                            log.error('[%1] Error creating org for user %2: %3',
+                                req.uuid, id, orgErr);
+                        }
+                        // Handle adResult
+                        var adState = adResult.state;
+                        var adResp = adResult.value;
+                        if(adState === 'fulfilled' && adResp.response.statusCode === 201) {
+                            var advertiserId = adResp.body.id;
+                            req.user.advertiser = advertiserId;
+                            log.info('[%1] Created advertiser %2 for user %3',
+                                req.uuid, adResp.body.id, id);
+                            return createCustomer(advertiserId);
+                        } else {
+                            req.user.status = Status.Error;
+                            var adErr = (adState === 'rejected') ? adResult.reason :
+                                adResp.response.statusCode + ', ' + adResp.body;
+                            log.error('[%1] Error creating advertiser for user %2: %3',
+                                req.uuid, id, adErr);
+                        }
+                    })
+                    .then(function() {
+                        return mutex.release();
+                    })
+                    .then(function() {
+                        return next();
+                    });
             });
     };
 
