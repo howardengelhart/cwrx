@@ -91,6 +91,32 @@ describe('email', function() {
         });
     });
 
+    describe('notifyMultipleLoginAttempts', function() {
+        beforeEach(function() {
+            spyOn(email, 'compileAndSend').and.returnValue(q('success'));
+        });
+
+        it('should correctly call compileAndSend', function(done) {
+            email.notifyMultipleLoginAttempts('send', 'recip', 'link').then(function(resp) {
+                expect(resp).toBe('success');
+                expect(email.compileAndSend).toHaveBeenCalledWith('send', 'recip', 'Need help logging in?',
+                    'suggestPasswordReset.html', {contact: 'send', link: 'link'});
+            }).catch(function(error) {
+                expect(error,toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should pass along errors from compileAndSend', function(done) {
+            email.compileAndSend.and.returnValue(q.reject('error sending email'));
+            email.notifyMultipleLoginAttempts('send', 'recip', 'link').then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('error sending email');
+                expect(email.compileAndSend).toHaveBeenCalled();
+            }).done(done);
+        });
+    });
+
     describe('compileAndSend', function() {
         var compilerSpy, fakeTransport, sesTportSpy;
         beforeEach(function() {
