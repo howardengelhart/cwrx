@@ -3,6 +3,8 @@ var q               = require('q'),
     request         = require('request'),
     requestUtils    = require('../../lib/requestUtils'),
     enums           = require('../../lib/enums'),
+    cacheLib        = require('../../lib/cacheLib'),
+    cacheServer     = process.env.cacheServer || 'localhost:11211',
     Status          = enums.Status,
     host            = process.env.host || 'localhost',
     config = {
@@ -221,6 +223,96 @@ describe('auth (E2E):', function() {
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
                 done();
+            });
+        });
+        
+        it('should fail if given an invalid target', function(done) {
+            var options = {
+                url: config.authUrl + '/login',
+                json: {
+                    email: 'c6e2etester@gmail.com',
+                    password: 'password',
+                    target: 'INVALID'
+                }
+            };
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.response.body).toBe('Invalid target');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        describe('failed password attempts', function() {
+            var cacheConn;
+            
+            beforeEach(function(done) {
+                cacheConn = new cacheLib.Cache(cacheServer, { read: 5000, write: 5000 });
+                cacheConn.checkConnection().then(function() {
+                    return cacheConn.delete('loginAttempts:u-1');
+                }).done(done);
+            });
+            
+            afterEach(function(done) {
+                cacheConn.checkConnection().then(function() {
+                    return cacheConn.delete('loginAttempts:u-1');
+                }).then(function() {
+                    return cacheConn.close();
+                }).done(done);
+            });
+            
+            it('should email the holder of the account after 3 failed login attempts', function(done) {
+                var attemptLogin = function() {
+                    var options = {
+                        url: config.authUrl + '/login',
+                        json: {
+                            email: 'c6e2etester@gmail.com',
+                            password: 'notpassword',
+                            target: 'portal'
+                        }
+                    };
+                    return requestUtils.qRequest('post', options);
+                };
+                
+                var getCacheValue = function() {
+                    return cacheConn.checkConnection().then(function() {
+                        return cacheConn.get('loginAttempts:u-1');
+                    });
+                };
+                
+                attemptLogin().then(function() {
+                    return getCacheValue();
+                }).then(function(value) {
+                    expect(value).toBe(1);
+                    return attemptLogin();
+                }).then(function() {
+                    return getCacheValue();
+                }).then(function(value) {
+                    expect(value).toBe(2);
+                    return attemptLogin();
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                    done();
+                });
+
+                var msgSubject = 'Need help logging in?';
+                urlRegex = /https:\/\/.*cinema6.com.*/;
+                mailman.once(msgSubject, function(msg) {
+                    expect(msg.from[0].address).toBe('support@cinema6.com');
+                    expect(msg.to[0].address).toBe('c6e2etester@gmail.com');
+                    expect(msg.text).toMatch(urlRegex);
+                    expect(msg.html).toMatch(urlRegex);
+                    expect(new Date() - msg.date).toBeLessThan(30000); // message should be recent
+                    
+                    getCacheValue().then(function(value) {
+                        expect(value).toBe(3);
+                        return attemptLogin();
+                    }).then(function() {
+                        return getCacheValue();
+                    }).then(function(value) {
+                        expect(value).toBe(4);
+                    }).done(done);
+                });
             });
         });
     });

@@ -61,11 +61,30 @@
                 retryConnect : true
             }
         },
+        pubsub: {
+            cacheCfg: {
+                port: 21211,
+                isPublisher: false
+            }
+        },
+        cache: {
+            timeouts: {},
+            servers: null
+        },
         resetTokenTTL   : 1*30*60*1000, // 30 minutes; unit here is milliseconds
+        loginAttempts: {
+            ttl: 15*60*1000,            // 15 minutes; unit here is milliseconds
+            threshold: 3
+        },
+        passwordResetPages: {
+            portal: 'https://portal.cinema6.com/#/password/forgot',
+            default: 'https://portal.cinema6.com/#/password/forgot'
+        },
         secretsPath     : path.join(process.env.HOME,'.auth.secrets.json')
     };
 
-    auth.login = function(req, users, maxAge, auditJournal) {
+    auth.login = function(req, users, maxAge, auditJournal, cache, loginAttempts, emailSender,
+                          targets) {
         if (!req.body || typeof req.body.email !== 'string' ||
                          typeof req.body.password !== 'string') {
             return q({ code: 400, body: 'You need to provide an email and password in the body' });
@@ -74,6 +93,14 @@
             log = logger.getLog(),
             userAccount;
             
+        var targetName = req.body && req.body.target || 'default',
+            target = targets[targetName] || '';
+        if (!target) {
+            log.info('[%1] Invalid target %2, only accept %3',
+                     req.uuid, targetName, Object.keys(targets));
+            return q({code: 400, body: 'Invalid target'});
+        }
+
         req.body.email = req.body.email.toLowerCase();
 
         log.info('[%1] Starting login for user %2', req.uuid, req.body.email);
@@ -87,9 +114,25 @@
             return q.npost(bcrypt, 'compare', [req.body.password, userAccount.password])
             .then(function(matching) {
                 if (!matching) {
-                    log.info('[%1] Failed login for user %2: invalid password',
-                             req.uuid, req.body.email);
-                    return deferred.resolve({code: 401, body: 'Invalid email or password'});
+                    var cacheKey = 'loginAttempts:' + userAccount.id;
+                    return cache.add(cacheKey, 0, loginAttempts.ttl)
+                        .then(function() {
+                            return cache.incr(cacheKey);
+                        })
+                        .then(function(numAttempts) {
+                            log.info('[%1] Failed login attempt #%2 for user %3: invalid password',
+                                     req.uuid, numAttempts, req.body.email);
+                            if(numAttempts === loginAttempts.threshold) {
+                                log.info('[%1] Sending email to %2 suggesting password reset ' +
+                                    'after %3 failed login attempts',
+                                    req.uuid, req.body.email, numAttempts);
+                                return email.notifyMultipleLoginAttempts(emailSender,
+                                    req.body.email, target);
+                            }
+                        })
+                        .then(function() {
+                            return deferred.resolve({code: 401, body: 'Invalid email or password'});
+                        });
                 }
                 
                 if (account.status !== Status.Active && account.status !== Status.New) {
@@ -371,7 +414,9 @@
         app.use(bodyParser.json());
 
         app.post('/api/auth/login', sessionsWrapper, function(req, res) {
-            auth.login(req, users, state.config.sessions.maxAge, auditJournal)
+            auth.login(req, users, state.config.sessions.maxAge, auditJournal, state.cache,
+                state.config.loginAttempts, state.config.ses.sender,
+                state.config.passwordResetPages)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
@@ -464,6 +509,8 @@
         .then(service.cluster)
         .then(service.initMongo)
         .then(service.initSessionStore)
+        .then(service.initPubSubChannels)
+        .then(service.initCache)
         .then(auth.main)
         .catch(function(err) {
             var log = logger.getLog();
