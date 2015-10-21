@@ -484,6 +484,10 @@ Player.prototype.get = function get(/*options*/) {
                 .then(addTrackingPixels);
         })
     ]).spread(function inlineResources(document, experience) {
+        if (experience.data.deck.length < 1) {
+            throw new ServiceError('Experience {' + experience.id + '} has no cards.', 409);
+        }
+
         if (options.vpaid && experience.data.deck.length > 1) {
             throw new ServiceError('VPAID does not support MiniReels.', 400);
         }

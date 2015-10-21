@@ -973,6 +973,30 @@ describe('player service', function() {
                         });
                     });
 
+                    describe('if the experience has no cards', function() {
+                        beforeEach(function(done) {
+                            success.calls.reset();
+                            failure.calls.reset();
+                            player.__getExperience__.and.returnValue(q(experience));
+                            spyOn(player.adLoader, 'loadAds').and.callFake(function() {
+                                experience.data.deck.length = 0;
+
+                                return q(experience);
+                            });
+
+                            player.get(options).then(success, failure).finally(done);
+                        });
+
+                        it('should fail', function() {
+                            var error = failure.calls.mostRecent().args[0];
+                            expect(failure).toHaveBeenCalledWith(jasmine.any(Error));
+
+                            expect(error.constructor.name).toBe('ServiceError');
+                            expect(error.message).toBe('Experience {' + experience.id + '} has no cards.');
+                            expect(error.status).toBe(409);
+                        });
+                    });
+
                     describe('if called with no launchUrls', function() {
                         beforeEach(function(done) {
                             player.__getExperience__.and.returnValue(q(experience));
