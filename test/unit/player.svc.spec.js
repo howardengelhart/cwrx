@@ -987,6 +987,49 @@ describe('player service', function() {
                         });
                     });
 
+                    describe('if called with vpaid: true', function() {
+                        beforeEach(function() {
+                            options.vpaid = true;
+                        });
+
+                        describe('if the experience has only one card', function() {
+                            beforeEach(function(done) {
+                                success.calls.reset();
+                                failure.calls.reset();
+                                experience.data.deck.length = 1;
+                                player.__getExperience__.and.returnValue(q(experience));
+                                spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
+
+                                player.get(options).then(success, failure).finally(done);
+                            });
+
+                            it('should succeed', function() {
+                                expect(success).toHaveBeenCalledWith(document.toString());
+                            });
+                        });
+
+                        describe('if the experience has more than one card', function() {
+                            beforeEach(function(done) {
+                                success.calls.reset();
+                                failure.calls.reset();
+                                experience.data.deck.length = 2;
+                                player.__getExperience__.and.returnValue(q(experience));
+                                spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
+
+                                player.get(options).then(success, failure).finally(done);
+                            });
+
+                            it('should fail', function() {
+                                var error = failure.calls.mostRecent().args[0];
+                                expect(failure).toHaveBeenCalledWith(jasmine.any(Error));
+
+                                expect(error.constructor.name).toBe('ServiceError');
+                                expect(error.message).toBe('VPAID does not support MiniReels.');
+                                expect(error.status).toBe(400);
+                            });
+                        });
+                    });
+
                     describe('if called with preview: true', function() {
                         beforeEach(function(done) {
                             player.__getExperience__.and.returnValue(q(experience));
