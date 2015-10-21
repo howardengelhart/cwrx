@@ -88,7 +88,6 @@ describe('ads campaigns endpoints (E2E):', function() {
                             cost: { __allowed: true }
                         },
                         staticCardMap: { __allowed: true },
-                        miniReelGroups: { __allowed: true },
                         cards: {
                             __unchangeable: false,
                             __length: 10,
@@ -189,24 +188,6 @@ describe('ads campaigns endpoints (E2E):', function() {
         expect(camp.dateRangeList[0].endDate.toUTCString()).toBe(new Date(exp.endDate).toUTCString());
         expect(camp.priorityLevelOneKeywordIdList).toEqual([]);
         expect(camp.priorityLevelThreeKeywordIdList.sort()).toEqual(catKeys.sort());
-        expect(camp.priority).toBe(3);
-        expect(camp.advertiserId).toBe(keptAdvert.adtechId);
-        expect(camp.customerId).toBe(keptCust.adtechId);
-    }
-
-    // Helper method to validate a campaign for a target group
-    function checkTargetCampaign(camp, parentCamp, group, cardKeys) {
-        expect(camp).toBeDefined();
-        if (!camp) return;
-
-        expect(camp.extId).toBe(parentCamp.id);
-        expect(camp.exclusive).toBe(true);
-        expect(camp.exclusiveType).toBe(kCamp.EXCLUSIVE_TYPE_END_DATE);
-        expect(camp.name).toBe(group.name + ' (' + parentCamp.id + ')');
-        expect(camp.dateRangeList[0].startDate.toUTCString()).toBe(new Date(group.startDate).toUTCString());
-        expect(camp.dateRangeList[0].endDate.toUTCString()).toBe(new Date(group.endDate).toUTCString());
-        expect(camp.priorityLevelOneKeywordIdList.sort()).toEqual(cardKeys.sort());
-        expect(camp.priorityLevelThreeKeywordIdList).toEqual([]);
         expect(camp.priority).toBe(3);
         expect(camp.advertiserId).toBe(keptAdvert.adtechId);
         expect(camp.customerId).toBe(keptCust.adtechId);
@@ -605,7 +586,6 @@ describe('ads campaigns endpoints (E2E):', function() {
                     { id: 'e2e-rc-1', startDate: start.toISOString(), name: null, reportingId: null },
                     { id: 'e2e-rc-2', name: 'card 2', reportingId: 'card 2 reportId' }
                 ],
-                miniReelGroups: [{cards: ['e2e-rc-1'], miniReels: ['e2e-e-1', 'e2e-e-2']}],
                 staticCardMap: {
                     'e2e-fake': { 'rc-pl1': 'e2e-rc-1', 'rc-pl2': 'e2e-rc-2' }
                 }
@@ -654,13 +634,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                         adtechId: jasmine.any(Number), bannerId: jasmine.any(Number), bannerNumber: jasmine.any(Number)
                     }
                 ]);
-                expect(resp.body.miniReelGroups).toEqual([{
-                    adtechId: jasmine.any(Number), name: jasmine.any(String),
-                    startDate: jasmine.any(String), endDate: jasmine.any(String),
-                    cards: ['e2e-rc-1'], miniReels: ['e2e-e-1', 'e2e-e-2']
-                }]);
                 expect(resp.body.staticCardMap).toEqual({'e2e-fake':{'rc-pl1': 'e2e-rc-1', 'rc-pl2': 'e2e-rc-2'}});
-                expect(resp.body.miniReelGroups[0].name).toMatch(/group_\w+/);
                 expect(new Date(resp.body.created).toString()).not.toEqual('Invalid Date');
                 expect(resp.body.lastUpdated).toEqual(resp.body.created);
                 expect(resp.body.status).toBe('active');
@@ -697,21 +671,9 @@ describe('ads campaigns endpoints (E2E):', function() {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(function(results) { done(); });
             });
-            
-            it('should have a target group campaign or each entry miniReelGroups', function(done) {
-                adtech.campaignAdmin.getCampaignById(adminCreatedCamp.miniReelGroups[0].adtechId).catch(adtechErr)
-                .then(function(camp)  {
-                    checkTargetCampaign(camp, adminCreatedCamp, adminCreatedCamp.miniReelGroups[0], [keywords['e2e-rc-1']]);
-                    return testUtils.getCampaignBanners(camp.id);
-                }).then(function(banners) {
-                    testUtils.compareBanners(banners, adminCreatedCamp.miniReelGroups[0].miniReels, 'contentMiniReel');
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
-            });
         });
         
-        it('should be able to create a campaign without sponsored or target sub-campaigns', function(done) {
+        it('should be able to create a campaign without sponsored sub-campaigns', function(done) {
             options.json = { name: 'empty camp', targeting: { interests: ['cat-1', 'cat-2'] },
                              advertiserId: keptAdvert.id, customerId: keptCust.id };
             requestUtils.qRequest('post', options, null, { maxAttempts: 30 }).then(function(resp) {
@@ -723,7 +685,6 @@ describe('ads campaigns endpoints (E2E):', function() {
                 });
                 expect(resp.body.miniReels).not.toBeDefined();
                 expect(resp.body.cards).not.toBeDefined();
-                expect(resp.body.miniReelGroups).not.toBeDefined();
                 expect(resp.body.pricingHistory).not.toBeDefined();
                 expect(new Date(resp.body.created).toString()).not.toEqual('Invalid Date');
                 expect(resp.body.lastUpdated).toEqual(resp.body.created);
@@ -799,9 +760,10 @@ describe('ads campaigns endpoints (E2E):', function() {
         });
 
         it('should return a 400 if any of the lists are not distinct', function(done) {
-            q.all([ { cards: [{id: 'e2e-rc-1'}, {id: 'e2e-rc-1'}] }, { miniReels: [{id: 'e2e-e-1'}, {id: 'e2e-e-1'}] },
-                    { miniReelGroups: [{ cards: ['e2e-rc-1', 'e2e-rc-1'] }] },
-                    { miniReelGroups: [{ miniReels: ['e2e-e-1', 'e2e-e-1'] }] } ].map(function(obj) {
+            q.all([
+                { cards: [{id: 'e2e-rc-1'}, {id: 'e2e-rc-1'}] },
+                { miniReels: [{id: 'e2e-e-1'}, {id: 'e2e-e-1'}] }
+            ].map(function(obj) {
                 obj.advertiserId = keptAdvert.id;
                 obj.customerId = keptCust.id;
                 options.json = obj;
@@ -811,10 +773,6 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(results[0].body).toBe('cards must be distinct');
                 expect(results[1].response.statusCode).toBe(400);
                 expect(results[1].body).toBe('miniReels must be distinct');
-                expect(results[2].response.statusCode).toBe(400);
-                expect(results[2].body).toBe('miniReelGroups[0].cards must be distinct');
-                expect(results[3].response.statusCode).toBe(400);
-                expect(results[3].body).toBe('miniReelGroups[0].miniReels must be distinct');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -835,8 +793,8 @@ describe('ads campaigns endpoints (E2E):', function() {
             var mockCamps = [{}, {}, {}, {}].map(function() { return JSON.parse(JSON.stringify(mockCamp)); });
             mockCamps[0].miniReels[0].startDate = 'foo';
             mockCamps[1].cards[1].endDate = 'bar';
-            mockCamps[2].miniReelGroups[0].startDate = end;
-            mockCamps[2].miniReelGroups[0].endDate = start;
+            mockCamps[2].miniReels[0].startDate = end;
+            mockCamps[2].miniReels[0].endDate = start;
             mockCamps[3].miniReels[0].startDate = new Date(new Date().valueOf() - 5000);
             mockCamps[3].miniReels[0].endDate = new Date(new Date().valueOf() - 4000);
 
@@ -849,7 +807,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(results[1].response.statusCode).toBe(400);
                 expect(results[1].body).toBe('cards[1] has invalid dates');
                 expect(results[2].response.statusCode).toBe(400);
-                expect(results[2].body).toBe('miniReelGroups[0] has invalid dates');
+                expect(results[2].body).toBe('miniReels[0] has invalid dates');
                 expect(results[3].response.statusCode).toBe(400);
                 expect(results[3].body).toBe('miniReels[0] has invalid dates');
             }).catch(function(error) {
@@ -1061,8 +1019,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                     statusHistory: ['foo'],
                     pricingHistory: ['bar'],
                     staticCardMap: { 'e2e-fake': { 'rc-pl1': 'e2e-rc-1' } },
-                    miniReels: [{ id: 'e-1' }],
-                    miniReelGroups: [{cards: ['e2e-rc-1'], miniReels: ['e2e-e-1', 'e2e-e-2']}],
+                    miniReels: [{ id: 'e-1' }]
                 };
                 requestUtils.qRequest('post', options, null, { maxAttempts: 30 }).then(function(resp) {
                     expect(resp.response.statusCode).toBe(201);
@@ -1438,103 +1395,6 @@ describe('ads campaigns endpoints (E2E):', function() {
             }).done(function(results) { done(); });
         });
 
-        it('should be able to add+remove miniReelGroups', function(done) {
-            var oldAdtechId = adminCreatedCamp.miniReelGroups[0].adtechId;
-            options = {
-                url: config.adsUrl + '/campaign/' + adminCreatedCamp.id,
-                json: { miniReelGroups: [{cards: ['e2e-rc-4', 'e2e-rc-5'], miniReels: ['e2e-e-4', 'e2e-e-5']}] },
-                jar: adminJar
-            };
-
-            requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body._id).not.toBeDefined();
-                expect(resp.body.miniReelGroups).toEqual([{
-                    adtechId: jasmine.any(Number), name: jasmine.any(String),
-                    startDate: jasmine.any(String), endDate: jasmine.any(String),
-                    cards: ['e2e-rc-4', 'e2e-rc-5'], miniReels: ['e2e-e-4', 'e2e-e-5']
-                }]);
-                expect(resp.body.miniReelGroups[0].adtechId).not.toBe(oldAdtechId);
-                adminCreatedCamp = resp.body;
-                
-                return q.allSettled([
-                    adtech.campaignAdmin.getCampaignById(oldAdtechId),
-                    adtech.campaignAdmin.getCampaignById(adminCreatedCamp.miniReelGroups[0].adtechId)
-                ]);
-            }).then(function(results) {
-                // old target campaign should no longer exist
-                expect(results[0].state).toBe('rejected');
-                expect(results[0].reason && results[0].reason.message).toMatch(/^Unable to locate object: /);
-
-                // check that new target campaign created properly
-                expect(results[1].state).toBe('fulfilled');
-                checkTargetCampaign(results[1].value, adminCreatedCamp, adminCreatedCamp.miniReelGroups[0], [keywords['e2e-rc-4'], keywords['e2e-rc-5']]);
-                return testUtils.getCampaignBanners(results[1].value.id);
-            }).then(function(banners) {
-                testUtils.compareBanners(banners, adminCreatedCamp.miniReelGroups[0].miniReels, 'contentMiniReel');
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should be able to edit the miniReels list for a miniReelGroup', function(done) {
-            var currentAdtechId = adminCreatedCamp.miniReelGroups[0].adtechId;
-            options = {
-                url: config.adsUrl + '/campaign/' + adminCreatedCamp.id,
-                json: { miniReelGroups: [{
-                    adtechId: adminCreatedCamp.miniReelGroups[0].adtechId,
-                    miniReels: ['e2e-e-4', 'e2e-e-6']
-                }] },
-                jar: adminJar
-            };
-
-            requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body._id).not.toBeDefined();
-                expect(resp.body.miniReelGroups).toEqual([{
-                    adtechId: currentAdtechId, name: adminCreatedCamp.miniReelGroups[0].name,
-                    startDate: adminCreatedCamp.miniReelGroups[0].startDate, endDate: adminCreatedCamp.miniReelGroups[0].endDate,
-                    cards: ['e2e-rc-4', 'e2e-rc-5'], miniReels: ['e2e-e-4', 'e2e-e-6']
-                }]);
-                adminCreatedCamp = resp.body;
-                
-                return testUtils.getCampaignBanners(adminCreatedCamp.miniReelGroups[0].adtechId);
-            }).then(function(banners) {
-                testUtils.compareBanners(banners, ['e2e-e-4', 'e2e-e-6'], 'contentMiniReel');
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-        
-        it('should be able to edit the cards list for a miniReelGroup', function(done) {
-            var currentAdtechId = adminCreatedCamp.miniReelGroups[0].adtechId;
-            options = {
-                url: config.adsUrl + '/campaign/' + adminCreatedCamp.id,
-                json: { miniReelGroups: [{
-                    adtechId: adminCreatedCamp.miniReelGroups[0].adtechId,
-                    cards: ['e2e-rc-6', 'e2e-rc-4']
-                }] },
-                jar: adminJar
-            };
-
-            requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body._id).not.toBeDefined();
-                expect(resp.body.miniReelGroups).toEqual([{
-                    adtechId: currentAdtechId, name: adminCreatedCamp.miniReelGroups[0].name,
-                    startDate: adminCreatedCamp.miniReelGroups[0].startDate, endDate: adminCreatedCamp.miniReelGroups[0].endDate,
-                    cards: ['e2e-rc-6', 'e2e-rc-4'], miniReels: ['e2e-e-4', 'e2e-e-6']
-                }]);
-                adminCreatedCamp = resp.body;
-
-                return adtech.campaignAdmin.getCampaignById(adminCreatedCamp.miniReelGroups[0].adtechId);
-            }).then(function(camp) {
-                checkTargetCampaign(camp, adminCreatedCamp, adminCreatedCamp.miniReelGroups[0], [keywords['e2e-rc-4'], keywords['e2e-rc-6']]);
-            }).catch(function(error) {
-                expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
-        });
-        
         it('should be able to edit campaigns\' names', function(done) {
             adminCreatedCamp.cards[0].name = 'my new card';
             options = {
@@ -1623,9 +1483,10 @@ describe('ads campaigns endpoints (E2E):', function() {
         it('should return a 400 if any of the lists are not distinct', function(done) {
             options = { url: config.adsUrl + '/campaign/e2e-put1', jar: adminJar };
 
-            q.all([ { cards: [{id: 'e2e-rc-1'}, {id: 'e2e-rc-1'}] }, { miniReels: [{id: 'e2e-e-1'}, {id: 'e2e-e-1'}] },
-                    { miniReelGroups: [{ cards: ['e2e-rc-1', 'e2e-rc-1'] }] },
-                    { miniReelGroups: [{ miniReels: ['e2e-e-1', 'e2e-e-1'] }] } ].map(function(obj) {
+            q.all([
+                { cards: [{id: 'e2e-rc-1'}, {id: 'e2e-rc-1'}] },
+                { miniReels: [{id: 'e2e-e-1'}, {id: 'e2e-e-1'}] }
+            ].map(function(obj) {
                 options.json = obj;
                 return requestUtils.qRequest('put', options, null, { maxAttempts: 30 });
             })).then(function(results) {
@@ -1633,10 +1494,6 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(results[0].body).toBe('cards must be distinct');
                 expect(results[1].response.statusCode).toBe(400);
                 expect(results[1].body).toBe('miniReels must be distinct');
-                expect(results[2].response.statusCode).toBe(400);
-                expect(results[2].body).toBe('miniReelGroups[0].cards must be distinct');
-                expect(results[3].response.statusCode).toBe(400);
-                expect(results[3].body).toBe('miniReelGroups[0].miniReels must be distinct');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -1800,8 +1657,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                     customerId: 'cu-fake',
                     application: 'proshop',
                     staticCardMap: { 'e2e-fake': { 'rc-pl1': 'e2e-rc-1' } },
-                    miniReels: [{ id: 'e-1' }],
-                    miniReelGroups: [{cards: ['e2e-rc-1'], miniReels: ['e2e-e-1', 'e2e-e-2']}],
+                    miniReels: [{ id: 'e-1' }]
                 };
                 requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
@@ -1810,7 +1666,6 @@ describe('ads campaigns endpoints (E2E):', function() {
                     expect(resp.body.application).toEqual('selfie');
                     expect(resp.body.staticCardMap).not.toBeDefined();
                     expect(resp.body.miniReels).not.toBeDefined();
-                    expect(resp.body.miniReelGroups).not.toBeDefined();
                     selfieCreatedCamp = resp.body;
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
@@ -1872,8 +1727,6 @@ describe('ads campaigns endpoints (E2E):', function() {
                         return adtech.campaignAdmin.getCampaignByExtId(card.id).catch(adtechErr);
                     }).concat(adminCreatedCamp.miniReels.map(function(exp) {
                         return adtech.campaignAdmin.getCampaignByExtId(exp.id).catch(adtechErr);
-                    })).concat(adminCreatedCamp.miniReelGroups.map(function(group) {
-                        return adtech.campaignAdmin.getCampaignById(group.adtechId).catch(adtechErr);
                     }))
                 ).then(function(results) {
                     results.forEach(function(result) {

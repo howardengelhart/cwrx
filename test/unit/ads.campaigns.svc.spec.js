@@ -66,7 +66,7 @@ describe('ads-campaigns (UT)', function() {
                 campaigns: { statusDelay: 100, statusAttempts: 5 }
             };
             
-            [campaignUtils.getAccountIds, campModule.formatOutput, campModule.validatePricing].forEach(function(fn) {
+            [campaignUtils.getAccountIds, campModule.validatePricing].forEach(function(fn) {
                 spyOn(fn, 'bind').and.returnValue(fn);
             });
             
@@ -146,53 +146,14 @@ describe('ads-campaigns (UT)', function() {
             expect(svc._middleware.edit).toContain(campModule.createSponsoredCamps);
         });
         
-        it('should include middleware for handling target campaigns', function() {
-            expect(svc._middleware.create).toContain(campModule.createTargetCamps);
-            expect(svc._middleware.edit).toContain(campModule.cleanTargetCamps);
-            expect(svc._middleware.edit).toContain(campModule.editTargetCamps);
-            expect(svc._middleware.edit).toContain(campModule.createTargetCamps);
-        });
-        
         it('should include middleware for handling the pricingHistory', function() {
             expect(svc._middleware.create).toContain(campModule.handlePricingHistory);
             expect(svc._middleware.edit).toContain(campModule.handlePricingHistory);
         });
         
-        it('should override the default formatOutput', function() {
-            expect(campModule.formatOutput.bind).toHaveBeenCalledWith(campModule, svc);
-            expect(svc.formatOutput).toBe(campModule.formatOutput);
-        });
-        
         it('should include middleware for deleting linked entities on delete', function() {
             expect(svc._middleware.delete).toContain(campModule.deleteContent);
             expect(svc._middleware.delete).toContain(campModule.deleteAdtechCamps);
-        });
-    });
-
-    describe('formatOutput', function() {
-        it('should correctly format an object for the client', function() {
-            spyOn(CrudSvc.prototype, 'formatOutput').and.callThrough();
-            var campaign = {
-                _id: 'ekejrh', id: 'cam-1', name: 'camp 1', advertiserId: 'a-1', customerId: 'cu-1',
-                cards: [{id: 'rc-1', adtechId: 12}, {id: 'rc-2', adtechId: 23}],
-                miniReels: [{id: 'e-1', adtechId: 34}, {id: 'e-2', adtechId: 45}],
-                miniReelGroups: [
-                    { adtechId: 1234, cards: ['rc-1', 'rc-2'], miniReels: [{id: 'e-11', adtechId: 56}, {id: 'e-12', adtechId: 67}] },
-                    { adtechId: 4567, cards: ['rc-1'] },
-                ]
-            };
-            
-            expect(campModule.formatOutput('mockSvc', campaign)).toEqual({
-                id: 'cam-1', name: 'camp 1', advertiserId: 'a-1', customerId: 'cu-1',
-                cards: [{id: 'rc-1', adtechId: 12}, {id: 'rc-2', adtechId: 23}],
-                miniReels: [{id: 'e-1', adtechId: 34}, {id: 'e-2', adtechId: 45}],
-                miniReelGroups: [
-                    { adtechId: 1234, cards: ['rc-1', 'rc-2'], miniReels: ['e-11', 'e-12'] },
-                    { adtechId: 4567, cards: ['rc-1'] }
-                ]
-            });
-            
-            expect(CrudSvc.prototype.formatOutput).toHaveBeenCalledWith(campaign);
         });
     });
     
@@ -292,14 +253,12 @@ describe('ads-campaigns (UT)', function() {
                     { id: 'e-2', adtechId: 123, foo: 'baz' },
                     { id: 'e-1', adtechId: 456, foo: 'bez' }
                 ],
-                cards: [ { id: 'rc-1', adtechId: 789 } ],
-                miniReelGroups: [ { adtechId: 123, foo: 'buz' } ]
+                cards: [ { id: 'rc-1', adtechId: 789 } ]
             };
         });
 
         it('should find an object that matches the target', function() {
             expect(campModule.findMatchingObj(obj, body, 'miniReels')).toEqual({id: 'e-1', adtechId: 456, foo: 'bez'});
-            expect(campModule.findMatchingObj(obj, body, 'miniReelGroups')).toEqual({adtechId: 123, foo: 'buz'});
         });
         
         it('should return undefined if no matching object is found', function() {
@@ -321,13 +280,11 @@ describe('ads-campaigns (UT)', function() {
         beforeEach(function() {
             req.body = {
                 cards: [ { id: 'rc-1' }, { id: 'rc-2' } ],
-                miniReels: [ { id: 'e-1' } ],
-                miniReelGroups: [ { adtechId: 1234 }, { name: 'buz' } ]
+                miniReels: [ { id: 'e-1' } ]
             };
             req.origObj = {
                 cards: [ { id: 'rc-2', name: 'foo' }, { id: 'rc-3', name: 'bar' } ],
-                miniReels: [ { id: 'e-1', name: 'foo', startDate: 'now' } ],
-                miniReelGroups: [ { adtechId: 1234, name: 'baz', startDate: 'now' } ]
+                miniReels: [ { id: 'e-1', name: 'foo', startDate: 'now' } ]
             };
         });
         
@@ -339,8 +296,7 @@ describe('ads-campaigns (UT)', function() {
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body).toEqual({
                     cards: [ { id: 'rc-1' }, { id: 'rc-2', name: 'foo' } ],
-                    miniReels: [ { id: 'e-1', name: 'foo', startDate: 'now' } ],
-                    miniReelGroups: [ { adtechId: 1234, name: 'baz', startDate: 'now' }, { name: 'buz' } ]
+                    miniReels: [ { id: 'e-1', name: 'foo', startDate: 'now' } ]
                 });
                 done();
             });
@@ -355,8 +311,7 @@ describe('ads-campaigns (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body).toEqual({
-                    miniReels: [ { id: 'e-1' } ],
-                    miniReelGroups: [ { adtechId: 1234, name: 'baz', startDate: 'now' }, { name: 'buz' } ]
+                    miniReels: [ { id: 'e-1' } ]
                 });
                 done();
             });
@@ -365,8 +320,7 @@ describe('ads-campaigns (UT)', function() {
     
     describe('validateDates', function() {
         beforeEach(function() {
-            req.body = { cards: [{id: 'rc-1'}], miniReels: [{id: 'e-1'}, {id: 'e-2'}],
-                         miniReelGroups: [{adtechId: 1234}] };
+            req.body = { cards: [{id: 'rc-1'}], miniReels: [{id: 'e-1'}, {id: 'e-2'}] };
             spyOn(campaignUtils, 'validateDates').and.returnValue(true);
         });
         
@@ -376,11 +330,10 @@ describe('ads-campaigns (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(campaignUtils.validateDates.calls.count()).toBe(4);
+                expect(campaignUtils.validateDates.calls.count()).toBe(3);
                 expect(campaignUtils.validateDates).toHaveBeenCalledWith({id: 'rc-1'}, undefined, {start: 100, end: 200}, '1234');
                 expect(campaignUtils.validateDates).toHaveBeenCalledWith({id: 'e-1'}, undefined, {start: 100, end: 200}, '1234');
                 expect(campaignUtils.validateDates).toHaveBeenCalledWith({id: 'e-2'}, undefined, {start: 100, end: 200}, '1234');
-                expect(campaignUtils.validateDates).toHaveBeenCalledWith({adtechId: 1234}, undefined, {start: 100, end: 200}, '1234');
                 done();
             });
         });
@@ -392,11 +345,10 @@ describe('ads-campaigns (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(campaignUtils.validateDates.calls.count()).toBe(4);
+                expect(campaignUtils.validateDates.calls.count()).toBe(3);
                 expect(campaignUtils.validateDates).toHaveBeenCalledWith({id: 'rc-1'}, {id: 'rc-1', foo: 'bar'}, {start: 100, end: 200}, '1234');
                 expect(campaignUtils.validateDates).toHaveBeenCalledWith({id: 'e-1'}, undefined, {start: 100, end: 200}, '1234');
                 expect(campaignUtils.validateDates).toHaveBeenCalledWith({id: 'e-2'}, {id: 'e-2', foo: 'baz'}, {start: 100, end: 200}, '1234');
-                expect(campaignUtils.validateDates).toHaveBeenCalledWith({adtechId: 1234}, undefined, {start: 100, end: 200}, '1234');
                 done();
             });
         });
@@ -408,7 +360,7 @@ describe('ads-campaigns (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(campaignUtils.validateDates.calls.count()).toBe(3);
+                expect(campaignUtils.validateDates.calls.count()).toBe(2);
                 expect(campaignUtils.validateDates).not.toHaveBeenCalledWith({id: 'rc-1'}, undefined, {start: 100, end: 200}, '1234');
                 done();
             });
@@ -453,31 +405,8 @@ describe('ads-campaigns (UT)', function() {
             });
         });
 
-        it('should call done if a miniReelGroup\'s cards list is not distinct', function(done) {
-            req.body = { miniReelGroups: [{cards: ['rc-1','rc-1']}] };
-            campModule.ensureUniqueIds(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({code: 400, body: 'miniReelGroups[0].cards must be distinct'});
-                expect(errorSpy).not.toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should call done if a miniReelGroup\'s miniReels list is not distinct', function(done) {
-            req.body = { miniReelGroups: [ {cards: ['rc-1', 'rc-2']}, {miniReels: ['e-2', 'e-2']} ] };
-            campModule.ensureUniqueIds(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({code: 400, body: 'miniReelGroups[1].miniReels must be distinct'});
-                expect(errorSpy).not.toHaveBeenCalled();
-                done();
-            });
-        });
-
         it('should call next if all lists are distinct', function(done) {
-            req.body = { cards: [{id: 'rc-1'}], miniReels: [{id: 'e-1'}, {id: 'e-2'}, {id: 'e-11'}],
-                         miniReelGroups: [ { cards: ['rc-1', 'rc-2'], miniReels: ['e-1', 'e-2'] } ] };
+            req.body = { cards: [{id: 'rc-1'}], miniReels: [{id: 'e-1'}, {id: 'e-2'}, {id: 'e-11'}] };
             campModule.ensureUniqueIds(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
@@ -492,8 +421,7 @@ describe('ads-campaigns (UT)', function() {
         beforeEach(function() {
             req.body = {
                 cards: [ { id: 'rc-1', name: 'foo' }, { id: 'rc-1', name: 'bar' } ],
-                miniReels: [ { id: 'e-1', name: 'baz' } ],
-                miniReelGroups: [ { adtechId: 1234, cards: ['rc-1'] } ]
+                miniReels: [ { id: 'e-1', name: 'baz' } ]
             };
         });
         
@@ -519,7 +447,7 @@ describe('ads-campaigns (UT)', function() {
         });
         
         it('should call done if multiple objects share the same name', function(done) {
-            req.body.miniReelGroups[0].name = 'baz';
+            req.body.cards[1].name = 'baz';
             campModule.ensureUniqueNames(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -1302,380 +1230,6 @@ describe('ads-campaigns (UT)', function() {
         });
     });
 
-    describe('cleanTargetCamps', function() {
-        beforeEach(function() {
-            req.params.id = 'cam-1';
-            req.body = { miniReelGroups: [{adtechId: 11, cards: ['rc-1'], miniReels: ['e-1']},
-                                          {adtechId: 12, cards: ['rc-2'], miniReels: ['e-2']}] };
-            req.origObj = { miniReelGroups: [{adtechId: 21, cards: ['rc-1'], miniReels: ['e-1']},
-                                             {adtechId: 12, cards: ['rc-2'], miniReels: ['e-2']},
-                                             {adtechId: 22, cards: ['rc-3'], miniReels: ['e-3']}] };
-        });
-        
-        it('should delete unused target group campaigns', function(done) {
-            campModule.cleanTargetCamps(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(campaignUtils.deleteCampaigns).toHaveBeenCalledWith([21, 22], 1000, 10);
-                expect(mockLog.warn).not.toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should skip objects if they have no adtechId', function(done) {
-            delete req.origObj.miniReelGroups[0].adtechId;
-            campModule.cleanTargetCamps(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(campaignUtils.deleteCampaigns).toHaveBeenCalledWith([22], 1000, 10);
-                expect(mockLog.warn).toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should do nothing if the body or origObj has no miniReelGroups property', function(done) {
-            var req1 = { params: req.params, body: req.body, origObj: {} };
-            var req2 = { params: req.params, body: {}, origObj: req.origObj };
-            campModule.cleanTargetCamps(req1, nextSpy, doneSpy).catch(errorSpy);
-            campModule.cleanTargetCamps(req2, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(campaignUtils.deleteCampaigns).not.toHaveBeenCalled();
-                expect(mockLog.warn).not.toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should reject if deleteCampaigns fails', function(done) {
-            campaignUtils.deleteCampaigns.and.returnValue(q.reject(new Error('I GOT A PROBLEM')));
-            campModule.cleanTargetCamps(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith('Adtech failure');
-                expect(mockLog.error).toHaveBeenCalled();
-                done();
-            });
-        });
-    });
-    
-    describe('editTargetCamps', function() {
-        beforeEach(function() {
-            req.params.id = 'cam-1';
-            req.body = { miniReelGroups: [
-                {adtechId: 11, name: 'new', cards: ['rc-1'], miniReels: ['e-1']},
-                {adtechId: 12, name: 'grp 1.1', startDate: 'start1', endDate: 'end1', cards: ['rc-2'], miniReels: ['e-2']},
-                {adtechId: 13, name: 'grp 2', cards: ['rc-3', 'rc-33'], miniReels: ['e-3']}
-            ] };
-            req.origObj = { miniReelGroups: [
-                {adtechId: 21, name: 'old', cards: ['rc-1'], miniReels: [{id: 'e-1'}]},
-                {adtechId: 12, name: 'grp 1', startDate: 'start1', endDate: 'end1', cards: ['rc-2'], miniReels: [{id: 'e-2'}]},
-                {adtechId: 13, name: 'grp 2', cards: ['rc-33', 'rc-3'], miniReels: [{id: 'e-4'}]}
-            ] };
-        });
-
-        it('should edit existing target group campaigns that differ', function(done) {
-            campModule.editTargetCamps(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.body.miniReelGroups).toEqual([
-                    {adtechId: 11, name: 'new', cards: ['rc-1'], miniReels: [{id: 'e-1'}]},
-                    {adtechId: 12, name: 'grp 1.1', startDate: 'start1', endDate: 'end1', cards: ['rc-2'], miniReels: [{id: 'e-2'}]},
-                    {adtechId: 13, name: 'grp 2', cards: ['rc-3', 'rc-33'], miniReels: [{id: 'e-3'}]}
-                ]);
-                expect(campaignUtils.makeKeywordLevels).not.toHaveBeenCalled();
-                expect(campaignUtils.editCampaign.calls.count()).toBe(1);
-                expect(campaignUtils.editCampaign).toHaveBeenCalledWith('grp 1.1 (cam-1)',
-                    req.body.miniReelGroups[1], undefined, '1234');
-                expect(bannerUtils.cleanBanners.calls.count()).toBe(2);
-                expect(bannerUtils.cleanBanners).toHaveBeenCalledWith([{id: 'e-2'}], [{id: 'e-2'}], 12);
-                expect(bannerUtils.cleanBanners).toHaveBeenCalledWith([{id: 'e-3'}], [{id: 'e-4'}], 13);
-                expect(bannerUtils.createBanners.calls.count()).toBe(2);
-                expect(bannerUtils.createBanners).toHaveBeenCalledWith([{id: 'e-2'}], [{id: 'e-2'}], 'contentMiniReel', false, 12);
-                expect(bannerUtils.createBanners).toHaveBeenCalledWith([{id: 'e-3'}], [{id: 'e-4'}], 'contentMiniReel', false, 13);
-                done();
-            });
-        });
-        
-        it('should also edit a campaign if its cards list has changed', function(done) {
-            req.body.miniReelGroups[2].cards.push('rc-12');
-            campModule.editTargetCamps(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.body.miniReelGroups).toEqual([
-                    {adtechId: 11, name: 'new', cards: ['rc-1'], miniReels: [{id: 'e-1'}]},
-                    {adtechId: 12, name: 'grp 1.1', startDate: 'start1', endDate: 'end1', cards: ['rc-2'], miniReels: [{id: 'e-2'}]},
-                    {adtechId: 13, name: 'grp 2', cards: ['rc-3', 'rc-33', 'rc-12'], miniReels: [{id: 'e-3'}]}
-                ]);
-                expect(campaignUtils.makeKeywordLevels).toHaveBeenCalledWith({level1: ['rc-3', 'rc-33', 'rc-12']});
-                expect(campaignUtils.editCampaign.calls.count()).toBe(2);
-                expect(campaignUtils.editCampaign).toHaveBeenCalledWith('grp 1.1 (cam-1)',
-                    req.body.miniReelGroups[1], undefined, '1234');
-                expect(campaignUtils.editCampaign).toHaveBeenCalledWith('grp 2 (cam-1)',
-                    req.body.miniReelGroups[2], {level1: [100, 200, 300], level2: undefined, level3: undefined}, '1234');
-                expect(bannerUtils.cleanBanners.calls.count()).toBe(2);
-                expect(bannerUtils.createBanners.calls.count()).toBe(2);
-                done();
-            });
-        });
-
-        it('should do nothing if the body or origObj has no miniReelGroups property', function(done) {
-            var req1 = { params: req.params, body: req.body, origObj: {} };
-            var req2 = { params: req.params, body: {}, origObj: req.origObj };
-            campModule.editTargetCamps(req1, nextSpy, doneSpy).catch(errorSpy);
-            campModule.editTargetCamps(req2, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(campaignUtils.editCampaign).not.toHaveBeenCalled();
-                expect(bannerUtils.cleanBanners).not.toHaveBeenCalled();
-                expect(bannerUtils.createBanners).not.toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should reject if making keywords fails', function(done) {
-            req.body.miniReelGroups[1] = req.origObj.miniReelGroups[1];
-            req.body.miniReelGroups[2].cards.push('rc-22');
-            campaignUtils.makeKeywords.and.returnValue(q.reject('ADTECH IS THE WORST'));
-            campModule.editTargetCamps(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith('Adtech failure');
-                expect(mockLog.error).toHaveBeenCalled();
-                expect(campaignUtils.editCampaign).not.toHaveBeenCalled();
-                expect(bannerUtils.cleanBanners.calls.count()).toBe(1);
-                expect(bannerUtils.createBanners.calls.count()).toBe(1);
-                done();
-            });
-        });
-
-        it('should reject if editing a campaign fails', function(done) {
-            campaignUtils.editCampaign.and.returnValue(q.reject('ADTECH IS THE WORST'));
-            campModule.editTargetCamps(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith('Adtech failure');
-                expect(mockLog.error).toHaveBeenCalled();
-                expect(campaignUtils.editCampaign).toHaveBeenCalled();
-                expect(bannerUtils.cleanBanners.calls.count()).toBe(1);
-                expect(bannerUtils.createBanners.calls.count()).toBe(1);
-                done();
-            });
-        });
-
-        it('should reject if cleaning banners fails', function(done) {
-            bannerUtils.cleanBanners.and.callFake(function(oldList, newList, id) {
-                if (id === 12) return q.reject('ADTECH IS THE WORST');
-                else return q();
-            });
-            campModule.editTargetCamps(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith('Adtech failure');
-                expect(mockLog.error).toHaveBeenCalled();
-                expect(bannerUtils.cleanBanners.calls.count()).toBe(2);
-                expect(bannerUtils.createBanners.calls.count()).toBe(2);
-                done();
-            });
-        });
-
-        it('should reject if creating banners fails', function(done) {
-            bannerUtils.createBanners.and.callFake(function(oldList, newList, type, isSponsored, id) {
-                if (id === 13) return q.reject('ADTECH IS THE WORST');
-                else return q();
-            });
-            campModule.editTargetCamps(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith('Adtech failure');
-                expect(mockLog.error).toHaveBeenCalled();
-                expect(bannerUtils.cleanBanners.calls.count()).toBe(1);
-                expect(bannerUtils.createBanners.calls.count()).toBe(2);
-                done();
-            });
-        });
-        
-        it('should call done if it receives an error with a c6warn property', function(done) {
-            bannerUtils.cleanBanners.and.callFake(function(oldList, newList, id) {
-                if (id === 13) return q.reject({ c6warn: 'you did a bad thing' });
-                else return q();
-            });
-            campModule.editTargetCamps(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'you did a bad thing' });
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(mockLog.error).not.toHaveBeenCalled();
-                expect(bannerUtils.cleanBanners.calls.count()).toBe(2);
-                expect(bannerUtils.createBanners.calls.count()).toBe(2);
-                done();
-            });
-        });
-    });
-    
-    describe('createTargetCamps', function() {
-        beforeEach(function() {
-            req.body = { id: 'cam-1', miniReelGroups: [
-                {name: 'grp 1', endDate: 'end1', cards: ['rc-1'], miniReels: ['e-1', 'e-11']},
-                {adtechId: 12, cards: ['rc-2'], miniReels: ['e-2']},
-                {startDate: 'start3', cards: ['rc-3', 'rc-33'], miniReels: ['e-3']}
-            ] };
-            spyOn(uuid, 'createUuid').and.callFake(function() { return String(this.createUuid.calls.count()*111); });
-        });
-        
-        it('should create target campaigns for miniReelGroups without adtechIds', function(done) {
-            campModule.createTargetCamps(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.body.miniReelGroups).toEqual([
-                    {adtechId: 1000, name: 'grp 1', endDate: 'end1', cards: ['rc-1'], miniReels: [{id: 'e-1'}, {id: 'e-11'}]},
-                    {adtechId: 12, cards: ['rc-2'], miniReels: ['e-2']},
-                    {name: 'group_111', startDate: 'start3', adtechId: 2000, cards: ['rc-3', 'rc-33'], miniReels: [{id: 'e-3'}]}
-                ]);
-                expect(campaignUtils.makeKeywordLevels.calls.count()).toBe(2);
-                expect(campaignUtils.makeKeywordLevels).toHaveBeenCalledWith({level1: ['rc-1']});
-                expect(campaignUtils.makeKeywordLevels).toHaveBeenCalledWith({level1: ['rc-3', 'rc-33']});
-                expect(campaignUtils.createCampaign.calls.count()).toBe(2);
-                expect(campaignUtils.createCampaign).toHaveBeenCalledWith({id: 'cam-1',
-                    name: 'grp 1 (cam-1)', startDate: undefined, endDate: 'end1', campaignTypeId: 454545,
-                    keywords: {level1: [100], level2: undefined, level3: undefined}, advertiserId: 987, customerId: 876}, '1234');
-                expect(campaignUtils.createCampaign).toHaveBeenCalledWith({id: 'cam-1',
-                    name: 'group_111 (cam-1)', startDate: 'start3', endDate: undefined, campaignTypeId: 454545,
-                    keywords: {level1: [200, 300], level2: undefined, level3: undefined}, advertiserId: 987, customerId: 876}, '1234');
-                expect(bannerUtils.createBanners.calls.count()).toBe(2);
-                expect(bannerUtils.createBanners).toHaveBeenCalledWith([{id: 'e-1'}, {id: 'e-11'}], null, 'contentMiniReel', false, 1000);
-                expect(bannerUtils.createBanners).toHaveBeenCalledWith([{id: 'e-3'}], null, 'contentMiniReel', false, 2000);
-                done();
-            });
-        });
-
-        it('should be able to take the id from the origObj if not on the body', function(done) {
-            delete req.body.id;
-            req.origObj = { id: 'cam-2' };
-            campModule.createTargetCamps(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(campaignUtils.createCampaign.calls.count()).toBe(2);
-                expect(campaignUtils.createCampaign.calls.all()[0].args[0].id).toBe('cam-2');
-                expect(campaignUtils.createCampaign.calls.all()[1].args[0].id).toBe('cam-2');
-                done();
-            });
-        });
-        
-        it('should do nothing if there are no miniReelGroups', function(done) {
-            var req1 = { body: { id: 'cam-1' } };
-            var req2 = { body: { id: 'cam-1', miniReelGroups: [] } };
-            campModule.createTargetCamps(req1, nextSpy, doneSpy).catch(errorSpy);
-            campModule.createTargetCamps(req2, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(campaignUtils.makeKeywordLevels).not.toHaveBeenCalled();
-                expect(campaignUtils.createCampaign).not.toHaveBeenCalled();
-                expect(bannerUtils.createBanners).not.toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should allow groups without cards or miniReels', function(done) {
-            req.body.miniReelGroups = [
-                {cards: ['rc-1'], miniReels: []},
-                {cards: []},
-                {miniReels: ['e-3']}
-            ];
-            campModule.createTargetCamps(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.body.miniReelGroups).toEqual([
-                    {adtechId: 1000, name: 'group_111', cards: ['rc-1'], miniReels: []},
-                    {adtechId: 2000, name: 'group_222', cards: [], miniReels: []},
-                    {adtechId: 3000, name: 'group_333', cards: [], miniReels: [{id: 'e-3'}]}
-                ]);
-                expect(campaignUtils.makeKeywordLevels.calls.count()).toBe(3);
-                expect(campaignUtils.makeKeywordLevels).toHaveBeenCalledWith({level1: ['rc-1']});
-                expect(campaignUtils.makeKeywordLevels).toHaveBeenCalledWith({level1: []});
-                expect(campaignUtils.createCampaign.calls.count()).toBe(3);
-                expect(bannerUtils.createBanners.calls.count()).toBe(3);
-                expect(bannerUtils.createBanners).toHaveBeenCalledWith([], null, 'contentMiniReel', false, 1000);
-                expect(bannerUtils.createBanners).toHaveBeenCalledWith([], null, 'contentMiniReel', false, 2000);
-                expect(bannerUtils.createBanners).toHaveBeenCalledWith([{id: 'e-3'}], null, 'contentMiniReel', false, 3000);
-                done();
-            });
-        });
-        
-        it('should reject if making keywords fails', function(done) {
-            campaignUtils.makeKeywords.and.returnValue(q.reject('ADTECH IS THE WORST'));
-            campModule.createTargetCamps(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith('Adtech failure');
-                expect(mockLog.error).toHaveBeenCalled();
-                expect(campaignUtils.makeKeywordLevels).toHaveBeenCalled();
-                expect(campaignUtils.createCampaign).not.toHaveBeenCalled();
-                expect(bannerUtils.createBanners).not.toHaveBeenCalled();
-                done();
-            });
-        });
-
-        it('should reject if creating a campaign fails', function(done) {
-            campaignUtils.createCampaign.and.callFake(function(obj) {
-                if (obj.name.match('111')) return q.reject('ADTECH IS THE WORST');
-                else return q({id: String(this.createCampaign.calls.count()*1000)});
-            });
-            campModule.createTargetCamps(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith('Adtech failure');
-                expect(mockLog.error).toHaveBeenCalled();
-                expect(campaignUtils.createCampaign.calls.count()).toBe(2);
-                expect(bannerUtils.createBanners.calls.count()).toBe(1);
-                done();
-            });
-        });
-        
-        it('should reject if creating banners fails', function(done) {
-            bannerUtils.createBanners.and.callFake(function(oldList, newList, type, isSponsored, adtechId) {
-                if (adtechId === 2000) return q.reject('ADTECH IS THE WORST');
-                else return q();
-            });
-            campModule.createTargetCamps(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).toHaveBeenCalledWith('Adtech failure');
-                expect(mockLog.error).toHaveBeenCalled();
-                expect(campaignUtils.createCampaign.calls.count()).toBe(2);
-                expect(bannerUtils.createBanners.calls.count()).toBe(2);
-                done();
-            });
-        });
-    });
-    
     describe('handlePricingHistory', function() {
         var oldDate;
         beforeEach(function() {
@@ -1873,9 +1427,13 @@ describe('ads-campaigns (UT)', function() {
     
     describe('deleteAdtechCamps', function() {
         beforeEach(function() {
-            req.origObj = { cards: [{id: 'rc-1', adtechId: 11}], miniReels: [{id: 'e-1', adtechId: 21}, {id: 'e-2', adtechId: 22}],
-                            miniReelGroups: [{adtechId: 31, cards: ['rc-2'], miniReels: [{id: 'e-3'}]},
-                                             {adtechId: 32, cards: ['rc-2'] }] };
+            req.origObj = {
+                cards: [ { id: 'rc-1', adtechId: 11 } ],
+                miniReels: [
+                    { id: 'e-1', adtechId: 21 },
+                    { id: 'e-2', adtechId: 22 }
+                ]
+            };
         });
 
         it('should delete all adtech campaigns', function(done) {
@@ -1884,19 +1442,19 @@ describe('ads-campaigns (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(campaignUtils.deleteCampaigns).toHaveBeenCalledWith([11, 21, 22, 31, 32], 1000, 10);
+                expect(campaignUtils.deleteCampaigns).toHaveBeenCalledWith([11, 21, 22], 1000, 10);
                 done();
             });
         });
         
         it('should skip a list if not defined', function(done) {
-            delete req.origObj.miniReelGroups;
+            delete req.origObj.cards;
             campModule.deleteAdtechCamps(req, nextSpy, doneSpy).catch(errorSpy);
             process.nextTick(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(campaignUtils.deleteCampaigns).toHaveBeenCalledWith([11, 21, 22], 1000, 10);
+                expect(campaignUtils.deleteCampaigns).toHaveBeenCalledWith([21, 22], 1000, 10);
                 done();
             });
         });
@@ -1909,7 +1467,7 @@ describe('ads-campaigns (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(campaignUtils.deleteCampaigns).toHaveBeenCalledWith([11, 22, 31, 32], 1000, 10);
+                expect(campaignUtils.deleteCampaigns).toHaveBeenCalledWith([11, 22], 1000, 10);
                 done();
             });
         });
