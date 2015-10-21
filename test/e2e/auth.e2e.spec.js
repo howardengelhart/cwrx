@@ -226,23 +226,6 @@ describe('auth (E2E):', function() {
             });
         });
         
-        it('should fail if given an invalid target', function(done) {
-            var options = {
-                url: config.authUrl + '/login',
-                json: {
-                    email: 'c6e2etester@gmail.com',
-                    password: 'password',
-                    target: 'INVALID'
-                }
-            };
-            requestUtils.qRequest('post', options).then(function(resp) {
-                expect(resp.response.statusCode).toBe(400);
-                expect(resp.response.body).toBe('Invalid target');
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
         describe('failed password attempts', function() {
             var cacheConn;
             
@@ -267,8 +250,7 @@ describe('auth (E2E):', function() {
                         url: config.authUrl + '/login',
                         json: {
                             email: 'c6e2etester@gmail.com',
-                            password: 'notpassword',
-                            target: 'portal'
+                            password: 'notpassword'
                         }
                     };
                     return requestUtils.qRequest('post', options);
