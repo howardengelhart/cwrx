@@ -136,7 +136,7 @@ In order to run a service locally, you'll need to setup a few things:
   | Service    | Dependencies           |
   | ---------- | ---------------------- |
   | ads        | auth, content, monitor |
-  | auth       | none                   |
+  | auth       | monitor                |
   | collateral | auth, monitor          |
   | content    | auth, monitor          |
   | maint      | none                   |

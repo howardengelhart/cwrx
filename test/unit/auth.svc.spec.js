@@ -1,7 +1,7 @@
 var flush = true;
 describe('auth (UT)', function() {
     var auth, mockLog, req, users, q, uuid, logger, mongoUtils, authUtils, email, enums,
-        Status, bcrypt, anyFunc, auditJournal;
+        Status, bcrypt, anyFunc, auditJournal, mockCache;
         
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -24,6 +24,10 @@ describe('auth (UT)', function() {
             info  : jasmine.createSpy('log_info'),
             fatal : jasmine.createSpy('log_fatal'),
             log   : jasmine.createSpy('log_log')
+        };
+        mockCache = {
+            add: jasmine.createSpy('add()').and.returnValue(q()),
+            incrTouch: jasmine.createSpy('incrTouch()').and.returnValue(1)
         };
         spyOn(logger, 'createLog').and.returnValue(mockLog);
         spyOn(logger, 'getLog').and.returnValue(mockLog);
@@ -48,8 +52,25 @@ describe('auth (UT)', function() {
     });
     
     describe('login', function() {
-        var origUser;
+        var origUser, config;
+
         beforeEach(function() {
+            config = {
+                sessions: {
+                    maxAge: 1000
+                },
+                loginAttempts: {
+                    ttl: 15*60*1000,
+                    threshold: 3
+                },
+                ses: {
+                    sender: 'support@cinema6.com'
+                },
+                passwordResetPages: {
+                    portal: 'portal link',
+                    selfie: 'selfie link'
+                }
+            };
             req.body = { email: 'user', password: 'pass' };
             origUser = {
                 id: 'u-123',
@@ -68,7 +89,7 @@ describe('auth (UT)', function() {
     
         it('should resolve with a 400 if not provided with the required parameters', function(done) {
             req.body = {};
-            auth.login(req, users, 1000, auditJournal).then(function(resp) {
+            auth.login(req, users, config, auditJournal, mockCache).then(function(resp) {
                 expect(resp.code).toBe(400);
                 expect(resp.body).toBeDefined();
                 req.body = {email: 'user'};
@@ -93,7 +114,7 @@ describe('auth (UT)', function() {
             q.all([ { email: { $gt: '' }, password: 'pass'},
                     { email: 'user', password: { $gt: '' } } ].map(function(body) {
                 req.body = body;
-                return auth.login(req, users);
+                return auth.login(req, users, config, auditJournal, mockCache);
             })).then(function(results) {
                 results.forEach(function(resp) {
                     expect(resp).toEqual({code: 400, body: 'You need to provide an email and password in the body'});
@@ -107,7 +128,7 @@ describe('auth (UT)', function() {
         });
         
         it('should log a user in successfully', function(done) {
-            auth.login(req, users, 1000, auditJournal).then(function(resp) {
+            auth.login(req, users, config, auditJournal, mockCache).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toBeDefined();
                 expect(resp.body).toEqual({ id: 'u-123', decorated: true });
@@ -130,7 +151,7 @@ describe('auth (UT)', function() {
         
         it('should convert the request email to lowercase', function(done) {
             req.body.email = 'USER';
-            auth.login(req, users, 1000, auditJournal).then(function(resp) {
+            auth.login(req, users, config, auditJournal, mockCache).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toBeDefined();
                 expect(resp.body).toEqual({ id: 'u-123', decorated: true });
@@ -146,27 +167,90 @@ describe('auth (UT)', function() {
             }).done(done);
         });
         
-        it('should resolve with a 401 code if the passwords do not match', function(done) {
-            bcrypt.compare.and.callFake(function(pass, hashed, cb) {
-                cb(null, false);
+        describe('when passwords do not match', function() {
+            beforeEach(function() {
+                bcrypt.compare.and.callFake(function(pass, hashed, cb) {
+                    cb(null, false);
+                });
+                spyOn(email, 'notifyMultipleLoginAttempts');
             });
-            auth.login(req, users, 1000, auditJournal).then(function(resp) {
-                expect(resp.code).toBe(401);
-                expect(resp.body).toBe('Invalid email or password');
-                expect(req.session.user).not.toBeDefined();
-                expect(req.session.regenerate).not.toHaveBeenCalled();
-                expect(bcrypt.compare).toHaveBeenCalled();
-                expect(authUtils.decorateUser).not.toHaveBeenCalled();
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
+
+            it('should resolve with a 401 code', function(done) {
+                auth.login(req, users, config, auditJournal, mockCache).then(function(resp) {
+                    expect(resp.code).toBe(401);
+                    expect(resp.body).toBe('Invalid email or password');
+                    expect(req.session.user).not.toBeDefined();
+                    expect(req.session.regenerate).not.toHaveBeenCalled();
+                    expect(bcrypt.compare).toHaveBeenCalled();
+                    expect(authUtils.decorateUser).not.toHaveBeenCalled();
+                    expect(email.notifyMultipleLoginAttempts).not.toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should add a key to the cache if needed and increment it', function(done) {
+                auth.login(req, users, config, auditJournal, mockCache).then(function() {
+                    expect(mockCache.add).toHaveBeenCalledWith('loginAttempts:u-123', 0, 900000);
+                    expect(mockCache.incrTouch).toHaveBeenCalledWith('loginAttempts:u-123', 1, 900000);
+                    expect(email.notifyMultipleLoginAttempts).not.toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should send an email on the third failed attempt with a portal link', function(done) {
+                mockCache.incrTouch.and.returnValue(3);
+                origUser.external = false;
+                
+                auth.login(req, users, config, auditJournal, mockCache).then(function() {
+                    expect(email.notifyMultipleLoginAttempts).toHaveBeenCalledWith('support@cinema6.com', 'user', 'portal link');
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should send an email on the third failed attempt using a selfie link', function(done) {
+                req.body.target = 'portal';
+                origUser.external = true;
+                
+                mockCache.incrTouch.and.returnValue(3);
+                auth.login(req, users, config, auditJournal, mockCache).then(function() {
+                    expect(email.notifyMultipleLoginAttempts).toHaveBeenCalledWith('support@cinema6.com', 'user', 'selfie link');
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should not reject if adding a login attempt to the cache fails', function(done) {
+                mockCache.add.and.returnValue(q.reject('error'));
+
+                auth.login(req, users, config, auditJournal, mockCache).then(function(resp) {
+                    expect(resp).toEqual({code:401,body:'Invalid email or password'})
+                    expect(mockLog.warn).toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+
+            it('should not reject if sending the notification email to the user fails', function(done) {
+                mockCache.incrTouch.and.returnValue(3);
+                email.notifyMultipleLoginAttempts.and.returnValue(q.reject('error'));
+
+                auth.login(req, users, config, auditJournal, mockCache).then(function(resp) {
+                    expect(resp).toEqual({code:401,body:'Invalid email or password'})
+                    expect(mockLog.warn).toHaveBeenCalled();
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
         });
-        
+
         it('should resolve with a 401 code if the user does not exist', function(done) {
             users.findOne.and.callFake(function(query, cb) {
                 cb(null, null);
             });
-            auth.login(req, users, 1000, auditJournal).then(function(resp) {
+            auth.login(req, users, config, auditJournal, mockCache).then(function(resp) {
                 expect(resp.code).toBe(401);
                 expect(resp.body).toBe('Invalid email or password');
                 expect(req.session.user).not.toBeDefined();
@@ -181,7 +265,7 @@ describe('auth (UT)', function() {
 
         it('should resolve with a 401 code if the user inactive and not new', function(done) {
             origUser.status = 'deleted';
-            auth.login(req, users, 1000, auditJournal).then(function(resp) {
+            auth.login(req, users, config, auditJournal, mockCache).then(function(resp) {
                 expect(resp.code).toBe(403);
                 expect(resp.body).toBe('Account not active or new');
                 expect(req.session.user).not.toBeDefined();
@@ -197,7 +281,7 @@ describe('auth (UT)', function() {
         
         it('should be able to log in a new user ', function(done) {
             origUser.status = Status.New;
-            auth.login(req, users, 1000, auditJournal).then(function(resp) {
+            auth.login(req, users, config, auditJournal, mockCache).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toBeDefined();
                 expect(resp.body).toEqual({ id: 'u-123', decorated: true });
@@ -220,7 +304,7 @@ describe('auth (UT)', function() {
         
         it('should not reject if writing to the journals fail', function(done) {
             auditJournal.writeAuditEntry.and.returnValue(q.reject('audit journal fail'));
-            auth.login(req, users, 1000, auditJournal).then(function(resp) {
+            auth.login(req, users, config, auditJournal, mockCache).then(function(resp) {
                 expect(resp.code).toBe(200);
                 expect(resp.body).toEqual({ id: 'u-123', decorated: true });
                 expect(auditJournal.writeAuditEntry).toHaveBeenCalled();
@@ -236,7 +320,7 @@ describe('auth (UT)', function() {
             req.session.regenerate.and.callFake(function(cb) {
                 cb('Error!');
             });
-            auth.login(req, users, 1000, auditJournal).then(function(resp) {
+            auth.login(req, users, config, auditJournal, mockCache).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Error!');
@@ -251,7 +335,7 @@ describe('auth (UT)', function() {
             bcrypt.compare.and.callFake(function(pass, hashed, cb) {
                 cb('Error!', null);
             });
-            auth.login(req, users, 1000, auditJournal).then(function(resp) {
+            auth.login(req, users, config, auditJournal, mockCache).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Error!');
@@ -267,7 +351,7 @@ describe('auth (UT)', function() {
             users.findOne.and.callFake(function(query, cb) {
                 cb('Error!', null);
             });
-            auth.login(req, users, 1000, auditJournal).then(function(resp) {
+            auth.login(req, users, config, auditJournal, mockCache).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Error!');
@@ -283,7 +367,7 @@ describe('auth (UT)', function() {
         it('should reject if decorating the user fails', function(done) {
             authUtils.decorateUser.and.returnValue(q.reject('Decorating is for squares'));
 
-            auth.login(req, users, 1000, auditJournal).then(function(resp) {
+            auth.login(req, users, config, auditJournal, mockCache).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
                 expect(error).toBe('Decorating is for squares');

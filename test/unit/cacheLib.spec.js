@@ -556,6 +556,50 @@ describe('cacheLib', function() {
             });
         });
         
+        describe('incr', function() {
+            var cache;
+            beforeEach(function() {
+                cache = new cacheLib.Cache('host1:11211');
+                spyOn(cache, '_memcachedCommand').and.returnValue(q(1));
+            });
+            
+            it('should call _memcachedCommand with incr', function(done) {
+                cache.incr('foo', 7).then(function(resp) {
+                    expect(resp).toBe(1);
+                    expect(cache._memcachedCommand).toHaveBeenCalledWith('incr', 'write', ['foo', 7]);
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should default the amount to be 1', function(done) {
+                cache.incr('foo').then(function(resp) {
+                    expect(resp).toBe(1);
+                    expect(cache._memcachedCommand).toHaveBeenCalledWith('incr', 'write', ['foo', 1]);
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should pass through errors', function(done) {
+                cache._memcachedCommand.and.returnValue(q.reject('I GOT A PROBLEM'));
+                cache.incr('foo').then(function(resp) {
+                    expect('resolved').not.toBe('resolved');
+                }).catch(function(error) {
+                    expect(error).toBe('I GOT A PROBLEM');
+                }).done(done);
+            });
+
+            it('should reject if the cache is not ready', function(done) {
+                mockMemClient.servers = [];
+                cache.incr('foo').then(function(resp) {
+                    expect('resolved').not.toBe('resolved');
+                }).catch(function(error) {
+                    expect(error).toBe('Cache is not usable yet');
+                }).done(done);
+            });
+        });
+        
         describe('close', function() {
             var cache;
             beforeEach(function() {
@@ -610,4 +654,3 @@ describe('cacheLib', function() {
         });
     });
 });
-

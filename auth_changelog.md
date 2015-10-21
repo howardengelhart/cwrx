@@ -1,8 +1,10 @@
 # Auth Service Changelog
 
+* [FEATURE]: Email user on repeated failed login attempts to their account [#485](https://github.com/cinema6/cwrx/issues/485)
 * Expire login sessions after 30 minutes [#487](https://github.com/cinema6/cwrx/issues/487)
 * Extra deployment steps:
     * Deploy new auth cookbook to staging/production envs
+    * Update test environments to run memcached and monitor
 
 ### 1.4.4: Wed Oct 14 18:47:35 EDT 2015
 * [FIX]: Properly handle forgot password targets with query strings: [#562](https://github.com/cinema6/cwrx/pull/562)
