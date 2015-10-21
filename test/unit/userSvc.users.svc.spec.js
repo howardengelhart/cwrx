@@ -571,7 +571,7 @@ describe('userSvc (UT)', function() {
                     endpoint: '/api/account/advertisers'
                 }
             };
-            spyOn(CacheMutex.prototype, 'acquire').and.returnValue(q(false));
+            spyOn(CacheMutex.prototype, 'acquire').and.returnValue(q(true));
             spyOn(CacheMutex.prototype, 'release').and.returnValue(q());
             nextSpy = jasmine.createSpy('nextSpy()').and.returnValue(q());
             doneSpy = jasmine.createSpy('doneSpy()').and.returnValue(q());
@@ -615,7 +615,7 @@ describe('userSvc (UT)', function() {
 
             describe('when the mutex lock is able to be acquired', function() {
                 beforeEach(function(done) {
-                    CacheMutex.prototype.acquire.and.returnValue(q(false));
+                    CacheMutex.prototype.acquire.and.returnValue(q(true));
                     userModule.createLinkedEntities(api, 3500, mockCache, req, nextSpy, doneSpy).done(done);
                 });
                 
@@ -677,7 +677,7 @@ describe('userSvc (UT)', function() {
 
             describe('when the mutex lock is unable to be required', function() {
                 beforeEach(function(done) {
-                    CacheMutex.prototype.acquire.and.returnValue(q(true));
+                    CacheMutex.prototype.acquire.and.returnValue(q(false));
                     userModule.createLinkedEntities(api, 3500, mockCache, req, nextSpy, doneSpy).done(done);
                 });
                 

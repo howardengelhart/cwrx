@@ -1,12 +1,25 @@
-var CacheMutex = require('../../lib/cacheMutex.js'),
-    q          = require('q');
-
 describe('cacheMutex', function() {
+
+    var CacheMutex, logger, q;
 
     var mutex,
         mockCache;
 
     beforeEach(function() {
+        CacheMutex = require('../../lib/cacheMutex.js');
+        logger     = require('../../lib/logger.js');
+        q          = require('q');
+
+        mockLog = {
+            trace : jasmine.createSpy('log_trace'),
+            error : jasmine.createSpy('log_error'),
+            warn  : jasmine.createSpy('log_warn'),
+            info  : jasmine.createSpy('log_info'),
+            fatal : jasmine.createSpy('log_fatal'),
+            log   : jasmine.createSpy('log_log')
+        };
+        spyOn(logger, 'createLog').and.returnValue(mockLog);
+        spyOn(logger, 'getLog').and.returnValue(mockLog);
         mockCache = {
             add: jasmine.createSpy('add()').and.returnValue(q()),
             delete: jasmine.createSpy('delete()').and.returnValue(q())
@@ -46,8 +59,8 @@ describe('cacheMutex', function() {
                 expect(mutex._hasLock).toBe(true);
             });
             
-            it('should resolve with false', function() {
-                expect(result).toBe(false);
+            it('should resolve with true', function() {
+                expect(result).toBe(true);
             });
         });
         
@@ -66,8 +79,8 @@ describe('cacheMutex', function() {
                 expect(mutex._hasLock).toBe(false);
             });
             
-            it('should resolve with true', function() {
-                expect(result).toBe(true);
+            it('should resolve with false', function() {
+                expect(result).toBe(false);
             });
         });
     });
@@ -100,6 +113,24 @@ describe('cacheMutex', function() {
             
             it('should not set hasLock', function() {
                 expect(mutex._hasLock).toBe(false);
+            });
+        });
+        
+        describe('failing to delete the memcached key', function() {
+            var success, failure;
+            
+            beforeEach(function(done) {
+                success = jasmine.createSpy('success()');
+                failure = jasmine.createSpy('failure()');
+                mutex._hasLock = true;
+                mockCache.delete.and.returnValue(q.reject('failure'));
+                mutex.release().then(success, failure).done(done);
+            });
+            
+            it('should catch memcached errors and log a warning', function() {
+                expect(success).toHaveBeenCalled();
+                expect(failure).not.toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
             });
         });
     });

@@ -1698,10 +1698,8 @@ describe('userSvc users (E2E):', function() {
                 statusCodes.splice(1).forEach(function(statusCode) {
                     expect(statusCode).toBe(400);
                 });
-            }).catch(function(errors) {
-                errors.forEach(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
 

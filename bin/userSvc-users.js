@@ -209,7 +209,7 @@
             return requestUtils.qRequest('post', options).then(function(resp) {
                 if(resp.response.statusCode === 201) {
                     req.user.customer = resp.body.id;
-                    log.info('[%1] Created customer %3 for user %4', req.uuid, resp.body.id, id);
+                    log.info('[%1] Created customer %2 for user %3', req.uuid, resp.body.id, id);
                 } else {
                     return q.reject(resp.response.statusCode + ', ' + resp.body);
                 }
@@ -220,8 +220,8 @@
         }
 
         return mutex.acquire()
-            .then(function(locked) {
-                if(locked) {
+            .then(function(acquired) {
+                if(!acquired) {
                     log.info('[%1] Another confirm operation is already in progress for user %3',
                         req.uuid, id);
                     return done({ code: 400, body: 'Another operation is already in progress'});
