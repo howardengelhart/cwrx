@@ -54,6 +54,16 @@
                 retryConnect : true
             }
         },
+        pubsub: {
+            cacheCfg: {
+                port: 21211,
+                isPublisher: false
+            }
+        },
+        cache: {
+            timeouts: {},
+            servers: null
+        },
         policies: {
             allEntities: [ // all entity names, used for permissions and fieldValidations props
                 'advertisers',
@@ -102,7 +112,7 @@
         log.info('Running as cluster worker, proceed with setting up web server.');
 
         var app          = express(),
-            userSvc      = userModule.setupSvc(state.dbs.c6Db, state.config),
+            userSvc      = userModule.setupSvc(state.dbs.c6Db, state.config, state.cache),
             roleSvc      = roleModule.setupSvc(state.dbs.c6Db),
             polSvc       = polModule.setupSvc(state.dbs.c6Db, state.config),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
@@ -210,6 +220,8 @@
         .then(service.cluster)
         .then(service.initMongo)
         .then(service.initSessionStore)
+        .then(service.initPubSubChannels)
+        .then(service.initCache)
         .then(main)
         .catch(function(err) {
             var log = logger.getLog();
