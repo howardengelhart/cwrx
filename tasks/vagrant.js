@@ -7,6 +7,7 @@ module.exports = function(grunt) {
         collateral  : 'auth,monitor',
         content     : 'auth,monitor',
         orgSvc      : 'auth',
+        player      : 'content,auth,monitor',
         search      : 'auth',
         userSvc     : 'auth',
         querybot    : 'ads,auth,content,monitor,c6postgres',
