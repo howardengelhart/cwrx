@@ -1662,27 +1662,40 @@ describe('userSvc users (E2E):', function() {
             }).done(done);
         });
 
-        afterEach(function(done) {
+        function cleanupCustomers(customerName) {
+            if(!customerName) { return; }
             var equalsCustAove = new adtech.AOVE();
-            equalsCustAove.addExpression(new adtech.AOVE.StringExpression('name', 'e2e-tests-company (u-12345)'));
-
-            var equalsAdvertiserAove = new adtech.AOVE();
-            equalsAdvertiserAove.addExpression(new adtech.AOVE.StringExpression('name', 'e2e-tests-company (u-12345)'));
-
-            adtech.customerAdmin.getCustomerList(null, null, equalsCustAove).then(function(response) {
+            equalsCustAove.addExpression(new adtech.AOVE.StringExpression('name', customerName));
+            return adtech.customerAdmin.getCustomerList(null, null, equalsCustAove).then(function(response) {
                 return q.allSettled(response.map(function(item) {
                     return adtech.customerAdmin.deleteCustomer(item.id);
                 }));
-            }).then(function() {
-                return adtech.customerAdmin.getAdvertiserList(null, null, equalsAdvertiserAove);
-            }).then(function(response) {
+            }).catch(function(error) {
+                console.log('Error removing e2e customers:');
+                console.log(error);
+            });
+        }
+
+        function cleanupAdvertisers(advertiserName) {
+            if(!advertiserName) { return; }
+            var equalsAdvertiserAove = new adtech.AOVE();
+            equalsAdvertiserAove.addExpression(new adtech.AOVE.StringExpression('name', advertiserName));
+            return adtech.customerAdmin.getAdvertiserList(null, null, equalsAdvertiserAove).then(function(response) {
                 return q.allSettled(response.map(function(item) {
                     return adtech.customerAdmin.deleteAdvertiser(item.id);
                 }));
             }).catch(function(error) {
-                console.log('Error removing e2e customers/advertisers:');
+                console.log('Error removing e2e advertisers:');
                 console.log(error);
-            }).done(done);
+            });
+        }
+
+        afterEach(function(done) {
+            cleanupCustomers('e2e-tests-company (u-12345)')
+                .then(function() {
+                    return cleanupAdvertisers('e2e-tests-company (u-12345)');
+                })
+                .done(done);
         });
 
         it('should 400 concurrent requests', function(done) {
@@ -1883,48 +1896,69 @@ describe('userSvc users (E2E):', function() {
             });
         });
         
-        it('should work properly with /api/account/users/signup', function(done) {
-            var userId;
-
-            mailman.once('Your account is almost activated!', function(msg) {
-                var match = msg.html.match(/href="http.+id=.+token=[a-f\d]+(?=">)/);
-                if(match.length > 0) {
-                    var confirmLink = match[0].slice(6);
-                    userId = confirmLink.match(/id=u-[a-f\d]+/)[0].slice(3);
-                    var token = confirmLink.match(/token=[a-f\d]+/)[0].slice(6);
-                    var confirmOptions = { url: config.usersUrl + '/confirm/' + userId, json: { token: token } };
-                    requestUtils.qRequest('post', confirmOptions)
-                        .then(function(resp) {
-                            expect(resp.response.statusCode).toBe(200);
-
-                            mailman.once(msgSubject, function(msg) {
-                                expect(resp.body.id).toBe(userId);
-                                expect(resp.body.status).toBe('active');
-                                done();
-                            });
-
-                        })
-                        .catch(function(error) {
-                            expect(util.inspect(error)).not.toBeDefined();
-                            done();
-                        });
-                }
+        describe('working with the signup endpoint', function() {
+            var createdCustomer, createdAdvertiser;
+            
+            beforeEach(function() {
+                createdCustomer = null;
+                createdAdvertiser = null;
+            });
+            
+            afterEach(function(done) {
+                cleanupCustomers(createdCustomer)
+                    .then(function() {
+                        return cleanupAdvertisers(createdAdvertiser);
+                    })
+                    .done(done);
             });
 
-            testUtils.resetCollection('users')
-                .then(function() {
-                    var signupOptions = { url: config.usersUrl + '/signup', json: { email: 'c6e2etester@gmail.com', password: 'password' }};
-                    return requestUtils.qRequest('post', signupOptions);
-                })
-                .then(function(resp) {
-                    expect(resp.response.statusCode).toBe(201);
-                    expect(resp.body.status).toBe('new');
-                })
-                .catch(function() {
-                    expect(util.inspect(error)).not.toBeDefined();
-                    done();
+            it('should work properly with /api/account/users/signup', function(done) {
+                var userId;
+
+                mailman.once('Your account is almost activated!', function(msg) {
+                    var match = msg.html.match(/href="http.+id=.+token=[a-f\d]+(?=">)/);
+                    if(match.length > 0) {
+                        var confirmLink = match[0].slice(6);
+                        userId = confirmLink.match(/id=u-[a-f\d]+/)[0].slice(3);
+                        var token = confirmLink.match(/token=[a-f\d]+/)[0].slice(6);
+                        var confirmOptions = { url: config.usersUrl + '/confirm/' + userId, json: { token: token } };
+                        requestUtils.qRequest('post', confirmOptions)
+                            .then(function(resp) {
+                                expect(resp.response.statusCode).toBe(200);
+
+                                // For cleaning up linked entities
+                                createdCustomer = 'newCustomer (' + resp.body.id + ')';
+                                createdAdvertiser = 'newAdvertiser (' + resp.body.id + ')';
+
+                                mailman.once(msgSubject, function(msg) {
+                                    expect(resp.body.id).toBe(userId);
+                                    expect(resp.body.status).toBe('active');
+                                    done();
+                                });
+
+                            })
+                            .catch(function(error) {
+                                expect(util.inspect(error)).not.toBeDefined();
+                                done();
+                            });
+                    }
                 });
-        });
+
+                testUtils.resetCollection('users')
+                    .then(function() {
+                        var signupOptions = { url: config.usersUrl + '/signup', json: { email: 'c6e2etester@gmail.com', password: 'password' }};
+                        return requestUtils.qRequest('post', signupOptions);
+                    })
+                    .then(function(resp) {
+                        expect(resp.response.statusCode).toBe(201);
+                        expect(resp.body.status).toBe('new');
+                    })
+                    .catch(function() {
+                        expect(util.inspect(error)).not.toBeDefined();
+                        done();
+                    });
+            });
+        });        
     });
 
     describe('POST /api/accounts/users/resendActivation', function() {
