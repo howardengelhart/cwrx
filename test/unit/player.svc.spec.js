@@ -175,20 +175,20 @@ describe('player service', function() {
                     var base;
 
                     beforeEach(function() {
-                        base = 'https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css';
+                        base = 'http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css';
                         result = Player.__rebaseCSS__(playerCSS, base);
                     });
 
                     it('should replace URLs with no quotes', function() {
-                        expect(result).toContain('.player__playIcon{height:45%;width:100%;background:url(https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/img/play-icon.svg) 56% 50%/contain no-repeat}');
+                        expect(result).toContain('.player__playIcon{height:45%;width:100%;background:url(http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/img/play-icon.svg) 56% 50%/contain no-repeat}');
                     });
 
                     it('should replace URLs with single quotes', function() {
-                        expect(result).toContain('.recap__imgBox{width:8em;height:5em;background:url(https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/img/default_square.jpg) 50% 50%/cover no-repeat;float:left;margin:0 1em 0 3em}');
+                        expect(result).toContain('.recap__imgBox{width:8em;height:5em;background:url(http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/img/default_square.jpg) 50% 50%/cover no-repeat;float:left;margin:0 1em 0 3em}');
                     });
 
                     it('should replace URLs with double quotes', function() {
-                        expect(result).toContain('.instag____profileDesc__logo{background:url(https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/img/social-card-sprites.png) -1em -1em/19em no-repeat;width:5em;height:1.5em;margin:1em 0 0;display:block}');
+                        expect(result).toContain('.instag____profileDesc__logo{background:url(http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/img/social-card-sprites.png) -1em -1em/19em no-repeat;width:5em;height:1.5em;margin:1em 0 0;display:block}');
                     });
                 });
 
@@ -197,16 +197,16 @@ describe('player service', function() {
                     var base;
 
                     beforeEach(function() {
-                        base = 'https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js';
+                        base = 'http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js';
                         result = Player.__rebaseJS__(playerJS, base);
                     });
 
                     it('should rebase single-line comment sourceMapURLs', function() {
-                        expect(result).toContain('//# sourceMappingURL=https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js.map');
+                        expect(result).toContain('//# sourceMappingURL=http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js.map');
                     });
 
                     it('should rebase multi-line comment sourceMapURLs', function() {
-                        expect(result).toContain('/*# sourceMappingURL = https://staging.cinema6.com/foo/lightbox.foo.js.map */');
+                        expect(result).toContain('/*# sourceMappingURL = http://localhost/foo/lightbox.foo.js.map */');
                     });
                 });
             });
@@ -288,7 +288,7 @@ describe('player service', function() {
                                 appName: 'player',
                                 appDir: require('path').dirname(require.resolve('../../bin/player')),
                                 api: {
-                                    root: 'https://staging.cinema6.com/',
+                                    root: 'http://localhost/',
                                     player: {
                                         endpoint: 'apps/mini-reel-player/index.html'
                                     },
@@ -676,7 +676,7 @@ describe('player service', function() {
         beforeEach(function() {
             config = {
                 api: {
-                    root: 'https://staging.cinema6.com/',
+                    root: 'http://localhost/',
                     player: {
                         endpoint: 'apps/mini-reel-player/index.html'
                     },
@@ -1155,7 +1155,7 @@ describe('player service', function() {
                         origin = 'http://cinema6.com/solo';
                         uuid = 'fuweyhrf84yr3';
 
-                        contentURL = 'https://staging.cinema6.com/api/public/content/experience/e-92160a770b81d5';
+                        contentURL = 'http://localhost/api/public/content/experience/e-92160a770b81d5';
 
                         success = jasmine.createSpy('success()');
                         failure = jasmine.createSpy('failure()');
@@ -1346,8 +1346,8 @@ describe('player service', function() {
                         });
 
                         it('should make requests for the local CSS/JS files', function() {
-                            expect(request.get).toHaveBeenCalledWith('https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css', { gzip: true });
-                            expect(request.get).toHaveBeenCalledWith('https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js', { gzip: true });
+                            expect(request.get).toHaveBeenCalledWith('http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css', { gzip: true });
+                            expect(request.get).toHaveBeenCalledWith('http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js', { gzip: true });
                             expect(request.get.calls.count()).toBe(2);
                         });
 
@@ -1356,7 +1356,7 @@ describe('player service', function() {
 
                             beforeEach(function(done) {
                                 reason = new Error('Could not download stuff.');
-                                requestDeferreds['https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js'].reject(reason);
+                                requestDeferreds['http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js'].reject(reason);
 
                                 result.finally(done);
                             });
@@ -1372,8 +1372,8 @@ describe('player service', function() {
 
                         describe('and the sub-resources are fetched', function() {
                             beforeEach(function(done) {
-                                requestDeferreds['https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'].resolve(playerCSS);
-                                requestDeferreds['https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js'].resolve(playerJS);
+                                requestDeferreds['http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'].resolve(playerCSS);
+                                requestDeferreds['http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js'].resolve(playerJS);
 
                                 result.then(function() {}).then(done, done);
                             });
@@ -1390,9 +1390,9 @@ describe('player service', function() {
                                 expect($result('link[href="css/${mode}.css"]').length).toBe(0);
                                 expect($result('link[href="css/lightbox.css"]').length).toBe(0);
 
-                                expect($result('script[data-src="https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js"]').text()).toBe(Player.__rebaseJS__(playerJS, 'https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js').replace(/<\/script>/g, '<\\/script>'));
-                                expect($result('style[data-href="https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css"]').text()).toBe(Player.__rebaseCSS__(playerCSS, 'https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'));
-                                expect($result('base').attr('href')).toBe('https://staging.cinema6.com/apps/mini-reel-player/v0.25.0-0-g8b946d4/');
+                                expect($result('script[data-src="http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js"]').text()).toBe(Player.__rebaseJS__(playerJS, 'http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js').replace(/<\/script>/g, '<\\/script>'));
+                                expect($result('style[data-href="http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css"]').text()).toBe(Player.__rebaseCSS__(playerCSS, 'http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'));
+                                expect($result('base').attr('href')).toBe('http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/');
                             });
                         });
                     });
