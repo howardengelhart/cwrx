@@ -1,0 +1,78 @@
+{
+    "advertiserId": "e2e-a-keepme",
+    "application": "studio",
+    "brand": "Volvo",
+    "cards": [
+        {
+            "id": "rc-abaddbbd3e050b",
+            "endDate": "2020-10-07T19:49:31.032Z",
+            "name": "E2E_TEST_KEEP_ME_PLZ_card_rc-abaddbbd3e050b",
+            "reportingId": null,
+            "adtechId": 7485901,
+            "bannerNumber": 1
+        },
+        {
+            "id": "rc-c89f1a8f5d5af4",
+            "endDate": "2020-10-07T19:49:31.032Z",
+            "name": "E2E_TEST_KEEP_ME_PLZ_card_rc-c89f1a8f5d5af4",
+            "reportingId": "Player Service Stress Test",
+            "startDate": "2015-10-24T12:40:34.513Z",
+            "adtechId": 7485905,
+            "bannerNumber": 1
+        }
+    ],
+    "categories": [
+        "vehicles"
+    ],
+    "created": "2015-10-07T19:45:28.032Z",
+    "customerId": "e2e-cu-keepme",
+    "id": "cam-d136408398ec7f",
+    "lastUpdated": "2015-10-15T15:38:42.746Z",
+    "links": {
+        "Website": "http://www.volvotrucks.com/",
+        "Facebook": "https://www.facebook.com/VolvoTrucks",
+        "Twitter": "https://twitter.com/VolvoTrucks",
+        "YouTube": "https://www.youtube.com/user/VolvoTrucks"
+    },
+    "logos": {
+        "square": "https://pbs.twimg.com/profile_images/607784582419775488/Jhaufojh_400x400.jpg"
+    },
+    "minViewTime": -1,
+    "miniReelGroups": [],
+    "miniReels": [],
+    "name": "Player Service Stress Test",
+    "org": "o-test",
+    "pricing": {
+        "budget": 100,
+        "cost": 0.25,
+        "model": "cpv"
+    },
+    "pricingHistory": [
+        {
+            "pricing": {
+                "budget": 100,
+                "cost": 0.25,
+                "model": "cpv"
+            },
+            "userId": "u-test",
+            "user": "testuser",
+            "date": "2015-10-07T19:46:11.046Z"
+        }
+    ],
+    "staticCardMap": {},
+    "status": "active",
+    "statusHistory": [
+        {
+            "status": "active",
+            "userId": "u-test",
+            "user": "testuser",
+            "date": "2015-10-07T19:45:28.032Z"
+        }
+    ],
+    "targeting": {
+        "interests": [
+            "vehicles"
+        ]
+    },
+    "user": "u-test"
+}
