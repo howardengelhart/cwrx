@@ -106,7 +106,7 @@ describe('bannerUtils', function() {
         var newBanns, oldBanns;
         beforeEach(function() {
             oldBanns = [];
-            newBanns = [{id: 'rc-1'}, {id: 'rc-2'}];
+            newBanns = [{id: 'e-1'}, {id: 'e-2'}];
             
             adtech.bannerAdmin.createBanner.and.callFake(function(campId, banner, bannerInfo) {
                 var num = this.createBanner.calls.count();
@@ -118,7 +118,7 @@ describe('bannerUtils', function() {
         });
         
         it('should skip if the new banner list is not defined', function(done) {
-            bannerUtils.createBanners(null, oldBanns, 'card', false, 12345).then(function(resp) {
+            bannerUtils.createBanners(null, oldBanns, 'miniReel', false, 12345).then(function(resp) {
                 expect(adtech.bannerAdmin.createBanner).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -126,10 +126,32 @@ describe('bannerUtils', function() {
         });
         
         it('should create a batch of banners', function(done) {
+            bannerUtils.createBanners(newBanns, oldBanns, 'miniReel', false, 12345).then(function(resp) {
+                expect(newBanns).toEqual([
+                    {id: 'e-1', bannerId: 100, bannerNumber: 1},
+                    {id: 'e-2', bannerId: 200, bannerNumber: 2}
+                ]);
+                expect(bannerUtils.formatBanner).toHaveBeenCalledWith('miniReel', 'e-1', false);
+                expect(bannerUtils.formatBanner).toHaveBeenCalledWith('miniReel', 'e-2', false);
+                expect(adtech.bannerAdmin.createBanner.calls.count()).toBe(2);
+                expect(adtech.bannerAdmin.createBanner).toHaveBeenCalledWith(12345,
+                    {extId: 'e-1', name: 'miniReel e-1'}, {name: 'miniReel e-1'});
+                expect(adtech.bannerAdmin.createBanner).toHaveBeenCalledWith(12345,
+                    {extId: 'e-2', name: 'miniReel e-2'}, {name: 'miniReel e-2'});
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should save props on the campaign hash for card banners', function(done) {
+            newBanns = [
+                { id: 'rc-1', campaign: { adtechId: 123 } },
+                { id: 'rc-2', campaign: { adtechId: 456 } }
+            ];
             bannerUtils.createBanners(newBanns, oldBanns, 'card', false, 12345).then(function(resp) {
                 expect(newBanns).toEqual([
-                    {id: 'rc-1', bannerId: 100, bannerNumber: 1},
-                    {id: 'rc-2', bannerId: 200, bannerNumber: 2}
+                    { id: 'rc-1', campaign: { adtechId: 123, bannerId: 100, bannerNumber: 1 } },
+                    { id: 'rc-2', campaign: { adtechId: 456, bannerId: 200, bannerNumber: 2 } }
                 ]);
                 expect(bannerUtils.formatBanner).toHaveBeenCalledWith('card', 'rc-1', false);
                 expect(bannerUtils.formatBanner).toHaveBeenCalledWith('card', 'rc-2', false);
@@ -145,32 +167,32 @@ describe('bannerUtils', function() {
         
         it('should not recreate banners that already exist', function(done) {
             oldBanns = [
-                { id: 'rc-2', bannerId: 200, bannerNumber: 2 },
-                { id: 'rc-3', bannerId: 300, bannerNumber: 3 }
+                { id: 'e-2', bannerId: 200, bannerNumber: 2 },
+                { id: 'e-3', bannerId: 300, bannerNumber: 3 }
             ];
-            bannerUtils.createBanners(newBanns, oldBanns, 'card', false, 12345).then(function() {
+            bannerUtils.createBanners(newBanns, oldBanns, 'miniReel', false, 12345).then(function() {
                 expect(newBanns).toEqual([
-                    {id: 'rc-1', bannerId: 100, bannerNumber: 1},
-                    {id: 'rc-2', bannerId: 200, bannerNumber: 2}
+                    {id: 'e-1', bannerId: 100, bannerNumber: 1},
+                    {id: 'e-2', bannerId: 200, bannerNumber: 2}
                 ]);
                 expect(bannerUtils.formatBanner.calls.count()).toBe(1);
-                expect(bannerUtils.formatBanner).toHaveBeenCalledWith('card', 'rc-1', false);
+                expect(bannerUtils.formatBanner).toHaveBeenCalledWith('miniReel', 'e-1', false);
                 expect(adtech.bannerAdmin.createBanner.calls.count()).toBe(1);
                 expect(adtech.bannerAdmin.createBanner).toHaveBeenCalledWith(12345,
-                    {extId: 'rc-1', name: 'card rc-1'}, {name: 'card rc-1'});
+                    {extId: 'e-1', name: 'miniReel e-1'}, {name: 'miniReel e-1'});
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
         });
         
         it('should properly pass the isSponsored value to formatBanners', function(done) {
-            bannerUtils.createBanners(newBanns, oldBanns, 'card', true, 12345).then(function(resp) {
+            bannerUtils.createBanners(newBanns, oldBanns, 'miniReel', true, 12345).then(function(resp) {
                 expect(newBanns).toEqual([
-                    {id: 'rc-1', bannerId: 100, bannerNumber: 1},
-                    {id: 'rc-2', bannerId: 200, bannerNumber: 2}
+                    {id: 'e-1', bannerId: 100, bannerNumber: 1},
+                    {id: 'e-2', bannerId: 200, bannerNumber: 2}
                 ]);
-                expect(bannerUtils.formatBanner).toHaveBeenCalledWith('card', 'rc-1', true);
-                expect(bannerUtils.formatBanner).toHaveBeenCalledWith('card', 'rc-2', true);
+                expect(bannerUtils.formatBanner).toHaveBeenCalledWith('miniReel', 'e-1', true);
+                expect(bannerUtils.formatBanner).toHaveBeenCalledWith('miniReel', 'e-2', true);
                 expect(adtech.bannerAdmin.createBanner.calls.count()).toBe(2);
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
@@ -179,7 +201,7 @@ describe('bannerUtils', function() {
         
         it('should reject if one of the adtech calls fails', function(done) {
             adtech.bannerAdmin.createBanner.and.returnValue(q.reject('I GOT A PROBLEM'));
-            bannerUtils.createBanners(newBanns, oldBanns, 'card', false, 12345).then(function() {
+            bannerUtils.createBanners(newBanns, oldBanns, 'miniReel', false, 12345).then(function() {
                 expect('resolved').not.toBe('resolved');
             }).catch(function(error) {
                 expect(error).toEqual(new Error('Adtech failure'));

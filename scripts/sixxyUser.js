@@ -46,10 +46,13 @@ mongoUtils.connect(program.dbHost, program.dbPort, 'c6Db', program.dbUser, progr
         console.log('Successfully created/updated user', program.id);
     });
 })
-.catch(function(error) {
-    console.log('Got an error: ');
-    console.log(error);
-})
-.finally(function() {
+.then(function() {
     db && db.close();
+    process.exit(0);
+})
+.catch(function(error) {
+    console.error('Got an error: ');
+    console.error(error);
+    db && db.close();
+    process.exit(1);
 });
