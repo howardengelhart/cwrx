@@ -479,7 +479,7 @@ describe('userSvc policies endpoints (E2E):', function() {
                     id: 'p-e2e-put1',
                     name: 'testPol1',
                     created: new Date(),
-                    lastUpdated: new Date(),
+                    lastUpdated: new Date(new Date().valueOf() - 5000),
                     status: 'active',
                     createdBy: 'not-e2e-user',
                     lastUpdatedBy: 'not-e2e-user',

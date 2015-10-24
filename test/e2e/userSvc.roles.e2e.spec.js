@@ -418,7 +418,7 @@ describe('userSvc roles endpoints (E2E):', function() {
                     id: 'r-e2e-put1',
                     name: 'testRole1',
                     created: new Date(),
-                    lastUpdated: new Date(),
+                    lastUpdated: new Date(new Date().valueOf() - 5000),
                     status: 'active',
                     createdBy: 'not-e2e-user',
                     lastUpdatedBy: 'not-e2e-user',
