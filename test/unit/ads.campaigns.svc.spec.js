@@ -35,6 +35,7 @@ describe('ads-campaigns (UT)', function() {
         spyOn(campaignUtils, 'makeKeywordLevels').and.callThrough();
         spyOn(campaignUtils, 'deleteCampaigns').and.returnValue(q());
         spyOn(campaignUtils, 'editCampaign').and.returnValue(q());
+        spyOn(CrudSvc.prototype, 'formatOutput').and.callThrough();
 
         mockDb = {
             collection: jasmine.createSpy('db.collection()').and.callFake(function(name) {
@@ -1347,6 +1348,7 @@ describe('ads-campaigns (UT)', function() {
                     'rc-2': { id: 'rc-2', campaign: { adtechId: 12, adtechName: 'cats', startDate: 'right meow', endDate: 'mewsday' } },
                     'rc-3': { id: 'rc-3', campaign: { adtechId: 13, adtechName: 'card 3', startDate: '123', endDate: '456' } }
                 });
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
                 done();
             });
@@ -1368,6 +1370,7 @@ describe('ads-campaigns (UT)', function() {
                     { level1: [anyNum], level2: undefined, level3: [anyNum, anyNum] }, '1234');
                 expect(campaignUtils.editCampaign).toHaveBeenCalledWith('card 3 (cam-1)', req._cards['rc-3'].campaign,
                     { level1: [anyNum], level2: undefined, level3: [anyNum, anyNum] }, '1234');
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
                 done();
             });
         });
@@ -1432,6 +1435,30 @@ describe('ads-campaigns (UT)', function() {
                 expect(req.body.targeting).not.toBeDefined();
                 expect(campaignUtils.makeKeywordLevels).not.toHaveBeenCalled();
                 expect(campaignUtils.editCampaign.calls.count()).toBe(2);
+                done();
+            });
+        });
+        
+        it('should edit cards in mongo if editCampaign changes card.campaign properties', function(done) {
+            campaignUtils.editCampaign.and.callFake(function(name, campaign, keys, uuid) {
+                if (campaign.adtechId === 12) {
+                    campaign.startDate = 'eventually';
+                }
+                return q();
+            });
+
+            campModule.editSponsoredCamps(svc, req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(campaignUtils.editCampaign.calls.count()).toBe(2);
+                expect(req._cards['rc-2']).toEqual({
+                    id: 'rc-2', updated: true, campaign: { adtechId: 12, adtechName: 'cats', startDate: 'eventually', endDate: 'mewsday' }
+                });
+                expect(mongoUtils.editObject.calls.count()).toBe(1);
+                expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'cards' }, { campaign: req._cards['rc-2'].campaign }, 'rc-2');
+                expect(CrudSvc.prototype.formatOutput).toHaveBeenCalledWith(req._cards['rc-2']);
                 done();
             });
         });
@@ -1559,6 +1586,9 @@ describe('ads-campaigns (UT)', function() {
                 expect(mongoUtils.editObject.calls.count()).toBe(2);
                 expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'cards' }, { campaign: req._cards['rc-1'].campaign }, 'rc-1');
                 expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'cards' }, { campaign: req._cards['rc-2'].campaign }, 'rc-2');
+                expect(CrudSvc.prototype.formatOutput.calls.count()).toBe(2);
+                expect(CrudSvc.prototype.formatOutput).toHaveBeenCalledWith(req._cards['rc-1']);
+                expect(CrudSvc.prototype.formatOutput).toHaveBeenCalledWith(req._cards['rc-2']);
                 expect(mockLog.error).not.toHaveBeenCalled();
                 done();
             });
@@ -1578,6 +1608,8 @@ describe('ads-campaigns (UT)', function() {
                 expect(bannerUtils.createBanners).toHaveBeenCalledWith([req._cards['rc-2']], null, 'card', true, 1000);
                 expect(mongoUtils.editObject.calls.count()).toBe(1);
                 expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'cards' }, { campaign: req._cards['rc-2'].campaign }, 'rc-2');
+                expect(CrudSvc.prototype.formatOutput.calls.count()).toBe(1);
+                expect(CrudSvc.prototype.formatOutput).toHaveBeenCalledWith(req._cards['rc-2']);
                 expect(mockLog.error).not.toHaveBeenCalled();
                 done();
             });

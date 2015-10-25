@@ -396,14 +396,6 @@ describe('campaign validation', function() {
                 .toEqual({ isValid: false, reason: 'cards must be in format: objectArray' });
         });
         
-        it('should not allow the field to be changed once initialized', function() {
-            origObj.cards = [{ id: 'rc-2' }];
-            newObj.cards = [{ id: 'rc-1' }];
-            expect(svc.model.validate('edit', newObj, origObj, requester))
-                .toEqual({ isValid: true, reason: undefined });
-            expect(newObj.cards).toEqual([{ id: 'rc-2' }]);
-        });
-        
         it('should fail if the field has too many entries', function() {
             newObj.cards = [{ id: 'rc-1' }, { id: 'rc-2' }];
             expect(svc.model.validate('create', newObj, origObj, requester))

@@ -119,7 +119,6 @@
         },
         cards: {
             __allowed: true,
-            __unchangeable: true,
             __type: 'objectArray',
             __length: 1
         },
@@ -434,7 +433,8 @@
     
     // Calls campaignUtils.validateDates for every object in cards
     campModule.validateDates = function(req, next, done) {
-        var delays = campModule.config.campaigns.dateDelays;
+        var log = logger.getLog(),
+            delays = campModule.config.campaigns.dateDelays;
         
         if (!req.body.cards) {
             return q(next());
@@ -447,7 +447,9 @@
             var valid = campaignUtils.validateDates(card.campaign, origCardCamp, delays, req.uuid);
                 
             if (!valid) {
-                return q(done({ code: 400, body: 'cards[' + i + '] has invalid dates' }));
+                var msg = 'cards[' + i + '] has invalid dates';
+                log.info('[%1] %2', req.uuid, msg);
+                return q(done({ code: 400, body: msg }));
             }
         }
 
@@ -751,7 +753,7 @@
                         { campaign: matching.campaign },
                         matching.id
                     ).then(function(updated) {
-                        req._cards[updated.id] = updated;
+                        req._cards[updated.id] = CrudSvc.prototype.formatOutput(updated);
                     });
                 });
             }));
@@ -821,7 +823,7 @@
                         { campaign: card.campaign },
                         card.id
                     ).then(function(updated) {
-                        req._cards[updated.id] = updated;
+                        req._cards[updated.id] = CrudSvc.prototype.formatOutput(updated);
                     });
                 });
             }));
