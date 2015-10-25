@@ -187,6 +187,7 @@
         return svc;
     };
     
+    // Replace entries in cards array with fetched C6 cards. Should be called just before response
     campModule.decorateWithCards = function(req, campResp) {
         var log = logger.getLog();
         
@@ -221,7 +222,6 @@
                     return;
                 }
 
-                // TODO: rethink log level?
                 log.warn(
                     '[%1] Could not fetch card %2 to decorate %3 for user %4: %5, %6',
                      req.uuid,
@@ -361,8 +361,9 @@
         return q(next());
     };
 
-    
-    campModule.fetchCards = function(req, next, done) { // TODO: comment, test
+    /* Fetch cards defined in req.body.cards + req.origObj.cards from content svc. Stores entities
+     * in req._cards + req._origCards, respectively. */
+    campModule.fetchCards = function(req, next, done) {
         var log = logger.getLog(),
             doneCalled = false,
             reqCache = {};
@@ -386,6 +387,7 @@
         }
         
         return q.all((req.body.cards || []).map(function(newCard) {
+            // ensure all req.body.cards entries have campaign hash
             newCard.campaign = newCard.campaign || {};
 
             if (!newCard.id) {
@@ -393,12 +395,14 @@
             }
 
             return makeRequest(newCard.id).then(function(resp) {
+                // merge req.body.cards entry with fetched C6 card
                 if (resp.response.statusCode === 200) {
                     req._cards[newCard.id] = resp.body;
-                    objUtils.extend(newCard, resp.body); //TODO: test this lots
+                    objUtils.extend(newCard, resp.body);
                     return;
                 }
                 
+                // Return 400 if card in req.body.cards cannot be fetched
                 log.info('[%1] Could not fetch card %2 from req.body for user %3: %4, %5',
                          req.uuid, newCard.id, req.user.id, resp.response.statusCode, resp.body);
                 
@@ -415,7 +419,7 @@
                     return;
                 }
 
-                // TODO: rethink log level?
+                // Warn, but continue, if card in existing campaign can't be fetched for user
                 log.warn('[%1] Could not fetch card %2 from req.origObj for user %3: %4, %5',
                          req.uuid, oldCard.id, req.user.id, resp.response.statusCode, resp.body);
             });
@@ -451,7 +455,7 @@
     };
 
     // Ensures that names are unique across all miniReels and cards in campaign
-    campModule.ensureUniqueNames = function(req, next, done) { //TODO update tests
+    campModule.ensureUniqueNames = function(req, next, done) {
         var log = logger.getLog(),
             names = [];
 
@@ -592,7 +596,8 @@
         });
     };
     
-    campModule.cleanMiniReels = function(req, next/*, done*/) { //TODO: test, comment
+    // Delete unused sponsored miniReels by proxying DELETE requests to content svc
+    campModule.cleanMiniReels = function(req, next/*, done*/) {
         var log = logger.getLog(),
             id = req.body.id || (req.origObj && req.origObj.id);
         
@@ -614,7 +619,9 @@
         });
     };
     
-    campModule.updateCards = function(req, next, done) { //TODO: test, comment
+    /* For each entry in req.body.cards, create/edit the card through the content service.
+     * Saves updated card to req._cards, and replaces entry in array with { id: 'rc-...' } */
+    campModule.updateCards = function(req, next, done) {
         var log = logger.getLog(),
             id = req.body.id || (req.origObj && req.origObj.id),
             doneCalled = false;
@@ -691,10 +698,12 @@
             id = req.body.id || (req.origObj && req.origObj.id),
             promise;
         
+        // skip if no cards in original campaign to edit
         if (!req.origObj.cards || req.origObj.cards.length === 0) {
             return q(next());
         }
         
+        // only create keywords if they have changed
         if (!interests || objUtils.compareObjects(interests.slice().sort(),
                                                   origInterests.slice().sort())) {
             promise = q();
@@ -706,16 +715,16 @@
         return promise.then(function(keys) {
             return q.all(req.origObj.cards.map(function(oldEntry) {
                 var oldCard = req._origCards[oldEntry.id],
-                    newCard = req._cards[oldEntry.id];
+                    matching = !!req.body.cards ? req._cards[oldEntry.id] : oldCard;
 
                 // don't edit old camps that no longer exist in new version
-                if (!newCard) {
+                if (!matching) {
                     return q();
                 }
             
                 // Only edit sponsored campaign if some fields have changed
                 if (!keys && ['adtechName', 'startDate', 'endDate'].every(function(field) {
-                    return oldCard.campaign[field] === newCard.campaign[field];
+                    return oldCard.campaign[field] === matching.campaign[field];
                 })) {
                     return q();
                 }
@@ -723,24 +732,24 @@
                 log.info('[%1] Campaign %2 for %3 changed, updating',
                          req.uuid, oldCard.campaign.adtechId, oldCard.id);
                          
-                var campaignCopy = JSON.parse(JSON.stringify(newCard.campaign));
+                var campaignCopy = JSON.parse(JSON.stringify(matching.campaign));
 
                 return campaignUtils.editCampaign(
-                    newCard.campaign.adtechName + ' (' + id + ')',
-                    newCard.campaign, //TODO: double check this? esp. name?
+                    matching.campaign.adtechName + ' (' + id + ')',
+                    matching.campaign,
                     keys,
                     req.uuid
                 )
                 .then(function() {
-                    if (objUtils.compareObjects(newCard.campaign, campaignCopy)) {
+                    if (objUtils.compareObjects(matching.campaign, campaignCopy)) {
                         return q();
                     }
                     
                     // card.campaign may change in editCampaign(), so edit card in mongo
                     return mongoUtils.editObject(
                         svc._db.collection('cards'),
-                        { campaign: newCard.campaign },
-                        newCard.id
+                        { campaign: matching.campaign },
+                        matching.id
                     ).then(function(updated) {
                         req._cards[updated.id] = updated;
                     });
@@ -765,11 +774,13 @@
                 level3: (interests.length === 0) ? ['*'] : interests
             };
         
+        // skip if no cards
         if (!req.body.cards || req.body.cards.length === 0) {
             log.trace('[%1] No cards to make campaigns for', req.uuid);
             return q(next());
         }
         
+        // create keywords in adtech
         return campaignUtils.makeKeywordLevels(keyLevels)
         .then(function(keywords) {
             return q.all(req.body.cards.map(function(cardEntry) {
