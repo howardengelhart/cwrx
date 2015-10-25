@@ -37,6 +37,10 @@
             __unchangeable: true,
             __type: 'string'
         },
+        paymentMethod: {
+            __allowed: true,
+            __type: 'string'
+        },
         minViewTime: {
             __allowed: false,
             __type: 'number'
@@ -185,12 +189,9 @@
     
     campModule.decorateWithCards = function(req, campResp) {
         var log = logger.getLog();
-
+        
         req._cards = req._cards || {};
         
-        if (req.query && req.query.fields && !/cards/.test(req.query.fields)) {
-            return q(campResp);
-        }
         if (campResp.code < 200 || campResp.code >= 300 || typeof campResp.body !== 'object') {
             return q(campResp);
         }
@@ -199,6 +200,10 @@
         }
 
         return q.all(campResp.body.cards.map(function(cardEntry) {
+            if (!cardEntry.id) {
+                return;
+            }
+        
             if (req._cards[cardEntry.id]) {
                 return q();
             }
@@ -235,7 +240,7 @@
         }))
         .then(function() {
             campResp.body.cards = campResp.body.cards.map(function(cardEntry) {
-                return req._cards[cardEntry.id];
+                return req._cards[cardEntry.id] || cardEntry;
             });
             return q(campResp);
         });
@@ -513,7 +518,7 @@
     
     /* Send a DELETE request to the content service. type should be "card" or "experience"
      * Logs + swallows 4xx failures, but rejects 5xx failures. */
-    campModule.sendDeleteRequest = function(req, id, type) { //TODO: reuse? still useful at all?
+    campModule.sendDeleteRequest = function(req, id, type) {
         var log = logger.getLog();
         
         return requestUtils.qRequest('delete', {
