@@ -277,6 +277,8 @@ describe('player service', function() {
                     });
 
                     afterEach(function() {
+                        process.removeAllListeners('SIGUSR2');
+                        process.removeAllListeners('message');
                         delete require.cache[require.resolve('express')];
                         delete require.cache[require.resolve('../../lib/browserInfo')];
                     });
@@ -384,6 +386,12 @@ describe('player service', function() {
                     });
 
                     describe('if started as a clusterMaster', function() {
+                        var kids;
+
+                        function Worker() {
+                            this.send = jasmine.createSpy('child.send()');
+                        }
+
                         beforeEach(function(done) {
                             mockExpress.calls.reset();
                             MockPlayer.calls.reset();
@@ -391,6 +399,7 @@ describe('player service', function() {
 
                             service.cluster.and.callFake(function(state) {
                                 state.clusterMaster = true;
+                                kids = state.kids = [new Worker(), new Worker()];
 
                                 return q(state);
                             });
@@ -400,6 +409,49 @@ describe('player service', function() {
 
                         it('should not create an express server', function() {
                             expect(mockExpress).not.toHaveBeenCalled();
+                        });
+
+                        it('should not create a Player instance', function() {
+                            expect(MockPlayer).not.toHaveBeenCalled();
+                        });
+
+                        describe('signal: SIGUSR2', function() {
+                            beforeEach(function() {
+                                process.emit('SIGUSR2');
+                            });
+
+                            it('should send each kid the refresh command', function() {
+                                kids.forEach(function(kid) {
+                                    expect(kid.send).toHaveBeenCalledWith({ cmd: 'refresh' });
+                                });
+                            });
+                        });
+                    });
+
+                    describe('signal: SIGUSR2', function() {
+                        beforeEach(function() {
+                            spyOn(player, 'resetCodeCache').and.callThrough();
+
+                            process.emit('SIGUSR2');
+                        });
+
+                        it('should call player.resetCodeCache()', function() {
+                            expect(player.resetCodeCache).toHaveBeenCalled();
+                        });
+                    });
+
+                    describe('message: { cmd: "refresh" }', function() {
+                        beforeEach(function() {
+                            spyOn(player, 'resetCodeCache').and.callThrough();
+
+                            process.emit('message', { cmd: 'hup' });
+                            expect(player.resetCodeCache).not.toHaveBeenCalled();
+
+                            process.emit('message', { cmd: 'refresh' });
+                        });
+
+                        it('should call player.resetCodeCache()', function() {
+                            expect(player.resetCodeCache).toHaveBeenCalled();
                         });
                     });
 
@@ -786,6 +838,18 @@ describe('player service', function() {
             });
 
             describe('methods:', function() {
+                describe('resetCodeCache()', function() {
+                    beforeEach(function() {
+                        spyOn(player.__getPlayer__, 'clear').and.callThrough();
+
+                        player.resetCodeCache();
+                    });
+
+                    it('should call clear() on the __getPlayer__() method', function() {
+                        expect(player.__getPlayer__.clear).toHaveBeenCalled();
+                    });
+                });
+
                 describe('get(options)', function() {
                     var success, failure;
                     var options;

@@ -334,7 +334,13 @@ Player.startService = function startService() {
             state.config.cloudwatch.sendInterval,
             { Dimensions: state.config.cloudwatch.dimensions }
         );
-        
+
+        function resetCodeCache() {
+            log.info('Got refresh command. Resetting code cache.');
+
+            return player.resetCodeCache();
+        }
+
         app.use(setUuid());
         app.use(setBasicHeaders());
         app.use(handleOptions());
@@ -396,6 +402,16 @@ Player.startService = function startService() {
             }
         });
 
+        process.on('SIGUSR2', resetCodeCache);
+        process.on('message', function(message) {
+            switch (message.cmd) {
+            case 'refresh':
+                return resetCodeCache();
+            default:
+                return;
+            }
+        });
+
         app.listen(state.cmdl.port);
         log.info('Service is listening on port: %1', state.cmdl.port);
 
@@ -413,6 +429,15 @@ Player.startService = function startService() {
 
             if (state.clusterMaster) {
                 log.info('Cluster master, not a worker');
+
+                process.on('SIGUSR2', function refreshKids() {
+                    log.info('Cluster master got SIGUSR2. Refreshing kids.');
+
+                    state.kids.forEach(function refreshKid(kid) {
+                        kid.send({ cmd: 'refresh' });
+                    });
+                });
+
                 return state;
             }
 
@@ -500,6 +525,10 @@ Player.prototype.get = function get(/*options*/) {
         log.trace('[%1] Stringifying document.', uuid);
         return document.toString();
     });
+};
+
+Player.prototype.resetCodeCache = function resetCodeCache() {
+    return this.__getPlayer__.clear();
 };
 
 module.exports = Player;
