@@ -1,0 +1,216 @@
+[
+    {
+        "campaign": {
+            "campaignId": null,
+            "advertiserId": null,
+            "minViewTime": 8,
+            "countUrls": [
+                "http://www.cinema6.com/test-pixel"
+            ],
+            "clickUrls": []
+        },
+        "campaignId": "cam-7637703876d1f5",
+        "collateral": {
+            "logo": "http://cdn.thedroidguy.com/wp-content/uploads/2012/03/transformerlogo.gif"
+        },
+        "created": "2015-03-11T15:01:02.276Z",
+        "data": {
+            "hideSource": true,
+            "controls": true,
+            "autoadvance": false,
+            "skip": 10,
+            "vast": "https://adserver.adtechus.com/?advideo/3.0/5473.1/3507976/0//cc=2;vidAS=pre_roll;vidRT=VAST;vidRTV=2.0;cors=yes;cfp=1;rndc={guid}",
+            "moat": {
+                "campaign": "Drink Guinness Please",
+                "creative": "Transformers Are Really Awesome",
+                "advertiser": "Transformers"
+            }
+        },
+        "id": "rc-0a8a41066c1c7b",
+        "lastUpdated": "2015-05-11T14:08:26.819Z",
+        "links": {
+            "Website": "https://www.guinnesshooley.com/",
+            "Facebook": "https://www.facebook.com/guinnessus",
+            "Twitter": "https://twitter.com/guinnessus",
+            "Youtube": "https://www.youtube.com/user/Guinness"
+        },
+        "modules": [],
+        "note": "Whatever you do!",
+        "org": "o-test",
+        "params": {
+            "action": null,
+            "ad": false,
+            "sponsor": "Transformers"
+        },
+        "placementId": null,
+        "sponsored": true,
+        "status": "active",
+        "templateUrl": null,
+        "thumbs": {
+            "small": "http://portal.cinema6.com/collateral/media/campaigns/test/transformers_stealcars_thumbnail.jpg",
+            "large": "http://portal.cinema6.com/collateral/media/campaigns/test/transformers_stealcars_thumbnail.jpg"
+        },
+        "title": "Do Not Steal That Car",
+        "type": "adUnit",
+        "user": "u-test"
+    },
+    {
+        "campaign": {
+            "campaignId": null,
+            "advertiserId": null,
+            "minViewTime": 8,
+            "countUrls": [],
+            "clickUrls": []
+        },
+        "campaignId": "cam-7637703876d1f5",
+        "collateral": {
+            "logo": "https://pbs.twimg.com/profile_images/607784582419775488/Jhaufojh_400x400.jpg"
+        },
+        "created": "2015-10-07T19:49:28.809Z",
+        "data": {
+            "hideSource": true,
+            "autoplay": true,
+            "controls": false,
+            "autoadvance": false,
+            "skip": 8,
+            "vast": "https://staging.cinema6.com/collateral/media/player_service_perf_test/player_service_perf_test.xml"
+        },
+        "id": "rc-2b278986abacf8",
+        "lastUpdated": "2015-10-15T15:37:38.300Z",
+        "links": {
+            "Website": "http://www.volvotrucks.com/",
+            "Facebook": "https://www.facebook.com/VolvoTrucks",
+            "Twitter": "https://twitter.com/VolvoTrucks",
+            "YouTube": "https://www.youtube.com/user/VolvoTrucks"
+        },
+        "modules": [],
+        "note": "Watch Jean-Claude Van Damme carry out his famous split between two reversing trucks. Never done before, JCVD says it's the most epic of splits—what do you think?",
+        "org": "o-test",
+        "params": {
+            "sponsor": "Volvo",
+            "ad": true,
+            "action": null
+        },
+        "placementId": null,
+        "shareLinks": {},
+        "source": "YouTube",
+        "sponsored": true,
+        "status": "active",
+        "templateUrl": null,
+        "thumbs": {
+            "small": "http://img.youtube.com/vi/M7FIvfx5J10/maxresdefault.jpg",
+            "large": "http://img.youtube.com/vi/M7FIvfx5J10/maxresdefault.jpg"
+        },
+        "title": "The Most Epic of Splits",
+        "type": "adUnit",
+        "user": "u-test"
+    },
+    {
+        "campaign": {
+            "campaignId": null,
+            "advertiserId": null,
+            "minViewTime": -1,
+            "countUrls": [],
+            "clickUrls": []
+        },
+        "campaignId": "cam-d136408398ec7f",
+        "collateral": {
+            "logo": "https://yt3.ggpht.com/-47_lOn0hEpU/AAAAAAAAAAI/AAAAAAAAAAA/dabfm4EUP1w/s88-c-k-no/photo.jpg"
+        },
+        "created": "2015-08-04T15:04:40.726Z",
+        "data": {
+            "hideSource": true,
+            "autoplay": true,
+            "controls": false,
+            "autoadvance": false,
+            "skip": false,
+            "modestbranding": 0,
+            "rel": 0,
+            "videoid": "kiX4E70xUws",
+            "href": "https://www.youtube.com/watch?v=kiX4E70xUws",
+            "thumbs": {
+                "small": "//img.youtube.com/vi/kiX4E70xUws/2.jpg",
+                "large": "//img.youtube.com/vi/kiX4E70xUws/0.jpg"
+            }
+        },
+        "id": "rc-abaddbbd3e050b",
+        "lastUpdated": "2015-08-31T20:29:49.297Z",
+        "links": {
+            "Action": "http://www.planters.com/varieties/nutrition.aspx",
+            "Website": "http://www.planters.com/",
+            "Facebook": "https://www.facebook.com/mrpeanut",
+            "Twitter": "https://twitter.com/mrpeanut",
+            "New": "new",
+            "Instagram": "https://instagram.com/explore/tags/mrpeanut/"
+        },
+        "modules": [],
+        "note": "With their unique combination of good fats, dietary fiber, and vitamins and minerals, nuts make a delicious addition to any healthy eating plan. And did we mention some nut varieties can be part of a heart-healthy diet?",
+        "org": "o-test",
+        "params": {
+            "sponsor": "Planters",
+            "ad": true,
+            "action": {
+                "type": "button",
+                "label": "Buy Now"
+            }
+        },
+        "placementId": null,
+        "source": "YouTube",
+        "sponsored": true,
+        "status": "active",
+        "templateUrl": null,
+        "thumbs": null,
+        "title": "Peanuts are Healthy and Delicious",
+        "type": "youtube",
+        "user": "u-test"
+    },
+    {
+        "campaign": {
+            "campaignId": null,
+            "advertiserId": null,
+            "minViewTime": 20
+        },
+        "campaignId": "cam-d136408398ec7f",
+        "collateral": {
+            "logo": "http://scene7.samsclub.com/is/image/samsclub/0040640088669_A?$img_size_380x380$"
+        },
+        "created": "2015-03-09T22:08:21.854Z",
+        "data": {
+            "hideSource": true,
+            "controls": true,
+            "autoadvance": false,
+            "skip": true,
+            "modestbranding": 0,
+            "rel": 0,
+            "videoid": "x4c_wI6kQyE"
+        },
+        "id": "rc-c89f1a8f5d5af4",
+        "lastUpdated": "2015-03-19T18:42:44.802Z",
+        "links": {
+            "Action": "http://www.dutyfreedepot.com/buy-duty-free-cigarettes-kool-b295-c0.htm"
+        },
+        "modules": [],
+        "note": "Don't you know it!",
+        "org": "o-test",
+        "params": {
+            "sponsor": "C6 Dev MR Groups",
+            "action": {
+                "type": "button",
+                "label": "Get your own!"
+            },
+            "ad": true
+        },
+        "placementId": null,
+        "source": "YouTube",
+        "sponsored": true,
+        "status": "active",
+        "templateUrl": null,
+        "thumbs": {
+            "small": "http://assets.nydailynews.com/polopoly_fs/1.439518!/img/httpImage/image.jpg_gen/derivatives/article_970/alg-smoking-baby-jpg.jpg",
+            "large": "http://assets.nydailynews.com/polopoly_fs/1.439518!/img/httpImage/image.jpg_gen/derivatives/article_970/alg-smoking-baby-jpg.jpg"
+        },
+        "title": "Kids Love Kools",
+        "type": "youtube",
+        "user": "u-test"
+    }
+]

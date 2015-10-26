@@ -1,0 +1,181 @@
+{
+    "access": "public",
+    "appUri": "mini-reel-player",
+    "categories": [],
+    "data": [
+        {
+            "data": {
+                "title": "Best of Jimmy",
+                "mode": "lightbox",
+                "autoplay": true,
+                "election": "el-dc53264712b834",
+                "adConfig": null,
+                "sponsored": false,
+                "links": {},
+                "params": {},
+                "campaign": {},
+                "collateral": {
+                    "splash": "/collateral/experiences/e-1236f792a2eec6/splash"
+                },
+                "splash": {
+                    "source": "specified",
+                    "ratio": "3-2",
+                    "theme": "vertical-stack"
+                },
+                "deck": [
+                    {
+                        "data": {
+                            "controls": true,
+                            "skip": true,
+                            "modestbranding": 0,
+                            "rel": 0,
+                            "videoid": "Nv7Ts4v5_Bs",
+                            "href": "https://www.youtube.com/watch?v=Nv7Ts4v5_Bs",
+                            "thumbs": {
+                                "small": "https://i.ytimg.com/vi/Nv7Ts4v5_Bs/default.jpg",
+                                "large": "https://i.ytimg.com/vi/Nv7Ts4v5_Bs/maxresdefault.jpg"
+                            }
+                        },
+                        "id": "rc-363b617c79c70a",
+                        "type": "youtube",
+                        "title": "Tight Pants",
+                        "note": "\"Well I talked to Mayor Grimble the other day, and he declared my pants the tightest in the land!\"",
+                        "source": "YouTube",
+                        "modules": [
+                            "ballot"
+                        ],
+                        "ballot": {
+                            "prompt": "Who's Pants Were Tighter?",
+                            "choices": [
+                                "Ferrel's",
+                                "Fallon's"
+                            ]
+                        },
+                        "placementId": null,
+                        "templateUrl": null,
+                        "sponsored": false,
+                        "campaign": {
+                            "campaignId": null,
+                            "advertiserId": null,
+                            "minViewTime": null
+                        },
+                        "collateral": {},
+                        "links": {},
+                        "params": {}
+                    },
+                    {
+                        "data": {
+                            "controls": true,
+                            "skip": true,
+                            "modestbranding": 0,
+                            "rel": 0,
+                            "videoid": "imW392e6XR0",
+                            "href": "https://www.youtube.com/watch?v=imW392e6XR0",
+                            "thumbs": {
+                                "small": "https://i.ytimg.com/vi/imW392e6XR0/default.jpg",
+                                "large": "https://i.ytimg.com/vi/imW392e6XR0/maxresdefault.jpg"
+                            }
+                        },
+                        "id": "rc-16d1f249741f9e",
+                        "type": "youtube",
+                        "title": "Mean Tweets",
+                        "note": "@youdonknowme: \"David Blaine looks like his voice is putting his face to sleep.\"",
+                        "source": "YouTube",
+                        "modules": [
+                            "ballot"
+                        ],
+                        "ballot": {
+                            "prompt": "Too Mean?",
+                            "choices": [
+                                "Yes, Too Mean",
+                                "Nah, Too Tame"
+                            ]
+                        },
+                        "placementId": null,
+                        "templateUrl": null,
+                        "sponsored": false,
+                        "campaign": {
+                            "campaignId": null,
+                            "advertiserId": null,
+                            "minViewTime": null
+                        },
+                        "collateral": {},
+                        "links": {},
+                        "params": {}
+                    },
+                    {
+                        "data": {
+                            "controls": true,
+                            "skip": true,
+                            "modestbranding": 0,
+                            "rel": 0,
+                            "videoid": "0uBOtQOO70Y",
+                            "href": "https://www.youtube.com/watch?v=0uBOtQOO70Y",
+                            "thumbs": {
+                                "small": "https://i.ytimg.com/vi/0uBOtQOO70Y/default.jpg",
+                                "large": "https://i.ytimg.com/vi/0uBOtQOO70Y/maxresdefault.jpg"
+                            }
+                        },
+                        "id": "rc-726df390a96029",
+                        "type": "youtube",
+                        "title": "Drum-Off",
+                        "note": "Will Ferrel vs Chad Smith of the Red Hot Chili Peppers. Wow do they look alike, but who is the better drummer?!",
+                        "source": "YouTube",
+                        "modules": [
+                            "ballot"
+                        ],
+                        "ballot": {
+                            "prompt": "Who Really Won?",
+                            "choices": [
+                                "Will Ferrel",
+                                "Chad Smith"
+                            ]
+                        },
+                        "placementId": null,
+                        "templateUrl": null,
+                        "sponsored": false,
+                        "campaign": {
+                            "campaignId": null,
+                            "advertiserId": null,
+                            "minViewTime": null
+                        },
+                        "collateral": {},
+                        "links": {},
+                        "params": {}
+                    },
+                    {
+                        "data": {},
+                        "id": "rc-619bbc9dee11a5",
+                        "type": "recap",
+                        "title": "Recap of Best of Jimmy",
+                        "note": null,
+                        "modules": [],
+                        "placementId": null,
+                        "templateUrl": null,
+                        "sponsored": false,
+                        "campaign": {
+                            "campaignId": null,
+                            "advertiserId": null,
+                            "minViewTime": null
+                        },
+                        "collateral": {},
+                        "links": {},
+                        "params": {}
+                    }
+                ],
+                "autoadvance": true
+            }
+        }
+    ],
+    "versionId": "e368c0a9",
+    "title": "Best of Jimmy",
+    "status": "active",
+    "lastStatusChange": "2015-10-22T16:14:01.353Z",
+    "lastPublished": "2015-10-22T16:14:01.353Z",
+    "type": "minireel",
+    "id": "e-6f9a14a4b10263",
+    "created": "2015-10-22T16:14:01.353Z",
+    "lastUpdated": "2015-10-22T16:14:01.353Z",
+    "user": "u-test",
+    "org": "o-test"
+}

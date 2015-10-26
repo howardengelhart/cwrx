@@ -1,0 +1,162 @@
+{
+    "access": "public",
+    "appUri": "mini-reel-player",
+    "categories": [],
+    "data": [
+        {
+            "data": {
+                "title": "Doctor Who Regenerations",
+                "mode": "light",
+                "branding": "digitaljournal",
+                "autoplay": true,
+                "autoadvance": true,
+                "adConfig": null,
+                "sponsored": false,
+                "links": {},
+                "params": {
+                    "categories": []
+                },
+                "campaign": {},
+                "collateral": {
+                    "splash": "/collateral/experiences/e-44600505f06f70/splash"
+                },
+                "splash": {
+                    "source": "specified",
+                    "ratio": "16-9",
+                    "theme": "vertical-stack"
+                },
+                "deck": [
+                    {
+                        "data": {
+                            "controls": true,
+                            "skip": true,
+                            "modestbranding": 0,
+                            "rel": 0,
+                            "videoid": "qa3NM9Jhkn0",
+                            "href": "https://www.youtube.com/watch?v=qa3NM9Jhkn0",
+                            "thumbs": {
+                                "small": "//img.youtube.com/vi/qa3NM9Jhkn0/2.jpg",
+                                "large": "//img.youtube.com/vi/qa3NM9Jhkn0/0.jpg"
+                            }
+                        },
+                        "id": "rc-bd39c9a079b487",
+                        "type": "youtube",
+                        "title": "Ninth Doctor (Christopher Eccleston)",
+                        "note": null,
+                        "source": "YouTube",
+                        "modules": [],
+                        "thumbs": null,
+                        "placementId": null,
+                        "templateUrl": null,
+                        "sponsored": false,
+                        "campaign": {},
+                        "collateral": {},
+                        "links": {},
+                        "shareLinks": {},
+                        "params": {}
+                    },
+                    {
+                        "data": {},
+                        "id": "rc-28f9cd6d0e6359",
+                        "type": "wildcard"
+                    },
+                    {
+                        "data": {
+                            "controls": true,
+                            "skip": true,
+                            "modestbranding": 0,
+                            "rel": 0,
+                            "videoid": "sVEY5AL5zzk",
+                            "href": "https://www.youtube.com/watch?v=sVEY5AL5zzk",
+                            "thumbs": {
+                                "small": "//img.youtube.com/vi/sVEY5AL5zzk/2.jpg",
+                                "large": "//img.youtube.com/vi/sVEY5AL5zzk/0.jpg"
+                            }
+                        },
+                        "id": "rc-04a617cd3e066b",
+                        "type": "youtube",
+                        "title": "Tenth Doctor (David Tennant)",
+                        "note": null,
+                        "source": "YouTube",
+                        "modules": [],
+                        "thumbs": null,
+                        "placementId": null,
+                        "templateUrl": null,
+                        "sponsored": false,
+                        "campaign": {},
+                        "collateral": {},
+                        "links": {},
+                        "shareLinks": {},
+                        "params": {}
+                    },
+                    {
+                        "data": {},
+                        "id": "rc-5c061b0e865585",
+                        "type": "wildcard"
+                    },
+                    {
+                        "data": {
+                            "controls": true,
+                            "skip": true,
+                            "modestbranding": 0,
+                            "rel": 0,
+                            "videoid": "BehwuPQm16A",
+                            "href": "https://www.youtube.com/watch?v=BehwuPQm16A",
+                            "thumbs": {
+                                "small": "//img.youtube.com/vi/BehwuPQm16A/2.jpg",
+                                "large": "//img.youtube.com/vi/BehwuPQm16A/0.jpg"
+                            }
+                        },
+                        "id": "rc-68e0b1c309383b",
+                        "type": "youtube",
+                        "title": "Eleventh Doctor (Matt Smith)",
+                        "note": null,
+                        "source": "YouTube",
+                        "modules": [],
+                        "thumbs": null,
+                        "placementId": null,
+                        "templateUrl": null,
+                        "sponsored": false,
+                        "campaign": {},
+                        "collateral": {},
+                        "links": {},
+                        "shareLinks": {},
+                        "params": {}
+                    },
+                    {
+                        "data": {},
+                        "id": "rc-5ddcb07e7861ea",
+                        "type": "recap",
+                        "title": "Recap of Doctor Who Regenerations",
+                        "note": null,
+                        "modules": [],
+                        "placementId": null,
+                        "templateUrl": null,
+                        "sponsored": false,
+                        "campaign": {
+                            "campaignId": null,
+                            "advertiserId": null,
+                            "minViewTime": null,
+                            "countUrls": [],
+                            "clickUrls": []
+                        },
+                        "collateral": {},
+                        "links": {},
+                        "params": {}
+                    }
+                ]
+            }
+        }
+    ],
+    "versionId": "ba078234",
+    "title": "Doctor Who Regenerations",
+    "status": "active",
+    "lastStatusChange": "2015-10-22T16:09:28.680Z",
+    "lastPublished": "2015-10-22T16:09:28.680Z",
+    "type": "minireel",
+    "id": "e-aa348e7605c21b",
+    "created": "2015-10-22T16:09:28.680Z",
+    "lastUpdated": "2015-10-22T16:09:28.680Z",
+    "user": "u-test",
+    "org": "o-test"
+}

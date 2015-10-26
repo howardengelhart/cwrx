@@ -142,6 +142,7 @@ In order to run a service locally, you'll need to setup a few things:
   | maint      | none                       |
   | monitor    | maint                      |
   | orgSvc     | auth, monitor              |
+  | player     | auth, monitor, content     |
   | querybot   | auth, monitor              |
   | search     | auth                       |
   | userSvc    | auth, orgSvc, ads, monitor |

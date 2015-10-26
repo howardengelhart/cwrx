@@ -266,7 +266,7 @@ Player.startService = function startService() {
             appDir: __dirname,
             pidDir: resolvePath(__dirname, '../pids'),
             api: {
-                root: 'https://staging.cinema6.com/',
+                root: 'http://localhost/',
                 player: {
                     endpoint: 'apps/mini-reel-player/index.html'
                 },
@@ -308,6 +308,8 @@ Player.startService = function startService() {
             },
             defaults: {
                 origin: 'http://www.cinema6.com/',
+                context: 'standalone',
+                container: 'standalone',
                 mobileType: 'mobile'
             },
             validTypes: [
