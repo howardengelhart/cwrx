@@ -670,6 +670,54 @@ describe('ads campaigns endpoints (E2E):', function() {
             });
         });
         
+        it('should be able to create a campaign with multiple new sponsored cards', function(done) {
+            delete mockCamp.miniReels;
+            mockCamp.name = 'multi cards';
+            mockCamp.cards = [{ title: 'dogs are cool' }, { title: 'and so are cats' }];
+            
+            var newCamp;
+            
+            requestUtils.qRequest('post', options, null, { maxAttempts: 30 }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body._id).not.toBeDefined();
+                expect(resp.body.id).toBeDefined();
+                expect(resp.body.name).toBe('multi cards');
+
+                expect(resp.body.cards.length).toBe(2);
+                expect(resp.body.cards[0].id).toEqual(jasmine.any(String));
+                expect(resp.body.cards[0].campaign.adtechName).toEqual(jasmine.any(String));
+                expect(resp.body.cards[0].campaign.adtechId).toEqual(jasmine.any(Number));
+                expect(resp.body.cards[0].campaign.bannerId).toEqual(jasmine.any(Number));
+                expect(resp.body.cards[0].campaign.bannerNumber).toEqual(jasmine.any(Number));
+                expect(resp.body.cards[0].campaign.startDate).toEqual(jasmine.any(String));
+                expect(resp.body.cards[0].campaign.endDate).toEqual(jasmine.any(String));
+                expect(resp.body.cards[0].status).toEqual('active');
+
+                expect(resp.body.cards[1].id).toEqual(jasmine.any(String));
+                expect(resp.body.cards[1].title).toEqual('and so are cats');
+                expect(resp.body.cards[1].campaign.adtechName).toEqual(jasmine.any(String));
+                expect(resp.body.cards[1].campaign.adtechId).toEqual(jasmine.any(Number));
+                expect(resp.body.cards[1].campaign.bannerId).toEqual(jasmine.any(Number));
+                expect(resp.body.cards[1].campaign.bannerNumber).toEqual(jasmine.any(Number));
+                expect(resp.body.cards[1].campaign.startDate).toEqual(jasmine.any(String));
+                expect(resp.body.cards[1].campaign.endDate).toEqual(jasmine.any(String));
+                expect(resp.body.cards[1].status).toEqual('active');
+                
+                newCamp = resp.body;
+
+                return checkCardEntities(newCamp, adminJar);
+            }).then(function() {
+                return requestUtils.qRequest('delete', {
+                    url: config.adsUrl + '/campaigns/' + newCamp.id,
+                    jar: adminJar
+                });
+            }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(204);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
         it('should be able to create a campaign without sponsored sub-campaigns', function(done) {
             options.json = { name: 'empty camp', targeting: { interests: ['cat-1', 'cat-2'] },
                              advertiserId: keptAdvert.id, customerId: keptCust.id };

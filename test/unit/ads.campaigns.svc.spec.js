@@ -658,6 +658,29 @@ describe('ads-campaigns (UT)', function() {
                 done();
             });
         });
+        
+        it('should be able to handle multiple cards without ids', function(done) {
+            req.body = { cards: [{ title: 'card 1' }, { title: 'card 2' }, { id: 'rc-1' }] };
+            campModule.ensureUniqueIds(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                
+                req.body.cards.unshift({ id: 'rc-1' });
+                nextSpy.calls.reset();
+                doneSpy.calls.reset();
+                errorSpy.calls.reset();
+                
+                campModule.ensureUniqueIds(req, nextSpy, doneSpy).catch(errorSpy);
+                process.nextTick(function() {
+                    expect(nextSpy).not.toHaveBeenCalled();
+                    expect(doneSpy).toHaveBeenCalledWith({code: 400, body: 'cards must be distinct'});
+                    expect(errorSpy).not.toHaveBeenCalled();
+                    done();
+                });
+            });
+        });
     });
 
     describe('fetchCards', function() {

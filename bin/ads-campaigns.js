@@ -348,10 +348,21 @@
         var log = logger.getLog(),
             keys = ['miniReels', 'cards'];
             
-        function getId(obj) { return obj.id; }
+        function getIds(list) {
+            if (!(list instanceof Array)) {
+                return [];
+            }
+
+            return list.map(function(item) {
+                return item.id || null;
+            }).filter(function(id) {
+                return !!id;
+            });
+        }
 
         for (var i = 0; i < keys.length; i++) {
-            var ids = (req.body[keys[i]] instanceof Array) && req.body[keys[i]].map(getId);
+            var ids = getIds(req.body[keys[i]]);
+            
             if (!objUtils.isListDistinct(ids)) {
                 log.info('[%1] %2 must be distinct: %3', req.uuid, keys[i], ids);
                 return q(done({code: 400, body: keys[i] + ' must be distinct'}));
