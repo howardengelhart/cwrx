@@ -44,7 +44,13 @@
             }
         },
         api: {
-            root: 'http://localhost'    // for proxying requests
+            root: 'http://localhost',   // for proxying requests
+            experiences: {
+                endpoint: '/api/content/experiences/'
+            },
+            cards: {
+                endpoint: '/api/content/cards/'
+            }
         },
         minireelGroups: {
             advertiserId: null,     // C6 advertiser id; must be overriden in a config file

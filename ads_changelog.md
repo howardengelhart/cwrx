@@ -1,5 +1,13 @@
 # Ads Service Changelog
 
+* [FEATURE]: Integrate cards + campaigns API: [#491](https://github.com/cinema6/cwrx/issues/491)
+    * [BREAKING CHANGE]: `startDate`, `endDate`, `reportingId` now stored on `campaign` hash on cards
+    * [BREAKING CHANGE]: `name` prop for card entries replaced with `campaign.adtechName`
+* [REMOVAL]: entries in `miniReels` no longer get Adtech campaigns
+* [REMOVAL]: entries in `miniReelGroups` no longer get Adtech campaigns + are no longer handled at all
+* Extra deployment steps:
+    * Coordinate with deployment of studio + selfie
+
 ### 2.0.0: Thu Oct 15 13:24:56 EDT 2015
 * [FIX]: Allow null to be set for validated fields: [#570](https://github.com/cinema6/cwrx/issues/570)
 * [FIX]: Stop logging cookie header: [#539](https://github.com/cinema6/cwrx/issues/539)

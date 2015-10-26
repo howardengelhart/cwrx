@@ -22,7 +22,9 @@ describe('campaign validation', function() {
             collection: jasmine.createSpy('db.collection()').and.returnValue({ collectionName: 'campaigns' })
         };
 
-        svc = campModule.setupSvc(mockDb, {});
+        svc = campModule.setupSvc(mockDb, {
+            api: { root: 'http://test.com', cards: { endpoint: '/cards/' }, experiences: { endpoint: '/experiences/' } }
+        });
         
         newObj = {};
         origObj = {};
@@ -103,6 +105,21 @@ describe('campaign validation', function() {
                 expect(svc.model.validate('create', newObj, origObj, requester))
                     .toEqual({ isValid: false, reason: field + ' must be in format: string' });
             });
+        });
+    });
+
+    describe('when handling paymentMethod', function() {
+        it('should fail if the field is not a string', function() {
+            newObj.paymentMethod = 123;
+            expect(svc.model.validate('create', newObj, origObj, requester))
+                .toEqual({ isValid: false, reason: 'paymentMethod must be in format: string' });
+        });
+        
+        it('should allow the field to be set', function() {
+            newObj.paymentMethod = 'slush fund';
+            expect(svc.model.validate('create', newObj, origObj, requester))
+                .toEqual({ isValid: true, reason: undefined });
+            expect(newObj.paymentMethod).toEqual('slush fund');
         });
     });
     
@@ -379,14 +396,6 @@ describe('campaign validation', function() {
                 .toEqual({ isValid: false, reason: 'cards must be in format: objectArray' });
         });
         
-        it('should not allow the field to be changed once initialized', function() {
-            origObj.cards = [{ id: 'rc-2' }];
-            newObj.cards = [{ id: 'rc-1' }];
-            expect(svc.model.validate('edit', newObj, origObj, requester))
-                .toEqual({ isValid: true, reason: undefined });
-            expect(newObj.cards).toEqual([{ id: 'rc-2' }]);
-        });
-        
         it('should fail if the field has too many entries', function() {
             newObj.cards = [{ id: 'rc-1' }, { id: 'rc-2' }];
             expect(svc.model.validate('create', newObj, origObj, requester))
@@ -428,99 +437,6 @@ describe('campaign validation', function() {
             newObj.miniReels = [{ id: 'e-1' }, 'e-2'];
             expect(svc.model.validate('create', newObj, origObj, requester))
                 .toEqual({ isValid: false, reason: 'miniReels must be in format: objectArray' });
-        });
-    });
-    
-    ['cards', 'miniReels'].forEach(function(field) {
-        describe('when handling ' + field + ' entries,', function() {
-            beforeEach(function() {
-                requester.fieldValidation.campaigns[field] = { __allowed: true, __entries: {} };
-                newObj[field] = [{ id: 'content-1' }];
-            });
-            
-            describe('subfield id,', function() {
-                it('should fail if the field is not a string', function() {
-                    newObj[field][0].id = 1234;
-                    expect(svc.model.validate('create', newObj, origObj, requester))
-                        .toEqual({ isValid: false, reason: field + '[0].id must be in format: string' });
-                });
-                
-                it('should allow the field to be set', function() {
-                    expect(svc.model.validate('create', newObj, origObj, requester))
-                        .toEqual({ isValid: true, reason: undefined });
-                    expect(newObj[field]).toEqual([{ id: 'content-1' }]);
-                });
-
-                it('should fail if the field is not defined', function() {
-                    delete newObj[field][0].id;
-                    expect(svc.model.validate('create', newObj, origObj, requester))
-                        .toEqual({ isValid: false, reason: 'Missing required field: ' + field + '[0].id' });
-                });
-            });
-            
-            // internal adtech ids, always forbidden
-            ['adtechId', 'bannerNumber', 'bannerId'].forEach(function(subfield) {
-                describe('subfield ' + subfield + ',', function() {
-                    it('should always trim the field if set', function() {
-                        requester.fieldValidation.campaigns[field].__entries[subfield] = { __allowed: true };
-                        newObj[field][0][subfield] = 1234;
-                        expect(svc.model.validate('create', newObj, origObj, requester))
-                            .toEqual({ isValid: true, reason: undefined });
-                        expect(newObj[field][0][subfield]).not.toBeDefined();
-                    });
-                });
-            });
-            
-            // campaign details, may be set by some users
-            ['name', 'startDate', 'endDate', 'reportingId'].forEach(function(subfield) {
-                describe('subfield ' + subfield + ',', function() {
-                    it('should trim the field if set', function() {
-                        newObj[field][0][subfield] = 'foo';
-                        expect(svc.model.validate('create', newObj, origObj, requester))
-                            .toEqual({ isValid: true, reason: undefined });
-                        expect(newObj[field][0][subfield]).not.toBeDefined();
-                    });
-                    
-                    it('should be able to allow some requesters to set the field', function() {
-                        requester.fieldValidation.campaigns[field].__entries[subfield] = { __allowed: true };
-                        newObj[field][0][subfield] = 'foo';
-                        expect(svc.model.validate('create', newObj, origObj, requester))
-                            .toEqual({ isValid: true, reason: undefined });
-                        expect(newObj[field][0][subfield]).toBe('foo');
-                    });
-
-                    it('should fail if the field is not a string', function() {
-                        requester.fieldValidation.campaigns[field].__entries[subfield] = { __allowed: true };
-                        newObj[field][0][subfield] = 1234;
-                        expect(svc.model.validate('create', newObj, origObj, requester))
-                            .toEqual({ isValid: false, reason: field + '[0].' + subfield + ' must be in format: string' });
-                    });
-                });
-            });
-        });
-    });
-    
-    describe('when handling miniReelGroups', function() {
-        it('should trim the field if set', function() {
-            newObj.miniReelGroups = [{ cards: 'yes' }];
-            expect(svc.model.validate('create', newObj, origObj, requester))
-                .toEqual({ isValid: true, reason: undefined });
-            expect(newObj.miniReelGroups).not.toBeDefined();
-        });
-        
-        it('should be able to allow some requesters to set the field', function() {
-            requester.fieldValidation.campaigns.miniReelGroups = { __allowed: true };
-            newObj.miniReelGroups = [{ cards: 'yes' }];
-            expect(svc.model.validate('create', newObj, origObj, requester))
-                .toEqual({ isValid: true, reason: undefined });
-            expect(newObj.miniReelGroups).toEqual([{ cards: 'yes' }]);
-        });
-
-        it('should fail if the field is not an object arry', function() {
-            requester.fieldValidation.campaigns.miniReelGroups = { __allowed: true };
-            newObj.miniReelGroups = 'asdf';
-            expect(svc.model.validate('create', newObj, origObj, requester))
-                .toEqual({ isValid: false, reason: 'miniReelGroups must be in format: objectArray' });
         });
     });
 });

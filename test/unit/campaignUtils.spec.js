@@ -238,7 +238,7 @@ describe('campaignUtils', function() {
     describe('makeKeywords', function() {
         var keywords;
         beforeEach(function() {
-            campaignUtils._keywordCache = new promise.Keeper();;
+            campaignUtils._keywordCache = new promise.Keeper();
             keywords = ['key123', 'key456'];
             adtech.keywordAdmin.registerKeyword.and.callFake(function(keyword) {
                 return q(parseInt(keyword.match(/\d+/)[0]));

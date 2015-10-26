@@ -90,13 +90,13 @@
         api: {
             root: 'http://localhost/',
             orgs: {
-                endpoint: '/api/account/orgs'
+                endpoint: '/api/account/orgs/'
             },
             customers: {
-                endpoint: '/api/account/customers'
+                endpoint: '/api/account/customers/'
             },
             advertisers: {
-                endpoint: '/api/account/advertisers'
+                endpoint: '/api/account/advertisers/'
             }
         },
         systemUserId: 'u-sixxy'
