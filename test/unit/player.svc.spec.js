@@ -330,6 +330,8 @@ describe('player service', function() {
                                 },
                                 defaults: {
                                     origin: 'http://www.cinema6.com/',
+                                    context: 'standalone',
+                                    container: 'standalone',
                                     mobileType: 'mobile'
                                 },
                                 validTypes: [
@@ -718,6 +720,8 @@ describe('player service', function() {
                 },
                 defaults: {
                     origin: 'http://www.cinema6.com/',
+                    context: 'standalone',
+                    container: 'standalone',
                     mobileType: 'mobile'
                 },
                 validTypes: [

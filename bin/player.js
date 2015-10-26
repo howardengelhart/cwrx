@@ -308,6 +308,8 @@ Player.startService = function startService() {
             },
             defaults: {
                 origin: 'http://www.cinema6.com/',
+                context: 'standalone',
+                container: 'standalone',
                 mobileType: 'mobile'
             },
             validTypes: [
