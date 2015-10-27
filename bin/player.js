@@ -72,6 +72,10 @@ function Player(config) {
         maxTTL: config.api.experience.cacheTTLs.max,
         extractor: clonePromise
     });
+    var brandingCache = new FunctionCache({
+        freshTTL: config.api.branding.cacheTTLs.fresh,
+        maxTTL: config.api.branding.cacheTTLs.max
+    });
 
     this.config = config;
     this.adLoader = new AdLoader({
@@ -100,6 +104,8 @@ function Player(config) {
     this.__getPlayer__ = staticCache.add(this.__getPlayer__.bind(this), -1);
     // Memoize Player.prototype.__getExperience__() method.
     this.__getExperience__ = contentCache.add(this.__getExperience__.bind(this), -1);
+    // Memoize Player.prototype.__getBranding__() method.
+    this.__getBranding__ = brandingCache.add(this.__getBranding__.bind(this), -1);
 }
 
 /***************************************************************************************************
@@ -139,6 +145,44 @@ Player.prototype.__getExperience__ = function __getExperience__(id, params, orig
         }
 
         throw new ServiceError(message, statusCode);
+    });
+};
+
+Player.prototype.__getBranding__ = function __getBranding__(branding, type, hover, uuid) {
+    var log = logger.getLog();
+    var base = resolveURL(this.config.api.root, this.config.api.branding.endpoint);
+    var directory = resolveURL(base, branding + '/styles/');
+    var typeDirectory = resolveURL(directory, type + '/');
+
+    log.info(
+        '[%1] Fetching {%2} branding for player {%3} with hover: %4.',
+        uuid, branding, type, hover
+    );
+
+    var stylesheets = [
+        resolveURL(directory, 'core.css'),
+        resolveURL(typeDirectory, 'theme.css')
+    ].concat(hover ? [
+        resolveURL(directory, 'core--hover.css'),
+        resolveURL(typeDirectory, 'theme--hover.css')
+    ] : []);
+
+    return q.all(stylesheets.map(function(src) {
+        return request.get(src).then(function createData(css) {
+            log.trace('[%1] Got stylesheet "%2".', uuid, src);
+
+            return { src: src, styles: css };
+        }).catch(function returnNull(reason) {
+            log.trace('[%1] Failed to get stylesheet: %2.', uuid, reason.message);
+
+            return null;
+        });
+    })).then(function filterNulls(brandings) {
+        var result = brandings.filter(function(branding) { return branding; });
+
+        log.info('[%1] Successfully got %2 branding stylesheets.', uuid, result.length);
+
+        return result;
     });
 };
 
@@ -253,7 +297,11 @@ Player.startService = function startService() {
             api: {
                 root: 'http://localhost/',
                 branding: {
-                    endpoint: 'collateral/branding/'
+                    endpoint: 'collateral/branding/',
+                    cacheTTLs: {
+                        fresh: 15,
+                        max: 30
+                    }
                 },
                 player: {
                     endpoint: 'apps/mini-reel-player/index.html'

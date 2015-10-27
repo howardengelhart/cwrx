@@ -248,7 +248,11 @@ describe('player service', function() {
                                 api: {
                                     root: 'http://localhost/',
                                     branding: {
-                                        endpoint: 'collateral/branding/'
+                                        endpoint: 'collateral/branding/',
+                                        cacheTTLs: {
+                                            fresh: 15,
+                                            max: 30
+                                        }
                                     },
                                     player: {
                                         endpoint: 'apps/mini-reel-player/index.html'
@@ -691,7 +695,11 @@ describe('player service', function() {
                 api: {
                     root: 'http://localhost/',
                     branding: {
-                        endpoint: 'collateral/branding/'
+                        endpoint: 'collateral/branding/',
+                        cacheTTLs: {
+                            fresh: 15,
+                            max: 30
+                        }
                     },
                     player: {
                         endpoint: 'apps/mini-reel-player/index.html'
@@ -753,6 +761,13 @@ describe('player service', function() {
                 freshTTL: config.api.experience.cacheTTLs.fresh,
                 maxTTL: config.api.experience.cacheTTLs.max,
                 extractor: clonePromise
+            });
+        });
+
+        it('should create a FunctionCache for branding', function() {
+            expect(MockFunctionCache).toHaveBeenCalledWith({
+                freshTTL: config.api.branding.cacheTTLs.fresh,
+                maxTTL: config.api.branding.cacheTTLs.max
             });
         });
 
@@ -1161,6 +1176,163 @@ describe('player service', function() {
 
         describe('@private', function() {
             describe('methods:', function() {
+                describe('__getBranding__(branding, type, hover, uuid)', function() {
+                    var branding, type, hover, uuid;
+                    var result;
+                    var base;
+                    var success, failure;
+
+                    beforeEach(function() {
+                        branding = 'cinema6';
+                        type = 'full-np';
+                        uuid = 'ru8493ry438r';
+
+                        base = resolveURL(config.api.root, config.api.branding.endpoint);
+
+                        success = jasmine.createSpy('success()');
+                        failure = jasmine.createSpy('failure()');
+                    });
+
+                    afterEach(function() {
+                        player.__getBranding__.clear();
+                    });
+
+                    it('should be cached', function() {
+                        expect(fnCaches[2].add.calls.all().map(function(call) { return call.returnValue; })).toContain(player.__getBranding__);
+                        fnCaches[2].add.calls.all().forEach(function(call) {
+                            if (call.returnValue === player.__getBranding__) {
+                                expect(call.args).toEqual([jasmine.any(Function), -1]);
+                            }
+                        });
+                    });
+
+                    describe('if hover is false', function() {
+                        beforeEach(function(done) {
+                            hover = false;
+
+                            result = player.__getBranding__(branding, type, hover, uuid);
+                            result.then(success, failure);
+                            q().then(done);
+                        });
+
+                        it('should make a request for just the base branding stylesheets', function() {
+                            expect(request.get).toHaveBeenCalledWith(resolveURL(base, branding + '/styles/' + type + '/theme.css'));
+                            expect(request.get).toHaveBeenCalledWith(resolveURL(base, branding + '/styles/core.css'));
+                            expect(request.get.calls.count()).toBe(2);
+                        });
+
+                        describe('when the requests fulfill', function() {
+                            var themeCSS, coreCSS;
+
+                            beforeEach(function(done) {
+                                themeCSS = 'body { background: black; }';
+                                coreCSS = 'body { background: red; }';
+
+                                requestDeferreds[resolveURL(base, branding + '/styles/' + type + '/theme.css')].resolve(themeCSS);
+                                requestDeferreds[resolveURL(base, branding + '/styles/core.css')].resolve(coreCSS);
+
+                                result.finally(done);
+                            });
+
+                            it('should fulfill with an Array of css', function() {
+                                expect(success).toHaveBeenCalledWith([jasmine.any(Object), jasmine.any(Object)]);
+                                expect(success).toHaveBeenCalledWith(jasmine.arrayContaining([
+                                    { src: resolveURL(base, branding + '/styles/' + type + '/theme.css'), styles: themeCSS },
+                                    { src: resolveURL(base, branding + '/styles/core.css'), styles: coreCSS }
+                                ]));
+                            });
+                        });
+
+                        describe('if a request rejects', function() {
+                            var themeCSS;
+
+                            beforeEach(function(done) {
+                                themeCSS = 'body { background: black; }';
+
+                                requestDeferreds[resolveURL(base, branding + '/styles/' + type + '/theme.css')].resolve(themeCSS);
+                                requestDeferreds[resolveURL(base, branding + '/styles/core.css')].reject({ statusCode: 404, message: 'NOT FOUND!' });
+
+                                result.finally(done);
+                            });
+
+                            it('should fulfill with an Array of the css that was fetched', function() {
+                                expect(success).toHaveBeenCalledWith([
+                                    { src: resolveURL(base, branding + '/styles/' + type + '/theme.css'), styles: themeCSS }
+                                ]);
+                            });
+                        });
+                    });
+
+                    describe('if hover is true', function() {
+                        beforeEach(function(done) {
+                            hover = true;
+
+                            result = player.__getBranding__(branding, type, hover, uuid);
+                            result.then(success, failure);
+                            q().then(done);
+                        });
+
+                        it('should make a request for the base and hover branding stylesheets', function() {
+                            expect(request.get).toHaveBeenCalledWith(resolveURL(base, branding + '/styles/' + type + '/theme.css'));
+                            expect(request.get).toHaveBeenCalledWith(resolveURL(base, branding + '/styles/core.css'));
+                            expect(request.get).toHaveBeenCalledWith(resolveURL(base, branding + '/styles/' + type + '/theme--hover.css'));
+                            expect(request.get).toHaveBeenCalledWith(resolveURL(base, branding + '/styles/core--hover.css'));
+                            expect(request.get.calls.count()).toBe(4);
+                        });
+
+                        describe('when the requests fulfill', function() {
+                            var themeCSS, coreCSS, themeHoverCSS, coreHoverCSS;
+
+                            beforeEach(function(done) {
+                                themeCSS = 'body { background: black; }';
+                                coreCSS = 'body { background: red; }';
+                                themeHoverCSS = 'body { background: blue; }';
+                                coreHoverCSS = 'body { background: green; }';
+
+                                requestDeferreds[resolveURL(base, branding + '/styles/' + type + '/theme.css')].resolve(themeCSS);
+                                requestDeferreds[resolveURL(base, branding + '/styles/core.css')].resolve(coreCSS);
+                                requestDeferreds[resolveURL(base, branding + '/styles/' + type + '/theme--hover.css')].resolve(themeHoverCSS);
+                                requestDeferreds[resolveURL(base, branding + '/styles/core--hover.css')].resolve(coreHoverCSS);
+
+                                result.finally(done);
+                            });
+
+                            it('should fulfill with an Array of css', function() {
+                                expect(success).toHaveBeenCalledWith([jasmine.any(Object), jasmine.any(Object), jasmine.any(Object), jasmine.any(Object)]);
+                                expect(success).toHaveBeenCalledWith(jasmine.arrayContaining([
+                                    { src: resolveURL(base, branding + '/styles/' + type + '/theme.css'), styles: themeCSS },
+                                    { src: resolveURL(base, branding + '/styles/core.css'), styles: coreCSS },
+                                    { src: resolveURL(base, branding + '/styles/' + type + '/theme--hover.css'), styles: themeHoverCSS },
+                                    { src: resolveURL(base, branding + '/styles/core--hover.css'), styles: coreHoverCSS }
+                                ]));
+                            });
+                        });
+
+                        describe('if a request rejects', function() {
+                            var themeCSS, themeHoverCSS;
+
+                            beforeEach(function(done) {
+                                themeCSS = 'body { background: black; }';
+                                themeHoverCSS = 'body { background: blue; }';
+
+                                requestDeferreds[resolveURL(base, branding + '/styles/' + type + '/theme.css')].resolve(themeCSS);
+                                requestDeferreds[resolveURL(base, branding + '/styles/core.css')].reject({ statusCode: 404, message: 'NOT FOUND!' });
+                                requestDeferreds[resolveURL(base, branding + '/styles/' + type + '/theme--hover.css')].resolve(themeHoverCSS);
+                                requestDeferreds[resolveURL(base, branding + '/styles/core--hover.css')].reject({ statusCode: 404, message: 'NOT FOUND!' });
+
+                                result.finally(done);
+                            });
+
+                            it('should fulfill with an Array of the css that was fetched', function() {
+                                expect(success).toHaveBeenCalledWith([
+                                    { src: resolveURL(base, branding + '/styles/' + type + '/theme.css'), styles: themeCSS },
+                                    { src: resolveURL(base, branding + '/styles/' + type + '/theme--hover.css'), styles: themeHoverCSS }
+                                ]);
+                            });
+                        });
+                    });
+                });
+
                 describe('__getExperience__(id, params, origin, uuid)', function() {
                     var id, params, origin, uuid;
                     var result;
