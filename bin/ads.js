@@ -4,22 +4,24 @@
     var __ut__      = (global.jasmine !== undefined) ? true : false;
     
     var q               = require('q'),
+        aws             = require('aws-sdk'),
         path            = require('path'),
         express         = require('express'),
         bodyParser      = require('body-parser'),
         sessionLib      = require('express-session'),
+        adtech          = require('adtech'),
+        authUtils       = require('../lib/authUtils'),
+        service         = require('../lib/service'),
         expressUtils    = require('../lib/expressUtils'),
         logger          = require('../lib/logger'),
         journal         = require('../lib/journal'),
         JobManager      = require('../lib/jobManager'),
         advertModule    = require('./ads-advertisers'),
         custModule      = require('./ads-customers'),
+        updateModule    = require('./ads-campaignUpdates'),
         campModule      = require('./ads-campaigns'),
         siteModule      = require('./ads-sites'),
         groupModule     = require('./ads-groups'),
-        adtech          = require('adtech'),
-        authUtils       = require('../lib/authUtils'),
-        service         = require('../lib/service'),
         
         state   = {},
         ads = {}; // for exporting functions to unit tests
@@ -33,6 +35,11 @@
         adtechCreds: {
             keyPath: path.join(process.env.HOME, '.ssh/adtech.key'),
             certPath: path.join(process.env.HOME, '.ssh/adtech.crt')
+        },
+        emails: {
+            awsRegion: 'us-east-1',
+            supportAddress: 'support@cinema6.com', //TODO: verify, cookbook changes
+            reviewLink: 'http://localhost:9000/#/apps/selfie/campaigns/manage/:campId/admin'
         },
         campaigns: {
             statusDelay: 1000,      // How long to delay between polls for campaigns' statuses
@@ -50,6 +57,9 @@
             },
             cards: {
                 endpoint: '/api/content/cards/'
+            },
+            campaigns: {
+                endpoint: '/api/campaigns/'
             }
         },
         minireelGroups: {
@@ -112,11 +122,15 @@
             advertSvc    = advertModule.setupSvc(state.dbs.c6Db.collection('advertisers')),
             custSvc      = custModule.setupSvc(state.dbs.c6Db),
             campSvc      = campModule.setupSvc(state.dbs.c6Db, state.config),
+            updateSvc    = updateModule.setupSvc(state.dbs.c6Db, campSvc, state.config),
             groupSvc     = groupModule.setupSvc(state.dbs.c6Db, state.config),
             siteSvc      = siteModule.setupSvc(state.dbs.c6Db.collection('sites')),
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName);
         authUtils._db = state.dbs.c6Db;
+
+        // Nodemailer will automatically get SES creds, but need to set region here
+        aws.config.region = state.config.emails.awsRegion;
 
         var sessionOpts = {
             key: state.config.sessions.key,
@@ -183,6 +197,10 @@
         
         advertModule.setupEndpoints(app, advertSvc, sessWrap, audit, jobManager);
         custModule.setupEndpoints(app, custSvc, sessWrap, audit, jobManager);
+        
+        // Update module endpoints MUST be added before campaign endpoints!
+        updateModule.setupEndpoints(app, updateSvc, sessWrap, audit, jobManager);
+
         campModule.setupEndpoints(app, campSvc, sessWrap, audit, jobManager);
         siteModule.setupEndpoints(app, siteSvc, sessWrap, audit, jobManager);
         groupModule.setupEndpoints(app, groupSvc, sessWrap, audit, jobManager);

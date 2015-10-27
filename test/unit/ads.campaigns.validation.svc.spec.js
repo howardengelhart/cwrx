@@ -257,27 +257,6 @@ describe('campaign validation', function() {
         });
     });
     
-    describe('when handling contentCategories,', function() {
-        beforeEach(function() {
-            newObj.contentCategories = {};
-        });
-
-        describe('subfield primary,', function() {
-            it('should fail if the field is not a string', function() {
-                newObj.contentCategories.primary = 123;
-                expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: false, reason: 'contentCategories.primary must be in format: string' });
-            });
-            
-            it('should allow the field to be set', function() {
-                newObj.contentCategories.primary = 'foo';
-                expect(svc.model.validate('create', newObj, origObj, requester))
-                    .toEqual({ isValid: true, reason: undefined });
-                expect(newObj.contentCategories.primary).toEqual('foo');
-            });
-        });
-    });
-    
     describe('when handling targeting,', function() {
         beforeEach(function() {
             newObj.targeting = {};
