@@ -219,7 +219,7 @@ describe('player service', function() {
                             return expressApp;
                         });
 
-                        browser = { isMobile: false };
+                        browser = { isMobile: false, isDesktop: true };
                         MockBrowserInfo = require.cache[require.resolve('../../lib/browserInfo')].exports = jasmine.createSpy('BrowserInfo()').and.returnValue(browser);
 
                         delete require.cache[require.resolve('../../bin/player')];
@@ -469,7 +469,8 @@ describe('player service', function() {
                                 expect(player.get).toHaveBeenCalledWith(extend({
                                     type: request.params.type,
                                     uuid: request.uuid,
-                                    origin: request.get('origin')
+                                    origin: request.get('origin'),
+                                    desktop: browser.isDesktop
                                 }, request.query));
                             });
 
@@ -596,6 +597,7 @@ describe('player service', function() {
                                     response.send.calls.reset();
                                     player.get.calls.reset();
                                     browser.isMobile = true;
+                                    browser.isDesktop = false;
                                     player.get.and.returnValue(q(playerHTML));
                                 });
 
@@ -633,7 +635,9 @@ describe('player service', function() {
                                         });
 
                                         it('should get() the player and send the response', function() {
-                                            expect(player.get).toHaveBeenCalled();
+                                            expect(player.get).toHaveBeenCalledWith(jasmine.objectContaining({
+                                                desktop: browser.isDesktop
+                                            }));
                                             expect(response.send).toHaveBeenCalledWith(200, jasmine.any(String));
                                         });
                                     });
@@ -673,7 +677,9 @@ describe('player service', function() {
                                         });
 
                                         it('should get() the player and send the response', function() {
-                                            expect(player.get).toHaveBeenCalled();
+                                            expect(player.get).toHaveBeenCalledWith(jasmine.objectContaining({
+                                                desktop: browser.isDesktop
+                                            }));
                                             expect(response.send).toHaveBeenCalledWith(200, jasmine.any(String));
                                         });
                                     });

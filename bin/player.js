@@ -402,8 +402,9 @@ Player.startService = function startService() {
             var mobileType = query.mobileType || config.defaults.mobileType;
             var origin = req.get('origin') || req.get('referer');
             var agent = req.get('user-agent');
+            var browser = new BrowserInfo(agent);
 
-            if (new BrowserInfo(agent).isMobile && type !== mobileType) {
+            if (browser.isMobile && type !== mobileType) {
                 log.trace('[%1] Redirecting agent to mobile player: %2.', uuid, mobileType);
                 return q(res.redirect(303, mobileType + formatURL({ query: req.query })));
             }
@@ -411,7 +412,8 @@ Player.startService = function startService() {
             return player.get(extend({
                 type: type,
                 uuid: uuid,
-                origin: origin
+                origin: origin,
+                desktop: browser.isDesktop
             }, query)).then(function sendResponse(html) {
                 log.info('[%1] {GET %2} Response Length: %3.', uuid, req.url, html.length);
                 return res.send(200, html);
