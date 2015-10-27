@@ -4,6 +4,8 @@ var q = require('q');
 var request = require('request-promise');
 var cheerio = require('cheerio');
 var HTMLDocument = require('../lib/htmlDocument');
+var rebaseCSS = HTMLDocument.rebaseCSS;
+var rebaseJS = HTMLDocument.rebaseJS;
 var resolveURL = require('url').resolve;
 var parseURL = require('url').parse;
 var formatURL = require('url').format;
@@ -104,21 +106,6 @@ function Player(config) {
  * @private methods * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  **************************************************************************************************/
 
-Player.__rebaseCSS__ = function __rebaseCSS__(css, base) {
-    return css.replace(/url\(['"]?(.+?)['"]?\)/g, function(match, url) {
-        return 'url(' + resolveURL(base, url) + ')';
-    });
-};
-
-Player.__rebaseJS__ = function __rebaseJS__(js, base) {
-    // https://regex101.com/r/mG4oU4/2
-    var SOURCE_MAP_REGEX = (/(\/\/|\/\*)(#\s*sourceMappingURL\s*=\s*)([^\*\s]+)(.*)/g);
-
-    return js.replace(SOURCE_MAP_REGEX, function(_, opener, directive, url, closer) {
-        return opener + directive + resolveURL(base, url) + closer;
-    });
-};
-
 Player.prototype.__getExperience__ = function __getExperience__(id, params, origin, uuid) {
     var log = logger.getLog();
     var config = this.config;
@@ -164,8 +151,6 @@ Player.prototype.__getPlayer__ = function __getPlayer__(mode, uuid) {
     var log = logger.getLog();
     var config = this.config;
     var playerLocation = resolveURL(config.api.root, config.api.player.endpoint);
-    var rebaseCSS = Player.__rebaseCSS__;
-    var rebaseJS = Player.__rebaseJS__;
 
     var sameHostAsPlayer = (function() {
         var playerHost = parseURL(playerLocation).host;
@@ -267,6 +252,9 @@ Player.startService = function startService() {
             pidDir: resolvePath(__dirname, '../pids'),
             api: {
                 root: 'http://localhost/',
+                branding: {
+                    endpoint: 'collateral/branding/'
+                },
                 player: {
                     endpoint: 'apps/mini-reel-player/index.html'
                 },
