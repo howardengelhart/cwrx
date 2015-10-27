@@ -115,6 +115,57 @@ describe('HTMLDocument(html)', function() {
                 });
             });
 
+            describe('addJS(src, contents)', function() {
+                var src, contents;
+                var result;
+
+                beforeEach(function() {
+                    src = 'http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js';
+                    contents = js;
+
+                    result = document.addJS(src, contents);
+                });
+
+                it('should return itself', function() {
+                    expect(result).toBe(document);
+                });
+
+                it('should add the JS as a <script> tag', function() {
+                    var $ = cheerio.load(document.toString());
+                    var $script = $('head script[data-src="' + src + '"]');
+
+                    expect($script.length).toBe(1);
+                    expect($script.attr('data-src')).toBe(src);
+                    expect($script.attr('type')).toBe('text/javascript');
+                    expect($script.text()).toBe(HTMLDocument.rebaseJS(contents, src).replace(/<\/script>/g, '<\\/script>'));
+                });
+            });
+
+            describe('addCSS(src, contents)', function() {
+                var src, contents;
+                var result;
+
+                beforeEach(function() {
+                    src = 'http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css';
+                    contents = css;
+
+                    result = document.addCSS(src, contents);
+                });
+
+                it('should return itself', function() {
+                    expect(result).toBe(document);
+                });
+
+                it('should add the CSS as a <style> tag', function() {
+                    var $ = cheerio.load(document.toString());
+                    var $style = $('head style[data-href="' + src + '"]');
+
+                    expect($style.length).toBe(1);
+                    expect($style.attr('data-href')).toBe(src);
+                    expect($style.text()).toBe(HTMLDocument.rebaseCSS(contents, src));
+                });
+            });
+
             describe('toString()', function() {
                 it('should return the String of HTML', function() {
                     expect(document.toString()).toBe(html);
