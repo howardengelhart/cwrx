@@ -855,7 +855,8 @@ describe('player service', function() {
                             categories: ['food', 'tech'],
                             playUrls: ['play1.gif', 'play2.gif'],
                             countUrls: ['count1.gif', 'count2.gif'],
-                            launchUrls: ['launch1.gif', 'launch2.gif']
+                            launchUrls: ['launch1.gif', 'launch2.gif'],
+                            desktop: true
                         };
 
                         document = new HTMLDocument(playerHTML);
@@ -866,6 +867,7 @@ describe('player service', function() {
                         experience = {
                             id: 'e-92160a770b81d5',
                             data: {
+                                branding: 'elitedaily',
                                 campaign: { launchUrls: ['launch.gif'] },
                                 deck: [null, 'cam-2955fce737e487', null, null, 'cam-1e05bbe2a3ef74', 'cam-8a2f40a0344018', null]
                                     .map(function(campaignId, index) {
@@ -901,6 +903,7 @@ describe('player service', function() {
 
                     describe('when the experience is fetched', function() {
                         var loadAdsDeferred;
+                        var brandings;
 
                         beforeEach(function(done) {
                             jasmine.clock().mockDate();
@@ -908,12 +911,24 @@ describe('player service', function() {
                             loadAdsDeferred = q.defer();
                             spyOn(player.adLoader, 'loadAds').and.returnValue(loadAdsDeferred.promise);
 
+                            brandings = [
+                                { src: 'theme.css', styles: 'body { padding: 10px; }' },
+                                { src: 'theme--hover.css', styles: 'body { margin: 20px; }' }
+                            ];
+                            spyOn(player, '__getBranding__').and.returnValue(q(brandings));
+
+                            spyOn(document, 'addCSS').and.callThrough();
+
                             getExperienceDeferred.fulfill(experience);
                             getExperienceDeferred.promise.finally(done);
                         });
 
                         it('should load ads for the experience', function() {
                             expect(player.adLoader.loadAds).toHaveBeenCalledWith(experience, options.categories, options.campaign, options.uuid);
+                        });
+
+                        it('should loading brandings for the player', function() {
+                            expect(player.__getBranding__).toHaveBeenCalledWith(experience.data.branding, options.type, options.desktop, options.uuid);
                         });
 
                         describe('if loading the ads', function() {
@@ -955,6 +970,13 @@ describe('player service', function() {
                                     expect(MockAdLoader.addTrackingPixels.calls.count()).toBe(sponsoredCards.length);
                                 });
 
+                                it('should add the brandings as a resource', function() {
+                                    expect(brandings.length).toBeGreaterThan(0);
+                                    brandings.forEach(function(branding) {
+                                        expect(document.addCSS).toHaveBeenCalledWith(branding.src, branding.styles);
+                                    });
+                                });
+
                                 it('should add the experience as a resource', function() {
                                     expect(document.addResource).toHaveBeenCalledWith('experience', 'application/json', experience);
                                 });
@@ -979,6 +1001,13 @@ describe('player service', function() {
                                     expect(experience.data.campaign.launchUrls).toEqual(['launch.gif'].concat(options.launchUrls));
                                 });
 
+                                it('should add the brandings as a resource', function() {
+                                    expect(brandings.length).toBeGreaterThan(0);
+                                    brandings.forEach(function(branding) {
+                                        expect(document.addCSS).toHaveBeenCalledWith(branding.src, branding.styles);
+                                    });
+                                });
+
                                 it('should add the experience as a resource', function() {
                                     expect(document.addResource).toHaveBeenCalledWith('experience', 'application/json', experience);
                                 });
@@ -992,6 +1021,7 @@ describe('player service', function() {
 
                     describe('if called without an origin', function() {
                         beforeEach(function(done) {
+                            spyOn(player, '__getBranding__').and.returnValue(q([]));
                             player.__getExperience__.calls.reset();
                             getExperienceDeferred.fulfill(experience);
                             options.origin = undefined;
@@ -1006,6 +1036,7 @@ describe('player service', function() {
 
                     describe('if the experience has no launchUrls', function() {
                         beforeEach(function(done) {
+                            spyOn(player, '__getBranding__').and.returnValue(q([]));
                             player.__getExperience__.and.returnValue(q(experience));
                             spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
                             delete experience.data.campaign.launchUrls;
@@ -1022,6 +1053,7 @@ describe('player service', function() {
                         beforeEach(function(done) {
                             success.calls.reset();
                             failure.calls.reset();
+                            spyOn(player, '__getBranding__').and.returnValue(q([]));
                             player.__getExperience__.and.returnValue(q(experience));
                             spyOn(player.adLoader, 'loadAds').and.callFake(function() {
                                 experience.data.deck.length = 0;
@@ -1044,6 +1076,7 @@ describe('player service', function() {
 
                     describe('if called with no launchUrls', function() {
                         beforeEach(function(done) {
+                            spyOn(player, '__getBranding__').and.returnValue(q([]));
                             player.__getExperience__.and.returnValue(q(experience));
                             spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
                             options.launchUrls = null;
@@ -1066,6 +1099,7 @@ describe('player service', function() {
                                 success.calls.reset();
                                 failure.calls.reset();
                                 experience.data.deck.length = 1;
+                                spyOn(player, '__getBranding__').and.returnValue(q([]));
                                 player.__getExperience__.and.returnValue(q(experience));
                                 spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
 
@@ -1082,6 +1116,7 @@ describe('player service', function() {
                                 success.calls.reset();
                                 failure.calls.reset();
                                 experience.data.deck.length = 2;
+                                spyOn(player, '__getBranding__').and.returnValue(q([]));
                                 player.__getExperience__.and.returnValue(q(experience));
                                 spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
 
@@ -1100,7 +1135,15 @@ describe('player service', function() {
                     });
 
                     describe('if called with preview: true', function() {
+                        var brandings;
+
                         beforeEach(function(done) {
+                            brandings = [
+                                { src: 'theme.css', styles: 'body { padding: 10px; }' },
+                                { src: 'theme--hover.css', styles: 'body { margin: 20px; }' }
+                            ];
+                            spyOn(player, '__getBranding__').and.returnValue(q(brandings));
+                            spyOn(document, 'addCSS').and.callThrough();
                             player.__getExperience__.and.returnValue(q(experience));
                             spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
                             player.__getExperience__.calls.reset();
@@ -1130,6 +1173,13 @@ describe('player service', function() {
                             expect(MockAdLoader.addTrackingPixels.calls.count()).toBe(sponsoredCards.length);
                         });
 
+                        it('should add the brandings as a resource', function() {
+                            expect(brandings.length).toBeGreaterThan(0);
+                            brandings.forEach(function(branding) {
+                                expect(document.addCSS).toHaveBeenCalledWith(branding.src, branding.styles);
+                            });
+                        });
+
                         it('should removePlaceholders() from the experience', function() {
                             expect(MockAdLoader.removePlaceholders).toHaveBeenCalledWith(experience);
                         });
@@ -1143,8 +1193,41 @@ describe('player service', function() {
                         });
                     });
 
+                    describe('if the experience has no branding', function() {
+                        beforeEach(function(done) {
+                            success.calls.reset();
+                            failure.calls.reset();
+                            spyOn(player, '__getBranding__').and.returnValue(q([]));
+                            player.__getExperience__.and.returnValue(q(experience));
+                            spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
+                            player.__getBranding__.calls.reset();
+                            player.__getExperience__.calls.reset();
+                            player.adLoader.loadAds.calls.reset();
+                            delete experience.data.branding;
+
+                            player.get(options).then(success, failure).finally(done);
+                        });
+
+                        it('should not __getBranding__()', function() {
+                            expect(player.__getBranding__).not.toHaveBeenCalled();
+                        });
+
+                        it('should load ads', function() {
+                            expect(player.adLoader.loadAds).toHaveBeenCalled();
+                        });
+
+                        it('should add the experience as a resource', function() {
+                            expect(document.addResource).toHaveBeenCalledWith('experience', 'application/json', experience);
+                        });
+
+                        it('should fulfill with a String of HTML', function() {
+                            expect(success).toHaveBeenCalledWith(document.toString());
+                        });
+                    });
+
                     describe('if the experience has no ads', function() {
                         beforeEach(function(done) {
+                            spyOn(player, '__getBranding__').and.returnValue(q([]));
                             player.__getExperience__.and.returnValue(q(experience));
                             spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
                             player.__getExperience__.calls.reset();
