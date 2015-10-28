@@ -4,6 +4,7 @@ describe('content-cards (UT)', function() {
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
+
         urlUtils        = require('url');
         q               = require('q');
         cardModule      = require('../../bin/content-cards');
@@ -21,6 +22,7 @@ describe('content-cards (UT)', function() {
             fatal : jasmine.createSpy('log_fatal'),
             log   : jasmine.createSpy('log_log')
         };
+
         spyOn(logger, 'createLog').and.returnValue(mockLog);
         spyOn(logger, 'getLog').and.returnValue(mockLog);
         
@@ -36,12 +38,15 @@ describe('content-cards (UT)', function() {
 
             var mockColl = { collectionName: 'cards' },
                 config = { trackingPixel: 'track.me' },
-                cardSvc = cardModule.setupCardSvc(mockColl, { caches: 'yes' }, config);
-                
+                cardSvc = cardModule.setupCardSvc(mockColl, { caches: 'yes' }, config,
+                    { hasYouTubeKey : true });
+
             expect(cardModule.getPublicCard.bind).toHaveBeenCalledWith(cardModule, cardSvc, { caches: 'yes' });
 
             expect(cardModule.config.trackingPixel).toBe('track.me');
             
+            expect(mockLog.warn).not.toHaveBeenCalled();
+
             expect(cardSvc instanceof CrudSvc).toBe(true);
             expect(cardSvc._prefix).toBe('rc');
             expect(cardSvc.objName).toBe('cards');
@@ -60,8 +65,292 @@ describe('content-cards (UT)', function() {
             
             expect(cardSvc._middleware.read).toEqual([CrudSvc.prototype.preventGetAll]);
         });
+
+        it('should complain if there is no youtube key',function(){
+            cardModule.setupCardSvc({ collectionName: 'cards' }, { caches: 'yes' }, {},
+                { hasYouTubeKey : false });
+            expect(mockLog.warn).toHaveBeenCalledWith('Missing youtube key from secrets, will not be able to lookup meta data for youtube videos.');
+        });
     });
-    
+
+    describe('isVideoCard', function(){
+        it('returns true if card type is a video type',function(){
+            expect(cardModule.isVideoCard({type : 'youtube'})).toEqual(true);
+            expect(cardModule.isVideoCard({type : 'dailymotion'})).toEqual(true);
+            expect(cardModule.isVideoCard({type : 'vimeo'})).toEqual(true);
+            expect(cardModule.isVideoCard({type : 'adUnit'})).toEqual(true);
+            expect(cardModule.isVideoCard({type : 'vzaar'})).toEqual(true);
+            expect(cardModule.isVideoCard({type : 'wistia'})).toEqual(true);
+            expect(cardModule.isVideoCard({type : 'instagram', data : { type : 'video' }}))
+                .toEqual(true);
+        });
+
+        it('returns false if card type is not a video type',function(){
+            expect(cardModule.isVideoCard({type : 'article'})).toEqual(false);
+            expect(cardModule.isVideoCard({type : 'instagram', data : { type : 'photo' }}))
+                .toEqual(false);
+        });
+    });
+
+    describe('getMetaData', function(){
+        var mockReq, mockData, mockNext, mockDone ;
+        beforeEach(function(){
+            mockReq = { body : { data : {} }, uuid : 'testid-0000' };
+            mockData = {};
+            mockNext = jasmine.createSpy('nextSpy');
+            mockDone = jasmine.createSpy('doneSpy');
+            cardModule.metagetta = jasmine.createSpy('metagettaSpy').and.callFake(function(){
+                return q.resolve(mockData);
+            });
+            cardModule.metagetta.hasYouTubeKey = true;
+        });
+
+        it('should not call metagetta if the req is not a video card',function(done){
+            mockReq.body.data.videoId   = 'def456';
+            mockReq.body.type           = 'youtube';
+            spyOn(cardModule,'isVideoCard').and.returnValue(false);
+            cardModule.getMetaData(mockReq,mockNext,mockDone)
+            .then(function(){
+                expect(cardModule.metagetta).not.toHaveBeenCalled();
+                expect(mockNext).toHaveBeenCalled();
+            })
+            .then(done,done.fail);
+        });
+
+        it('should not call metagetta if the req has no data property',function(done){
+            delete mockReq.body.data;
+            cardModule.getMetaData(mockReq,mockNext,mockDone)
+            .then(function(){
+                expect(cardModule.metagetta).not.toHaveBeenCalled();
+                expect(mockNext).toHaveBeenCalled();
+            })
+            .then(done,done.fail);
+        });
+
+        it('should not call metagetta if the req has empty data property',function(done){
+            cardModule.getMetaData(mockReq,mockNext,mockDone)
+            .then(function(){
+                expect(cardModule.metagetta).not.toHaveBeenCalled();
+                expect(mockNext).toHaveBeenCalled();
+            })
+            .then(done,done.fail);
+        });
+
+        it('should not call metagetta for unsupported cards',function(done){
+            q.all(['instagram','vzaar','wistia','article'].map(function(cardType){
+                return cardModule.getMetaData({
+                    uuid : 'testid-0000',
+                    body : {
+                        data : { id : 'abc', type : 'video' },
+                        type : cardType,
+                    }
+                },mockNext,mockDone);
+            }))
+            .then(function(){
+                expect(cardModule.metagetta).not.toHaveBeenCalled();
+                expect(mockLog.info.calls.allArgs()).toEqual([
+                    [ '[%1] - MetaData unsupported for CardType [%2].',
+                        'testid-0000', 'instagram' ],
+                    [ '[%1] - MetaData unsupported for CardType [%2].',
+                        'testid-0000', 'vzaar' ],
+                    [ '[%1] - MetaData unsupported for CardType [%2].',
+                        'testid-0000', 'wistia' ]
+                 ]);
+                expect(mockNext).toHaveBeenCalled();
+            })
+            .then(done,done.fail);
+        });
+
+        it('should not call metagetta if youtube card, but no secrets.youtubeKey',function(done){
+            cardModule.metagetta.hasYouTubeKey = false;
+
+            mockReq.body.data.videoId   = 'def456';
+            mockReq.body.type           = 'youtube';
+
+            cardModule.getMetaData(mockReq,mockNext,mockDone)
+            .then(function(){
+                expect(cardModule.metagetta).not.toHaveBeenCalled();
+                expect(mockReq.body.data.duration).toEqual(-1);
+                expect(mockLog.warn).toHaveBeenCalledWith(
+                    '[%1] - Cannot get youtube duration without secrets.youtubeKey.',
+                    'testid-0000'
+                );
+            })
+            .then(done,done.fail);
+        });
+
+        it('should not call metagetta if its a put and video is same',function(done){
+            mockReq.origObj = {
+                data : {
+                    vast : 'https://myvast/is/vast.xml',
+                    duration : 29
+                },
+                type : 'adUnit',
+                lastUpdated : new Date(1446063211664)
+            };
+            spyOn(Date,'now').and.returnValue(1446063211664);
+            mockReq.body.data.vast  = 'https://myvast/is/vast.xml';
+            mockReq.body.type       = 'adUnit';
+
+            cardModule.getMetaData(mockReq,mockNext,mockDone)
+            .then(function(){
+                expect(cardModule.metagetta).not.toHaveBeenCalled();
+                expect(mockNext).toHaveBeenCalled();
+            })
+            .then(done,done.fail);
+        });
+
+        it('should call metagetta if its a put with same video, but no duration.',function(done){
+            mockReq.origObj = {
+                data : {
+                    vast : 'https://myvast/is/vast.xml'
+                },
+                type : 'adUnit',
+                lastUpdated : new Date(1446063211664)
+            };
+            spyOn(Date,'now').and.returnValue(mockReq.origObj.lastUpdated.valueOf());
+            mockReq.body.data.vast  = 'https://myvast/is/vast.xml';
+            mockReq.body.type       = 'adUnit';
+
+            cardModule.getMetaData(mockReq,mockNext,mockDone)
+            .then(function(){
+                expect(cardModule.metagetta).toHaveBeenCalled();
+            })
+            .then(done,done.fail);
+        });
+
+        it('should call metagetta if its a put with different card vast.',function(done){
+            mockReq.origObj = {
+                data : {
+                    vast : 'https://myvast/is/vast.xml',
+                    duration : 29
+                },
+                type : 'adUnit',
+                lastUpdated : new Date(1446063211664)
+            };
+            spyOn(Date,'now').and.returnValue(mockReq.origObj.lastUpdated.valueOf());
+            mockReq.body.data.vast  = 'https://myvast/is/different_vast.xml';
+            mockReq.body.type       = 'adUnit';
+
+            cardModule.getMetaData(mockReq,mockNext,mockDone)
+            .then(function(){
+                expect(cardModule.metagetta).toHaveBeenCalled();
+            })
+            .then(done,done.fail);
+        });
+
+        it('should call metagetta if its a put with different video.',function(done){
+            mockReq.origObj = {
+                data : {
+                    videoId : 'abc123',
+                    duration : 29
+                },
+                type : 'youtube',
+                lastUpdated : new Date(1446063211664)
+            };
+            spyOn(Date,'now').and.returnValue(mockReq.origObj.lastUpdated.valueOf());
+            mockReq.body.data.videoId   = 'def456';
+            mockReq.body.type           = 'youtube';
+
+            cardModule.getMetaData(mockReq,mockNext,mockDone)
+            .then(function(){
+                expect(cardModule.metagetta).toHaveBeenCalled();
+            })
+            .then(done,done.fail);
+        });
+
+        it('should call metagetta if its a put with same video, but lastUpdated > 60 secs.',function(done){
+            mockReq.origObj = {
+                data : {
+                    vast : 'https://myvast/is/vast.xml',
+                    duration : 29
+                },
+                type : 'adUnit',
+                lastUpdated : new Date(1446063211664)
+            };
+            spyOn(Date,'now').and.returnValue(mockReq.origObj.lastUpdated.valueOf() + 100000);
+            mockReq.body.data.vast  = 'https://myvast/is/vast.xml';
+            mockReq.body.type       = 'adUnit';
+
+            cardModule.getMetaData(mockReq,mockNext,mockDone)
+            .then(function(){
+                expect(cardModule.metagetta).toHaveBeenCalled();
+            })
+            .then(done,done.fail);
+        });
+
+        it('should get duration from valid vast on create card',function(done){
+            mockReq.body.data.vast  = 'https://myvast/is/vast.xml';
+            mockReq.body.type       = 'adUnit';
+
+            mockData.type       = 'vast';
+            mockData.duration   = 29;
+
+            cardModule.getMetaData(mockReq,mockNext,mockDone)
+            .then(function(){
+                expect(cardModule.metagetta).toHaveBeenCalledWith(jasmine.objectContaining({
+                    type : 'vast',
+                    uri : 'https://myvast/is/vast.xml'
+                }));
+                expect(mockReq.body.data.duration).toEqual(29);
+                expect(mockNext).toHaveBeenCalled();
+            })
+            .then(done,done.fail);
+        });
+
+        it('logs warning, sets duration to -1 on meta err on create card',function(done){
+            mockReq.body.data.vast  = 'https://myvast/is/vast.xml';
+            mockReq.body.type       = 'adUnit';
+
+            cardModule.metagetta.and.callFake(function(){
+                return q.reject(
+                    new Error('Could not find metadata for the specified resource.')
+                );
+            });
+
+            cardModule.getMetaData(mockReq,mockNext,mockDone)
+            .then(function(){
+                expect(cardModule.metagetta).toHaveBeenCalledWith(jasmine.objectContaining({
+                    type : 'vast',
+                    uri : 'https://myvast/is/vast.xml'
+                }));
+                expect(mockReq.body.data.duration).toEqual(-1);
+                expect(mockLog.warn).toHaveBeenCalledWith(
+                    '[%1] - [%2] [%3]',
+                    'testid-0000',
+                    'Could not find metadata for the specified resource.',
+                    '{"type":"vast","uri":"https://myvast/is/vast.xml"}'
+                );
+                expect(mockNext).toHaveBeenCalled();
+            })
+            .then(done,done.fail);
+        });
+
+        it('logs warning, sets duration to -1 on missing dur. create card',function(done){
+            mockReq.body.data.vast  = 'https://myvast/is/vast.xml';
+            mockReq.body.type       = 'adUnit';
+            delete mockData.duration;
+
+            cardModule.getMetaData(mockReq,mockNext,mockDone)
+            .then(function(){
+                expect(cardModule.metagetta).toHaveBeenCalledWith(jasmine.objectContaining({
+                    type : 'vast',
+                    uri : 'https://myvast/is/vast.xml'
+                }));
+                expect(mockReq.body.data.duration).toEqual(-1);
+                expect(mockLog.warn).toHaveBeenCalledWith(
+                    '[%1] - [%2] [%3]',
+                    'testid-0000',
+                    'Missing duration for the specified resource.',
+                    '{"type":"vast","uri":"https://myvast/is/vast.xml"}'
+                );
+                expect(mockNext).toHaveBeenCalled();
+            })
+            .then(done,done.fail);
+        });
+
+    });
+
     describe('formatUrl', function() {
         var card;
         beforeEach(function() {
