@@ -36,7 +36,8 @@
     "request": "~2.27.0",
     "request-promise": "~0.4.2",
     "clone": "~1.0.2",
-    "pg.js": "^4.1.1"
+    "pg.js": "^4.1.1",
+    "metagetta": "^0.1.0"
   },
   "devDependencies": {
     "bluebird": "^2.10.0",
