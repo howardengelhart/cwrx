@@ -168,50 +168,6 @@ describe('player service', function() {
     });
 
     describe('static:', function() {
-        describe('@private', function() {
-            describe('methods:', function() {
-                describe('__rebaseCSS__(css, base)', function() {
-                    var result;
-                    var base;
-
-                    beforeEach(function() {
-                        base = 'http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css';
-                        result = Player.__rebaseCSS__(playerCSS, base);
-                    });
-
-                    it('should replace URLs with no quotes', function() {
-                        expect(result).toContain('.player__playIcon{height:45%;width:100%;background:url(http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/img/play-icon.svg) 56% 50%/contain no-repeat}');
-                    });
-
-                    it('should replace URLs with single quotes', function() {
-                        expect(result).toContain('.recap__imgBox{width:8em;height:5em;background:url(http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/img/default_square.jpg) 50% 50%/cover no-repeat;float:left;margin:0 1em 0 3em}');
-                    });
-
-                    it('should replace URLs with double quotes', function() {
-                        expect(result).toContain('.instag____profileDesc__logo{background:url(http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/img/social-card-sprites.png) -1em -1em/19em no-repeat;width:5em;height:1.5em;margin:1em 0 0;display:block}');
-                    });
-                });
-
-                describe('__rebaseJS__(js, base)', function() {
-                    var result;
-                    var base;
-
-                    beforeEach(function() {
-                        base = 'http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js';
-                        result = Player.__rebaseJS__(playerJS, base);
-                    });
-
-                    it('should rebase single-line comment sourceMapURLs', function() {
-                        expect(result).toContain('//# sourceMappingURL=http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js.map');
-                    });
-
-                    it('should rebase multi-line comment sourceMapURLs', function() {
-                        expect(result).toContain('/*# sourceMappingURL = http://localhost/foo/lightbox.foo.js.map */');
-                    });
-                });
-            });
-        });
-
         describe('@public', function() {
             describe('methods:', function() {
                 describe('startService()', function() {
@@ -263,7 +219,7 @@ describe('player service', function() {
                             return expressApp;
                         });
 
-                        browser = { isMobile: false };
+                        browser = { isMobile: false, isDesktop: true };
                         MockBrowserInfo = require.cache[require.resolve('../../lib/browserInfo')].exports = jasmine.createSpy('BrowserInfo()').and.returnValue(browser);
 
                         delete require.cache[require.resolve('../../bin/player')];
@@ -291,6 +247,13 @@ describe('player service', function() {
                                 appDir: require('path').dirname(require.resolve('../../bin/player')),
                                 api: {
                                     root: 'http://localhost/',
+                                    branding: {
+                                        endpoint: 'collateral/branding/',
+                                        cacheTTLs: {
+                                            fresh: 15,
+                                            max: 30
+                                        }
+                                    },
                                     player: {
                                         endpoint: 'apps/mini-reel-player/index.html'
                                     },
@@ -506,7 +469,8 @@ describe('player service', function() {
                                 expect(player.get).toHaveBeenCalledWith(extend({
                                     type: request.params.type,
                                     uuid: request.uuid,
-                                    origin: request.get('origin')
+                                    origin: request.get('origin'),
+                                    desktop: browser.isDesktop
                                 }, request.query));
                             });
 
@@ -633,6 +597,7 @@ describe('player service', function() {
                                     response.send.calls.reset();
                                     player.get.calls.reset();
                                     browser.isMobile = true;
+                                    browser.isDesktop = false;
                                     player.get.and.returnValue(q(playerHTML));
                                 });
 
@@ -670,7 +635,9 @@ describe('player service', function() {
                                         });
 
                                         it('should get() the player and send the response', function() {
-                                            expect(player.get).toHaveBeenCalled();
+                                            expect(player.get).toHaveBeenCalledWith(jasmine.objectContaining({
+                                                desktop: browser.isDesktop
+                                            }));
                                             expect(response.send).toHaveBeenCalledWith(200, jasmine.any(String));
                                         });
                                     });
@@ -710,7 +677,9 @@ describe('player service', function() {
                                         });
 
                                         it('should get() the player and send the response', function() {
-                                            expect(player.get).toHaveBeenCalled();
+                                            expect(player.get).toHaveBeenCalledWith(jasmine.objectContaining({
+                                                desktop: browser.isDesktop
+                                            }));
                                             expect(response.send).toHaveBeenCalledWith(200, jasmine.any(String));
                                         });
                                     });
@@ -731,6 +700,13 @@ describe('player service', function() {
             config = {
                 api: {
                     root: 'http://localhost/',
+                    branding: {
+                        endpoint: 'collateral/branding/',
+                        cacheTTLs: {
+                            fresh: 15,
+                            max: 30
+                        }
+                    },
                     player: {
                         endpoint: 'apps/mini-reel-player/index.html'
                     },
@@ -791,6 +767,13 @@ describe('player service', function() {
                 freshTTL: config.api.experience.cacheTTLs.fresh,
                 maxTTL: config.api.experience.cacheTTLs.max,
                 extractor: clonePromise
+            });
+        });
+
+        it('should create a FunctionCache for branding', function() {
+            expect(MockFunctionCache).toHaveBeenCalledWith({
+                freshTTL: config.api.branding.cacheTTLs.fresh,
+                maxTTL: config.api.branding.cacheTTLs.max
             });
         });
 
@@ -878,7 +861,8 @@ describe('player service', function() {
                             categories: ['food', 'tech'],
                             playUrls: ['play1.gif', 'play2.gif'],
                             countUrls: ['count1.gif', 'count2.gif'],
-                            launchUrls: ['launch1.gif', 'launch2.gif']
+                            launchUrls: ['launch1.gif', 'launch2.gif'],
+                            desktop: true
                         };
 
                         document = new HTMLDocument(playerHTML);
@@ -889,6 +873,7 @@ describe('player service', function() {
                         experience = {
                             id: 'e-92160a770b81d5',
                             data: {
+                                branding: 'elitedaily',
                                 campaign: { launchUrls: ['launch.gif'] },
                                 deck: [null, 'cam-2955fce737e487', null, null, 'cam-1e05bbe2a3ef74', 'cam-8a2f40a0344018', null]
                                     .map(function(campaignId, index) {
@@ -924,6 +909,7 @@ describe('player service', function() {
 
                     describe('when the experience is fetched', function() {
                         var loadAdsDeferred;
+                        var brandings;
 
                         beforeEach(function(done) {
                             jasmine.clock().mockDate();
@@ -931,12 +917,24 @@ describe('player service', function() {
                             loadAdsDeferred = q.defer();
                             spyOn(player.adLoader, 'loadAds').and.returnValue(loadAdsDeferred.promise);
 
+                            brandings = [
+                                { src: 'theme.css', styles: 'body { padding: 10px; }' },
+                                { src: 'theme--hover.css', styles: 'body { margin: 20px; }' }
+                            ];
+                            spyOn(player, '__getBranding__').and.returnValue(q(brandings));
+
+                            spyOn(document, 'addCSS').and.callThrough();
+
                             getExperienceDeferred.fulfill(experience);
                             getExperienceDeferred.promise.finally(done);
                         });
 
                         it('should load ads for the experience', function() {
                             expect(player.adLoader.loadAds).toHaveBeenCalledWith(experience, options.categories, options.campaign, options.uuid);
+                        });
+
+                        it('should loading brandings for the player', function() {
+                            expect(player.__getBranding__).toHaveBeenCalledWith(experience.data.branding, options.type, options.desktop, options.uuid);
                         });
 
                         describe('if loading the ads', function() {
@@ -978,6 +976,13 @@ describe('player service', function() {
                                     expect(MockAdLoader.addTrackingPixels.calls.count()).toBe(sponsoredCards.length);
                                 });
 
+                                it('should add the brandings as a resource', function() {
+                                    expect(brandings.length).toBeGreaterThan(0);
+                                    brandings.forEach(function(branding) {
+                                        expect(document.addCSS).toHaveBeenCalledWith(branding.src, branding.styles);
+                                    });
+                                });
+
                                 it('should add the experience as a resource', function() {
                                     expect(document.addResource).toHaveBeenCalledWith('experience', 'application/json', experience);
                                 });
@@ -1002,6 +1007,13 @@ describe('player service', function() {
                                     expect(experience.data.campaign.launchUrls).toEqual(['launch.gif'].concat(options.launchUrls));
                                 });
 
+                                it('should add the brandings as a resource', function() {
+                                    expect(brandings.length).toBeGreaterThan(0);
+                                    brandings.forEach(function(branding) {
+                                        expect(document.addCSS).toHaveBeenCalledWith(branding.src, branding.styles);
+                                    });
+                                });
+
                                 it('should add the experience as a resource', function() {
                                     expect(document.addResource).toHaveBeenCalledWith('experience', 'application/json', experience);
                                 });
@@ -1015,6 +1027,7 @@ describe('player service', function() {
 
                     describe('if called without an origin', function() {
                         beforeEach(function(done) {
+                            spyOn(player, '__getBranding__').and.returnValue(q([]));
                             player.__getExperience__.calls.reset();
                             getExperienceDeferred.fulfill(experience);
                             options.origin = undefined;
@@ -1029,6 +1042,7 @@ describe('player service', function() {
 
                     describe('if the experience has no launchUrls', function() {
                         beforeEach(function(done) {
+                            spyOn(player, '__getBranding__').and.returnValue(q([]));
                             player.__getExperience__.and.returnValue(q(experience));
                             spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
                             delete experience.data.campaign.launchUrls;
@@ -1045,6 +1059,7 @@ describe('player service', function() {
                         beforeEach(function(done) {
                             success.calls.reset();
                             failure.calls.reset();
+                            spyOn(player, '__getBranding__').and.returnValue(q([]));
                             player.__getExperience__.and.returnValue(q(experience));
                             spyOn(player.adLoader, 'loadAds').and.callFake(function() {
                                 experience.data.deck.length = 0;
@@ -1067,6 +1082,7 @@ describe('player service', function() {
 
                     describe('if called with no launchUrls', function() {
                         beforeEach(function(done) {
+                            spyOn(player, '__getBranding__').and.returnValue(q([]));
                             player.__getExperience__.and.returnValue(q(experience));
                             spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
                             options.launchUrls = null;
@@ -1089,6 +1105,7 @@ describe('player service', function() {
                                 success.calls.reset();
                                 failure.calls.reset();
                                 experience.data.deck.length = 1;
+                                spyOn(player, '__getBranding__').and.returnValue(q([]));
                                 player.__getExperience__.and.returnValue(q(experience));
                                 spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
 
@@ -1105,6 +1122,7 @@ describe('player service', function() {
                                 success.calls.reset();
                                 failure.calls.reset();
                                 experience.data.deck.length = 2;
+                                spyOn(player, '__getBranding__').and.returnValue(q([]));
                                 player.__getExperience__.and.returnValue(q(experience));
                                 spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
 
@@ -1123,7 +1141,15 @@ describe('player service', function() {
                     });
 
                     describe('if called with preview: true', function() {
+                        var brandings;
+
                         beforeEach(function(done) {
+                            brandings = [
+                                { src: 'theme.css', styles: 'body { padding: 10px; }' },
+                                { src: 'theme--hover.css', styles: 'body { margin: 20px; }' }
+                            ];
+                            spyOn(player, '__getBranding__').and.returnValue(q(brandings));
+                            spyOn(document, 'addCSS').and.callThrough();
                             player.__getExperience__.and.returnValue(q(experience));
                             spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
                             player.__getExperience__.calls.reset();
@@ -1153,6 +1179,13 @@ describe('player service', function() {
                             expect(MockAdLoader.addTrackingPixels.calls.count()).toBe(sponsoredCards.length);
                         });
 
+                        it('should add the brandings as a resource', function() {
+                            expect(brandings.length).toBeGreaterThan(0);
+                            brandings.forEach(function(branding) {
+                                expect(document.addCSS).toHaveBeenCalledWith(branding.src, branding.styles);
+                            });
+                        });
+
                         it('should removePlaceholders() from the experience', function() {
                             expect(MockAdLoader.removePlaceholders).toHaveBeenCalledWith(experience);
                         });
@@ -1166,8 +1199,41 @@ describe('player service', function() {
                         });
                     });
 
+                    describe('if the experience has no branding', function() {
+                        beforeEach(function(done) {
+                            success.calls.reset();
+                            failure.calls.reset();
+                            spyOn(player, '__getBranding__').and.returnValue(q([]));
+                            player.__getExperience__.and.returnValue(q(experience));
+                            spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
+                            player.__getBranding__.calls.reset();
+                            player.__getExperience__.calls.reset();
+                            player.adLoader.loadAds.calls.reset();
+                            delete experience.data.branding;
+
+                            player.get(options).then(success, failure).finally(done);
+                        });
+
+                        it('should not __getBranding__()', function() {
+                            expect(player.__getBranding__).not.toHaveBeenCalled();
+                        });
+
+                        it('should load ads', function() {
+                            expect(player.adLoader.loadAds).toHaveBeenCalled();
+                        });
+
+                        it('should add the experience as a resource', function() {
+                            expect(document.addResource).toHaveBeenCalledWith('experience', 'application/json', experience);
+                        });
+
+                        it('should fulfill with a String of HTML', function() {
+                            expect(success).toHaveBeenCalledWith(document.toString());
+                        });
+                    });
+
                     describe('if the experience has no ads', function() {
                         beforeEach(function(done) {
+                            spyOn(player, '__getBranding__').and.returnValue(q([]));
                             player.__getExperience__.and.returnValue(q(experience));
                             spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
                             player.__getExperience__.calls.reset();
@@ -1199,6 +1265,163 @@ describe('player service', function() {
 
         describe('@private', function() {
             describe('methods:', function() {
+                describe('__getBranding__(branding, type, hover, uuid)', function() {
+                    var branding, type, hover, uuid;
+                    var result;
+                    var base;
+                    var success, failure;
+
+                    beforeEach(function() {
+                        branding = 'cinema6';
+                        type = 'full-np';
+                        uuid = 'ru8493ry438r';
+
+                        base = resolveURL(config.api.root, config.api.branding.endpoint);
+
+                        success = jasmine.createSpy('success()');
+                        failure = jasmine.createSpy('failure()');
+                    });
+
+                    afterEach(function() {
+                        player.__getBranding__.clear();
+                    });
+
+                    it('should be cached', function() {
+                        expect(fnCaches[2].add.calls.all().map(function(call) { return call.returnValue; })).toContain(player.__getBranding__);
+                        fnCaches[2].add.calls.all().forEach(function(call) {
+                            if (call.returnValue === player.__getBranding__) {
+                                expect(call.args).toEqual([jasmine.any(Function), -1]);
+                            }
+                        });
+                    });
+
+                    describe('if hover is false', function() {
+                        beforeEach(function(done) {
+                            hover = false;
+
+                            result = player.__getBranding__(branding, type, hover, uuid);
+                            result.then(success, failure);
+                            q().then(done);
+                        });
+
+                        it('should make a request for just the base branding stylesheets', function() {
+                            expect(request.get).toHaveBeenCalledWith(resolveURL(base, branding + '/styles/' + type + '/theme.css'));
+                            expect(request.get).toHaveBeenCalledWith(resolveURL(base, branding + '/styles/core.css'));
+                            expect(request.get.calls.count()).toBe(2);
+                        });
+
+                        describe('when the requests fulfill', function() {
+                            var themeCSS, coreCSS;
+
+                            beforeEach(function(done) {
+                                themeCSS = 'body { background: black; }';
+                                coreCSS = 'body { background: red; }';
+
+                                requestDeferreds[resolveURL(base, branding + '/styles/' + type + '/theme.css')].resolve(themeCSS);
+                                requestDeferreds[resolveURL(base, branding + '/styles/core.css')].resolve(coreCSS);
+
+                                result.finally(done);
+                            });
+
+                            it('should fulfill with an Array of css', function() {
+                                expect(success).toHaveBeenCalledWith([jasmine.any(Object), jasmine.any(Object)]);
+                                expect(success).toHaveBeenCalledWith(jasmine.arrayContaining([
+                                    { src: resolveURL(base, branding + '/styles/' + type + '/theme.css'), styles: themeCSS },
+                                    { src: resolveURL(base, branding + '/styles/core.css'), styles: coreCSS }
+                                ]));
+                            });
+                        });
+
+                        describe('if a request rejects', function() {
+                            var themeCSS;
+
+                            beforeEach(function(done) {
+                                themeCSS = 'body { background: black; }';
+
+                                requestDeferreds[resolveURL(base, branding + '/styles/' + type + '/theme.css')].resolve(themeCSS);
+                                requestDeferreds[resolveURL(base, branding + '/styles/core.css')].reject({ statusCode: 404, message: 'NOT FOUND!' });
+
+                                result.finally(done);
+                            });
+
+                            it('should fulfill with an Array of the css that was fetched', function() {
+                                expect(success).toHaveBeenCalledWith([
+                                    { src: resolveURL(base, branding + '/styles/' + type + '/theme.css'), styles: themeCSS }
+                                ]);
+                            });
+                        });
+                    });
+
+                    describe('if hover is true', function() {
+                        beforeEach(function(done) {
+                            hover = true;
+
+                            result = player.__getBranding__(branding, type, hover, uuid);
+                            result.then(success, failure);
+                            q().then(done);
+                        });
+
+                        it('should make a request for the base and hover branding stylesheets', function() {
+                            expect(request.get).toHaveBeenCalledWith(resolveURL(base, branding + '/styles/' + type + '/theme.css'));
+                            expect(request.get).toHaveBeenCalledWith(resolveURL(base, branding + '/styles/core.css'));
+                            expect(request.get).toHaveBeenCalledWith(resolveURL(base, branding + '/styles/' + type + '/theme--hover.css'));
+                            expect(request.get).toHaveBeenCalledWith(resolveURL(base, branding + '/styles/core--hover.css'));
+                            expect(request.get.calls.count()).toBe(4);
+                        });
+
+                        describe('when the requests fulfill', function() {
+                            var themeCSS, coreCSS, themeHoverCSS, coreHoverCSS;
+
+                            beforeEach(function(done) {
+                                themeCSS = 'body { background: black; }';
+                                coreCSS = 'body { background: red; }';
+                                themeHoverCSS = 'body { background: blue; }';
+                                coreHoverCSS = 'body { background: green; }';
+
+                                requestDeferreds[resolveURL(base, branding + '/styles/' + type + '/theme.css')].resolve(themeCSS);
+                                requestDeferreds[resolveURL(base, branding + '/styles/core.css')].resolve(coreCSS);
+                                requestDeferreds[resolveURL(base, branding + '/styles/' + type + '/theme--hover.css')].resolve(themeHoverCSS);
+                                requestDeferreds[resolveURL(base, branding + '/styles/core--hover.css')].resolve(coreHoverCSS);
+
+                                result.finally(done);
+                            });
+
+                            it('should fulfill with an Array of css', function() {
+                                expect(success).toHaveBeenCalledWith([jasmine.any(Object), jasmine.any(Object), jasmine.any(Object), jasmine.any(Object)]);
+                                expect(success).toHaveBeenCalledWith(jasmine.arrayContaining([
+                                    { src: resolveURL(base, branding + '/styles/' + type + '/theme.css'), styles: themeCSS },
+                                    { src: resolveURL(base, branding + '/styles/core.css'), styles: coreCSS },
+                                    { src: resolveURL(base, branding + '/styles/' + type + '/theme--hover.css'), styles: themeHoverCSS },
+                                    { src: resolveURL(base, branding + '/styles/core--hover.css'), styles: coreHoverCSS }
+                                ]));
+                            });
+                        });
+
+                        describe('if a request rejects', function() {
+                            var themeCSS, themeHoverCSS;
+
+                            beforeEach(function(done) {
+                                themeCSS = 'body { background: black; }';
+                                themeHoverCSS = 'body { background: blue; }';
+
+                                requestDeferreds[resolveURL(base, branding + '/styles/' + type + '/theme.css')].resolve(themeCSS);
+                                requestDeferreds[resolveURL(base, branding + '/styles/core.css')].reject({ statusCode: 404, message: 'NOT FOUND!' });
+                                requestDeferreds[resolveURL(base, branding + '/styles/' + type + '/theme--hover.css')].resolve(themeHoverCSS);
+                                requestDeferreds[resolveURL(base, branding + '/styles/core--hover.css')].reject({ statusCode: 404, message: 'NOT FOUND!' });
+
+                                result.finally(done);
+                            });
+
+                            it('should fulfill with an Array of the css that was fetched', function() {
+                                expect(success).toHaveBeenCalledWith([
+                                    { src: resolveURL(base, branding + '/styles/' + type + '/theme.css'), styles: themeCSS },
+                                    { src: resolveURL(base, branding + '/styles/' + type + '/theme--hover.css'), styles: themeHoverCSS }
+                                ]);
+                            });
+                        });
+                    });
+                });
+
                 describe('__getExperience__(id, params, origin, uuid)', function() {
                     var id, params, origin, uuid;
                     var result;
@@ -1458,8 +1681,8 @@ describe('player service', function() {
                                 expect($result('link[href="css/${mode}.css"]').length).toBe(0);
                                 expect($result('link[href="css/lightbox.css"]').length).toBe(0);
 
-                                expect($result('script[data-src="http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js"]').text()).toBe(Player.__rebaseJS__(playerJS, 'http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js').replace(/<\/script>/g, '<\\/script>'));
-                                expect($result('style[data-href="http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css"]').text()).toBe(Player.__rebaseCSS__(playerCSS, 'http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'));
+                                expect($result('script[data-src="http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js"]').text()).toBe(HTMLDocument.rebaseJS(playerJS, 'http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/lightbox.js').replace(/<\/script>/g, '<\\/script>'));
+                                expect($result('style[data-href="http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css"]').text()).toBe(HTMLDocument.rebaseCSS(playerCSS, 'http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/css/lightbox.css'));
                                 expect($result('base').attr('href')).toBe('http://localhost/apps/mini-reel-player/v0.25.0-0-g8b946d4/');
                             });
                         });

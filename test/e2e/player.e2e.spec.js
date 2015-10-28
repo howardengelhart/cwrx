@@ -25,7 +25,10 @@ describe('player service', function() {
             jar: require('request-promise').jar(),
             resolveWithFullResponse: true,
             simple: false,
-            followRedirect: false
+            followRedirect: false,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36'
+            }
         });
 
         config = {
@@ -112,6 +115,16 @@ describe('player service', function() {
                 expect($experience.length).toBe(1);
                 expect(responseExperience.id).toBe(experience.id);
                 expect(responseExperience.data.deck).toEqual(experience.data[0].data.deck);
+            });
+
+            it('should inline the branding', function() {
+                var $branding = $('head style[data-href="http://localhost/collateral/branding/digitaljournal/styles/full/theme.css"]');
+                var $brandingHover = $('head style[data-href="http://localhost/collateral/branding/digitaljournal/styles/full/theme--hover.css"]');
+
+                expect($branding.length).toBe(1);
+                expect($branding.text().length).toBeGreaterThan(500);
+                expect($brandingHover.length).toBe(1);
+                expect($brandingHover.text().length).toBeGreaterThan(500);
             });
 
             describe('and categories', function() {
@@ -508,6 +521,23 @@ describe('player service', function() {
                             expect(response.statusCode).toBe(200);
                             expect(parseResponse('swipe').seemsValid()).toBe(true);
                         });
+                    });
+                });
+
+                describe('for the mobile player', function() {
+                    beforeEach(function(done) {
+                        config.playerUrl.pathname = '/api/public/players/mobile';
+
+                        request.get(getURL()).then(getResponse).then(done, done.fail);
+                    });
+
+                    it('should not inline the hover branding', function() {
+                        var $branding = $('head style[data-href="http://localhost/collateral/branding/digitaljournal/styles/mobile/theme.css"]');
+                        var $brandingHover = $('head style[data-href="http://localhost/collateral/branding/digitaljournal/styles/mobile/theme--hover.css"]');
+
+                        expect($branding.length).toBe(1);
+                        expect($branding.text().length).toBeGreaterThan(500);
+                        expect($brandingHover.length).toBe(0);
                     });
                 });
             });

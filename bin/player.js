@@ -4,6 +4,8 @@ var q = require('q');
 var request = require('request-promise');
 var cheerio = require('cheerio');
 var HTMLDocument = require('../lib/htmlDocument');
+var rebaseCSS = HTMLDocument.rebaseCSS;
+var rebaseJS = HTMLDocument.rebaseJS;
 var resolveURL = require('url').resolve;
 var parseURL = require('url').parse;
 var formatURL = require('url').format;
@@ -70,6 +72,10 @@ function Player(config) {
         maxTTL: config.api.experience.cacheTTLs.max,
         extractor: clonePromise
     });
+    var brandingCache = new FunctionCache({
+        freshTTL: config.api.branding.cacheTTLs.fresh,
+        maxTTL: config.api.branding.cacheTTLs.max
+    });
 
     this.config = config;
     this.adLoader = new AdLoader({
@@ -98,26 +104,13 @@ function Player(config) {
     this.__getPlayer__ = staticCache.add(this.__getPlayer__.bind(this), -1);
     // Memoize Player.prototype.__getExperience__() method.
     this.__getExperience__ = contentCache.add(this.__getExperience__.bind(this), -1);
+    // Memoize Player.prototype.__getBranding__() method.
+    this.__getBranding__ = brandingCache.add(this.__getBranding__.bind(this), -1);
 }
 
 /***************************************************************************************************
  * @private methods * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  **************************************************************************************************/
-
-Player.__rebaseCSS__ = function __rebaseCSS__(css, base) {
-    return css.replace(/url\(['"]?(.+?)['"]?\)/g, function(match, url) {
-        return 'url(' + resolveURL(base, url) + ')';
-    });
-};
-
-Player.__rebaseJS__ = function __rebaseJS__(js, base) {
-    // https://regex101.com/r/mG4oU4/2
-    var SOURCE_MAP_REGEX = (/(\/\/|\/\*)(#\s*sourceMappingURL\s*=\s*)([^\*\s]+)(.*)/g);
-
-    return js.replace(SOURCE_MAP_REGEX, function(_, opener, directive, url, closer) {
-        return opener + directive + resolveURL(base, url) + closer;
-    });
-};
 
 Player.prototype.__getExperience__ = function __getExperience__(id, params, origin, uuid) {
     var log = logger.getLog();
@@ -155,6 +148,44 @@ Player.prototype.__getExperience__ = function __getExperience__(id, params, orig
     });
 };
 
+Player.prototype.__getBranding__ = function __getBranding__(branding, type, hover, uuid) {
+    var log = logger.getLog();
+    var base = resolveURL(this.config.api.root, this.config.api.branding.endpoint);
+    var directory = resolveURL(base, branding + '/styles/');
+    var typeDirectory = resolveURL(directory, type + '/');
+
+    log.info(
+        '[%1] Fetching {%2} branding for player {%3} with hover: %4.',
+        uuid, branding, type, hover
+    );
+
+    var stylesheets = [
+        resolveURL(directory, 'core.css'),
+        resolveURL(typeDirectory, 'theme.css')
+    ].concat(hover ? [
+        resolveURL(directory, 'core--hover.css'),
+        resolveURL(typeDirectory, 'theme--hover.css')
+    ] : []);
+
+    return q.all(stylesheets.map(function(src) {
+        return request.get(src).then(function createData(css) {
+            log.trace('[%1] Got stylesheet "%2".', uuid, src);
+
+            return { src: src, styles: css };
+        }).catch(function returnNull(reason) {
+            log.trace('[%1] Failed to get stylesheet: %2.', uuid, reason.message);
+
+            return null;
+        });
+    })).then(function filterNulls(brandings) {
+        var result = brandings.filter(function(branding) { return branding; });
+
+        log.info('[%1] Successfully got %2 branding stylesheets.', uuid, result.length);
+
+        return result;
+    });
+};
+
 /**
  * Given a player "mode," this method will fetch the player's HTML file, replace any ${mode} macros
  * with the give mode and fetch an inline any HTML or CSS resources referenced in the file, and
@@ -164,8 +195,6 @@ Player.prototype.__getPlayer__ = function __getPlayer__(mode, uuid) {
     var log = logger.getLog();
     var config = this.config;
     var playerLocation = resolveURL(config.api.root, config.api.player.endpoint);
-    var rebaseCSS = Player.__rebaseCSS__;
-    var rebaseJS = Player.__rebaseJS__;
 
     var sameHostAsPlayer = (function() {
         var playerHost = parseURL(playerLocation).host;
@@ -267,6 +296,13 @@ Player.startService = function startService() {
             pidDir: resolvePath(__dirname, '../pids'),
             api: {
                 root: 'http://localhost/',
+                branding: {
+                    endpoint: 'collateral/branding/',
+                    cacheTTLs: {
+                        fresh: 15,
+                        max: 30
+                    }
+                },
                 player: {
                     endpoint: 'apps/mini-reel-player/index.html'
                 },
@@ -366,8 +402,9 @@ Player.startService = function startService() {
             var mobileType = query.mobileType || config.defaults.mobileType;
             var origin = req.get('origin') || req.get('referer');
             var agent = req.get('user-agent');
+            var browser = new BrowserInfo(agent);
 
-            if (new BrowserInfo(agent).isMobile && type !== mobileType) {
+            if (browser.isMobile && type !== mobileType) {
                 log.trace('[%1] Redirecting agent to mobile player: %2.', uuid, mobileType);
                 return q(res.redirect(303, mobileType + formatURL({ query: req.query })));
             }
@@ -375,7 +412,8 @@ Player.startService = function startService() {
             return player.get(extend({
                 type: type,
                 uuid: uuid,
-                origin: origin
+                origin: origin,
+                desktop: browser.isDesktop
             }, query)).then(function sendResponse(html) {
                 log.info('[%1] {GET %2} Response Length: %3.', uuid, req.url, html.length);
                 return res.send(200, html);
@@ -451,6 +489,7 @@ Player.prototype.get = function get(/*options*/) {
     var options = extend(arguments[0], this.config.defaults);
 
     var log = logger.getLog();
+    var self = this;
     var config = this.config;
     var adLoader = this.adLoader;
     var adLoadTimeReporter = this.adLoadTimeReporter;
@@ -459,6 +498,7 @@ Player.prototype.get = function get(/*options*/) {
     var params = filterObject(options, function(value, key) {
         return config.api.experience.validParams.indexOf(key) > -1;
     });
+    var desktop = options.desktop;
     var origin = stripURL(options.origin);
     var uuid = options.uuid;
     var categories = options.categories;
@@ -485,32 +525,61 @@ Player.prototype.get = function get(/*options*/) {
         return experience;
     }
 
+    function loadAds(experience) {
+        var start = Date.now();
+
+        if (preview || !AdLoader.hasAds(experience)) {
+            log.trace('[%1] Skipping ad calls.', uuid);
+            return addTrackingPixels(AdLoader.removePlaceholders(experience));
+        }
+
+        return adLoader.loadAds(experience, categories, campaign, uuid)
+            .tap(function sendMetrics() {
+                var end = Date.now();
+
+                adLoadTimeReporter.push(end - start);
+            })
+            .catch(function trimCards(reason) {
+                log.warn('[%1] Unexpected failure loading ads: %2', uuid, inspect(reason));
+
+                AdLoader.removePlaceholders(experience);
+                AdLoader.removeSponsoredCards(experience);
+            })
+            .thenResolve(experience)
+            .then(addTrackingPixels);
+    }
+
+    function loadBranding(experience) {
+        var branding = experience.data.branding;
+
+        if (!branding) {
+            log.trace(
+                '[%1] Experience {%2} has no branding. Skipping branding load.',
+                uuid, experience.id
+            );
+
+            return [];
+        }
+
+        return self.__getBranding__(branding, type, desktop, uuid);
+    }
+
+    function loadExperienceData(experience) {
+        return q.all([
+            loadAds(experience),
+            loadBranding(experience)
+        ]).spread(function(experience, brandings) {
+            return { experience: experience, brandings: brandings };
+        });
+    }
+
     return q.all([
         this.__getPlayer__(type, uuid),
-        this.__getExperience__(experience, params, origin, uuid).then(function loadAds(experience) {
-            var start = Date.now();
+        this.__getExperience__(experience, params, origin, uuid).then(loadExperienceData)
+    ]).spread(function inlineResources(document, data) {
+        var experience = data.experience;
+        var brandings = data.brandings;
 
-            if (preview || !AdLoader.hasAds(experience)) {
-                log.trace('[%1] Skipping ad calls.', uuid);
-                return addTrackingPixels(AdLoader.removePlaceholders(experience));
-            }
-
-            return adLoader.loadAds(experience, categories, campaign, uuid)
-                .tap(function sendMetrics() {
-                    var end = Date.now();
-
-                    adLoadTimeReporter.push(end - start);
-                })
-                .catch(function trimCards(reason) {
-                    log.warn('[%1] Unexpected failure loading ads: %2', uuid, inspect(reason));
-
-                    AdLoader.removePlaceholders(experience);
-                    AdLoader.removeSponsoredCards(experience);
-                })
-                .thenResolve(experience)
-                .then(addTrackingPixels);
-        })
-    ]).spread(function inlineResources(document, experience) {
         if (experience.data.deck.length < 1) {
             throw new ServiceError('Experience {' + experience.id + '} has no cards.', 409);
         }
@@ -518,6 +587,15 @@ Player.prototype.get = function get(/*options*/) {
         if (options.vpaid && experience.data.deck.length > 1) {
             throw new ServiceError('VPAID does not support MiniReels.', 400);
         }
+
+        brandings.forEach(function addBrandingCSS(branding) {
+            var src = branding.src;
+            var contents = branding.styles;
+
+            log.trace('[%1] Inlining branding CSS (%2) into %3 player HTML.', uuid, src, type);
+
+            document.addCSS(src, contents);
+        });
 
         log.trace('[%1] Inlining experience (%2) to %3 player HTML.', uuid, experience.id, type);
         document.addResource('experience', 'application/json', experience);

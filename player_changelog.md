@@ -7,3 +7,4 @@
   [#586](https://github.com/cinema6/cwrx/issues/586)
 * [FIX]: Player service no longer triggers alerts when it is
   intentionally restarted: [#587](https://github.com/cinema6/cwrx/issues/587)
+* [FEATURE]: Inline branding stylesheets: [#584](https://github.com/cinema6/cwrx/issues/584)
