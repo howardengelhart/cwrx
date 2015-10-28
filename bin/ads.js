@@ -38,7 +38,7 @@
         },
         emails: {
             awsRegion: 'us-east-1',
-            supportAddress: 'support@cinema6.com', //TODO: verify, cookbook changes
+            supportAddress: 'c6e2eTester@gmail.com', //TODO: verify, cookbook changes
             reviewLink: 'http://localhost:9000/#/apps/selfie/campaigns/manage/:campId/admin'
         },
         campaigns: {

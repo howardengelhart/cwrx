@@ -50,6 +50,10 @@
             __allowed: false,
             __type: 'string'
         },
+        rejectionReason: { //TODO: test
+            __allowed: false,
+            __type: 'string'
+        },
         minViewTime: {
             __allowed: false,
             __type: 'number'
@@ -377,7 +381,7 @@
         var validResps = [
             campaignUtils.ensureUniqueIds(req.body),
             campaignUtils.ensureUniqueNames(req.body),
-            campaignUtils.validateDates(req.body, req.origObj, req.user, dateDelays, req.uuid),
+            campaignUtils.validateCardDates(req.body, req.origObj, req.user, dateDelays, req.uuid),
             campaignUtils.validatePricing(req.body, req.origObj, req.user, svc.model),
         ];
         
