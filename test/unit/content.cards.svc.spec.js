@@ -69,7 +69,7 @@ describe('content-cards (UT)', function() {
         it('should complain if there is no youtube key',function(){
             cardModule.setupCardSvc({ collectionName: 'cards' }, { caches: 'yes' }, {},
                 { hasGoogleKey : false });
-            expect(mockLog.warn).toHaveBeenCalledWith('Missing youtube key from secrets, will not be able to lookup meta data for youtube videos.');
+            expect(mockLog.warn).toHaveBeenCalledWith('Missing googleKey from secrets, will not be able to lookup meta data for youtube videos.');
         });
     });
 

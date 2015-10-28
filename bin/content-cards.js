@@ -9,6 +9,7 @@
         authUtils       = require('../lib/authUtils'),
         CrudSvc         = require('../lib/crudSvc'),
         Status          = require('../lib/enums').Status,
+
         cardModule = { config: {} };
 
         
@@ -17,7 +18,7 @@
         cardModule.config.trackingPixel = config.trackingPixel;
 
         if (!metagetta.hasGoogleKey) {
-            log.warn('Missing youtube key from secrets, will not be able to lookup ' +
+            log.warn('Missing googleKey from secrets, will not be able to lookup ' +
                 'meta data for youtube videos.');
         }
         cardModule.metagetta = metagetta;
