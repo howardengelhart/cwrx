@@ -138,14 +138,14 @@
 
         authUtils._db = state.dbs.c6Db;
 
-        if (!state.secrets.youtubeKey) {
+        if (!state.secrets.googleKey) {
             metagetta = require('metagetta');
-            metagetta.hasYouTubeKey = false;
+            metagetta.hasGoogleKey = false;
         } else {
             metagetta = require('metagetta').withConfig({
-                youtube: { key: state.secrets.youtubeKey }
+                youtube: { key: state.secrets.googleKey }
             });
-            metagetta.hasYouTubeKey = true;
+            metagetta.hasGoogleKey = true;
         }
 
         cardSvc = cardModule.setupCardSvc(collections.cards, caches, state.config, metagetta);

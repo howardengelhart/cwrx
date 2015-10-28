@@ -16,7 +16,7 @@
         var log = logger.getLog();
         cardModule.config.trackingPixel = config.trackingPixel;
 
-        if (!metagetta.hasYouTubeKey) {
+        if (!metagetta.hasGoogleKey) {
             log.warn('Missing youtube key from secrets, will not be able to lookup ' +
                 'meta data for youtube videos.');
         }
@@ -82,9 +82,9 @@
             opts.uri  = req.body.data.vpaid;
         } else
         if (req.body.type === 'youtube') {
-            if (!cardModule.metagetta.hasYouTubeKey) {
+            if (!cardModule.metagetta.hasGoogleKey) {
                 req.body.data.duration = -1;
-                log.warn('[%1] - Cannot get youtube duration without secrets.youtubeKey.',
+                log.warn('[%1] - Cannot get youtube duration without secrets.googleKey.',
                     req.uuid);
                 return q(next());
             }

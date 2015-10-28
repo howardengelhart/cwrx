@@ -39,7 +39,7 @@ describe('content-cards (UT)', function() {
             var mockColl = { collectionName: 'cards' },
                 config = { trackingPixel: 'track.me' },
                 cardSvc = cardModule.setupCardSvc(mockColl, { caches: 'yes' }, config,
-                    { hasYouTubeKey : true });
+                    { hasGoogleKey : true });
 
             expect(cardModule.getPublicCard.bind).toHaveBeenCalledWith(cardModule, cardSvc, { caches: 'yes' });
 
@@ -68,7 +68,7 @@ describe('content-cards (UT)', function() {
 
         it('should complain if there is no youtube key',function(){
             cardModule.setupCardSvc({ collectionName: 'cards' }, { caches: 'yes' }, {},
-                { hasYouTubeKey : false });
+                { hasGoogleKey : false });
             expect(mockLog.warn).toHaveBeenCalledWith('Missing youtube key from secrets, will not be able to lookup meta data for youtube videos.');
         });
     });
@@ -102,7 +102,7 @@ describe('content-cards (UT)', function() {
             cardModule.metagetta = jasmine.createSpy('metagettaSpy').and.callFake(function(){
                 return q.resolve(mockData);
             });
-            cardModule.metagetta.hasYouTubeKey = true;
+            cardModule.metagetta.hasGoogleKey = true;
         });
 
         it('should not call metagetta if the req is not a video card',function(done){
@@ -161,8 +161,8 @@ describe('content-cards (UT)', function() {
             .then(done,done.fail);
         });
 
-        it('should not call metagetta if youtube card, but no secrets.youtubeKey',function(done){
-            cardModule.metagetta.hasYouTubeKey = false;
+        it('should not call metagetta if youtube card, but no secrets.googleKey',function(done){
+            cardModule.metagetta.hasGoogleKey = false;
 
             mockReq.body.data.videoId   = 'def456';
             mockReq.body.type           = 'youtube';
@@ -172,7 +172,7 @@ describe('content-cards (UT)', function() {
                 expect(cardModule.metagetta).not.toHaveBeenCalled();
                 expect(mockReq.body.data.duration).toEqual(-1);
                 expect(mockLog.warn).toHaveBeenCalledWith(
-                    '[%1] - Cannot get youtube duration without secrets.youtubeKey.',
+                    '[%1] - Cannot get youtube duration without secrets.googleKey.',
                     'testid-0000'
                 );
             })
