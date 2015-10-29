@@ -8,3 +8,5 @@
 * [FIX]: Player service no longer triggers alerts when it is
   intentionally restarted: [#587](https://github.com/cinema6/cwrx/issues/587)
 * [FEATURE]: Inline branding stylesheets: [#584](https://github.com/cinema6/cwrx/issues/584)
+* Bypass card/experience caching in preview mode: [#599](https://github.com/cinema6/cwrx/issues/599)
+* Send `preview` param to the content service: [#599](https://github.com/cinema6/cwrx/issues/599)
