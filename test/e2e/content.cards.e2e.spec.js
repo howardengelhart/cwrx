@@ -763,6 +763,33 @@ describe('content card endpoints (E2E):', function() {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
         });
+        
+        it('should be able to create a VAST card with meta data', function(done) {
+            mockCard.data = { 
+                vast: 'https://s3.amazonaws.com/c6.dev/e2e/vast_test.xml'
+            };
+            mockCard.type = 'adUnit';
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body.data.duration).toEqual(32);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should be able to create a youtube card with meta data', function(done) {
+            mockCard.data = { 
+                videoId: 'OQ83Wz_mrD0'
+            };
+            mockCard.type = 'youtube';
+            requestUtils.qRequest('post', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(201);
+                expect(resp.body.data.duration).toEqual(12);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
 
         it('should write an entry to the audit collection', function(done) {
             requestUtils.qRequest('post', options).then(function(resp) {
@@ -878,6 +905,32 @@ describe('content card endpoints (E2E):', function() {
                     lastUpdated: now,
                     user: 'not-e2e-user',
                     org: 'not-e2e-org'
+                },
+                {
+                    id: 'e2e-put3',
+                    data : { 
+                        vast: 'https://s3.amazonaws.com/c6.dev/e2e/vast_test.xml' ,
+                        duration : 1
+                    },
+                    type : 'adUnit',
+                    status: 'active',
+                    created: now,
+                    lastUpdated: now,
+                    user: 'e2e-user',
+                    org: 'e2e-org'
+                },
+                {
+                    id: 'e2e-put4',
+                    data : { 
+                        vast: 'https://s3.amazonaws.com/c6.dev/e2e/vast_test.xml' ,
+                        duration : 1
+                    },
+                    type : 'adUnit',
+                    status: 'active',
+                    created: new Date(),
+                    lastUpdated: new Date(),
+                    user: 'e2e-user',
+                    org: 'e2e-org'
                 }
             ];
             testUtils.resetCollection('cards', mockCards).done(done);
@@ -892,6 +945,50 @@ describe('content card endpoints (E2E):', function() {
                 expect(resp.body.data).toEqual({foo: 'baz'});
                 expect(new Date(resp.body.created)).toEqual(now);
                 expect(new Date(resp.body.lastUpdated)).toBeGreaterThan(now);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should successfully update video duration if age > 1 min', function(done) {
+            options = {
+                url: config.contentUrl + '/content/card/e2e-put3',
+                json: { 
+                    data: { 
+                        vast: 'https://s3.amazonaws.com/c6.dev/e2e/vast_test.xml' ,
+                        duration : 1
+                    },
+                    type : 'adUnit'
+                },
+                jar: cookieJar
+            };
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).not.toEqual(mockCards[2]);
+                expect(resp.body.id).toBe('e2e-put3');
+                expect(resp.body.data.duration).toEqual(32);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should skip update video duration if age < 1 min', function(done) {
+            options = {
+                url: config.contentUrl + '/content/card/e2e-put4',
+                json: { 
+                    data: { 
+                        vast: 'https://s3.amazonaws.com/c6.dev/e2e/vast_test.xml' ,
+                        duration : 1
+                    },
+                    type : 'adUnit'
+                },
+                jar: cookieJar
+            };
+            requestUtils.qRequest('put', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body).not.toEqual(mockCards[3]);
+                expect(resp.body.id).toBe('e2e-put4');
+                expect(resp.body.data.duration).toEqual(1);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

@@ -126,7 +126,7 @@
             auditJournal = new journal.AuditJournal(state.dbs.c6Journal.collection('audit'),
                                                     state.config.appVersion, state.config.appName),
             audit        = auditJournal.middleware.bind(auditJournal),
-            catSvc, cardSvc;
+            catSvc, cardSvc, metagetta;
             
         collKeys.forEach(function(key) {
             collections[key] = state.dbs.c6Db.collection(key);
@@ -137,7 +137,18 @@
         });
 
         authUtils._db = state.dbs.c6Db;
-        cardSvc = cardModule.setupCardSvc(collections.cards, caches, state.config);
+
+        if (!state.secrets.googleKey) {
+            metagetta = require('metagetta');
+            metagetta.hasGoogleKey = false;
+        } else {
+            metagetta = require('metagetta').withConfig({
+                youtube: { key: state.secrets.googleKey }
+            });
+            metagetta.hasGoogleKey = true;
+        }
+
+        cardSvc = cardModule.setupCardSvc(collections.cards, caches, state.config, metagetta);
         catSvc = catModule.setupSvc(collections.categories);
 
         var sessionOpts = {

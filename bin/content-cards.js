@@ -13,20 +13,115 @@
         cardModule = { config: {} };
 
         
-    cardModule.setupCardSvc = function(cardColl, caches, config) {
+    cardModule.setupCardSvc = function(cardColl, caches, config, metagetta) {
+        var log = logger.getLog();
         cardModule.config.trackingPixel = config.trackingPixel;
+
+        if (!metagetta.hasGoogleKey) {
+            log.warn('Missing googleKey from secrets, will not be able to lookup ' +
+                'meta data for youtube videos.');
+        }
+        cardModule.metagetta = metagetta;
     
         var opts = { allowPublic: true },
             cardSvc = new CrudSvc(cardColl, 'rc', opts);
         
         cardSvc.createValidator._required.push('campaignId');
         cardSvc.use('read', cardSvc.preventGetAll.bind(cardSvc));
+        cardSvc.use('create', cardModule.getMetaData);
+        cardSvc.use('edit', cardModule.getMetaData);
         
         cardSvc.getPublicCard = cardModule.getPublicCard.bind(cardModule, cardSvc, caches);
         
         return cardSvc;
     };
-    
+   
+    cardModule.isVideoCard = function(card) {
+        return  (card.type === 'youtube') ||
+                (card.type === 'adUnit')  ||
+                (card.type === 'vimeo')   ||
+                (card.type === 'dailymotion')  ||
+                (card.type === 'vzaar')   ||
+                (card.type === 'wistia')  ||
+                ((card.type === 'instagram') && (card.data) && (card.data.type === 'video'));
+    };
+
+    cardModule.getMetaData = function(req, next /*, done */) {
+        var log = logger.getLog(), opts = { };
+
+        if (!cardModule.isVideoCard(req.body)){
+            log.trace('[%1] - CardType [%2] is not a video card.',req.uuid,req.body.type);
+            return q(next());
+        }
+
+        if (!req.body.data) {
+            return q(next());
+        }
+
+        if (Object.keys(req.body.data).length === 0){
+            return q(next());
+        }
+        
+        if (req.origObj && req.origObj.data ) {
+            if  (
+                    (req.origObj.data.vast === req.body.data.vast) &&
+                    (req.origObj.data.vpaid === req.body.data.vpaid) &&
+                    (req.origObj.data.videoId === req.body.data.videoId) &&
+                    (req.origObj.data.duration > -1) &&
+                    (Date.now() - req.origObj.lastUpdated.valueOf() < 60000) ) {
+                log.trace('[%1] - Video unchanged, no need to get metadata.',req.uuid);
+                return q(next());
+            }
+        }
+
+        if (req.body.data.vast) {
+            opts.type = 'vast';
+            opts.uri  = req.body.data.vast;
+        } else
+        if (req.body.data.vpaid) {
+            opts.type = 'vast';
+            opts.uri  = req.body.data.vpaid;
+        } else
+        if (req.body.type === 'youtube') {
+            if (!cardModule.metagetta.hasGoogleKey) {
+                req.body.data.duration = -1;
+                log.warn('[%1] - Cannot get youtube duration without secrets.googleKey.',
+                    req.uuid);
+                return q(next());
+            }
+            opts.type = 'youtube';
+            opts.id   = req.body.data.videoId;
+        } else
+        if (req.body.type === 'vimeo') {
+            opts.type = 'vimeo';
+            opts.id   = req.body.data.videoId;
+        } else
+        if (req.body.type === 'dailymotion') {
+            opts.type = 'dailymotion';
+            opts.id   = req.body.data.videoId;
+        } else {
+            req.body.data.duration = -1;
+            log.info('[%1] - MetaData unsupported for CardType [%2].',req.uuid,req.body.type);
+            return q(next());
+        }
+
+        return cardModule.metagetta(opts)
+        .then(function(res){
+            if ((res.duration === null) || (res.duration === undefined)){
+                return q.reject(new Error('Missing duration for the specified resource.'));
+            }
+            req.body.data.duration = res.duration;
+            log.trace('[%1] - setting duration to [%2]',req.uuid,res.duration);
+            return next();
+        })
+        .catch(function(err){
+            delete opts.youtube;
+            req.body.data.duration = -1;
+            log.warn('[%1] - [%2] [%3]', req.uuid, err.message, JSON.stringify(opts));
+            return next();
+        });
+    };
+
     // Format a tracking pixel link, pulling data from query params.
     cardModule.formatUrl = function(card, req, event) {
         req.query = req.query || {};
@@ -174,7 +269,6 @@
             return q({code: 500, body: { error: 'Error retrieving card', detail: error }});
         });
     };
-
 
     cardModule.setupEndpoints = function(app, cardSvc, sessions, audit, config, jobManager) {
         // Public get card; regex at end allows client to optionally specify extension (js|json)
