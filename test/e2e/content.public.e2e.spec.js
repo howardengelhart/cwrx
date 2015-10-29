@@ -86,6 +86,14 @@ describe('content public experience endpoints (E2E):', function() {
                 }).done(done);
             });
 
+            it('should not get tracking pixels if its a preview',function(done){
+                options.qs.preview = true;
+                requestUtils.qRequest('get', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.data.campaign).toEqual({ });
+                }).then(done,done.fail);
+            });
+
             it('should not cache if the origin is staging.cinema6.com or portal.cinema6.com', function(done) {
                 q.all(['http://staging.cinema6.com', 'http://portal.cinema6.com'].map(function(origin) {
                     options.headers = { origin: origin };

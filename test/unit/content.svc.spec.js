@@ -85,6 +85,14 @@ describe('content (UT)', function() {
             }).done(done);
         });
         
+        it('should not setup tracking pixels for preview', function(done) {
+            req.query.preview = true;
+            expModule.getPublicExp(id, req, caches, cardSvc, config).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(expModule.setupTrackingPixels).not.toHaveBeenCalled();
+            }).then(done,done.fail);
+        });
+        
         it('should pass the campaign query param to handleCampaign', function(done) {
             req.query.campaign = 'cam-1';
             expModule.getPublicExp(id, req, caches, cardSvc, config).then(function(resp) {

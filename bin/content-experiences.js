@@ -385,8 +385,13 @@
                 return q({code: 404, body: 'Experience not found'});
             }
             log.info('[%1] Retrieved experience %2', req.uuid, id);
-            
-            expModule.setupTrackingPixels(experiences[0], req, config.trackingPixel);
+
+            if (req.query.preview) {
+                experiences[0].data = experiences[0].data || {};
+                experiences[0].data.campaign = experiences[0].data.campaign || {};
+            } else {
+                expModule.setupTrackingPixels(experiences[0], req, config.trackingPixel);
+            }
 
             return expModule.getAdConfig(experiences[0], results[0].org, caches.orgs)
             .then(function(exp) {
