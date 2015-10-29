@@ -18,7 +18,7 @@
         campModule = { config: {} };
         
     campModule.campSchema = {
-        status: { // TODO: test
+        status: {
             __allowed: false,
             __type: 'string',
             __default: enums.Status.Draft,
@@ -46,11 +46,11 @@
             __allowed: true,
             __type: 'string'
         },
-        updateRequest: { //TODO: test
+        updateRequest: {
             __allowed: false,
             __type: 'string'
         },
-        rejectionReason: { //TODO: test
+        rejectionReason: {
             __allowed: false,
             __type: 'string'
         },
@@ -158,7 +158,6 @@
         
         svc.use('read', campModule.formatTextQuery);
         
-        //TODO: consider using cacheMutex?
         svc.use('create', campModule.defaultAccountIds);
         svc.use('create', getAccountIds);
         svc.use('create', campModule.fetchCards);
@@ -264,7 +263,8 @@
         return next();
     };
     
-    campModule.enforceLock = function(req, next, done) { //TODO: comment, test, rename?
+    // Prevent editing a campaign that has an updateRequest property
+    campModule.enforceLock = function(req, next, done) {
         var log = logger.getLog();
         
         if (req.origObj && !!req.origObj.updateRequest) {
@@ -357,7 +357,7 @@
             return makeRequest(oldCard.id).then(function(resp) {
                 if (resp.response.statusCode === 200) {
                     req._origCards[oldCard.id] = resp.body;
-                    objUtils.extend(oldCard, resp.body); //TODO: test, verify this is ok
+                    objUtils.extend(oldCard, resp.body);
                     return;
                 }
 
@@ -374,14 +374,15 @@
         });
     };
     
-    campModule.extraValidation = function(svc, req, next, done) { //TODO: test
+    // Additional validation for cards array + pricing not covered by model; may mutate body
+    campModule.extraValidation = function(svc, req, next, done) {
         var log = logger.getLog(),
             dateDelays = campModule.config.campaigns.dateDelays;
         
         var validResps = [
             campaignUtils.ensureUniqueIds(req.body),
             campaignUtils.ensureUniqueNames(req.body),
-            campaignUtils.validateCardDates(req.body, req.origObj, req.user, dateDelays, req.uuid),
+            campaignUtils.validateAllDates(req.body, req.origObj, req.user, dateDelays, req.uuid),
             campaignUtils.validatePricing(req.body, req.origObj, req.user, svc.model),
         ];
         

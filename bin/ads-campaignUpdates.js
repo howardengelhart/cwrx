@@ -45,12 +45,6 @@
         }
     };
     
-    //TODO: feels like a gross hack
-    updateModule.autoApprovedSchema = JSON.parse(JSON.stringify(updateModule.updateSchema));
-    updateModule.autoApprovedSchema.status.__allowed = true;
-    updateModule.autoApprovedSchema.autoApproved.__allowed = true;
-
-    
     // Helper to return true if changes in body translates to update being approved
     function approvingUpdate(req) {
         return req.origObj && req.origObj.status === Status.Pending &&
@@ -77,7 +71,7 @@
         svc._db = db;
         
         var campDataModel = updateModule.createCampModel(campSvc),
-            autoApproveModel = new Model('campaignUpdates', updateModule.autoApprovedSchema);
+            autoApproveModel = updateModule.createAutoApproveModel();
         
         var fetchCamp           = updateModule.fetchCamp.bind(updateModule, campSvc),
             validateData        = updateModule.validateData.bind(updateModule, campDataModel),
@@ -89,7 +83,7 @@
             notifyOwner         = updateModule.notifyOwner.bind(updateModule, svc),
             saveRejectionReason = updateModule.saveRejectionReason.bind(updateModule, svc);
             
-        //TODO: try to lessen number of db edits to campaign? it may actually be a problem
+        //TODO: try to lessen number of db edits to campaign? it may actually become a problem
         
         svc.use('create', fetchCamp);
         svc.use('create', updateModule.enforceLock);
@@ -109,7 +103,7 @@
         svc.use('edit', notifyOwner);
         svc.use('edit', saveRejectionReason);
         
-        svc.use('autoApprove', autoApproveModel.midWare.bind(autoApproveModel));
+        svc.use('autoApprove', autoApproveModel.midWare.bind(autoApproveModel, 'create'));
         svc.use('autoApprove', svc.setupObj.bind(svc));
         svc.use('autoApprove', fetchCamp);
         svc.use('autoApprove', updateModule.enforceLock);
@@ -126,13 +120,24 @@
         return new Model('campaigns', schema);
     };
     
+    updateModule.createAutoApproveModel = function() {
+        //TODO: kinda feels like a gross hack
+        var autoApprovedSchema = JSON.parse(JSON.stringify(updateModule.updateSchema));
+        autoApprovedSchema.status.__allowed = true;
+        autoApprovedSchema.autoApproved.__allowed = true;
+        
+        return new Model('campaignUpdates', autoApprovedSchema);
+    };
+    
     // Check if we can auto-approve the update request
     updateModule.canAutoApprove = function(req) {
+        //TODO: double check what happens if req.body.data is {}
         // currently, auto-approve if body solely consists of paymentMethod
         return req.body && req.body.data && !!req.body.data.paymentMethod &&
                Object.keys(req.body.data).length === 1;
     };
-    
+
+
     // Middleware to fetch the campaign and attach it as req.campaign.
     updateModule.fetchCamp = function(campSvc, req, next, done) {
         var log = logger.getLog(),
@@ -200,7 +205,7 @@
         var validResps = [
             campaignUtils.ensureUniqueIds(req.body.data),
             campaignUtils.ensureUniqueNames(req.body.data),
-            campaignUtils.validateCardDates(req.body.data, req.campaign, req.user, delays,req.uuid),
+            campaignUtils.validateAllDates(req.body.data, req.campaign, req.user, delays,req.uuid),
             campaignUtils.validatePricing(req.body.data, req.campaign, req.user, model),
         ];
         

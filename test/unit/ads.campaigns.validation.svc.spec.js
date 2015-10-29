@@ -1,11 +1,12 @@
 var flush = true;
 describe('campaign validation', function() {
-    var campModule, logger, mockLog, svc, newObj, origObj, requester;
+    var campModule, logger, mockLog, svc, newObj, origObj, requester, Status;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         logger      = require('../../lib/logger');
         campModule  = require('../../bin/ads-campaigns');
+        Status      = require('../../lib/enums').Status;
 
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -32,17 +33,24 @@ describe('campaign validation', function() {
     });
     
     describe('when handling status', function() {
-        it('should fail if the field is not a string', function() {
-            newObj.status = 123;
-            expect(svc.model.validate('create', newObj, origObj, requester))
-                .toEqual({ isValid: false, reason: 'status must be in format: string' });
-        });
-        
-        it('should allow the field to be set', function() {
-            newObj.status = 'active';
+        it('should switch the field to a default if set', function() {
+            newObj.status = Status.Active;
             expect(svc.model.validate('create', newObj, origObj, requester))
                 .toEqual({ isValid: true, reason: undefined });
-            expect(newObj.status).toEqual('active');
+            expect(newObj.status).toBe(Status.Draft);
+        });
+        
+        it('should allow some requesters to set the field to one of a limited set of values', function() {
+            requester.fieldValidation.campaigns.status = { __allowed: true };
+            newObj.status = Status.Active;
+            expect(svc.model.validate('create', newObj, origObj, requester))
+                .toEqual({ isValid: true, reason: undefined });
+            expect(newObj.status).toBe(Status.Active);
+            
+            newObj.status = 'plz start right now kthx';
+            var resp = svc.model.validate('create', newObj, origObj, requester);
+            expect(resp.isValid).toBe(false);
+            expect(resp.reason).toMatch(/^status is UNACCEPTABLE! acceptable values are: \[.+]/);
         });
     });
     
@@ -57,13 +65,13 @@ describe('campaign validation', function() {
             newObj.application = 'campaign manager';
             expect(svc.model.validate('create', newObj, origObj, requester))
                 .toEqual({ isValid: true, reason: undefined });
-            expect(newObj).toEqual({ application: 'campaign manager' });
+            expect(newObj.application).toEqual('campaign manager');
         });
 
         it('should default the field if not defined', function() {
             expect(svc.model.validate('create', newObj, origObj, requester))
                 .toEqual({ isValid: true, reason: undefined });
-            expect(newObj).toEqual({ application: 'studio' });
+            expect(newObj.application).toEqual('studio');
         });
         
         it('should revert the field if defined on edit', function() {
@@ -71,7 +79,7 @@ describe('campaign validation', function() {
             newObj.application = 'campaign manager';
             expect(svc.model.validate('edit', newObj, origObj, requester))
                 .toEqual({ isValid: true, reason: undefined });
-            expect(newObj).toEqual({ application: 'sponsorship manager' });
+            expect(newObj.application).toEqual('sponsorship manager');
         });
     });
     
@@ -120,6 +128,32 @@ describe('campaign validation', function() {
             expect(svc.model.validate('create', newObj, origObj, requester))
                 .toEqual({ isValid: true, reason: undefined });
             expect(newObj.paymentMethod).toEqual('slush fund');
+        });
+    });
+
+    ['updateRequest', 'rejectionReason'].forEach(function(field) {
+        describe('when handling ' + field, function() {
+            it('should trim the field if set', function() {
+                newObj[field] = 1234;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj[field]).not.toBeDefined();
+            });
+            
+            it('should be able to allow some requesters to set the field', function() {
+                requester.fieldValidation.campaigns[field] = { __allowed: true };
+                newObj[field] = 'foo';
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj[field]).toBe('foo');
+            });
+
+            it('should fail if the field is not a string', function() {
+                requester.fieldValidation.campaigns[field] = { __allowed: true };
+                newObj[field] = 12345;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: field + ' must be in format: string' });
+            });
         });
     });
     

@@ -1,13 +1,12 @@
 var flush = true;
 describe('ads-campaigns (UT)', function() {
-    var mockLog, CrudSvc, Model, logger, q, campModule, campaignUtils, bannerUtils, requestUtils, uuid,
+    var mockLog, CrudSvc, Model, logger, q, campModule, campaignUtils, bannerUtils, requestUtils,
         mongoUtils, nextSpy, doneSpy, errorSpy, req, anyNum, mockDb;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q               = require('q');
         logger          = require('../../lib/logger');
-        uuid            = require('../../lib/uuid');
         requestUtils    = require('../../lib/requestUtils');
         campModule      = require('../../bin/ads-campaigns');
         campaignUtils   = require('../../lib/campaignUtils');
@@ -84,7 +83,7 @@ describe('ads-campaigns (UT)', function() {
                 campaigns: { statusDelay: 100, statusAttempts: 5 }
             };
             
-            [campaignUtils.getAccountIds, campModule.validatePricing,
+            [campaignUtils.getAccountIds, campModule.extraValidation,
              campModule.editSponsoredCamps, campModule.createSponsoredCamps].forEach(function(fn) {
                 spyOn(fn, 'bind').and.returnValue(fn);
             });
@@ -141,33 +140,25 @@ describe('ads-campaigns (UT)', function() {
             expect(svc._middleware.edit).toContain(campaignUtils.getAccountIds);
         });
         
-        it('should do extra pricing validation on create + edit', function() {
-            expect(campModule.validatePricing.bind).toHaveBeenCalledWith(campModule, svc);
-            expect(svc._middleware.create).toContain(campModule.validatePricing);
-            expect(svc._middleware.edit).toContain(campModule.validatePricing);
-        });
-        
-        it('should ensure list entry identifiers are unique on create + edit', function() {
-            expect(svc._middleware.create).toContain(campModule.ensureUniqueIds);
-            expect(svc._middleware.edit).toContain(campModule.ensureUniqueIds);
-            expect(svc._middleware.create).toContain(campModule.ensureUniqueNames);
-            expect(svc._middleware.edit).toContain(campModule.ensureUniqueNames);
-        });
-        
         it('should fetch cards on create, edit, and delete', function() {
             expect(svc._middleware.create).toContain(campModule.fetchCards);
             expect(svc._middleware.edit).toContain(campModule.fetchCards);
             expect(svc._middleware.delete).toContain(campModule.fetchCards);
         });
         
-        it('should validate dates on create + edit', function() {
-            expect(svc._middleware.create).toContain(campModule.validateDates);
-            expect(svc._middleware.edit).toContain(campModule.validateDates);
+        it('should do extra validation on create + edit', function() {
+            expect(campModule.extraValidation.bind).toHaveBeenCalledWith(campModule, svc);
+            expect(svc._middleware.create).toContain(campModule.extraValidation);
+            expect(svc._middleware.edit).toContain(campModule.extraValidation);
         });
         
         it('should default the reportingId on create + edit', function() {
             expect(svc._middleware.create).toContain(campModule.defaultReportingId);
             expect(svc._middleware.edit).toContain(campModule.defaultReportingId);
+        });
+        
+        it('should prevent editing locked campaigns on edit', function() {
+            expect(svc._middleware.edit).toContain(campModule.enforceLock);
         });
         
         it('should clean out unused sponsored content on edit', function() {
@@ -352,6 +343,28 @@ describe('ads-campaigns (UT)', function() {
             expect(req._query).toEqual({ name: { $regex: '.*camp.*1.*is.*great.*', $options: 'i' } });
         });
     });
+    
+    describe('enforceLock', function() {
+        it('should call next if there is no updateRequest on the object', function(done) {  
+            req.origObj = { id: 'cam-1', name: 'camp 1' };
+            campModule.enforceLock(req, nextSpy, doneSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should call done if there is an updateRequest on the object', function(done) {
+            req.origObj = { id: 'cam-1', name: 'camp 1', updateRequest: 'ur-1' };
+            campModule.enforceLock(req, nextSpy, doneSpy);
+            process.nextTick(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Campaign locked until existing update request resolved' });
+                done();
+            });
+        });
+    });
 
     describe('defaultAccountIds', function() {
         beforeEach(function() {
@@ -408,281 +421,6 @@ describe('ads-campaigns (UT)', function() {
         });
     });
 
-    describe('computeCost', function() {
-        it('should return a base price if no targeting exists', function() {
-            expect(campModule.computeCost(req)).toEqual(0.1);
-        });
-    });
-    
-    describe('validatePricing', function() {
-        var svc;
-        beforeEach(function() {
-            req.body = { pricing: {
-                budget: 1000,
-                dailyLimit: 200,
-                model: 'cpv'
-            } };
-            req.user = { id: 'u-1', fieldValidation: { campaigns: {} } };
-            svc = campModule.setupSvc(mockDb, campModule.config);
-            spyOn(campModule, 'computeCost').and.callThrough();
-        });
-        
-        it('should skip if no pricing is on the request body', function(done) {
-            delete req.body.pricing;
-            campModule.validatePricing(svc, req, nextSpy, doneSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(req.body.pricing).not.toBeDefined();
-                done();
-            });
-        });
-        
-        it('should pass if everything is valid', function(done) {
-            campModule.validatePricing(svc, req, nextSpy, doneSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(req.body.pricing).toEqual({
-                    budget: 1000,
-                    dailyLimit: 200,
-                    model: 'cpv',
-                    cost: 0.1
-                });
-                expect(campModule.computeCost).toHaveBeenCalledWith(req);
-                done();
-            });
-        });
-
-        it('should be able to set a default dailyLimit', function(done) {
-            delete req.body.pricing.dailyLimit;
-            campModule.validatePricing(svc, req, nextSpy, doneSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(req.body.pricing).toEqual({
-                    budget: 1000,
-                    dailyLimit: 30,
-                    model: 'cpv',
-                    cost: 0.1
-                });
-                done();
-            });
-        });
-        
-        it('should copy missing props from the original object', function(done) {
-            delete req.body.pricing.dailyLimit;
-            delete req.body.pricing.model;
-            req.origObj = { pricing: { budget: 2000, dailyLimit: 500, model: 'cpm' } };
-
-            campModule.validatePricing(svc, req, nextSpy, doneSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(req.body.pricing).toEqual({
-                    budget: 1000,
-                    dailyLimit: 500,
-                    model: 'cpm',
-                    cost: 0.1
-                });
-                done();
-            });
-        });
-        
-        it('should skip handling dailyLimit if no budget is set yet', function(done) {
-            req.body.pricing = {};
-            req.origObj = { pricing: { model: 'cpm' } };
-
-            campModule.validatePricing(svc, req, nextSpy, doneSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(req.body.pricing).toEqual({
-                    model: 'cpm',
-                    cost: 0.1
-                });
-                done();
-            });
-        });
-        
-        it('should return a 400 if the user\'s dailyLimit is too high or too low', function(done) {
-            q.all([1, 10000000].map(function(limit) {
-                var reqCopy = JSON.parse(JSON.stringify(req));
-                reqCopy.body.pricing.dailyLimit = limit;
-                return q(campModule.validatePricing(svc, reqCopy, nextSpy, doneSpy));
-            })).then(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy.calls.count()).toBe(2);
-                var expectedResp = {
-                    code: 400,
-                    body: 'dailyLimit must be between 0.015 and 1 of budget'
-                };
-                expect(doneSpy.calls.argsFor(0)).toEqual([expectedResp]);
-                expect(doneSpy.calls.argsFor(1)).toEqual([expectedResp]);
-            }).catch(function(error) {
-                expect(error.toString()).not.toBeDefined();
-            }).done(done);
-        });
-        
-        describe('if the user has custom config for the dailyLimit prop', function(done) {
-            beforeEach(function() {
-                req.user.fieldValidation.campaigns = {
-                    pricing: {
-                        dailyLimit: {
-                            __percentDefault: 0.75,
-                            __percentMin: 0.5,
-                            __percentMax: 0.8
-                        }
-                    }
-                };
-            });
-            
-            it('should use the custom min + max for validation', function(done) {
-                q.all([0.4, 0.9].map(function(limitRatio) {
-                    var reqCopy = JSON.parse(JSON.stringify(req));
-                    reqCopy.body.pricing.dailyLimit = limitRatio * reqCopy.body.pricing.budget ;
-                    return q(campModule.validatePricing(svc, reqCopy, nextSpy, doneSpy));
-                })).then(function() {
-                    expect(nextSpy).not.toHaveBeenCalled();
-                    expect(doneSpy.calls.count()).toBe(2);
-                    var expectedResp = {
-                        code: 400,
-                        body: 'dailyLimit must be between 0.5 and 0.8 of budget'
-                    };
-                    expect(doneSpy.calls.argsFor(0)).toEqual([expectedResp]);
-                    expect(doneSpy.calls.argsFor(1)).toEqual([expectedResp]);
-                }).catch(function(error) {
-                    expect(error.toString()).not.toBeDefined();
-                }).done(done);
-            });
-            
-            it('should use the custom default if no dailyLimit is set', function(done) {
-                delete req.body.pricing.dailyLimit;
-                campModule.validatePricing(svc, req, nextSpy, doneSpy);
-                process.nextTick(function() {
-                    expect(nextSpy).toHaveBeenCalled();
-                    expect(doneSpy).not.toHaveBeenCalled();
-                    expect(req.body.pricing).toEqual({
-                        budget: 1000,
-                        dailyLimit: 750,
-                        model: 'cpv',
-                        cost: 0.1
-                    });
-                    done();
-                });
-            });
-        });
-        
-        describe('if the user can set their own cost', function() {
-            beforeEach(function() {
-                req.user.fieldValidation.campaigns = { pricing: { cost: { __allowed: true } } };
-            });
-
-            it('should allow any value set on the request body', function(done) {
-                req.body.pricing.cost = 0.00000123456;
-                campModule.validatePricing(svc, req, nextSpy, doneSpy);
-                process.nextTick(function() {
-                    expect(nextSpy).toHaveBeenCalled();
-                    expect(doneSpy).not.toHaveBeenCalled();
-                    expect(req.body.pricing.cost).toBe(0.00000123456);
-                    done();
-                });
-            });
-            
-            it('should fall back to a value on the origObj', function(done) {
-                req.origObj = { pricing: { cost: 0.123456 } };
-                campModule.validatePricing(svc, req, nextSpy, doneSpy);
-                process.nextTick(function() {
-                    expect(nextSpy).toHaveBeenCalled();
-                    expect(doneSpy).not.toHaveBeenCalled();
-                    expect(req.body.pricing.cost).toBe(0.123456);
-                    done();
-                });
-            });
-            
-            it('should compute the cost if nothing else is defined', function(done) {
-                campModule.validatePricing(svc, req, nextSpy, doneSpy);
-                process.nextTick(function() {
-                    expect(nextSpy).toHaveBeenCalled();
-                    expect(doneSpy).not.toHaveBeenCalled();
-                    expect(req.body.pricing.cost).toBe(0.1);
-                    done();
-                });
-            });
-        });
-        
-        describe('if the user cannot set their own cost', function() {
-            it('should override any cost on the request body with a freshly computed cost', function(done) {
-                req.body.pricing.cost = 0.00000123456;
-                campModule.validatePricing(svc, req, nextSpy, doneSpy);
-                process.nextTick(function() {
-                    expect(nextSpy).toHaveBeenCalled();
-                    expect(doneSpy).not.toHaveBeenCalled();
-                    expect(req.body.pricing.cost).toBe(0.1);
-                    done();
-                });
-            });
-        });
-    });
-
-    describe('ensureUniqueIds', function() {
-        it('should call done if the cards list is not distinct', function(done) {
-            req.body = { cards: [{id: 'rc-1'}, {id: 'rc-2'}, {id: 'rc-1'}] };
-            campModule.ensureUniqueIds(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({code: 400, body: 'cards must be distinct'});
-                expect(errorSpy).not.toHaveBeenCalled();
-                done();
-            });
-        });
-
-        it('should call done if the miniReels list is not distinct', function(done) {
-            req.body = { miniReels: [{id: 'e-1'}, {id: 'e-2'}, {id: 'e-1'}] };
-            campModule.ensureUniqueIds(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({code: 400, body: 'miniReels must be distinct'});
-                expect(errorSpy).not.toHaveBeenCalled();
-                done();
-            });
-        });
-
-        it('should call next if all lists are distinct', function(done) {
-            req.body = { cards: [{id: 'rc-1'}], miniReels: [{id: 'e-1'}, {id: 'e-2'}, {id: 'e-11'}] };
-            campModule.ensureUniqueIds(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should be able to handle multiple cards without ids', function(done) {
-            req.body = { cards: [{ title: 'card 1' }, { title: 'card 2' }, { id: 'rc-1' }] };
-            campModule.ensureUniqueIds(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                
-                req.body.cards.unshift({ id: 'rc-1' });
-                nextSpy.calls.reset();
-                doneSpy.calls.reset();
-                errorSpy.calls.reset();
-                
-                campModule.ensureUniqueIds(req, nextSpy, doneSpy).catch(errorSpy);
-                process.nextTick(function() {
-                    expect(nextSpy).not.toHaveBeenCalled();
-                    expect(doneSpy).toHaveBeenCalledWith({code: 400, body: 'cards must be distinct'});
-                    expect(errorSpy).not.toHaveBeenCalled();
-                    done();
-                });
-            });
-        });
-    });
-
     describe('fetchCards', function() {
         var c6Cards;
         beforeEach(function() {
@@ -722,6 +460,7 @@ describe('ads-campaigns (UT)', function() {
                     'rc-3': { id: 'rc-3', title: 'card 3', campaign: { adtechId: 13 } }
                 });
                 expect(req.body.cards).toEqual([c6Cards['rc-1'], c6Cards['rc-2']]);
+                expect(req.origObj.cards).toEqual([c6Cards['rc-3']]);
                 expect(requestUtils.qRequest.calls.count()).toBe(3);
                 expect(requestUtils.qRequest).toHaveBeenCalledWith('get',
                     { url: 'https://test.com/api/content/cards/rc-2', headers: { cookie: 'chocolate' } });
@@ -849,114 +588,47 @@ describe('ads-campaigns (UT)', function() {
             });
         });
     });
+    
+    describe('extraValidation', function() {
+        var svc;
+        beforeEach(function() {
+            req.body = { foo: 'bar' };
+            req.origObj = { old: 'yes' };
+            spyOn(campaignUtils, 'ensureUniqueIds').and.returnValue({ isValid: true });
+            spyOn(campaignUtils, 'ensureUniqueNames').and.returnValue({ isValid: true });
+            spyOn(campaignUtils, 'validateAllDates').and.returnValue({ isValid: true });
+            spyOn(campaignUtils, 'validatePricing').and.returnValue({ isValid: true });
+            svc = { model: new Model('campaigns', campModule.campSchema) };
+        });
+        
+        it('should call next if all validation passes', function() {
+            campModule.extraValidation(svc, req, nextSpy, doneSpy);
+            expect(nextSpy).toHaveBeenCalled();
+            expect(doneSpy).not.toHaveBeenCalled();
+            expect(campaignUtils.ensureUniqueIds).toHaveBeenCalledWith({ foo: 'bar' });
+            expect(campaignUtils.ensureUniqueNames).toHaveBeenCalledWith({ foo: 'bar' });
+            expect(campaignUtils.validateAllDates).toHaveBeenCalledWith({ foo: 'bar' }, { old: 'yes' }, req.user, { start: 100, end: 200 }, '1234');
+            expect(campaignUtils.validatePricing).toHaveBeenCalledWith({ foo: 'bar' }, { old: 'yes' }, req.user, svc.model);
+        });
+        
+        it('should call done if any of the methods fail', function() {
+            var methods = ['ensureUniqueIds', 'ensureUniqueNames', 'validateAllDates', 'validatePricing'];
+            methods.forEach(function(method) {
+                // reset all methods
+                methods.forEach(function(meth) { campaignUtils[meth].and.returnValue({ isValid: true }); });
+                nextSpy.calls.reset();
+                doneSpy.calls.reset();
+                
+                // change behavior of currently evaluated method
+                campaignUtils[method].and.returnValue({ isValid: false, reason: method + ' has failed' });
+                
+                campModule.extraValidation(svc, req, nextSpy, doneSpy);
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: method + ' has failed' });
+            });
+        });
+    });
 
-    describe('validateDates', function() {
-        beforeEach(function() {
-            req.body = { cards: [
-                { id: 'rc-1', campaign: { adtechId: 11 } },
-                { id: 'rc-2', campaign: { adtechId: 12 } }
-            ] };
-            req._cards = {};
-            spyOn(campaignUtils, 'validateDates').and.returnValue(true);
-        });
-        
-        it('should call campaignUtils.validateDates for every list object', function(done) {
-            campModule.validateDates(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(campaignUtils.validateDates.calls.count()).toBe(2);
-                expect(campaignUtils.validateDates).toHaveBeenCalledWith({ adtechId: 11 }, undefined, {start: 100, end: 200}, '1234');
-                expect(campaignUtils.validateDates).toHaveBeenCalledWith({ adtechId: 12 }, undefined, {start: 100, end: 200}, '1234');
-                done();
-            });
-        });
-        
-        it('should pass in existing sub-objects if they exist', function(done) {
-            req._cards['rc-1'] = { id: 'rc-1', campaign: { adtechId: 11, startDate: '2015-10-25T00:27:03.456Z' } };
-            campModule.validateDates(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(campaignUtils.validateDates.calls.count()).toBe(2);
-                expect(campaignUtils.validateDates).toHaveBeenCalledWith({ adtechId: 11 },
-                    { adtechId: 11, startDate: '2015-10-25T00:27:03.456Z' }, {start: 100, end: 200}, '1234');
-                expect(campaignUtils.validateDates).toHaveBeenCalledWith({ adtechId: 12 }, undefined, {start: 100, end: 200}, '1234');
-                done();
-            });
-        });
-        
-        it('should skip if no cards are defined', function(done) {
-            delete req.body.cards;
-            campModule.validateDates(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(campaignUtils.validateDates).not.toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should call done if validateDates returns false', function(done) {
-            campaignUtils.validateDates.and.callFake(function(obj) {
-                if (obj.adtechId === 12) return false;
-                else return true;
-            });
-            campModule.validateDates(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({code: 400, body: 'cards[1] has invalid dates'});
-                expect(errorSpy).not.toHaveBeenCalled();
-                expect(campaignUtils.validateDates.calls.count()).toBe(2);
-                done();
-            });
-        });
-    });
-    
-    describe('ensureUniqueNames', function() {
-        beforeEach(function() {
-            req.body = { cards: [
-                { campaign: { adtechName: 'foo' } },
-                { id: 'rc-1', campaign: { adtechName: 'bar' } }
-            ] };
-        });
-        
-        it('should call next if all names are unique', function(done) {
-            campModule.ensureUniqueNames(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should skip if no cards are defined', function(done) {
-            delete req.body.cards;
-            campModule.ensureUniqueNames(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                expect(errorSpy).not.toHaveBeenCalled();
-                done();
-            });
-        });
-        
-        it('should call done if multiple objects share the same name', function(done) {
-            req.body.cards.push({ campaign: { adtechName: 'bar' }});
-            campModule.ensureUniqueNames(req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({code: 400, body: 'cards[2] has a non-unique name'});
-                expect(errorSpy).not.toHaveBeenCalled();
-                done();
-            });
-        });
-    });
-    
     describe('defaultReportingId', function() {
         beforeEach(function() {
             req.body = {

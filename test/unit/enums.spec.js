@@ -7,16 +7,26 @@ describe('enums', function() {
     });
 
     it('should define constants correctly', function() {
+        expect(enums.Status.Draft).toBe('draft');
         expect(enums.Status.New).toBe('new');
-        expect(enums.Status.Active).toBe('active');
-        expect(enums.Status.Inactive).toBe('inactive');
         expect(enums.Status.Pending).toBe('pending');
+        expect(enums.Status.Approved).toBe('approved');
+        expect(enums.Status.Rejected).toBe('rejected');
+        expect(enums.Status.Active).toBe('active');
+        expect(enums.Status.Paused).toBe('paused');
+        expect(enums.Status.Inactive).toBe('inactive');
+        expect(enums.Status.Expired).toBe('expired');
+        expect(enums.Status.Canceled).toBe('canceled');
         expect(enums.Status.Deleted).toBe('deleted');
+        expect(enums.Status.Error).toBe('error');
+
         expect(enums.Access.Public).toBe('public');
         expect(enums.Access.Private).toBe('private');
+
         expect(enums.Scope.Own).toBe('own');
         expect(enums.Scope.Org).toBe('org');
         expect(enums.Scope.All).toBe('all');
+        expect(enums.Scope.Deny).toBe('deny');
     });
 
     it('should be frozen', function() {
