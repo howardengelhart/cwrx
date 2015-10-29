@@ -95,6 +95,8 @@ module.exports = function(grunt) {
 
         if (grunt.option('branch')){
             myEnv.CWRX_DEV_BRANCH = grunt.option('branch');
+        } else {
+            myEnv.CWRX_DEV_BRANCH = 'master';
         }
 
         myEnv.CWRX_APP = services.join(',');

@@ -157,6 +157,14 @@ describe('content card endpoints (E2E):', function() {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
+
+            it('should not get tracking pixels on a preview GET',function(done){
+                options.qs.preview = true;
+                requestUtils.qRequest('get', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.campaign).toEqual({});
+                }).then(done,done.fail);
+            });
             
             it('should allow passing an experience id as a query param', function(done) {
                 options.qs.experience = 'e-1';

@@ -156,7 +156,7 @@
     // Adds tracking pixels to card.campaign, initializing arrays if needed
     cardModule.setupTrackingPixels = function(card, req) {
         card.campaign = card.campaign || {};
-        
+
         function ensureList(prop) {
             return card.campaign[prop] || (card.campaign[prop] = []);
         }
@@ -206,8 +206,12 @@
             
             privateFields.forEach(function(key) { delete card[key]; });
             card = cardSvc.formatOutput(card);
-            cardModule.setupTrackingPixels(card, req);
-            
+            card.campaign = card.campaign || {};
+
+            if (!req.query.preview) {
+                cardModule.setupTrackingPixels(card, req);
+            }
+
             // fetch card's campaign so important props can be copied over
             return caches.campaigns.getPromise({ id: card.campaignId })
             .spread(function(camp) {

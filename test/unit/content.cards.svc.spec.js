@@ -649,6 +649,14 @@ describe('content-cards (UT)', function() {
             }).done(done);
         });
         
+        it('should not setup tracking pixels if request is a preview', function(done) {
+            req.query.preview = true;
+            cardModule.getPublicCard(cardSvc, caches, 'rc-1', req).then(function(resp) {
+                expect(resp).toEqual(jasmine.objectContaining({ campaign: { } }));
+                expect(cardModule.setupTrackingPixels).not.toHaveBeenCalled();
+            }).then(done,done.fail);
+        });
+        
         it('should return nothing if the card was not found', function(done) {
             caches.cards.getPromise.and.returnValue(q([]));
             cardModule.getPublicCard(cardSvc, caches, 'rc-1', req).then(function(resp) {

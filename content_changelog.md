@@ -1,5 +1,6 @@
 # Content Service Changelog
 
+* Prevent tracking pixels from being added to previews of cards/videos: [#578](https://github.com/cinema6/cwrx/issues/578)
 * Integrated metagetta into the cards module puts and posts to get vieo durations:  [#531](https://github.com/cinema6/cwrx/issues/531)
 * Allow `null` to be set for validated fields: [#573](https://github.com/cinema6/cwrx/pull/573)
 
