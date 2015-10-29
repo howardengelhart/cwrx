@@ -311,7 +311,8 @@ Player.startService = function startService() {
                     validParams: [
                         'campaign', 'branding', 'placementId',
                         'container', 'wildCardPlacement',
-                        'pageUrl', 'hostApp', 'network'
+                        'pageUrl', 'hostApp', 'network',
+                        'preview'
                     ],
                     cacheTTLs: {
                         fresh: 1,
@@ -525,6 +526,13 @@ Player.prototype.get = function get(/*options*/) {
         return experience;
     }
 
+    function getExperience() {
+        // If in preview mode, call the uncached version of __getExperience__().
+        var method = preview ? Player.prototype.__getExperience__ : self.__getExperience__;
+
+        return method.apply(self, arguments);
+    }
+
     function loadAds(experience) {
         var start = Date.now();
 
@@ -575,7 +583,7 @@ Player.prototype.get = function get(/*options*/) {
 
     return q.all([
         this.__getPlayer__(type, uuid),
-        this.__getExperience__(experience, params, origin, uuid).then(loadExperienceData)
+        getExperience(experience, params, origin, uuid).then(loadExperienceData)
     ]).spread(function inlineResources(document, data) {
         var experience = data.experience;
         var brandings = data.brandings;

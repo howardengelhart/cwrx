@@ -262,7 +262,8 @@ describe('player service', function() {
                                         validParams: [
                                             'campaign', 'branding', 'placementId',
                                             'container', 'wildCardPlacement',
-                                            'pageUrl', 'hostApp', 'network'
+                                            'pageUrl', 'hostApp', 'network',
+                                            'preview'
                                         ],
                                         cacheTTLs: {
                                             fresh: 1,
@@ -715,7 +716,8 @@ describe('player service', function() {
                         validParams: [
                             'campaign', 'branding', 'placementId',
                             'container', 'wildCardPlacement',
-                            'pageUrl', 'hostApp', 'network'
+                            'pageUrl', 'hostApp', 'network',
+                            'preview'
                         ],
                         cacheTTLs: {
                             fresh: 1,
@@ -903,7 +905,8 @@ describe('player service', function() {
                             container: 'mopub',
                             wildCardPlacement: '238974285',
                             pageUrl: 'http://www.foo.com/bar',
-                            hostApp: 'My Talking Tom'
+                            hostApp: 'My Talking Tom',
+                            preview: false
                         }, 'http://cinema6.com/solo', options.uuid);
                     });
 
@@ -1151,6 +1154,7 @@ describe('player service', function() {
                             spyOn(player, '__getBranding__').and.returnValue(q(brandings));
                             spyOn(document, 'addCSS').and.callThrough();
                             player.__getExperience__.and.returnValue(q(experience));
+                            spyOn(Player.prototype, '__getExperience__').and.returnValue(q(experience));
                             spyOn(player.adLoader, 'loadAds').and.returnValue(q(experience));
                             player.__getExperience__.calls.reset();
                             spyOn(MockAdLoader, 'removePlaceholders').and.callThrough();
@@ -1159,6 +1163,22 @@ describe('player service', function() {
                             options.preview = true;
 
                             player.get(options).finally(done);
+                        });
+
+                        it('should call the uncached version of __getExperience__()', function() {
+                            expect(Player.prototype.__getExperience__).toHaveBeenCalledWith(options.experience, {
+                                campaign: 'cam-c3de383f7e37ce',
+                                branding: 'cinema6',
+                                network: 'mopub',
+                                placementId: '1673285684',
+                                container: 'mopub',
+                                wildCardPlacement: '238974285',
+                                pageUrl: 'http://www.foo.com/bar',
+                                hostApp: 'My Talking Tom',
+                                preview: true
+                            }, 'http://cinema6.com/solo', options.uuid);
+                            expect(Player.prototype.__getExperience__.calls.mostRecent().object).toBe(player);
+                            expect(player.__getExperience__).not.toHaveBeenCalled();
                         });
 
                         it('should not loadAds()', function() {
