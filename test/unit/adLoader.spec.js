@@ -860,7 +860,8 @@ describe('AdLoader()', function() {
                                 network: 'MoPub',
                                 pageUrl: 'http://www.cinema6.com',
                                 branding: 'foo',
-                                wildCardPlacement: '7583475'
+                                wildCardPlacement: '7583475',
+                                preview: false
                             }
                         };
                         categories = ['food', 'gaming', 'tech', 'lifestyle', 'humor'];
@@ -979,14 +980,16 @@ describe('AdLoader()', function() {
                                 hostApp: 'My Talking Tom',
                                 network: 'MoPub',
                                 pageUrl: 'http://www.cinema6.com',
-                                experience: experience.id
+                                experience: experience.id,
+                                preview: false
                             }, uuid);
                             expect(loader.__getCard__).toHaveBeenCalledWith(banners[2].externalId, {
                                 container: 'pocketmath',
                                 hostApp: 'My Talking Tom',
                                 network: 'MoPub',
                                 pageUrl: 'http://www.cinema6.com',
-                                experience: experience.id
+                                experience: experience.id,
+                                preview: false
                             }, uuid);
                             expect(loader.__getCard__.calls.count()).toBe(2);
                         });

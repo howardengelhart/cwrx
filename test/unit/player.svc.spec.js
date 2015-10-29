@@ -262,7 +262,8 @@ describe('player service', function() {
                                         validParams: [
                                             'campaign', 'branding', 'placementId',
                                             'container', 'wildCardPlacement',
-                                            'pageUrl', 'hostApp', 'network'
+                                            'pageUrl', 'hostApp', 'network',
+                                            'preview'
                                         ],
                                         cacheTTLs: {
                                             fresh: 1,
@@ -715,7 +716,8 @@ describe('player service', function() {
                         validParams: [
                             'campaign', 'branding', 'placementId',
                             'container', 'wildCardPlacement',
-                            'pageUrl', 'hostApp', 'network'
+                            'pageUrl', 'hostApp', 'network',
+                            'preview'
                         ],
                         cacheTTLs: {
                             fresh: 1,
@@ -903,7 +905,8 @@ describe('player service', function() {
                             container: 'mopub',
                             wildCardPlacement: '238974285',
                             pageUrl: 'http://www.foo.com/bar',
-                            hostApp: 'My Talking Tom'
+                            hostApp: 'My Talking Tom',
+                            preview: false
                         }, 'http://cinema6.com/solo', options.uuid);
                     });
 
