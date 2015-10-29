@@ -122,6 +122,9 @@ function setupCampaignSvcFieldVal(policy) {
     policy.fieldValidation.campaignUpdates = {
         status: {
             __allowed: true
+        },
+        rejectionReason: {
+            __allowed: true
         }
     };
 }

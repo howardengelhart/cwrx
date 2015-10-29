@@ -8,10 +8,11 @@ var request         = require('request'),
     events          = require('events'),
     util            = require('util'),
     adtech          = require('adtech'),
+    kCamp           = adtech.constants.ICampaign,
     requestUtils    = require('../../lib/requestUtils'),
     mongoUtils      = require('../../lib/mongoUtils'),
     s3util          = require('../../lib/s3util'),
-    awsAuth         = process.env['awsAuth'] || path.join(process.env.HOME,'.aws.json'),
+    awsAuth         = process.env.awsAuth || path.join(process.env.HOME,'.aws.json'),
     
     testUtils = {
         _dbCache    : {},
@@ -48,7 +49,7 @@ testUtils.closeDbs = function() {
 testUtils._getDb = function(userCfg) {
     // console.log('calling getDb');
     userCfg = userCfg || {};
-    var procCfg = process.env['mongo'] ? JSON.parse(process.env['mongo']) : {};
+    var procCfg = process.env.mongo ? JSON.parse(process.env.mongo) : {};
     var dbConfig = {
         host : userCfg.host ? userCfg.host : procCfg.host || '33.33.33.100',
         port : userCfg.port ? userCfg.port : procCfg.port || 27017,
@@ -160,7 +161,7 @@ testUtils.getCampaignBanners = function(campId) {
     aove.addExpression(new adtech.AOVE.LongExpression('campaignId', parseInt(campId)));
     aove.addExpression(new adtech.AOVE.BooleanExpression('deleted', false));
     return adtech.bannerAdmin.getBannerList(null, null, aove).catch(testUtils.handleAdtechError);
-}
+};
 
 // check that banners exist for each id in list, and they have the correct name + sizeTypeId
 testUtils.compareBanners = function(banners, list, type) {
@@ -171,9 +172,42 @@ testUtils.compareBanners = function(banners, list, type) {
         expect(banner.name).toBe(type + ' ' + id);
         expect(banner.sizeTypeId).toBe(testUtils._sizeTypeMap[type]);
     });
-}
+};
+
+// Helper method to check that a campaign for a sponsored card was setup correctly
+testUtils.checkCardCampaign = function(camp, parentCamp, card, catKeys, advert, cust) {
+    expect(camp).toBeDefined();
+    if (!camp) return;
+
+    expect(camp.extId).toBe(card.id);
+    expect(camp.exclusive).toBe(true);
+    expect(camp.exclusiveType).toBe(kCamp.EXCLUSIVE_TYPE_END_DATE);
+    expect(camp.name).toBe(card.campaign.adtechName + ' (' + parentCamp.id + ')');
+    expect(camp.dateRangeList[0].startDate.toUTCString()).toBe(new Date(card.campaign.startDate).toUTCString());
+    expect(camp.dateRangeList[0].endDate.toUTCString()).toBe(new Date(card.campaign.endDate).toUTCString());
+    expect(camp.priorityLevelOneKeywordIdList).toEqual([jasmine.any(String)]);
+    expect(camp.priorityLevelThreeKeywordIdList.sort()).toEqual(catKeys.sort());
+    expect(camp.priority).toBe(3);
+    expect(camp.advertiserId).toBe(advert.adtechId);
+    expect(camp.customerId).toBe(cust.adtechId);
+};
 
 ///////////////////////////// Miscellaneous Helper Methods /////////////////////////////
+
+// For each entry in camp.cards, check that it matches the card entity (fetched through content svc)
+testUtils.checkCardEntities = function(camp, jar, contentUrl) {
+    return q.all(camp.cards.map(function(card) {
+        return requestUtils.qRequest('get', {
+            url: contentUrl + '/cards/' + card.id,
+            jar: jar,
+        }).then(function(resp) {
+            expect(resp.response.statusCode).toBe(200);
+            expect(resp.body).toEqual(card);
+        });
+    })).catch(function(error) {
+        expect(util.inspect(error)).not.toBeDefined();
+    });
+};
 
 testUtils.checkStatus = function(jobId, host, statusUrl, statusTimeout, pollInterval) {
     var interval, timeout,
