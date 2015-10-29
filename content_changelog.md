@@ -1,5 +1,6 @@
 # Content Service Changelog
 
+* Integrated metagetta into the cards module puts and posts to get vieo durations:  [#531](https://github.com/cinema6/cwrx/issues/531)
 * Allow `null` to be set for validated fields: [#573](https://github.com/cinema6/cwrx/pull/573)
 
 ### 2.2.0: Wed Oct 14 18:47:35 EDT 20151
