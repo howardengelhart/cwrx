@@ -27,16 +27,20 @@
                 return Status[key];
             })
         },
-        autoApproved: {
+        autoApproved: { // set automatically if update can be auto-approved
             __type: 'boolean',
             __allowed: false,
-            __default: false
+            __default: false,
+            __locked: true
         },
-        campaign: {
+        campaign: { // set automatically based on campId in params
             __type: 'string',
-            __allowed: true,
-            __required: true,
-            __unchangeable: true
+            __allowed: false,
+            __locked: true
+        },
+        rejectionReason: {
+            __type: 'string',
+            __allowed: false
         },
         data: {
             __type: 'object',
@@ -80,10 +84,10 @@
             lockCampaign        = updateModule.lockCampaign.bind(updateModule, svc),
             unlockCampaign      = updateModule.unlockCampaign.bind(updateModule, svc),
             applyUpdate         = updateModule.applyUpdate.bind(updateModule, svc),
-            notifyOwner         = updateModule.notifyOwner.bind(updateModule, svc),
-            saveRejectionReason = updateModule.saveRejectionReason.bind(updateModule, svc);
+            notifyOwner         = updateModule.notifyOwner.bind(updateModule, svc);
             
         //TODO: try to lessen number of db edits to campaign? it may actually become a problem
+        //TODO: also review/improve logging so it's easier to recover from failure
         
         svc.use('create', fetchCamp);
         svc.use('create', updateModule.enforceLock);
@@ -101,7 +105,6 @@
         svc.use('edit', unlockCampaign);
         svc.use('edit', applyUpdate);
         svc.use('edit', notifyOwner);
-        svc.use('edit', saveRejectionReason);
         
         svc.use('autoApprove', autoApproveModel.midWare.bind(autoApproveModel, 'create'));
         svc.use('autoApprove', svc.setupObj.bind(svc));
@@ -112,7 +115,8 @@
         return svc;
     };
     
-    updateModule.createCampModel = function(campSvc) { //TODO: test this pretty rigorously
+    // Creates a modified campaign model that allows users to set status
+    updateModule.createCampModel = function(campSvc) {
         var schema = JSON.parse(JSON.stringify(campSvc.model.schema));
         
         schema.status.__allowed = true;
@@ -120,8 +124,8 @@
         return new Model('campaigns', schema);
     };
     
+    // Create a modified campaignUpdate model that allows users to set status + autoApproved.
     updateModule.createAutoApproveModel = function() {
-        //TODO: kinda feels like a gross hack
         var autoApprovedSchema = JSON.parse(JSON.stringify(updateModule.updateSchema));
         autoApprovedSchema.status.__allowed = true;
         autoApprovedSchema.autoApproved.__allowed = true;
@@ -131,7 +135,6 @@
     
     // Check if we can auto-approve the update request
     updateModule.canAutoApprove = function(req) {
-        //TODO: double check what happens if req.body.data is {}
         // currently, auto-approve if body solely consists of paymentMethod
         return req.body && req.body.data && !!req.body.data.paymentMethod &&
                Object.keys(req.body.data).length === 1;
@@ -150,12 +153,15 @@
                 return done(resp);
             }
             
-            /*TODO: NOTE: req.campaig IS NOT THE DECORATED CAMPAIGN */
+            req.body.campaign = campId;
+            
+            /*TODO: NOTE: req.campaign IS NOT THE DECORATED CAMPAIGN */
             req.campaign = resp.body;
             next();
         });
     };
     
+    // Prevent creating updating request if campaign already has one
     updateModule.enforceLock = function(req, next, done) {
         var log = logger.getLog();
         
@@ -171,20 +177,22 @@
         return next();
     };
     
-    // TODO: decide how to validate cards in campaign!!
+    /* Merge + validate data prop of req.body. Preserves props from orig update + orig campaign.
+     * Does not merge array values, so if new targeting.interests = ['cat-1'] and old
+     * targeting.interests = ['cat-3, 'cat-1'], merged targeting.interests = ['cat-1']. */
     updateModule.validateData = function(model, req, next, done) {
         var mergedData = {},
             origData = req.origObj && req.origObj.data;
             
         objUtils.extend(mergedData, req.body.data);
-        
+
+        // set the ignoreArrays flag for objUtils.extend so array entries not merged        
         if (origData) {
-            objUtils.extend(mergedData, origData);
+            objUtils.extend(mergedData, origData, true);
         }
-        objUtils.extend(mergedData, req.campaign);
-        
-        // don't want to merge values in cards array
-        mergedData.cards = req.body.data.cards || (origData && origData.cards) || undefined;
+        objUtils.extend(mergedData, req.campaign, true);
+
+        // TODO: decide how to validate cards in campaign!!
         
         req.body.data = mergedData;
         delete req.body.data.rejectionReason;
@@ -198,6 +206,7 @@
         }
     };
     
+    // Additional validation for cards array + pricing not covered by campaign model
     updateModule.extraValidation = function(model, req, next, done) {
         var log = logger.getLog(),
             delays = updateModule.config.campaigns.dateDelays;
@@ -219,6 +228,7 @@
         return next();
     };
     
+    // On user's initial submit, check for additional props + transition campaign to 'pending'
     updateModule.handleInitialSubmit = function(svc, req, next, done) {
         var log = logger.getLog();
 
@@ -242,7 +252,7 @@
             if (!checks[i].parent || !checks[i].parent[checks[i].field]) {
                 log.info('[%1] Campaign %2 missing required field %3, cannot submit',
                          req.uuid, req.campaign.id, checks[i].field);
-                return done({ code: 400, body: 'Missing required field: ' + checks[i].field });
+                return q(done({ code: 400, body: 'Missing required field: ' + checks[i].field }));
             }
         }
         
@@ -258,12 +268,15 @@
             date    : new Date()
         });
         
+        req.body.data.statusHistory = updateObj.statusHistory;
+        
         return mongoUtils.editObject(svc._db.collection('campaigns'), updateObj, req.campaign.id)
         .then(function() {
             next();
         });
     };
     
+    // Send email to support notifying them of new update request
     updateModule.notifySupport = function(req, next/*, done*/) {
         var subject = 'New campaign update request',
             reviewLink = updateModule.config.emails.reviewLink.replace(':campId', req.campaign.id),
@@ -274,7 +287,7 @@
             };
 
         return email.compileAndSend(
-            updateModule.config.emails.supportAddress, //TODO: to + from support@c6 seems weird...
+            updateModule.config.emails.supportAddress,
             updateModule.config.emails.supportAddress,
             subject,
             'newUpdateRequest.html',
@@ -284,6 +297,7 @@
         });
     };
     
+    // Save updateRequest prop on the campaign. Also unsets any previous rejectionReason on campaign
     updateModule.lockCampaign = function(svc, req, next/*, done*/) {
         var log = logger.getLog(),
             coll = svc._db.collection('campaigns'),
@@ -293,10 +307,6 @@
                 $unset: { rejectionReason: 1 }
             };
             
-        
-        log.info('[%1] Setting updateRequest to %2 for campaign %3 for user %4',
-                 req.uuid, req.body.id, req.campaign.id, req.user.id);
-
         return q.npost(coll, 'findAndModify', [{id: req.campaign.id}, {id: 1}, updateObj, opts])
         .then(function() {
             log.info('[%1] Set updateRequest to %2 for campaign %3 for user %4',
@@ -310,7 +320,8 @@
         });
     };
     
-    updateModule.ignoreCompleted = function(req, next, done) { //TODO: rename?
+    // Prevent editing update requests that are 'approved' or 'rejected'
+    updateModule.ignoreCompleted = function(req, next, done) {
         var log = logger.getLog();
         
         if (req.origObj.status === Status.Approved || req.origObj.status === Status.Rejected) {
@@ -322,6 +333,7 @@
         next();
     };
     
+    // Prevent rejecting update request without a rejectionReason
     updateModule.requireReason = function(req, next, done) {
         var log = logger.getLog();
         
@@ -334,22 +346,45 @@
         return next();
     };
 
+    /* Remove campaign's updateRequest prop. Also, if rejecting the update, save rejectionReason on
+     * the campaign, and if this was user's initial submit, send campaign back to 'draft' */
     updateModule.unlockCampaign = function(svc, req, next/*, done*/) {
+        var log = logger.getLog();
+
         if (!approvingUpdate(req) && !rejectingUpdate(req)) {
             return q(next());
         }
+        
+        log.info('[%1] Unlocking campaign %2', req.uuid, req.campaign.id);
 
-        var log = logger.getLog(),
-            coll = svc._db.collection('campaigns'),
+        var coll = svc._db.collection('campaigns'),
             opts = { w: 1, journal: true, new: true },
             updateObj = {
                 $set: { lastUpdated: new Date() },
                 $unset: { updateRequest: 1 }
             };
+            
+        if (rejectingUpdate(req)) {
+            updateObj.$set.rejectionReason = req.body.rejectionReason;
+            
+            if (req.campaign.status === Status.Pending && req.body.data.status === Status.Active) {
+                log.info('[%1] Update %2 was initial approval request, switching %3 back to draft',
+                         req.uuid, req.origObj.id, req.campaign.id);
+
+                updateObj.$set.status = Status.Draft;
+                updateObj.$set.statusHistory = req.campaign.statusHistory;
+                updateObj.$set.statusHistory.unshift({
+                    status  : updateObj.$set.status,
+                    userId  : req.user.id,
+                    user    : req.user.email,
+                    date    : new Date()
+                });
+            }
+        }
 
         return q.npost(coll, 'findAndModify', [{id: req.campaign.id}, {id: 1}, updateObj, opts])
-        .then(function(results) {
-            log.info('[%1] Unlocked campaign %2', req.uuid, results[0].id);
+        .then(function() {
+            log.trace('[%1] Unlocked campaign %2', req.uuid, req.campaign.id);
             next();
         })
         .catch(function(err) {
@@ -359,7 +394,10 @@
         });
     };
     
-    updateModule.applyUpdate = function(svc, req, next, done) {
+    /* Apply update request to campaign by proxying a PUT request. Assumes the user editing the
+     * campaign update request has permission to edit all campaigns. Fails if any non-200 response
+     * is returned from the campaign service, and attempts to re-lock the campaign. */
+    updateModule.applyUpdate = function(svc, req, next/*, done*/) {
         var log = logger.getLog(),
             updateId = req.origObj && req.origObj.id || req.body.id,
             campId = req.campaign.id;
@@ -369,8 +407,8 @@
         }
         
         return requestUtils.qRequest('put', {
-            url: urlUtils.resolve(updateModule.config.api.campaigns.baseUrl, req.campaign.id),
-            json: req.body.data, //TODO: should be fine? I think?
+            url: urlUtils.resolve(updateModule.config.api.campaigns.baseUrl, campId),
+            json: req.body.data,
             headers: { cookie: req.headers.cookie }
         })
         .then(function(resp) {
@@ -379,30 +417,30 @@
                 return next();
             }
             
-            log.error('[%1] Could not edit %2 with %3: %3, %4',
-                      req.uuid, campId, updateId, resp.response.statusCode, resp.body);
-            
-            log.info('[%1] Attempting to reset updateRequest for %2 to %3',
-                     req.uuid, campId, updateId);
-                     
-            return mongoUtils.editObject(
-                svc._db.collection('campaigns'),
-                { updateRequest: updateId },
-                campId
-            ).finally(function() {
-                return done({
-                    code: 500, //TODO: RECONSIDER RESP CODE + LOG LEVEL!!
-                    body: 'Failed to edit campaign: ' + resp.body
-                });
-            });
+            //TODO: rethink this handling of 4xxs?
+            return q.reject({ code: resp.response.statusCode, body: resp.body });
         })
         .catch(function(error) {
-            log.error('[%1] Error editing %2 with %3: %4',
+            log.error('[%1] Failed to edit %2 with %3: %4',
                       req.uuid, campId, updateId, util.inspect(error));
-            return q.reject(new Error('Error editing campaign'));
+
+            log.info('[%1] Attempting to re-lock campaign %2', req.uuid, campId);
+
+            return mongoUtils.editObject(
+                svc._db.collection('campaigns'),
+                { updateRequest: updateId, status: Status.Error },
+                campId
+            )
+            .catch(function(error) {
+                log.error('[%1] Failed direct campaign edit: %2', req.uuid, util.inspect(error));
+            })
+            .then(function() {
+                return q.reject('Failed editing campaign: ' + util.inspect(error));
+            });
         });
     };
 
+    // Emails the user that their update was approved/rejected
     updateModule.notifyOwner = function(svc, req, next/*, done*/) {
         var log = logger.getLog(),
             userColl = svc._db.collection('users'),
@@ -431,7 +469,10 @@
             return q(next());
         }
         
-        return q.npost(userColl, 'findOne', [{ id: req.campaign.user }, { id: 1, email: 1 }])
+        return q.npost(userColl, 'findOne', [
+            { id: req.campaign.user },
+            { fields: { id: 1, email: 1 } }
+        ])
         .then(function(user) {
             if (!user) {
                 log.warn('[%1] Campaign %2 has nonexistent owner %3, not notifying anyone',
@@ -459,38 +500,8 @@
         });
     };
     
-    updateModule.saveRejectionReason = function(svc, req, next/*, done*/) {
-        var log = logger.getLog();
-
-        if (!rejectingUpdate(req)) {
-            return q(next());
-        }
-        
-        log.info('[%1] Saving rejectionReason on campaign %2', req.uuid, req.campaign.id);
-
-        var updateObj = { rejectionReason: req.body.rejectionReason };
-        
-        if (req.campaign.status === Status.Pending && req.body.data.status === Status.Active) {
-            log.info('[%1] Update %2 was an initial approval request, switching %3 back to draft',
-                     req.uuid, req.origObj.id, req.campaign.id);
-
-            updateObj.status = Status.Draft;
-            updateObj.statusHistory = req.campaign.statusHistory;
-            updateObj.statusHistory.unshift({
-                status  : updateObj.status,
-                userId  : req.user.id,
-                user    : req.user.email,
-                date    : new Date()
-            });
-        }
-        
-        return mongoUtils.editObject(svc._db.collection('campaigns'), updateObj, req.campaign.id)
-        .then(function() {
-            next();
-        });
-    };
-    
-
+    /* Creates a new update request but runs a different middleware stack so the update request
+     * can be applied to the campaign immediately. */
     updateModule.autoApprove = function(svc, req) {
         var log = logger.getLog();
         

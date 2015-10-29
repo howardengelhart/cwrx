@@ -1,11 +1,12 @@
 var flush = true;
+var q = require('q');
+
 describe('ads-campaignUpdates (UT)', function() {
-    var mockLog, CrudSvc, Model, logger, q, updateModule, campaignUtils, requestUtils,
+    var mockLog, CrudSvc, Model, logger, updateModule, campaignUtils, requestUtils, Status,
         mongoUtils, nextSpy, doneSpy, errorSpy, req, mockDb;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
-        q               = require('q');
         logger          = require('../../lib/logger');
         requestUtils    = require('../../lib/requestUtils');
         updateModule    = require('../../bin/ads-campaignUpdates');
@@ -14,6 +15,8 @@ describe('ads-campaignUpdates (UT)', function() {
         mongoUtils      = require('../../lib/mongoUtils');
         CrudSvc         = require('../../lib/crudSvc');
         Model           = require('../../lib/model');
+        email           = require('../../lib/email');
+        Status          = require('../../lib/enums').Status;
 
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -38,6 +41,14 @@ describe('ads-campaignUpdates (UT)', function() {
         };
         updateModule.config.api = {
             root: 'https://test.com',
+            cards: {
+                baseUrl: 'https://test.com/api/content/cards/',
+                endpoint: '/api/content/cards/'
+            },
+            experiences: {
+                baseUrl: 'https://test.com/api/content/experiences/',
+                endpoint: '/api/content/experiences/'
+            },
             campaigns: {
                 baseUrl: 'https://test.com/api/campaigns/',
                 endpoint: '/api/campaigns/'
@@ -66,7 +77,7 @@ describe('ads-campaignUpdates (UT)', function() {
             updateModule.config = {};
             
             ['fetchCamp', 'validateData', 'extraValidation', 'handleInitialSubmit', 'lockCampaign',
-             'unlockCampaign', 'applyUpdate', 'notifyOwner', 'saveRejectionReason'].forEach(function(method) {
+             'unlockCampaign', 'applyUpdate', 'notifyOwner'].forEach(function(method) {
                 var fn = updateModule[method];
                 spyOn(fn, 'bind').and.returnValue(fn);
             });
@@ -95,8 +106,6 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc.model).toEqual(jasmine.any(Model));
             expect(svc.model.schema).toBe(updateModule.updateSchema);
         });
-        
-        //TODO: test autoApprovedSchema????
         
         it('should save some config variables locally', function() {
             expect(updateModule.config.api).toBeDefined();
@@ -130,7 +139,6 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(svc._middleware.edit).toContain(updateModule.unlockCampaign);
             expect(svc._middleware.edit).toContain(updateModule.applyUpdate);
             expect(svc._middleware.edit).toContain(updateModule.notifyOwner);
-            expect(svc._middleware.edit).toContain(updateModule.saveRejectionReason);
         });
         
         it('should include middleware for autoApprove', function() {
@@ -150,14 +158,122 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(updateModule.unlockCampaign.bind).toHaveBeenCalledWith(updateModule, svc);
             expect(updateModule.applyUpdate.bind).toHaveBeenCalledWith(updateModule, svc);
             expect(updateModule.notifyOwner.bind).toHaveBeenCalledWith(updateModule, svc);
-            expect(updateModule.saveRejectionReason.bind).toHaveBeenCalledWith(updateModule, svc);
             expect(CrudSvc.prototype.setupObj.bind).toHaveBeenCalledWith(svc);
             expect(fakeAutoApproveModel.midWare.bind).toHaveBeenCalledWith(fakeAutoApproveModel, 'create');
         });
     });
     
-    describe('campaignUpdate validation', function() { //TODO
+    describe('campaignUpdate validation', function() {
+        var svc, newObj, origObj, requester;
+        beforeEach(function() {
+            svc = updateModule.setupSvc(mockDb, campModule.setupSvc(mockDb, updateModule.config), updateModule.config);
+            newObj = { data: {} };
+            origObj = {};
+            requester = { fieldValidation: { campaignUpdates: {} } };
+        });
 
+        describe('when handling status', function() {
+            it('should switch the field to a default if set', function() {
+                newObj.status = Status.Active;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.status).toBe(Status.Pending);
+            });
+            
+            it('should allow some requesters to set the field to one of a limited set of values', function() {
+                requester.fieldValidation.campaignUpdates.status = { __allowed: true };
+                newObj.status = Status.Active;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.status).toBe(Status.Active);
+                
+                newObj.status = 'plz start right now kthx';
+                var resp = svc.model.validate('create', newObj, origObj, requester);
+                expect(resp.isValid).toBe(false);
+                expect(resp.reason).toMatch(/^status is UNACCEPTABLE! acceptable values are: \[.+]/);
+            });
+        });
+        
+        describe('autoApproved', function() {
+            it('should always default to false', function() {
+                requester.fieldValidation.campaignUpdates.autoApproved = { __allowed: true };
+                newObj.autoApproved = true;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.autoApproved).toBe(false);
+            });
+        });
+        
+        describe('campaign', function() {
+            it('should not be settable', function() {
+                requester.fieldValidation.campaignUpdates.campaign = { __allowed: true };
+                newObj.campaign = 'cam-fake';
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.campaign).not.toBeDefined();
+            });
+        });
+        
+        describe('rejectionReason', function() {
+            it('should trim the field if set', function() {
+                newObj.rejectionReason = 1234;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.rejectionReason).not.toBeDefined();
+            });
+            
+            it('should be able to allow some requesters to set the field', function() {
+                requester.fieldValidation.campaignUpdates.rejectionReason = { __allowed: true };
+                newObj.rejectionReason = 'you stink';
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.rejectionReason).toBe('you stink');
+            });
+
+            it('should fail if the field is not a string', function() {
+                requester.fieldValidation.campaignUpdates.rejectionReason = { __allowed: true };
+                newObj.rejectionReason = 1234;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'rejectionReason must be in format: string' });
+            });
+        });
+        
+        describe('data', function() {
+            it('should fail if the field is not an object', function() {
+                newObj.data = 'start this campaign';
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'data must be in format: object' });
+            });
+            
+            it('should allow the field to be set on create', function() {
+                newObj.data.foo = 'bar';
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.data).toEqual({ foo: 'bar' });
+            });
+
+            it('should fail if the field is not defined', function() {
+                delete newObj.data;
+                expect(svc.model.validate('create', newObj, origObj, requester))
+                    .toEqual({ isValid: false, reason: 'Missing required field: data' });
+            });
+            
+            it('should pass if the field was defined on the original object', function() {
+                delete newObj.data;
+                origObj.data = { foo: 'baz' };
+                expect(svc.model.validate('edit', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.data).toEqual({ foo: 'baz' });
+            });
+
+            it('should allow the field to be changed', function() {
+                newObj.data.foo = 'bar';
+                origObj.data = { foo: 'baz' };
+                expect(svc.model.validate('edit', newObj, origObj, requester))
+                    .toEqual({ isValid: true, reason: undefined });
+                expect(newObj.data).toEqual({ foo: 'bar' });
+            });
+        });
     });
     
     describe('createCampModel', function() {
@@ -206,23 +322,23 @@ describe('ads-campaignUpdates (UT)', function() {
                 getObjs: jasmine.createSpy('svc.getObjs()').and.returnValue(q({ code: 200, body: { id: 'cam-1', name: 'camp 1' } }))
             };
             req.params.campId = 'cam-1';
+            req.body = { data: { foo: 'bar' } };
         });
         
         it('should attach the campaign as req.campaign and call next if it is found', function(done) {
-            updateModule.fetchCamp(campSvc, req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
+            updateModule.fetchCamp(campSvc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.campaign).toEqual({ id: 'cam-1', name: 'camp 1' });
+                expect(req.body).toEqual({ campaign: 'cam-1', data: { foo: 'bar' } });
                 done();
             });
         });
         
         it('should call done if a 4xx is returned', function(done) {
             campSvc.getObjs.and.returnValue(q({ code: 404, body: 'Campaign not found' }));
-            updateModule.fetchCamp(campSvc, req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
+            updateModule.fetchCamp(campSvc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({ code: 404, body: 'Campaign not found' });
                 expect(errorSpy).not.toHaveBeenCalled();
@@ -232,8 +348,7 @@ describe('ads-campaignUpdates (UT)', function() {
 
         it('should reject if campSvc.getObjs rejects', function(done) {
             campSvc.getObjs.and.returnValue(q.reject('I GOT A PROBLEM'));
-            updateModule.fetchCamp(campSvc, req, nextSpy, doneSpy).catch(errorSpy);
-            process.nextTick(function() {
+            updateModule.fetchCamp(campSvc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
@@ -243,29 +358,173 @@ describe('ads-campaignUpdates (UT)', function() {
     });
     
     describe('enforceLock', function() {
-        it('should call next if there is no updateRequest on the object', function(done) {  
+        it('should call next if there is no updateRequest on the object', function() {  
             req.campaign = { id: 'cam-1', name: 'camp 1' };
             updateModule.enforceLock(req, nextSpy, doneSpy);
-            process.nextTick(function() {
-                expect(nextSpy).toHaveBeenCalled();
-                expect(doneSpy).not.toHaveBeenCalled();
-                done();
-            });
+            expect(nextSpy).toHaveBeenCalled();
+            expect(doneSpy).not.toHaveBeenCalled();
         });
         
-        it('should call done if there is an updateRequest on the object', function(done) {
+        it('should call done if there is an updateRequest on the object', function() {
             req.campaign = { id: 'cam-1', name: 'camp 1', updateRequest: 'ur-1' };
             updateModule.enforceLock(req, nextSpy, doneSpy);
-            process.nextTick(function() {
-                expect(nextSpy).not.toHaveBeenCalled();
-                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Campaign locked until existing update request resolved' });
-                done();
-            });
+            expect(nextSpy).not.toHaveBeenCalled();
+            expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Campaign locked until existing update request resolved' });
         });
     });
 
-    describe('validateData', function() { //TODO
+    describe('validateData', function() {
+        var model;
+        beforeEach(function() {
+            req.body = { id: 'ur-1', campaign: 'cam-1', data: {
+                name: 'camp 1 updated',
+                tag: 'foo',
+                targeting: {
+                    demographics: {
+                        age: ['18-24', '24-36'],
+                    },
+                    interests: ['cat-3']
+                }
+            } };
+            req.campaign = {
+                id: 'cam-1',
+                name: 'camp 1',
+                status: Status.Pending,
+                targeting: {
+                    demographics: {
+                        age: ['18-24'],
+                        gender: ['male']
+                    },
+                    interests: ['cat-1', 'cat-2']
+                }
+            };
+            model = new Model('campaigns', {});
+            spyOn(model, 'validate').and.returnValue({ isValid: true });
+        });
 
+        it('should merge the data with the campaign and call model.validate()', function() {
+            updateModule.validateData(model, req, nextSpy, doneSpy).catch(errorSpy);
+            expect(nextSpy).toHaveBeenCalled();
+            expect(doneSpy).not.toHaveBeenCalled();
+            expect(errorSpy).not.toHaveBeenCalled();
+            expect(model.validate).toHaveBeenCalledWith('create', req.body.data, req.campaign, req.user);
+            expect(req.body).toEqual({ id: 'ur-1', campaign: 'cam-1', data: {
+                id: 'cam-1',
+                name: 'camp 1 updated',
+                status: Status.Pending,
+                tag: 'foo',
+                targeting: {
+                    demographics: {
+                        age: ['18-24', '24-36'],
+                        gender: ['male']
+                    },
+                    interests: ['cat-3']
+                }
+            } });
+        });
+        
+        it('should call done if model.validate() returns invalid', function() {
+            model.validate.and.returnValue({ isValid: false, reason: 'you did a bad thing' });
+            updateModule.validateData(model, req, nextSpy, doneSpy).catch(errorSpy);
+            expect(nextSpy).not.toHaveBeenCalled();
+            expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'you did a bad thing' });
+            expect(errorSpy).not.toHaveBeenCalled();
+        });
+        
+        it('should preserve the cards defined in req.body.data', function() {
+            req.body.data.cards = [{
+                id: 'rc-1',
+                title: 'card 1',
+                campaign: { campaign: 11, adtechName: 'adtech 1' }
+            }];
+            req.campaign.cards = [
+                {
+                    id: 'rc-1',
+                    title: 'card 1',
+                    campaign: { campaign: 11, adtechName: 'old name', startDate: 'right now' }
+                },
+                {
+                    id: 'rc-2',
+                    title: 'card 2',
+                    campaign: { campaign: 12, adtechName: 'adtech 2' }
+                }
+            ];
+            updateModule.validateData(model, req, nextSpy, doneSpy).catch(errorSpy);
+            expect(nextSpy).toHaveBeenCalled();
+            expect(doneSpy).not.toHaveBeenCalled();
+            expect(errorSpy).not.toHaveBeenCalled();
+            expect(model.validate).toHaveBeenCalledWith('create', req.body.data, req.campaign, req.user);
+            expect(req.body).toEqual({ id: 'ur-1', campaign: 'cam-1', data: {
+                id: 'cam-1',
+                name: 'camp 1 updated',
+                status: Status.Pending,
+                tag: 'foo',
+                targeting: {
+                    demographics: {
+                        age: ['18-24', '24-36'],
+                        gender: ['male']
+                    },
+                    interests: ['cat-3']
+                },
+                cards: jasmine.any(Array)
+            } });
+            expect(req.body.data.cards).toEqual([{
+                id: 'rc-1',
+                title: 'card 1',
+                campaign: { campaign: 11, adtechName: 'adtech 1' }
+            }]);
+        });
+        
+        describe('if an origObj is defined', function() {
+            beforeEach(function() {
+                req.origObj = { id: 'ur-1', campaign: 'cam-1', data: {
+                    name: 'camp 1 is cool',
+                    targeting: {
+                        demographics: {
+                            age: ['18-24', '24-36', '50-100']
+                        },
+                        geo: {
+                            states: ['new jersey']
+                        }
+                    },
+                    cards: [{
+                        id: 'rc-2',
+                        title: 'card 2 is da best',
+                        campaign: { campaign: 12, adtechName: 'adtech 2.1' }
+                    }]
+                } };
+            });
+
+            it('should preserve props from the origObj', function() {
+                updateModule.validateData(model, req, nextSpy, doneSpy).catch(errorSpy);
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(model.validate).toHaveBeenCalledWith('create', req.body.data, req.campaign, req.user);
+                expect(req.body).toEqual({ id: 'ur-1', campaign: 'cam-1', data: {
+                    id: 'cam-1',
+                    name: 'camp 1 updated',
+                    status: Status.Pending,
+                    tag: 'foo',
+                    targeting: {
+                        demographics: {
+                            age: ['18-24', '24-36'],
+                            gender: ['male']
+                        },
+                        geo: {
+                            states: ['new jersey']
+                        },
+                        interests: ['cat-3']
+                    },
+                    cards: jasmine.any(Array)
+                } });
+                expect(req.body.data.cards).toEqual([{
+                    id: 'rc-2',
+                    title: 'card 2 is da best',
+                    campaign: { campaign: 12, adtechName: 'adtech 2.1' }
+                }]);
+            });
+        });
     });
 
     describe('extraValidation', function() {
@@ -308,48 +567,590 @@ describe('ads-campaignUpdates (UT)', function() {
         });
     });
     
-    describe('handleInitialSubmit', function() { //TODO
+    describe('handleInitialSubmit', function() {
+        var svc;
+        beforeEach(function() {
+            req.campaign = {
+                id: 'cam-1',
+                status: Status.Draft,
+                statusHistory: [{ userId: 'u-2', user: 'me@c6.com', date: new Date(), status: Status.Draft }]
+            };
+            req.body = { campaign: 'cam-1', data: {
+                pricing: { budget: 1000, dailyLimit: 200, cost: 0.15, model: 'cpv' },
+                paymentMethod: 'infinite money',
+                status: Status.Active
+            } };
+            spyOn(mongoUtils, 'editObject').and.returnValue(q());
+            svc = { _db: mockDb };
+        });
 
+        it('should skip if this is not the campaign\'s initial submit', function(done) {
+            var req1 = JSON.parse(JSON.stringify(req)), req2 = JSON.parse(JSON.stringify(req));
+            req1.body.data.status = Status.Canceled;
+            req2.campaign.status = Status.Paused;
+            updateModule.handleInitialSubmit(svc, req1, nextSpy, doneSpy).catch(errorSpy);
+            updateModule.handleInitialSubmit(svc, req2, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy.calls.count()).toBe(2);
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should check that required fields exist and then change the status of the campaign', function(done) {
+            var statHistory = [
+                { userId: 'u-1', user: 'selfie@c6.com', date: jasmine.any(Date), status: Status.Pending },
+                { userId: 'u-2', user: 'me@c6.com', date: jasmine.any(Date), status: Status.Draft }
+            ];
+            updateModule.handleInitialSubmit(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.body.data.statusHistory).toEqual(statHistory);
+                expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'campaigns' }, {
+                    status: Status.Pending,
+                    statusHistory: statHistory
+                }, 'cam-1');
+                done();
+            });
+        });
+        
+        it('should call done if the campaign is missing certain required fields', function(done) {
+            q.all(['paymentMethod', 'pricing', ['pricing', 'budget'], ['pricing', 'dailyLimit'], ['pricing', 'cost']].map(function(field) {
+                var reqCopy = JSON.parse(JSON.stringify(req));
+                if (field instanceof Array) {
+                    delete reqCopy.body.data[field[0]][field[1]];
+                } else {
+                    delete reqCopy.body.data[field];
+                }
+                return updateModule.handleInitialSubmit(svc, reqCopy, nextSpy, doneSpy).catch(errorSpy);
+            })).then(function(results) {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(doneSpy.calls.count()).toBe(5);
+                expect(doneSpy.calls.argsFor(0)).toEqual([{ code: 400, body: 'Missing required field: paymentMethod' }]);
+                expect(doneSpy.calls.argsFor(1)).toEqual([{ code: 400, body: 'Missing required field: pricing' }]);
+                expect(doneSpy.calls.argsFor(2)).toEqual([{ code: 400, body: 'Missing required field: budget' }]);
+                expect(doneSpy.calls.argsFor(3)).toEqual([{ code: 400, body: 'Missing required field: dailyLimit' }]);
+                expect(doneSpy.calls.argsFor(4)).toEqual([{ code: 400, body: 'Missing required field: cost' }]);
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
+            }).done(done, done.fail);
+        });
+        
+        it('should reject if editing the campaign fails', function(done) {
+            mongoUtils.editObject.and.returnValue(q.reject('I GOT A PROBLEM'));
+            updateModule.handleInitialSubmit(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
+                done();
+            });
+        });
     });
 
-    describe('canAutoApprove', function() { //TODO
-
+    describe('notifySupport', function() {
+        beforeEach(function() {
+            req.campaign = { id: 'cam-1', name: 'my first campaign' };
+            spyOn(email, 'compileAndSend').and.returnValue(q());
+        });
+        
+        it('should send an email and call next', function(done) {
+            updateModule.notifySupport(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(email.compileAndSend).toHaveBeenCalledWith(
+                    'support@c6.com',
+                    'support@c6.com',
+                    'New campaign update request',
+                    'newUpdateRequest.html',
+                    { userEmail: 'selfie@c6.com', campName: 'my first campaign', reviewLink: 'http://selfie.com/campaigns/cam-1/admin' }
+                );
+                done();
+            });
+        });
+        
+        it('should reject if sending the email fails', function(done) {
+            email.compileAndSend.and.returnValue(q.reject('I GOT A PROBLEM'));
+            updateModule.notifySupport(req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
+                done();
+            });
+        });
     });
 
-    describe('notifySupport', function() { //TODO
-
+    describe('lockCampaign', function() {
+        var svc, mockColl;
+        beforeEach(function() {
+            mockColl = {
+                findAndModify: jasmine.createSpy('coll.findAndModify').and.callFake(function(query, sort, updates, opts, cb) {
+                    cb();
+                })
+            };
+            mockDb.collection.and.returnValue(mockColl);
+            req.body = { id: 'ur-1', campaign: 'cam-1', data: {} };
+            req.campaign = { id: 'cam-1', name: 'camp 1' };
+            svc = { _db: mockDb };
+        });
+        
+        it('should directly edit the original campaign', function(done) {
+            updateModule.lockCampaign(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockDb.collection).toHaveBeenCalledWith('campaigns');
+                expect(mockColl.findAndModify).toHaveBeenCalledWith(
+                    { id: 'cam-1' }, { id: 1 },
+                    {
+                        $set: { lastUpdated: jasmine.any(Date), updateRequest: 'ur-1' },
+                        $unset: { rejectionReason: 1 },
+                    },
+                    { w: 1, journal: true, new: true }, jasmine.any(Function)
+                );
+                expect(mockLog.error).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should reject if editing the campaign fails', function(done) {
+            mockColl.findAndModify.and.callFake(function(query, sort, updates, opts, cb) { cb('I GOT A PROBLEM') });
+            updateModule.lockCampaign(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
+                expect(mockLog.error).toHaveBeenCalled();
+                done();
+            });
+        });
     });
 
-    describe('lockCampaign', function() { //TODO
-
+    describe('ignoreCompleted', function() {
+        beforeEach(function() {
+            req.origObj = { id: 'ur-1', status: Status.Pending, campaign: 'cam-1', data: {} };
+        });
+        
+        it('should call done if the update request has been approved or rejected', function() {
+            [Status.Approved, Status.Rejected].forEach(function(status) {
+                req.origObj.status = status;
+                updateModule.ignoreCompleted(req, nextSpy, doneSpy);
+            });
+            expect(nextSpy).not.toHaveBeenCalled();
+            expect(doneSpy.calls.count()).toBe(2);
+            expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Update has already been approved' });
+            expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Update has already been rejected' });
+        });
+        
+        it('should call next otherwise', function() {
+            updateModule.ignoreCompleted(req, nextSpy, doneSpy);
+            expect(nextSpy).toHaveBeenCalled();
+            expect(doneSpy).not.toHaveBeenCalled();
+        });
     });
 
-    describe('ignoreCompleted', function() { //TODO
+    describe('requireReason', function() {
+        beforeEach(function() {
+            req.body = { id: 'ur-1', status: Status.Rejected, data: {}, campaign: 'cam-1' };
+            req.origObj = { id: 'ur-1', status: Status.Pending, data: {}, campaign: 'cam-1' };
+        });
 
+        it('should call done if rejecting the update without a reason', function() {
+            updateModule.requireReason(req, nextSpy, doneSpy);
+            expect(nextSpy).not.toHaveBeenCalled();
+            expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Cannot reject update without a reason' });
+        });
+        
+        it('should call next otherwise', function() {
+            var req1 = JSON.parse(JSON.stringify(req)), req2 = JSON.parse(JSON.stringify(req)), req3 = JSON.parse(JSON.stringify(req));
+            req1.body.status = Status.Approved;
+            req2.origObj.status = Status.Rejected;
+            req3.body.rejectionReason = 'you stink';
+            updateModule.requireReason(req1, nextSpy, doneSpy);
+            updateModule.requireReason(req2, nextSpy, doneSpy);
+            updateModule.requireReason(req3, nextSpy, doneSpy);
+            expect(nextSpy.calls.count()).toBe(3);
+            expect(doneSpy).not.toHaveBeenCalled();
+        });
     });
 
-    describe('requireReason', function() { //TODO
+    describe('unlockCampaign', function() {
+        var svc, mockColl;
+        beforeEach(function() {
+            mockColl = {
+                findAndModify: jasmine.createSpy('coll.findAndModify').and.callFake(function(query, sort, updates, opts, cb) {
+                    cb();
+                })
+            };
+            mockDb.collection.and.returnValue(mockColl);
+            req.body = { id: 'ur-1', campaign: 'cam-1', data: {}, status: Status.Approved };
+            req.origObj = { id: 'ur-1', campaign: 'cam-1', data: {}, status: Status.Pending };
+            req.campaign = {
+                id: 'cam-1', name: 'camp 1', updateRequest: 'u-1', status: Status.Active,
+                statusHistory: [{ userId: 'u-2', user: 'me@c6.com', status: Status.Active, date: new Date() }]
+            };
+            svc = { _db: mockDb };
+        });
+        
+        it('should remove the updateRequest prop on the campaign and call next', function(done) {
+            updateModule.unlockCampaign(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockDb.collection).toHaveBeenCalledWith('campaigns');
+                expect(mockColl.findAndModify).toHaveBeenCalledWith(
+                    { id: 'cam-1' }, { id: 1 },
+                    {
+                        $set: { lastUpdated: jasmine.any(Date) },
+                        $unset: { updateRequest: 1 },
+                    },
+                    { w: 1, journal: true, new: true }, jasmine.any(Function)
+                );
+                expect(mockLog.error).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        describe('if the updateRequest is being rejected', function() {
+            beforeEach(function() {
+                req.body.status = Status.Rejected;
+                req.body.rejectionReason = 'worst campaign ever';
+            });
+    
+            it('should also save the rejectionReason on the campaign', function(done) {
+                updateModule.unlockCampaign(svc, req, nextSpy, doneSpy).catch(errorSpy);
+                process.nextTick(function() {
+                    expect(nextSpy).toHaveBeenCalled();
+                    expect(doneSpy).not.toHaveBeenCalled();
+                    expect(errorSpy).not.toHaveBeenCalled();
+                    expect(mockDb.collection).toHaveBeenCalledWith('campaigns');
+                    expect(mockColl.findAndModify).toHaveBeenCalledWith(
+                        { id: 'cam-1' }, { id: 1 },
+                        {
+                            $set: { lastUpdated: jasmine.any(Date), rejectionReason: 'worst campaign ever' },
+                            $unset: { updateRequest: 1 },
+                        },
+                        { w: 1, journal: true, new: true }, jasmine.any(Function)
+                    );
+                    done();
+                });
+            });
+            
+            it('should switch the status back to draft if the update was an initial approval request', function(done) {
+                req.campaign.status = Status.Pending;
+                req.campaign.statusHistory[0].status = Status.Pending;
+                req.body.data.status = Status.Active;
+                updateModule.unlockCampaign(svc, req, nextSpy, doneSpy).catch(errorSpy);
+                process.nextTick(function() {
+                    expect(nextSpy).toHaveBeenCalled();
+                    expect(doneSpy).not.toHaveBeenCalled();
+                    expect(errorSpy).not.toHaveBeenCalled();
+                    expect(mockDb.collection).toHaveBeenCalledWith('campaigns');
+                    expect(mockColl.findAndModify).toHaveBeenCalledWith(
+                        { id: 'cam-1' }, { id: 1 },
+                        {
+                            $set: {
+                                lastUpdated: jasmine.any(Date),
+                                rejectionReason: 'worst campaign ever',
+                                status: Status.Draft,
+                                statusHistory: [
+                                    { userId: 'u-1', user: 'selfie@c6.com', status: Status.Draft, date: jasmine.any(Date) },
+                                    { userId: 'u-2', user: 'me@c6.com', status: Status.Pending, date: jasmine.any(Date) }
+                                ]
+                            },
+                            $unset: { updateRequest: 1 },
+                        },
+                        { w: 1, journal: true, new: true }, jasmine.any(Function)
+                    );
+                    done();
+                });
+            });
+        });
 
+        it('should skip if the update is not being approved or rejected', function(done) {
+            req.body.status = Status.Pending;
+            updateModule.unlockCampaign(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockColl.findAndModify).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should reject if editing the campaign fails', function(done) {
+            mockColl.findAndModify.and.callFake(function(query, sort, updates, opts, cb) { cb('I GOT A PROBLEM') });
+            updateModule.unlockCampaign(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).toHaveBeenCalledWith('I GOT A PROBLEM');
+                expect(mockLog.error).toHaveBeenCalled();
+                done();
+            });
+        });
     });
 
-    describe('unlockCampaign', function() { //TODO
-
+    describe('applyUpdate', function() {
+        var svc;
+        beforeEach(function() {
+            req.body = { id: 'ur-1', campaign: 'cam-1', data: { foo: 'bar' }, status: Status.Approved };
+            req.origObj = { id: 'ur-1', campaign: 'cam-1', data: { foo: 'baz' }, status: Status.Pending };
+            req.campaign = { id: 'cam-1', name: 'camp 1', updateRequest: 'u-1' };
+            spyOn(requestUtils, 'qRequest').and.returnValue(q({ response: { statusCode: 200 }, body: { camp: 'yes' } }));
+            spyOn(mongoUtils, 'editObject').and.returnValue(q());
+            svc = { _db: mockDb };
+        });
+        
+        it('should edit the campaign with a PUT request', function(done) {
+            updateModule.applyUpdate(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('put', {
+                    url: 'https://test.com/api/campaigns/cam-1',
+                    json: { foo: 'bar' },
+                    headers: { cookie: 'chocolate' }
+                });
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should skip if the update request is not being approved', function(done) {
+            req.body.status = Status.Rejected;
+            updateModule.applyUpdate(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(requestUtils.qRequest).not.toHaveBeenCalled();
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should still edit the campaign if the request is autoApproved', function(done) {
+            delete req.origObj;
+            req.body.autoApproved = true;
+            updateModule.applyUpdate(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('put', {
+                    url: 'https://test.com/api/campaigns/cam-1',
+                    json: { foo: 'bar' },
+                    headers: { cookie: 'chocolate' }
+                });
+                expect(mongoUtils.editObject).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        describe('if the edit to the campaign fails', function() {
+            [
+                {
+                    description: 'with a 4xx',
+                    respValue: q({ response: { statusCode: 400 }, body: 'no editing campaigns for you' }),
+                    expected: '{ code: 400, body: \'no editing campaigns for you\' }'
+                },
+                {
+                    description: 'with a 5xx',
+                    respValue: q.reject('I GOT A PROBLEM'),
+                    expected: '\'I GOT A PROBLEM\''
+                }
+            ].forEach(function(caseObj) {
+                describe(caseObj.description, function() {
+                    beforeEach(function() {
+                        requestUtils.qRequest.and.returnValue(caseObj.respValue);
+                    });
+                    
+                    it('should attempt to re-lock the campaign and reject', function(done) {
+                        updateModule.applyUpdate(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                            expect(nextSpy).not.toHaveBeenCalled();
+                            expect(doneSpy).not.toHaveBeenCalled();
+                            expect(errorSpy).toHaveBeenCalledWith('Failed editing campaign: ' + caseObj.expected);
+                            expect(requestUtils.qRequest).toHaveBeenCalled();
+                            expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'campaigns' },
+                                { updateRequest: 'ur-1', status: Status.Error }, 'cam-1');
+                            expect(mockLog.error.calls.count()).toBe(1);
+                            done();
+                        });
+                    });
+                    
+                    it('should log an additional error if re-locking the campaign fails', function(done) {
+                        mongoUtils.editObject.and.returnValue(q.reject('Oh man everything is breaking'));
+                        updateModule.applyUpdate(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                            expect(nextSpy).not.toHaveBeenCalled();
+                            expect(doneSpy).not.toHaveBeenCalled();
+                            expect(errorSpy).toHaveBeenCalledWith('Failed editing campaign: ' + caseObj.expected);
+                            expect(requestUtils.qRequest).toHaveBeenCalled();
+                            expect(mongoUtils.editObject).toHaveBeenCalledWith({ collectionName: 'campaigns' },
+                                { updateRequest: 'ur-1', status: Status.Error }, 'cam-1');
+                            expect(mockLog.error.calls.count()).toBe(2);
+                            done();
+                        });
+                    });
+                });
+            });
+        });
     });
 
-    describe('applyUpdate', function() { //TODO
+    describe('notifyOwner', function() {
+        var svc, mockColl;
+        beforeEach(function() {
+            mockColl = {
+                findOne: jasmine.createSpy('coll.findOne').and.callFake(function(query, opts, cb) {
+                    cb(null, { id: 'u-2', email: 'owner@c6.com' });
+                })
+            };
+            mockDb.collection.and.returnValue(mockColl);
+            req.body = { id: 'ur-1', campaign: 'cam-1', data: { foo: 'bar' }, status: Status.Approved };
+            req.origObj = { id: 'ur-1', campaign: 'cam-1', data: { foo: 'baz' }, status: Status.Pending };
+            req.campaign = { id: 'cam-1', name: 'camp 1', updateRequest: 'u-1', user: 'u-2' };
+            spyOn(email, 'compileAndSend').and.returnValue(q());
+            svc = { _db: mockDb };
+        });
 
+        it('should look up the owner\'s email and send them a notification', function(done) {
+           updateModule.notifyOwner(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockColl.findOne).toHaveBeenCalledWith({ id: 'u-2' }, { fields: { id: 1, email: 1 } }, jasmine.any(Function));
+                expect(email.compileAndSend).toHaveBeenCalledWith(
+                    'support@c6.com',
+                    'owner@c6.com',
+                    'Your campaign update has been approved!',
+                    'updateRequestApproved.html',
+                    { campName: 'camp 1', contact: 'support@c6.com' }
+                );
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should send an alternate message if the update is being rejected', function(done) {
+           req.body.status = Status.Rejected;
+           req.body.rejectionReason = 'worst campaign ever';
+           updateModule.notifyOwner(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockColl.findOne).toHaveBeenCalled();
+                expect(email.compileAndSend).toHaveBeenCalledWith(
+                    'support@c6.com',
+                    'owner@c6.com',
+                    'Your campaign update has been rejected',
+                    'updateRequestRejected.html',
+                    { campName: 'camp 1', reason: 'worst campaign ever', contact: 'support@c6.com' }
+                );
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should skip if not approving or rejecting the update', function(done) {
+            req.body.status = Status.Pending;
+            updateModule.notifyOwner(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockColl.findOne).not.toHaveBeenCalled();
+                expect(email.compileAndSend).not.toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should warn and continue if the user is not found', function(done) {
+            mockColl.findOne.and.callFake(function(query, opts, cb) { cb(); });
+            updateModule.notifyOwner(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockColl.findOne).toHaveBeenCalled();
+                expect(email.compileAndSend).not.toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+                done();
+            });
+        });
+
+        
+        it('should warn and continue if looking up the user fails', function(done) {
+            mockColl.findOne.and.callFake(function(query, opts, cb) { cb('I GOT A PROBLEM'); });
+            updateModule.notifyOwner(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockColl.findOne).toHaveBeenCalled();
+                expect(email.compileAndSend).not.toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should warn and continue if emailing the user fails', function(done) {
+            email.compileAndSend.and.returnValue(q.reject('I GOT A PROBLEM'));
+            updateModule.notifyOwner(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(mockColl.findOne).toHaveBeenCalled();
+                expect(email.compileAndSend).toHaveBeenCalled();
+                expect(mockLog.warn).toHaveBeenCalled();
+                done();
+            });
+        });
     });
 
-    describe('notifyOwner', function() { //TODO
+    describe('autoApprove', function() {
+        var svc;
+        beforeEach(function() {
+            req.body = { status: Status.Pending, data: { foo: 'bar' } };
+            svc = {
+                customMethod: jasmine.createSpy('svc.customMethod()').and.callFake(function(req, action, cb) { return cb(); }),
+                transformMongoDoc: jasmine.createSpy('svc.transformMongoDoc').and.callFake(function(obj) { return obj; }),
+                formatOutput: jasmine.createSpy('svc.formatOutput').and.returnValue({ formatted: 'yes' }),
+                _coll: 'fakeCollection'
+            };
+            spyOn(mongoUtils, 'createObject').and.returnValue(q({ id: 'cam-1', campaign: 'cam-1', created: 'yes' }));
+        });
+        
+        it('should call customMethod and then create an object', function(done) {
+            updateModule.autoApprove(svc, req).then(function(resp) {
+                expect(resp).toEqual({ code: 201, body: { formatted: 'yes' } });
+                expect(svc.customMethod).toHaveBeenCalledWith(req, 'autoApprove', jasmine.any(Function));
+                expect(mongoUtils.createObject).toHaveBeenCalledWith('fakeCollection',
+                    { status: Status.Approved, data: { foo: 'bar' }, autoApproved: true });
+                expect(svc.transformMongoDoc).toHaveBeenCalledWith({ id: 'cam-1', campaign: 'cam-1', created: 'yes' });
+                expect(svc.formatOutput).toHaveBeenCalledWith({ id: 'cam-1', campaign: 'cam-1', created: 'yes' });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done, done.fail);
+        });
+        
+        it('should return the result of customMethod if it returns early', function(done) {
+            svc.customMethod.and.returnValue(q({ code: 400, body: 'Yo request is bad' }));
+            updateModule.autoApprove(svc, req).then(function(resp) {
+                expect(resp).toEqual({ code: 400, body: 'Yo request is bad' });
+                expect(mongoUtils.createObject).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
 
-    });
-
-    describe('saveRejectionReason', function() { //TODO
-
-    });
-
-    describe('autoApprove', function() { //TODO
-
+        it('should reject if creating the object fails', function(done) {
+            mongoUtils.createObject.and.returnValue(q.reject('I GOT A PROBLEM'));
+            updateModule.autoApprove(svc, req).then(function(resp) {
+                expect(resp).not.toBeDefined();
+            }).catch(function(error) {
+                expect(error).toBe('I GOT A PROBLEM');
+                expect(mongoUtils.createObject).toHaveBeenCalled();
+            }).done(done);
+        });
     });
 });
 
