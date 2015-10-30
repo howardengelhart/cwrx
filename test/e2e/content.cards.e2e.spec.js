@@ -77,6 +77,7 @@ describe('content card endpoints (E2E):', function() {
                 id: 'cam-1',
                 status: 'active',
                 advertiserId: 'a-1',
+                advertiserDisplayName: 'Heinz',
                 cards: [{ id: 'e2e-pubget1', adtechId: 10, bannerNumber: 1 }]
             };
             options = {
@@ -103,6 +104,7 @@ describe('content card endpoints (E2E):', function() {
                         status: 'active',
                         campaignId: 'cam-1',
                         advertiserId: 'a-1',
+                        params: { sponsor: 'Heinz' },
                         adtechId: 10,
                         bannerId: 1,
                         campaign: {
@@ -175,6 +177,7 @@ describe('content card endpoints (E2E):', function() {
                         status: 'active',
                         campaignId: 'cam-1',
                         advertiserId: 'a-1',
+                        params: { sponsor: 'Heinz' },
                         adtechId: 10,
                         bannerId: 1,
                         campaign: jasmine.any(Object)
@@ -219,6 +222,7 @@ describe('content card endpoints (E2E):', function() {
                             status: 'active',
                             campaignId: 'cam-links',
                             advertiserId: 'a-1',
+                            params: { sponsor: 'Heinz' },
                             adtechId: 14,
                             bannerId: 2,
                             campaign: jasmine.any(Object),
@@ -312,6 +316,7 @@ describe('content card endpoints (E2E):', function() {
                         status: 'active',
                         campaignId: 'cam-1',
                         advertiserId: 'a-1',
+                        params: { sponsor: 'Heinz' },
                         adtechId: 10,
                         bannerId: 1,
                         campaign: jasmine.any(Object)
@@ -353,6 +358,23 @@ describe('content card endpoints (E2E):', function() {
                     expect(resp.response.statusCode).toBe(404);
                     expect(resp.body).toBe('Card not found');
                     expect(resp.response.headers['content-type']).toBe('text/html; charset=utf-8');
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+        });
+
+        // sanity check that singular endpoint still works
+        describe('GET /api/public/content/card/:id', function() {
+            it('should get an active card by id', function(done) {
+                options.url = config.contentUrl + '/public/content/card/e2e-pubget1';
+                requestUtils.qRequest('get', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.id).toBe('e2e-pubget1');
+                    expect(resp.body.adtechId).toBe(10);
+                    expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
+                    expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
+                    expect(resp.response.headers['cache-control']).not.toBe('max-age=0');
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);

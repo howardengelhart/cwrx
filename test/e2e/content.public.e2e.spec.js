@@ -447,6 +447,7 @@ describe('content public experience endpoints (E2E):', function() {
                         id: 'e2e-cam1',
                         status: 'active',
                         advertiserId: 'a-1',
+                        advertiserDisplayName: 'Heinz',
                         cards: [
                             { id: 'rc-sp1', status: 'active', adtechId: 11, bannerId: 1234, bannerNumber: 1 },
                             { id: 'rc-sp2', status: 'active', adtechId: 12, bannerId: 5678, bannerNumber: 2 },
@@ -489,6 +490,7 @@ describe('content public experience endpoints (E2E):', function() {
                             id: 'rc-sp1',
                             campaignId: 'e2e-cam1',
                             advertiserId: 'a-1',
+                            params: { sponsor: 'Heinz' },
                             status: 'active',
                             foo: 'baz',
                             adtechId: 11,
@@ -499,6 +501,7 @@ describe('content public experience endpoints (E2E):', function() {
                             id: 'rc-sp2',
                             campaignId: 'e2e-cam1',
                             advertiserId: 'a-1',
+                            params: { sponsor: 'Heinz' },
                             status: 'active',
                             foo: 'buz',
                             adtechId: 12,

@@ -223,6 +223,8 @@
                 }
                 
                 card.advertiserId = camp.advertiserId;
+                card.params = card.params || {};
+                card.params.sponsor = camp.advertiserDisplayName || card.params.sponsor;
                 
                 var campEntry = (camp.cards || []).filter(function(cardObj) {
                     return cardObj.id === card.id;

@@ -1,5 +1,6 @@
 # Content Service Changelog
 
+* Pass campaign's `advertiserDisplayName` as cards' `params.sponsor` on public endpoints: [#529](https://github.com/cinema6/cwrx/issues/529)
 * Support plural versions of public endpoints: [#581](https://github.com/cinema6/cwrx/issues/581)
 * [FIX]: Prevent tracking pixels from being added to previews of cards/videos: [#578](https://github.com/cinema6/cwrx/issues/578)
 * [FEATURE]: Integrated metagetta into the cards module puts and posts to get video durations:  [#531](https://github.com/cinema6/cwrx/issues/531)
