@@ -69,7 +69,14 @@ describe('content card endpoints (E2E):', function() {
         var mockCards, mockCamp, options;
         beforeEach(function(done) {
             mockCards = [
-                { id: 'e2e-pubget1', campaignId: 'cam-1', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                {
+                    id: 'e2e-pubget1',
+                    campaign: { adtechId: 100, bannerNumber: 10, adtechName: 'adtech sux' },
+                    campaignId: 'cam-1',
+                    status: 'active',
+                    user: 'e2e-user',
+                    org: 'e2e-org'
+                },
                 { id: 'e2e-pubget2', campaignId: 'cam-2', status: 'inactive', user: 'e2e-user', org: 'e2e-org' },
                 { id: 'e2e-pubget3', campaignId: 'cam-3', status: 'deleted', user: 'e2e-user', org: 'e2e-org' }
             ];
@@ -78,7 +85,7 @@ describe('content card endpoints (E2E):', function() {
                 status: 'active',
                 advertiserId: 'a-1',
                 advertiserDisplayName: 'Heinz',
-                cards: [{ id: 'e2e-pubget1', adtechId: 10, bannerNumber: 1 }]
+                cards: [{ id: 'e2e-pubget1' }]
             };
             options = {
                 url: config.contentUrl + '/public/content/cards/e2e-pubget1',
@@ -105,9 +112,12 @@ describe('content card endpoints (E2E):', function() {
                         campaignId: 'cam-1',
                         advertiserId: 'a-1',
                         params: { sponsor: 'Heinz' },
-                        adtechId: 10,
-                        bannerId: 1,
+                        adtechId: 100,
+                        bannerId: 10,
                         campaign: {
+                            adtechId: 100,
+                            bannerNumber: 10,
+                            adtechName: 'adtech sux',
                             viewUrls: [jasmine.any(String)],
                             playUrls: [jasmine.any(String)],
                             loadUrls: [jasmine.any(String)],
@@ -164,7 +174,7 @@ describe('content card endpoints (E2E):', function() {
                 options.qs.preview = true;
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.campaign).toEqual({});
+                    expect(resp.body.campaign).toEqual({ adtechId: 100, bannerNumber: 10, adtechName: 'adtech sux' });
                 }).then(done,done.fail);
             });
             
@@ -178,8 +188,8 @@ describe('content card endpoints (E2E):', function() {
                         campaignId: 'cam-1',
                         advertiserId: 'a-1',
                         params: { sponsor: 'Heinz' },
-                        adtechId: 10,
-                        bannerId: 1,
+                        adtechId: 100,
+                        bannerId: 10,
                         campaign: jasmine.any(Object)
                     });
                     
@@ -317,8 +327,8 @@ describe('content card endpoints (E2E):', function() {
                         campaignId: 'cam-1',
                         advertiserId: 'a-1',
                         params: { sponsor: 'Heinz' },
-                        adtechId: 10,
-                        bannerId: 1,
+                        adtechId: 100,
+                        bannerId: 10,
                         campaign: jasmine.any(Object)
                     });
                     expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
@@ -371,7 +381,7 @@ describe('content card endpoints (E2E):', function() {
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.id).toBe('e2e-pubget1');
-                    expect(resp.body.adtechId).toBe(10);
+                    expect(resp.body.adtechId).toBe(100);
                     expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
                     expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
                     expect(resp.response.headers['cache-control']).not.toBe('max-age=0');

@@ -224,15 +224,15 @@
                 
                 card.advertiserId = camp.advertiserId;
                 card.params = card.params || {};
+                card.campaign = card.campaign || {};
                 card.params.sponsor = camp.advertiserDisplayName || card.params.sponsor;
                 
                 var campEntry = (camp.cards || []).filter(function(cardObj) {
                     return cardObj.id === card.id;
                 })[0] || {};
 
-                card.advertiserId = camp.advertiserId;
-                card.adtechId = campEntry.adtechId;
-                card.bannerId = campEntry.bannerNumber;
+                card.adtechId = card.campaign.adtechId || campEntry.adtechId;
+                card.bannerId = card.campaign.bannerNumber || campEntry.bannerNumber;
 
                 // don't show card without an adtechId
                 if (!card.adtechId) {

@@ -436,9 +436,9 @@ describe('content public experience endpoints (E2E):', function() {
                     status: [{ status: 'active' }]
                 }];
                 mockCards = [
-                    { id: 'rc-sp1', campaignId: 'e2e-cam1', status: 'active', foo: 'baz' },
-                    { id: 'rc-sp2', campaignId: 'e2e-cam1', status: 'active', foo: 'buz' },
-                    { id: 'rc-sp3', campaignId: 'e2e-cam1', status: 'inactive', foo: 'boz' },
+                    { id: 'rc-sp1', campaign: { adtechId: 101, bannerNumber: 11 }, campaignId: 'e2e-cam1', status: 'active', foo: 'baz' },
+                    { id: 'rc-sp2', campaign: { adtechId: 202, bannerNumber: 22 }, campaignId: 'e2e-cam1', status: 'active', foo: 'buz' },
+                    { id: 'rc-sp3', campaign: { adtechId: 303, bannerNumber: 33 }, campaignId: 'e2e-cam1', status: 'inactive', foo: 'boz' },
                     { id: 'rc-sp4', campaignId: 'e2e-cam2', status: 'active', foo: 'buz' },
                     { id: 'rc-sp5', campaignId: 'e2e-oldCamp', status: 'active', foo: 'buz' },
                 ];
@@ -448,11 +448,7 @@ describe('content public experience endpoints (E2E):', function() {
                         status: 'active',
                         advertiserId: 'a-1',
                         advertiserDisplayName: 'Heinz',
-                        cards: [
-                            { id: 'rc-sp1', status: 'active', adtechId: 11, bannerId: 1234, bannerNumber: 1 },
-                            { id: 'rc-sp2', status: 'active', adtechId: 12, bannerId: 5678, bannerNumber: 2 },
-                            { id: 'rc-sp3', status: 'inactive', adtechId: 13, bannerId: 7890, bannerNumber: 1 }
-                        ],
+                        cards: [{ id: 'rc-sp1' }, { id: 'rc-sp2' }, { id: 'rc-sp3' }],
                         staticCardMap: {
                             'e2e-getcamps1': {
                                 'rc-p1': 'rc-sp1',
@@ -493,8 +489,8 @@ describe('content public experience endpoints (E2E):', function() {
                             params: { sponsor: 'Heinz' },
                             status: 'active',
                             foo: 'baz',
-                            adtechId: 11,
-                            bannerId: 1,
+                            adtechId: 101,
+                            bannerId: 11,
                             campaign: jasmine.any(Object)
                         },
                         {
@@ -504,8 +500,8 @@ describe('content public experience endpoints (E2E):', function() {
                             params: { sponsor: 'Heinz' },
                             status: 'active',
                             foo: 'buz',
-                            adtechId: 12,
-                            bannerId: 2,
+                            adtechId: 202,
+                            bannerId: 22,
                             campaign: jasmine.any(Object)
                         },
                         { id: 'rc-p3' }
