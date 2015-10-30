@@ -1182,4 +1182,81 @@ describe('content (UT)', function() {
             expect(updates.status[1].status).toBe(Status.Active);
         });
     });
+
+    describe('handlePublicGet', function() {
+        var res, cardSvc, config;
+        beforeEach(function() {
+            req.params.id = 'e-1';
+            req.originHost = 'http://cinema6.com';
+            res = {
+                header: jasmine.createSpy('res.header()')
+            };
+            caches = 'fakeCaches';
+            cardSvc = 'fakeCardSvc';
+            spyOn(expModule, 'getPublicExp').and.returnValue(q({ code: 200, body: { exp: 'yes' } }));
+            config = { cacheTTLs: { cloudFront: 5 } };
+        });
+        
+        it('should set headers and return an experience', function(done) {
+            expModule.handlePublicGet(req, res, caches, cardSvc, config).then(function(resp) {
+                expect(resp).toEqual({ code: 200, body: { exp: 'yes' } });
+                expect(expModule.getPublicExp).toHaveBeenCalledWith('e-1', req, 'fakeCaches', 'fakeCardSvc', config);
+                expect(res.header.calls.count()).toBe(1);
+                expect(res.header).toHaveBeenCalledWith('cache-control', 'max-age=300');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should still return a non-200 response', function(done) {
+            expModule.getPublicExp.and.returnValue(q({ code: 404, body: 'Experience not found' }));
+            expModule.handlePublicGet(req, res, caches, cardSvc, config).then(function(resp) {
+                expect(resp).toEqual({ code: 404, body: 'Experience not found' });
+                expect(res.header.calls.count()).toBe(1);
+                expect(res.header).toHaveBeenCalledWith('cache-control', 'max-age=300');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should return a 500 if getPublicExp fails', function(done) {
+            expModule.getPublicExp.and.returnValue(q.reject('I GOT A PROBLEM'));
+            expModule.handlePublicGet(req, res, caches, cardSvc, config).then(function(resp) {
+                expect(resp).toEqual({ code: 500, body: { error: 'Error retrieving content', detail: 'I GOT A PROBLEM' } });
+                expect(res.header.calls.count()).toBe(1);
+                expect(res.header).toHaveBeenCalledWith('cache-control', 'max-age=60');
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        describe('if the extension is js', function() {
+            beforeEach(function() {
+                req.params.ext = 'js';
+            });
+
+            it('should return the card as a CommonJS module', function(done) {
+                expModule.handlePublicGet(req, res, caches, cardSvc, config).then(function(resp) {
+                    expect(resp).toEqual({ code: 200, body: 'module.exports = {"exp":"yes"};' });
+                    expect(expModule.getPublicExp).toHaveBeenCalledWith('e-1', req, 'fakeCaches', 'fakeCardSvc', config);
+                    expect(res.header.calls.count()).toBe(2);
+                    expect(res.header).toHaveBeenCalledWith('cache-control', 'max-age=300');
+                    expect(res.header).toHaveBeenCalledWith('content-type', 'application/javascript');
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should not alter the response if not a 2xx response', function(done) {
+                expModule.getPublicExp.and.returnValue(q({ code: 404, body: 'Experience not found' }));
+                expModule.handlePublicGet(req, res, caches, cardSvc, config).then(function(resp) {
+                    expect(resp).toEqual({ code: 404, body: 'Experience not found' });
+                    expect(res.header.calls.count()).toBe(1);
+                    expect(res.header).toHaveBeenCalledWith('cache-control', 'max-age=300');
+                }).catch(function(error) {
+                    expect(error.toString()).not.toBeDefined();
+                }).done(done);
+            });
+        });
+    });
 });

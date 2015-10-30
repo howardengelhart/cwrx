@@ -730,48 +730,44 @@
             return q.reject(error);
         });
     };
+    
+    // Handle requests for experiences from /api/public/content/experience/:id endpoints
+    expModule.handlePublicGet = function(req, res, caches, cardSvc, config) {
+        return expModule.getPublicExp(req.params.id, req, caches, cardSvc, config)
+        .then(function(resp) {
+            if (!req.originHost.match(/(portal|staging).cinema6.com/)) {
+                res.header('cache-control', 'max-age=' + config.cacheTTLs.cloudFront*60);
+            }
+            
+            if (resp.code < 200 || resp.code >= 300) {
+                return q(resp);
+            }
+            
+            // if ext === 'js', return exp as a CommonJS module; otherwise return JSON
+            if (req.params.ext === 'js') {
+                res.header('content-type', 'application/javascript');
+                return q({
+                    code: resp.code,
+                    body: 'module.exports = ' + JSON.stringify(resp.body) + ';'
+                });
+            } else {
+                return q(resp);
+            }
+        })
+        .catch(function(error) {
+            res.header('cache-control', 'max-age=60');
+            return q({code: 500, body: { error: 'Error retrieving content', detail: error }});
+        });
+    };
 
     expModule.setupEndpoints = function(app, expColl, caches, cardSvc, config,
                                         sessions, audit, jobManager) {
 
         var log = logger.getLog();
         
-        // Used for handling public requests for experiences by id methods:
-        function handlePublicGet(req, res) {
-            return expModule.getPublicExp(req.params.id, req, caches, cardSvc, config)
-            .then(function(resp) {
-                if (!req.originHost.match(/(portal|staging).cinema6.com/)) {
-                    res.header('cache-control', 'max-age=' + config.cacheTTLs.cloudFront*60);
-                }
-                return q(resp);
-            }).catch(function(error) {
-                res.header('cache-control', 'max-age=60');
-                return q({code: 500, body: { error: 'Error retrieving content', detail: error }});
-            });
-        }
-
-        // Retrieve a json representation of an experience
-        app.get('/api/public/content/experience/:id.json', function(req, res) {
-            handlePublicGet(req, res).then(function(resp) {
-                res.send(resp.code, resp.body);
-            });
-        });
-
-        // Retrieve a CommonJS style representation of an experience
-        app.get('/api/public/content/experience/:id.js', function(req, res) {
-            handlePublicGet(req, res).then(function(resp) {
-                if (resp.code < 200 || resp.code >= 300) {
-                    res.send(resp.code, resp.body);
-                } else {
-                    res.header('content-type', 'application/javascript');
-                    res.send(resp.code, 'module.exports = ' + JSON.stringify(resp.body) + ';');
-                }
-            });
-        });
-
-        // Default for retrieving an experience, which returns JSON
-        app.get('/api/public/content/experience/:id', function(req, res) {
-            handlePublicGet(req, res).then(function(resp) {
+        // Public get exp; regex at end allows client to optionally specify extension (js|json)
+        app.get('/api/public/content/experiences?/:id([^.]+).?:ext?', function(req, res) {
+            expModule.handlePublicGet(req, res, caches, cardSvc, config).then(function(resp) {
                 res.send(resp.code, resp.body);
             });
         });

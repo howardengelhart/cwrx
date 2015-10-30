@@ -598,6 +598,7 @@ describe('content-cards (UT)', function() {
                 org: 'o-1',
                 advertiserId: 'a-1',
                 customerId: 'cu-1',
+                advertiserDisplayName: 'Heinz',
                 cards: [
                     { id: 'rc-1', adtechId: 11, bannerId: 1234, bannerNumber: 2 },
                     { id: 'rc-2', adtechId: 12, bannerId: 5678, bannerNumber: 1 }
@@ -635,6 +636,7 @@ describe('content-cards (UT)', function() {
                     campaign: { pixels: 'setup' },
                     status: Status.Active,
                     advertiserId: 'a-1',
+                    params: { sponsor: 'Heinz' },
                     adtechId: 11,
                     bannerId: 2,
                     formatted: true
@@ -643,6 +645,41 @@ describe('content-cards (UT)', function() {
                 expect(cardModule.setupTrackingPixels).toHaveBeenCalledWith(resp, req);
                 expect(caches.cards.getPromise).toHaveBeenCalledWith({id: 'rc-1'});
                 expect(caches.campaigns.getPromise).toHaveBeenCalledWith({id: 'cam-1'});
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should handle an existing params object', function(done) {
+            mockCard.params = { foo: 'bar', sponsor: 'Hunts' };
+            cardModule.getPublicCard(cardSvc, caches, 'rc-1', req).then(function(resp) {
+                expect(resp.params).toEqual({ foo: 'bar', sponsor: 'Heinz' });
+                expect(cardSvc.formatOutput).toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+
+        it('should not overwrite params.sponsor if camp.advertiserDisplayName is undefined', function(done) {
+            mockCard.params = { foo: 'bar', sponsor: 'Hunts' };
+            delete mockCamp.advertiserDisplayName;
+            cardModule.getPublicCard(cardSvc, caches, 'rc-1', req).then(function(resp) {
+                expect(resp.params).toEqual({ foo: 'bar', sponsor: 'Hunts' });
+                expect(cardSvc.formatOutput).toHaveBeenCalled();
+                expect(mockLog.warn).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should take adtechId + bannerId from the campaign hash if defined', function(done) {
+            mockCard.campaign = { adtechId: 101, bannerNumber: 5 };
+            cardModule.getPublicCard(cardSvc, caches, 'rc-1', req).then(function(resp) {
+                expect(resp.adtechId).toEqual(101);
+                expect(resp.bannerId).toEqual(5);
+                expect(cardSvc.formatOutput).toHaveBeenCalled();
                 expect(mockLog.warn).not.toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();

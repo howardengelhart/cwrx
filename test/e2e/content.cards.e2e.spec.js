@@ -69,7 +69,14 @@ describe('content card endpoints (E2E):', function() {
         var mockCards, mockCamp, options;
         beforeEach(function(done) {
             mockCards = [
-                { id: 'e2e-pubget1', campaignId: 'cam-1', status: 'active', user: 'e2e-user', org: 'e2e-org' },
+                {
+                    id: 'e2e-pubget1',
+                    campaign: { adtechId: 100, bannerNumber: 10, adtechName: 'adtech sux' },
+                    campaignId: 'cam-1',
+                    status: 'active',
+                    user: 'e2e-user',
+                    org: 'e2e-org'
+                },
                 { id: 'e2e-pubget2', campaignId: 'cam-2', status: 'inactive', user: 'e2e-user', org: 'e2e-org' },
                 { id: 'e2e-pubget3', campaignId: 'cam-3', status: 'deleted', user: 'e2e-user', org: 'e2e-org' }
             ];
@@ -77,10 +84,11 @@ describe('content card endpoints (E2E):', function() {
                 id: 'cam-1',
                 status: 'active',
                 advertiserId: 'a-1',
-                cards: [{ id: 'e2e-pubget1', adtechId: 10, bannerNumber: 1 }]
+                advertiserDisplayName: 'Heinz',
+                cards: [{ id: 'e2e-pubget1' }]
             };
             options = {
-                url: config.contentUrl + '/public/content/card/e2e-pubget1',
+                url: config.contentUrl + '/public/content/cards/e2e-pubget1',
                 headers: { origin: 'http://test.com' },
                 qs: {
                     container: 'embed',
@@ -94,7 +102,7 @@ describe('content card endpoints (E2E):', function() {
             ]).done(function() { done(); });
         });
     
-        describe('GET /api/public/content/card/:id', function() {
+        describe('GET /api/public/content/cards/:id', function() {
             it('should get an active card by id', function(done) {
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
@@ -103,9 +111,13 @@ describe('content card endpoints (E2E):', function() {
                         status: 'active',
                         campaignId: 'cam-1',
                         advertiserId: 'a-1',
-                        adtechId: 10,
-                        bannerId: 1,
+                        params: { sponsor: 'Heinz' },
+                        adtechId: 100,
+                        bannerId: 10,
                         campaign: {
+                            adtechId: 100,
+                            bannerNumber: 10,
+                            adtechName: 'adtech sux',
                             viewUrls: [jasmine.any(String)],
                             playUrls: [jasmine.any(String)],
                             loadUrls: [jasmine.any(String)],
@@ -162,7 +174,7 @@ describe('content card endpoints (E2E):', function() {
                 options.qs.preview = true;
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.campaign).toEqual({});
+                    expect(resp.body.campaign).toEqual({ adtechId: 100, bannerNumber: 10, adtechName: 'adtech sux' });
                 }).then(done,done.fail);
             });
             
@@ -175,8 +187,9 @@ describe('content card endpoints (E2E):', function() {
                         status: 'active',
                         campaignId: 'cam-1',
                         advertiserId: 'a-1',
-                        adtechId: 10,
-                        bannerId: 1,
+                        params: { sponsor: 'Heinz' },
+                        adtechId: 100,
+                        bannerId: 10,
                         campaign: jasmine.any(Object)
                     });
                     
@@ -204,7 +217,7 @@ describe('content card endpoints (E2E):', function() {
                     });
                     mockCamp.cards.push({ id: 'e2e-pubgetlinks', adtechId: 14, bannerNumber: 2 });
                     mockCamp.id = 'cam-links';
-                    options.url = config.contentUrl + '/public/content/card/e2e-pubgetlinks';
+                    options.url = config.contentUrl + '/public/content/cards/e2e-pubgetlinks';
                     q.all([
                         testUtils.resetCollection('cards', mockCards),
                         testUtils.resetCollection('campaigns', mockCamp)
@@ -219,6 +232,7 @@ describe('content card endpoints (E2E):', function() {
                             status: 'active',
                             campaignId: 'cam-links',
                             advertiserId: 'a-1',
+                            params: { sponsor: 'Heinz' },
                             adtechId: 14,
                             bannerId: 2,
                             campaign: jasmine.any(Object),
@@ -300,11 +314,11 @@ describe('content card endpoints (E2E):', function() {
             });
         });
 
-        /* Currently, this endpoint is identical to GET /api/public/card/:id, so only one test is
+        /* Currently, this endpoint is identical to GET /api/public/cards/:id, so only one test is
          * included here as a sanity check. If the endpoints diverge, additional tests should be written. */
-        describe('GET /api/public/card/:id.json', function() {
+        describe('GET /api/public/cards/:id.json', function() {
             it('should get a card by id', function(done) {
-                options.url = config.contentUrl + '/public/content/card/e2e-pubget1.json';
+                options.url = config.contentUrl + '/public/content/cards/e2e-pubget1.json';
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body).toEqual({
@@ -312,8 +326,9 @@ describe('content card endpoints (E2E):', function() {
                         status: 'active',
                         campaignId: 'cam-1',
                         advertiserId: 'a-1',
-                        adtechId: 10,
-                        bannerId: 1,
+                        params: { sponsor: 'Heinz' },
+                        adtechId: 100,
+                        bannerId: 10,
                         campaign: jasmine.any(Object)
                     });
                     expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
@@ -325,19 +340,19 @@ describe('content card endpoints (E2E):', function() {
             });
         });
 
-        /* Currently this endpoint is mostly identical to GET /api/public/card/:id, so two tests
+        /* Currently this endpoint is mostly identical to GET /api/public/cards/:id, so two tests
          * are included to verify that the output is formatted correctly. If the endpoints diverge,
          * additional tests should be written. */
-        describe('GET /api/public/card/:id.js', function() {
+        describe('GET /api/public/cards/:id.js', function() {
             var mockCard, mockOrg, options;
             beforeEach(function(done) {
-                options = { url: config.contentUrl + '/public/content/card/e2e-pubgetjs1.js' };
+                options = { url: config.contentUrl + '/public/content/cards/e2e-pubgetjs1.js' };
                 mockCard = { id: 'e2e-pubgetjs1', status: 'active', campaignId: 'cam-1' };
                 testUtils.resetCollection('cards', mockCard).done(done);
             });
 
             it('should get a card by id', function(done) {
-                options.url = config.contentUrl + '/public/content/card/e2e-pubget1.js';
+                options.url = config.contentUrl + '/public/content/cards/e2e-pubget1.js';
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body).toMatch(/module\.exports = {.*"id":"e2e-pubget1".*};/);
@@ -348,7 +363,7 @@ describe('content card endpoints (E2E):', function() {
             });
 
             it('should return errors in normal format', function(done) {
-                options.url = config.contentUrl + '/public/content/card/e2e-fake.js';
+                options.url = config.contentUrl + '/public/content/cards/e2e-fake.js';
                 requestUtils.qRequest('get', options).then(function(resp) {
                     expect(resp.response.statusCode).toBe(404);
                     expect(resp.body).toBe('Card not found');
@@ -358,9 +373,26 @@ describe('content card endpoints (E2E):', function() {
                 }).done(done);
             });
         });
+
+        // sanity check that singular endpoint still works
+        describe('GET /api/public/content/card/:id', function() {
+            it('should get an active card by id', function(done) {
+                options.url = config.contentUrl + '/public/content/card/e2e-pubget1';
+                requestUtils.qRequest('get', options).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body.id).toBe('e2e-pubget1');
+                    expect(resp.body.adtechId).toBe(100);
+                    expect(resp.response.headers['content-type']).toBe('application/json; charset=utf-8');
+                    expect(resp.response.headers['cache-control']).toEqual(jasmine.any(String));
+                    expect(resp.response.headers['cache-control']).not.toBe('max-age=0');
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+        });
     });
 
-    describe('GET /api/content/card/:id', function() {
+    describe('GET /api/content/cards/:id', function() {
         beforeEach(function(done) {
             var mockCards = [
                 {
@@ -389,7 +421,7 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should get a card by id', function(done) {
-            var options = {url: config.contentUrl + '/content/card/e2e-getid1', jar: cookieJar};
+            var options = {url: config.contentUrl + '/content/cards/e2e-getid1', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body._id).not.toBeDefined();
@@ -404,7 +436,7 @@ describe('content card endpoints (E2E):', function() {
         });
         
         it('should write an entry to the audit collection', function(done) {
-            var options = {url: config.contentUrl + '/content/card/e2e-getid1', jar: cookieJar};
+            var options = {url: config.contentUrl + '/content/cards/e2e-getid1', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
@@ -417,7 +449,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('content');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'GET /api/content/card/:id',
+                expect(results[0].data).toEqual({route: 'GET /api/content/cards/:id',
                                                  params: { 'id': 'e2e-getid1' }, query: {} });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -426,7 +458,7 @@ describe('content card endpoints (E2E):', function() {
 
         it('should allow a user to specify which fields to return', function(done) {
             var options = {
-                url: config.contentUrl + '/content/card/e2e-getid1',
+                url: config.contentUrl + '/content/cards/e2e-getid1',
                 qs: { fields: 'campaignId,status' },
                 jar: cookieJar
             };
@@ -444,11 +476,11 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should let the user see active cards they do not own', function(done) {
-            var options = {url: config.contentUrl + '/content/card/e2e-getid2', jar: cookieJar};
+            var options = {url: config.contentUrl + '/content/cards/e2e-getid2', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
                 expect(resp.body).toBeDefined();
-                options.url = config.contentUrl + '/content/card/e2e-getid3';
+                options.url = config.contentUrl + '/content/cards/e2e-getid3';
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
@@ -459,7 +491,7 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should throw a 401 error if the user is not authenticated', function(done) {
-            var options = { url: config.contentUrl + '/content/card/e2e-getid1' };
+            var options = { url: config.contentUrl + '/content/cards/e2e-getid1' };
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');
@@ -469,7 +501,7 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should return a 404 if nothing is found', function(done) {
-            var options = {url: config.contentUrl + '/content/card/e2e-getid5678', jar: cookieJar};
+            var options = {url: config.contentUrl + '/content/cards/e2e-getid5678', jar: cookieJar};
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
                 expect(resp.body).toEqual('Object not found');
@@ -742,12 +774,12 @@ describe('content card endpoints (E2E):', function() {
         });
     });
 
-    describe('POST /api/content/card', function() {
+    describe('POST /api/content/cards', function() {
         var mockCard, options;
         beforeEach(function(done) {
             mockCard = { data: { foo: 'bar' }, campaignId: 'cam-1', org: 'e2e-org' };
             options = {
-                url: config.contentUrl + '/content/card',
+                url: config.contentUrl + '/content/cards',
                 jar: cookieJar,
                 json: mockCard
             };
@@ -812,7 +844,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('content');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'POST /api/content/card/', params: {}, query: {} });
+                expect(results[0].data).toEqual({route: 'POST /api/content/cards/', params: {}, query: {} });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -885,13 +917,13 @@ describe('content card endpoints (E2E):', function() {
 
     });
 
-    describe('PUT /api/content/card/:id', function() {
+    describe('PUT /api/content/cards/:id', function() {
         var mockCards, now, options;
         beforeEach(function(done) {
             // created = yesterday to allow for clock differences b/t server and test runner
             now = new Date(new Date() - 24*60*60*1000);
             options = {
-                url: config.contentUrl + '/content/card/e2e-put1',
+                url: config.contentUrl + '/content/cards/e2e-put1',
                 json: { data: { foo: 'baz' } },
                 jar: cookieJar
             };
@@ -960,7 +992,7 @@ describe('content card endpoints (E2E):', function() {
 
         it('should successfully update video duration if age > 1 min', function(done) {
             options = {
-                url: config.contentUrl + '/content/card/e2e-put3',
+                url: config.contentUrl + '/content/cards/e2e-put3',
                 json: { 
                     data: { 
                         vast: 'https://s3.amazonaws.com/c6.dev/e2e/vast_test.xml' ,
@@ -982,7 +1014,7 @@ describe('content card endpoints (E2E):', function() {
 
         it('should skip update video duration if age < 1 min', function(done) {
             options = {
-                url: config.contentUrl + '/content/card/e2e-put4',
+                url: config.contentUrl + '/content/cards/e2e-put4',
                 json: { 
                     data: { 
                         vast: 'https://s3.amazonaws.com/c6.dev/e2e/vast_test.xml' ,
@@ -1015,7 +1047,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('content');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'PUT /api/content/card/:id',
+                expect(results[0].data).toEqual({route: 'PUT /api/content/cards/:id',
                                                  params: { id: 'e2e-put1' }, query: {} });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -1067,7 +1099,7 @@ describe('content card endpoints (E2E):', function() {
         });
     });
 
-    describe('DELETE /api/content/card/:id', function() {
+    describe('DELETE /api/content/cards/:id', function() {
         beforeEach(function(done) {
             var mockCards = [
                 { id: 'e2e-del1', status: 'active', user: 'e2e-user', org: 'e2e-org' },
@@ -1077,11 +1109,11 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should set the status of a card to deleted', function(done) {
-            var options = {jar: cookieJar, url: config.contentUrl + '/content/card/e2e-del1'};
+            var options = {jar: cookieJar, url: config.contentUrl + '/content/cards/e2e-del1'};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
-                options = {url: config.contentUrl + '/content/card/e2e-del1', jar: cookieJar};
+                options = {url: config.contentUrl + '/content/cards/e2e-del1', jar: cookieJar};
                 return requestUtils.qRequest('get', options);
             }).then(function(resp) {
                 expect(resp.response.statusCode).toBe(404);
@@ -1092,7 +1124,7 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should write an entry to the audit collection', function(done) {
-            var options = {jar: cookieJar, url: config.contentUrl + '/content/card/e2e-del1'};
+            var options = {jar: cookieJar, url: config.contentUrl + '/content/cards/e2e-del1'};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
@@ -1105,7 +1137,7 @@ describe('content card endpoints (E2E):', function() {
                 expect(results[0].sessionID).toEqual(jasmine.any(String));
                 expect(results[0].service).toBe('content');
                 expect(results[0].version).toEqual(jasmine.any(String));
-                expect(results[0].data).toEqual({route: 'DELETE /api/content/card/:id',
+                expect(results[0].data).toEqual({route: 'DELETE /api/content/cards/:id',
                                                  params: { id: 'e2e-del1' }, query: {} });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -1113,7 +1145,7 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should not delete a card the user does not own', function(done) {
-            var options = {jar: cookieJar, url: config.contentUrl + '/content/card/e2e-del2'};
+            var options = {jar: cookieJar, url: config.contentUrl + '/content/cards/e2e-del2'};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(403);
                 expect(resp.body).toBe('Not authorized to delete this');
@@ -1123,7 +1155,7 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should still return a 204 if the card was already deleted', function(done) {
-            var options = {jar: cookieJar, url: config.contentUrl + '/content/card/e2e-del1'};
+            var options = {jar: cookieJar, url: config.contentUrl + '/content/cards/e2e-del1'};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -1137,7 +1169,7 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should still return a 204 if the card does not exist', function(done) {
-            var options = {jar: cookieJar, url: config.contentUrl + '/content/card/fake'};
+            var options = {jar: cookieJar, url: config.contentUrl + '/content/cards/fake'};
             requestUtils.qRequest('delete', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(204);
                 expect(resp.body).toBe('');
@@ -1147,7 +1179,7 @@ describe('content card endpoints (E2E):', function() {
         });
 
         it('should throw a 401 error if the user is not authenticated', function(done) {
-            requestUtils.qRequest('delete', {url: config.contentUrl + '/content/card/e2e-del1'})
+            requestUtils.qRequest('delete', {url: config.contentUrl + '/content/cards/e2e-del1'})
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(401);
                 expect(resp.body).toBe('Unauthorized');

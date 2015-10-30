@@ -223,14 +223,16 @@
                 }
                 
                 card.advertiserId = camp.advertiserId;
+                card.params = card.params || {};
+                card.campaign = card.campaign || {};
+                card.params.sponsor = camp.advertiserDisplayName || card.params.sponsor;
                 
                 var campEntry = (camp.cards || []).filter(function(cardObj) {
                     return cardObj.id === card.id;
                 })[0] || {};
 
-                card.advertiserId = camp.advertiserId;
-                card.adtechId = campEntry.adtechId;
-                card.bannerId = campEntry.bannerNumber;
+                card.adtechId = card.campaign.adtechId || campEntry.adtechId;
+                card.bannerId = card.campaign.bannerNumber || campEntry.bannerNumber;
 
                 // don't show card without an adtechId
                 if (!card.adtechId) {
@@ -276,7 +278,7 @@
 
     cardModule.setupEndpoints = function(app, cardSvc, sessions, audit, config, jobManager) {
         // Public get card; regex at end allows client to optionally specify extension (js|json)
-        app.get('/api/public/content/card/:id([^.]+).?:ext?', function(req, res) {
+        app.get('/api/public/content/cards?/:id([^.]+).?:ext?', function(req, res) {
             cardModule.handlePublicGet(req, res, cardSvc, config).then(function(resp) {
                 res.send(resp.code, resp.body);
             });
