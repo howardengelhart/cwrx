@@ -88,6 +88,7 @@
             
         //TODO: try to lessen number of db edits to campaign? it may actually become a problem
         //TODO: also review/improve logging so it's easier to recover from failure
+        //TODO: should we also be checking that user has permission to edit camp on POST here?
         
         svc.use('create', fetchCamp);
         svc.use('create', updateModule.enforceLock);
@@ -152,11 +153,19 @@
             if (resp.code !== 200) {
                 return done(resp);
             }
+
+            /*TODO: NOTE: req.campaign IS NOT THE DECORATED CAMPAIGN */
+            req.campaign = resp.body;
+
+            //TODO: test this
+            if (req.origObj && req.origObj.id && req.campaign.updateRequest !== req.origObj.id) {
+                log.warn('[%1] Campaign %2 has updateRequest %3, not %4',
+                         req.uuid, req.campaign.id, req.campaign.updateRequest, req.origObj.id);
+                return done({ code: 400, body: 'Update request does not apply to this campaign' });
+            }
             
             req.body.campaign = campId;
             
-            /*TODO: NOTE: req.campaign IS NOT THE DECORATED CAMPAIGN */
-            req.campaign = resp.body;
             next();
         });
     };
@@ -191,6 +200,11 @@
             objUtils.extend(mergedData, origData, true);
         }
         objUtils.extend(mergedData, req.campaign, true);
+        
+        // ensure cards only set on request if user defined them for update
+        //TODO: test, explain this better
+        mergedData.cards = req.body.data.cards || (origData && origData.cards) || undefined;
+
 
         // TODO: decide how to validate cards in campaign!!
         
@@ -258,7 +272,7 @@
         
         var updateObj = {
             status: Status.Pending,
-            statusHistory: req.campaign.statusHistory
+            statusHistory: req.campaign.statusHistory || []
         };
         
         updateObj.statusHistory.unshift({
@@ -287,7 +301,7 @@
             };
 
         return email.compileAndSend(
-            updateModule.config.emails.supportAddress,
+            updateModule.config.emails.sender,
             updateModule.config.emails.supportAddress,
             subject,
             'newUpdateRequest.html',
@@ -372,7 +386,7 @@
                          req.uuid, req.origObj.id, req.campaign.id);
 
                 updateObj.$set.status = Status.Draft;
-                updateObj.$set.statusHistory = req.campaign.statusHistory;
+                updateObj.$set.statusHistory = req.campaign.statusHistory || [];
                 updateObj.$set.statusHistory.unshift({
                     status  : updateObj.$set.status,
                     userId  : req.user.id,
@@ -405,6 +419,8 @@
         if (!approvingUpdate(req) && !req.body.autoApproved) {
             return q(next());
         }
+        
+        delete req.body.data.updateRequest;
         
         return requestUtils.qRequest('put', {
             url: urlUtils.resolve(updateModule.config.api.campaigns.baseUrl, campId),
@@ -481,7 +497,7 @@
             }
             
             return email.compileAndSend(
-                updateModule.config.emails.supportAddress,
+                updateModule.config.emails.sender,
                 user.email,
                 subject,
                 template,
