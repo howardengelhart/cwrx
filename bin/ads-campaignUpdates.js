@@ -86,10 +86,6 @@
             applyUpdate         = updateModule.applyUpdate.bind(updateModule, svc),
             notifyOwner         = updateModule.notifyOwner.bind(updateModule, svc);
             
-        //TODO: try to lessen number of db edits to campaign? it may actually become a problem
-        //TODO: also review/improve logging so it's easier to recover from failure
-        //TODO: should we also be checking that user has permission to edit camp on POST here?
-        
         svc.use('create', fetchCamp);
         svc.use('create', updateModule.enforceLock);
         svc.use('create', validateData);
@@ -154,14 +150,18 @@
                 return done(resp);
             }
 
-            /*TODO: NOTE: req.campaign IS NOT THE DECORATED CAMPAIGN */
             req.campaign = resp.body;
 
-            //TODO: test this
             if (req.origObj && req.origObj.id && req.campaign.updateRequest !== req.origObj.id) {
                 log.warn('[%1] Campaign %2 has updateRequest %3, not %4',
                          req.uuid, req.campaign.id, req.campaign.updateRequest, req.origObj.id);
                 return done({ code: 400, body: 'Update request does not apply to this campaign' });
+            }
+            
+            if (!campSvc.checkScope(req.user, req.campaign, 'edit')) {
+                log.info('[%1] User %2 does not have permission to edit %3',
+                         req.uuid, req.user.id, req.campaign.id);
+                return done({ code: 403, body: 'Not authorized to edit this campaign' });
             }
             
             req.body.campaign = campId;
@@ -202,9 +202,7 @@
         objUtils.extend(mergedData, req.campaign, true);
         
         // ensure cards only set on request if user defined them for update
-        //TODO: test, explain this better
         mergedData.cards = req.body.data.cards || (origData && origData.cards) || undefined;
-
 
         // TODO: decide how to validate cards in campaign!!
         
@@ -292,7 +290,9 @@
     
     // Send email to support notifying them of new update request
     updateModule.notifySupport = function(req, next/*, done*/) {
-        var subject = 'New campaign update request',
+        var log = logger.getLog(),
+            subject = 'New campaign update request',
+            supportAddress = updateModule.config.emails.supportAddress,
             reviewLink = updateModule.config.emails.reviewLink.replace(':campId', req.campaign.id),
             data = {
                 userEmail: req.user.email,
@@ -302,11 +302,12 @@
 
         return email.compileAndSend(
             updateModule.config.emails.sender,
-            updateModule.config.emails.supportAddress,
+            supportAddress,
             subject,
             'newUpdateRequest.html',
             data
         ).then(function() {
+            log.info('[%1] Notified support at %2 of new update request', req.uuid, supportAddress);
             return next();
         });
     };
@@ -321,10 +322,11 @@
                 $unset: { rejectionReason: 1 }
             };
             
+        log.info('[%1] Setting updateRequest to %2 for campaign %3 for user %4',
+                 req.uuid, req.body.id, req.campaign.id, req.user.id);
+
         return q.npost(coll, 'findAndModify', [{id: req.campaign.id}, {id: 1}, updateObj, opts])
         .then(function() {
-            log.info('[%1] Set updateRequest to %2 for campaign %3 for user %4',
-                     req.uuid, req.body.id, req.campaign.id, req.user.id);
             next();
         })
         .catch(function(error) {
@@ -398,7 +400,6 @@
 
         return q.npost(coll, 'findAndModify', [{id: req.campaign.id}, {id: 1}, updateObj, opts])
         .then(function() {
-            log.trace('[%1] Unlocked campaign %2', req.uuid, req.campaign.id);
             next();
         })
         .catch(function(err) {
@@ -433,7 +434,6 @@
                 return next();
             }
             
-            //TODO: rethink this handling of 4xxs?
             return q.reject({ code: resp.response.statusCode, body: resp.body });
         })
         .catch(function(error) {
@@ -495,6 +495,9 @@
                          req.uuid, req.campaign.id, req.campaign.user);
                 return next();
             }
+
+            log.info('[%1] Notifying user %2 at %3 that request %3 was %4',
+                     req.uuid, req.campaign.user, user.email, req.origObj.id, action);
             
             return email.compileAndSend(
                 updateModule.config.emails.sender,
@@ -505,8 +508,6 @@
             );
         })
         .then(function() {
-            log.info('[%1] Successfully notified user %2 that request %3 was %4',
-                     req.uuid, req.campaign.user, req.origObj.id, action);
             return next();
         })
         .catch(function(error) {

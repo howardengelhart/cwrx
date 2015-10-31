@@ -55,6 +55,7 @@ describe('ads-campaignUpdates (UT)', function() {
             }
         };
         updateModule.config.emails = {
+            sender: 'no-reply@c6.com',
             supportAddress: 'support@c6.com',
             reviewLink: 'http://selfie.com/campaigns/:campId/admin'
         };
@@ -316,13 +317,15 @@ describe('ads-campaignUpdates (UT)', function() {
     });
 
     describe('fetchCamp', function() {
-        var campSvc;
+        var campSvc, mockCamp;
         beforeEach(function() {
-            campSvc = {
-                getObjs: jasmine.createSpy('svc.getObjs()').and.returnValue(q({ code: 200, body: { id: 'cam-1', name: 'camp 1' } }))
-            };
+            mockCamp = { id: 'cam-1', name: 'camp 1', updateRequest: 'ur-1', user: 'u-1', org: 'o-1' };
+            campSvc = campModule.setupSvc(mockDb, updateModule.config);
+            spyOn(campSvc, 'getObjs').and.callFake(function() { return q({ code: 200, body: mockCamp }); });
             req.params.campId = 'cam-1';
             req.body = { data: { foo: 'bar' } };
+            req.origObj = { id: 'ur-1' };
+            req.user.permissions = { campaigns: { read: 'own', edit: 'own' } };
         });
         
         it('should attach the campaign as req.campaign and call next if it is found', function(done) {
@@ -330,7 +333,7 @@ describe('ads-campaignUpdates (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.campaign).toEqual({ id: 'cam-1', name: 'camp 1' });
+                expect(req.campaign).toEqual(mockCamp);
                 expect(req.body).toEqual({ campaign: 'cam-1', data: { foo: 'bar' } });
                 done();
             });
@@ -341,6 +344,26 @@ describe('ads-campaignUpdates (UT)', function() {
             updateModule.fetchCamp(campSvc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).toHaveBeenCalledWith({ code: 404, body: 'Campaign not found' });
+                expect(errorSpy).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should call done if the campaign has a different pending update request', function(done) {
+            mockCamp.updateRequest = 'ur-2';
+            updateModule.fetchCamp(campSvc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 400, body: 'Update request does not apply to this campaign' });
+                expect(errorSpy).not.toHaveBeenCalled();
+                done();
+            });
+        });
+        
+        it('should call done if the user does not have permission to edit the campaign', function(done) {
+            mockCamp.user = 'u-2';
+            updateModule.fetchCamp(campSvc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
+                expect(nextSpy).not.toHaveBeenCalled();
+                expect(doneSpy).toHaveBeenCalledWith({ code: 403, body: 'Not authorized to edit this campaign' });
                 expect(errorSpy).not.toHaveBeenCalled();
                 done();
             });
@@ -419,7 +442,8 @@ describe('ads-campaignUpdates (UT)', function() {
                         gender: ['male']
                     },
                     interests: ['cat-3']
-                }
+                },
+                cards: undefined
             } });
         });
         
@@ -661,7 +685,7 @@ describe('ads-campaignUpdates (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(email.compileAndSend).toHaveBeenCalledWith(
-                    'support@c6.com',
+                    'no-reply@c6.com',
                     'support@c6.com',
                     'New campaign update request',
                     'newUpdateRequest.html',
@@ -1021,7 +1045,7 @@ describe('ads-campaignUpdates (UT)', function() {
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(mockColl.findOne).toHaveBeenCalledWith({ id: 'u-2' }, { fields: { id: 1, email: 1 } }, jasmine.any(Function));
                 expect(email.compileAndSend).toHaveBeenCalledWith(
-                    'support@c6.com',
+                    'no-reply@c6.com',
                     'owner@c6.com',
                     'Your campaign update has been approved!',
                     'updateRequestApproved.html',
@@ -1041,7 +1065,7 @@ describe('ads-campaignUpdates (UT)', function() {
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(mockColl.findOne).toHaveBeenCalled();
                 expect(email.compileAndSend).toHaveBeenCalledWith(
-                    'support@c6.com',
+                    'no-reply@c6.com',
                     'owner@c6.com',
                     'Your campaign update has been rejected',
                     'updateRequestRejected.html',
