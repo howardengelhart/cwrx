@@ -1,6 +1,6 @@
 var flush = true;
 describe('campaignUtils', function() {
-    var q, mockLog, logger, promise, adtech, campaignUtils, mockClient, kCamp,
+    var q, mockLog, logger, promise, Model, adtech, campaignUtils, mockClient, kCamp,
         nextSpy, doneSpy, errorSpy, req;
     
     beforeEach(function() {
@@ -9,6 +9,7 @@ describe('campaignUtils', function() {
         if (flush){ for (var m in require.cache){ delete require.cache[m]; } flush = false; }
         q               = require('q');
         logger          = require('../../lib/logger');
+        Model           = require('../../lib/model');
         promise         = require('../../lib/promise');
         campaignUtils   = require('../../lib/campaignUtils');
         
@@ -110,6 +111,274 @@ describe('campaignUtils', function() {
             expect(mockLog.info).not.toHaveBeenCalled();
             expect(obj).toEqual({startDate: jasmine.any(String), endDate: jasmine.any(String)});
             expect(new Date(obj.endDate)).toBeGreaterThan(new Date(obj.startDate));
+        });
+    });
+
+    describe('validateAllDates', function() {
+        var body, origObj, requester, delays, reqId;
+        beforeEach(function() {
+            body = { cards: [
+                { id: 'rc-1', campaign: { adtechId: 11 } },
+                { id: 'rc-2', campaign: { adtechId: 12 } }
+            ] };
+            requester = { id: 'u-1', email: 'selfie@c6.com' };
+            delays = { start: 100, end: 200 };
+            reqId = '1234';
+            spyOn(campaignUtils, 'validateDates').and.returnValue(true);
+        });
+        
+        it('should call campaignUtils.validateDates for every list object', function() {
+            var resp = campaignUtils.validateAllDates(body, origObj, requester, delays, reqId);
+            expect(resp).toEqual({ isValid: true });
+            expect(campaignUtils.validateDates.calls.count()).toBe(2);
+            expect(campaignUtils.validateDates).toHaveBeenCalledWith({ adtechId: 11 }, undefined, {start: 100, end: 200}, '1234');
+            expect(campaignUtils.validateDates).toHaveBeenCalledWith({ adtechId: 12 }, undefined, {start: 100, end: 200}, '1234');
+        });
+        
+        it('should pass in existing sub-objects if they exist', function() {
+            origObj = { cards: [{ id: 'rc-1', campaign: { adtechId: 11, startDate: '2015-10-25T00:27:03.456Z' } }] };
+            var resp = campaignUtils.validateAllDates(body, origObj, requester, delays, reqId);
+            expect(resp).toEqual({ isValid: true });
+            expect(campaignUtils.validateDates.calls.count()).toBe(2);
+            expect(campaignUtils.validateDates).toHaveBeenCalledWith({ adtechId: 11 },
+                { adtechId: 11, startDate: '2015-10-25T00:27:03.456Z' }, {start: 100, end: 200}, '1234');
+            expect(campaignUtils.validateDates).toHaveBeenCalledWith({ adtechId: 12 }, undefined, {start: 100, end: 200}, '1234');
+        });
+        
+        it('should skip if no cards are defined', function() {
+            delete body.cards;
+            var resp = campaignUtils.validateAllDates(body, origObj, requester, delays, reqId);
+            expect(resp).toEqual({ isValid: true });
+            expect(campaignUtils.validateDates).not.toHaveBeenCalled();
+        });
+        
+        it('should return an invalid response if validateDates returns false', function() {
+            campaignUtils.validateDates.and.callFake(function(obj) {
+                if (obj.adtechId === 12) return false;
+                else return true;
+            });
+            var resp = campaignUtils.validateAllDates(body, origObj, requester, delays, reqId);
+            expect(resp).toEqual({ isValid: false, reason: 'cards[1] has invalid dates' });
+            expect(campaignUtils.validateDates.calls.count()).toBe(2);
+        });
+    });
+
+    describe('ensureUniqueIds', function() {
+        it('should return an invalid response if the cards list is not distinct', function() {
+            body = { cards: [{id: 'rc-1'}, {id: 'rc-2'}, {id: 'rc-1'}] };
+            var resp = campaignUtils.ensureUniqueIds(body);
+            expect(resp).toEqual({ isValid: false, reason: 'cards must be distinct' });
+        });
+
+        it('should return an invalid response if the miniReels list is not distinct', function() {
+            body = { miniReels: [{id: 'e-1'}, {id: 'e-2'}, {id: 'e-1'}] };
+            var resp = campaignUtils.ensureUniqueIds(body);
+            expect(resp).toEqual({ isValid: false, reason: 'miniReels must be distinct' });
+        });
+
+        it('should return a valid response if all lists are distinct', function() {
+            body = { cards: [{id: 'rc-1'}], miniReels: [{id: 'e-1'}, {id: 'e-2'}, {id: 'e-11'}] };
+            var resp = campaignUtils.ensureUniqueIds(body);
+            expect(resp).toEqual({ isValid: true });
+        });
+        
+        it('should be able to handle multiple cards without ids', function() {
+            body = { cards: [{ title: 'card 1' }, { title: 'card 2' }, { id: 'rc-1' }] };
+            var resp = campaignUtils.ensureUniqueIds(body);
+            expect(resp).toEqual({ isValid: true });
+                
+            body.cards.unshift({ id: 'rc-1' });
+                
+            var resp = campaignUtils.ensureUniqueIds(body);
+            expect(resp).toEqual({ isValid: false, reason: 'cards must be distinct' });
+        });
+    });
+
+    describe('ensureUniqueNames', function() {
+        var body;
+        beforeEach(function() {
+            body = { cards: [
+                { campaign: { adtechName: 'foo' } },
+                { id: 'rc-1', campaign: { adtechName: 'bar' } }
+            ] };
+        });
+        
+        it('should return a valid response if all names are unique', function() {
+            var resp = campaignUtils.ensureUniqueNames(body);
+            expect(resp).toEqual({ isValid: true });
+        });
+        
+        it('should skip if no cards are defined', function() {
+            delete body.cards;
+            var resp = campaignUtils.ensureUniqueNames(body);
+            expect(resp).toEqual({ isValid: true });
+        });
+        
+        it('should return an invalid response if multiple objects share the same name', function() {
+            body.cards.push({ campaign: { adtechName: 'bar' }});
+            var resp = campaignUtils.ensureUniqueNames(body);
+            expect(resp).toEqual({ isValid: false, reason: 'cards[2] has a non-unique name: "bar"' });
+        });
+    });
+
+    describe('computeCost', function() {
+        it('should return a base price if no targeting exists', function() {
+            expect(campaignUtils.computeCost()).toEqual(0.09);
+        });
+    });
+    
+    describe('validatePricing', function() {
+        var body, origObj, requester, model;
+        beforeEach(function() {
+            body = { pricing: {
+                budget: 1000,
+                dailyLimit: 200,
+                model: 'cpv'
+            } };
+            origObj = null;
+            requester = { id: 'u-1', fieldValidation: { campaigns: {} } };
+            var campSchema = require('../../bin/ads-campaigns').campSchema;
+            model = new Model('campaigns', campSchema);
+            spyOn(campaignUtils, 'computeCost').and.callThrough();
+        });
+        
+        it('should skip if no pricing is on the request body', function() {
+            delete body.pricing;
+            var resp = campaignUtils.validatePricing(body, origObj, requester, model);
+            expect(resp).toEqual({ isValid: true });
+            expect(body.pricing).not.toBeDefined();
+        });
+        
+        it('should pass if everything is valid', function() {
+            var resp = campaignUtils.validatePricing(body, origObj, requester, model);
+            expect(resp).toEqual({ isValid: true });
+            expect(body.pricing).toEqual({
+                budget: 1000,
+                dailyLimit: 200,
+                model: 'cpv',
+                cost: 0.09
+            });
+            expect(campaignUtils.computeCost).toHaveBeenCalledWith();
+        });
+
+        it('should be able to set a default dailyLimit', function() {
+            delete body.pricing.dailyLimit;
+            var resp = campaignUtils.validatePricing(body, origObj, requester, model);
+            expect(resp).toEqual({ isValid: true });
+            expect(body.pricing).toEqual({
+                budget: 1000,
+                dailyLimit: 30,
+                model: 'cpv',
+                cost: 0.09
+            });
+        });
+        
+        it('should copy missing props from the original object', function() {
+            delete body.pricing.dailyLimit;
+            delete body.pricing.model;
+            origObj = { pricing: { budget: 2000, dailyLimit: 500, model: 'cpm' } };
+
+            var resp = campaignUtils.validatePricing(body, origObj, requester, model);
+            expect(resp).toEqual({ isValid: true });
+            expect(body.pricing).toEqual({
+                budget: 1000,
+                dailyLimit: 500,
+                model: 'cpm',
+                cost: 0.09
+            });
+        });
+        
+        it('should skip handling dailyLimit if no budget is set yet', function() {
+            body.pricing = {};
+            origObj = { pricing: { model: 'cpm' } };
+
+            var resp = campaignUtils.validatePricing(body, origObj, requester, model);
+            expect(resp).toEqual({ isValid: true });
+            expect(body.pricing).toEqual({
+                model: 'cpm',
+                cost: 0.09
+            });
+        });
+        
+        it('should return a 400 if the user\'s dailyLimit is too high or too low', function() {
+            [1, 10000000].forEach(function(limit) {
+                var bodyCopy = JSON.parse(JSON.stringify(body));
+                bodyCopy.pricing.dailyLimit = limit;
+
+                var resp = campaignUtils.validatePricing(bodyCopy, origObj, requester, model);
+                expect(resp).toEqual({ isValid: false, reason: 'dailyLimit must be between 0.015 and 1 of budget 1000' });
+            });
+        });
+        
+        describe('if the user has custom config for the dailyLimit prop', function() {
+            beforeEach(function() {
+                requester.fieldValidation.campaigns = {
+                    pricing: {
+                        dailyLimit: {
+                            __percentDefault: 0.75,
+                            __percentMin: 0.5,
+                            __percentMax: 0.8
+                        }
+                    }
+                };
+            });
+            
+            it('should use the custom min + max for validation', function() {
+                [0.4, 0.9].forEach(function(limitRatio) {
+                    var bodyCopy = JSON.parse(JSON.stringify(body));
+                    bodyCopy.pricing.dailyLimit = limitRatio * bodyCopy.pricing.budget;
+
+                    var resp = campaignUtils.validatePricing(bodyCopy, origObj, requester, model);
+                    expect(resp).toEqual({ isValid: false, reason: 'dailyLimit must be between 0.5 and 0.8 of budget 1000' });
+                });
+            });
+            
+            it('should use the custom default if no dailyLimit is set', function() {
+                delete body.pricing.dailyLimit;
+                var resp = campaignUtils.validatePricing(body, origObj, requester, model);
+                expect(resp).toEqual({ isValid: true });
+                expect(body.pricing).toEqual({
+                    budget: 1000,
+                    dailyLimit: 750,
+                    model: 'cpv',
+                    cost: 0.09
+                });
+            });
+        });
+        
+        describe('if the user can set their own cost', function() {
+            beforeEach(function() {
+                requester.fieldValidation.campaigns = { pricing: { cost: { __allowed: true } } };
+            });
+
+            it('should allow any value set on the request body', function() {
+                body.pricing.cost = 0.00000123456;
+                var resp = campaignUtils.validatePricing(body, origObj, requester, model);
+                expect(resp).toEqual({ isValid: true });
+                expect(body.pricing.cost).toBe(0.00000123456);
+            });
+            
+            it('should fall back to a value on the origObj', function() {
+                origObj = { pricing: { cost: 0.123456 } };
+                var resp = campaignUtils.validatePricing(body, origObj, requester, model);
+                expect(resp).toEqual({ isValid: true });
+                expect(body.pricing.cost).toBe(0.123456);
+            });
+            
+            it('should compute the cost if nothing else is defined', function() {
+                var resp = campaignUtils.validatePricing(body, origObj, requester, model);
+                expect(resp).toEqual({ isValid: true });
+                expect(body.pricing.cost).toBe(0.09);
+            });
+        });
+        
+        describe('if the user cannot set their own cost', function() {
+            it('should override any cost on the request body with a freshly computed cost', function() {
+                body.pricing.cost = 0.00000123456;
+                var resp = campaignUtils.validatePricing(body, origObj, requester, model);
+                expect(resp).toEqual({ isValid: true });
+                expect(body.pricing.cost).toBe(0.09);
+            });
         });
     });
     

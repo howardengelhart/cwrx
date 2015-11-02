@@ -7,6 +7,7 @@ var q           = require('q'),
     allEntities = [
         'advertisers',
         'campaigns',
+        'campaignUpdates',
         'cards',
         'categories',
         'customers',
@@ -78,22 +79,10 @@ function setupOrgSvcFieldVal(policy) {
 
 // setup permissive fieldValidation rules for campaigns
 function setupCampaignSvcFieldVal(policy) {
-    var sponsoredCampVal = {
-        name: {
-            __allowed: true
-        },
-        startDate: {
-            __allowed: true
-        },
-        endDate: {
-            __allowed: true
-        },
-        reportingId: {
-            __allowed: true
-        }
-    };
-
     policy.fieldValidation.campaigns = {
+        status: {
+            __allowed: true
+        },
         application: {
             __allowed: true
         },
@@ -124,14 +113,17 @@ function setupCampaignSvcFieldVal(policy) {
         },
         cards: {
             __length: 100,
-            __unchangeable: false,
-            __entries: sponsoredCampVal
+            __unchangeable: false
         },
         miniReels: {
-            __allowed: true,
-            __entries: sponsoredCampVal
+            __allowed: true
+        }
+    };
+    policy.fieldValidation.campaignUpdates = {
+        status: {
+            __allowed: true
         },
-        miniReelGroups: {
+        rejectionReason: {
             __allowed: true
         }
     };

@@ -13,13 +13,18 @@
         objUtils        = require('../lib/objUtils'),
         CrudSvc         = require('../lib/crudSvc'),
         logger          = require('../lib/logger'),
+        enums           = require('../lib/enums'),
         
         campModule = { config: {} };
         
     campModule.campSchema = {
-        status: { // will be changed in later releases
-            __allowed: true,
-            __type: 'string'
+        status: {
+            __allowed: false,
+            __type: 'string',
+            __default: enums.Status.Draft,
+            __acceptableValues: Object.keys(enums.Status).map(function(key) {
+                return enums.Status[key];
+            })
         },
         application: {
             __allowed: true,
@@ -39,6 +44,14 @@
         },
         paymentMethod: {
             __allowed: true,
+            __type: 'string'
+        },
+        updateRequest: {
+            __allowed: false,
+            __type: 'string'
+        },
+        rejectionReason: {
+            __allowed: false,
             __type: 'string'
         },
         minViewTime: {
@@ -73,12 +86,6 @@
             __allowed: false,
             __type: 'objectArray',
             __locked: true
-        },
-        contentCategories: {
-            primary: {
-                __allowed: true,
-                __type: 'string'
-            }
         },
         targeting: {
             __allowed: true,
@@ -145,32 +152,26 @@
         svc._db = db;
         
         var getAccountIds           = campaignUtils.getAccountIds.bind(campaignUtils, svc._db),
-            validatePricing         = campModule.validatePricing.bind(campModule, svc),
+            extraValidation         = campModule.extraValidation.bind(campModule, svc),
             editSponsoredCamps      = campModule.editSponsoredCamps.bind(campModule, svc),
             createSponsoredCamps    = campModule.createSponsoredCamps.bind(campModule, svc);
         
         svc.use('read', campModule.formatTextQuery);
         
-        //TODO: consider using cacheMutex?
         svc.use('create', campModule.defaultAccountIds);
         svc.use('create', getAccountIds);
-        svc.use('create', validatePricing);
-        svc.use('create', campModule.ensureUniqueIds);
         svc.use('create', campModule.fetchCards);
-        svc.use('create', campModule.validateDates);
-        svc.use('create', campModule.ensureUniqueNames);
+        svc.use('create', extraValidation);
         svc.use('create', campModule.defaultReportingId);
         svc.use('create', campModule.updateCards);
         svc.use('create', createSponsoredCamps);
         svc.use('create', campModule.handlePricingHistory);
 
+        svc.use('edit', campModule.enforceLock);
         svc.use('edit', campModule.defaultAccountIds);
         svc.use('edit', getAccountIds);
-        svc.use('edit', validatePricing);
-        svc.use('edit', campModule.ensureUniqueIds);
         svc.use('edit', campModule.fetchCards);
-        svc.use('edit', campModule.validateDates);
-        svc.use('edit', campModule.ensureUniqueNames);
+        svc.use('edit', extraValidation);
         svc.use('edit', campModule.defaultReportingId);
         svc.use('edit', campModule.cleanCards);
         svc.use('edit', campModule.cleanMiniReels);
@@ -261,6 +262,22 @@
 
         return next();
     };
+    
+    // Prevent editing a campaign that has an updateRequest property
+    campModule.enforceLock = function(req, next, done) {
+        var log = logger.getLog();
+        
+        if (req.origObj && !!req.origObj.updateRequest) {
+            log.info('[%1] Campaign %2 has pending update request %3, cannot edit',
+                     req.uuid, req.origObj.id, req.origObj.updateRequest);
+            return done({
+                code: 400,
+                body: 'Campaign locked until existing update request resolved'
+            });
+        }
+        
+        return next();
+    };
 
     // Set advertiserId and customerId on the body to the user's advert + cust ids, if not defined
     campModule.defaultAccountIds = function(req, next, done) {
@@ -284,93 +301,7 @@
         
         return next();
     };
-
-    // Compute cost for the campaign, based on targeting added
-    campModule.computeCost = function(/*req*/) {
-        //TODO: replace this with actual values/logic!
-        return 0.1;
-    };
     
-    // Extra validation for pricing, including dailyLimit checking + cost computing
-    campModule.validatePricing = function(svc, req, next, done) {
-        var log = logger.getLog(),
-            id = req.body.id || (req.origObj && req.origObj.id),
-            origPricing = req.origObj && req.origObj.pricing,
-            actingSchema = svc.model.personalizeSchema(req.user);
-
-        if (!req.body.pricing) {
-            return next();
-        }
-
-        // if user can set own cost, take the value from body, origObj, or computeCost
-        if (actingSchema.pricing.cost.__allowed === true) {
-            req.body.pricing.cost = req.body.pricing.cost || origPricing && origPricing.cost ||
-                                    campModule.computeCost(req);
-        }
-        else { // otherwise recompute the cost each time
-            req.body.pricing.cost = campModule.computeCost(req);
-        }
-        
-        // copy over any missing props from original pricing
-        objUtils.extend(req.body.pricing, origPricing);
-        
-        // don't validate dailyLimit if no budget set
-        if (req.body.pricing.budget === undefined || req.body.pricing.budget === null) {
-            return next();
-        }
-        
-        // validate dailyLimit:
-        var limitMin = actingSchema.pricing.dailyLimit.__percentMin,
-            limitMax = actingSchema.pricing.dailyLimit.__percentMax,
-            limitDefault = actingSchema.pricing.dailyLimit.__percentDefault;
-        
-        // default dailyLimit if undefined
-        req.body.pricing.dailyLimit = req.body.pricing.dailyLimit ||
-                                      ( limitDefault * req.body.pricing.budget );
-
-        // check if dailyLimit is within __percentMin and __percentMax of budget
-        var ratio = (req.body.pricing.dailyLimit / req.body.pricing.budget) || 0;
-        
-        if (ratio < limitMin || ratio > limitMax) {
-            log.info('[%1] User %2 cannot set dailyLimit of %3 to %4% of budget: bounds are %5, %6',
-                     req.uuid, req.user.id, id, ratio, limitMin, limitMax);
-            return done({
-                code: 400,
-                body: 'dailyLimit must be between ' + limitMin + ' and ' + limitMax + ' of budget'
-            });
-        }
-        
-        return next();
-    };
-
-    // Ensures that cards and miniReels lists have unique ids
-    campModule.ensureUniqueIds = function(req, next, done) {
-        var log = logger.getLog(),
-            keys = ['miniReels', 'cards'];
-            
-        function getIds(list) {
-            if (!(list instanceof Array)) {
-                return [];
-            }
-
-            return list.map(function(item) {
-                return item.id || null;
-            }).filter(function(id) {
-                return !!id;
-            });
-        }
-
-        for (var i = 0; i < keys.length; i++) {
-            var ids = getIds(req.body[keys[i]]);
-            
-            if (!objUtils.isListDistinct(ids)) {
-                log.info('[%1] %2 must be distinct: %3', req.uuid, keys[i], ids);
-                return q(done({code: 400, body: keys[i] + ' must be distinct'}));
-            }
-        }
-        return q(next());
-    };
-
     /* Fetch cards defined in req.body.cards + req.origObj.cards from content svc. Stores entities
      * in req._cards + req._origCards, respectively. */
     campModule.fetchCards = function(req, next, done) {
@@ -426,6 +357,7 @@
             return makeRequest(oldCard.id).then(function(resp) {
                 if (resp.response.statusCode === 200) {
                     req._origCards[oldCard.id] = resp.body;
+                    objUtils.extend(oldCard, resp.body);
                     return;
                 }
 
@@ -442,60 +374,28 @@
         });
     };
     
-    // Calls campaignUtils.validateDates for every object in cards
-    campModule.validateDates = function(req, next, done) {
+    // Additional validation for cards array + pricing not covered by model; may mutate body
+    campModule.extraValidation = function(svc, req, next, done) {
         var log = logger.getLog(),
-            delays = campModule.config.campaigns.dateDelays;
+            dateDelays = campModule.config.campaigns.dateDelays;
         
-        if (!req.body.cards) {
-            return q(next());
+        var validResps = [
+            campaignUtils.ensureUniqueIds(req.body),
+            campaignUtils.ensureUniqueNames(req.body),
+            campaignUtils.validateAllDates(req.body, req.origObj, req.user, dateDelays, req.uuid),
+            campaignUtils.validatePricing(req.body, req.origObj, req.user, svc.model),
+        ];
+        
+        for (var i = 0; i < validResps.length; i++) {
+            if (!validResps[i].isValid) {
+                log.info('[%1] %2', req.uuid, validResps[i].reason);
+                return done({ code: 400, body: validResps[i].reason });
+            }
         }
         
-        for (var i = 0; i < req.body.cards.length; i++) {
-            var card = req.body.cards[i],
-                origCardCamp = req._cards[card.id] && req._cards[card.id].campaign;
-                
-            var valid = campaignUtils.validateDates(card.campaign, origCardCamp, delays, req.uuid);
-                
-            if (!valid) {
-                var msg = 'cards[' + i + '] has invalid dates';
-                log.info('[%1] %2', req.uuid, msg);
-                return q(done({ code: 400, body: msg }));
-            }
-        }
-
-        return q(next());
+        return next();
     };
-
-    // Ensures that names are unique across all miniReels and cards in campaign
-    campModule.ensureUniqueNames = function(req, next, done) {
-        var log = logger.getLog(),
-            names = [];
-
-        if (!req.body.cards) {
-            return q(next());
-        }
-
-        for (var i = 0; i < req.body.cards.length; i++) {
-            var card = req.body.cards[i],
-                name = card.campaign.adtechName;
-                
-            if (!name) {
-                continue;
-            }
-            
-            if (names.indexOf(name) !== -1) {
-                var msg = 'cards[' + i + '] has a non-unique name';
-                log.info('[%1] %2: %3', req.uuid, msg, name);
-                return q(done({ code: 400, body: msg }));
-            } else {
-                names.push(name);
-            }
-        }
-
-        return q(next());
-    };
-
+    
     // Set the reportingId for each card without one to the campaign's name
     campModule.defaultReportingId = function(req, next/*, done*/) {
         if (!req.body.cards) {

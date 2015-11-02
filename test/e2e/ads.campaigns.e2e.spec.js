@@ -1,6 +1,5 @@
 var q               = require('q'),
     adtech          = require('adtech'),
-    kCamp           = adtech.constants.ICampaign,
     request         = require('request'),
     util            = require('util'),
     testUtils       = require('./testUtils'),
@@ -148,38 +147,6 @@ describe('ads campaigns endpoints (E2E):', function() {
             }).done(function(results) { done(); });
         }
     });
-
-    // Helper method to validate a campaign for a sponsored card
-    function checkCardCampaign(camp, parentCamp, card, catKeys) {
-        expect(camp).toBeDefined();
-        if (!camp) return;
-
-        expect(camp.extId).toBe(card.id);
-        expect(camp.exclusive).toBe(true);
-        expect(camp.exclusiveType).toBe(kCamp.EXCLUSIVE_TYPE_END_DATE);
-        expect(camp.name).toBe(card.campaign.adtechName + ' (' + parentCamp.id + ')');
-        expect(camp.dateRangeList[0].startDate.toUTCString()).toBe(new Date(card.campaign.startDate).toUTCString());
-        expect(camp.dateRangeList[0].endDate.toUTCString()).toBe(new Date(card.campaign.endDate).toUTCString());
-        expect(camp.priorityLevelOneKeywordIdList).toEqual([jasmine.any(String)]);
-        expect(camp.priorityLevelThreeKeywordIdList.sort()).toEqual(catKeys.sort());
-        expect(camp.priority).toBe(3);
-        expect(camp.advertiserId).toBe(keptAdvert.adtechId);
-        expect(camp.customerId).toBe(keptCust.adtechId);
-    }
-    
-    function checkCardEntities(camp, jar) {
-        return q.all(camp.cards.map(function(card) {
-            return requestUtils.qRequest('get', {
-                url: config.contentUrl + '/cards/' + card.id,
-                jar: jar,
-            }).then(function(resp) {
-                expect(resp.response.statusCode).toBe(200);
-                expect(resp.body).toEqual(card);
-            });
-        })).catch(function(error) {
-            expect(util.inspect(error)).not.toBeDefined();
-        });
-    }
 
     // only do this once, so their state is preserved in between tests
     describe('setting up experiences and cards', function() {
@@ -607,9 +574,9 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body.id).toBeDefined();
                 expect(resp.body.user).toBe('admin-e2e-user');
                 expect(resp.body.org).toBe('e2e-org');
-                expect(resp.body.status).toBe('active');
+                expect(resp.body.status).toBe('draft');
                 expect(resp.body.statusHistory).toEqual([
-                    { status: 'active', userId: 'admin-e2e-user', user: 'adminuser', date: jasmine.any(String) }
+                    { status: 'draft', userId: 'admin-e2e-user', user: 'adminuser', date: jasmine.any(String) }
                 ]);
                 expect(resp.body.name).toBe(mockCamp.name);
                 expect(resp.body.targeting).toEqual({ interests: ['cat-1', 'cat-2'] });
@@ -617,7 +584,6 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body.staticCardMap).toEqual({'e2e-fake':{'rc-pl1': 'e2e-rc-1'}});
                 expect(new Date(resp.body.created).toString()).not.toEqual('Invalid Date');
                 expect(resp.body.lastUpdated).toEqual(resp.body.created);
-                expect(resp.body.status).toBe('active');
 
                 expect(resp.body.cards.length).toBe(2);
                 expect(resp.body.cards[0].id).toEqual('e2e-rc-1');
@@ -647,7 +613,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body.cards[1].org).toEqual('e2e-org');
 
                 adminCreatedCamp = resp.body;
-                return checkCardEntities(adminCreatedCamp, adminJar);
+                return testUtils.checkCardEntities(adminCreatedCamp, adminJar, config.contentUrl);
 
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -659,7 +625,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 q.all(adminCreatedCamp.cards.map(function(card) {
                     return adtech.campaignAdmin.getCampaignByExtId(card.id).catch(adtechErr).then(function(camp) {
                         // these keyword ids for the category ids should never change, so we can hardcode
-                        checkCardCampaign(camp, adminCreatedCamp, card, [keywords['cat-1'], keywords['cat-2']]);
+                        testUtils.checkCardCampaign(camp, adminCreatedCamp, card, [keywords['cat-1'], keywords['cat-2']], keptAdvert, keptCust);
                         return testUtils.getCampaignBanners(camp.id);
                     }).then(function(banners) {
                         testUtils.compareBanners(banners, [card.id], 'card');
@@ -705,7 +671,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 
                 newCamp = resp.body;
 
-                return checkCardEntities(newCamp, adminJar);
+                return testUtils.checkCardEntities(newCamp, adminJar, config.contentUrl);
             }).then(function() {
                 return requestUtils.qRequest('delete', {
                     url: config.adsUrl + '/campaigns/' + newCamp.id,
@@ -733,7 +699,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body.pricingHistory).not.toBeDefined();
                 expect(new Date(resp.body.created).toString()).not.toEqual('Invalid Date');
                 expect(resp.body.lastUpdated).toEqual(resp.body.created);
-                expect(resp.body.status).toBe('active');
+                expect(resp.body.status).toBe('draft');
                 
                 // check that it wrote an entry to the audit collection
                 return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
@@ -828,7 +794,7 @@ describe('ads campaigns endpoints (E2E):', function() {
             requestUtils.qRequest('post', options, null, { maxAttempts: 30 })
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('cards[1] has a non-unique name');
+                expect(resp.body).toBe('cards[1] has a non-unique name: "card 2"');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -914,9 +880,9 @@ describe('ads campaigns endpoints (E2E):', function() {
                     expect(resp.body.customerId).toEqual('e2e-cu-keepme');
                     expect(resp.body.created).toEqual(jasmine.any(String));
                     expect(resp.body.lastUpdated).toEqual(jasmine.any(String));
-                    expect(resp.body.status).toEqual('active');
+                    expect(resp.body.status).toEqual('draft');
                     expect(resp.body.statusHistory).toEqual([
-                        { status: 'active', userId: 'e2e-user', user: 'selfieuser', date: jasmine.any(String) }
+                        { status: 'draft', userId: 'e2e-user', user: 'selfieuser', date: jasmine.any(String) }
                     ]);
                     expect(resp.body.application).toEqual('selfie');
                     expect(resp.body.targeting).toEqual({ interests: [] });
@@ -939,7 +905,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                     expect(resp.body.cards[0].org).toEqual('e2e-org');
 
                     selfieCreatedCamp = resp.body;
-                    return checkCardEntities(selfieCreatedCamp, selfieJar);
+                    return testUtils.checkCardEntities(selfieCreatedCamp, selfieJar, config.contentUrl);
 
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
@@ -950,7 +916,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 it('should have a sponsored campaign for each entry in cards', function(done) {
                     q.all(selfieCreatedCamp.cards.map(function(card) {
                         return adtech.campaignAdmin.getCampaignByExtId(card.id).catch(adtechErr).then(function(camp) {
-                            checkCardCampaign(camp, selfieCreatedCamp, card, [keywords['*']]);
+                            testUtils.checkCardCampaign(camp, selfieCreatedCamp, card, [keywords['*']], keptAdvert, keptCust);
                             return testUtils.getCampaignBanners(camp.id);
                         }).then(function(banners) {
                             testUtils.compareBanners(banners, [card.id], 'card');
@@ -978,7 +944,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                         budget: 2000,
                         dailyLimit: 500,
                         model: 'cpv',
-                        cost: 0.1
+                        cost: 0.09
                     });
                     expect(resp.body.pricingHistory).toEqual([{
                         userId: 'e2e-user',
@@ -1086,9 +1052,9 @@ describe('ads campaigns endpoints (E2E):', function() {
                         customerId: 'e2e-cu-keepme',
                         created: jasmine.any(String),
                         lastUpdated: jasmine.any(String),
-                        status: 'active',
+                        status: 'draft',
                         statusHistory: [
-                            { status: 'active', userId: 'e2e-user', user: 'selfieuser', date: jasmine.any(String) }
+                            { status: 'draft', userId: 'e2e-user', user: 'selfieuser', date: jasmine.any(String) }
                         ],
                         name: 'hax',
                         application: 'selfie'
@@ -1118,6 +1084,10 @@ describe('ads campaigns endpoints (E2E):', function() {
                 {
                     id: 'e2e-put2', status: 'active', advertiserId: keptAdvert.id, customerId: keptCust.id,
                     name: 'fake camp 2', user: 'not-e2e-user', org: 'not-e2e-org'
+                },
+                {
+                    id: 'e2e-put3', status: 'active', advertiserId: keptAdvert.id, customerId: keptCust.id,
+                    name: 'fake camp 3', updateRequest: 'e2e-ur-1', user: 'e2e-user', org: 'e2e-org'
                 },
                 {
                     id: 'e2e-deleted', status: 'deleted', advertiserId: keptAdvert.id, customerId: keptCust.id,
@@ -1299,7 +1269,7 @@ describe('ads campaigns endpoints (E2E):', function() {
 
                 expect(resp.body.staticCardMap).toEqual({ 'e2e-fake': {} });
                 adminCreatedCamp = resp.body;
-                return checkCardEntities(adminCreatedCamp, adminJar);
+                return testUtils.checkCardEntities(adminCreatedCamp, adminJar, config.contentUrl);
             }).then(function() {
                 return q.allSettled([
                     adtech.campaignAdmin.getCampaignByExtId(adminCreatedCamp.cards[0].id),
@@ -1317,7 +1287,8 @@ describe('ads campaigns endpoints (E2E):', function() {
 
                 // check that new campaign created properly
                 expect(results[2].state).toBe('fulfilled');
-                checkCardCampaign(results[2].value, adminCreatedCamp, adminCreatedCamp.cards[1], [keywords['cat-2'], keywords['cat-1']]);
+                testUtils.checkCardCampaign(results[2].value, adminCreatedCamp, adminCreatedCamp.cards[1],
+                    [keywords['cat-2'], keywords['cat-1']], keptAdvert, keptCust);
 
                 return testUtils.getCampaignBanners(results[2].value.id);
             }).then(function(banners) {
@@ -1376,7 +1347,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 
                 return q.all(adminCreatedCamp.cards.map(function(card) {
                     return adtech.campaignAdmin.getCampaignByExtId(card.id).then(function(camp) {
-                        checkCardCampaign(camp, adminCreatedCamp, card, [keywords['cat-3'], keywords['cat-1']]);
+                        testUtils.checkCardCampaign(camp, adminCreatedCamp, card, [keywords['cat-3'], keywords['cat-1']], keptAdvert, keptCust);
                         return q();
                     });
                 }));
@@ -1401,7 +1372,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 
                 return q.all(adminCreatedCamp.cards.map(function(card) {
                     return adtech.campaignAdmin.getCampaignByExtId(card.id).then(function(camp) {
-                        checkCardCampaign(camp, adminCreatedCamp, card, [keywords['*']]);
+                        testUtils.checkCardCampaign(camp, adminCreatedCamp, card, [keywords['*']], keptAdvert, keptCust);
                         return q();
                     });
                 }));
@@ -1425,11 +1396,11 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body.cards[1].campaign).toEqual(adminCreatedCamp.cards[1].campaign);
 
                 adminCreatedCamp = resp.body;
-                return checkCardEntities(adminCreatedCamp, adminJar);
+                return testUtils.checkCardEntities(adminCreatedCamp, adminJar, config.contentUrl);
             }).then(function() {
                 return adtech.campaignAdmin.getCampaignByExtId(adminCreatedCamp.cards[0].id);
             }).then(function(camp) {
-                checkCardCampaign(camp, adminCreatedCamp, adminCreatedCamp.cards[0], [keywords['*']]);
+                testUtils.checkCardCampaign(camp, adminCreatedCamp, adminCreatedCamp.cards[0], [keywords['*']], keptAdvert, keptCust);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -1453,11 +1424,11 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body.cards[1].campaign.endDate).toEqual(new Date(now.valueOf() + 30*24*60*60*1000).toISOString());
 
                 adminCreatedCamp = resp.body;
-                return checkCardEntities(adminCreatedCamp, adminJar);
+                return testUtils.checkCardEntities(adminCreatedCamp, adminJar, config.contentUrl);
             }).then(function() {
                 return adtech.campaignAdmin.getCampaignByExtId(adminCreatedCamp.cards[1].id);
             }).then(function(camp) {
-                checkCardCampaign(camp, adminCreatedCamp, adminCreatedCamp.cards[1], [keywords['*']]);
+                testUtils.checkCardCampaign(camp, adminCreatedCamp, adminCreatedCamp.cards[1], [keywords['*']], keptAdvert, keptCust);
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -1478,7 +1449,21 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body.cards[1].campaign).toEqual(adminCreatedCamp.cards[1].campaign);
 
                 adminCreatedCamp = resp.body;
-                return checkCardEntities(adminCreatedCamp, adminJar);
+                return testUtils.checkCardEntities(adminCreatedCamp, adminJar, config.contentUrl);
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should not edit a campaign that has an updateRequest', function(done) {
+            options = {
+                url: config.adsUrl + '/campaign/e2e-put3',
+                json: { name: 'sneaky edit' },
+                jar: adminJar
+            };
+            requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
+                expect(resp.response.statusCode).toBe(400);
+                expect(resp.body).toBe('Campaign locked until existing update request resolved');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -1516,7 +1501,7 @@ describe('ads campaigns endpoints (E2E):', function() {
             options = { url: config.adsUrl + '/campaign/e2e-put1', jar: adminJar };
 
             q.all([
-                { cards: [{id: 'e2e-rc-1'}, {id: 'e2e-rc-1'}] },
+                { cards: [{id: adminCreatedCamp.cards[0].id}, {id: adminCreatedCamp.cards[0].id}] },
                 { miniReels: [{id: 'e2e-e-1'}, {id: 'e2e-e-1'}] }
             ].map(function(obj) {
                 options.json = obj;
@@ -1542,7 +1527,7 @@ describe('ads campaigns endpoints (E2E):', function() {
             requestUtils.qRequest('put', options, null, { maxAttempts: 30 })
             .then(function(resp) {
                 expect(resp.response.statusCode).toBe(400);
-                expect(resp.body).toBe('cards[1] has a non-unique name');
+                expect(resp.body).toBe('cards[1] has a non-unique name: "' + cards[1].campaign.adtechName + '"');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);
@@ -1605,7 +1590,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                         budget: 1000,
                         dailyLimit: 200,
                         model: 'cpv',
-                        cost: 0.1
+                        cost: 0.09
                     });
                     expect(resp.body.pricingHistory).toEqual([{
                         userId: 'e2e-user',
@@ -1615,7 +1600,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                     }]);
 
                     selfieCreatedCamp = resp.body;
-                    return checkCardEntities(selfieCreatedCamp, selfieJar);
+                    return testUtils.checkCardEntities(selfieCreatedCamp, selfieJar, config.contentUrl);
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
@@ -1637,7 +1622,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                     return q.all(
                         selfieCreatedCamp.cards.map(function(card) {
                             return adtech.campaignAdmin.getCampaignByExtId(card.id).then(function(camp) {
-                                checkCardCampaign(camp, selfieCreatedCamp, card, [keywords['cat-3']]);
+                                testUtils.checkCardCampaign(camp, selfieCreatedCamp, card, [keywords['cat-3']], keptAdvert, keptCust);
                                 return q();
                             });
                         })
@@ -1655,7 +1640,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                         budget: 4000,
                         dailyLimit: 200,
                         model: 'cpv',
-                        cost: 0.1
+                        cost: 0.09
                     });
                     expect(resp.body.pricingHistory).toEqual([
                         {
@@ -1672,7 +1657,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                                 budget: 1000,
                                 dailyLimit: 200,
                                 model: 'cpv',
-                                cost: 0.1
+                                cost: 0.09
                             }
                         }
                     ]);

@@ -179,12 +179,53 @@ describe('objUtils', function() {
         });
         
         it('should handle arrays properly', function() {
-            var orig = { a: [10, 11], b: {}, d: [{ foo: 'bar' }] },
-                newObj = { a: [20, 21, 22], b: { c: [31, 32] }, d: [{ foo: 'baz', blah: 'bloop' }] };
+            var orig = {
+                a: [10, 11],
+                b: {},
+                d: [{ foo: 'bar' }]
+            };
+            var newObj = {
+                a: [20, 21, 22],
+                b: {
+                    c: [31, 32]
+                },
+                d: [{ foo: 'baz', blah: 'bloop' }]
+            };
                 
             expect(objUtils.extend(orig, newObj)).toBe(orig);
-            expect(orig).toEqual({ a: [10, 11, 22], b: { c: [31, 32] }, d: [{ foo: 'bar', blah: 'bloop' }] });
+            expect(orig).toEqual({
+                a: [10, 11, 22],
+                b: {
+                    c: [31, 32]
+                },
+                d: [{ foo: 'bar', blah: 'bloop' }]
+            });
             expect(orig.b.c).not.toBe(newObj.b.c);
+        });
+        
+        it('should not merge arrays if ignoreArrays is set to true', function() {
+            var orig = {
+                a: [10, 11],
+                b: {},
+                d: [{ foo: 'bar' }]
+            };
+            var newObj = {
+                a: [20, 21, 22],
+                b: {
+                    c: [31, 32]
+                },
+                d: [{ foo: 'baz', blah: 'bloop' }]
+            };
+                
+            expect(objUtils.extend(orig, newObj, true)).toBe(orig);
+            expect(orig).toEqual({
+                a: [10, 11],
+                b: {
+                    c: [31, 32]
+                },
+                d: [{ foo: 'bar'}]
+            });
+            expect(orig.b.c).toBe(newObj.b.c);
         });
     });
 });
