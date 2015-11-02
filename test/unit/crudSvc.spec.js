@@ -268,6 +268,19 @@ describe('CrudSvc', function() {
             user.permissions = {};
             expect(svc.userPermQuery(query, user)).toEqual({ type: 'foo', status: Status.Active });
         });
+        
+        it('should preserve existing $or clauses', function() {
+            user.permissions.thangs.read = Scope.Org;
+            query.$or = [ { name: 'foo' }, { advertiserDisplayName: 'foo' } ];
+            expect(svc.userPermQuery(query, user)).toEqual({
+                type: 'foo',
+                status: { $ne: Status.Deleted },
+                $and: [
+                    { $or: [ { name: 'foo' }, { advertiserDisplayName: 'foo' } ] },
+                    { $or: [ { org: 'o-1' }, { user: 'u-1' } ] }
+                ]
+            });
+        });
 
         describe('if the requester is querying by status', function() {
             it('should not overwrite the existing filter', function() {

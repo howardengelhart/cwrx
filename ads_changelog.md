@@ -1,5 +1,7 @@
 # Ads Service Changelog
 
+* `text` query param for campaigns searches `advertiserDisplayName` as well: [#522](https://github.com/cinema6/cwrx/issues/522)
+* [FEATURE]: Allow querying for campaigns with pending update requests: [#591](https://github.com/cinema6/cwrx/issues/591)
 * [FEATURE]: Add campaign update request API: [#490](https://github.com/cinema6/cwrx/issues/490)
 * [FEATURE]: Integrate cards + campaigns API: [#491](https://github.com/cinema6/cwrx/issues/491)
     * [BREAKING CHANGE]: `startDate`, `endDate`, `reportingId` now stored on `campaign` hash on cards

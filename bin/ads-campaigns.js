@@ -254,10 +254,10 @@
         }
         
         var textParts = req._query.text.trim().split(/\s+/),
-            nameQuery = { $regex: '.*' + textParts.join('.*') + '.*', $options: 'i' };
+            regexQuery = { $regex: '.*' + textParts.join('.*') + '.*', $options: 'i' },
+            orClause = { $or: [ { name: regexQuery }, { advertiserDisplayName: regexQuery } ] };
         
-        // don't overwrite an actual 'name' filter if provided
-        req._query.name = req._query.name || nameQuery;
+        mongoUtils.mergeORQuery(req._query, orClause);
         delete req._query.text;
 
         return next();
@@ -853,6 +853,9 @@
             }
             if ('ids' in req.query) {
                 query.id = String(req.query.ids).split(',');
+            }
+            if ('pendingUpdate' in req.query) {
+                query.updateRequest = { $exists: req.query.pendingUpdate === 'true' };
             }
 
             var promise = svc.getObjs(query, req, true);

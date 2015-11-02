@@ -1293,6 +1293,19 @@ describe('userSvc (UT)', function() {
                 .toEqual({org: 'o-1', status: {$ne: Status.Deleted}, $or: [{org: 'o-1'}, {id: 'u-1'}]});
         });
 
+        it('should preserve existing $or clauses', function() {
+            requester.permissions.users.read = Scope.Org;
+            query.$or = [ { a: 1 }, { b: 2 } ];
+            expect(userModule.userPermQuery(query, requester)).toEqual({
+                org: 'o-1',
+                status: { $ne: Status.Deleted },
+                $and: [
+                    { $or: [ { a: 1 }, { b: 2 } ] },
+                    { $or: [ { org: 'o-1' }, { id: 'u-1' } ] }
+                ]
+            });
+        });
+
         it('should log a warning if the requester has an invalid scope', function() {
             requester.permissions.users.read = 'alfkjdf';
             expect(userModule.userPermQuery(query, requester))

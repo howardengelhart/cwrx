@@ -106,7 +106,8 @@
     expModule.userPermQuery = function(query, user, isC6Origin) {
         var newQuery = JSON.parse(JSON.stringify(query)),
             readScope = user.permissions.experiences.read,
-            log = logger.getLog();
+            log = logger.getLog(),
+            orClause;
 
         if (!newQuery['status.0.status']) {
             newQuery['status.0.status'] = {$ne: Status.Deleted}; // never show deleted exps
@@ -118,21 +119,23 @@
         }
 
         if (readScope === Scope.Own) {
-            newQuery.$or = [ { user: user.id } ];
+            orClause = { $or: [ { user: user.id } ] };
         } else if (readScope === Scope.Org) {
-            newQuery.$or = [ { org: user.org }, { user: user.id } ];
+            orClause = { $or: [ { org: user.org }, { user: user.id } ] };
         }
 
-        if (newQuery.$or) { // additional conditions where non-admins may be able to get exps
+        if (!!orClause) { // additional conditions where non-admins may be able to get exps
             if (isC6Origin) {
-                newQuery.$or.push({access: Access.Public});
+                orClause.$or.push({ access: Access.Public });
             } else {
-                newQuery.$or.push({'status.0.status': Status.Active});
+                orClause.$or.push({ 'status.0.status': Status.Active });
             }
             if (user.applications && user.applications instanceof Array) {
-                newQuery.$or.push({id: {$in: user.applications}});
+                orClause.$or.push({ id: { $in: user.applications } });
             }
         }
+        
+        mongoUtils.mergeORQuery(newQuery, orClause);
 
         return newQuery;
     };
