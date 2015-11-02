@@ -27,6 +27,12 @@ describe('content-cards (UT)', function() {
         spyOn(logger, 'getLog').and.returnValue(mockLog);
         
         req = { uuid: '1234', baseUrl: '', route: { path: '' }, params: {}, query: {} };
+        
+        jasmine.clock().install();
+    });
+
+    afterEach(function() {
+        jasmine.clock().uninstall();
     });
 
     describe('setupCardSvc', function() {
@@ -188,7 +194,7 @@ describe('content-cards (UT)', function() {
                 type : 'adUnit',
                 lastUpdated : new Date(1446063211664)
             };
-            spyOn(Date,'now').and.returnValue(1446063211664);
+            jasmine.clock().mockDate(mockReq.origObj.lastUpdated);
             mockReq.body.data.vast  = 'https://myvast/is/vast.xml';
             mockReq.body.type       = 'adUnit';
 
@@ -208,7 +214,7 @@ describe('content-cards (UT)', function() {
                 type : 'adUnit',
                 lastUpdated : new Date(1446063211664)
             };
-            spyOn(Date,'now').and.returnValue(mockReq.origObj.lastUpdated.valueOf());
+            jasmine.clock().mockDate(mockReq.origObj.lastUpdated);
             mockReq.body.data.vast  = 'https://myvast/is/vast.xml';
             mockReq.body.type       = 'adUnit';
 
@@ -228,7 +234,7 @@ describe('content-cards (UT)', function() {
                 type : 'adUnit',
                 lastUpdated : new Date(1446063211664)
             };
-            spyOn(Date,'now').and.returnValue(mockReq.origObj.lastUpdated.valueOf());
+            jasmine.clock().mockDate(mockReq.origObj.lastUpdated);
             mockReq.body.data.vast  = 'https://myvast/is/different_vast.xml';
             mockReq.body.type       = 'adUnit';
 
@@ -248,7 +254,7 @@ describe('content-cards (UT)', function() {
                 type : 'youtube',
                 lastUpdated : new Date(1446063211664)
             };
-            spyOn(Date,'now').and.returnValue(mockReq.origObj.lastUpdated.valueOf());
+            jasmine.clock().mockDate(mockReq.origObj.lastUpdated);
             mockReq.body.data.videoid   = 'def456';
             mockReq.body.type           = 'youtube';
 
@@ -268,7 +274,7 @@ describe('content-cards (UT)', function() {
                 type : 'adUnit',
                 lastUpdated : new Date(1446063211664)
             };
-            spyOn(Date,'now').and.returnValue(mockReq.origObj.lastUpdated.valueOf() + 100000);
+            jasmine.clock().mockDate(new Date(mockReq.origObj.lastUpdated.valueOf() + 100000));
             mockReq.body.data.vast  = 'https://myvast/is/vast.xml';
             mockReq.body.type       = 'adUnit';
 

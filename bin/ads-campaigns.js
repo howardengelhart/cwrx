@@ -821,11 +821,36 @@
         });
     };
     
+    // Retrieve campaign schema; if req.query.personalized === true, merge with user's fieldVal
+    campModule.getSchema = function(svc, req) {
+        if (!req.user.permissions.campaigns || !( req.user.permissions.campaigns.create ||
+                                                  req.user.permissions.campaigns.edit ) ) {
+            return q({ code: 403, body: 'Cannot create or edit campaigns' });
+        }
+        
+        if (req.query && req.query.personalized === 'true') {
+            return q({ code: 200, body: svc.model.personalizeSchema(req.user) });
+        } else {
+            return q({ code: 200, body: svc.model.schema });
+        }
+    };
+    
     campModule.setupEndpoints = function(app, svc, sessions, audit, jobManager) {
         var router      = express.Router(),
             mountPath   = '/api/campaigns?'; // prefix to all endpoints declared here
         
         router.use(jobManager.setJobTimeout.bind(jobManager));
+        
+        var authGetSchema = authUtils.middlewarify({});
+        router.get('/schema', sessions, authGetSchema, function(req, res) {
+            var promise = campModule.getSchema(svc, req);
+            promise.finally(function() {
+                jobManager.endJob(req, res, promise.inspect())
+                .catch(function(error) {
+                    res.send(500, { error: 'Error retrieving schema', detail: error });
+                });
+            });
+        });
 
         var authGetCamp = authUtils.middlewarify({campaigns: 'read'});
         router.get('/:id', sessions, authGetCamp, audit, function(req, res) {
