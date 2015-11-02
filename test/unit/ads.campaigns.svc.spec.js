@@ -321,26 +321,33 @@ describe('ads-campaigns (UT)', function() {
             expect(req._query).toEqual({ user: 'u-1' });
         });
         
-        it('should not overwrite an existing filter on the name field', function() {
-            req._query = { name: 'camp 1', text: 'camp 2' };
-            campModule.formatTextQuery(req, nextSpy, doneSpy);
-            expect(nextSpy).toHaveBeenCalled();
-            expect(doneSpy).not.toHaveBeenCalled();
-            expect(req._query).toEqual({ name: 'camp 1' });
-        });
-        
         it('should replace the text query param with a regex query by name', function() {
             req._query = { user: 'u-1', text: 'camp 1 is great' };
+            var expectedObj = { $regex: '.*camp.*1.*is.*great.*', $options: 'i' };
             campModule.formatTextQuery(req, nextSpy, doneSpy);
-            expect(req._query).toEqual({ user: 'u-1', name: { $regex: '.*camp.*1.*is.*great.*', $options: 'i' } });
+            expect(req._query).toEqual({ user: 'u-1', $or: [{ name: expectedObj }, { advertiserDisplayName: expectedObj }] });
             
             req._query = { text: 'camp' };
+            expectedObj.$regex = '.*camp.*';
             campModule.formatTextQuery(req, nextSpy, doneSpy);
-            expect(req._query).toEqual({ name: { $regex: '.*camp.*', $options: 'i' } });
+            expect(req._query).toEqual({ $or: [{ name: expectedObj }, { advertiserDisplayName: expectedObj }] });
 
             req._query = { text: '  camp\t1\tis\tgreat\t ' };
+            expectedObj.$regex = '.*camp.*1.*is.*great.*';
             campModule.formatTextQuery(req, nextSpy, doneSpy);
-            expect(req._query).toEqual({ name: { $regex: '.*camp.*1.*is.*great.*', $options: 'i' } });
+            expect(req._query).toEqual({ $or: [{ name: expectedObj }, { advertiserDisplayName: expectedObj }] });
+        });
+        
+        it('should preserve existing $or queries', function() {
+            req._query = { $or: [ { a: 1, b: 2 } ], text: 'foo' };
+            var expectedObj = { $regex: '.*foo.*', $options: 'i' };
+            campModule.formatTextQuery(req, nextSpy, doneSpy);
+            expect(req._query).toEqual({
+                $and: [
+                    { $or: [ { a: 1, b: 2 } ] },
+                    { $or: [ { name: expectedObj }, { advertiserDisplayName: expectedObj } ] }
+                ]
+            });
         });
     });
     

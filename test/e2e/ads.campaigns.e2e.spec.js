@@ -302,6 +302,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 {
                     id: 'e2e-getquery1',
                     name: 'camp 1',
+                    advertiserDisplayName: 'Heinz',
                     status: 'active',
                     user: 'e2e-user',
                     org: 'e2e-org',
@@ -310,6 +311,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 {
                     id: 'e2e-getquery2',
                     name: 'camp 2 is great',
+                    advertiserDisplayName: 'Heinz Ketchup',
                     status: 'inactive',
                     user: 'not-e2e-user',
                     org: 'e2e-org',
@@ -318,6 +320,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 {
                     id: 'e2e-getquery3',
                     name: 'camp 3',
+                    advertiserDisplayName: 'Heinz is great',
                     status: 'active',
                     updateRequest: 'ur-1',
                     user: 'e2e-user',
@@ -335,6 +338,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 {
                     id: 'e2e-getquery5',
                     name: 'camp 5 is great',
+                    advertiserDisplayName: 'Hunts',
                     status: 'active',
                     updateRequest: 'ur-2',
                     user: 'not-e2e-user',
@@ -436,6 +440,20 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body[0].id).toBe('e2e-getquery2');
                 expect(resp.body[1].id).toBe('e2e-getquery5');
                 expect(resp.response.headers['content-range']).toBe('items 1-2/2');
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should match the advertiserDisplayName field with a text search', function(done) {
+            options.qs.text = 'is great';
+            requestUtils.qRequest('get', options).then(function(resp) {
+                expect(resp.response.statusCode).toBe(200);
+                expect(resp.body.length).toBe(3);
+                expect(resp.body[0].id).toBe('e2e-getquery2');
+                expect(resp.body[1].id).toBe('e2e-getquery3');
+                expect(resp.body[2].id).toBe('e2e-getquery5');
+                expect(resp.response.headers['content-range']).toBe('items 1-3/3');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
             }).done(done);

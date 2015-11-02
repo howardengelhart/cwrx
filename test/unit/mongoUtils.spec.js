@@ -239,6 +239,47 @@ describe('mongoUtils', function() {
             expect(mongoUtils.unescapeKeys(obj)).toEqual([ {foo: 'bar'}, {'$set': 'prop'} ]);
         });
     });
+    
+    describe('mergeORQuery', function() {
+        var orClause, query;
+        beforeEach(function() {
+            query = { user: 'me' };
+            orClause = { $or: [ { a: 1 }, { b: 2 } ] };
+        });
+
+        it('should just set the $or operator if the query has no previous $and or $or operators', function() {
+            mongoUtils.mergeORQuery(query, orClause);
+            expect(query).toEqual({
+                user: 'me',
+                $or: [ { a: 1 }, { b: 2 } ]
+            });
+        });
+
+        it('should convert the query to use an $and operator if the query has an existing $or operator', function() {
+            query.$or = [{ c: 3 }, { d: 4 }];
+            mongoUtils.mergeORQuery(query, orClause);
+            expect(query).toEqual({
+                user: 'me',
+                $and: [
+                    { $or: [ { c: 3 }, { d: 4 } ] },
+                    { $or: [ { a: 1 }, { b: 2 } ] }
+                ]
+            });
+        });
+
+        it('should append the new clause if the query has an $and operator', function() {
+            query.$and = [ { $or: [{ c: 3 }, { d: 4 }] }, { $or: [{ e: 5 }, { f: 6 }] } ];
+            mongoUtils.mergeORQuery(query, orClause);
+            expect(query).toEqual({
+                user: 'me',
+                $and: [
+                    { $or: [ { c: 3 }, { d: 4 } ] },
+                    { $or: [ { e: 5 }, { f: 6 } ] },
+                    { $or: [ { a: 1 }, { b: 2 } ] }
+                ]
+            });
+        });
+    });
 
     describe('createObject', function() {
         var mockColl;

@@ -386,6 +386,19 @@ describe('content (UT)', function() {
                 .toEqual({ type: 'minireel', 'status.0.status': { $ne: Status.Deleted },
                            $or: [{user: 'u-1'}, {'status.0.status': Status.Active}, {id: {$in: ['e1']}}] });
         });
+
+        it('should preserve existing $or clauses', function() {
+            user.permissions.experiences.read = Scope.Org;
+            query.$or = [ { a: 1 }, { b: 2 } ];
+            expect(expModule.userPermQuery(query, user, false)).toEqual({
+                type: 'minireel',
+                'status.0.status': { $ne: Status.Deleted },
+                $and: [
+                    { $or: [ { a: 1 }, { b: 2 } ] },
+                    { $or: [ { org: 'o-1' }, { user: 'u-1' }, { 'status.0.status': 'active' } ] }
+                ]
+            });
+        });
         
         it('should log a warning if the user has an invalid scope', function() {
             user.permissions.experiences.read = 'arghlblarghl';

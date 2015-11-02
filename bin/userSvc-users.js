@@ -345,7 +345,8 @@
     userModule.userPermQuery = function(query, requester) {
         var newQuery = JSON.parse(JSON.stringify(query)),
             readScope = requester.permissions.users.read,
-            log = logger.getLog();
+            log = logger.getLog(),
+            orClause;
 
         newQuery.status = {$ne: Status.Deleted}; // never show deleted users
 
@@ -355,10 +356,12 @@
         }
 
         if (readScope === Scope.Own) {
-            newQuery.$or = [ { id: requester.id } ];
+            orClause = { $or: [ { id: requester.id } ] };
         } else if (readScope === Scope.Org) {
-            newQuery.$or = [ { org: requester.org }, { id: requester.id } ];
+            orClause = { $or: [ { org: requester.org }, { id: requester.id } ] };
         }
+        
+        mongoUtils.mergeORQuery(newQuery, orClause);
 
         return newQuery;
     };
