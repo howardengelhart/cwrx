@@ -854,6 +854,9 @@
             if ('ids' in req.query) {
                 query.id = String(req.query.ids).split(',');
             }
+            if ('pendingUpdate' in req.query) {
+                query.updateRequest = { $exists: req.query.pendingUpdate === 'true' };
+            }
 
             var promise = svc.getObjs(query, req, true);
             promise.finally(function() {
