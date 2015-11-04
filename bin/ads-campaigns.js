@@ -239,9 +239,7 @@
         camps.forEach(function(camp) {
             var toFetch = (camp.cards || [])
             .map(function(card) { return card.id; })
-            .filter(function(id) { //TODO: test multiple camps with same cards?
-                return !!id && (cardIds.indexOf(id) === -1) && !req._cards[id];
-            });
+            .filter(function(id) { return !!id && !req._cards[id]; });
 
             cardIds = cardIds.concat(toFetch);
         });
@@ -807,7 +805,7 @@
                 date    : new Date()
             };
             
-            if (status === enums.Status.Draft) { //TODO: test
+            if (status === enums.Status.Draft) {
                 req.body.pricingHistory[0] = wrapper;
             } else {
                 req.body.pricingHistory.unshift(wrapper);

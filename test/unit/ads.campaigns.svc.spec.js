@@ -196,21 +196,24 @@ describe('ads-campaigns (UT)', function() {
         beforeEach(function() {
             c6Cards = {
                 'rc-1': { id: 'rc-1', title: 'card 1' },
-                'rc-2': { id: 'rc-2', title: 'card 2' }
+                'rc-2': { id: 'rc-2', title: 'card 2' },
+                'rc-3': { id: 'rc-3', title: 'card 3' },
+                'rc-4': { id: 'rc-4', title: 'card 4' },
+                'rc-5': { id: 'rc-5', title: 'card 5' }
             };
             campResp = {
                 code: 200,
                 body: {
                     id: 'cam-1',
                     name: 'my camp',
-                    cards: [ { id: 'rc-2' }, { id: 'rc-1' } ]
+                    cards: [ { id: 'rc-1' }, { id: 'rc-2' } ]
                 }
             };
             spyOn(requestUtils, 'qRequest').and.callFake(function(method, opts) {
-                var card = c6Cards[opts.url.match(/cards\/(.+)$/)[1]];
+                var cards = opts.qs.ids.split(',').map(function(id) { return c6Cards[id]; }).filter(function(card) { return !!card; });
                 return q({
-                    response: { statusCode: !!card ? 200 : 404 },
-                    body: card || 'Card not found'
+                    response: { statusCode: 200 },
+                    body: cards
                 });
             });
         });
@@ -222,15 +225,43 @@ describe('ads-campaigns (UT)', function() {
                     id: 'cam-1',
                     name: 'my camp',
                     cards: [
-                        { id: 'rc-2', title: 'card 2' },
-                        { id: 'rc-1', title: 'card 1' }
+                        { id: 'rc-1', title: 'card 1' },
+                        { id: 'rc-2', title: 'card 2' }
                     ]
                 });
-                expect(requestUtils.qRequest.calls.count()).toBe(2);
-                expect(requestUtils.qRequest).toHaveBeenCalledWith('get',
-                    { url: 'https://test.com/api/content/cards/rc-2', headers: { cookie: 'chocolate' } });
-                expect(requestUtils.qRequest).toHaveBeenCalledWith('get',
-                    { url: 'https://test.com/api/content/cards/rc-1', headers: { cookie: 'chocolate' } });
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('get', {
+                    url: 'https://test.com/api/content/cards/',
+                    qs: { ids: 'rc-1,rc-2' },
+                    headers: { cookie: 'chocolate' }
+                });
+                expect(mockLog.warn).not.toHaveBeenCalled();
+                expect(mockLog.error).not.toHaveBeenCalled();
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should decorate multiple campaigns', function(done) {
+            campResp.body = [
+                { id: 'cam-1', name: 'camp 1', cards: [ { id: 'rc-1' }, { id: 'rc-2' } ] },
+                { id: 'cam-1', name: 'camp 1' },
+                { id: 'cam-1', name: 'camp 1', cards: [ { id: 'rc-3' } ] },
+                { id: 'cam-1', name: 'camp 1', cards: [ { id: 'rc-4' }, { id: 'rc-5' } ] },
+            ];
+
+            campModule.decorateWithCards(req, campResp).then(function(resp) {
+                expect(resp.code).toBe(200);
+                expect(resp.body).toEqual([
+                    { id: 'cam-1', name: 'camp 1', cards: [ { id: 'rc-1', title: 'card 1' }, { id: 'rc-2', title: 'card 2' } ] },
+                    { id: 'cam-1', name: 'camp 1' },
+                    { id: 'cam-1', name: 'camp 1', cards: [ { id: 'rc-3', title: 'card 3' } ] },
+                    { id: 'cam-1', name: 'camp 1', cards: [ { id: 'rc-4', title: 'card 4' }, { id: 'rc-5', title: 'card 5' } ] },
+                ]);
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('get', {
+                    url: 'https://test.com/api/content/cards/',
+                    qs: { ids: 'rc-1,rc-2,rc-3,rc-4,rc-5' },
+                    headers: { cookie: 'chocolate' }
+                });
                 expect(mockLog.warn).not.toHaveBeenCalled();
                 expect(mockLog.error).not.toHaveBeenCalled();
             }).catch(function(error) {
@@ -270,13 +301,15 @@ describe('ads-campaigns (UT)', function() {
                     id: 'cam-1',
                     name: 'my camp',
                     cards: [
-                        { id: 'rc-2', title: 'card 2' },
-                        { id: 'rc-1', title: 'card 1' }
+                        { id: 'rc-1', title: 'card 1' },
+                        { id: 'rc-2', title: 'card 2' }
                     ]
                 });
-                expect(requestUtils.qRequest.calls.count()).toBe(1);
-                expect(requestUtils.qRequest).toHaveBeenCalledWith('get',
-                    { url: 'https://test.com/api/content/cards/rc-2', headers: { cookie: 'chocolate' } });
+                expect(requestUtils.qRequest).toHaveBeenCalledWith('get', {
+                    url: 'https://test.com/api/content/cards/',
+                    qs: { ids: 'rc-2' },
+                    headers: { cookie: 'chocolate' }
+                });
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -290,12 +323,12 @@ describe('ads-campaigns (UT)', function() {
                     id: 'cam-1',
                     name: 'my camp',
                     cards: [
-                        { id: 'rc-2' },
-                        { id: 'rc-1', title: 'card 1' }
+                        { id: 'rc-1', title: 'card 1' },
+                        { id: 'rc-2' }
                     ]
                 });
-                expect(requestUtils.qRequest.calls.count()).toBe(2);
                 expect(mockLog.warn).toHaveBeenCalled();
+                expect(requestUtils.qRequest).toHaveBeenCalled();
             }).catch(function(error) {
                 expect(error.toString()).not.toBeDefined();
             }).done(done);
@@ -306,9 +339,9 @@ describe('ads-campaigns (UT)', function() {
             campModule.decorateWithCards(req, campResp).then(function(resp) {
                 expect(resp).not.toBeDefined();
             }).catch(function(error) {
-                expect(error.message).toBe('Error fetching card rc-2');
-                expect(requestUtils.qRequest.calls.count()).toBe(2);
+                expect(error).toBe('Error fetching cards');
                 expect(mockLog.error).toHaveBeenCalled();
+                expect(requestUtils.qRequest).toHaveBeenCalled();
             }).done(done);
         });
     });
@@ -531,6 +564,26 @@ describe('ads-campaigns (UT)', function() {
                     { title: 'my new card', campaign: {} }
                 ]);
                 expect(requestUtils.qRequest.calls.count()).toBe(3);
+                done();
+            });
+        });
+        
+        it('should handle cards where adtech props are set on the top-level', function(done) {
+            req.body.cards = [{
+                id: 'rc-1',
+                name: 'foo', reportingId: 'bar', adtechId: 1111, bannerNumber: 6, bannerId: 666, startDate: 'now', endDate: 'later',
+            }];
+            campModule.fetchCards(req, nextSpy, doneSpy).catch(errorSpy);
+            process.nextTick(function() {
+                expect(nextSpy).toHaveBeenCalled();
+                expect(doneSpy).not.toHaveBeenCalled();
+                expect(errorSpy).not.toHaveBeenCalled();
+                expect(req.body.cards).toEqual([{
+                    id: 'rc-1',
+                    title: 'card 1',
+                    name: 'foo', reportingId: 'bar', adtechId: 1111, bannerNumber: 6, bannerId: 666, startDate: 'now', endDate: 'later',
+                    campaign: { adtechName: 'foo', reportingId: 'bar', adtechId: 1111, bannerNumber: 6, bannerId: 666, startDate: 'now', endDate: 'later' }
+                }]);
                 done();
             });
         });
