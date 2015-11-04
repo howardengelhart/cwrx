@@ -347,9 +347,25 @@
             return reqCache[id];
         }
         
+        // TODO: temp fix for backwards compat with campaign manager, remove eventually
+        function shuffleAdtechProps(card) {
+            ['startDate', 'endDate', 'bannerNumber', 'bannerId', 'adtechId', 'reportingId']
+            .forEach(function(prop) {
+                if (card[prop]) {
+                    card.campaign[prop] = card[prop];
+                }
+            });
+            
+            if (card.name) {
+                card.campaign.adtechName = card.name;
+            }
+        }
+        
         return q.all((req.body.cards || []).map(function(newCard) {
             // ensure all req.body.cards entries have campaign hash
             newCard.campaign = newCard.campaign || {};
+            
+            shuffleAdtechProps(newCard);
 
             if (!newCard.id) {
                 return q();
@@ -377,6 +393,10 @@
             return makeRequest(oldCard.id).then(function(resp) {
                 if (resp.response.statusCode === 200) {
                     req._origCards[oldCard.id] = resp.body;
+
+                    oldCard.campaign = oldCard.campaign || {};
+                    shuffleAdtechProps(oldCard);
+                    
                     objUtils.extend(oldCard, resp.body);
                     return;
                 }
