@@ -70,7 +70,7 @@
                 __type: 'number',
                 __percentMin: 0.015,    // used internally, not in model.validate()
                 __percentMax: 1,        // used internally, not in model.validate()
-                __percentDefault: 1.00  // used internally, not in model.validate() //TODO: test
+                __percentDefault: 1.00  // used internally, not in model.validate()
             },
             model: {
                 __allowed: false,
@@ -755,9 +755,9 @@
     };
     
     // Initialize or update the pricingHistory property when the pricing changes
-    // TODO: consider not updating pricingHistory while campaign is in draft mode
     campModule.handlePricingHistory = function(req, next/*, done*/) {
-        var orig = req.origObj || {};
+        var orig = req.origObj || {},
+            status = req.body.status || orig.status;
         
         delete req.body.pricingHistory;
             
@@ -771,7 +771,11 @@
                 date    : new Date()
             };
             
-            req.body.pricingHistory.unshift(wrapper);
+            if (status === enums.Status.Draft) { //TODO: test
+                req.body.pricingHistory[0] = wrapper;
+            } else {
+                req.body.pricingHistory.unshift(wrapper);
+            }
         }
         
         next();

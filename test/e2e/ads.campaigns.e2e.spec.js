@@ -1730,25 +1730,12 @@ describe('ads campaigns endpoints (E2E):', function() {
                         model: 'cpv',
                         cost: 0.05
                     });
-                    expect(resp.body.pricingHistory).toEqual([
-                        {
-                            userId: 'e2e-user',
-                            user: 'selfieuser',
-                            date: jasmine.any(String),
-                            pricing: resp.body.pricing
-                        },
-                        {
-                            userId: 'e2e-user',
-                            user: 'selfieuser',
-                            date: jasmine.any(String),
-                            pricing: {
-                                budget: 1000,
-                                dailyLimit: 200,
-                                model: 'cpv',
-                                cost: 0.05
-                            }
-                        }
-                    ]);
+                    expect(resp.body.pricingHistory).toEqual([{
+                        userId: 'e2e-user',
+                        user: 'selfieuser',
+                        date: jasmine.any(String),
+                        pricing: resp.body.pricing
+                    }]);
 
                     selfieCreatedCamp = resp.body;
                 }).catch(function(error) {
@@ -1773,7 +1760,12 @@ describe('ads campaigns endpoints (E2E):', function() {
                         model: 'cpv',
                         cost: 0.07
                     });
-                    expect(resp.body.pricingHistory.length).toBe(3);
+                    expect(resp.body.pricingHistory).toEqual([{
+                        userId: 'e2e-user',
+                        user: 'selfieuser',
+                        date: jasmine.any(String),
+                        pricing: resp.body.pricing
+                    }]);
                     
                     selfieCreatedCamp = resp.body;
 
