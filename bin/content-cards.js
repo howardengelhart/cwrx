@@ -66,7 +66,7 @@
             if  (
                     (req.origObj.data.vast === req.body.data.vast) &&
                     (req.origObj.data.vpaid === req.body.data.vpaid) &&
-                    (req.origObj.data.videoId === req.body.data.videoId) &&
+                    (req.origObj.data.videoid === req.body.data.videoid) &&
                     (req.origObj.data.duration > -1) &&
                     (Date.now() - req.origObj.lastUpdated.valueOf() < 60000) ) {
                 log.trace('[%1] - Video unchanged, no need to get metadata.',req.uuid);
@@ -90,15 +90,15 @@
                 return q(next());
             }
             opts.type = 'youtube';
-            opts.id   = req.body.data.videoId;
+            opts.id   = req.body.data.videoid;
         } else
         if (req.body.type === 'vimeo') {
             opts.type = 'vimeo';
-            opts.id   = req.body.data.videoId;
+            opts.id   = req.body.data.videoid;
         } else
         if (req.body.type === 'dailymotion') {
             opts.type = 'dailymotion';
-            opts.id   = req.body.data.videoId;
+            opts.id   = req.body.data.videoid;
         } else {
             req.body.data.duration = -1;
             log.info('[%1] - MetaData unsupported for CardType [%2].',req.uuid,req.body.type);
