@@ -95,6 +95,9 @@ function setupCampaignSvcFieldVal(policy) {
         staticCardMap: {
             __allowed: true
         },
+        minViewTime: {
+            __allowed: true
+        },
         pricing: {
             budget: {
                 __min: 0,

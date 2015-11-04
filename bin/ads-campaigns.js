@@ -193,59 +193,75 @@
     
     // Replace entries in cards array with fetched C6 cards. Should be called just before response
     campModule.decorateWithCards = function(req, campResp) {
-        var log = logger.getLog();
-        
+        var log = logger.getLog(),
+            cardIds = [],
+            fetchFailed = false;
+            
         req._cards = req._cards || {};
         
         if (campResp.code < 200 || campResp.code >= 300 || typeof campResp.body !== 'object') {
             return q(campResp);
         }
-        if (!campResp.body.cards) {
-            return q(campResp);
-        }
-
-        return q.all(campResp.body.cards.map(function(cardEntry) {
-            if (!cardEntry.id) {
-                return;
-            }
         
-            if (req._cards[cardEntry.id]) {
+        // Fetch list of cards through GET /api/content/cards?ids=...
+        function fetchCards(ids) {
+            if (ids.length === 0) {
                 return q();
             }
-            
-            log.trace('[%1] Fetching card %2 to decorate %3',
-                      req.uuid, cardEntry.id, campResp.body.id);
-
+        
+            log.trace('[%1] Decorating campaigns, fetching cards [%2]', req.uuid, cardIds);
             return requestUtils.qRequest('get', {
-                url: urlUtils.resolve(campModule.config.api.cards.baseUrl, cardEntry.id),
+                url: campModule.config.api.cards.baseUrl,
+                qs: { ids: cardIds.join(',') },
                 headers: { cookie: req.headers.cookie }
             })
             .then(function(resp) {
-                if (resp.response.statusCode === 200) {
-                    req._cards[cardEntry.id] = resp.body;
+                if (resp.response.statusCode !== 200) {
+                    log.warn('[%1] Could not fetch cards to decorate campaigns for user %2: %3, %4',
+                             req.uuid, req.user.id, resp.response.statusCode, resp.body);
+                    fetchFailed = true;
                     return;
                 }
-
-                log.warn(
-                    '[%1] Could not fetch card %2 to decorate %3 for user %4: %5, %6',
-                     req.uuid,
-                     cardEntry.id,
-                     campResp.body.id,
-                     req.user.id,
-                     resp.response.statusCode,
-                     resp.body
-                 );
+                
+                resp.body.forEach(function(card) {
+                    req._cards[card.id] = card;
+                });
             })
             .catch(function(error) {
-                log.error('[%1] Failed to fetch card %2 for user %3: %4',
-                          req.uuid, cardEntry.id, req.user.id, util.inspect(error));
-                return q.reject(new Error('Error fetching card ' + cardEntry.id));
+                log.error('[%1] Failed to fetch cards for user %2: %3',
+                          req.uuid, req.user.id, util.inspect(error));
+                return q.reject('Error fetching cards');
             });
-        }))
-        .then(function() {
-            campResp.body.cards = campResp.body.cards.map(function(cardEntry) {
-                return req._cards[cardEntry.id] || cardEntry;
+        }
+        
+        // Get list of cards that need to be fetched, ignoring anything already in req._cards
+        var camps = (campResp.body instanceof Array ? campResp.body : [campResp.body]);
+        camps.forEach(function(camp) {
+            var toFetch = (camp.cards || [])
+            .map(function(card) { return card.id; })
+            .filter(function(id) { //TODO: test multiple camps with same cards?
+                return !!id && (cardIds.indexOf(id) === -1) && !req._cards[id];
             });
+
+            cardIds = cardIds.concat(toFetch);
+        });
+        
+        return fetchCards(cardIds).then(function() {
+            camps.forEach(function(camp) {
+                if (!camp.cards) {
+                    return;
+                }
+                
+                camp.cards = camp.cards.map(function(cardEntry) {
+                    // warn if a card not fetched, unless already warned b/c fetch failed
+                    if (!req._cards[cardEntry.id] && !fetchFailed) {
+                        log.warn('[%1] Card %2 not fetched', req.uuid, cardEntry.id);
+                    }
+                    
+                    return req._cards[cardEntry.id] || cardEntry;
+                });
+            });
+            
             return q(campResp);
         });
     };
@@ -891,7 +907,9 @@
                 query.updateRequest = { $exists: req.query.pendingUpdate === 'true' };
             }
 
-            var promise = svc.getObjs(query, req, true);
+            var promise = svc.getObjs(query, req, true).then(function(resp) {
+                return campModule.decorateWithCards(req, resp);
+            });
             promise.finally(function() {
                 jobManager.endJob(req, res, promise.inspect())
                 .catch(function(error) {

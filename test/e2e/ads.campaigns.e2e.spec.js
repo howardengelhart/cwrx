@@ -74,6 +74,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 },
                 fieldValidation: {
                     campaigns: {
+                        status: { __allowed: true },
                         advertiserId : { __allowed: true },
                         customerId : { __allowed: true },
                         pricing: {
