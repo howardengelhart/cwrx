@@ -1,5 +1,6 @@
 # Player Service Changelog
 
+### 1.0.1: Mon Oct 26 09:08:08 EDT 2015
 * Stop triggering warnings when an experience is loaded with no
   wildCardPlacement
 
