@@ -106,7 +106,7 @@ describe('content-cards (UT)', function() {
         });
 
         it('should not call metagetta if the req is not a video card',function(done){
-            mockReq.body.data.videoId   = 'def456';
+            mockReq.body.data.videoid   = 'def456';
             mockReq.body.type           = 'youtube';
             spyOn(cardModule,'isVideoCard').and.returnValue(false);
             cardModule.getMetaData(mockReq,mockNext,mockDone)
@@ -164,7 +164,7 @@ describe('content-cards (UT)', function() {
         it('should not call metagetta if youtube card, but no secrets.googleKey',function(done){
             cardModule.metagetta.hasGoogleKey = false;
 
-            mockReq.body.data.videoId   = 'def456';
+            mockReq.body.data.videoid   = 'def456';
             mockReq.body.type           = 'youtube';
 
             cardModule.getMetaData(mockReq,mockNext,mockDone)
@@ -242,14 +242,14 @@ describe('content-cards (UT)', function() {
         it('should call metagetta if its a put with different video.',function(done){
             mockReq.origObj = {
                 data : {
-                    videoId : 'abc123',
+                    videoid : 'abc123',
                     duration : 29
                 },
                 type : 'youtube',
                 lastUpdated : new Date(1446063211664)
             };
             spyOn(Date,'now').and.returnValue(mockReq.origObj.lastUpdated.valueOf());
-            mockReq.body.data.videoId   = 'def456';
+            mockReq.body.data.videoid   = 'def456';
             mockReq.body.type           = 'youtube';
 
             cardModule.getMetaData(mockReq,mockNext,mockDone)

@@ -819,7 +819,7 @@ describe('content card endpoints (E2E):', function() {
 
         it('should be able to create a youtube card with meta data', function(done) {
             mockCard.data = { 
-                videoId: 'OQ83Wz_mrD0'
+                videoid: 'OQ83Wz_mrD0'
             };
             mockCard.type = 'youtube';
             requestUtils.qRequest('post', options).then(function(resp) {
