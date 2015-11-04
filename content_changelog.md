@@ -1,5 +1,6 @@
 # Content Service Changelog
 
+* [FIX]: Its videoid not videoId stupid:  [#608](https://github.com/cinema6/cwrx/issues/608)
 * Support copying `adtechId` and `bannerId` from cards' `campaign` hash for public endpoints: [#603](https://github.com/cinema6/cwrx/issues/603)
 * Pass campaign's `advertiserDisplayName` as cards' `params.sponsor` on public endpoints: [#529](https://github.com/cinema6/cwrx/issues/529)
 * Support plural versions of public endpoints: [#581](https://github.com/cinema6/cwrx/issues/581)
