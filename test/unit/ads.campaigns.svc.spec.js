@@ -1,7 +1,7 @@
 var flush = true;
 describe('ads-campaigns (UT)', function() {
     var mockLog, CrudSvc, Model, logger, q, campModule, campaignUtils, bannerUtils, requestUtils,
-        mongoUtils, nextSpy, doneSpy, errorSpy, req, anyNum, mockDb;
+        mongoUtils, nextSpy, doneSpy, errorSpy, req, anyNum, mockDb, Status;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -14,6 +14,7 @@ describe('ads-campaigns (UT)', function() {
         mongoUtils      = require('../../lib/mongoUtils');
         CrudSvc         = require('../../lib/crudSvc');
         Model           = require('../../lib/model');
+        Status          = require('../../lib/enums').Status;
         anyNum = jasmine.any(Number);
 
         mockLog = {
@@ -1416,6 +1417,7 @@ describe('ads-campaigns (UT)', function() {
         beforeEach(function() {
             oldDate = new Date(new Date().valueOf() - 5000);
             req.body = {
+                status: Status.Active,
                 foo: 'bar',
                 pricing: {
                     budget: 1000,
@@ -1511,6 +1513,43 @@ describe('ads-campaigns (UT)', function() {
             };
             campModule.handlePricingHistory(req, nextSpy, doneSpy);
             expect(req.body.pricingHistory).not.toBeDefined();
+            expect(nextSpy).toHaveBeenCalledWith();
+        });
+        
+        it('should update the latest pricingHistory entry if the status is draft', function() {
+            req.body.status = Status.Draft;
+            campModule.handlePricingHistory(req, nextSpy, doneSpy);
+            expect(req.body.pricingHistory).toEqual([{
+                pricing: {
+                    budget: 1000,
+                    dailyLimit: 200,
+                    model: 'cpv',
+                    cost: 0.1
+                },
+                userId: 'u-1',
+                user: 'foo@bar.com',
+                date: jasmine.any(Date)
+            }]);
+            expect(req.body.pricingHistory[0].date).toBeGreaterThan(oldDate);
+            expect(nextSpy).toHaveBeenCalledWith();
+        });
+        
+        it('should be able to use the status on the origObj', function() {
+            delete req.body.status;
+            req.origObj.status = Status.Draft;
+            campModule.handlePricingHistory(req, nextSpy, doneSpy);
+            expect(req.body.pricingHistory).toEqual([{
+                pricing: {
+                    budget: 1000,
+                    dailyLimit: 200,
+                    model: 'cpv',
+                    cost: 0.1
+                },
+                userId: 'u-1',
+                user: 'foo@bar.com',
+                date: jasmine.any(Date)
+            }]);
+            expect(req.body.pricingHistory[0].date).toBeGreaterThan(oldDate);
             expect(nextSpy).toHaveBeenCalledWith();
         });
     });
@@ -1661,6 +1700,56 @@ describe('ads-campaigns (UT)', function() {
                 expect(errorSpy).toHaveBeenCalledWith(new Error('ADTECH IS THE WORST'));
                 done();
             });
+        });
+    });
+    
+    describe('getSchema', function() {
+        var svc;
+        beforeEach(function() {
+            svc = campModule.setupSvc(mockDb, campModule.config);
+            req.user.permissions = { campaigns: { create: 'own' } };
+            req.user.fieldValidation = { campaigns: {
+                minViewTime: { __allowed: true },
+                pricing: {
+                    budget: { __min: 0, __max: 99999999 }
+                }
+            } };
+        });
+        
+        it('should return a 403 if the user cannot create or edit campaigns', function(done) {
+            delete req.user.permissions.campaigns.create;
+            campModule.getSchema(svc, req).then(function(resp) {
+                expect(resp).toEqual({ code: 403, body: 'Cannot create or edit campaigns' });
+                delete req.user.permissions.campaigns;
+                return campModule.getSchema(svc, req);
+            }).then(function(resp) {
+                expect(resp).toEqual({ code: 403, body: 'Cannot create or edit campaigns' });
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return the campaigns schema', function(done) {
+            campModule.getSchema(svc, req).then(function(resp) {
+                expect(resp.code).toEqual(200);
+                expect(resp.body).toEqual(svc.model.schema);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should return a personalized schema if the personalized query param is set', function(done) {
+            req.query.personalized = 'true';
+            campModule.getSchema(svc, req).then(function(resp) {
+                expect(resp.code).toEqual(200);
+                expect(resp.body).not.toEqual(campModule.campSchema);
+                expect(resp.body.minViewTime).toEqual({ __allowed: true, __type: 'number' });
+                expect(resp.body.pricing.budget).toEqual({ __allowed: true, __type: 'number', __min: 0, __max: 99999999 });
+                expect(resp.body.cards).toEqual(campModule.campSchema.cards);
+                expect(resp.body.pricing.dailyLimit).toEqual(campModule.campSchema.pricing.dailyLimit);
+            }).catch(function(error) {
+                expect(error.toString()).not.toBeDefined();
+            }).done(done);
         });
     });
 });

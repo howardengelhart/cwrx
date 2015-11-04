@@ -1008,7 +1008,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                         budget: 2000,
                         dailyLimit: 500,
                         model: 'never charge me',   // should get overriden
-                        cost: 0.0000000001          // should 
+                        cost: 0.0000000001          // should get overriden
                     }
                 };
                 requestUtils.qRequest('post', options, null, { maxAttempts: 30 }).then(function(resp) {
@@ -1018,8 +1018,46 @@ describe('ads campaigns endpoints (E2E):', function() {
                         budget: 2000,
                         dailyLimit: 500,
                         model: 'cpv',
-                        cost: 0.09
+                        cost: 0.05
                     });
+                    expect(resp.body.pricingHistory).toEqual([{
+                        userId: 'e2e-user',
+                        user: 'selfieuser',
+                        date: jasmine.any(String),
+                        pricing: resp.body.pricing
+                    }]);
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should increase the cost appropriately for additional targeting', function(done) {
+                options.json = {
+                    name: 'pricing & targeting',
+                    pricing: { budget: 2000, dailyLimit: 500 },
+                    targeting: {
+                        geo: {
+                            states: ['new jersey'],
+                            dmas: ['new york', 'chicago']
+                        },
+                        demographics: {
+                            age: ['18-24'],
+                            gender: ['male'],
+                            income: ['1000', '2000']
+                        },
+                        interests: ['cat-1', 'cat-2']
+                    }
+                };
+                requestUtils.qRequest('post', options, null, { maxAttempts: 30 }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(201);
+                    expect(resp.body.id).toBeDefined();
+                    expect(resp.body.pricing).toEqual({
+                        budget: 2000,
+                        dailyLimit: 500,
+                        model: 'cpv',
+                        cost: 0.11
+                    });
+                    expect(resp.body.targeting).toEqual(options.json.targeting);
                     expect(resp.body.pricingHistory).toEqual([{
                         userId: 'e2e-user',
                         user: 'selfieuser',
@@ -1648,23 +1686,49 @@ describe('ads campaigns endpoints (E2E):', function() {
 
             it('should be able to edit the sponsored card', function(done) {
                 selfieCreatedCamp.cards[0].title = 'Funkmaster General';
-                options.json = {
-                    cards: selfieCreatedCamp.cards,
-                    pricing: {
-                        budget: 1000,
-                        dailyLimit: 200,
-                        model: 'cpcctv',
-                        cost: 0.0000001
-                    }
-                };
+                options.json = { cards: selfieCreatedCamp.cards };
                 requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
                     expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.cards[0].title).toBe('Funkmaster General');
+
+                    selfieCreatedCamp = resp.body;
+                    return testUtils.checkCardEntities(selfieCreatedCamp, selfieJar, config.contentUrl);
+                }).catch(function(error) {
+                    expect(util.inspect(error)).not.toBeDefined();
+                }).done(done);
+            });
+            
+            it('should be able to initialize and edit pricing', function(done) {
+                options.json = { pricing: {
+                    budget: 1000,
+                    dailyLimit: 200,
+                    model: 'cpcctv',
+                    cost: 0.0000001
+                } };
+                requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
                     expect(resp.body.pricing).toEqual({
                         budget: 1000,
                         dailyLimit: 200,
                         model: 'cpv',
-                        cost: 0.09
+                        cost: 0.05
+                    });
+                    expect(resp.body.pricingHistory).toEqual([{
+                        userId: 'e2e-user',
+                        user: 'selfieuser',
+                        date: jasmine.any(String),
+                        pricing: resp.body.pricing
+                    }]);
+
+                    options.json.pricing = { budget: 4000 };
+                    
+                    return requestUtils.qRequest('put', options, null, { maxAttempts: 30 });
+                }).then(function(resp) {
+                    expect(resp.body.pricing).toEqual({
+                        budget: 4000,
+                        dailyLimit: 200,
+                        model: 'cpv',
+                        cost: 0.05
                     });
                     expect(resp.body.pricingHistory).toEqual([{
                         userId: 'e2e-user',
@@ -1674,7 +1738,6 @@ describe('ads campaigns endpoints (E2E):', function() {
                     }]);
 
                     selfieCreatedCamp = resp.body;
-                    return testUtils.checkCardEntities(selfieCreatedCamp, selfieJar, config.contentUrl);
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
@@ -1691,6 +1754,19 @@ describe('ads campaigns endpoints (E2E):', function() {
                         interests: ['cat-3'],
                         demographics: { age: ['0-18'] }
                     });
+                    expect(resp.body.pricing).toEqual({
+                        budget: 4000,
+                        dailyLimit: 200,
+                        model: 'cpv',
+                        cost: 0.07
+                    });
+                    expect(resp.body.pricingHistory).toEqual([{
+                        userId: 'e2e-user',
+                        user: 'selfieuser',
+                        date: jasmine.any(String),
+                        pricing: resp.body.pricing
+                    }]);
+                    
                     selfieCreatedCamp = resp.body;
 
                     return q.all(
@@ -1704,41 +1780,6 @@ describe('ads campaigns endpoints (E2E):', function() {
                 }).catch(function(error) {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(function(results) { done(); });
-            });
-            
-            it('should be able to edit pricing', function(done) {
-                options.json.pricing = { budget: 4000 };
-                requestUtils.qRequest('put', options, null, { maxAttempts: 30 }).then(function(resp) {
-                    expect(resp.response.statusCode).toBe(200);
-                    expect(resp.body.pricing).toEqual({
-                        budget: 4000,
-                        dailyLimit: 200,
-                        model: 'cpv',
-                        cost: 0.09
-                    });
-                    expect(resp.body.pricingHistory).toEqual([
-                        {
-                            userId: 'e2e-user',
-                            user: 'selfieuser',
-                            date: jasmine.any(String),
-                            pricing: resp.body.pricing
-                        },
-                        {
-                            userId: 'e2e-user',
-                            user: 'selfieuser',
-                            date: jasmine.any(String),
-                            pricing: {
-                                budget: 1000,
-                                dailyLimit: 200,
-                                model: 'cpv',
-                                cost: 0.09
-                            }
-                        }
-                    ]);
-                    selfieCreatedCamp = resp.body;
-                }).catch(function(error) {
-                    expect(util.inspect(error)).not.toBeDefined();
-                }).done(done);
             });
             
             it('should trim off other forbidden fields', function(done) {
@@ -1963,6 +2004,65 @@ describe('ads campaigns endpoints (E2E):', function() {
                     expect(util.inspect(error)).not.toBeDefined();
                 }).done(done);
             });
+        });
+    });
+    
+    describe('GET /api/campaigns/schema', function() {
+        var selfieOpts, adminOpts, campModule;
+        beforeEach(function() {
+            selfieOpts = { url: config.adsUrl + '/campaigns/schema', qs: {}, jar: selfieJar };
+            adminOpts = { url: config.adsUrl + '/campaigns/schema', qs: {}, jar: adminJar };
+            campModule = require('../../bin/ads-campaigns');
+        });
+
+        it('should get the base campaign schema', function(done) {
+            q.all([
+                requestUtils.qRequest('get', selfieOpts),
+                requestUtils.qRequest('get', adminOpts),
+            ]).then(function(results) {
+                results.forEach(function(resp) {
+                    expect(resp.response.statusCode).toBe(200);
+                    expect(resp.body).toEqual(jasmine.any(Object));
+                    expect(resp.body.paymentMethod).toEqual({ __allowed: true, __type: 'string' });
+                    expect(resp.body.cards).toEqual(JSON.parse(JSON.stringify(campModule.campSchema.cards)));
+                    expect(resp.body.pricing).toEqual(JSON.parse(JSON.stringify(campModule.campSchema.pricing)));
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
+        });
+        
+        it('should be able to get a campaign schema customized to each user', function(done) {
+            selfieOpts.qs.personalized = 'true';
+            adminOpts.qs.personalized = 'true';
+            q.all([
+                requestUtils.qRequest('get', selfieOpts),
+                requestUtils.qRequest('get', adminOpts),
+            ]).spread(function(selfieResult, adminResult) {
+                expect(selfieResult.response.statusCode).toBe(200);
+                expect(adminResult.response.statusCode).toBe(200);
+                
+                expect(selfieResult.body.pricing).toEqual(JSON.parse(JSON.stringify(campModule.campSchema.pricing)));
+                expect(selfieResult.body.application).toEqual({ __allowed: false, __type: 'string', __unchangeable: true, __default: 'selfie' });
+                
+                expect(adminResult.body.miniReels).toEqual({ __allowed: true, __type: 'objectArray' });
+                expect(adminResult.body.staticCardMap).toEqual({ __allowed: true, __type: 'object' });
+                expect(adminResult.body.pricing).toEqual({
+                    budget: JSON.parse(JSON.stringify(campModule.campSchema.pricing.budget)),
+                    dailyLimit: JSON.parse(JSON.stringify(campModule.campSchema.pricing.dailyLimit)),
+                    model: { __allowed: true, __type: 'string', __default: 'cpv' },
+                    cost: {
+                        __allowed: true,
+                        __type: 'number',
+                        __base: campModule.campSchema.pricing.cost.__base,
+                        __pricePerGeo: campModule.campSchema.pricing.cost.__pricePerGeo,
+                        __pricePerDemo: campModule.campSchema.pricing.cost.__pricePerDemo,
+                        __priceForInterests: campModule.campSchema.pricing.cost.__priceForInterests
+                    }
+                });
+            }).catch(function(error) {
+                expect(util.inspect(error)).not.toBeDefined();
+            }).done(done);
         });
     });
     

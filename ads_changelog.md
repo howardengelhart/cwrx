@@ -1,5 +1,7 @@
 # Ads Service Changelog
 
+* [FIX]: Properly compute cost: [#605](https://github.com/cinema6/cwrx/issues/605)
+* [FEATURE]: Add schema fetching endpoint: [#592](https://github.com/cinema6/cwrx/issues/592)
 * `text` query param for campaigns searches `advertiserDisplayName` as well: [#522](https://github.com/cinema6/cwrx/issues/522)
 * [FEATURE]: Allow querying for campaigns with pending update requests: [#591](https://github.com/cinema6/cwrx/issues/591)
 * [FEATURE]: Add campaign update request API: [#490](https://github.com/cinema6/cwrx/issues/490)
@@ -9,6 +11,8 @@
 * [REMOVAL]: entries in `miniReels` no longer get Adtech campaigns
 * [REMOVAL]: entries in `miniReelGroups` no longer get Adtech campaigns + are no longer handled at all
 * Extra deployment steps:
+    * Update policies + roles to accomodate `campaignUpdates` entities
+    * Setup mongo indexes for `campaignUpdates` collection
     * Coordinate with deployment of studio + selfie
     * Deploy ads cookbook version 1.0.9
 

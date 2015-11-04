@@ -3,7 +3,7 @@ var q = require('q');
 
 describe('ads-campaignUpdates (UT)', function() {
     var mockLog, CrudSvc, Model, logger, updateModule, campaignUtils, requestUtils, Status,
-        mongoUtils, nextSpy, doneSpy, errorSpy, req, mockDb;
+        mongoUtils, campModule, email, nextSpy, doneSpy, errorSpy, req, mockDb;
 
     beforeEach(function() {
         if (flush) { for (var m in require.cache){ delete require.cache[m]; } flush = false; }
@@ -84,7 +84,7 @@ describe('ads-campaignUpdates (UT)', function() {
             });
             spyOn(CrudSvc.prototype.setupObj, 'bind').and.returnValue(CrudSvc.prototype.setupObj);
 
-            fakeCampModel = new Model('campaigns', {}),
+            fakeCampModel = new Model('campaigns', {});
             fakeAutoApproveModel = new Model('campaignUpdates', {});
             
             spyOn(updateModule, 'createCampModel').and.returnValue(fakeCampModel);
@@ -570,7 +570,7 @@ describe('ads-campaignUpdates (UT)', function() {
             expect(campaignUtils.ensureUniqueIds).toHaveBeenCalledWith({ newCampaign: 'yes' });
             expect(campaignUtils.ensureUniqueNames).toHaveBeenCalledWith({ newCampaign: 'yes' });
             expect(campaignUtils.validateAllDates).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' }, req.user, { start: 100, end: 200 }, '1234');
-            expect(campaignUtils.validatePricing).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' }, req.user, model);
+            expect(campaignUtils.validatePricing).toHaveBeenCalledWith({ newCampaign: 'yes' }, { oldCampaign: 'yes' }, req.user, model, true);
         });
         
         it('should call done if any of the methods fail', function() {
@@ -740,7 +740,7 @@ describe('ads-campaignUpdates (UT)', function() {
         });
         
         it('should reject if editing the campaign fails', function(done) {
-            mockColl.findAndModify.and.callFake(function(query, sort, updates, opts, cb) { cb('I GOT A PROBLEM') });
+            mockColl.findAndModify.and.callFake(function(query, sort, updates, opts, cb) { cb('I GOT A PROBLEM'); });
             updateModule.lockCampaign(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
@@ -904,7 +904,7 @@ describe('ads-campaignUpdates (UT)', function() {
         });
         
         it('should reject if editing the campaign fails', function(done) {
-            mockColl.findAndModify.and.callFake(function(query, sort, updates, opts, cb) { cb('I GOT A PROBLEM') });
+            mockColl.findAndModify.and.callFake(function(query, sort, updates, opts, cb) { cb('I GOT A PROBLEM'); });
             updateModule.unlockCampaign(svc, req, nextSpy, doneSpy).catch(errorSpy).finally(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
