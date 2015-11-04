@@ -227,7 +227,7 @@
             campaignUtils.ensureUniqueIds(req.body.data),
             campaignUtils.ensureUniqueNames(req.body.data),
             campaignUtils.validateAllDates(req.body.data, req.campaign, req.user, delays,req.uuid),
-            campaignUtils.validatePricing(req.body.data, req.campaign, req.user, model),
+            campaignUtils.validatePricing(req.body.data, req.campaign, req.user, model, true),
         ];
         
         for (var i = 0; i < validResps.length; i++) {

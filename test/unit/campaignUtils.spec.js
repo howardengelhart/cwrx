@@ -1,6 +1,6 @@
 var flush = true;
 describe('campaignUtils', function() {
-    var q, mockLog, logger, promise, Model, adtech, campaignUtils, mockClient, kCamp,
+    var q, mockLog, logger, promise, Model, adtech, campaignUtils, mockClient, kCamp, campModule,
         nextSpy, doneSpy, errorSpy, req;
     
     beforeEach(function() {
@@ -12,6 +12,7 @@ describe('campaignUtils', function() {
         Model           = require('../../lib/model');
         promise         = require('../../lib/promise');
         campaignUtils   = require('../../lib/campaignUtils');
+        campModule      = require('../../bin/ads-campaigns');
         
         mockLog = {
             trace : jasmine.createSpy('log_trace'),
@@ -165,31 +166,31 @@ describe('campaignUtils', function() {
 
     describe('ensureUniqueIds', function() {
         it('should return an invalid response if the cards list is not distinct', function() {
-            body = { cards: [{id: 'rc-1'}, {id: 'rc-2'}, {id: 'rc-1'}] };
+            var body = { cards: [{id: 'rc-1'}, {id: 'rc-2'}, {id: 'rc-1'}] };
             var resp = campaignUtils.ensureUniqueIds(body);
             expect(resp).toEqual({ isValid: false, reason: 'cards must be distinct' });
         });
 
         it('should return an invalid response if the miniReels list is not distinct', function() {
-            body = { miniReels: [{id: 'e-1'}, {id: 'e-2'}, {id: 'e-1'}] };
+            var body = { miniReels: [{id: 'e-1'}, {id: 'e-2'}, {id: 'e-1'}] };
             var resp = campaignUtils.ensureUniqueIds(body);
             expect(resp).toEqual({ isValid: false, reason: 'miniReels must be distinct' });
         });
 
         it('should return a valid response if all lists are distinct', function() {
-            body = { cards: [{id: 'rc-1'}], miniReels: [{id: 'e-1'}, {id: 'e-2'}, {id: 'e-11'}] };
+            var body = { cards: [{id: 'rc-1'}], miniReels: [{id: 'e-1'}, {id: 'e-2'}, {id: 'e-11'}] };
             var resp = campaignUtils.ensureUniqueIds(body);
             expect(resp).toEqual({ isValid: true });
         });
         
         it('should be able to handle multiple cards without ids', function() {
-            body = { cards: [{ title: 'card 1' }, { title: 'card 2' }, { id: 'rc-1' }] };
+            var body = { cards: [{ title: 'card 1' }, { title: 'card 2' }, { id: 'rc-1' }] };
             var resp = campaignUtils.ensureUniqueIds(body);
             expect(resp).toEqual({ isValid: true });
                 
             body.cards.unshift({ id: 'rc-1' });
                 
-            var resp = campaignUtils.ensureUniqueIds(body);
+            resp = campaignUtils.ensureUniqueIds(body);
             expect(resp).toEqual({ isValid: false, reason: 'cards must be distinct' });
         });
     });
@@ -222,13 +223,80 @@ describe('campaignUtils', function() {
     });
 
     describe('computeCost', function() {
+        var body, origObj, requester, model, actingSchema;
+        beforeEach(function() {
+            body = { targeting: {
+                geo: {
+                    states: [],
+                    dmas: []
+                },
+                demographics: {
+                    age: [],
+                    gender: [],
+                    income: []
+                },
+                interests: []
+            } };
+            origObj = {};
+            requester = { id: 'u-1', fieldValidation: { campaigns: { pricing: { cost: {} } } } };
+            model = new Model('campaigns', campModule.campSchema);
+            actingSchema = model.personalizeSchema(requester);
+        });
+
         it('should return a base price if no targeting exists', function() {
-            expect(campaignUtils.computeCost()).toEqual(0.09);
+            delete body.targeting;
+            expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(0.05);
+        });
+        
+        it('should increase the price for each targeting sub-category chosen', function() {
+            expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(0.05);
+            body.targeting.geo.states.push('ohio', 'new jersey');
+            expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(0.06);
+            body.targeting.geo.dmas.push('princeton', 'new york', 'chicago');
+            expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(0.07);
+            body.targeting.demographics.age.push('18-24', '24-36');
+            expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(0.08);
+            body.targeting.demographics.gender.push('female');
+            expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(0.09);
+            body.targeting.demographics.income.push('1000', '2000');
+            expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(0.10);
+            body.targeting.interests.push('cat-1');
+            expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(0.11);
+        });
+        
+        it('should use the targeting on the origObj if undefined on the body', function() {
+            origObj.targeting = { interests: ['cat-1'], geo: { states: ['ohio'] } };
+            body = {};
+            expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(0.07);
+        });
+        
+        it('should be able to use different pricing config defined for the requester', function() {
+            requester.fieldValidation.campaigns.pricing.cost = {
+                __base: 0.51,
+                __pricePerGeo: 0.11,
+                __pricePerDemo: 0.21,
+                __priceForInterests: 1.11
+            };
+            actingSchema = model.personalizeSchema(requester);
+            
+            expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(0.51);
+            body.targeting.geo.states.push('ohio', 'new jersey');
+            expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(0.62);
+            body.targeting.geo.dmas.push('princeton', 'new york', 'chicago');
+            expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(0.73);
+            body.targeting.demographics.age.push('18-24', '24-36');
+            expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(0.94);
+            body.targeting.demographics.gender.push('female');
+            expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(1.15);
+            body.targeting.demographics.income.push('1000', '2000');
+            expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(1.36);
+            body.targeting.interests.push('cat-1');
+            expect(campaignUtils.computeCost(body, origObj, actingSchema)).toEqual(2.47);
         });
     });
     
     describe('validatePricing', function() {
-        var body, origObj, requester, model;
+        var body, origObj, requester, model, actingSchema;
         beforeEach(function() {
             body = { pricing: {
                 budget: 1000,
@@ -237,9 +305,14 @@ describe('campaignUtils', function() {
             } };
             origObj = null;
             requester = { id: 'u-1', fieldValidation: { campaigns: {} } };
-            var campSchema = require('../../bin/ads-campaigns').campSchema;
-            model = new Model('campaigns', campSchema);
-            spyOn(campaignUtils, 'computeCost').and.callThrough();
+            model = new Model('campaigns', campModule.campSchema);
+            model.__origPersonalize = model.personalizeSchema;
+            spyOn(model, 'personalizeSchema').and.callFake(function(requester) {
+                var personalized = model.__origPersonalize(requester);
+                actingSchema = personalized;
+                return personalized;
+            });
+            spyOn(campaignUtils, 'computeCost').and.returnValue(0.05);
         });
         
         it('should skip if no pricing is on the request body', function() {
@@ -256,9 +329,9 @@ describe('campaignUtils', function() {
                 budget: 1000,
                 dailyLimit: 200,
                 model: 'cpv',
-                cost: 0.09
+                cost: 0.05
             });
-            expect(campaignUtils.computeCost).toHaveBeenCalledWith();
+            expect(campaignUtils.computeCost).toHaveBeenCalledWith(body, origObj, actingSchema);
         });
 
         it('should be able to set a default dailyLimit', function() {
@@ -267,9 +340,9 @@ describe('campaignUtils', function() {
             expect(resp).toEqual({ isValid: true });
             expect(body.pricing).toEqual({
                 budget: 1000,
-                dailyLimit: 30,
+                dailyLimit: 1000,
                 model: 'cpv',
-                cost: 0.09
+                cost: 0.05
             });
         });
         
@@ -284,7 +357,21 @@ describe('campaignUtils', function() {
                 budget: 1000,
                 dailyLimit: 500,
                 model: 'cpm',
-                cost: 0.09
+                cost: 0.05
+            });
+        });
+        
+        it('should be able to copy the entire original object\'s pricing', function() {
+            delete body.pricing;
+            origObj = { pricing: { budget: 2000, dailyLimit: 500, model: 'cpm' } };
+
+            var resp = campaignUtils.validatePricing(body, origObj, requester, model);
+            expect(resp).toEqual({ isValid: true });
+            expect(body.pricing).toEqual({
+                budget: 2000,
+                dailyLimit: 500,
+                model: 'cpm',
+                cost: 0.05
             });
         });
         
@@ -296,7 +383,7 @@ describe('campaignUtils', function() {
             expect(resp).toEqual({ isValid: true });
             expect(body.pricing).toEqual({
                 model: 'cpm',
-                cost: 0.09
+                cost: 0.05
             });
         });
         
@@ -341,7 +428,7 @@ describe('campaignUtils', function() {
                     budget: 1000,
                     dailyLimit: 750,
                     model: 'cpv',
-                    cost: 0.09
+                    cost: 0.05
                 });
             });
         });
@@ -356,6 +443,7 @@ describe('campaignUtils', function() {
                 var resp = campaignUtils.validatePricing(body, origObj, requester, model);
                 expect(resp).toEqual({ isValid: true });
                 expect(body.pricing.cost).toBe(0.00000123456);
+                expect(campaignUtils.computeCost).not.toHaveBeenCalled();
             });
             
             it('should fall back to a value on the origObj', function() {
@@ -363,12 +451,22 @@ describe('campaignUtils', function() {
                 var resp = campaignUtils.validatePricing(body, origObj, requester, model);
                 expect(resp).toEqual({ isValid: true });
                 expect(body.pricing.cost).toBe(0.123456);
+                expect(campaignUtils.computeCost).not.toHaveBeenCalled();
             });
             
             it('should compute the cost if nothing else is defined', function() {
                 var resp = campaignUtils.validatePricing(body, origObj, requester, model);
                 expect(resp).toEqual({ isValid: true });
-                expect(body.pricing.cost).toBe(0.09);
+                expect(body.pricing.cost).toBe(0.05);
+                expect(campaignUtils.computeCost).toHaveBeenCalledWith(body, origObj, actingSchema);
+            });
+            
+            it('should always recompute the cost if the recomputeCost flag is set', function() {
+                body.pricing.cost = 0.00000123456;
+                var resp = campaignUtils.validatePricing(body, origObj, requester, model, true);
+                expect(resp).toEqual({ isValid: true });
+                expect(body.pricing.cost).toBe(0.05);
+                expect(campaignUtils.computeCost).toHaveBeenCalledWith(body, origObj, actingSchema);
             });
         });
         
@@ -377,7 +475,8 @@ describe('campaignUtils', function() {
                 body.pricing.cost = 0.00000123456;
                 var resp = campaignUtils.validatePricing(body, origObj, requester, model);
                 expect(resp).toEqual({ isValid: true });
-                expect(body.pricing.cost).toBe(0.09);
+                expect(body.pricing.cost).toBe(0.05);
+                expect(campaignUtils.computeCost).toHaveBeenCalledWith(body, origObj, actingSchema);
             });
         });
     });

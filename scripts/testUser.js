@@ -127,6 +127,7 @@ function setupCampaignSvcFieldVal(policy) {
             __allowed: true
         }
     };
+    policy.entitlements.adminCampaigns = true;
 }
     
 program
@@ -169,7 +170,8 @@ mongoUtils.connect(program.dbHost, program.dbPort, 'c6Db', program.dbUser, progr
             lastUpdated: new Date(),
             status: 'active',
             permissions: {},
-            fieldValidation: {}
+            fieldValidation: {},
+            entitlements: {}
         };
         
         userPerms.forEach(function(key) {
@@ -194,6 +196,7 @@ mongoUtils.connect(program.dbHost, program.dbPort, 'c6Db', program.dbUser, progr
             password: hashPass,
             status: 'active',
             policies: ['testFullAdmin'],
+	        applications : ['e-selfie', 'e-studio'],
             config: {
                 minireelinator : {
                     minireelDefaults : {

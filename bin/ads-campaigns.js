@@ -70,7 +70,7 @@
                 __type: 'number',
                 __percentMin: 0.015,    // used internally, not in model.validate()
                 __percentMax: 1,        // used internally, not in model.validate()
-                __percentDefault: 0.03  // used internally, not in model.validate() 
+                __percentDefault: 1.00  // used internally, not in model.validate() //TODO: test
             },
             model: {
                 __allowed: false,
@@ -79,7 +79,11 @@
             },
             cost: {
                 __allowed: false,
-                __type: 'number'
+                __type: 'number',
+                __base: 0.05,               // starting cpv; these props not used in model.validate
+                __pricePerGeo: 0.01,        // add-on price for each geo subcategory
+                __pricePerDemo: 0.01,       // add-on price for each demo subcategory
+                __priceForInterests: 0.01   // add-on price for interests
             }
         },
         pricingHistory: {

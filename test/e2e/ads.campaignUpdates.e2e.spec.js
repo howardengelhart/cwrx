@@ -486,7 +486,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     name: 'e2e test 1',
                     status: 'draft',
                     application: 'selfie',
-                    pricing: { budget: 1000, dailyLimit: 200, cost: 0.09, model: 'cpv' },
+                    pricing: { budget: 1000, dailyLimit: 200, cost: 0.07, model: 'cpv' },
                     targeting: {
                         geo: { states: ['new jersey' ] },
                         interests: ['cat-1', 'cat-2']
@@ -526,7 +526,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     application: 'selfie',
                     paymentMethod: 'infinite money',
                     status: 'draft',
-                    pricing: { budget: 500, dailyLimit: 200, cost: 0.09, model: 'cpv' },
+                    pricing: { budget: 500, dailyLimit: 200, cost: 0.08, model: 'cpv' },
                     targeting: {
                         geo: {
                             states: ['new jersey' ],
@@ -836,7 +836,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     name: 'e2e test 1',
                     status: 'draft',
                     application: 'selfie',
-                    pricing: { budget: 1000, dailyLimit: 200, cost: 0.09, model: 'cpv' },
+                    pricing: { budget: 1000, dailyLimit: 200, cost: 0.07, model: 'cpv' },
                     targeting: {
                         geo: { states: ['new jersey' ] },
                         interests: ['cat-1', 'cat-2']
@@ -886,7 +886,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     application: 'selfie',
                     name: 'fernando',
                     paymentMethod: 'infinite money',
-                    pricing: { budget: 500, dailyLimit: 100, cost: 0.09, model: 'cpv' },
+                    pricing: { budget: 500, dailyLimit: 100, cost: 0.08, model: 'cpv' },
                     targeting: {
                         geo: {
                             states: ['new jersey' ],
@@ -920,7 +920,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     application: 'selfie',
                     name: 'fernando',
                     paymentMethod: 'infinite money',
-                    pricing: { budget: 500, dailyLimit: 100, cost: 0.09, model: 'cpv' },
+                    pricing: { budget: 500, dailyLimit: 100, cost: 0.08, model: 'cpv' },
                     targeting: {
                         geo: {
                             states: ['new jersey' ],
@@ -950,7 +950,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     expect(resp.body.updateRequest).not.toBeDefined();
                     expect(resp.body.name).toBe('fernando');
                     expect(resp.body.paymentMethod).toBe('infinite money');
-                    expect(resp.body.pricing).toEqual({ budget: 500, dailyLimit: 100, cost: 0.09, model: 'cpv' });
+                    expect(resp.body.pricing).toEqual({ budget: 500, dailyLimit: 100, cost: 0.08, model: 'cpv' });
                     expect(resp.body.targeting).toEqual({
                         geo: {
                             states: ['new jersey'],
@@ -1014,7 +1014,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         
         describe('if an update is an inital request for approval', function() {
             beforeEach(function(done) {
-                mockUpdate = {
+                var mockUpdate = {
                     id: 'ur-1',
                     status: 'pending',
                     user: 'e2e-user',
@@ -1101,7 +1101,6 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         });
         
         describe('if the update was modifying the campaign\'s cards', function(done) {
-            var mockUpdate;
             beforeEach(function(done) {
                 requestUtils.qRequest('post', {
                     url: config.adsUrl + '/campaigns/',
@@ -1122,7 +1121,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
                     }
                     createdCamp = resp.body;
                     
-                    mockUpdate = {
+                    var mockUpdate = {
                         id: 'ur-cards',
                         status: 'pending',
                         user: 'e2e-user',
