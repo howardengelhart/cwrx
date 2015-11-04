@@ -274,6 +274,32 @@ describe('player service', function() {
                             });
                         });
                     });
+
+                    describe('and no placement', function() {
+                        beforeEach(function(done) {
+                            delete config.playerUrl.query.wildCardPlacement;
+                            config.playerUrl.query.pageUrl = 'somefakesite.com';
+
+                            request.get(getURL()).then(getResponse).then(done, done.fail);
+                        });
+
+                        it('should not stick any sponsored cards in the placeholder', function() {
+                            var $experience = $('script[data-src="experience"]');
+                            var experience = JSON.parse($experience.text());
+                            var sponsoredCardId = experience.data.deck[1].id;
+                            var cardIds = campaign.cards.map(function(config) { return config.id; });
+
+                            expect(cardIds).not.toContain(sponsoredCardId);
+                        });
+
+                        it('should remove all placeholders', function() {
+                            var $experience = $('script[data-src="experience"]');
+                            var experience = JSON.parse($experience.text());
+                            var types = experience.data.deck.map(function(card) { return card.type; });
+
+                            expect(types).not.toContain('wildcard');
+                        });
+                    });
                 });
 
                 describe('with a static card mapping', function() {
@@ -406,6 +432,31 @@ describe('player service', function() {
                                     expect(card.campaign.playUrls).toEqual(jasmine.arrayContaining(config.playerUrl.query.playUrls.split(',')));
                                 });
                             });
+                        });
+                    });
+
+                    describe('and no placement', function() {
+                        beforeEach(function(done) {
+                            delete config.playerUrl.query.wildCardPlacement;
+                            config.playerUrl.query.pageUrl = 'somefakesite.com';
+
+                            request.get(getURL()).then(getResponse).then(done, done.fail);
+                        });
+
+                        it('should remove all sponsored cards and placeholders', function() {
+                            var $experience = $('script[data-src="experience"]');
+                            var experience = JSON.parse($experience.text());
+                            var cardIds = experience.data.deck.map(function(card) { return card.id; });
+                            var staticCardIds = Object.keys(campaign.staticCardMap[experience.id]).map(function(placeholderId) {
+                                return campaign.staticCardMap[experience.id][placeholderId];
+                            });
+                            var types = experience.data.deck.map(function(card) { return card.type; });
+
+                            expect(staticCardIds.length).toBeGreaterThan(0); // Double-check we're actually testing something
+                            staticCardIds.forEach(function(id) {
+                                expect(cardIds).not.toContain(id);
+                            });
+                            expect(types).not.toContain('wildcard');
                         });
                     });
                 });
