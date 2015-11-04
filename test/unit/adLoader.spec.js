@@ -1477,6 +1477,8 @@ describe('AdLoader()', function() {
                             loader.fillPlaceholders.calls.reset();
                             success.calls.reset();
                             failure.calls.reset();
+                            spyOn(AdLoader, 'removeSponsoredCards').and.callThrough();
+                            spyOn(AdLoader, 'removePlaceholders').and.callThrough();
 
                             loader.loadAds(experience, categories, campaignId, uuid).then(success, failure).finally(done);
                         });
@@ -1489,8 +1491,13 @@ describe('AdLoader()', function() {
                             expect(loader.fillPlaceholders).not.toHaveBeenCalled();
                         });
 
-                        it('should reject the promise', function() {
-                            expect(failure).toHaveBeenCalledWith(new Error('Experience has no wildCardPlacement.'));
+                        it('should remove the placeholders and sponsored cards', function() {
+                            expect(AdLoader.removePlaceholders).toHaveBeenCalledWith(experience);
+                            expect(AdLoader.removeSponsoredCards).toHaveBeenCalledWith(experience);
+                        });
+
+                        it('should fulfill the promise', function() {
+                            expect(success).toHaveBeenCalledWith(experience);
                         });
                     });
 
