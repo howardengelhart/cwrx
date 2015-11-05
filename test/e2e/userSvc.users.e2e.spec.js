@@ -1699,6 +1699,11 @@ describe('userSvc users (E2E):', function() {
         });
 
         it('should 400 concurrent requests', function(done) {
+            mailman.once(msgSubject, function(msg) {
+                expect(msg).toBeDefined();
+                done();
+            });
+
             var options = { url: config.usersUrl + '/confirm/u-12345', json: { token: 'valid-token' } };
             var requests = [null, null].map(function() {
                 return requestUtils.qRequest('post', options);
@@ -1713,7 +1718,8 @@ describe('userSvc users (E2E):', function() {
                 });
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
-            }).done(done);
+                done();
+            });
         });
 
         it('should 400 if a token is not provided on the request body', function(done) {
