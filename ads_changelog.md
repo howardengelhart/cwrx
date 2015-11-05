@@ -1,5 +1,6 @@
 # Ads Service Changelog
 
+### 3.0.0: Thu Nov  5 12:13:27 EST 2015
 * [FIX]: Properly compute cost: [#605](https://github.com/cinema6/cwrx/issues/605)
 * [FEATURE]: Add schema fetching endpoint: [#592](https://github.com/cinema6/cwrx/issues/592)
 * `text` query param for campaigns searches `advertiserDisplayName` as well: [#522](https://github.com/cinema6/cwrx/issues/522)
