@@ -67,6 +67,7 @@
         policies: {
             allEntities: [ // all entity names, used for permissions and fieldValidations props
                 'advertisers',
+                'campaignUpdates',
                 'campaigns',
                 'cards',
                 'categories',

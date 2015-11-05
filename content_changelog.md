@@ -1,5 +1,6 @@
 # Content Service Changelog
 
+### 2.3.0: Thu Nov  5 12:13:27 EST 2015
 * [FIX]: Its videoid not videoId stupid:  [#608](https://github.com/cinema6/cwrx/issues/608)
 * Support copying `adtechId` and `bannerId` from cards' `campaign` hash for public endpoints: [#603](https://github.com/cinema6/cwrx/issues/603)
 * Pass campaign's `advertiserDisplayName` as cards' `params.sponsor` on public endpoints: [#529](https://github.com/cinema6/cwrx/issues/529)
@@ -7,6 +8,8 @@
 * [FIX]: Prevent tracking pixels from being added to previews of cards/videos: [#578](https://github.com/cinema6/cwrx/issues/578)
 * [FEATURE]: Integrated metagetta into the cards module puts and posts to get video durations:  [#531](https://github.com/cinema6/cwrx/issues/531)
 * Allow `null` to be set for validated fields: [#573](https://github.com/cinema6/cwrx/pull/573)
+* Extra deployment steps:
+    * Deploy content cookbook 1.5.0 to staging/production
 
 ### 2.2.0: Wed Oct 14 18:47:35 EDT 20151
 * support querying cards by `ids`: [#558](https://github.com/cinema6/cwrx/issues/558)

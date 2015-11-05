@@ -8,6 +8,7 @@ describe('userSvc-policies (UT)', function() {
             allEntities: [
                 'advertisers',
                 'campaigns',
+                'campaignUpdates',
                 'cards',
                 'categories',
                 'customers',

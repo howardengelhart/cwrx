@@ -1,10 +1,11 @@
 # User Service Changelog
 
+### 2.1.2: Thu Nov  5 12:13:27 EST 2015
 * [FIX]: Fix for an issue that arose on concurrent confirmation requests: [#567](https://github.com/cinema6/cwrx/issues/567)
 * Allow `null` to be set for validated fields: [#573](https://github.com/cinema6/cwrx/pull/573)
 * Expire login sessions after 30 minutes: [#487](https://github.com/cinema6/cwrx/issues/487)
 * Extra deployment steps:
-    * Deploy new userSvc cookbook to staging/production envs
+    * Deploy userSvc cookbook 1.3.8 to staging/production envs
     * Test environments need to be updated to run memcached and monitor
 
 ### 2.1.1: Wed Oct 14 18:47:35 EDT 2015
