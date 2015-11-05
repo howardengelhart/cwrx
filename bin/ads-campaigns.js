@@ -209,10 +209,10 @@
                 return q();
             }
         
-            log.trace('[%1] Decorating campaigns, fetching cards [%2]', req.uuid, cardIds);
+            log.trace('[%1] Decorating campaigns, fetching cards [%2]', req.uuid, ids);
             return requestUtils.qRequest('get', {
                 url: campModule.config.api.cards.baseUrl,
-                qs: { ids: cardIds.join(',') },
+                qs: { ids: ids.join(',') },
                 headers: { cookie: req.headers.cookie }
             })
             .then(function(resp) {
