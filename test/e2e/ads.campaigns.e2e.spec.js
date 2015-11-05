@@ -74,6 +74,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                 },
                 fieldValidation: {
                     campaigns: {
+                        status: { __allowed: true },
                         advertiserId : { __allowed: true },
                         customerId : { __allowed: true },
                         pricing: {
@@ -303,6 +304,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                     id: 'e2e-getquery1',
                     name: 'camp 1',
                     advertiserDisplayName: 'Heinz',
+                    cards: [{ id: 'e2e-rc-1' }],
                     status: 'active',
                     user: 'e2e-user',
                     org: 'e2e-org',
@@ -312,6 +314,7 @@ describe('ads campaigns endpoints (E2E):', function() {
                     id: 'e2e-getquery2',
                     name: 'camp 2 is great',
                     advertiserDisplayName: 'Heinz Ketchup',
+                    cards: [{ id: 'e2e-rc-2' }],
                     status: 'inactive',
                     user: 'not-e2e-user',
                     org: 'e2e-org',
@@ -364,6 +367,15 @@ describe('ads campaigns endpoints (E2E):', function() {
                 expect(resp.body[1].id).toBe('e2e-getquery2');
                 expect(resp.body[2].id).toBe('e2e-getquery3');
                 expect(resp.body[3].id).toBe('e2e-getquery5');
+                
+                expect(resp.body[0].cards).toEqual([
+                    { id: 'e2e-rc-1', title: 'test card 1', campaign: {}, status: 'active', user: 'not-e2e-user', org: 'e2e-org' },
+                ]);
+                expect(resp.body[1].cards).toEqual([
+                    { id: 'e2e-rc-2', title: 'test card 2', campaign: {}, status: 'active', user: 'not-e2e-user', org: 'e2e-org' },
+                ]);
+                expect(resp.body[2].cards).not.toBeDefined();
+                expect(resp.body[3].cards).not.toBeDefined();
                 expect(resp.response.headers['content-range']).toBe('items 1-4/4');
             }).catch(function(error) {
                 expect(util.inspect(error)).not.toBeDefined();
@@ -373,7 +385,7 @@ describe('ads campaigns endpoints (E2E):', function() {
         it('should write an entry to the audit collection', function(done) {
             requestUtils.qRequest('get', options).then(function(resp) {
                 expect(resp.response.statusCode).toBe(200);
-                return testUtils.mongoFind('audit', {}, {$natural: -1}, 1, 0, {db: 'c6Journal'});
+                return testUtils.mongoFind('audit', { service: 'ads' }, {$natural: -1}, 1, 0, {db: 'c6Journal'});
             }).then(function(results) {
                 expect(results[0].user).toBe('e2e-user');
                 expect(results[0].created).toEqual(jasmine.any(Date));
