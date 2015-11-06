@@ -3,6 +3,7 @@
 
     var q               = require('q'),
         express         = require('express'),
+        util            = require('util'),
         authUtils       = require('../lib/authUtils'),
         objUtils        = require('../lib/objUtils'),
         CrudSvc         = require('../lib/crudSvc'),
@@ -50,7 +51,7 @@
         
         return adtech.customerAdmin.getCustomerList(null, null, aove)
         .catch(function(error) {
-            log.error('[%1] Failed retrieving customers: %2', req.uuid, error);
+            log.error('[%1] Failed retrieving customers: %2', req.uuid, util.inspect(error));
             return q.reject('Adtech failure');
         })
         .then(function(adtechCusts) {

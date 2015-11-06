@@ -373,7 +373,7 @@
                 // merge req.body.cards entry with fetched C6 card
                 if (resp.response.statusCode === 200) {
                     req._cards[newCard.id] = resp.body;
-                    objUtils.extend(newCard, resp.body);
+                    objUtils.extend(newCard.campaign, resp.body.campaign);
                     return;
                 }
                 
