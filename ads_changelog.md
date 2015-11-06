@@ -1,6 +1,7 @@
 # Ads Service Changelog
 
 ### 3.0.0: Thu Nov  5 12:13:27 EST 2015
+* [FIX]: Update ads job endpoint to `/api/adjobs` to avoid adblockers: [#616](https://github.com/cinema6/cwrx/issues/616)
 * [FIX]: Properly compute cost: [#605](https://github.com/cinema6/cwrx/issues/605)
 * [FEATURE]: Add schema fetching endpoint: [#592](https://github.com/cinema6/cwrx/issues/592)
 * `text` query param for campaigns searches `advertiserDisplayName` as well: [#522](https://github.com/cinema6/cwrx/issues/522)
@@ -15,7 +16,7 @@
     * Update policies + roles to accomodate `campaignUpdates` entities
     * Setup mongo indexes for `campaignUpdates` collection
     * Coordinate with deployment of studio + selfie
-    * Deploy ads cookbook version 1.0.9
+    * Deploy ads cookbook version 1.0.10
 
 ### 2.0.0: Thu Oct 15 13:24:56 EDT 2015
 * [FIX]: Allow null to be set for validated fields: [#570](https://github.com/cinema6/cwrx/issues/570)

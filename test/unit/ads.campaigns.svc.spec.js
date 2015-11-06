@@ -500,7 +500,10 @@ describe('ads-campaigns (UT)', function() {
                 expect(req._origCards).toEqual({
                     'rc-3': { id: 'rc-3', title: 'card 3', campaign: { adtechId: 13 } }
                 });
-                expect(req.body.cards).toEqual([c6Cards['rc-1'], c6Cards['rc-2']]);
+                expect(req.body.cards).toEqual([
+                    { id: 'rc-1', campaign: { adtechId: 11 } },
+                    { id: 'rc-2', campaign: { adtechId: 12 } },
+                ]);
                 expect(req.origObj.cards).toEqual([c6Cards['rc-3']]);
                 expect(requestUtils.qRequest.calls.count()).toBe(3);
                 expect(requestUtils.qRequest).toHaveBeenCalledWith('get',
@@ -544,7 +547,7 @@ describe('ads-campaigns (UT)', function() {
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body.cards).toEqual([
                     { id: 'rc-1', title: 'card 1.1', tag: 'foo', campaign: { adtechId: 11 } },
-                    { id: 'rc-2', title: 'card 2', campaign: { adtechId: 12, adtechName: 'adtechSux' } }
+                    { id: 'rc-2', campaign: { adtechId: 12, adtechName: 'adtechSux' } }
                 ]);
                 expect(requestUtils.qRequest.calls.count()).toBe(3);
                 done();
@@ -559,8 +562,8 @@ describe('ads-campaigns (UT)', function() {
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body.cards).toEqual([
-                    { id: 'rc-1', title: 'card 1', campaign: { adtechId: 11 } },
-                    { id: 'rc-2', title: 'card 2', campaign: { adtechId: 12 } },
+                    { id: 'rc-1', campaign: { adtechId: 11 } },
+                    { id: 'rc-2', campaign: { adtechId: 12 } },
                     { title: 'my new card', campaign: {} }
                 ]);
                 expect(requestUtils.qRequest.calls.count()).toBe(3);
@@ -580,7 +583,6 @@ describe('ads-campaigns (UT)', function() {
                 expect(errorSpy).not.toHaveBeenCalled();
                 expect(req.body.cards).toEqual([{
                     id: 'rc-1',
-                    title: 'card 1',
                     name: 'foo', reportingId: 'bar', adtechId: 1111, bannerNumber: 6, bannerId: 666, startDate: 'now', endDate: 'later',
                     campaign: { adtechName: 'foo', reportingId: 'bar', adtechId: 1111, bannerNumber: 6, bannerId: 666, startDate: 'now', endDate: 'later' }
                 }]);
@@ -628,7 +630,10 @@ describe('ads-campaigns (UT)', function() {
                 expect(nextSpy).toHaveBeenCalled();
                 expect(doneSpy).not.toHaveBeenCalled();
                 expect(errorSpy).not.toHaveBeenCalled();
-                expect(req.body.cards).toEqual([c6Cards['rc-1'], c6Cards['rc-2']]);
+                expect(req.body.cards).toEqual([
+                    { id: 'rc-1', campaign: { adtechId: 11 } },
+                    { id: 'rc-2', campaign: { adtechId: 12 } }
+                ]);
                 expect(requestUtils.qRequest.calls.count()).toBe(4);
                 expect(mockLog.warn).toHaveBeenCalled();
                 done();
