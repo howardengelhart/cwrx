@@ -103,7 +103,7 @@
         },
         jobTimeouts: {
             enabled: true,
-            urlPrefix: '/api/ads/job',
+            urlPrefix: '/api/adjobs',
             timeout: 5*1000,
             cacheTTL: 60*60*1000,
         }
@@ -177,7 +177,7 @@
 
         app.use(bodyParser.json());
 
-        app.get('/api/ads/job/:id', function(req, res) {
+        app.get('/api/adjobs/:id', function(req, res) {
             jobManager.getJobResult(req, res, req.params.id).catch(function(error) {
                 res.send(500, { error: 'Internal error', detail: error });
             });
