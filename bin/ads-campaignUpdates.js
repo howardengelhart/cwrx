@@ -33,12 +33,6 @@
             __default: false,
             __locked: true
         },
-        initialSubmit: { // set automatically when update created
-            __type: 'boolean',
-            __allowed: false,
-            __default: false,
-            __locked: true
-        },
         campaign: { // set automatically based on campId in params
             __type: 'string',
             __allowed: false,
@@ -479,13 +473,13 @@
             
             var emailPromise, action;
             
-            if (approvingUpdate()) {
+            if (approvingUpdate(req)) {
                 emailPromise = email.updateApproved(
                     updateModule.config.emails.sender,
                     user.email,
                     !!req.origObj.initialSubmit,
                     req.campaign.name,
-                    updateModule.config.email.dashboardLink
+                    updateModule.config.emails.dashboardLink
                 );
                 action = 'approved';
             } else {
@@ -494,13 +488,13 @@
                     user.email,
                     !!req.origObj.initialSubmit,
                     req.campaign.name,
-                    updateModule.config.email.dashboardLink,
+                    updateModule.config.emails.dashboardLink,
                     req.body.rejectionReason
                 );
                 action = 'rejected';
             }
 
-            log.info('[%1] Notifying user %2 at %3 that request %3 was %4',
+            log.info('[%1] Notifying user %2 at %3 that request %4 was %5',
                      req.uuid, req.campaign.user, user.email, req.origObj.id, action);
             
             return emailPromise;

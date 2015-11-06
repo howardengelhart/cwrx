@@ -94,7 +94,6 @@
             userAccount,
             maxAge = config.sessions.maxAge,
             loginAttempts = config.loginAttempts,
-            emailSender = config.ses.sender,
             targets = config.passwordResetPages;
             
         req.body.email = req.body.email.toLowerCase();
@@ -124,7 +123,7 @@
                                     req.uuid, req.body.email, numAttempts);
                                     
                                 var target = targets[(userAccount.external) ? 'selfie' : 'portal'];
-                                return email.failedLogins(emailSender, req.body.email, target);
+                                return email.failedLogins(config.ses.sender, req.body.email,target);
                             }
                         })
                         .catch(function(error) {
@@ -192,12 +191,12 @@
         return deferred.promise;
     };
     
-    auth.forgotPassword = function(req, users, resetTokenTTL, emailSender, targets, auditJournal) {
+    auth.forgotPassword = function(req, users, config, auditJournal) {
         var log = logger.getLog(),
             now = new Date(),
             reqEmail = req.body && req.body.email,
             targetName = req.body && req.body.target || '',
-            target = targets[targetName] || '',
+            target = config.forgotTargets[targetName] || '',
             token;
         
         if (typeof reqEmail !== 'string' || !targetName) {
@@ -206,7 +205,7 @@
         }
         if (!target) {
             log.info('[%1] Invalid target %2, only accept %3',
-                     req.uuid, targetName, Object.keys(targets));
+                     req.uuid, targetName, Object.keys(config.forgotTargets));
             return q({code: 400, body: 'Invalid target'});
         }
         
@@ -237,7 +236,10 @@
                 var updates = {
                     $set: {
                         lastUpdated: now,
-                        resetToken: {token:hashed, expires:new Date(now.valueOf() + resetTokenTTL)}
+                        resetToken: {
+                            token: hashed,
+                            expires: new Date(now.valueOf() + config.resetTokenTTL)
+                        }
                     }
                 };
                 return q.npost(users, 'update', [{email:reqEmail}, updates, {w:1, journal:true}]);
@@ -248,7 +250,7 @@
                 var url = target + ((target.indexOf('?') === -1) ? '?' : '&') +
                           'id=' + account.id + '&token=' + token;
 
-                return email.passwordReset(emailSender, reqEmail, url);
+                return email.resetPassword(config.ses.sender, reqEmail, url);
             })
             .then(function() {
                 log.info('[%1] Successfully sent reset email to %2', req.uuid, reqEmail);
@@ -261,7 +263,7 @@
         });
     };
     
-    auth.resetPassword = function(req, users, config, cookieMaxAge, auditJournal, sessions) {
+    auth.resetPassword = function(req, users, config, auditJournal, sessions) {
         var log = logger.getLog(),
             id = req.body && req.body.id,
             token = req.body && req.body.token,
@@ -340,7 +342,7 @@
                     return authUtils.decorateUser(mongoUtils.safeUser(updatedAccount));
                 }).then(function(decorated) {
                     req.session.user = decorated.id;
-                    req.session.cookie.maxAge = cookieMaxAge;
+                    req.session.cookie.maxAge = config.sessions.maxAge;
                     return q({ code: 200, body: decorated });
                 });
             });
@@ -441,8 +443,7 @@
         });
         
         app.post('/api/auth/password/forgot', function(req, res) {
-            auth.forgotPassword(req, users, state.config.resetTokenTTL, state.config.ses.sender,
-                                state.config.forgotTargets, auditJournal)
+            auth.forgotPassword(req, users, state.config, auditJournal)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
@@ -453,8 +454,8 @@
         });
         
         app.post('/api/auth/password/reset', sessionsWrapper, function(req, res) {
-            auth.resetPassword(req, users, state.config.ses.sender, state.config.sessions.maxAge,
-                               auditJournal, state.sessionStore.db.collection('sessions'))
+            auth.resetPassword(req, users, state.config, auditJournal,
+                               state.sessionStore.db.collection('sessions'))
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(/*error*/) {
