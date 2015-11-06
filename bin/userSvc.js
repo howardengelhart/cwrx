@@ -28,7 +28,7 @@
         },
         ses: {
             region: 'us-east-1',
-            sender: 'support@cinema6.com'
+            sender: 'no-reply@cinema6.com'
         },
         sessions: {
             key: 'c6Auth',
@@ -83,7 +83,8 @@
             ]
         },
         activationTokenTTL: 1*60*60*1000, // 60 minutes; unit here is milliseconds
-        activationTarget: 'https://www.selfie.cinema6.com/activate',
+        activationTarget: 'http://localhost:9000/#/confirm?selfie=selfie', //TODO: MOVE??
+        dashboardLink: 'http://localhost:9000/#/apps/selfie/campaigns',
         newUserPermissions: {
             roles: ['newUserRole'],
             policies: ['newUserPolicy']

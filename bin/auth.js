@@ -44,7 +44,8 @@
         },
         ses: {
             region: 'us-east-1',
-            sender: 'support@cinema6.com'
+            sender: 'no-reply@cinema6.com',
+            supportAddress: 'support@cinema6.com'
         },
         forgotTargets: {
             portal: 'https://portal.cinema6.com/forgot'
@@ -123,8 +124,7 @@
                                     req.uuid, req.body.email, numAttempts);
                                     
                                 var target = targets[(userAccount.external) ? 'selfie' : 'portal'];
-                                return email.notifyMultipleLoginAttempts(emailSender,
-                                    req.body.email, target);
+                                return email.failedLogins(emailSender, req.body.email, target);
                             }
                         })
                         .catch(function(error) {
@@ -192,12 +192,6 @@
         return deferred.promise;
     };
     
-    auth.mailResetToken = function(sender, recipient, url) {
-        var subject = 'Reset your Cinema6 Password',
-            data = {url: url};
-        return email.compileAndSend(sender, recipient, subject, 'pwdReset.html', data);
-    };
-    
     auth.forgotPassword = function(req, users, resetTokenTTL, emailSender, targets, auditJournal) {
         var log = logger.getLog(),
             now = new Date(),
@@ -254,7 +248,7 @@
                 var url = target + ((target.indexOf('?') === -1) ? '?' : '&') +
                           'id=' + account.id + '&token=' + token;
 
-                return auth.mailResetToken(emailSender, reqEmail, url);
+                return email.passwordReset(emailSender, reqEmail, url);
             })
             .then(function() {
                 log.info('[%1] Successfully sent reset email to %2', req.uuid, reqEmail);
@@ -267,7 +261,7 @@
         });
     };
     
-    auth.resetPassword = function(req, users, emailSender, cookieMaxAge, auditJournal, sessions) {
+    auth.resetPassword = function(req, users, config, cookieMaxAge, auditJournal, sessions) {
         var log = logger.getLog(),
             id = req.body && req.body.id,
             token = req.body && req.body.token,
@@ -325,7 +319,11 @@
                     updatedAccount = results[0];
                     log.info('[%1] User %2 successfully reset their password', req.uuid, id);
                     
-                    email.notifyPwdChange(emailSender, account.email)
+                    email.passwordChanged(
+                        config.ses.sender,
+                        account.email,
+                        config.ses.supportAddress
+                    )
                     .then(function() {
                         log.info('[%1] Notified user of change at %2', req.uuid, account.email);
                     }).catch(function(error) {

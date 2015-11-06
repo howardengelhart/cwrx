@@ -40,7 +40,7 @@
                 <table border='0' cellpadding='30' cellspacing='0' style='margin-left: auto;margin-right: auto;width:600px;text-align:center;' width='600'>
                     <tr>
                         <td align='center' valign='top'>
-                            <img src="img/logo.png" style="outline:none; text-decoration:none;border:none,display:block;" width="50%" />
+                            <img src="cid:reelContentLogo" style="outline:none; text-decoration:none;border:none,display:block;" width="50%" />
                         </td>
                     </tr>
                 </table>
@@ -56,23 +56,27 @@
                             <table border='0' cellpadding='0' cellspacing='0' width='100%'>
                                 <tr>
                                     <td align='center' valign='top'>
-                                        <h2 style="line-height: 1.5 !important; font-weight: normal; font-size: 30px; margin:0;">Password Reset Successful</h2>
+                                        <h2 style="line-height: 1.5 !important; font-weight: normal; font-size: 30px; margin:0 0 1em;">Your Request Has Been Rejected</h2>
                                     </td>
                                 </tr>
                                 <tr>
                                     <td align='left' valign='top'>
                                         <p style='margin:0 0 1em; line-height:1.5;'>
-                                            <br>
-                                            Your ReelContent password was changed on (date)
+                                            Sorry! Your change request to campaign <strong>"{{campName}}"</strong> has been rejected for the following reason:
+                                        </p>
+                                        <p style='margin:0 0 1em; line-height:1.5;'>
+                                            <strong>{{rejectionReason}}</strong>
                                         </p>
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td align='left' valign='top'>
-                                        <p style='margin:0 0 1.5em; line-height:1.5;'>
-                                            <br>
-                                            If you did not change your password you may have been the victim of a phishing scam.  Please contact us at support@reelcontent.com to restore your password
-                                        </p>
+                                    <td align='center' bgcolor='#139da3' valign='top'>
+                                        <h3><a href="{{dashboardLink}}" style="color: #ffffff !important">Manage Campaigns</a></h3>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <p style='margin:0 0 1em;'></p>
                                     </td>
                                 </tr>
                                  <tr>
