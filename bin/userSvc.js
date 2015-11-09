@@ -26,9 +26,11 @@
         caches : {
             run     : path.normalize('/usr/local/share/cwrx/userSvc/caches/run/'),
         },
-        ses: {
-            region: 'us-east-1',
-            sender: 'no-reply@cinema6.com'
+        emails: {
+            awsRegion: 'us-east-1',
+            sender: 'no-reply@cinema6.com',
+            activationTarget: 'http://localhost:9000/#/confirm?selfie=selfie',
+            dashboardLink: 'http://localhost:9000/#/apps/selfie/campaigns',
         },
         sessions: {
             key: 'c6Auth',
@@ -83,8 +85,6 @@
             ]
         },
         activationTokenTTL: 1*60*60*1000, // 60 minutes; unit here is milliseconds
-        activationTarget: 'http://localhost:9000/#/confirm?selfie=selfie', //TODO: MOVE??
-        dashboardLink: 'http://localhost:9000/#/apps/selfie/campaigns',
         newUserPermissions: {
             roles: ['newUserRole'],
             policies: ['newUserPolicy']
@@ -122,7 +122,7 @@
         authUtils._db = state.dbs.c6Db;
 
         // Nodemailer will automatically get SES creds, but need to set region here
-        aws.config.region = state.config.ses.region;
+        aws.config.region = state.config.emails.region;
 
         var sessionOpts = {
             key: state.config.sessions.key,

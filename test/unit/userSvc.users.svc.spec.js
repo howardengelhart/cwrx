@@ -48,13 +48,14 @@ describe('userSvc (UT)', function() {
             })
         };
         mockConfig = {
-            ses: {
+            emails: {
                 region: 'us-east-1',
-                sender: 'support@cinema6.com'
+                sender: 'support@cinema6.com',
+                activationTarget: 'https://www.selfie.cinema6.com/activate',
+                dashboardLink: 'http://seflie.c6.com/review/campaigns'
             },
             port: 3500,
             activationTokenTTL: 60000,
-            activationTarget: 'https://www.selfie.cinema6.com/activate',
             newUserPermissions: {
                 roles: ['newUserRole1'],
                 policies: ['newUserPol1'],
@@ -250,8 +251,8 @@ describe('userSvc (UT)', function() {
         });
 
         it('should send confirmation email on user confirm', function() {
-            expect(userModule.sendConfirmationEmail.bind).toHaveBeenCalledWith(userModule, 'support@cinema6.com');
-            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.sendConfirmationEmail, [userModule, 'support@cinema6.com']));
+            expect(userModule.sendConfirmationEmail.bind).toHaveBeenCalledWith(userModule, 'support@cinema6.com', 'http://seflie.c6.com/review/campaigns');
+            expect(result._middleware.confirmUser).toContain(getBoundFn(userModule.sendConfirmationEmail, [userModule, 'support@cinema6.com', 'http://seflie.c6.com/review/campaigns']));
         });
 
         it('should handle a broken user', function() {
@@ -935,12 +936,12 @@ describe('userSvc (UT)', function() {
 
         beforeEach(function(done) {
             nextSpy = jasmine.createSpy('next()').and.returnValue(q());
-            spyOn(email, 'notifyAccountActivation').and.returnValue(q());
-            userModule.sendConfirmationEmail('sender', {user:{email:'some email'}}, nextSpy).done(done);
+            spyOn(email, 'accountWasActivated').and.returnValue(q());
+            userModule.sendConfirmationEmail('sender', 'http://dash.board', {user:{email:'some email'}}, nextSpy).done(done);
         });
 
         it('should notify account activation', function() {
-            expect(email.notifyAccountActivation).toHaveBeenCalledWith('sender', 'some email');
+            expect(email.accountWasActivated).toHaveBeenCalledWith('sender', 'some email', 'http://dash.board');
         });
 
         it('should call next', function() {
@@ -1136,7 +1137,7 @@ describe('userSvc (UT)', function() {
                 },
                 tempToken: '6162636465666768696a6b6c6d6e6f707172737475767778'
             };
-            spyOn(email, 'sendActivationEmail').and.returnValue(q());
+            spyOn(email, 'activateAccount').and.returnValue(q());
             nextSpy = jasmine.createSpy('next()');
             doneSpy = jasmine.createSpy('done()');
         });
@@ -1144,7 +1145,7 @@ describe('userSvc (UT)', function() {
         it('should send an activation email', function(done) {
             userModule.sendActivationEmail('sender', 'target', req, nextSpy, doneSpy)
             .then(function() {
-                expect(email.sendActivationEmail).toHaveBeenCalledWith('sender', 'email@email.com', 'target?id=u-abcdefghijklmn&token=6162636465666768696a6b6c6d6e6f707172737475767778');
+                expect(email.activateAccount).toHaveBeenCalledWith('sender', 'email@email.com', 'target?id=u-abcdefghijklmn&token=6162636465666768696a6b6c6d6e6f707172737475767778');
             })
             .catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -1155,7 +1156,7 @@ describe('userSvc (UT)', function() {
         it('should handle targets with existing query params', function(done) {
             userModule.sendActivationEmail('sender', 'https://staging.cinema6.com/#/activate?selfie=selfie', req, nextSpy, doneSpy)
             .then(function() {
-                expect(email.sendActivationEmail).toHaveBeenCalledWith('sender', 'email@email.com', 'https://staging.cinema6.com/#/activate?selfie=selfie&id=u-abcdefghijklmn&token=6162636465666768696a6b6c6d6e6f707172737475767778');
+                expect(email.activateAccount).toHaveBeenCalledWith('sender', 'email@email.com', 'https://staging.cinema6.com/#/activate?selfie=selfie&id=u-abcdefghijklmn&token=6162636465666768696a6b6c6d6e6f707172737475767778');
             })
             .catch(function(error) {
                 expect(error).not.toBeDefined();
@@ -1193,7 +1194,7 @@ describe('userSvc (UT)', function() {
         });
 
         it('should call done if failed due to a malformed email', function(done) {
-            email.sendActivationEmail.and.returnValue(q.reject({name: 'InvalidParameterValue'}));
+            email.activateAccount.and.returnValue(q.reject({name: 'InvalidParameterValue'}));
             userModule.sendActivationEmail('sender', 'target', req, nextSpy, doneSpy)
             .then(function() {
                 expect(nextSpy).not.toHaveBeenCalled();
@@ -1210,7 +1211,7 @@ describe('userSvc (UT)', function() {
 
         it('should reject if something fails', function(done) {
             var errorSpy = jasmine.createSpy('errorSpy()');
-            email.sendActivationEmail.and.returnValue(q.reject({}));
+            email.activateAccount.and.returnValue(q.reject({}));
             userModule.sendActivationEmail('sender', 'target', req, nextSpy, doneSpy)
             .catch(errorSpy)
             .done(function() {
@@ -1741,7 +1742,7 @@ describe('userSvc (UT)', function() {
             };
             emailSender = 'johnnytestmonkey@cinema6.com';
 
-            result = userModule.changePassword(svc, req, emailSender);
+            result = userModule.changePassword(svc, req, emailSender, 'support@c6.com');
         });
 
         it('should call and return svc.customMethod()', function() {
@@ -1776,7 +1777,7 @@ describe('userSvc (UT)', function() {
 
                 beforeEach(function(done) {
                     error = new Error('It didn\'t work.');
-                    spyOn(email, 'notifyPwdChange');
+                    spyOn(email, 'passwordChanged');
 
                     editObjectDeferred.reject(error);
                     editObjectDeferred.promise.finally(done);
@@ -1791,7 +1792,7 @@ describe('userSvc (UT)', function() {
                 });
 
                 it('should not send an email', function() {
-                    expect(email.notifyPwdChange).not.toHaveBeenCalled();
+                    expect(email.passwordChanged).not.toHaveBeenCalled();
                 });
             });
 
@@ -1800,14 +1801,14 @@ describe('userSvc (UT)', function() {
 
                 beforeEach(function(done) {
                     notifyDeffered = q.defer();
-                    spyOn(email, 'notifyPwdChange').and.returnValue(notifyDeffered.promise);
+                    spyOn(email, 'passwordChanged').and.returnValue(notifyDeffered.promise);
 
                     editObjectDeferred.resolve();
                     editObjectDeferred.promise.finally(done);
                 });
 
                 it('should send an email notifying the user of the password change', function() {
-                    expect(email.notifyPwdChange).toHaveBeenCalledWith(emailSender, req.body.email);
+                    expect(email.passwordChanged).toHaveBeenCalledWith(emailSender, req.body.email, 'support@c6.com');
                 });
 
                 it('should not log an error', function() {
@@ -1850,7 +1851,7 @@ describe('userSvc (UT)', function() {
         });
     });
 
-    describe('changeEmail(svc, req, emailSender)', function() {
+    describe('changeEmail(svc, req, emailSender, supportContact)', function() {
         var deferred;
         var users;
         var svc, req, emailSender;
@@ -1878,7 +1879,7 @@ describe('userSvc (UT)', function() {
             };
             emailSender = 'johnnytestmonkey@cinema6.com';
 
-            result = userModule.changeEmail(svc, req, emailSender);
+            result = userModule.changeEmail(svc, req, emailSender, 'support@c6.com');
         });
 
         it('should call and return svc.customMethod()', function() {
@@ -1913,7 +1914,7 @@ describe('userSvc (UT)', function() {
 
                 beforeEach(function(done) {
                     error = new Error('I GOT A PROBLEM');
-                    spyOn(email, 'compileAndSend');
+                    spyOn(email, 'emailChanged');
 
                     editObjectDeferred.reject(error);
 
@@ -1929,7 +1930,7 @@ describe('userSvc (UT)', function() {
                 });
 
                 it('should not send an email', function() {
-                    expect(email.compileAndSend).not.toHaveBeenCalled();
+                    expect(email.emailChanged).not.toHaveBeenCalled();
                 });
             });
 
@@ -1938,19 +1939,18 @@ describe('userSvc (UT)', function() {
 
                 beforeEach(function(done) {
                     emailDeferred = q.defer();
-                    spyOn(email, 'compileAndSend').and.returnValue(emailDeferred.promise);
+                    spyOn(email, 'emailChanged').and.returnValue(emailDeferred.promise);
 
                     editObjectDeferred.resolve();
                     editObjectDeferred.promise.finally(done);
                 });
 
                 it('should send the user an email', function() {
-                    expect(email.compileAndSend).toHaveBeenCalledWith(
+                    expect(email.emailChanged).toHaveBeenCalledWith(
                         emailSender,
                         req.body.email,
-                        'Your Account Email Address Has Changed',
-                        'emailChange.html',
-                        { newEmail: req.body.newEmail, sender: emailSender }
+                        req.body.newEmail,
+                        'support@c6.com'
                     );
                 });
 

@@ -1,5 +1,9 @@
 # Ads Service Changelog
 
+* Integrate designed email templates: [#553](https://github.com/cinema6/cwrx/issues/553)
+* Extra deployment steps:
+    * Deploy ads cookbook 1.0.11 to staging/production envs
+
 ### 3.0.0: Thu Nov  5 12:13:27 EST 2015
 * [FIX]: Update ads job endpoint to `/api/adjobs` to avoid adblockers: [#616](https://github.com/cinema6/cwrx/issues/616)
 * [FIX]: Properly compute cost: [#605](https://github.com/cinema6/cwrx/issues/605)

@@ -107,7 +107,7 @@
         var giveActivationToken = userModule.giveActivationToken.bind(userModule,
             config.activationTokenTTL);
         var sendActivationEmail = userModule.sendActivationEmail.bind(userModule,
-            config.ses.sender, config.activationTarget);
+            config.emails.sender, config.emails.activationTarget);
         var setupSignupUser = userModule.setupSignupUser.bind(userModule, userSvc,
             config.newUserPermissions.roles, config.newUserPermissions.policies);
         var validatePassword = userModule.validatePassword;
@@ -115,7 +115,7 @@
         var createLinkedEntities = userModule.createLinkedEntities.bind(userModule, config.api,
             config.port, cache);
         var sendConfirmationEmail = userModule.sendConfirmationEmail.bind(userModule,
-            config.ses.sender, config.dashboardLink);
+            config.emails.sender, config.emails.dashboardLink);
         var handleBrokenUser = userModule.handleBrokenUser.bind(userModule, userSvc);
 
         // override some default CrudSvc methods with custom versions for users
@@ -865,10 +865,10 @@
         app.post('/__internal/sixxyUserSession', sessions, function(req, res) {
             userModule.insertSixxySession(req, res, config);
         });
-
+        
         var credsChecker = authUtils.userPassChecker();
         router.post('/email', credsChecker, audit, function(req, res) {
-            userModule.changeEmail(svc, req, config.ses.sender, config.ses.supportAddress)
+            userModule.changeEmail(svc, req, config.emails.sender, config.emails.supportAddress)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {
@@ -880,7 +880,7 @@
         });
 
         router.post('/password', credsChecker, audit, function(req, res) {
-            userModule.changePassword(svc, req, config.ses.sender, config.ses.supportAddress)
+            userModule.changePassword(svc, req, config.emails.sender, config.emails.supportAddress)
             .then(function(resp) {
                 res.send(resp.code, resp.body);
             }).catch(function(error) {

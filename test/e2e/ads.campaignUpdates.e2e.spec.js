@@ -177,7 +177,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         expect(msg.from[0].address.toLowerCase()).toBe('no-reply@cinema6.com');
         expect(msg.to[0].address.toLowerCase()).toBe('c6e2etester@gmail.com');
         [
-            new RegExp('created\\s*by\\s*c6e2etester@gmail.com\\s*for\\s*campaign\\s*"' + camp.name + '"'),
+            new RegExp('created\\s*by\\s*c6e2etester@gmail.com\\s*for\\s*campaign.*' + camp.name),
             new RegExp('review\\s*the\\s*campaign.*\\s*http.*' + camp.id + '\/admin')
         ].forEach(function(regex) {
             expect(msg.text).toMatch(regex);
@@ -191,7 +191,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         expect(msg.to[0].address.toLowerCase()).toBe('c6e2etester@gmail.com');
         
         var regex = new RegExp('Your\\s*' + (!isInitial ? 'change\\s*request\\s*to\\s*' : '') +
-                               'campaign.*"' + camp.name + '".*has\\s*been\\s*approved');
+                               'campaign.*' + camp.name + '.*has\\s*been\\s*approved');
         expect(msg.text).toMatch(regex);
         expect(msg.html).toMatch(regex);
         expect((new Date() - msg.date)).toBeLessThan(30000); // message should be recent
@@ -202,7 +202,7 @@ describe('ads campaignUpdates endpoints (E2E):', function() {
         expect(msg.to[0].address.toLowerCase()).toBe('c6e2etester@gmail.com');
         [
             new RegExp('Your\\s*' + (!isInitial ? 'change\\s*request\\s*to\\s*' : '') +
-                       'campaign.*"' + camp.name + '".*has\\s*been\\s*rejected'),
+                       'campaign.*' + camp.name + '.*has\\s*been\\s*rejected'),
             new RegExp(reason)
         ].forEach(function(regex) {
             expect(msg.text).toMatch(regex);

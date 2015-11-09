@@ -1,5 +1,9 @@
 # User Service Changelog
 
+* Integrate designed email templates: [#553](https://github.com/cinema6/cwrx/issues/553)
+* Extra deployment steps:
+    * Deploy userSvc cookbook 1.3.9 to staging/production envs
+
 ### 2.1.2: Thu Nov  5 12:13:27 EST 2015
 * [FIX]: Fix for an issue that arose on concurrent confirmation requests: [#567](https://github.com/cinema6/cwrx/issues/567)
 * Allow `null` to be set for validated fields: [#573](https://github.com/cinema6/cwrx/pull/573)
